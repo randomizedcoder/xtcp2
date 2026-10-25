@@ -19,8 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	flat "github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
+	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/internal/goip"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"

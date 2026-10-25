@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 )
 
 // Execute the production SQL against an isolated ClickHouse local database.

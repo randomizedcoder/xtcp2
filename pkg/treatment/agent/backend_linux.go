@@ -2,7 +2,7 @@ package agent
 
 import (
 	"context"
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/internal/goip"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 )

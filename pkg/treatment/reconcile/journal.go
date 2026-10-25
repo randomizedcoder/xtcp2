@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/prototext"

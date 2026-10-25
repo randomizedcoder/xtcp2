@@ -24,7 +24,7 @@ flowchart LR
 
 The implementation lives under [pkg/treatment](../pkg/treatment), split by
 audience so that each binary links only the half of the contract it needs, with
-a typed [protobuf contract](../proto/xtcp/controller/v1/controller.proto):
+a typed [protobuf contract](../proto/xtcp_treatment/v1/) (`xtcp_treatment.v1`: `treatment.proto` types, `agent.proto`, `operator.proto`):
 
 | Package | Used by | Contents |
 | --- | --- | --- |

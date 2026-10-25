@@ -59,7 +59,7 @@ func treatmentBoundaryRules() []boundaryRule {
 			expectAny:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment")},
 		},
 		{
-			// TODO(item 2): add gen/go/xtcp_controller to forbidden once the
+			// TODO(item 2): add gen/go/xtcp_treatment to forbidden once the
 			// contract package stops importing the proto (domain types land).
 			description: "negative: the identity package is a leaf below the contract and gRPC credentials",
 			root:        tp("pkg/treatment/identity"),

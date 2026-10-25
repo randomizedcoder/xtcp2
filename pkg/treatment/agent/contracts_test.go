@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	flat "github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
+	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
