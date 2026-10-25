@@ -2581,6 +2581,148 @@ Then the 11 rows go in `gated_commands` (`pkg/nlparity/goip-parity-allowlist.jso
 
 ### KG1 — goip bridge
 
+Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` words into KP1's encoders and replay KC2's requests; KG1-T03 and KG1-T04 render the two kinds' `-d` and `-d -j` output; KG1-T05 adds the matrix rows and gates them, which closes KG1. The codec is KP1's (`pkg/xtcpnl/xtcpnl_bridge.go`, `xtcpnl_bridge_slave.go`), which decodes into `LinkInfo.Bridge` and `LinkInfo.BridgeSlave` but renders nothing, so KG1 is argument parsing, exit statuses, the renderer and the matrix.
+
+**The rows** (`pkg/xtcpnl/testdata/7_3_0/link-write/kinds/`, argv in `kind-write-corpus.exp`):
+
+| kind | rows | rc 0 | rc 2 (kernel) | rc 1 / 255 (`ip`, before the write) | requests |
+|---|---|---|---|---|---|
+| bridge | 60 | 50 | 5 | 2 / 3 | 55 |
+| bridge_slave | 42 | 30 | 7 | 2 / 3 | 37 |
+
+**What `ip` does** (`ip/iplink_bridge.c`, `iplink_bridge_slave.c` at `v7.2.0`):
+- **Keywords.** `bridge_parse_opt` is a `matches`/`strcmp` chain in its own order, which isn't `bridge_print_opt`'s; `BridgeOptionSpec.Match` says which (KP1-T01). `bridge_slave_parse_opt` likewise, with `nobackup_port` (no row in `BridgeSlaveOptions`: it sends `backup_port` 0) and `fdb_flush`.
+- **Statuses.** An unknown word returns from `parse_opt`, so `ip` prints `bridge: unknown command "<w>"?` (`bridge_slave: unknown option "<w>"?`) and its usage, and exits 1. A bad `stp_mode` returns too (1), as does `bridge_slave_parse_on_off`'s `exit(1)`. `invarg` and `incomplete_command` exit 255.
+- **Lookups.** `ip link set dev p0 type bridge_slave …` looks p0 up before the kind's words are read, so even a slave refusal sends p0's get. `backup_port` resolves its name with `ll_name_to_index`, a get, before `invarg("Device does not exist")`. A bridge `add` refusal sends nothing.
+- **Rendering.** `_bridge_print_timer` prints jiffies as `"%s %4i.%.2i "` (`gc_timer    0.00`) and, in JSON, a raw number (`0.00`). `br_dump_bridge_id` prints `%.2x%.2x.` and `ether_ntoa_r`'s unpadded address (`8000.0:0:0:0:0:0`). `vlan_protocol` goes through `ll_proto_n2a` (`802.1Q`), `group_fwd_mask` through `%#llx` (`0` for zero), the querier state through `lib/bridge.c`'s `bridge_print_mcast_querier_state`. A port prints `port_id`/`port_no` as hex (JSON `id`, `no`), its state by name, `group_fwd_mask_str`, and `backup_port` through `ll_index_to_name`.
+
+**Exit statuses.** KG0's decision holds: goip matches `ip`'s status. The bridge parsers wrap `invarg` and `incomplete_command` in `ErrLinkUsage` (255) and return the rest as `ErrInvalidArgument` (1). The bond parsers are unchanged until KG5.
+
+#### KG1-T01 The bridge words
+
+**Code.** `internal/goip/link_bridge_args.go`, following `link_bond_args.go`: `parseBridgeArgs(args []string) ([]xtcpnl.BridgeSetting, error)`, its chain in `bridge_parse_opt`'s order, each arm pointing at its `xtcpnl.BridgeOptions` row by id and matched by its `Match`. Values by `Wire`: unsigned through `get_u*`'s bases, `group_address` as a MAC, `vlan_protocol` through `ll_proto_a2n`, `stp_mode` by name, the five boolopts collected into one `MULTI_BOOLOPT`. A `kindBridgeCst` case in `kindData` calls `xtcpnl.EncodeBridgeInfoData`.
+
+`TestLinkBridgeWriteMatchesIp`, replaying `kinds/bridge/*` through `newLinkReplay` with `useLLMap720`: goip sends `ip`'s lookups and writes `ip`'s request, byte for byte with seq and pid zeroed, and exits 0.
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 55 rows | its lookups, then its request |
+| positive: the defaults | `add_default` | `IFLA_INFO_KIND` bridge, no `INFO_DATA` |
+| negative: a request the kernel refuses is built anyway | the 5 rc 2 rows | their requests |
+| boundary: the boolopts in one attribute | `add_boolopts` | one `MULTI_BOOLOPT`, last |
+| corner: a `matches` keyword abbreviated | `add_abbrev` (`forward_d 400`) | `FORWARD_DELAY` |
+| corner: a set prefetches br0 | `set_ageing_time` | br0's get, then the set |
+
+`TestLinkBridgeRefusals`: status and stderr's first line (goip prints no usage, as for bond).
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_stp_mode_abbrev`, `add_stp_mode_bad` (1); `add_no_value`, `add_priority_bad`, `add_vlan_protocol_bad` (255) | the row's `ip.rc`, its `ip.err` first line, nothing sent |
+| negative: an unknown word | `type bridge bogus 1` | 1, `bridge: unknown command "bogus"?` |
+| boundary: a u16 one past its range | `priority 65536` | 255, `argument "65536" is wrong: invalid priority` |
+| corner: a `strcmp` keyword abbreviated | `mst_en 1` | 1, unknown command |
+
+**Mutation check:** every keyword matched by prefix (`add_stp_mode_abbrev`); `MULTI_BOOLOPT` per word (`add_boolopts`); `invarg` mapped to 1 (the 255 rows).
+
+**Done when:** the tables pass with `go test -count=1 -race ./internal/goip/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.
+
+#### KG1-T02 The bridge_slave words
+
+**Code.** `internal/goip/link_bridge_slave_args.go`: `parseBridgeSlaveArgs(args []string, resolve linkResolver) ([]xtcpnl.BridgeSlaveSetting, error)`, `bridge_slave_parse_opt`'s chain. `state` is a `get_u8` number (the names are print-only), on/off words go through `bridge_slave_parse_on_off`'s text, `backup_port` resolves through the resolver (a get) and `nobackup_port` sends 0. A `kindBridgeSlaveCst` case in `kindData` calls `xtcpnl.EncodeBridgeSlaveData`.
+
+`TestLinkBridgeSlaveWriteMatchesIp`, as KG1-T01's over `kinds/bridge_slave/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 37 rows | p0's get (and p1's for `backup_port p1`), then its request |
+| positive: the backup port by name | `set_backup_port` | p1's get, `BACKUP_PORT` p1's index |
+| negative: a request the kernel refuses is built anyway | the 7 rc 2 rows | their requests |
+| boundary: no backup port | `set_nobackup_port` | `BACKUP_PORT` 0, no get |
+| corner: an abbreviation | `set_abbrev` (`co 10`) | `COST` 10 |
+| corner: a port that isn't enslaved | `set_not_enslaved` | the request; the `EOPNOTSUPP` is the kernel's |
+
+`TestLinkBridgeSlaveRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `set_strcmp_abbrev`, `set_on_off_bad` (1); `set_backup_port_missing`, `set_cost_bad`, `set_no_value` (255) | the row's `ip.rc` and `ip.err` first line; p0's get sent, and nosuch's for `set_backup_port_missing`; no write |
+| negative: an unknown word | `bogus on` | 1, `bridge_slave: unknown option "bogus"?` |
+| boundary: a state past a u8 | `state 256` | 255, `argument "256" is wrong: state is invalid`, after p0's get |
+| corner: `nobackup_port` with a value after it | `nobackup_port p1` | 1, unknown option `p1` |
+
+**Mutation check:** `nobackup_port` dropped (`set_nobackup_port`); the backup port's get skipped (`set_backup_port_missing`); `neigh_forward_grat` matched by prefix (`set_strcmp_abbrev`).
+
+**Done when:** as KG1-T01.
+
+#### KG1-T03 The bridge's `-d` output
+
+**Code.** `internal/goip/render/link_bridge.go`: `bridgeData(*xtcpnl.BridgeInfo) *KindData`, walking `xtcpnl.BridgeOptions` in print order with each row's JSON key (KP1's decision: the JSON keys aren't the keywords). Timers go into `KindData` as `json.RawMessage`, since a float can't print `0.00`. `bridge_id`, `designated_root` and `group_address` get their own formatters, the querier state its nested objects. A `BridgeKindCst` case in `render.kindData`, and `bridge` in `renderableInfoData`.
+
+`TestLinkShowDetailBridgeMatchesSidecar`, following `TestLinkShowDetailBondMatchesSidecar`: `GOIP_REPLAY` is the row's own `netlink_route_getlink_detail.pcap` (`_json.pcap` for JSON), since the timers move between the two readbacks.
+
+| description | input | expected |
+|---|---|---|
+| positive: each accepted row's `-d` | the 50 rc 0 rows | `ip_getlink_detail`, line for line |
+| positive: each accepted row's `-d -j` | the 50 rc 0 rows | `ip_getlink_detail_json`, entry for entry |
+| negative: a bridge without `-d` | `add_default`, `link show` | `ip_getlink`; no bridge line |
+| boundary: a timer that moved | `set_ageing_time`'s two readbacks | each matches its own pcap |
+| corner: an unpadded bridge id | `add_priority` | `bridge_id 0064.0:0:0:0:0:0` |
+| corner: the timers as raw JSON numbers | `add_default`, `-j` | `"gc_timer":0.00` |
+
+`TestLinkShowBridgeDetailIsGated` is replaced by these rows: `-d` no longer refuses a bridge.
+
+**Mutation check:** the address padded (`add_priority`); a timer as a float (the JSON corner); an option out of print order (every row).
+
+**Done when:** as KG1-T01.
+
+#### KG1-T04 The bridge port's `-d` output
+
+**Code.** `render/link_bridge_slave.go`: `bridgeSlaveData(*xtcpnl.BridgeSlaveInfo, NameTab) *KindData`. `slaveKindData` takes the `NameTab`, and `resolveLinkRefs` (`obj_link.go`) sends the `backup_port` get under `-d`, as it does for a bond's `active_slave`. `bridge_slave` in `checkDetailSupported`'s slave arm.
+
+`TestLinkShowDetailBridgeSlaveMatchesSidecar`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each accepted row's `-d` | the 30 rc 0 rows | `ip_getlink_detail` |
+| positive: each accepted row's `-d -j` | the 30 rc 0 rows | `ip_getlink_detail_json` |
+| negative: a port without `-d` | `set_cost`, `link show` | `ip_getlink`; `master br0`, no slave line |
+| boundary: the state the kernel rewrote | `set_state` | `state forwarding` |
+| corner: the backup port by name | `set_backup_port` | `backup_port p1`, after p1's get |
+| corner: hex ids | `set_cost`, `-j` | `"id":"0x8001"`, `"no":"0x1"`, `group_fwd_mask_str` `0x0` |
+
+**Mutation check:** `backup_port` by index (`set_backup_port`); the state's name table off by one (`set_state`); `group_fwd_mask_str` dropped (the hex corner).
+
+**Done when:** as KG1-T01.
+
+#### KG1-T05 The bridge matrix rows
+
+**Rows.** In `internal/goipparity/commands.go`, after the inet rows:
+- **Write rows**, slug `link_bridge_<slug>` and `link_bridge_slave_<slug>`, one per KC2 row that sent a request (55 and 37), argv as KC2 ran it. `Floor` is the row's `ip.pcap` record count: 2 for an add, 4 for a set, 6 for a backup-port set. `Setup` is the row's `topology`: none for an add, `bridgeSetupBr0` (`link add br0 type bridge`) for a set, `bridgeSetupBr0Stp` for `set_stp_mode_busy`, `bridgeSetupPorts` (br0, p0 and p1 dummies, both enslaved) for a port row, with `state`'s and `nobackup_port`'s extra steps and `set_not_enslaved`'s p0 alone.
+- **Read rows**: `-d link show dev br0`, `-d -j link show dev br0`, `-d link show dev p0` and `-d -j link show dev p0`, on `bridgeSetupPorts`.
+
+The stdout comparison is the facets (`stdout.go`'s `keywords`), not the kind text, so the read rows hold the device's other lines and the timers move freely; the sidecar tests above are the text and JSON oracle.
+
+`TestBridgeMatrixRows`:
+
+| description | input | expected |
+|---|---|---|
+| positive: one write row per request row | the `link_bridge_*` slugs | 92, in KC2's order |
+| negative: no `ip`-refused row | the 10 slugs | absent |
+| boundary: each floor | `Floor` | the row's `ip.pcap` record count |
+| corner: each setup | `Setup` | the row's `topology` file, step for step |
+| positive: every row is gated | `IsGated` | true, after the two runs |
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: two consecutive clean section runs | `goip-parity -- --timeout 12000 --section link`, twice | the 96 rows `PASS` on both, and every gated `link` row still `PASS` |
+| corner: the kernel-refused rows compare on the request | the 12 rc 2 rows | `PASS` |
+
+Then the 96 rows go in `gated_commands`. A full run comes before the next push.
+
+**Mutation check:** a floor short by 2 (the floor row); a setup step dropped (the setup row); a row dropped from `gated_commands` (the gated row).
+
+**Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG1.
+
 ### KG2 — goip VLAN family
 
 ### KG3 — goip UDP overlays
