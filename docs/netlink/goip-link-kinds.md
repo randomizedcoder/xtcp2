@@ -2157,11 +2157,11 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 
 | description | input | expected |
 |---|---|---|
-| positive: an ipip's dump | `ipip/add_default` | proto `ipip`, remote, pmtudisc true |
+| positive: an ipip's dump keeps ip's default proto, any | `ipip/add_default` | proto `any` (`ip` sends `PROTO` 0), remote, pmtudisc true |
 | positive: sit's isatap | `sit/add_isatap` | isatap true |
 | positive: the mpls mode | `ipip/add_mode_mplsip` | proto `mplsip` |
 | negative: a nil nest | `nil` | `nil` |
-| negative: a short local | built `LOCAL` of 2 bytes | `local` `any` |
+| negative: a short local is dropped | built `LOCAL` of 2 bytes | `local` `any` |
 | boundary: an empty nest | `[]byte{}` | `remote`/`local` `any`, ttl 0, pmtudisc false |
 | corner: a proto with no name | built `PROTO` 47 | no `proto` key |
 | corner: a 6rd prefix with no relay | built prefix 2001:db8::/32, relay 0 | prefix keys, no relay keys |
@@ -2174,11 +2174,13 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 | positive: each row's request | the 60 ipip and sit rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
 | negative: `ttl` with `nopmtudisc` | `ttl 64 nopmtudisc` | `ErrKindSettingConflict` |
 | negative: `ip6ip` on ipip | the mode 41, ipip | `ErrKindSettingRange` |
+| negative: `isatap` on ipip | `isatap`, ipip | `ErrKindSettingOption` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
 | boundary: no settings | none | no attributes |
 | corner: `PROTO` before `COLLECT_METADATA` | `external` | `PROTO` 0, `COLLECT_METADATA` |
-| corner: ipip drops the 6rd words | `ipip/add_6rd_ignored` | its request, no 6rd attribute |
+| corner: ipip drops the 6rd words | `remote 10.0.0.1 6rd-prefix 2001:db8::/32 6rd-relay_prefix 10.0.0.0/8`, ipip | no 6rd attribute, no `FLAGS` (`ipip/add_6rd_ignored` is the corpus row) |
 | corner: a set's seeded ttl with `nopmtudisc` | `ipip/set_nopmtudisc_ttl`'s prefetch, `nopmtudisc` | `ErrKindSettingConflict`, as `ip`'s 255 |
+| corner: a set keeps a prefetched isatap | built `cur` with `ISATAP`, `ttl 0`, sit | `FLAGS` `01 00` |
 
 `TestLinkInfoIptunKinds`: ipip and sit decode `Iptun`; a gre does not; ip6tnl (corner) does.
 

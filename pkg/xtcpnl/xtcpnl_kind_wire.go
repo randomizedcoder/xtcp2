@@ -40,6 +40,12 @@ func kindU32(val []byte, dst *uint32, has *bool) {
 	}
 }
 
+func kindU16(val []byte, dst *uint16, has *bool) {
+	if len(val) >= 2 {
+		*dst, *has = binary.LittleEndian.Uint16(val), true
+	}
+}
+
 func kindU8(val []byte, dst *uint8, has *bool) {
 	if len(val) >= 1 {
 		*dst, *has = val[0], true

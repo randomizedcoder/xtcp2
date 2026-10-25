@@ -18,9 +18,9 @@
 - KP1 is done (KP1-T01, KP1-T02; planned in DOC010): `pkg/xtcpnl/xtcpnl_bridge.go` is the bridge's 53-row option table and `xtcpnl_bridge_slave.go` the port's 44-row one. Each has a decoder that renders every accepted row's dump exactly as its `-d -j` readback prints it (50 bridge rows, 30 port rows), and an encoder that rebuilds the data nest of every row that sent a request byte for byte (55 and 37). `LinkInfo` carries `Bridge` and `BridgeSlave`. KP2 is planned (DOC011).
 - KP2 is done (KP2-T01, KP2-T02, KP2-T03; planned in DOC011): `pkg/xtcpnl/xtcpnl_vlan.go` decodes the vlan kind into `LinkInfo.Vlan`, rendering all 15 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 21 rows that sent a request byte for byte. `xtcpnl_macvlan.go` does the same for macvlan and macvtap into `LinkInfo.Macvlan` (25 accepted rows, 30 requests), and `xtcpnl_ipvlan.go` for ipvlan and ipvtap into `LinkInfo.Ipvlan` (14 and 17). KP3 is planned (DOC012).
 - KP3 is done (KP3-T01, KP3-T02, KP3-T03, KP3-T04; planned in DOC012): `pkg/xtcpnl/xtcpnl_vxlan.go` decodes the vxlan kind into `LinkInfo.Vxlan`, rendering all 46 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 58 rows that sent a request byte for byte, adds and sets alike. `xtcpnl_geneve.go` does the same for geneve into `LinkInfo.Geneve` (22 accepted rows, 35 requests), `xtcpnl_bareudp.go` for bareudp into `LinkInfo.Bareudp` (6 and 10), `xtcpnl_amt.go` for amt into `LinkInfo.Amt` (5 and 13) and `xtcpnl_gtp.go` for gtp into `LinkInfo.Gtp` (7 and 11); they share `xtcpnl_kind_wire.go`. KP4 is planned (DOC013).
-- KP4 is in progress (KP4-T01, KP4-T02): `pkg/xtcpnl/xtcpnl_gre.go` decodes the six gre kinds into `LinkInfo.Gre`, rendering all 44 accepted gre, gretap and erspan rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 60 rows that sent a request byte for byte, sets seeded from their prefetch. `xtcpnl_gre6.go` does the same for ip6gre, ip6gretap and ip6erspan (36 accepted rows, 50 requests). The shared `TunnelEncap` block lives in `xtcpnl_kind_wire.go`.
+- KP4 is in progress (KP4-T01, KP4-T02, KP4-T03): `pkg/xtcpnl/xtcpnl_gre.go` decodes the six gre kinds into `LinkInfo.Gre`, rendering all 44 accepted gre, gretap and erspan rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 60 rows that sent a request byte for byte, sets seeded from their prefetch. `xtcpnl_gre6.go` does the same for ip6gre, ip6gretap and ip6erspan (36 accepted rows, 50 requests), and `xtcpnl_iptun.go` for ipip and sit into `LinkInfo.Iptun` (46 and 60), which ip6tnl's dump also fills. The shared `TunnelEncap` block lives in `xtcpnl_kind_wire.go`.
 
-**Next action:** [KP4-T03](goip-link-kinds.md#kp4-t03-the-ipip-and-sit-parser): the ipip and sit parser.
+**Next action:** [KP4-T04](goip-link-kinds.md#kp4-t04-the-ip6tnl-parser): the ip6tnl parser.
 
 ## Contents
 
@@ -56,7 +56,7 @@
 | [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | KP1-T02 | done | V075–V080, DOC011 |
 | [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | KP2-T03 | done | V081–V089, DOC012 |
 | [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | done | V090–V101, DOC013 |
-| [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | KP4-T05 | in progress | V102–V107 |
+| [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | KP4-T05 | in progress | V102–V110 |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | | not started | |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | | not started | |
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | | not started | |
@@ -105,7 +105,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KP3-T04](goip-link-kinds.md#kp3-t04-the-gtp-parser) | the gtp parser | done | V099–V101, DOC013 |
 | [x] | [KP4-T01](goip-link-kinds.md#kp4-t01-the-gre-gretap-and-erspan-parser) | the gre, gretap and erspan parser | done | V102–V104 |
 | [x] | [KP4-T02](goip-link-kinds.md#kp4-t02-the-ip6gre-ip6gretap-and-ip6erspan-parser) | the ip6gre, ip6gretap and ip6erspan parser | done | V105–V107 |
-| [ ] | [KP4-T03](goip-link-kinds.md#kp4-t03-the-ipip-and-sit-parser) | the ipip and sit parser | not started | |
+| [x] | [KP4-T03](goip-link-kinds.md#kp4-t03-the-ipip-and-sit-parser) | the ipip and sit parser | done | V108–V110 |
 | [ ] | [KP4-T04](goip-link-kinds.md#kp4-t04-the-ip6tnl-parser) | the ip6tnl parser | not started | |
 | [ ] | [KP4-T05](goip-link-kinds.md#kp4-t05-the-vti-vti6-and-xfrm-parsers) | the vti, vti6 and xfrm parsers | not started | |
 | [ ] | [KP5-T01…](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | the remaining kinds' parsers | not started | |
@@ -240,6 +240,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V105 | 2026-10-25 | KP4-T02 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test -race ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseGre6InfoData -benchmem` | all pass: `TestGre6DumpMatchesReadback` (36 rows), `TestParseGre6InfoData` (9 rows), `TestEncodeGre6InfoData` (50 corpus rows and 11 built), `TestLinkInfoGre6Kinds` (4 rows). The replay goldens don't change: `LinkInfo.Gre` already covered the ip6 kinds. 207 ns/op, 176 B/op, 1 alloc/op | this commit |
 | V106 | 2026-10-25 | KP4-T02 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the tclass shifted by 24; `ERSPAN_VER` sent only with an erspan word; the prefetched `FLAGS` without the `CAP` bits | 3 of 3 killed: by `add_tops`, `add_abbrev` and `set_changeable`'s readbacks, `boundary: the tops` and the `tclass` corner row; by every ip6gre request and the built rows; by every set's request and `corner: the prefetch's CAP bits go back` | scratch |
 | V107 | 2026-10-25 | KP4-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
+| V108 | 2026-10-25 | KP4-T03 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test -race ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseIptunInfoData -benchmem` | all pass: `TestIptunDumpMatchesReadback` (46 rows), `TestParseIptunInfoData` (9 rows), `TestEncodeIptunInfoData` (60 corpus rows and 9 built), `TestLinkInfoIptunKinds` (4 rows); the plan's first parse row failed until it expected `ip`'s default proto, `any`. The 4 `route-1` replay goldens regenerated: 8 digests change. 168 ns/op, 208 B/op, 1 alloc/op | this commit |
+| V109 | 2026-10-25 | KP4-T03 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `PROTO` sent after `LOCAL`; the `ttl`/`nopmtudisc` check skipping a set's seeded values; `ISATAP` not seeded | 3 of 3 killed: by every request with an endpoint and `corner: ipip drops the 6rd words`; by `corner: a set's seeded ttl with nopmtudisc`; by `corner: a set keeps a prefetched isatap`. The first attempt at the `PROTO` mutant didn't compile and was rerun | scratch |
+| V110 | 2026-10-25 | KP4-T03 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 
 ## Decision log
 
@@ -308,3 +311,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **A malformed endpoint is dropped, not marked.** `tnl_print_endpoint` prints `unknown` for a `LOCAL` or `REMOTE` that isn't 4 or 16 bytes; `ParseGreInfoData` keeps the zero address, which renders `any`, so KP4-T01's short-remote row expects `any`. The kernel always sends 4 or 16 bytes. A 16-byte address on gre, or a 4-byte one on an ip6 kind, still renders `unknown`.
 - **The ip6 gre kinds share gre's setting type.** `EncodeGre6InfoData` takes `GreSetting`, with `EncapLimit`, `TClass`, `FlowLabel` and `TnlFlag` added; each encoder refuses the other's options with `ErrKindSettingOption`. It takes no kind: `link_gre6.c` parses the erspan words and sends `ERSPAN_VER` for all three kinds.
 - **KP4-T02's tables grew.** Two built corner rows stand beside the corpus rows the plan named (the swapped sport, the `CAP` bits), so each check names its bytes. Four rows were added: an IPv4 remote, gre's pmtudisc, `external`, and `fwmark inherit`.
+- **ipip's default proto is any.** `iptunnel_parse_opt` sends `PROTO` 0 unless a mode word is given, and `ipip_tunnel_validate` keeps it, so a plain ipip reads back `"proto": "any"`; the plan's first parse row said `ipip`.
+- **isatap on ipip is an option error.** `ip` falls through to its help for `isatap` on ipip (rc 1); `EncodeIptunInfoData` refuses it with `ErrKindSettingOption`, as `EncodeGreInfoData` refuses erspan words on gre. `mode ip6ip` on ipip is `invarg`'s range error, `ErrKindSettingRange`.
+- **`IptunInfo` is shared with ip6tnl.** It carries ip6tnl's `ENCAP_LIMIT` and `FLOWINFO`, and reads `FLAGS` at the width the kernel sent: 2 bytes for sit, 4 for ip6tnl. KP4-T04 adds ip6tnl's encoder.

@@ -359,6 +359,9 @@ type LinkInfo struct {
 	// Gre is IFLA_INFO_DATA decoded when Kind is "gre", "gretap",
 	// "erspan", "ip6gre", "ip6gretap" or "ip6erspan".
 	Gre *GreInfo
+	// Iptun is IFLA_INFO_DATA decoded when Kind is "ipip", "sit" or
+	// "ip6tnl".
+	Iptun *IptunInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1043,6 +1046,8 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	switch li.Kind {
 	case greKindCst, gretapKindCst, erspanKindCst, ip6greKindCst, ip6gretapKindCst, ip6erspanKindCst:
 		li.Gre = ParseGreInfoData(infoData)
+	case ipipKindCst, sitKindCst, ip6tnlKindCst:
+		li.Iptun = ParseIptunInfoData(infoData)
 	}
 }
 
