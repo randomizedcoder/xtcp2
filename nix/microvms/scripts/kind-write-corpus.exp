@@ -1400,6 +1400,69 @@ namespace eval kindcorpus {
         [xfrm add_no_value if_id 255]
 
     ###########################################################################
+    # hsr (KC6-T01). One parser, ip/iplink_hsr.c. The device is hs0, its
+    # slaves d0 and d1 and its interlink d2, which every row's pre makes.
+    # supervision, version, proto, slave1 and slave2 are matches, in that
+    # order (sl is slave1); interlink is strcmp. The numbers are get_u8 base
+    # 0 and the devices ll_name_to_index, each an invarg when bad. ip's
+    # version and proto checks test get_u8's return, not the value, so any
+    # u8 reaches the kernel. hsr_newlink (net/hsr/hsr_netlink.c) refuses a
+    # missing or repeated slave, an interlink that is a slave, proto 2 and
+    # up, version with PRP and version 2 and up; there is no validate and
+    # no changelink.
+    ###########################################################################
+    variable HSR_BASE {slave1 d0 slave2 d1}
+    variable PRE_HS [list {link add d0 type dummy} {link add d1 type dummy}]
+    variable PRE_HS_D2 [list {link add d0 type dummy} {link add d1 type dummy} {link add d2 type dummy}]
+    variable PRE_HS0 [list {link add d0 type dummy} {link add d1 type dummy} \
+        {link add hs0 type hsr slave1 d0 slave2 d1}]
+
+    proc hsr {name words rc {pre {}}} {
+        variable PRE_HS
+        if {$pre eq ""} {
+            set pre $PRE_HS
+        }
+        return [plain hsr hs0 $name $words $rc $pre]
+    }
+
+    # hsr_base <name> <words> <rc> ?<pre>? - an add of $HSR_BASE and <words>.
+    proc hsr_base {name words rc {pre {}}} {
+        variable HSR_BASE
+        return [hsr $name [string trimright "$HSR_BASE $words"] $rc $pre]
+    }
+
+    lappend rows \
+        [hsr_base add_default {} 0] \
+        [hsr_base add_supervision {supervision 42} 0] \
+        [hsr_base add_supervision_max {supervision 255} 0] \
+        [hsr_base add_supervision_hex {supervision 0xff} 0] \
+        [hsr_base add_supervision_twice {supervision 1 supervision 2} 0] \
+        [hsr_base add_version_1 {version 1} 0] \
+        [hsr_base add_proto_prp {proto 1} 0] \
+        [hsr_base add_interlink {interlink d2} 0 $PRE_HS_D2] \
+        [hsr add_abbrev {sl d0 slave2 d1 s 7 v 1 p 0} 0] \
+        [hsr add_no_option {} 2] \
+        [hsr add_slave1_only {slave1 d0} 2] \
+        [hsr add_slave2_only {slave2 d1} 2] \
+        [hsr add_same_slaves {slave1 d0 slave2 d0} 2] \
+        [hsr_base add_version_2 {version 2} 2] \
+        [hsr_base add_proto_2 {proto 2} 2] \
+        [hsr_base add_prp_version {proto 1 version 0} 2] \
+        [hsr_base add_interlink_slave {interlink d0} 2] \
+        [hsr add_slave_lo {slave1 lo slave2 d1} 2] \
+        [tunnel_set hsr hs0 set_option {supervision 5} 2 $PRE_HS0] \
+        [tunnel_set hsr hs0 set_no_option {} 0 $PRE_HS0] \
+        [hsr_base add_interlink_abbrev {inter d2} 1 $PRE_HS_D2] \
+        [hsr_base add_protocol {protocol 1} 1] \
+        [hsr_base add_unknown foo 1] \
+        [hsr add_help help 1] \
+        [hsr_base add_supervision_over {supervision 256} 255] \
+        [hsr_base add_supervision_bad {supervision abc} 255] \
+        [hsr_base add_version_over {version 256} 255] \
+        [hsr add_slave_missing {slave1 nosuch slave2 d1} 255] \
+        [hsr_base add_no_value supervision 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################

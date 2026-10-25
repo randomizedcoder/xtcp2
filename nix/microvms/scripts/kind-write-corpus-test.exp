@@ -630,13 +630,25 @@ lappend design_rows {*}{
     xfrm/add_external_if_id xfrm/add_external_abbrev xfrm/add_no_if_id
     xfrm/add_if_id_zero xfrm/add_if_id_over xfrm/add_no_value
 }
+lappend design_rows {*}{
+    hsr/add_default hsr/add_supervision hsr/add_supervision_max
+    hsr/add_supervision_hex hsr/add_supervision_twice hsr/add_version_1
+    hsr/add_proto_prp hsr/add_interlink hsr/add_abbrev hsr/add_no_option
+    hsr/add_slave1_only hsr/add_slave2_only hsr/add_same_slaves
+    hsr/add_version_2 hsr/add_proto_2 hsr/add_prp_version
+    hsr/add_interlink_slave hsr/add_slave_lo hsr/set_option
+    hsr/set_no_option hsr/add_interlink_abbrev hsr/add_protocol
+    hsr/add_unknown hsr/add_help hsr/add_supervision_over
+    hsr/add_supervision_bad hsr/add_version_over hsr/add_slave_missing
+    hsr/add_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows" \
-    {llength $R} 705
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows, KC6-T01's 29 hsr rows" \
+    {llength $R} 734
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -783,6 +795,13 @@ set refused_design {
     xfrm/add_external_if_id 1 xfrm/add_external_abbrev 1 xfrm/add_no_if_id
     255 xfrm/add_if_id_zero 255 xfrm/add_if_id_over 255 xfrm/add_no_value
     255
+    hsr/add_no_option 2 hsr/add_slave1_only 2 hsr/add_slave2_only 2
+    hsr/add_same_slaves 2 hsr/add_version_2 2 hsr/add_proto_2 2
+    hsr/add_prp_version 2 hsr/add_interlink_slave 2 hsr/add_slave_lo 2
+    hsr/set_option 2 hsr/add_interlink_abbrev 1 hsr/add_protocol 1
+    hsr/add_unknown 1 hsr/add_help 1 hsr/add_supervision_over 255
+    hsr/add_supervision_bad 255 hsr/add_version_over 255
+    hsr/add_slave_missing 255 hsr/add_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -1274,6 +1293,32 @@ check vti_d0_first_listed "negative: a row naming d d0 without making it is list
 check xfrm_ip_checks "negative: ip's xfrm checks stop before the kernel" \
     {lmap s {add_external_if_id add_no_if_id} {list [field xfrm/$s 5] [field xfrm/$s 1] [field xfrm/$s 4]}} \
     {{1 0 {}} {255 0 {}}}
+
+###############################################################################
+# 18. the hsr rows' states
+###############################################################################
+check hsr_after_xfrm "positive: hsr's rows follow xfrm's" \
+    {lsearch -glob [slugs $R] hsr/*} 705
+check hsr_supervision_top "boundary: the supervision byte's top" \
+    {lmap s {add_supervision_max add_supervision_over} {list [lindex [field hsr/$s 3] end] [field hsr/$s 5]}} \
+    {{255 0} {256 255}}
+check hsr_u8_checks "corner: ip's version and proto checks pass any u8" \
+    {lmap s {add_version_1 add_version_2 add_version_over add_proto_2} {field hsr/$s 5}} {0 2 255 2}
+check hsr_bare "corner: a bare add is the kernel's refusal" \
+    {list [field hsr/add_no_option 5] [field hsr/add_no_option 1]} {2 2}
+check hsr_abbrev "corner: sl is slave1, inter isn't interlink" \
+    {lmap s {add_abbrev add_interlink_abbrev} {field hsr/$s 5}} {0 1}
+check hsr_pres "corner: every row makes d0 and d1 first" \
+    {lmap s [lsearch -all -inline -glob [slugs $R] hsr/*] {
+        if {[lmap step [lrange [field $s 2] 0 1] {lindex $step 2}] eq {d0 d1}} {
+            continue
+        }
+        set s
+    }} {}
+check hsr_interlink_pres "corner: the interlink rows make d2 after the slaves" \
+    {lmap s {add_interlink add_interlink_abbrev} {lindex [field hsr/$s 2] 2 2}} {d2 d2}
+check hsr_no_changelink "corner: hsr has no changelink" \
+    {lmap s {set_option set_no_option} {field hsr/$s 5}} {2 0}
 
 ###############################################################################
 # summary
