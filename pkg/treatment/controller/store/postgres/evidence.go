@@ -37,28 +37,61 @@ func (v *evidence) Get(ctx context.Context, id string) (*treatment.Evidence, err
 }
 
 func getEvidence(ctx context.Context, q querier, id string) (*treatment.Evidence, error) {
-	e := &treatment.Evidence{ID: id}
-	err := q.QueryRowContext(ctx, "SELECT analyzed_at,window_start,window_end,query_version,enrichment_version,artifact_sha256 FROM xtcp_treatment_evidence WHERE id=$1", id).Scan(&e.AnalyzedAt, &e.WindowStart, &e.WindowEnd, &e.QueryVersion, &e.EnrichmentVersion, &e.ArtifactSHA256)
+	loaded, err := getEvidenceMany(ctx, q, []string{id})
 	if err != nil {
-		return nil, notFound(err)
+		return nil, err
 	}
-	rows, err := q.QueryContext(ctx, "SELECT agent_id,sockets,bytes_acked,goodput_bps,retransmission_ratio,rtt_p95_ms,exposed_sockets,collection_healthy FROM xtcp_treatment_evidence_hosts WHERE evidence_id=$1 ORDER BY position", id)
+	e, ok := loaded[id]
+	if !ok {
+		return nil, store.ErrNotFound
+	}
+	return e, nil
+}
+
+// getEvidenceMany reads the named evidence documents and their host rows in
+// two statements. IDs that do not exist are absent from the result.
+func getEvidenceMany(ctx context.Context, q querier, ids []string) (map[string]*treatment.Evidence, error) {
+	out := make(map[string]*treatment.Evidence, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := q.QueryContext(ctx, "SELECT id,analyzed_at,window_start,window_end,query_version,enrichment_version,artifact_sha256 FROM xtcp_treatment_evidence WHERE id = ANY($1)", ids)
 	if err != nil {
 		return nil, err
 	}
 	for rows.Next() {
-		var h treatment.HostEvidence
-		var sockets, bytes, exposed int64
-		if err = rows.Scan(&h.AgentID, &sockets, &bytes, &h.GoodputBps, &h.RetransmissionRatio, &h.RttP95Ms, &exposed, &h.CollectionHealthy); err != nil {
+		e := new(treatment.Evidence)
+		if err = rows.Scan(&e.ID, &e.AnalyzedAt, &e.WindowStart, &e.WindowEnd, &e.QueryVersion, &e.EnrichmentVersion, &e.ArtifactSHA256); err != nil {
 			return nil, errors.Join(err, rows.Close())
 		}
-		h.Sockets, h.BytesAcked, h.ExposedSockets = uint64(sockets), uint64(bytes), uint64(exposed)
-		e.Hosts = append(e.Hosts, h)
+		out[e.ID] = e
 	}
 	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
 		return nil, err
 	}
-	return e, nil
+	return out, loadEvidenceHosts(ctx, q, ids, out)
+}
+
+// loadEvidenceHosts appends each evidence document's host rows in position
+// order.
+func loadEvidenceHosts(ctx context.Context, q querier, ids []string, into map[string]*treatment.Evidence) error {
+	rows, err := q.QueryContext(ctx, "SELECT evidence_id,agent_id,sockets,bytes_acked,goodput_bps,retransmission_ratio,rtt_p95_ms,exposed_sockets,collection_healthy FROM xtcp_treatment_evidence_hosts WHERE evidence_id = ANY($1) ORDER BY evidence_id,position", ids)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id string
+		var h treatment.HostEvidence
+		var sockets, bytes, exposed int64
+		if err = rows.Scan(&id, &h.AgentID, &sockets, &bytes, &h.GoodputBps, &h.RetransmissionRatio, &h.RttP95Ms, &exposed, &h.CollectionHealthy); err != nil {
+			return errors.Join(err, rows.Close())
+		}
+		h.Sockets, h.BytesAcked, h.ExposedSockets = uint64(sockets), uint64(bytes), uint64(exposed)
+		if e, ok := into[id]; ok {
+			e.Hosts = append(e.Hosts, h)
+		}
+	}
+	return errors.Join(rows.Err(), rows.Close())
 }
 
 func (v *evidence) Put(ctx context.Context, experimentID string, e *treatment.Evidence) error {

@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/netip"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 )
 
 type experiments struct{ *runner }
@@ -50,127 +52,206 @@ func (x *experiments) Exists(ctx context.Context, id string) (bool, error) {
 }
 
 func (x *experiments) Get(ctx context.Context, id string) (*treatment.Experiment, error) {
-	return x.get(ctx, x.q(), id)
+	es, err := loadMany(ctx, x.q(), x.locked(), []string{id})
+	if err != nil {
+		return nil, err
+	}
+	if len(es) == 0 {
+		return nil, store.ErrNotFound
+	}
+	return es[0], nil
 }
 
-func (x *experiments) get(ctx context.Context, q querier, id string) (*treatment.Experiment, error) {
+// evidenceRefs are the evidence IDs an experiment row and its phases point
+// at, resolved after every row is read.
+type evidenceRefs struct {
+	baseline, latest sql.NullString
+	phases           []sql.NullString
+}
+
+// loadMany reads the experiments named by ids, in ids order, skipping IDs
+// that do not exist. It runs a fixed number of statements whatever len(ids)
+// is: the experiment rows, the cohorts, the phases, then every referenced
+// evidence document at once. Inside Store.Tx the experiment rows are locked.
+func loadMany(ctx context.Context, q querier, locked bool, ids []string) ([]*treatment.Experiment, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	byID, refs, err := loadExperimentRows(ctx, q, locked, ids)
+	if err != nil || len(byID) == 0 {
+		return nil, err
+	}
+	if err = loadCohorts(ctx, q, ids, byID); err != nil {
+		return nil, err
+	}
+	if err = loadPhases(ctx, q, ids, byID, refs); err != nil {
+		return nil, err
+	}
+	if err = attachEvidence(ctx, q, byID, refs); err != nil {
+		return nil, err
+	}
+	out := make([]*treatment.Experiment, 0, len(byID))
+	for _, id := range ids {
+		if e, ok := byID[id]; ok {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+// loadExperimentRows reads the experiment rows and the evidence IDs they
+// reference.
+func loadExperimentRows(ctx context.Context, q querier, locked bool, ids []string) (map[string]*treatment.Experiment, map[string]*evidenceRefs, error) {
 	suffix := ""
-	if x.locked() {
+	if locked {
 		suffix = " FOR UPDATE"
 	}
-	e := &treatment.Experiment{ID: id}
+	rows, err := q.QueryContext(ctx, "SELECT "+selectList(experimentColumns)+" FROM xtcp_treatment_experiments WHERE id = ANY($1)"+suffix, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	byID := make(map[string]*treatment.Experiment, len(ids))
+	refs := make(map[string]*evidenceRefs, len(ids))
+	for rows.Next() {
+		e, r, err := scanExperiment(rows)
+		if err != nil {
+			return nil, nil, errors.Join(err, rows.Close())
+		}
+		byID[e.ID], refs[e.ID] = e, r
+	}
+	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, nil, err
+	}
+	return byID, refs, nil
+}
+
+// scanExperiment reads one row of experimentColumns.
+func scanExperiment(rows *sql.Rows) (*treatment.Experiment, *evidenceRefs, error) {
+	e := new(treatment.Experiment)
+	r := new(evidenceRefs)
 	var tr treatmentRow
 	var minObs, maxPhase, maxAge, minSockets, minBytes, minTreated, revision int64
-	var baseline, latest sql.NullString
 	var status, outcome string
 	var proposed sql.NullTime
 	var updated time.Time
-	targets := slices.Concat([]any{&e.Location, &e.Hypothesis}, tr.targets(),
-		[]any{&minObs, &maxPhase, &maxAge, &minSockets, &minBytes, &minTreated, &e.Policy.MinimumImprovement, &e.Policy.MaximumRetransmissionIncrease, &e.Policy.MaximumRTTIncrease, &baseline, &status, &revision, &proposed, &latest, &outcome, &updated})
-	err := q.QueryRowContext(ctx, "SELECT "+selectList(experimentColumns[1:])+" FROM xtcp_treatment_experiments WHERE id=$1"+suffix, id).Scan(targets...)
-	if err != nil {
-		return nil, notFound(err)
+	targets := slices.Concat([]any{&e.ID, &e.Location, &e.Hypothesis}, tr.targets(),
+		[]any{&minObs, &maxPhase, &maxAge, &minSockets, &minBytes, &minTreated, &e.Policy.MinimumImprovement, &e.Policy.MaximumRetransmissionIncrease, &e.Policy.MaximumRTTIncrease, &r.baseline, &status, &revision, &proposed, &r.latest, &outcome, &updated})
+	if err := rows.Scan(targets...); err != nil {
+		return nil, nil, err
 	}
 	t, err := tr.value()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	e.Treatment = *t
 	e.Policy.MinimumObservation, e.Policy.MaximumPhase, e.Policy.MaximumEvidenceAge = time.Duration(minObs), time.Duration(maxPhase), time.Duration(maxAge)
 	e.Policy.MinimumSocketsPerHost, e.Policy.MinimumBytesPerHost, e.Policy.MinimumTreatedHosts = uint64(minSockets), uint64(minBytes), uint32(minTreated)
 	if e.Status, err = treatment.ParseStatus(status); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if e.LatestOutcome, err = treatment.ParseOutcome(outcome); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	e.Revision, e.ProposedAt, e.UpdatedAt = uint64(revision), fromNullTime(proposed), updated
-	loaded := map[string]*treatment.Evidence{}
-	load := func(id sql.NullString) (*treatment.Evidence, error) {
-		if !id.Valid {
-			return nil, nil
-		}
-		if v, ok := loaded[id.String]; ok {
-			return v.Clone(), nil
-		}
-		v, err := getEvidence(ctx, q, id.String)
-		if err != nil {
-			return nil, err
-		}
-		loaded[id.String] = v
-		return v.Clone(), nil
-	}
-	if e.Baseline, err = load(baseline); err != nil {
-		return nil, err
-	}
-	if e.LatestEvidence, err = load(latest); err != nil {
-		return nil, err
-	}
-	if e.CohortOrder, err = loadCohort(ctx, q, id); err != nil {
-		return nil, err
-	}
-	if e.Phases, err = loadPhases(ctx, q, id, load); err != nil {
-		return nil, err
-	}
-	return e, nil
+	return e, r, nil
 }
 
-// loadCohort reads the experiment's cohort in allocation order.
-func loadCohort(ctx context.Context, q querier, id string) ([]string, error) {
-	rows, err := q.QueryContext(ctx, "SELECT agent_id FROM xtcp_treatment_cohort WHERE experiment_id=$1 ORDER BY position", id)
+// loadCohorts reads every experiment's cohort in allocation order.
+func loadCohorts(ctx context.Context, q querier, ids []string, byID map[string]*treatment.Experiment) error {
+	rows, err := q.QueryContext(ctx, "SELECT experiment_id,agent_id FROM xtcp_treatment_cohort WHERE experiment_id = ANY($1) ORDER BY experiment_id,position", ids)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var cohort []string
 	for rows.Next() {
-		var a string
-		if err = rows.Scan(&a); err != nil {
-			return nil, errors.Join(err, rows.Close())
+		var id, a string
+		if err = rows.Scan(&id, &a); err != nil {
+			return errors.Join(err, rows.Close())
 		}
-		cohort = append(cohort, a)
+		if e, ok := byID[id]; ok {
+			e.CohortOrder = append(e.CohortOrder, a)
+		}
 	}
-	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
-		return nil, err
-	}
-	return cohort, nil
+	return errors.Join(rows.Err(), rows.Close())
 }
 
-// loadPhases reads the experiment's phases in order and resolves each
-// phase's evidence through load. Evidence is loaded after the rows are
-// closed so a transaction never has two result sets open.
-func loadPhases(ctx context.Context, q querier, id string, load func(sql.NullString) (*treatment.Evidence, error)) ([]treatment.Phase, error) {
-	rows, err := q.QueryContext(ctx, "SELECT target_hosts,issued_at,observation_started_at,evaluated_at,evidence_id,outcome,reviewer,reason FROM xtcp_treatment_phases WHERE experiment_id=$1 ORDER BY position", id)
+// loadPhases reads every experiment's phases in order and records each
+// phase's evidence ID for attachEvidence.
+func loadPhases(ctx context.Context, q querier, ids []string, byID map[string]*treatment.Experiment, refs map[string]*evidenceRefs) error {
+	rows, err := q.QueryContext(ctx, "SELECT experiment_id,target_hosts,issued_at,observation_started_at,evaluated_at,evidence_id,outcome,reviewer,reason FROM xtcp_treatment_phases WHERE experiment_id = ANY($1) ORDER BY experiment_id,position", ids)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var phases []treatment.Phase
-	var evidenceIDs []sql.NullString
 	for rows.Next() {
+		var id string
 		var p treatment.Phase
 		var ev sql.NullString
 		var target int64
 		var issued, started, evaluated sql.NullTime
 		var out string
-		if err = rows.Scan(&target, &issued, &started, &evaluated, &ev, &out, &p.Reviewer, &p.Reason); err != nil {
-			return nil, errors.Join(err, rows.Close())
+		if err = rows.Scan(&id, &target, &issued, &started, &evaluated, &ev, &out, &p.Reviewer, &p.Reason); err != nil {
+			return errors.Join(err, rows.Close())
 		}
 		p.TargetHosts = uint32(target)
 		p.IssuedAt, p.ObservationStartedAt, p.EvaluatedAt = fromNullTime(issued), fromNullTime(started), fromNullTime(evaluated)
 		if p.Outcome, err = treatment.ParseOutcome(out); err != nil {
-			return nil, errors.Join(err, rows.Close())
+			return errors.Join(err, rows.Close())
 		}
-		phases = append(phases, p)
-		evidenceIDs = append(evidenceIDs, ev)
-	}
-	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
-		return nil, err
-	}
-	for i := range phases {
-		if phases[i].Evidence, err = load(evidenceIDs[i]); err != nil {
-			return nil, err
+		if e, ok := byID[id]; ok {
+			e.Phases = append(e.Phases, p)
+			refs[id].phases = append(refs[id].phases, ev)
 		}
 	}
-	return phases, nil
+	return errors.Join(rows.Err(), rows.Close())
+}
+
+// attachEvidence loads every referenced evidence document once and gives
+// each reference its own copy, so callers can mutate one experiment's
+// evidence without touching another's.
+func attachEvidence(ctx context.Context, q querier, byID map[string]*treatment.Experiment, refs map[string]*evidenceRefs) error {
+	seen := map[string]bool{}
+	var wanted []string
+	want := func(id sql.NullString) {
+		if id.Valid && !seen[id.String] {
+			seen[id.String] = true
+			wanted = append(wanted, id.String)
+		}
+	}
+	for _, r := range refs {
+		want(r.baseline)
+		want(r.latest)
+		for _, p := range r.phases {
+			want(p)
+		}
+	}
+	loaded, err := getEvidenceMany(ctx, q, wanted)
+	if err != nil {
+		return err
+	}
+	resolve := func(id sql.NullString) (*treatment.Evidence, error) {
+		if !id.Valid {
+			return nil, nil
+		}
+		v, ok := loaded[id.String]
+		if !ok {
+			return nil, fmt.Errorf("evidence %s: %w", id.String, store.ErrNotFound)
+		}
+		return v.Clone(), nil
+	}
+	for id, e := range byID {
+		r := refs[id]
+		if e.Baseline, err = resolve(r.baseline); err != nil {
+			return err
+		}
+		if e.LatestEvidence, err = resolve(r.latest); err != nil {
+			return err
+		}
+		for i := range e.Phases {
+			if e.Phases[i].Evidence, err = resolve(r.phases[i]); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Save stores the evidence the experiment carries, upserts the row, writes
@@ -220,6 +301,8 @@ func (x *experiments) Save(ctx context.Context, e *treatment.Experiment) error {
 	})
 }
 
+// List returns the experiment named id, or up to limit experiments ordered
+// by ID when id is empty, in a fixed number of statements.
 func (x *experiments) List(ctx context.Context, id string, limit int) ([]*treatment.Experiment, error) {
 	q := x.q()
 	rows, err := q.QueryContext(ctx, "SELECT id FROM xtcp_treatment_experiments WHERE ($1='' OR id=$1) ORDER BY id LIMIT $2", id, limit)
@@ -237,15 +320,7 @@ func (x *experiments) List(ctx context.Context, id string, limit int) ([]*treatm
 	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
 		return nil, err
 	}
-	out := make([]*treatment.Experiment, 0, len(ids))
-	for _, v := range ids {
-		e, err := x.get(ctx, q, v)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, e)
-	}
-	return out, nil
+	return loadMany(ctx, q, x.locked(), ids)
 }
 
 func statusList(statuses []treatment.Status) (string, []any) {
@@ -287,7 +362,7 @@ func activeStatuses() []treatment.Status {
 }
 
 // hasActiveSQL and destinationBlockedSQL are the two hot discovery lookups;
-// TestExperimentQueryIndexes pins the indexes that serve them.
+// TestPostgresExperimentQueryIndexes pins the indexes that serve them.
 var hasActiveSQL = func() string {
 	names := make([]string, 0, 4)
 	for _, s := range activeStatuses() {

@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/postgres"
 )
 
@@ -29,6 +31,47 @@ func Available() bool { return os.Getenv(EnvDSN) != "" }
 
 // Open returns a migrated store on a private schema, or skips the test.
 func Open(t testing.TB) *postgres.Store {
+	t.Helper()
+	return open(t, postgres.Open)
+}
+
+// Counter counts the statements a store sends to PostgreSQL.
+type Counter struct{ n atomic.Int64 }
+
+// Statements returns the number of statements sent so far.
+func (c *Counter) Statements() int64 { return c.n.Load() }
+
+// Reset sets the count back to zero.
+func (c *Counter) Reset() { c.n.Store(0) }
+
+func (c *Counter) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
+	c.n.Add(1)
+	return ctx
+}
+
+func (*Counter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+// OpenCounting is Open with every statement counted, so tests can pin how
+// many round trips a repository method makes.
+func OpenCounting(t testing.TB) (*postgres.Store, *Counter) {
+	t.Helper()
+	c := new(Counter)
+	s := open(t, func(ctx context.Context, dsn string) (*postgres.Store, error) {
+		cfg, err := pgx.ParseConfig(dsn)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Tracer = c
+		db := stdlib.OpenDB(*cfg)
+		if err = db.PingContext(ctx); err != nil {
+			return nil, errors.Join(err, db.Close())
+		}
+		return postgres.New(db), nil
+	})
+	return s, c
+}
+
+func open(t testing.TB, connect func(context.Context, string) (*postgres.Store, error)) *postgres.Store {
 	t.Helper()
 	dsn := os.Getenv(EnvDSN)
 	if dsn == "" {
@@ -48,7 +91,7 @@ func Open(t testing.TB) *postgres.Store {
 	if err != nil {
 		t.Fatal(errors.Join(err, admin.Close()))
 	}
-	s, err := postgres.Open(ctx, scoped)
+	s, err := connect(ctx, scoped)
 	if err != nil {
 		t.Fatal(errors.Join(err, admin.Close()))
 	}

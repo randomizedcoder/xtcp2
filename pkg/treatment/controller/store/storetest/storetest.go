@@ -332,7 +332,7 @@ type repoCase struct {
 
 func experiments(t *testing.T, open Opener) {
 	ctx := context.Background()
-	for _, tc := range slices.Concat(experimentRoundTripCases(ctx), experimentQueryCases(ctx)) {
+	for _, tc := range slices.Concat(experimentRoundTripCases(ctx), experimentQueryCases(ctx), experimentListCases(ctx)) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Log(tc.description)
 			tc.run(t, open(t).Repos())
@@ -402,6 +402,74 @@ func experimentRoundTripCases(ctx context.Context) []repoCase {
 			if !slices.Equal(got.CohortOrder, e.CohortOrder) {
 				t.Fatalf("expected %d ordered cohort members, got %d", len(e.CohortOrder), len(got.CohortOrder))
 			}
+		}},
+	}
+}
+
+// Numbered returns populated() renamed to exp-<i>, with evidence IDs of its
+// own so many copies can share one store.
+func Numbered(i int) *treatment.Experiment {
+	e := populated()
+	e.ID = fmt.Sprintf("exp-%03d", i)
+	e.Baseline.ID = e.ID + "-baseline"
+	after := e.LatestEvidence.Clone()
+	after.ID = e.ID + "-after"
+	e.LatestEvidence, e.Phases[0].Evidence = after, after.Clone()
+	return e
+}
+
+// experimentListCases covers List: every row it returns must equal Get.
+func experimentListCases(ctx context.Context) []repoCase {
+	return []repoCase{
+		{"list-many", "positive: List of 50 experiments returns each in ID order, equal to Get", func(t *testing.T, rp store.Repos) {
+			for i := range 50 {
+				must(t, rp.Experiments.Save(ctx, Numbered(49-i)))
+			}
+			list, err := rp.Experiments.List(ctx, "", 1000)
+			must(t, err)
+			if len(list) != 50 {
+				t.Fatalf("expected 50 experiments, got %d", len(list))
+			}
+			for i, got := range list {
+				sameExperiment(t, got.ID, got, Numbered(i))
+			}
+		}},
+		{"shared-evidence", "positive: latest evidence and phase 0 share an ID and each gets its own copy", func(t *testing.T, rp store.Repos) {
+			must(t, rp.Experiments.Save(ctx, populated()))
+			list, err := rp.Experiments.List(ctx, "exp", 10)
+			must(t, err)
+			if len(list) != 1 {
+				t.Fatalf("expected one experiment, got %d", len(list))
+			}
+			e := list[0]
+			if e.LatestEvidence == nil || e.Phases[0].Evidence == nil || e.LatestEvidence == e.Phases[0].Evidence {
+				t.Fatal("expected two distinct copies of the shared evidence")
+			}
+			sameEvidence(t, "shared evidence", e.Phases[0].Evidence, e.LatestEvidence)
+		}},
+		{"limit-one", "boundary: limit 1 returns only the lowest ID", func(t *testing.T, rp store.Repos) {
+			for i := range 4 {
+				must(t, rp.Experiments.Save(ctx, Numbered(3-i)))
+			}
+			list, err := rp.Experiments.List(ctx, "", 1)
+			must(t, err)
+			if len(list) != 1 || list[0].ID != "exp-000" {
+				t.Fatalf("expected only exp-000, got %d", len(list))
+			}
+		}},
+		{"no-children", "boundary: an experiment without phases, cohort or evidence lists with nil evidence", func(t *testing.T, rp store.Repos) {
+			e := &treatment.Experiment{ID: "bare", Location: locationCst, Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: treatment.StatusProposed, Revision: 1, ProposedAt: now, UpdatedAt: now}
+			must(t, rp.Experiments.Save(ctx, e))
+			list, err := rp.Experiments.List(ctx, "", 10)
+			must(t, err)
+			if len(list) != 1 {
+				t.Fatalf("expected one experiment, got %d", len(list))
+			}
+			got := list[0]
+			if got.Baseline != nil || got.LatestEvidence != nil || len(got.Phases) != 0 || len(got.CohortOrder) != 0 {
+				t.Fatalf("expected no children, got %+v", got)
+			}
+			sameExperiment(t, "bare experiment", got, e)
 		}},
 	}
 }
@@ -762,6 +830,28 @@ func tx(t *testing.T, open Opener) {
 			}
 			if got.Revision != 2 {
 				return fmt.Errorf("expected revision 2 inside the transaction, got %d", got.Revision)
+			}
+			return nil
+		}))
+	})
+	t.Run("list-in-tx", func(t *testing.T) {
+		t.Log("corner: List inside a Tx locks its rows and returns what List outside returns")
+		s := open(t)
+		for i := range 3 {
+			must(t, s.Repos().Experiments.Save(ctx, Numbered(i)))
+		}
+		outside, err := s.Repos().Experiments.List(ctx, "", 10)
+		must(t, err)
+		must(t, s.Tx(ctx, func(rp store.Repos) error {
+			inside, err := rp.Experiments.List(ctx, "", 10)
+			if err != nil {
+				return err
+			}
+			if len(inside) != len(outside) {
+				return fmt.Errorf("expected %d experiments inside the transaction, got %d", len(outside), len(inside))
+			}
+			for i := range inside {
+				sameExperiment(t, inside[i].ID, inside[i], outside[i])
 			}
 			return nil
 		}))

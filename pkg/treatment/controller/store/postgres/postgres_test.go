@@ -18,6 +18,52 @@ func TestPostgresConformance(t *testing.T) {
 	storetest.Run(t, func(t *testing.T) store.Store { return pgtest.Open(t) })
 }
 
+// TestPostgresListStatements pins List and Get to a fixed number of
+// statements, whatever the number of experiments and evidence documents.
+func TestPostgresListStatements(t *testing.T) {
+	ctx := context.Background()
+	s, counter := pgtest.OpenCounting(t)
+	rp := s.Repos()
+	for i := range 200 {
+		if err := rp.Experiments.Save(ctx, storetest.Numbered(i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tests := []struct {
+		description string
+		run         func() error
+		expected    int64
+	}{
+		{"positive: List of 200 experiments with cohorts, phases and evidence", func() error {
+			_, err := rp.Experiments.List(ctx, "", 1000)
+			return err
+		}, 6},
+		{"boundary: List of one experiment", func() error {
+			_, err := rp.Experiments.List(ctx, "exp-007", 1000)
+			return err
+		}, 6},
+		{"positive: Get reads one experiment through the same loader", func() error {
+			_, err := rp.Experiments.Get(ctx, "exp-007")
+			return err
+		}, 5},
+		{"negative: List of an unknown ID stops after the ID lookup", func() error {
+			_, err := rp.Experiments.List(ctx, "ghost", 1000)
+			return err
+		}, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			counter.Reset()
+			if err := tc.run(); err != nil {
+				t.Fatal(err)
+			}
+			if got := counter.Statements(); got > tc.expected {
+				t.Fatalf("expected at most %d statements, got %d", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestPostgresMigrateIdempotent(t *testing.T) {
 	s := pgtest.Open(t)
 	ctx := context.Background()
