@@ -831,11 +831,12 @@ func TestRunDetailsOption(t *testing.T) {
 			wantStderr:  "is unknown",
 		},
 		{
-			// show_details is only ever tested for truth — nine sites, all
-			// `show_details` or `show_details > 0`, none for a second one.
-			// So -d -d is -d, which is the OPPOSITE of -s -s, and the
-			// contrast is why both are tested.
-			description: "corner: -d -d is accepted and means the same as -d, unlike -s -s",
+			// show_details is tested for a second one at one site,
+			// vxlan_print_opt's bools, and only for truth everywhere else.
+			// So -d -d is accepted, the OPPOSITE of -s -s, and is -d for
+			// every link without a vxlan; the contrast is why both are
+			// tested.
+			description: "corner: -d -d is accepted and, with no vxlan, means the same as -d, unlike -s -s",
 			args:        []string{"-d", "-d", "link", "show"},
 			wantCode:    ExitOK,
 			wantDetail:  true,

@@ -238,7 +238,7 @@ func linkView(c *runCtx, li xtcpnl.LinkInfo) render.LinkView {
 		v = v.WithStats(li)
 	}
 	if c.detailed() {
-		v = v.WithDetail(li, true, c.lltab)
+		v = v.WithDetail(li, true, c.lltab, c.showDetails)
 	}
 	return v
 }
@@ -388,9 +388,10 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 
 // renderableInfoData reports whether goip reproduces the per-kind print_opt
 // output for a kind: vrf (a single table id), bond (bond_print_opt,
-// grounded on the 7_1_4 link-write fixtures), bridge (bridge_print_opt) and
-// the VLAN family, vlan, macvlan, macvtap, ipvlan and ipvtap (their
-// print_opts), grounded on the 7_3_0 kind corpus. Every other kind's blob stays
+// grounded on the 7_1_4 link-write fixtures), bridge (bridge_print_opt),
+// the VLAN family, vlan, macvlan, macvtap, ipvlan and ipvtap, and the UDP
+// overlays, vxlan, geneve, bareudp, amt and gtp (their print_opts),
+// grounded on the 7_3_0 kind corpus. Every other kind's blob stays
 // undecoded and its -d render refused, which keeps the gate kind-agnostic
 // for everything goip has not verified against a capture. The list is
 // render's, so the gate and the renderer cannot disagree about which kinds
@@ -398,7 +399,8 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 func renderableInfoData(kind string) bool {
 	switch kind {
 	case render.VrfKindCst, render.BondKindCst, render.BridgeKindCst, render.VlanKindCst,
-		render.MacvlanKindCst, render.MacvtapKindCst, render.IpvlanKindCst, render.IpvtapKindCst:
+		render.MacvlanKindCst, render.MacvtapKindCst, render.IpvlanKindCst, render.IpvtapKindCst,
+		render.VxlanKindCst, render.GeneveKindCst, render.BareudpKindCst, render.AmtKindCst, render.GtpKindCst:
 		return true
 	}
 	return false
@@ -447,6 +449,10 @@ func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 			}
 		}
 	}
+	// vxlan's and amt's dev, from the kind's print_opt.
+	if idx, ok := kindLowerIndex(li); ok && c.detailed() {
+		resolveIndexName(c, svc, idx)
+	}
 	// bridge_slave_print_opt's backup_port, after the master's print_opt
 	// as print_linktype runs them.
 	if c.detailed() && li.SlaveKind == render.BridgeKindCst && li.BridgeSlave != nil {
@@ -454,4 +460,23 @@ func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 			resolveIndexName(c, svc, int32(v.U))
 		}
 	}
+}
+
+// kindLowerIndex is the dev vxlan_print_opt and amt_print_opt pass to
+// ll_index_to_name, when the kernel sent one. vxlan's 0 isn't printed and
+// amt's resolves to "*", so neither is a get.
+func kindLowerIndex(li xtcpnl.LinkInfo) (int32, bool) {
+	var idx uint32
+	switch {
+	case li.Kind == render.VxlanKindCst && li.Vxlan != nil && li.Vxlan.HasLink:
+		idx = li.Vxlan.Link
+	case li.Kind == render.AmtKindCst && li.Amt != nil && li.Amt.HasLink:
+		idx = li.Amt.Link
+	default:
+		return 0, false
+	}
+	if idx > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(idx), true
 }

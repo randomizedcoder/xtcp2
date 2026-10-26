@@ -158,7 +158,7 @@ type LinkKindView struct {
 // info_data object, possibly empty. The kinds listed here are the ones
 // internal/goip's -d gate admits; every other kind with a nest is refused
 // there before this runs.
-func kindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
+func kindData(li *xtcpnl.LinkInfo, names NameTab, details int) *KindData {
 	switch li.Kind {
 	case VrfKindCst:
 		return vrfData(li.VrfTable)
@@ -172,6 +172,16 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
 		return macvlanData(li.Macvlan)
 	case IpvlanKindCst, IpvtapKindCst:
 		return ipvlanData(li.Ipvlan)
+	case VxlanKindCst:
+		return vxlanData(li.Vxlan, names, details)
+	case GeneveKindCst:
+		return geneveData(li.Geneve)
+	case BareudpKindCst:
+		return bareudpData(li.Bareudp)
+	case AmtKindCst:
+		return amtData(li.Amt, names)
+	case GtpKindCst:
+		return gtpData(li.Gtp)
 	}
 	return nil
 }
@@ -253,10 +263,13 @@ func u32Ptr(a xtcpnl.U32Attr) *uint32 {
 // parameter rather than a second constructor because it is the only difference
 // — LinkViewForAddr exists for the two differences that are structural.
 //
-// names is the same index cache LinkViewOf takes. Only a bond reads it, for
-// active_slave and primary, which bond_print_opt resolves with
-// ll_index_to_name.
-func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab) LinkView {
+// names is the same index cache LinkViewOf takes. The print_opts that
+// resolve an index with ll_index_to_name read it: bond's active_slave and
+// primary, bridge_slave's backup_port, and vxlan's and amt's dev.
+//
+// details is show_details, the `-d` count, which only vxlan_print_opt reads
+// past one.
+func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab, details int) LinkView {
 	d := li.Detail
 	dv := &LinkDetailView{
 		Promiscuity:    u32Ptr(d.Promiscuity),
@@ -290,7 +303,7 @@ func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab)
 	if li.Kind != "" || li.SlaveKind != "" {
 		kv := &LinkKindView{Kind: li.Kind, SlaveKind: li.SlaveKind}
 		if li.Kind != "" {
-			kv.InfoData = kindData(&li, names)
+			kv.InfoData = kindData(&li, names, details)
 		}
 		if li.SlaveKind != "" {
 			kv.SlaveData = slaveKindData(&li, names)

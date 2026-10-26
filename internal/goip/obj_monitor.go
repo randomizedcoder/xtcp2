@@ -561,7 +561,7 @@ func (m *monitor) link(msg *monitorMsg) (out, errOut string, err error) {
 	// clear, so no qlen.
 	v := render.LinkViewForAddr(li, m.c.lltab, unix.AF_UNSPEC, m.c.detailed()).WithoutQlen()
 	if m.c.detailed() {
-		v = v.WithDetail(li, false, m.c.lltab)
+		v = v.WithDetail(li, false, m.c.lltab, m.c.showDetails)
 	}
 	return m.headers("[LINK]", msg.nsid) + deleted(del) + v.Text(), "", nil
 }

@@ -261,9 +261,10 @@ type runCtx struct {
 	// than set, because the rejection has to be able to tell the difference.
 	showStats int
 	// showDetails counts `-d`, mirroring iproute2's show_details. Unlike
-	// show_stats no site reads it for a value above one, so goip implements
-	// every count it accepts and rejects nothing — see the parsing arm in Run,
-	// and detailed for the predicate the object handlers actually use.
+	// show_stats, one site reads it for a value above one, vxlan's bools,
+	// and the link render gets the count; goip implements every count it
+	// accepts and rejects nothing — see the parsing arm in Run, and detailed
+	// for the predicate the object handlers actually use.
 	showDetails int
 	// brief and oneline are -br and -o (ip/ip.c:238, :260). Only address
 	// reads them; Run refuses them for every other object.

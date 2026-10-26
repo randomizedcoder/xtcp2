@@ -24,9 +24,9 @@
 - KG0 is done (KG0-T01, KG0-T02; planned in DOC015): goip builds `ip link set … inet …` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, and refuses the 7 `ip` refuses with `ip`'s texts and statuses. `parseLinkArgs`' `exit(-1)` refusals now exit 255 through `ErrLinkUsage`. The 11 `link_inet_*` matrix rows are gated, on a clean full run and a clean `--section link` run (V135, V136), the first rows gated with a section run. KG1 is planned (DOC016).
 - KG1 is done (KG1-T01, KG1-T02, KG1-T03, KG1-T04, KG1-T05; planned in DOC016): goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets. The 92 write rows and 4 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V154, V155). KG2 is planned (DOC017).
 - KG2 is done (KG2-T01, KG2-T02, KG2-T03, KG2-T04, KG2-T05; planned in DOC017): goip takes `iplink_parse`'s `link` keyword, resolving the lower device before `IFLA_IFNAME` on a create, and builds `ip link add|set … type vlan|macvlan|macvtap …` byte for byte as `ip` does for KC3's 21 vlan, 25 macvlan and 5 macvtap rows that sent a request, lookups included, and refuses the 17 `ip` refuses with `ip`'s texts and statuses. KG2-T03 adds `type ipvlan|ipvtap …`: KC3's 14 ipvlan and 3 ipvtap rows that sent a request, and the 5 refusals. KG2-T04 renders `-d link show` of the five kinds as `ip` does for all 54 accepted rows, text and JSON, with `ip`'s gets. The 68 write rows and 10 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V169, V170). KG3 is planned (DOC018).
-- KG3 is in progress (KG3-T01 to KG3-T03): goip builds `ip link add|set … type vxlan …` byte for byte as `ip` does for KC4's 58 vxlan rows that sent a request, lookups included, prints `ip`'s dstport warning, refuses the 15 `ip` refuses with `ip`'s texts and statuses, and sends `ip -4`'s and `-6`'s default group. KG3-T02 adds `type geneve …`: KC4's 35 geneve rows that sent a request, and the 14 refusals. KG3-T03 adds `type bareudp|amt|gtp …`: KC4's 10, 13 and 11 rows that sent a request, and the 21 refusals.
+- KG3 is in progress (KG3-T01 to KG3-T04): goip builds `ip link add|set … type vxlan …` byte for byte as `ip` does for KC4's 58 vxlan rows that sent a request, lookups included, prints `ip`'s dstport warning, refuses the 15 `ip` refuses with `ip`'s texts and statuses, and sends `ip -4`'s and `-6`'s default group. KG3-T02 adds `type geneve …`: KC4's 35 geneve rows that sent a request, and the 14 refusals. KG3-T03 adds `type bareudp|amt|gtp …`: KC4's 10, 13 and 11 rows that sent a request, and the 21 refusals. KG3-T04 renders `-d link show` and `-d -j link show` of the five kinds as `ip`'s print_opts do, for all 86 accepted KC4 rows with `ip`'s gets, and vxlan's `-d -d`.
 
-**Next action:** [KG3-T04](goip-link-kinds.md#kg3-t04-the-udp-overlays--d-output): the UDP overlays' `-d` output.
+**Next action:** [KG3-T05](goip-link-kinds.md#kg3-t05-the-udp-overlay-matrix-rows): the UDP overlay matrix rows.
 
 ## Contents
 
@@ -67,7 +67,7 @@
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | KG0-T02 | done | V129–V139, DOC016 |
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156, DOC017 |
 | [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | KG2-T05 | done | V157–V173, DOC018 |
-| [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | KG3-T04 | in progress | V174–V182 |
+| [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | KG3-T05 | in progress | V174–V185 |
 | [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | | not started | |
 | [KG5](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip | the remaining kinds | | not started | |
 
@@ -133,7 +133,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG3-T01](goip-link-kinds.md#kg3-t01-the-vxlan-words) | the vxlan words | done | V174–V176 |
 | [x] | [KG3-T02](goip-link-kinds.md#kg3-t02-the-geneve-words) | the geneve words | done | V177–V179 |
 | [x] | [KG3-T03](goip-link-kinds.md#kg3-t03-the-bareudp-amt-and-gtp-words) | the bareudp, amt and gtp words | done | V180–V182 |
-| [ ] | [KG3-T04](goip-link-kinds.md#kg3-t04-the-udp-overlays--d-output) | the UDP overlays' `-d` output | not started | |
+| [x] | [KG3-T04](goip-link-kinds.md#kg3-t04-the-udp-overlays--d-output) | the UDP overlays' `-d` output | done | V183–V185 |
 | [ ] | [KG3-T05](goip-link-kinds.md#kg3-t05-the-udp-overlay-matrix-rows) | the UDP overlay matrix rows | not started | |
 | [ ] | [KG4-T01…](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip IP tunnels | not started | |
 | [ ] | [KG5-T01…](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip, the remaining kinds | not started | |
@@ -342,6 +342,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V180 | 2026-10-25 | KG3-T03 | `go vet ./internal/goip/ ./pkg/xtcpnl/`, `go test -count=1 -race ./internal/goip/ ./pkg/xtcpnl/ ./internal/goipparity/` | all pass: `TestLinkSmallOverlayWriteMatchesIp` (KC4's 10 bareudp, 13 amt and 11 gtp rows that sent a request), `TestLinkSmallOverlayRefusals` (the 21 corpus refusals, 5 built rows and the three `help`s, with `ip`'s texts and statuses), `TestSmallOverlayCorpusArgv`, `TestParseSmallOverlayArgs` (8 rows) and `TestParseSmallOverlayArgsErrors` (6 rows) | this commit |
 | V181 | 2026-10-25 | KG3-T03 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: bareudp's two missargs swapped; amt's mode by prefix; amt's bad mode as an unknown word; gtp refusing a word it doesn't know; gtp's restart_count in base 0; amt sending a non-inet address | 6 of 6 killed, each by a named row | this commit |
 | V182 | 2026-10-25 | KG3-T03 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; the first lint run found goconst (`gateway_port` three times in amt, and amt's `mode` beside the existing `xfrmModeCst`), so amt now uses `amtGatewayPortCst` and `xfrmModeCst` | this commit |
+| V183 | 2026-10-25 | KG3-T04 | `go vet ./internal/goip/... ./pkg/xtcpnl/`, `go test -count=1 -race ./internal/goip/... ./pkg/xtcpnl/ ./internal/goipparity/` | all pass: `TestLinkShowDetailUdpOverlayMatchesSidecar` (the 86 accepted rows' `-d` and `-d -j` readbacks with `ip`'s gets, and 11 named rows), `TestLinkShowDetailVxlanJSONBools` (6 rows and the 12 bools), `TestLinkShowDetailVxlanTwice` (3 rows), `TestUdpOverlayDataRender` (30 rows), and `TestResolveShow`'s new `-d -d` refusal row | this commit |
+| V184 | 2026-10-25 | KG3-T04 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `-d -d` read as `-d`; the bool's text from the keyword, not the JSON key; a default bool printed; geneve's zero local hidden; `tos inherit` in JSON; vxlan left out of `renderableInfoData`; amt's `dev` by index; the lower device's get dropped | 8 of 8 killed, each by a named row | this commit |
+| V185 | 2026-10-25 | KG3-T04 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; the first lint run found misspell (`ageing` in the render and its test), now built from `xtcpnl.VxlanKeywordAgeing` | this commit |
 
 ## Decision log
 
@@ -492,3 +495,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **amt's `dev` is vxlan's.** A name that doesn't resolve, or an `if<n>` past INT_MAX, is `exit(nodev)`, 255, through `nodevExitErr`.
 - **The small overlays' refusal rows are named by kind.** KC4's corpus reuses row names across bareudp, amt and gtp, so the test names each `<kind>/<row>`.
 - **missarg has one helper.** bareudp's missing dstport and ethertype go through `missargErr`, `ip`'s `Error: argument "<key>" is required` at 255.
+- **goip's typed show path refuses `-d -d`.** Run carries the `-d` count to the link render, but a `ShowRequest` holds `-d` as a bool, so `ResolveShow` refuses a count above one, as it refuses `-s -s`, rather than answer `-d -d` with `-d`'s render.
+- **vxlan's and amt's `dev` is a get.** `ll_index_to_name` on the lower device sends `RTM_GETLINK` for an index not cached, so `resolveLinkRefs` resolves it after bond's indexes and before bridge_slave's `backup_port`, in `print_linktype`'s order.
+- **amt's mode past relay prints `unknown`.** `ip` indexes past `modename`; goip prints gtp's word, and `amt_validate` refuses such a mode, so no device carries one.
