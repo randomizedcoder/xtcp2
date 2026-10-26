@@ -2772,6 +2772,265 @@ Then the 96 rows go in `gated_commands`. A full run comes before the next push.
 
 ### KG2 — goip VLAN family
 
+Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked kind needs, together with the vlan words. KG2-T02 adds the macvlan and macvtap words, and KG2-T03 the ipvlan and ipvtap words. KG2-T04 renders the three print_opts' `-d` and `-d -j` output. KG2-T05 adds the matrix rows and gates them, which closes KG2. The codec is KP2's (`pkg/xtcpnl/xtcpnl_vlan.go`, `xtcpnl_macvlan.go`, `xtcpnl_ipvlan.go`), which decodes into `LinkInfo.Vlan`, `LinkInfo.Macvlan` and `LinkInfo.Ipvlan` and encodes every row's `IFLA_INFO_DATA`. So KG2 is the lower device, argument parsing, exit statuses, the renderer and the matrix.
+
+**The rows** (`pkg/xtcpnl/testdata/7_3_0/link-write/kinds/`, argv in `kind-write-corpus.exp`). Each is stacked on a dummy `d0`, and a set row's topology also makes the device it sets:
+
+| kind | rows | rc 0 | rc 2 (kernel) | rc 1 / 255 (`ip`, before the write) | requests |
+|---|---|---|---|---|---|
+| vlan | 28 | 15 | 6 | 3 / 4 | 21 |
+| macvlan | 34 | 20 | 5 | 8 / 1 | 25 |
+| macvtap | 6 | 5 | 0 | 1 / 0 | 5 |
+| ipvlan | 18 | 11 | 3 | 3 / 1 | 14 |
+| ipvtap | 4 | 3 | 0 | 1 / 0 | 3 |
+
+**What `ip` does** (`ip/iplink.c`, `iplink_vlan.c`, `iplink_macvlan.c` and `iplink_ipvlan.c` at `v7.2.0`):
+- **The lower device.** `link` is a `matches` keyword in `iplink_parse` (so `l` is `link`), and it only stores the name. On a create, the end of `iplink_parse` resolves it with `ll_name_to_index`, which sends a get, and adds `IFLA_LINK` before `IFLA_IFNAME`. A name that doesn't resolve is `nodev`: `Cannot find device "<name>"`, returned (1). This happens before `parse_opt` runs, so every refused stacked add sends d0's get (its `ip.pcap` holds 2 records). On a set, `link` is read and dropped, and nothing is resolved.
+- **vlan.** Every keyword is `matches`, in the order `protocol`, `id`, the five flags, `ingress-qos-map`, `egress-qos-map`. `id` is a `get_u16` and `protocol` goes through `ll_proto_a2n`; a failure in either is `invarg` (255). A flag's value is a `strcmp` on/off, and anything else is `on_off`'s text, returned (1). The flags fold into one `IFLA_VLAN_FLAGS`, sent last when any flag word was given. A qos map is `parse_mapping`: it reads `FROM:TO` words until one has no colon, which the loop then reads as a keyword. So `egress-qos-map 5` sends an empty map and then refuses `5` as an unknown command (1). A bad number is `invarg` naming the word after `parse_mapping` has cut it at its colon, so `1:x` prints as `"1"`.
+- **macvlan and macvtap.** One parser for both. `mode`, `flag`, `macaddr`, `nopromisc`, `nodst` and `bcqueuelen` are `matches` keywords; `bclim` is a `strcmp` (so `bcl` is an unknown option). Modes, flags and the macaddr ops are `strcmp` words. Every refusal returns (1), and only `NEXT_ARG` exits 255. The macaddr ops are added in the loop and the mode and flags after it. The `nopromisc` check runs after the loop against the last mode, so `nopromisc mode passthru` is accepted. A bad macaddr op prints only the usage, so `ip.err`'s first line is the usage line, with the kind's own name in it. `ll_addr_a2n` prints `"<part>" is invalid lladdr.` for a part that isn't hex and nothing for a wrong length; `macaddr add|del` then returns (1). `macaddr set` reads addresses until one fails and leaves that word to the loop, after `ll_addr_a2n` has printed whatever it prints.
+- **ipvlan and ipvtap.** One parser for both. `mode` is followed by an `strcmp` mode, and each mode word adds its own `IFLA_IPVLAN_MODE`. `private`, `vepa` and `bridge` are `matches` and are taken once only, so a second flag word is an unknown option (1). `IFLA_IPVLAN_FLAGS` is always sent once any option follows the kind, and with no option there's no `INFO_DATA` at all (`iplink_modify` calls `parse_opt` only when `argc`).
+- **Rendering.** vlan prints `protocol` through `ll_proto_n2a` (or `802.1q` when the attribute is missing), then `id`, then the flags as `<A,B>` (a JSON `flags` array; leftover bits through `print_hex`). Each qos map starts with `print_nl()` and then prints `      ingress-qos-map { 1:2 3:4 } `; in JSON it's an array of `{from, to}`. vlan prints nothing without a full-width `IFLA_VLAN_ID`. macvlan prints `mode` by name (`unknown` past source), `nopromisc` and `nodst` as booleans, `bcqueuelen` and `usedbcqueuelen` as `%lu` and `bclim` as `%d`; only in source mode does it add `remotes (%d)` and the addresses. ipvlan prints `" mode %s "` with a leading space, so its line reads `ipvlan  mode l3 bridge`, then exactly one of `private`, `vepa` and `bridge` as a boolean.
+
+**Exit statuses.** KG0's decision holds: `invarg`, `incomplete_command` and `NEXT_ARG` wrap `ErrLinkUsage` (255), and the returned refusals are `ErrInvalidArgument` (1). goip prints a refusal's first line and no usage, as for bridge. macvlan's bad op is the exception: its first line is the usage line, so goip prints that line.
+
+#### KG2-T01 The `link` keyword and the vlan words
+
+**Code.**
+- **The keyword.** `link_write.go`'s `link` entry gets its own arm, `linkArmLink`. It stores the name in `linkParseState.link`, last one winning. `finish`'s create branch resolves the name through `st.resolve` before `IFLA_IFNAME` and appends `IFLA_LINK`, or returns `nodevErr` for a name that doesn't resolve. The set branch ignores it.
+- **The vlan words.** `internal/goip/link_vlan_args.go`: `parseVlanArgs(args []string) ([]xtcpnl.VlanSetting, error)`, `vlan_parse_opt`'s chain in its order, with `ll_proto_a2n` from `ll_proto.go`. The qos maps go through `parseQosMapping`, `parse_mapping`'s loop, which returns the index of the word that stopped it and the cut word for `invarg`. A `kindVlanCst` case in `kindData` calls `xtcpnl.EncodeVlanInfoData`.
+
+`TestLinkVlanWriteMatchesIp` replays `kinds/vlan/*` through `newLinkReplay` with `useLLMap720`. goip must send `ip`'s lookups and write `ip`'s request, byte for byte with seq and pid zeroed, and exit 0.
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 21 rows | its lookups (d0's for an add, v0's for a set), then its request |
+| positive: the lower device | `add_default` | `IFLA_LINK` d0's index, then `IFLA_IFNAME` v0, then the link info |
+| negative: a request the kernel refuses is built anyway | the 6 rc 2 rows | their requests |
+| boundary: the top id `ip` takes | `add_id_over` (`id 4095`) | `IFLA_VLAN_ID` 4095; the kernel refuses it |
+| corner: no lower device | `add_no_link` | no get, no `IFLA_LINK` |
+| corner: an abbreviation | `add_abbrev` (`i 10`) | `IFLA_VLAN_ID` 10 |
+| corner: the flags go last | `add_several` | protocol and id in argument order, then one `IFLA_VLAN_FLAGS` |
+
+`TestLinkVlanRefusals` checks the status and stderr's first line:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_on_off_bad`, `add_unknown`, `add_qos_no_colon` (1); `add_id_bad`, `add_protocol_bad`, `add_qos_bad`, `add_no_value` (255) | the row's `ip.rc` and `ip.err` first line; d0's get sent, no write |
+| negative: a lower device that doesn't exist | `link add link nosuch name v0 type vlan id 10` | 1, `Cannot find device "nosuch"`; nosuch's get, no write |
+| boundary: an id past a u16 | `id 65536` | 255, `argument "65536" is wrong: id is invalid` |
+| corner: a bad key in a later pair | `id 10 egress-qos-map 2:1 x:3` | 255, `argument "x" is wrong: invalid egress-qos-map` |
+| corner: an on/off value by prefix | `id 10 gvrp of` | 1, `argument of "gvrp" must be "on" or "off", not "of"` |
+| corner: help is not goip's | `help` | 1, not implemented |
+
+`TestParseLinkLower` (`link_write_test.go`) checks the keyword where no vlan capture reaches:
+
+| description | input | expected |
+|---|---|---|
+| positive: a lower device on an add | `add link d0 name x0 type dummy` | d0's get; `IFLA_LINK`, then `IFLA_IFNAME` x0 |
+| negative: no value | `add name x0 link` | 255, `Command line is not complete` |
+| boundary: the last `link` wins | `add link nosuch link d0 name x0 type dummy` | one get, d0's; `IFLA_LINK` d0 |
+| corner: a set drops it | `set d0 l x` | no get for x, no `IFLA_LINK`; d0's bare set (the old `negative: l is link, not a device` row, now positive) |
+| corner: `l` is `link` on an add | `add l d0 name x0 type dummy` | `IFLA_LINK` d0 |
+
+`TestVlanCorpusArgv` checks the argv table against the corpus: one argv per `kinds/vlan/` row, 28 in all. `TestParseVlanArgs` checks the values no capture covers:
+- `protocol 0x88a8` by number;
+- a map stopped by a keyword (`egress-qos-map 1:2 gvrp on` gives the map, then the flag);
+- `reorder_hdr on reorder_hdr off` (the mask set, the flag cleared);
+- a map key in hex (`0x1:2`).
+
+**Mutation check:**
+- `IFLA_LINK` after `IFLA_IFNAME` (the lower-device row);
+- `link` resolved on a set (`set d0 l x`);
+- `nodev` as 255 (the missing-lower row);
+- the qos `invarg` naming the whole word (`add_qos_bad`);
+- the flags in argument order (`add_several`);
+- `id` matched by `strcmp` (`add_abbrev`).
+
+**Done when:** the tables pass with `go test -count=1 -race ./internal/goip/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.
+
+#### KG2-T02 The macvlan and macvtap words
+
+**Code.** `internal/goip/link_macvlan_args.go`: `parseMacvlanArgs(errOut io.Writer, kind string, args []string) ([]xtcpnl.MacvlanSetting, error)`. It is `macvlan_parse_opt`'s chain, with the kind's name in the usage line and in the `nopromisc` text.
+- **The addresses.** `ll_addr_a2n`'s warnings go to `errOut`, so `cparse.go` gains `llAddrA2NPart`. It is `llAddrA2N` that also returns the part `ll_addr_a2n` printed, `""` when it failed silently on a length.
+- **The `nopromisc` refusal.** `xtcpnl.ErrMacvlanNopromisc` maps to `<kind>: nopromisc flag only valid in passthru mode`.
+- **The kind cases.** `kindMacvlanCst` and `kindMacvtapCst` cases in `kindData` call `xtcpnl.EncodeMacvlanInfoData`.
+
+`TestLinkMacvlanWriteMatchesIp`, as KG2-T01's, over `kinds/macvlan/*` and `kinds/macvtap/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 25 and 5 rows | its lookups, then its request |
+| positive: macvtap is macvlan's parser | `macvtap/add_mode_passthru` | `IFLA_INFO_KIND` macvtap, `IFLA_MACVLAN_MODE` 8 |
+| negative: a request the kernel refuses is built anyway | the 5 rc 2 rows | their requests |
+| boundary: a negative cutoff | `add_bclim_negative` | `IFLA_MACVLAN_BC_CUTOFF` -1 |
+| corner: the mode after the ops | `add_macaddr_add` | `MACADDR_MODE`, `MACADDR`, then `MODE` 16 |
+| corner: a set's addresses in one nest | `add_macaddr_set` | `MACADDR_MODE` 3, a `MACADDR_DATA` of two |
+| corner: `flag null` | `add_flag_null` | `IFLA_MACVLAN_FLAGS` 0 |
+
+`TestLinkMacvlanRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | the 8 macvlan rc 1 rows and `macvtap/add_mode_bad` (1); `add_no_value` (255) | the row's `ip.rc` and `ip.err` first line; d0's get, no write |
+| negative: macvtap's usage names macvtap | `type macvtap macaddr bogus` | 1, `Usage: ... macvtap mode MODE …` |
+| boundary: a queue length that isn't a u32 | `bcqueuelen -1` | 1, `argument of "bcqueuelen" must be a positive integer [0-4294967295], not "-1"` |
+| boundary: a cutoff past an s32 | `bclim 2147483648` | 1, `illegal value for "bclim": "2147483648"` |
+| corner: an address one part short | `mode source macaddr add 02:00:00:00:01` | 1, nothing on stderr |
+| corner: a bad part, not the whole word | `mode source macaddr add 02:zz:00:00:00:01` | 1, `"zz" is invalid lladdr` |
+| corner: help is not goip's | `help` | 1, not implemented |
+
+`TestParseMacvlanArgs` checks the values no capture covers:
+- `nopromisc mode passthru`: accepted, since the check runs after the loop;
+- `n` is `nopromisc` and `nod` is `nodst`;
+- `macaddr set 02:00:00:00:00:01 mode source`: one address, then the mode, with `"mode" is invalid lladdr.` on stderr;
+- `macaddr set 02:00:00:00:00:01 bcqueuelen 10`: one address and the queue length, with nothing on stderr, since `bc` is hex;
+- `macaddr set` alone: an empty `MACADDR_DATA`.
+
+`TestMacvlanCorpusArgv` checks the 34 and 6 corpus rows. `TestLLAddrA2NPart` checks `ll_addr_a2n`'s stderr:
+- a good address;
+- a part that isn't hex (named);
+- a part past 255 (named);
+- one part short (silent);
+- seven parts (silent);
+- an IPv4 address that won't parse (the whole word).
+
+**Mutation check:**
+- `bclim` by prefix (`add_bclim_abbrev`);
+- the `nopromisc` check inside the loop (`nopromisc mode passthru`);
+- the mode in argument order (`add_macaddr_add`);
+- the set loop's word consumed, not left (`macaddr set … mode source`);
+- the silent length failure warned (one part short);
+- the usage line naming macvlan for macvtap (macvtap's usage row).
+
+**Done when:** as KG2-T01.
+
+#### KG2-T03 The ipvlan and ipvtap words
+
+**Code.** `internal/goip/link_ipvlan_args.go`: `parseIpvlanArgs(kind string, args []string) ([]xtcpnl.IpvlanSetting, error)`, `ipvlan_parse_opt`'s chain. A flag word after the first is the unknown-option text (`xtcpnl.ErrIpvlanSecondFlag`'s case). `kindIpvlanCst` and `kindIpvtapCst` cases in `kindData`; no option after the kind is no `INFO_DATA`, as `EncodeIpvlanInfoData` already returns.
+
+`TestLinkIpvlanWriteMatchesIp`, over `kinds/ipvlan/*` and `kinds/ipvtap/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 14 and 3 rows | its lookups, then its request |
+| positive: no option, no data | `add_default` | `IFLA_INFO_KIND` ipvlan, no `INFO_DATA` |
+| negative: a request the kernel refuses is built anyway | the 3 rc 2 rows | their requests |
+| boundary: the flags sent as 0 | `add_mode_l2` | `IFLA_IPVLAN_MODE` 0, `IFLA_IPVLAN_FLAGS` 0 |
+| corner: a set of the mode clears the flags | `set_mode` | `MODE` 0, `FLAGS` 0 |
+| corner: an abbreviation | `add_abbrev` (`mo l2`) | `IFLA_IPVLAN_MODE` 0 |
+
+`TestLinkIpvlanRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_two_flags`, `add_mode_bad`, `add_unknown`, `ipvtap/add_mode_bad` (1); `add_no_value` (255) | the row's `ip.rc` and `ip.err` first line; d0's get, no write |
+| negative: ipvtap's unknown option names ipvtap | `type ipvtap bogus` | 1, `ipvtap: unknown option "bogus"?` |
+| boundary: a mode in another case | `mode L2` | 1, `argument of "mode" must be either "l2", "l3" or "l3s"` |
+| corner: `bridge` then `private` | `bridge private` | 1, `ipvlan: unknown option "private"?` |
+| corner: help is not goip's | `help` | 1, not implemented |
+
+`TestParseIpvlanArgs`:
+- `mode l2 mode l3` sends two `MODE`s in order;
+- `b` is `bridge` (`FLAGS` 0);
+- `p` is `private`;
+- `vepa mode l3s` puts the mode, then `FLAGS` 2.
+
+`TestIpvlanCorpusArgv` checks the 18 and 4 corpus rows.
+
+**Mutation check:**
+- a second flag word accepted (`add_two_flags`);
+- `FLAGS` left out without a flag word (`add_mode_l2`);
+- the data sent with no option (`add_default`);
+- the unknown-option text naming ipvlan for ipvtap (ipvtap's row).
+
+**Done when:** as KG2-T01.
+
+#### KG2-T04 The VLAN family's `-d` output
+
+**Code.**
+- `internal/goip/render/link_vlan.go`: `vlanData(*xtcpnl.VlanInfo) *KindData`. The flags are `vlan_print_flags`, in `xtcpnl.VlanFlags`' order. Each qos map is a text call of `"\n"` (`print_nl`) and then its tokens, with its JSON array as one keyed call.
+- `render/link_macvlan.go`: `macvlanData(*xtcpnl.MacvlanInfo) *KindData`, macvtap's too.
+- `render/link_ipvlan.go`: `ipvlanData(*xtcpnl.IpvlanInfo) *KindData`, ipvtap's too.
+- `render.kindData` gets the five kinds' cases, and `renderableInfoData` gets the five kinds.
+
+`TestLinkShowDetailVlanFamilyMatchesSidecar` runs `ip [-d] [-j] link show dev <row's device>` through `runKindShow` for every accepted row of the five kinds. It holds the gets to the capture's requests with `assertKindShowGets`: the device's two, and d0's by index for `@d0`.
+
+| description | input | expected |
+|---|---|---|
+| positive: each accepted row's `-d` | the 54 rc 0 rows | `ip_getlink_detail`, line for line; the capture's gets |
+| positive: each accepted row's `-d -j` | the 54 rc 0 rows | `ip_getlink_detail_json`, entry for entry; the capture's gets |
+| negative: a vlan without `-d` | `vlan/add_default`, `link show` | `ip_getlink`; `v0@d0:`, no `vlan protocol` |
+| boundary: a flag word that clears the only flag | `vlan/add_reorder_hdr` | `vlan protocol 802.1Q id 10 ` with no flags |
+| corner: a qos map on its own line | `vlan/add_ingress_qos_map` | `<REORDER_HDR> `, a line break, `      ingress-qos-map { 1:2 3:4 } ` |
+| corner: source mode's remotes | `macvlan/add_macaddr_set` | `remotes (2) 02:00:00:00:00:02 02:00:00:00:00:01`; JSON `macaddr_data` |
+| corner: ipvlan's leading space | `ipvlan/add_default` | `ipvlan  mode l3 bridge ` |
+| corner: macvtap's own kind word | `macvtap/add_default` | `macvtap mode vepa …` |
+
+`TestVlanFamilyDataRender` (`internal/goip/render`) holds what no readback reaches:
+
+| description | input | expected |
+|---|---|---|
+| positive: a vlan with no protocol attribute | id 5 | `protocol 802.1q id 5 ` |
+| positive: macvlan's two flags | mode passthru, flags 3 | `mode passthru nopromisc nodst ` |
+| negative: a vlan without an id | protocol only | `""`; `{}` |
+| negative: a macvlan without a mode | bcqueuelen only | `""`; `{}` |
+| boundary: an empty flags attribute | flags 0, present | `<> `; `"flags":[]` |
+| boundary: a mode past the table | macvlan 32, ipvlan 3 | `mode unknown `, ` mode unknown ` |
+| corner: an unnamed vlan flag bit | flags 0x22 | `<GVRP,20> `; `"flags":["GVRP","20"]` |
+| corner: an empty qos map | ingress, no pairs | `      ingress-qos-map { } `; `"ingress_qos":[]` |
+| corner: ipvlan private over vepa | flags 3 | `private ` only |
+| corner: remotes outside source mode | mode bridge, count 2 | no `remotes` |
+
+**Mutation check:**
+- the qos map without its line break (the qos corner row);
+- ipvlan's mode without its leading space (every ipvlan row);
+- `802.1Q` for the missing protocol (its render row);
+- `remotes` printed in every mode (its render row);
+- vlan flags in bit order (`add_several`: MVRP before LOOSE_BINDING, and the unnamed-bit row);
+- `bclim` as unsigned (`add_bclim_negative`);
+- vlan left out of `renderableInfoData` (every vlan row).
+
+**Done when:** as KG2-T01.
+
+#### KG2-T05 The VLAN family matrix rows
+
+**Rows.** In `internal/goipparity/commands.go`, after the bridge rows:
+- **Write rows**, slug `link_<kind>_<slug>`, one per corpus row that sent a request: 21 vlan, 25 macvlan, 5 macvtap, 14 ipvlan and 3 ipvtap, 68 in all.
+  - Argv is as the corpus ran it. `Floor` is the row's `ip.pcap` record count, and `Setup` is its `topology`.
+  - `Name` is the allowlist key, so a row that shares an argv with another row is spelled another way that sends the same request. `ipvlan/add_on_busy_lower` shares `add_default`'s argv, and becomes `link add link d0 dev i0 type ipvlan`.
+  - `corpusWriteRow`'s bridge mapping becomes a table of slug prefixes and kinds, so the five kinds read their fixtures from `7_3_0/link-write/kinds/<kind>/`.
+- **Read rows**: `-d link show dev <dev>` and `-d -j link show dev <dev>` for v0, m0, t0, i0 and j0, floor 6, each on d0 plus its device's add, 10 in all.
+
+`TestVlanFamilyMatrixRows` (`internal/goipparity/commands_vlan_test.go`):
+
+| description | input | expected |
+|---|---|---|
+| positive: one write row per request row | the five kinds' slugs | the corpus's rows with `ip.rc` 0 or 2: 21, 25, 5, 14, 3 |
+| negative: no `ip`-refused row | the 22 rows with `ip.rc` 1 or 255 | absent |
+| boundary: each floor | `Floor` | the row's `ip.pcap` record count |
+| corner: each setup | `Setup` | the row's `topology` file, step for step |
+| corner: each name is unique | the 68 `Name`s | no two alike; `add_on_busy_lower` respelled |
+| positive: the ten read rows | the read rows | not writes; floor 6; d0 and the device |
+| positive: every row is gated | the 78 rows' names | each `IsGated` in the embedded allowlist |
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: two consecutive clean section runs | `goip-parity -- --timeout 12000 --section link`, twice | the 78 rows `PASS` on both, and every gated `link` row still `PASS` |
+| corner: the kernel-refused rows compare on the request | the 14 rc 2 rows | `PASS` |
+
+Then the 78 rows go in `gated_commands`. A full run comes before the next push.
+
+**Mutation check:**
+- a floor short by 2 (the floor row);
+- a setup step dropped (the setup row);
+- a row dropped (the request-row row);
+- an `ip`-refused row added (the negative row);
+- `add_on_busy_lower` back to its corpus spelling (the unique row);
+- a read row's floor short by 2 (the read row);
+- a row dropped from `gated_commands` (the gated row and `TestUngatedSurfaceIsNotVacuous`).
+
+**Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG2.
+
 ### KG3 — goip UDP overlays
 
 ### KG4 — goip IP tunnels

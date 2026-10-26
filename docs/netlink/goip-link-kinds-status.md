@@ -22,9 +22,9 @@
 - KP5 is done (KP5-T01, KP5-T02, KP5-T03, KP5-T04; planned in DOC014): `pkg/xtcpnl/xtcpnl_hsr.go` decodes hsr into `LinkInfo.Hsr`, rendering all 10 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 20 rows that sent a request byte for byte. `xtcpnl_netkit.go` does the same for netkit into `LinkInfo.Netkit` (19 accepted rows, 27 requests), its `PEER_INFO` nest shared with `EncodeVethPeer` through `putPeerNest`. `xtcpnl_vrf.go` encodes vrf's 12 requests (the 8 accepted rows' dumps and the 3 enslaved vrf_slave rows' render through the existing `vrfTableAttr`), and `xtcpnl_vxcan.go` vxcan's 9 through `putPeerNest`; no vrf_slave request carries `INFO_SLAVE_DATA`. `xtcpnl_batadv.go` encodes batadv's 12 requests; batadv has no `fill_info`, and ifb, nlmon, vcan, team and team_slave send and dump no kind data at all, which `TestKindsWithoutData` holds for all 46 of their requests.
 - The KP tier is done. KG0 is planned (DOC015): KG0-T01 puts `inet` in goip's keyword chain, with `ip`'s exit statuses, and KG0-T02 gates its 11 matrix rows.
 - KG0 is done (KG0-T01, KG0-T02; planned in DOC015): goip builds `ip link set … inet …` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, and refuses the 7 `ip` refuses with `ip`'s texts and statuses. `parseLinkArgs`' `exit(-1)` refusals now exit 255 through `ErrLinkUsage`. The 11 `link_inet_*` matrix rows are gated, on a clean full run and a clean `--section link` run (V135, V136), the first rows gated with a section run. KG1 is planned (DOC016).
-- KG1 is done (KG1-T01, KG1-T02, KG1-T03, KG1-T04, KG1-T05; planned in DOC016): goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets. The 92 write rows and 4 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V154, V155).
+- KG1 is done (KG1-T01, KG1-T02, KG1-T03, KG1-T04, KG1-T05; planned in DOC016): goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets. The 92 write rows and 4 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V154, V155). KG2 is planned (DOC017).
 
-**Next action:** plan [KG2](goip-link-kinds.md#kg2--goip-vlan-family), goip's VLAN family: break it into tasks with their tables.
+**Next action:** [KG2-T01](goip-link-kinds.md#kg2-t01-the-link-keyword-and-the-vlan-words): the `link` keyword and the vlan words.
 
 ## Contents
 
@@ -63,8 +63,8 @@
 | [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | KP4-T05 | done | V102–V116, DOC014 |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | KP5-T04 | done | V117–V128, DOC015 |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | KG0-T02 | done | V129–V139, DOC016 |
-| [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156 |
-| [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | | not started | |
+| [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156, DOC017 |
+| [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | KG2-T01 | not started | |
 | [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | | not started | |
 | [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | | not started | |
 | [KG5](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip | the remaining kinds | | not started | |
@@ -123,7 +123,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG1-T03](goip-link-kinds.md#kg1-t03-the-bridges--d-output) | the bridge's `-d` output | done | V146–V148 |
 | [x] | [KG1-T04](goip-link-kinds.md#kg1-t04-the-bridge-ports--d-output) | the bridge port's `-d` output | done | V149–V151 |
 | [x] | [KG1-T05](goip-link-kinds.md#kg1-t05-the-bridge-matrix-rows) | the bridge matrix rows | done | V152–V156 |
-| [ ] | [KG2-T01…](goip-link-kinds.md#kg2--goip-vlan-family) | goip VLAN family | not started | |
+| [ ] | [KG2-T01](goip-link-kinds.md#kg2-t01-the-link-keyword-and-the-vlan-words) | the `link` keyword and the vlan words | not started | |
+| [ ] | [KG2-T02](goip-link-kinds.md#kg2-t02-the-macvlan-and-macvtap-words) | the macvlan and macvtap words | not started | |
+| [ ] | [KG2-T03](goip-link-kinds.md#kg2-t03-the-ipvlan-and-ipvtap-words) | the ipvlan and ipvtap words | not started | |
+| [ ] | [KG2-T04](goip-link-kinds.md#kg2-t04-the-vlan-familys--d-output) | the VLAN family's `-d` output | not started | |
+| [ ] | [KG2-T05](goip-link-kinds.md#kg2-t05-the-vlan-family-matrix-rows) | the VLAN family matrix rows | not started | |
 | [ ] | [KG3-T01…](goip-link-kinds.md#kg3--goip-udp-overlays) | goip UDP overlays | not started | |
 | [ ] | [KG4-T01…](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip IP tunnels | not started | |
 | [ ] | [KG5-T01…](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip, the remaining kinds | not started | |
@@ -304,6 +308,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V154 | 2026-10-25 | KG1-T05 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section link`, the 96 rows ungated | `GOIP_PARITY_SECTION link (144 of 614 rows)`; `GOIP_PARITY_PASS` on all 144, the 96 among them; `OVERALL_PASS`, `HYGIENE_PASS`, `UNGATED_CLEAN`, `CONTROL_NOISY 4`, `DRIVER_PASS`, rc 0 | VM run |
 | V155 | 2026-10-25 | KG1-T05 | the same again, the second consecutive `--section link` run, on the same ungated rows | `GOIP_PARITY_SECTION link (144 of 614 rows)`; `GOIP_PARITY_PASS` on all 144, the 96 among them; `OVERALL_PASS`, `HYGIENE_PASS`, `UNGATED_CLEAN`, `CONTROL_NOISY 8`, `DRIVER_PASS`, rc 0 | VM run |
 | V156 | 2026-10-25 | KG1-T05 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; the misspell finding on the British timer keyword in `commands.go` was fixed before the first clean run by splitting it, as `xtcpnl.BridgeKeywordAgeingTime` is | this commit |
+| DOC017 | 2026-10-25 | KG1 close | KG2 broken into KG2-T01 (the `link` keyword and the vlan words), KG2-T02 (macvlan and macvtap), KG2-T03 (ipvlan and ipvtap), KG2-T04 (the three `-d` renders) and KG2-T05 (the 78 matrix rows) with their tables. Argued from `iplink.c`, `iplink_vlan.c`, `iplink_macvlan.c`, `iplink_ipvlan.c`, `lib/utils.c`'s `parse_mapping` and `lib/ll_addr.c` at `v7.2.0`, from KC3's 90 rows (`ip.rc`, `ip.err`, `topology`, record counts, readbacks) and from KP2's codec. doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -423,3 +428,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **Two bridge rows are respelled for the allowlist.** A command's `Name` is its allowlist key and its argv, so two corpus rows whose argv another row already has, `set_stp_mode_busy` and `set_not_enslaved`, are `link set dev br0 type bridge stp_mode user` and `link set p0 type bridge_slave cost 10`. `dev` is `iplink_parse`'s optional word, so each sends the same request as its corpus row, which `TestCompareWriteRow` holds.
 - **The bridge rows read the 7.3.0 kind corpus.** `corpusWriteRow` maps a `link_bridge_<x>` or `link_bridge_slave_<x>` row to `7_3_0/link-write/kinds/<kind>/<x>` (`tdKinds730`), trying the slave prefix first, since a bridge_slave slug has both.
 - **KG1 closes on section runs alone.** Its 96 rows were gated on two `--section link` runs; the full run the rule asks for comes before the next push, not before the gate.
+- **KG2 starts with the `link` keyword.** Every KC3 row is stacked on d0 with `link d0`, which goip refused as unimplemented, so KG2-T01 adds it with the vlan words. The vlan corpus is its oracle, and hand-built dummy rows cover what no capture reaches.
+- **KG2 is five tasks, one per parser.** macvtap and ipvtap share macvlan's and ipvlan's parsers and print_opts, so they're never tasks of their own. The three renders are small enough to be one task, and the matrix rows are their own task for the two VM runs.
+- **macvlan's bad op prints its usage line.** goip prints a refusal's first line and no usage, but `macaddr bogus`'s only text is the usage, so goip prints that line, with the kind's name in it.
+- **`ll_addr_a2n`'s warnings are output.** `macaddr set` reads addresses until one fails, and the failing word's warning reaches stderr even when the command succeeds. goip's `llAddrA2N` reports only success, so KG2-T02 adds a variant that names the part `ll_addr_a2n` printed, or none when it failed silently on a length.
