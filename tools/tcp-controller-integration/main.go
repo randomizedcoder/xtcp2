@@ -20,7 +20,8 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
+	evport "github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence/clickhouse"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
@@ -276,13 +277,13 @@ func review(op pb.OperatorServiceClient, e *pb.Experiment, id string, evidence *
 	return must(op.Review(ctx, &pb.ReviewRequest{ExperimentId: e.Id, ExpectedRevision: e.Revision, Approve: true, Reason: "Integration: reviewed measured evidence and destination scope", RequestId: id, Evidence: evidence})).Experiment
 }
 func propose(op pb.OperatorServiceClient, id string) *pb.Experiment {
-	ch := controller.ClickHouse{URL: "http://127.0.0.1:8123", Table: "xtcp.xtcp_flat_records_v2"}
+	ch := clickhouse.Client{URL: "http://127.0.0.1:8123", Table: "xtcp.xtcp_flat_records_v2"}
 	var baseline *pb.Evidence
 	eventually("fresh six-host baseline", 3*time.Minute, func() bool {
 		end := time.Now().Add(-20 * time.Second)
 		ctx, cancel := rpcContext()
 		defer cancel()
-		baseline = wire.Evidence(must(ch.Evidence(ctx, "test-dc", netip.MustParsePrefix("198.18.0.1/32"), id, hosts, end.Add(-60*time.Second), end)))
+		baseline = wire.Evidence(must(ch.Evidence(ctx, evport.Window{Location: "test-dc", Destination: netip.MustParsePrefix("198.18.0.1/32"), ExperimentID: id, Agents: hosts, Start: end.Add(-60 * time.Second), End: end})))
 		require(len(baseline.Hosts) == 6, "baseline needs six hosts: %v", baseline.Hosts)
 		for _, h := range baseline.Hosts {
 			require(h.CollectionHealthy && h.Sockets >= 8 && h.BytesAcked >= 4096, "baseline not ready: %v", h)

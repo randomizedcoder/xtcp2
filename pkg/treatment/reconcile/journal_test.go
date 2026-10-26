@@ -112,12 +112,16 @@ func TestJournalConcurrentExclusion(t *testing.T) {
 		t.Fatal("lock not released", err)
 	}
 	// The lock-free reader sees the committed snapshot while the lock is held.
-	hold := make(chan struct{})
+	hold, held, released := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	go func() {
-		_ = j.WithLock(func(*State, func() error) error { <-hold; return nil })
+		defer close(released)
+		_ = j.WithLock(func(*State, func() error) error { close(held); <-hold; return nil })
 	}()
+	<-held
 	s, err := ReadSnapshot(j.Dir)
 	close(hold)
+	// Wait for the holder to finish before the temp dir is removed.
+	<-released
 	if err != nil || s.SuspensionReason != "first writer" {
 		t.Fatalf("lock-free read under lock: %v %+v", err, s)
 	}
