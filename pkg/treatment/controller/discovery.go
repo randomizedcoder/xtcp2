@@ -138,39 +138,48 @@ func (s *Server) Discover(ctx context.Context, w evidence.Warehouse, templates [
 			if !t.inScope(c, prefixes) {
 				continue
 			}
-			// Completed or held treatments and recent rejected trials suppress
-			// repeat proposals. Cooldown is at least a day after terminal state.
-			exists, e := s.Store.Repos().Experiments.DestinationBlocked(ctx, t.Location, c.Destination, s.now().Add(-24*time.Hour))
+			stop, e := s.discoverCandidate(ctx, w, t, c, enrolled, start, end)
 			if e != nil {
 				failures = append(failures, e)
-				continue
 			}
-			if exists {
-				continue
-			}
-			seed := sha256.Sum256([]byte(t.ID + "/" + c.Destination.String() + "/" + s.now().UTC().Format("2006-01-02")))
-			id := "hyp-" + hex.EncodeToString(seed[:12])
-			// Only enrolled agents report sessions, so only they can carry
-			// bound evidence or receive an assignment.
-			cohort := enrolledIn(c.Agents, enrolled)
-			if len(cohort) < treatment.MinimumCohort {
-				continue
-			}
-			baseline, e := s.boundEvidence(ctx, w, evidence.Window{Location: t.Location, Destination: c.Destination, ExperimentID: id, Agents: cohort, Start: start, End: end})
-			if e != nil {
-				failures = append(failures, e)
-				continue
-			}
-			n := &treatment.Experiment{ID: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, c.Destination, c.ASN, c.RTTMs, c.RetransmissionRatio), Treatment: treatment.Treatment{ID: t.ID, Revision: 1, Destination: c.Destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: cohort}
-			if _, e = s.propose(ctx, &pb.ProposeRequest{Experiment: wire.Experiment(n), RequestId: id}, "candidate-discovery", true); e != nil {
-				if !errors.Is(e, errExperimentBudget) && !errors.Is(e, errDiscoverySuppressed) {
-					failures = append(failures, e)
-				}
+			if stop {
 				break
 			}
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// discoverCandidate measures one in-scope candidate's enrolled hosts and
+// proposes it. stop reports that the location took (or refused) a proposal,
+// so the template's remaining candidates wait for the next pass.
+func (s *Server) discoverCandidate(ctx context.Context, w evidence.Warehouse, t *DiscoveryTemplate, c evidence.Candidate, enrolled map[string]bool, start, end time.Time) (stop bool, err error) {
+	// Completed or held treatments and recent rejected trials suppress
+	// repeat proposals. Cooldown is at least a day after terminal state.
+	exists, err := s.Store.Repos().Experiments.DestinationBlocked(ctx, t.Location, c.Destination, s.now().Add(-24*time.Hour))
+	if err != nil || exists {
+		return false, err
+	}
+	// Only enrolled agents report sessions, so only they can carry bound
+	// evidence or receive an assignment.
+	cohort := enrolledIn(c.Agents, enrolled)
+	if len(cohort) < treatment.MinimumCohort {
+		return false, nil
+	}
+	seed := sha256.Sum256([]byte(t.ID + "/" + c.Destination.String() + "/" + s.now().UTC().Format("2006-01-02")))
+	id := "hyp-" + hex.EncodeToString(seed[:12])
+	baseline, err := s.boundEvidence(ctx, w, evidence.Window{Location: t.Location, Destination: c.Destination, ExperimentID: id, Agents: cohort, Start: start, End: end})
+	if err != nil {
+		return false, err
+	}
+	n := &treatment.Experiment{ID: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, c.Destination, c.ASN, c.RTTMs, c.RetransmissionRatio), Treatment: treatment.Treatment{ID: t.ID, Revision: 1, Destination: c.Destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: cohort}
+	if _, err = s.propose(ctx, &pb.ProposeRequest{Experiment: wire.Experiment(n), RequestId: id}, "candidate-discovery", true); err != nil {
+		if errors.Is(err, errExperimentBudget) || errors.Is(err, errDiscoverySuppressed) {
+			err = nil
+		}
+		return true, err
+	}
+	return false, nil
 }
 
 // enrolled returns the IDs of the agents enrolled in location.

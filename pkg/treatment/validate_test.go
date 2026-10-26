@@ -347,7 +347,9 @@ func TestReportValidation(t *testing.T) {
 		{"bad-boot-id", "boot IDs are identifiers", func(p **treatment.AgentReport) { (*p).Capabilities.BootID = "" }, "agent report"},
 		{"missing-collection-id", "a report must carry the agent's collection nonce", func(p **treatment.AgentReport) { (*p).Capabilities.CollectionID = "" }, "agent report"},
 		{"short-collection-id", "a 31-digit nonce is refused", func(p **treatment.AgentReport) { (*p).Capabilities.CollectionID = fixtures.CollectionID[1:] }, "agent report"},
-		{"upper-collection-id", "the nonce is lowercase hex, so it can never carry a quote", func(p **treatment.AgentReport) { (*p).Capabilities.CollectionID = strings.ToUpper(fixtures.CollectionID) }, "agent report"},
+		{"upper-collection-id", "the nonce is lowercase hex, so it can never carry a quote", func(p **treatment.AgentReport) {
+			(*p).Capabilities.CollectionID = strings.ToUpper(fixtures.CollectionID)
+		}, "agent report"},
 		{"long-kernel", "kernel release is bounded", func(p **treatment.AgentReport) { (*p).Capabilities.KernelRelease = strings.Repeat("k", 257) }, "agent report"},
 		{"long-algorithm", "algorithm names respect the kernel limit", func(p **treatment.AgentReport) {
 			(*p).Capabilities.CongestionAlgorithms = []string{strings.Repeat("a", 16)}
