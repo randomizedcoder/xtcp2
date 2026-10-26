@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	flat "github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
@@ -75,7 +76,7 @@ func TestCheckTreatmentFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			embeddedTreatmentAgent = nil
 			if tc.compiled {
-				embeddedTreatmentAgent = func(context.Context, string) (*treatmentFeeder, func(), error) { return nil, nil, nil }
+				embeddedTreatmentAgent = func(context.Context, string, string) (*treatmentFeeder, func(), error) { return nil, nil, nil }
 			}
 			err := checkTreatmentFlags(tc.config, tc.dir)
 			if tc.expected == "" {
@@ -89,6 +90,52 @@ func TestCheckTreatmentFlags(t *testing.T) {
 			}
 			if tc.name == "embedded-untagged" && !errors.Is(err, errTreatmentNotCompiled) {
 				t.Fatal("missing tag must be the sentinel error so main can make it fatal")
+			}
+		})
+	}
+}
+
+// The location rule for the embedded agent, with the daemon's label resolved
+// the way main resolves it: -location first, LOCATION from the environment
+// over it. The standalone counterpart (keep the daemon's label, adopt when
+// there is none) is pkg/treatment/attribution's TestWatcherRefresh rows.
+func TestCheckTreatmentLocation(t *testing.T) {
+	for _, tc := range []struct {
+		name, description string
+		flag, env         string
+		agent             string
+		expected          []string // substrings of the error; empty means start
+	}{
+		{"flag-unset", "positive: no -location and no LOCATION adopts the agent's certificate-bound location", "", "", "dc1", nil},
+		{"flag-equal", "positive: -location equal to the agent's starts", "dc1", "", "dc1", nil},
+		{"env-equal", "positive: LOCATION equal to the agent's starts", "", "dc1", "dc1", nil},
+		{"flag-differs", "negative: -location differing from the agent's refuses, naming both", "dc2", "", "dc1", []string{`"dc2"`, `"dc1"`}},
+		{"env-differs", "negative: LOCATION differing from the agent's refuses the same way; the flag alone is not what counts", "", "dc2", "dc1", []string{`"dc2"`, `"dc1"`}},
+		{"env-over-flag", "corner: LOCATION overrides -location, as it does for every record, so the override is what is compared", "dc1", "dc2", "dc1", []string{`"dc2"`}},
+		{"case", "boundary: labels are compared exactly; DC1 is not dc1", "DC1", "", "dc1", []string{`"DC1"`, `"dc1"`}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.env != "" {
+				t.Setenv("LOCATION", tc.env)
+			} else {
+				os.Unsetenv("LOCATION")
+			}
+			c := &xtcp_config.XtcpConfig{Location: tc.flag}
+			envOverrideLabeling(c, 0)
+			err := checkTreatmentLocation(c.Location, tc.agent)
+			if len(tc.expected) == 0 {
+				if err != nil {
+					t.Fatalf("%s: %v", tc.description, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("%s: expected an error", tc.description)
+			}
+			for _, want := range tc.expected {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("%s: error %q does not name %s", tc.description, err, want)
+				}
 			}
 		})
 	}

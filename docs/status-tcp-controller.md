@@ -17,8 +17,8 @@ review being addressed. Items are listed in execution order.
 | 5 | evidence port (`Source`, `CandidateSource`, `Warehouse`), ClickHouse as one adapter | done | caba9bc4 |
 | 6 | auth as interceptor with per-RPC role option | done | d7fefee4 |
 | 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | done | this commit |
-| 9 | identity/location startup check | next | |
-| 10 | blocking journal lock | pending | |
+| 9 | identity/location startup check | done | this commit |
+| 10 | blocking journal lock | next | |
 | 11 | scale: notification watermark, heartbeat split, leader lease | pending | |
 | 12 | docs: threat model, naming, SIGHUP, philosophy sentence | pending | |
 
@@ -135,6 +135,26 @@ process.
   covers the refused ranges. The goip hermetic-import test pins the new
   package in goip's closure; the Nix harness and docs point at
   `./internal/goip/actuate`.
+
+## Item 9 notes
+
+- One rule for both modes, in `cmd/xtcp2/treatments.go`: an empty daemon
+  location adopts the agent's (logged once); a set one must equal the
+  agent's certificate-bound location. Embedded, `checkTreatmentLocation`
+  runs right after `agent.LoadConfig` and before any credential is read,
+  so a mismatch is the first line in the log and the agent does not start
+  (telemetry continues). Standalone, the attribution watcher already kept
+  the daemon's label and adopted the journal's when there was none
+  (20f3a35a); unchanged.
+- main now passes `c.Location` (after `envOverrideLabeling`) to
+  `startTreatments`, so `LOCATION` from the environment counts in both
+  modes; it used to pass the raw flag.
+- `agent.New` names both sides when config and certificate disagree.
+- Tests: `TestCheckTreatmentLocation` (flag/env/equal/differs/override/case,
+  through `envOverrideLabeling`), tagged
+  `TestEmbeddedTreatmentAgentLocation` (unset and equal reach the
+  credential error, differs is refused before it), and the existing
+  attribution watcher rows for the standalone side.
 
 ## TODO
 

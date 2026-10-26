@@ -10,7 +10,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/hex"
-	"errors"
+	"fmt"
 	"log"
 	"math/big"
 	"net"
@@ -86,7 +86,7 @@ func New(ctx context.Context, c Config) (*Agent, error) {
 		return nil, e
 	}
 	if id.Role != identity.RoleAgent || id.ID != c.AgentID || id.Location != c.Location {
-		return nil, errors.New("agent config does not match certificate identity")
+		return nil, fmt.Errorf("agent config names %s/%s but the certificate's URI SAN is %s/%s/%s; location and agent_id are certificate-bound", c.Location, c.AgentID, id.Role, id.Location, id.ID)
 	}
 	a, e := newLocal(c, nil)
 	if e != nil {

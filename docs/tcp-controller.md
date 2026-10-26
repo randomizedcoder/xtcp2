@@ -408,11 +408,17 @@ observed congestion algorithm matches. Embedded, the index is rebuilt after
 every reconcile pass. Standalone, xtcp2 watches the journal directory
 (inotify on the atomic rename of `state.textproto`, a 30 s poll as fallback,
 SIGHUP to re-read now) and rebuilds it from the snapshot; a missing or invalid
-snapshot clears attribution rather than stamping stale state. The embedded
-agent writes its certificate-bound location onto records. The standalone
-arrangement keeps the daemon's own `-location` when one is set and logs once
-if the journal disagrees; a daemon started without `-location`/`LOCATION`
-adopts the journal's location, since evidence queries filter by it.
+snapshot clears attribution rather than stamping stale state.
+
+Location follows one rule in both arrangements, because the agent's location
+is certificate-bound and evidence queries filter by it. A daemon started
+without `-location`/`LOCATION` adopts the agent's location for its records and
+logs that once. A daemon with its own label keeps it: embedded, an agent whose
+location differs refuses to start with a message naming both labels (socket
+telemetry continues without the agent); standalone, the watcher keeps the
+daemon's label and logs the disagreement once. No label is rewritten silently.
+`agent.New` likewise refuses a config whose `location`/`agent_id` differ from
+the certificate's URI SAN, naming both.
 
 A build without the `treatment` tag rejects `-treatmentConfig` at startup with
 a message naming both remedies, the same way a slim build rejects an enricher

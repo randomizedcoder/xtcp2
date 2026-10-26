@@ -1139,7 +1139,8 @@ func runMain(ctx context.Context) int {
 		fatalf("%v", err)
 		return 1
 	}
-	stopTreatments, err := startTreatments(runCtx, *f.treatmentConfig, *f.treatmentAttribution, *f.location)
+	// c.Location, not the flag: LOCATION from the environment counts too.
+	stopTreatments, err := startTreatments(runCtx, *f.treatmentConfig, *f.treatmentAttribution, c.Location)
 	if err != nil {
 		// Controller availability/configuration must not stop socket telemetry.
 		log.Printf("treatment agent unavailable: %v", err)

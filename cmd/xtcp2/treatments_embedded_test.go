@@ -31,3 +31,33 @@ func TestEmbeddedTreatmentAgentRegistered(t *testing.T) {
 		t.Fatal("failed start left a feeder active")
 	}
 }
+
+// The embedded agent's location rule runs before any credential is read.
+func TestEmbeddedTreatmentAgentLocation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.json")
+	if err := os.WriteFile(path, []byte(`{"agent_id":"host","location":"dc1","controller":"127.0.0.1:1","certificate":"/nonexistent.crt","private_key":"/nonexistent.key","ca":"/nonexistent-ca.crt"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, description string
+		daemon            string
+		expected          string
+	}{
+		{"unset", "positive: a daemon without a location adopts the agent's and proceeds to credentials", "", "nonexistent"},
+		{"equal", "positive: an equal location proceeds to credentials", "dc1", "nonexistent"},
+		{"differs", "negative: a different location is refused before any credential is read", "dc2", `"dc2"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stop, err := startTreatments(context.Background(), path, "", tc.daemon)
+			if err == nil || stop != nil || !strings.Contains(err.Error(), tc.expected) {
+				t.Fatalf("%s: err=%v, want %q", tc.description, err, tc.expected)
+			}
+			if tc.name == "differs" && strings.Contains(err.Error(), "nonexistent") {
+				t.Fatalf("%s: credentials were read before the location check", tc.description)
+			}
+			if activeTreatments.Load() != nil {
+				t.Fatal("failed start left a feeder active")
+			}
+		})
+	}
+}
