@@ -36,6 +36,28 @@ class ApplyStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     APPLY_STATUS_EXPIRED: _ClassVar[ApplyStatus]
     APPLY_STATUS_FAILED: _ClassVar[ApplyStatus]
 
+class Outcome(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    OUTCOME_UNSPECIFIED: _ClassVar[Outcome]
+    OUTCOME_BASELINE: _ClassVar[Outcome]
+    OUTCOME_AWAITING_APPLICATION: _ClassVar[Outcome]
+    OUTCOME_AWAITING_EXPOSURE: _ClassVar[Outcome]
+    OUTCOME_INSUFFICIENT_DURATION: _ClassVar[Outcome]
+    OUTCOME_INSUFFICIENT_DATA: _ClassVar[Outcome]
+    OUTCOME_INSUFFICIENT_CONTROLS: _ClassVar[Outcome]
+    OUTCOME_STALE: _ClassVar[Outcome]
+    OUTCOME_UNAVAILABLE: _ClassVar[Outcome]
+    OUTCOME_INCONCLUSIVE: _ClassVar[Outcome]
+    OUTCOME_SAFETY_ONLY: _ClassVar[Outcome]
+    OUTCOME_FINAL_SAFETY: _ClassVar[Outcome]
+    OUTCOME_BENEFICIAL: _ClassVar[Outcome]
+    OUTCOME_HARMFUL: _ClassVar[Outcome]
+    OUTCOME_EXPIRED: _ClassVar[Outcome]
+    OUTCOME_STABLE_OBSERVED: _ClassVar[Outcome]
+    OUTCOME_STABLE_EVIDENCE_INCOMPLETE: _ClassVar[Outcome]
+    OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED: _ClassVar[Outcome]
+    OUTCOME_OBSERVING: _ClassVar[Outcome]
+
 class ExperimentStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     EXPERIMENT_STATUS_UNSPECIFIED: _ClassVar[ExperimentStatus]
@@ -60,6 +82,25 @@ APPLY_STATUS_VERIFIED: ApplyStatus
 APPLY_STATUS_REMOVED: ApplyStatus
 APPLY_STATUS_EXPIRED: ApplyStatus
 APPLY_STATUS_FAILED: ApplyStatus
+OUTCOME_UNSPECIFIED: Outcome
+OUTCOME_BASELINE: Outcome
+OUTCOME_AWAITING_APPLICATION: Outcome
+OUTCOME_AWAITING_EXPOSURE: Outcome
+OUTCOME_INSUFFICIENT_DURATION: Outcome
+OUTCOME_INSUFFICIENT_DATA: Outcome
+OUTCOME_INSUFFICIENT_CONTROLS: Outcome
+OUTCOME_STALE: Outcome
+OUTCOME_UNAVAILABLE: Outcome
+OUTCOME_INCONCLUSIVE: Outcome
+OUTCOME_SAFETY_ONLY: Outcome
+OUTCOME_FINAL_SAFETY: Outcome
+OUTCOME_BENEFICIAL: Outcome
+OUTCOME_HARMFUL: Outcome
+OUTCOME_EXPIRED: Outcome
+OUTCOME_STABLE_OBSERVED: Outcome
+OUTCOME_STABLE_EVIDENCE_INCOMPLETE: Outcome
+OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED: Outcome
+OUTCOME_OBSERVING: Outcome
 EXPERIMENT_STATUS_UNSPECIFIED: ExperimentStatus
 EXPERIMENT_STATUS_PROPOSED: ExperimentStatus
 EXPERIMENT_STATUS_RUNNING: ExperimentStatus
@@ -104,22 +145,20 @@ class Treatment(_message.Message):
     def __init__(self, id: _Optional[str] = ..., revision: _Optional[int] = ..., destination: _Optional[str] = ..., settings: _Optional[_Union[TCPSettings, _Mapping]] = ..., ecn_fabric_verified: _Optional[bool] = ...) -> None: ...
 
 class Assignment(_message.Message):
-    __slots__ = ("id", "experiment_id", "treatment", "mode", "lease_expires_at", "predecessor", "generation")
-    ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("experiment_id", "treatment", "mode", "lease_expires_at", "predecessor", "generation")
     EXPERIMENT_ID_FIELD_NUMBER: _ClassVar[int]
     TREATMENT_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
     LEASE_EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
     PREDECESSOR_FIELD_NUMBER: _ClassVar[int]
     GENERATION_FIELD_NUMBER: _ClassVar[int]
-    id: str
     experiment_id: str
     treatment: Treatment
     mode: AssignmentMode
     lease_expires_at: _timestamp_pb2.Timestamp
     predecessor: Treatment
     generation: int
-    def __init__(self, id: _Optional[str] = ..., experiment_id: _Optional[str] = ..., treatment: _Optional[_Union[Treatment, _Mapping]] = ..., mode: _Optional[_Union[AssignmentMode, str]] = ..., lease_expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., predecessor: _Optional[_Union[Treatment, _Mapping]] = ..., generation: _Optional[int] = ...) -> None: ...
+    def __init__(self, experiment_id: _Optional[str] = ..., treatment: _Optional[_Union[Treatment, _Mapping]] = ..., mode: _Optional[_Union[AssignmentMode, str]] = ..., lease_expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., predecessor: _Optional[_Union[Treatment, _Mapping]] = ..., generation: _Optional[int] = ...) -> None: ...
 
 class DesiredState(_message.Message):
     __slots__ = ("agent_id", "revision", "suspended", "assignments", "issued_at")
@@ -268,10 +307,10 @@ class Phase(_message.Message):
     observation_started_at: _timestamp_pb2.Timestamp
     evaluated_at: _timestamp_pb2.Timestamp
     evidence: Evidence
-    outcome: str
+    outcome: Outcome
     reviewer: str
     reason: str
-    def __init__(self, target_hosts: _Optional[int] = ..., issued_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., observation_started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evaluated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evidence: _Optional[_Union[Evidence, _Mapping]] = ..., outcome: _Optional[str] = ..., reviewer: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
+    def __init__(self, target_hosts: _Optional[int] = ..., issued_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., observation_started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evaluated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evidence: _Optional[_Union[Evidence, _Mapping]] = ..., outcome: _Optional[_Union[Outcome, str]] = ..., reviewer: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
 
 class Experiment(_message.Message):
     __slots__ = ("id", "location", "hypothesis", "treatment", "policy", "baseline", "cohort_order", "phases", "status", "revision", "proposed_at", "latest_evidence", "latest_outcome")
@@ -300,5 +339,5 @@ class Experiment(_message.Message):
     revision: int
     proposed_at: _timestamp_pb2.Timestamp
     latest_evidence: Evidence
-    latest_outcome: str
-    def __init__(self, id: _Optional[str] = ..., location: _Optional[str] = ..., hypothesis: _Optional[str] = ..., treatment: _Optional[_Union[Treatment, _Mapping]] = ..., policy: _Optional[_Union[ExperimentPolicy, _Mapping]] = ..., baseline: _Optional[_Union[Evidence, _Mapping]] = ..., cohort_order: _Optional[_Iterable[str]] = ..., phases: _Optional[_Iterable[_Union[Phase, _Mapping]]] = ..., status: _Optional[_Union[ExperimentStatus, str]] = ..., revision: _Optional[int] = ..., proposed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., latest_evidence: _Optional[_Union[Evidence, _Mapping]] = ..., latest_outcome: _Optional[str] = ...) -> None: ...
+    latest_outcome: Outcome
+    def __init__(self, id: _Optional[str] = ..., location: _Optional[str] = ..., hypothesis: _Optional[str] = ..., treatment: _Optional[_Union[Treatment, _Mapping]] = ..., policy: _Optional[_Union[ExperimentPolicy, _Mapping]] = ..., baseline: _Optional[_Union[Evidence, _Mapping]] = ..., cohort_order: _Optional[_Iterable[str]] = ..., phases: _Optional[_Iterable[_Union[Phase, _Mapping]]] = ..., status: _Optional[_Union[ExperimentStatus, str]] = ..., revision: _Optional[int] = ..., proposed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., latest_evidence: _Optional[_Union[Evidence, _Mapping]] = ..., latest_outcome: _Optional[_Union[Outcome, str]] = ...) -> None: ...

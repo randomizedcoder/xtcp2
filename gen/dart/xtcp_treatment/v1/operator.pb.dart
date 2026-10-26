@@ -232,7 +232,7 @@ class AnalyzeRequest extends $pb.GeneratedMessage {
 class AnalyzeResponse extends $pb.GeneratedMessage {
   factory AnalyzeResponse({
     $1.Evidence? evidence,
-    $core.String? outcome,
+    $1.Outcome? outcome,
   }) {
     final result = AnalyzeResponse._();
     if (evidence != null) result.evidence = evidence;
@@ -256,7 +256,8 @@ class AnalyzeResponse extends $pb.GeneratedMessage {
       createEmptyInstance: AnalyzeResponse.$_createMessage)
     ..aOM<$1.Evidence>(1, _omitFieldNames ? '' : 'evidence',
         subBuilder: $1.Evidence.$_createMessage)
-    ..aOS(2, _omitFieldNames ? '' : 'outcome')
+    ..aE<$1.Outcome>(2, _omitFieldNames ? '' : 'outcome',
+        enumValues: $1.Outcome.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -293,9 +294,9 @@ class AnalyzeResponse extends $pb.GeneratedMessage {
   $1.Evidence ensureEvidence() => $_ensure(0);
 
   @$pb.TagNumber(2)
-  $core.String get outcome => $_getSZ(1);
+  $1.Outcome get outcome => $_getN(1);
   @$pb.TagNumber(2)
-  set outcome($core.String value) => $_setString(1, value);
+  set outcome($1.Outcome value) => $_setField(2, value);
   @$pb.TagNumber(2)
   $core.bool hasOutcome() => $_has(1);
   @$pb.TagNumber(2)

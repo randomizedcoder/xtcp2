@@ -76,10 +76,10 @@ func (s *Server) CheckIn(ctx context.Context, r *pb.CheckInRequest) (*pb.CheckIn
 	}
 	seen := map[string]bool{}
 	for _, v := range r.Records {
-		if v == nil || v.Assignment == nil || !treatment.ValidID(v.Assignment.Id) || seen[v.Assignment.Id] || len(v.Error) > 4096 || len(v.InstalledRoute) > 0 {
+		if v == nil || v.Assignment == nil || !treatment.ValidID(v.Assignment.ExperimentId) || seen[v.Assignment.ExperimentId] || len(v.Error) > 4096 || len(v.InstalledRoute) > 0 {
 			return nil, status.Error(codes.InvalidArgument, "invalid application record (kernel bytes are local only)")
 		}
-		seen[v.Assignment.Id] = true
+		seen[v.Assignment.ExperimentId] = true
 		if e := treatment.ValidateTreatment(v.Assignment.Treatment); e != nil {
 			return nil, status.Error(codes.InvalidArgument, e.Error())
 		}
@@ -243,7 +243,7 @@ func (s *Server) propose(ctx context.Context, r *pb.ProposeRequest, actor string
 		n.ProposedAt = timestamppb.New(s.now())
 		n.Phases = nil
 		n.LatestEvidence = nil
-		n.LatestOutcome = ""
+		n.LatestOutcome = pb.Outcome_OUTCOME_UNSPECIFIED
 		active, e := hasActiveExperiment(ctx, tx, n.Location)
 		if e != nil {
 			return e
@@ -335,7 +335,9 @@ func (s *Server) Review(ctx context.Context, r *pb.ReviewRequest) (out *pb.Revie
 			return errors.New("experiment revision changed; review fresh evidence")
 		}
 		if !r.Approve {
-			n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_RETIRED
+			if n.Status, e = experiment.Transition(n.Status, experiment.EventReject); e != nil {
+				return e
+			}
 			n.Revision++
 		} else {
 			if len(n.Phases) == 0 {
@@ -356,7 +358,7 @@ func (s *Server) Review(ctx context.Context, r *pb.ReviewRequest) (out *pb.Revie
 				if e = s.startObservation(ctx, tx, n); e != nil {
 					return e
 				}
-				if n.LatestOutcome == "awaiting_application" {
+				if n.LatestOutcome == pb.Outcome_OUTCOME_AWAITING_APPLICATION {
 					return errors.New("cohort is not currently verified")
 				}
 				if e = saveEvidence(ctx, tx, n.Id, r.Evidence); e != nil {
@@ -417,7 +419,7 @@ func (s *Server) startObservation(ctx context.Context, tx *sql.Tx, e *pb.Experim
 	}
 	p := e.Phases[len(e.Phases)-1]
 	latest := p.IssuedAt.AsTime()
-	notReady := func() error { e.LatestOutcome = "awaiting_application"; return nil }
+	notReady := func() error { e.LatestOutcome = pb.Outcome_OUTCOME_AWAITING_APPLICATION; return nil }
 	for _, id := range e.CohortOrder[:p.TargetHosts] {
 		var raw []byte
 		var seen time.Time
@@ -449,7 +451,7 @@ func (s *Server) startObservation(ctx context.Context, tx *sql.Tx, e *pb.Experim
 		}
 		found := false
 		for _, a := range o.Records {
-			if a.Assignment.Id == expected.Id && a.Assignment.Generation == expected.Generation && a.Status == pb.ApplyStatus_APPLY_STATUS_VERIFIED && !a.ExpiredLatched && a.AppliedAt != nil && a.AppliedAt.CheckValid() == nil && proto.Equal(a.Assignment.Treatment, expected.Treatment) {
+			if a.Assignment.ExperimentId == expected.ExperimentId && a.Assignment.Generation == expected.Generation && a.Status == pb.ApplyStatus_APPLY_STATUS_VERIFIED && !a.ExpiredLatched && a.AppliedAt != nil && a.AppliedAt.CheckValid() == nil && proto.Equal(a.Assignment.Treatment, expected.Treatment) {
 				found = true
 				t := a.AppliedAt.AsTime()
 				if t.After(s.now().Add(30 * time.Second)) {
@@ -467,8 +469,8 @@ func (s *Server) startObservation(ctx context.Context, tx *sql.Tx, e *pb.Experim
 	if p.ObservationStartedAt == nil {
 		p.ObservationStartedAt = timestamppb.New(latest)
 	}
-	if e.LatestOutcome == "awaiting_application" {
-		e.LatestOutcome = "observing"
+	if e.LatestOutcome == pb.Outcome_OUTCOME_AWAITING_APPLICATION {
+		e.LatestOutcome = pb.Outcome_OUTCOME_OBSERVING
 	}
 	return nil
 }
@@ -523,7 +525,7 @@ func (s *Server) assign(ctx context.Context, tx *sql.Tx, e *pb.Experiment, react
 					x.Mode = pb.AssignmentMode_ASSIGNMENT_MODE_RETIRED
 				}
 			}
-			a = &pb.Assignment{Id: e.Id, ExperimentId: e.Id, Treatment: proto.Clone(e.Treatment).(*pb.Treatment), Generation: 1}
+			a = &pb.Assignment{ExperimentId: e.Id, Treatment: proto.Clone(e.Treatment).(*pb.Treatment), Generation: 1}
 			d.Assignments = append(d.Assignments, a)
 			a.Predecessor = predecessor
 		}
@@ -594,35 +596,19 @@ func (s *Server) Control(ctx context.Context, r *pb.ControlRequest) (out *pb.Con
 			if e != nil {
 				return e
 			}
-			if n.Status == pb.ExperimentStatus_EXPERIMENT_STATUS_RETIRED || n.Status == pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK {
+			if experiment.Terminal(n.Status) {
 				return errors.New("terminal experiment cannot be reactivated")
 			}
-			switch r.Action {
-			case pb.ControlAction_CONTROL_ACTION_PAUSE:
-				if n.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING {
-					return errors.New("only running experiment can pause")
-				}
-				n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_PAUSED
-			case pb.ControlAction_CONTROL_ACTION_SUSPEND:
-				n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_SUSPENDED
-			case pb.ControlAction_CONTROL_ACTION_RETIRE:
-				n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_RETIRED
-			case pb.ControlAction_CONTROL_ACTION_ROLLBACK:
-				n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK
-			case pb.ControlAction_CONTROL_ACTION_RESUME:
-				if n.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_PAUSED && n.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_SUSPENDED {
-					return errors.New("experiment is not held")
-				}
-				if len(n.Phases) == 0 {
-					return errors.New("proposal requires initial review")
-				}
-				n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING
+			event, e := controlEvent(n, r.Action)
+			if e != nil {
+				return e
+			}
+			if n.Status, e = experiment.Transition(n.Status, event); e != nil {
+				return e
+			}
+			if event == experiment.EventResume {
 				p := n.Phases[len(n.Phases)-1]
-				if p.Outcome == "final_safety" {
-					n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_COMPLETE
-				} else {
-					n.Phases = append(n.Phases, &pb.Phase{TargetHosts: p.TargetHosts, IssuedAt: timestamppb.New(s.now()), Reviewer: actor, Reason: r.Reason})
-				}
+				n.Phases = append(n.Phases, &pb.Phase{TargetHosts: p.TargetHosts, IssuedAt: timestamppb.New(s.now()), Reviewer: actor, Reason: r.Reason})
 			}
 			n.Revision++
 			if e = s.assign(ctx, tx, n, r.Action == pb.ControlAction_CONTROL_ACTION_RESUME); e != nil {
@@ -693,6 +679,31 @@ func (s *Server) Control(ctx context.Context, r *pb.ControlRequest) (out *pb.Con
 		return audit(ctx, tx, actor, r.RequestId+".result", "result", out)
 	})
 	return out, failure(err)
+}
+
+// controlEvent maps an operator action onto a state-machine event. Resume
+// needs the experiment: a held completed treatment resumes as stable, a held
+// trial resumes with a fresh phase, and a held proposal cannot resume at all.
+func controlEvent(n *pb.Experiment, action pb.ControlAction) (experiment.Event, error) {
+	switch action {
+	case pb.ControlAction_CONTROL_ACTION_PAUSE:
+		return experiment.EventPause, nil
+	case pb.ControlAction_CONTROL_ACTION_SUSPEND:
+		return experiment.EventSuspend, nil
+	case pb.ControlAction_CONTROL_ACTION_RETIRE:
+		return experiment.EventRetire, nil
+	case pb.ControlAction_CONTROL_ACTION_ROLLBACK:
+		return experiment.EventRollback, nil
+	case pb.ControlAction_CONTROL_ACTION_RESUME:
+		if len(n.Phases) == 0 {
+			return 0, errors.New("proposal requires initial review")
+		}
+		if n.Phases[len(n.Phases)-1].Outcome == pb.Outcome_OUTCOME_FINAL_SAFETY {
+			return experiment.EventResumeStable, nil
+		}
+		return experiment.EventResume, nil
+	}
+	return 0, fmt.Errorf("unknown control action %s", action)
 }
 
 func (s *Server) Inspect(ctx context.Context, r *pb.InspectRequest) (*pb.InspectResponse, error) {

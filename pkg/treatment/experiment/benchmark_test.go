@@ -47,7 +47,7 @@ func BenchmarkFleetEvidence(b *testing.B) {
 			}},
 			{"Evaluate", func() error {
 				got, err := Evaluate(e, v, now)
-				if err == nil && got.Outcome != "beneficial" {
+				if err == nil && got.Outcome != OutcomeBeneficial {
 					return fmt.Errorf("unexpected outcome %s", got.Outcome)
 				}
 				return err

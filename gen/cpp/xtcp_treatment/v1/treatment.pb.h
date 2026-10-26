@@ -57,6 +57,8 @@ enum AssignmentMode : int;
 extern const uint32_t AssignmentMode_internal_data_[];
 enum ExperimentStatus : int;
 extern const uint32_t ExperimentStatus_internal_data_[];
+enum Outcome : int;
+extern const uint32_t Outcome_internal_data_[];
 enum Role : int;
 extern const uint32_t Role_internal_data_[];
 class ApplicationRecord;
@@ -168,6 +170,9 @@ internal::EnumTraitsT<::xtcp_treatment::v1::AssignmentMode_internal_data_>
 template <>
 internal::EnumTraitsT<::xtcp_treatment::v1::ExperimentStatus_internal_data_>
     internal::EnumTraitsImpl::value<::xtcp_treatment::v1::ExperimentStatus>;
+template <>
+internal::EnumTraitsT<::xtcp_treatment::v1::Outcome_internal_data_>
+    internal::EnumTraitsImpl::value<::xtcp_treatment::v1::Outcome>;
 template <>
 internal::EnumTraitsT<::xtcp_treatment::v1::Role_internal_data_>
     internal::EnumTraitsImpl::value<::xtcp_treatment::v1::Role>;
@@ -302,6 +307,63 @@ template <>
 [[nodiscard]] inline bool ApplyStatus_Parse(
     ::absl::string_view name, ApplyStatus* PROTOBUF_NONNULL value) {
   return ::google::protobuf::internal::ParseNamedEnum<ApplyStatus>(ApplyStatus_descriptor(), name,
+                                           value);
+}
+enum Outcome : int {
+  OUTCOME_UNSPECIFIED = 0,
+  OUTCOME_BASELINE = 1,
+  OUTCOME_AWAITING_APPLICATION = 2,
+  OUTCOME_AWAITING_EXPOSURE = 3,
+  OUTCOME_INSUFFICIENT_DURATION = 4,
+  OUTCOME_INSUFFICIENT_DATA = 5,
+  OUTCOME_INSUFFICIENT_CONTROLS = 6,
+  OUTCOME_STALE = 7,
+  OUTCOME_UNAVAILABLE = 8,
+  OUTCOME_INCONCLUSIVE = 9,
+  OUTCOME_SAFETY_ONLY = 10,
+  OUTCOME_FINAL_SAFETY = 11,
+  OUTCOME_BENEFICIAL = 12,
+  OUTCOME_HARMFUL = 13,
+  OUTCOME_EXPIRED = 14,
+  OUTCOME_STABLE_OBSERVED = 15,
+  OUTCOME_STABLE_EVIDENCE_INCOMPLETE = 16,
+  OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED = 17,
+  OUTCOME_OBSERVING = 18,
+  Outcome_INT_MIN_SENTINEL_DO_NOT_USE_ =
+      ::std::numeric_limits<::int32_t>::min(),
+  Outcome_INT_MAX_SENTINEL_DO_NOT_USE_ =
+      ::std::numeric_limits<::int32_t>::max(),
+};
+
+extern const uint32_t Outcome_internal_data_[];
+inline constexpr Outcome Outcome_MIN =
+    static_cast<Outcome>(0);
+inline constexpr Outcome Outcome_MAX =
+    static_cast<Outcome>(18);
+[[nodiscard]] inline bool Outcome_IsValid(int value) {
+  return 0 <= value && value <= 18;
+}
+inline constexpr int Outcome_ARRAYSIZE = 18 + 1;
+[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
+Outcome_descriptor();
+[[nodiscard]] inline auto ProtobufInternalGetEnumDescriptor(Outcome) {
+  return Outcome_descriptor();
+}
+template <typename T>
+[[nodiscard]] const ::std::string& Outcome_Name(T value) {
+  static_assert(::std::is_same<T, Outcome>::value ||
+                    ::std::is_integral<T>::value,
+                "Incorrect type passed to Outcome_Name().");
+  return Outcome_Name(static_cast<Outcome>(value));
+}
+template <>
+[[nodiscard]] inline const ::std::string& Outcome_Name(Outcome value) {
+  return ::google::protobuf::internal::NameOfDenseEnum<Outcome_descriptor, 0, 18>(
+      static_cast<int>(value));
+}
+[[nodiscard]] inline bool Outcome_Parse(
+    ::absl::string_view name, Outcome* PROTOBUF_NONNULL value) {
+  return ::google::protobuf::internal::ParseNamedEnum<Outcome>(Outcome_descriptor(), name,
                                            value);
 }
 enum ExperimentStatus : int {
@@ -2261,7 +2323,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Phase final : public ::google::prot
 
   // accessors -------------------------------------------------------
   enum : int {
-    kOutcomeFieldNumber = 6,
     kReviewerFieldNumber = 7,
     kReasonFieldNumber = 8,
     kIssuedAtFieldNumber = 2,
@@ -2269,22 +2330,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Phase final : public ::google::prot
     kEvaluatedAtFieldNumber = 4,
     kEvidenceFieldNumber = 5,
     kTargetHostsFieldNumber = 1,
+    kOutcomeFieldNumber = 6,
   };
-  // string outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
-  void clear_outcome() ;
-  [[nodiscard]] const ::std::string& outcome() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_outcome(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_outcome();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_outcome();
-  void set_allocated_outcome(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_outcome() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_outcome(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_outcome();
-
-  public:
   // string reviewer = 7 [json_name = "reviewer", (.buf.validate.field) = {
   void clear_reviewer() ;
   [[nodiscard]] const ::std::string& reviewer() const;
@@ -2385,12 +2432,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Phase final : public ::google::prot
   void _internal_set_target_hosts(::uint32_t value);
 
   public:
+  // .xtcp_treatment.v1.Outcome outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
+  void clear_outcome() ;
+  [[nodiscard]] ::xtcp_treatment::v1::Outcome outcome() const;
+  void set_outcome(::xtcp_treatment::v1::Outcome value);
+
+  private:
+  ::xtcp_treatment::v1::Outcome _internal_outcome() const;
+  void _internal_set_outcome(::xtcp_treatment::v1::Outcome value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_treatment.v1.Phase)
  private:
   class _Internal;
   using ParseTableT_ =
       ::google::protobuf::internal::TcParseTable<3, 8,
-                          4, 61,
+                          4, 54,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -2418,7 +2475,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Phase final : public ::google::prot
         const Phase& from_msg);
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::internal::ArenaStringPtr outcome_;
     ::google::protobuf::internal::ArenaStringPtr reviewer_;
     ::google::protobuf::internal::ArenaStringPtr reason_;
     ::google::protobuf::Timestamp* PROTOBUF_NULLABLE issued_at_;
@@ -2426,6 +2482,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Phase final : public ::google::prot
     ::google::protobuf::Timestamp* PROTOBUF_NULLABLE evaluated_at_;
     ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE evidence_;
     ::uint32_t target_hosts_;
+    int outcome_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -2581,7 +2638,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Assignment final : public ::google:
 
   // accessors -------------------------------------------------------
   enum : int {
-    kIdFieldNumber = 1,
     kExperimentIdFieldNumber = 2,
     kTreatmentFieldNumber = 3,
     kLeaseExpiresAtFieldNumber = 5,
@@ -2589,21 +2645,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Assignment final : public ::google:
     kGenerationFieldNumber = 7,
     kModeFieldNumber = 4,
   };
-  // string id = 1 [json_name = "id", (.buf.validate.field) = {
-  void clear_id() ;
-  [[nodiscard]] const ::std::string& id() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_id(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_id();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_id();
-  void set_allocated_id(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_id() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_id(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_id();
-
-  public:
   // string experiment_id = 2 [json_name = "experimentId", (.buf.validate.field) = {
   void clear_experiment_id() ;
   [[nodiscard]] const ::std::string& experiment_id() const;
@@ -2688,8 +2729,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Assignment final : public ::google:
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<3, 7,
-                          3, 52,
+      ::google::protobuf::internal::TcParseTable<3, 6,
+                          3, 50,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -2717,7 +2758,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Assignment final : public ::google:
         const Assignment& from_msg);
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::internal::ArenaStringPtr id_;
     ::google::protobuf::internal::ArenaStringPtr experiment_id_;
     ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE treatment_;
     ::google::protobuf::Timestamp* PROTOBUF_NULLABLE lease_expires_at_;
@@ -2884,7 +2924,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Experiment final : public ::google:
     kIdFieldNumber = 1,
     kLocationFieldNumber = 2,
     kHypothesisFieldNumber = 3,
-    kLatestOutcomeFieldNumber = 13,
     kTreatmentFieldNumber = 4,
     kPolicyFieldNumber = 5,
     kBaselineFieldNumber = 6,
@@ -2892,6 +2931,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Experiment final : public ::google:
     kLatestEvidenceFieldNumber = 12,
     kRevisionFieldNumber = 10,
     kStatusFieldNumber = 9,
+    kLatestOutcomeFieldNumber = 13,
   };
   // repeated string cohort_order = 7 [json_name = "cohortOrder", (.buf.validate.field) = {
   [[nodiscard]] int cohort_order_size() const;
@@ -2982,21 +3022,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Experiment final : public ::google:
   const ::std::string& _internal_hypothesis() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_hypothesis(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_hypothesis();
-
-  public:
-  // string latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
-  void clear_latest_outcome() ;
-  [[nodiscard]] const ::std::string& latest_outcome() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_latest_outcome(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_latest_outcome();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_latest_outcome();
-  void set_allocated_latest_outcome(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_latest_outcome() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_latest_outcome(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_latest_outcome();
 
   public:
   // .xtcp_treatment.v1.Treatment treatment = 4 [json_name = "treatment", (.buf.validate.field) = {
@@ -3094,12 +3119,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Experiment final : public ::google:
   void _internal_set_status(::xtcp_treatment::v1::ExperimentStatus value);
 
   public:
+  // .xtcp_treatment.v1.Outcome latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
+  void clear_latest_outcome() ;
+  [[nodiscard]] ::xtcp_treatment::v1::Outcome latest_outcome() const;
+  void set_latest_outcome(::xtcp_treatment::v1::Outcome value);
+
+  private:
+  ::xtcp_treatment::v1::Outcome _internal_latest_outcome() const;
+  void _internal_set_latest_outcome(::xtcp_treatment::v1::Outcome value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_treatment.v1.Experiment)
  private:
   class _Internal;
   using ParseTableT_ =
       ::google::protobuf::internal::TcParseTable<4, 13,
-                          6, 91,
+                          6, 77,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -3132,7 +3167,6 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Experiment final : public ::google:
     ::google::protobuf::internal::ArenaStringPtr id_;
     ::google::protobuf::internal::ArenaStringPtr location_;
     ::google::protobuf::internal::ArenaStringPtr hypothesis_;
-    ::google::protobuf::internal::ArenaStringPtr latest_outcome_;
     ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE treatment_;
     ::xtcp_treatment::v1::ExperimentPolicy* PROTOBUF_NULLABLE policy_;
     ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE baseline_;
@@ -3140,6 +3174,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Experiment final : public ::google:
     ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE latest_evidence_;
     ::uint64_t revision_;
     int status_;
+    int latest_outcome_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -4600,75 +4635,11 @@ inline void Treatment::_internal_set_ecn_fabric_verified(bool value) {
 
 // Assignment
 
-// string id = 1 [json_name = "id", (.buf.validate.field) = {
-inline void Assignment::clear_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.id_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
-}
-inline const ::std::string& Assignment::id() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Assignment.id)
-  return _internal_id();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void Assignment::set_id(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  _impl_.id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Assignment.id)
-}
-inline ::std::string* PROTOBUF_NONNULL Assignment::mutable_id()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  ::std::string* _s = _internal_mutable_id();
-  // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Assignment.id)
-  return _s;
-}
-inline const ::std::string& Assignment::_internal_id() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.id_.Get();
-}
-inline void Assignment::_internal_set_id(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.id_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL Assignment::_internal_mutable_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.id_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE Assignment::release_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Assignment.id)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
-  auto* released = _impl_.id_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.id_.Set("", GetArena());
-  }
-  return released;
-}
-inline void Assignment::set_allocated_id(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
-  }
-  _impl_.id_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.id_.IsDefault()) {
-    _impl_.id_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.Assignment.id)
-}
-
 // string experiment_id = 2 [json_name = "experimentId", (.buf.validate.field) = {
 inline void Assignment::clear_experiment_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.experiment_id_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
 }
 inline const ::std::string& Assignment::experiment_id() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -4678,13 +4649,13 @@ inline const ::std::string& Assignment::experiment_id() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void Assignment::set_experiment_id(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   _impl_.experiment_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Assignment.experiment_id)
 }
 inline ::std::string* PROTOBUF_NONNULL Assignment::mutable_experiment_id()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   ::std::string* _s = _internal_mutable_experiment_id();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Assignment.experiment_id)
   return _s;
@@ -4704,10 +4675,10 @@ inline ::std::string* PROTOBUF_NONNULL Assignment::_internal_mutable_experiment_
 inline ::std::string* PROTOBUF_NULLABLE Assignment::release_experiment_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Assignment.experiment_id)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   auto* released = _impl_.experiment_id_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.experiment_id_.Set("", GetArena());
@@ -4717,9 +4688,9 @@ inline ::std::string* PROTOBUF_NULLABLE Assignment::release_experiment_id() {
 inline void Assignment::set_allocated_experiment_id(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   }
   _impl_.experiment_id_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.experiment_id_.IsDefault()) {
@@ -4730,14 +4701,14 @@ inline void Assignment::set_allocated_experiment_id(::std::string* PROTOBUF_NULL
 
 // .xtcp_treatment.v1.Treatment treatment = 3 [json_name = "treatment", (.buf.validate.field) = {
 inline bool Assignment::has_treatment() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000004U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000002U);
   PROTOBUF_ASSUME(!value || _impl_.treatment_ != nullptr);
   return value;
 }
 inline void Assignment::clear_treatment() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.treatment_ != nullptr) _impl_.treatment_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
 }
 inline const ::xtcp_treatment::v1::Treatment& Assignment::_internal_treatment() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -4756,16 +4727,16 @@ inline void Assignment::unsafe_arena_set_allocated_treatment(
   }
   _impl_.treatment_ = reinterpret_cast<::xtcp_treatment::v1::Treatment*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Assignment.treatment)
 }
 inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE Assignment::release_treatment() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   ::xtcp_treatment::v1::Treatment* released = _impl_.treatment_;
   _impl_.treatment_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -4785,7 +4756,7 @@ inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE Assignment::unsafe_are
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Assignment.treatment)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   ::xtcp_treatment::v1::Treatment* temp = _impl_.treatment_;
   _impl_.treatment_ = nullptr;
   return temp;
@@ -4800,7 +4771,7 @@ inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NONNULL Assignment::_internal_m
 }
 inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NONNULL Assignment::mutable_treatment()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   ::xtcp_treatment::v1::Treatment* _msg = _internal_mutable_treatment();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Assignment.treatment)
   return _msg;
@@ -4817,9 +4788,9 @@ inline void Assignment::set_allocated_treatment(::xtcp_treatment::v1::Treatment*
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
 
   _impl_.treatment_ = reinterpret_cast<::xtcp_treatment::v1::Treatment*>(value);
@@ -4830,7 +4801,7 @@ inline void Assignment::set_allocated_treatment(::xtcp_treatment::v1::Treatment*
 inline void Assignment::clear_mode() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.mode_ = 0;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
 }
 inline ::xtcp_treatment::v1::AssignmentMode Assignment::mode() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Assignment.mode)
@@ -4838,7 +4809,7 @@ inline ::xtcp_treatment::v1::AssignmentMode Assignment::mode() const {
 }
 inline void Assignment::set_mode(::xtcp_treatment::v1::AssignmentMode value) {
   _internal_set_mode(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Assignment.mode)
 }
 inline ::xtcp_treatment::v1::AssignmentMode Assignment::_internal_mode() const {
@@ -4852,7 +4823,7 @@ inline void Assignment::_internal_set_mode(::xtcp_treatment::v1::AssignmentMode 
 
 // .google.protobuf.Timestamp lease_expires_at = 5 [json_name = "leaseExpiresAt"];
 inline bool Assignment::has_lease_expires_at() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000008U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000004U);
   PROTOBUF_ASSUME(!value || _impl_.lease_expires_at_ != nullptr);
   return value;
 }
@@ -4873,16 +4844,16 @@ inline void Assignment::unsafe_arena_set_allocated_lease_expires_at(
   }
   _impl_.lease_expires_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Assignment.lease_expires_at)
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Assignment::release_lease_expires_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::google::protobuf::Timestamp* released = _impl_.lease_expires_at_;
   _impl_.lease_expires_at_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -4902,7 +4873,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Assignment::unsafe_arena
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Assignment.lease_expires_at)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::google::protobuf::Timestamp* temp = _impl_.lease_expires_at_;
   _impl_.lease_expires_at_ = nullptr;
   return temp;
@@ -4917,7 +4888,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Assignment::_internal_mut
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Assignment::mutable_lease_expires_at()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::google::protobuf::Timestamp* _msg = _internal_mutable_lease_expires_at();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Assignment.lease_expires_at)
   return _msg;
@@ -4934,9 +4905,9 @@ inline void Assignment::set_allocated_lease_expires_at(::google::protobuf::Times
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
 
   _impl_.lease_expires_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
@@ -4945,14 +4916,14 @@ inline void Assignment::set_allocated_lease_expires_at(::google::protobuf::Times
 
 // .xtcp_treatment.v1.Treatment predecessor = 6 [json_name = "predecessor"];
 inline bool Assignment::has_predecessor() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000010U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000008U);
   PROTOBUF_ASSUME(!value || _impl_.predecessor_ != nullptr);
   return value;
 }
 inline void Assignment::clear_predecessor() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.predecessor_ != nullptr) _impl_.predecessor_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
 }
 inline const ::xtcp_treatment::v1::Treatment& Assignment::_internal_predecessor() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -4971,16 +4942,16 @@ inline void Assignment::unsafe_arena_set_allocated_predecessor(
   }
   _impl_.predecessor_ = reinterpret_cast<::xtcp_treatment::v1::Treatment*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Assignment.predecessor)
 }
 inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE Assignment::release_predecessor() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::xtcp_treatment::v1::Treatment* released = _impl_.predecessor_;
   _impl_.predecessor_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -5000,7 +4971,7 @@ inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE Assignment::unsafe_are
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Assignment.predecessor)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::xtcp_treatment::v1::Treatment* temp = _impl_.predecessor_;
   _impl_.predecessor_ = nullptr;
   return temp;
@@ -5015,7 +4986,7 @@ inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NONNULL Assignment::_internal_m
 }
 inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NONNULL Assignment::mutable_predecessor()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::xtcp_treatment::v1::Treatment* _msg = _internal_mutable_predecessor();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Assignment.predecessor)
   return _msg;
@@ -5032,9 +5003,9 @@ inline void Assignment::set_allocated_predecessor(::xtcp_treatment::v1::Treatmen
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
 
   _impl_.predecessor_ = reinterpret_cast<::xtcp_treatment::v1::Treatment*>(value);
@@ -5045,7 +5016,7 @@ inline void Assignment::set_allocated_predecessor(::xtcp_treatment::v1::Treatmen
 inline void Assignment::clear_generation() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.generation_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
 }
 inline ::uint64_t Assignment::generation() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Assignment.generation)
@@ -5053,7 +5024,7 @@ inline ::uint64_t Assignment::generation() const {
 }
 inline void Assignment::set_generation(::uint64_t value) {
   _internal_set_generation(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Assignment.generation)
 }
 inline ::uint64_t Assignment::_internal_generation() const {
@@ -8015,7 +7986,7 @@ inline void ExperimentPolicy::set_allocated_maximum_evidence_age(::google::proto
 inline void Phase::clear_target_hosts() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.target_hosts_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
 }
 inline ::uint32_t Phase::target_hosts() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Phase.target_hosts)
@@ -8023,7 +7994,7 @@ inline ::uint32_t Phase::target_hosts() const {
 }
 inline void Phase::set_target_hosts(::uint32_t value) {
   _internal_set_target_hosts(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Phase.target_hosts)
 }
 inline ::uint32_t Phase::_internal_target_hosts() const {
@@ -8037,7 +8008,7 @@ inline void Phase::_internal_set_target_hosts(::uint32_t value) {
 
 // .google.protobuf.Timestamp issued_at = 2 [json_name = "issuedAt"];
 inline bool Phase::has_issued_at() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000008U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000004U);
   PROTOBUF_ASSUME(!value || _impl_.issued_at_ != nullptr);
   return value;
 }
@@ -8058,16 +8029,16 @@ inline void Phase::unsafe_arena_set_allocated_issued_at(
   }
   _impl_.issued_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Phase.issued_at)
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Phase::release_issued_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::google::protobuf::Timestamp* released = _impl_.issued_at_;
   _impl_.issued_at_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -8087,7 +8058,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Phase::unsafe_arena_rele
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Phase.issued_at)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::google::protobuf::Timestamp* temp = _impl_.issued_at_;
   _impl_.issued_at_ = nullptr;
   return temp;
@@ -8102,7 +8073,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Phase::_internal_mutable_
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Phase::mutable_issued_at()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   ::google::protobuf::Timestamp* _msg = _internal_mutable_issued_at();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Phase.issued_at)
   return _msg;
@@ -8119,9 +8090,9 @@ inline void Phase::set_allocated_issued_at(::google::protobuf::Timestamp* PROTOB
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
   }
 
   _impl_.issued_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
@@ -8130,7 +8101,7 @@ inline void Phase::set_allocated_issued_at(::google::protobuf::Timestamp* PROTOB
 
 // .google.protobuf.Timestamp observation_started_at = 3 [json_name = "observationStartedAt"];
 inline bool Phase::has_observation_started_at() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000010U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000008U);
   PROTOBUF_ASSUME(!value || _impl_.observation_started_at_ != nullptr);
   return value;
 }
@@ -8151,16 +8122,16 @@ inline void Phase::unsafe_arena_set_allocated_observation_started_at(
   }
   _impl_.observation_started_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Phase.observation_started_at)
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Phase::release_observation_started_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::google::protobuf::Timestamp* released = _impl_.observation_started_at_;
   _impl_.observation_started_at_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -8180,7 +8151,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Phase::unsafe_arena_rele
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Phase.observation_started_at)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::google::protobuf::Timestamp* temp = _impl_.observation_started_at_;
   _impl_.observation_started_at_ = nullptr;
   return temp;
@@ -8195,7 +8166,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Phase::_internal_mutable_
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Phase::mutable_observation_started_at()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   ::google::protobuf::Timestamp* _msg = _internal_mutable_observation_started_at();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Phase.observation_started_at)
   return _msg;
@@ -8212,9 +8183,9 @@ inline void Phase::set_allocated_observation_started_at(::google::protobuf::Time
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
   }
 
   _impl_.observation_started_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
@@ -8223,7 +8194,7 @@ inline void Phase::set_allocated_observation_started_at(::google::protobuf::Time
 
 // .google.protobuf.Timestamp evaluated_at = 4 [json_name = "evaluatedAt"];
 inline bool Phase::has_evaluated_at() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000020U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000010U);
   PROTOBUF_ASSUME(!value || _impl_.evaluated_at_ != nullptr);
   return value;
 }
@@ -8244,16 +8215,16 @@ inline void Phase::unsafe_arena_set_allocated_evaluated_at(
   }
   _impl_.evaluated_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Phase.evaluated_at)
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Phase::release_evaluated_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
   ::google::protobuf::Timestamp* released = _impl_.evaluated_at_;
   _impl_.evaluated_at_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -8273,7 +8244,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Phase::unsafe_arena_rele
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Phase.evaluated_at)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
   ::google::protobuf::Timestamp* temp = _impl_.evaluated_at_;
   _impl_.evaluated_at_ = nullptr;
   return temp;
@@ -8288,7 +8259,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Phase::_internal_mutable_
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Phase::mutable_evaluated_at()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   ::google::protobuf::Timestamp* _msg = _internal_mutable_evaluated_at();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Phase.evaluated_at)
   return _msg;
@@ -8305,9 +8276,9 @@ inline void Phase::set_allocated_evaluated_at(::google::protobuf::Timestamp* PRO
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
   }
 
   _impl_.evaluated_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
@@ -8316,14 +8287,14 @@ inline void Phase::set_allocated_evaluated_at(::google::protobuf::Timestamp* PRO
 
 // .xtcp_treatment.v1.Evidence evidence = 5 [json_name = "evidence"];
 inline bool Phase::has_evidence() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000040U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000020U);
   PROTOBUF_ASSUME(!value || _impl_.evidence_ != nullptr);
   return value;
 }
 inline void Phase::clear_evidence() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.evidence_ != nullptr) _impl_.evidence_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
 }
 inline const ::xtcp_treatment::v1::Evidence& Phase::_internal_evidence() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -8342,16 +8313,16 @@ inline void Phase::unsafe_arena_set_allocated_evidence(
   }
   _impl_.evidence_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Phase.evidence)
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE Phase::release_evidence() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   ::xtcp_treatment::v1::Evidence* released = _impl_.evidence_;
   _impl_.evidence_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -8371,7 +8342,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE Phase::unsafe_arena_rel
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Phase.evidence)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   ::xtcp_treatment::v1::Evidence* temp = _impl_.evidence_;
   _impl_.evidence_ = nullptr;
   return temp;
@@ -8386,7 +8357,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL Phase::_internal_mutable
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL Phase::mutable_evidence()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   ::xtcp_treatment::v1::Evidence* _msg = _internal_mutable_evidence();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Phase.evidence)
   return _msg;
@@ -8403,84 +8374,44 @@ inline void Phase::set_allocated_evidence(::xtcp_treatment::v1::Evidence* PROTOB
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   }
 
   _impl_.evidence_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.Phase.evidence)
 }
 
-// string outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
+// .xtcp_treatment.v1.Outcome outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
 inline void Phase::clear_outcome() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.outcome_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  _impl_.outcome_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
 }
-inline const ::std::string& Phase::outcome() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+inline ::xtcp_treatment::v1::Outcome Phase::outcome() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Phase.outcome)
   return _internal_outcome();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void Phase::set_outcome(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  _impl_.outcome_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+inline void Phase::set_outcome(::xtcp_treatment::v1::Outcome value) {
+  _internal_set_outcome(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Phase.outcome)
 }
-inline ::std::string* PROTOBUF_NONNULL Phase::mutable_outcome()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  ::std::string* _s = _internal_mutable_outcome();
-  // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Phase.outcome)
-  return _s;
-}
-inline const ::std::string& Phase::_internal_outcome() const {
+inline ::xtcp_treatment::v1::Outcome Phase::_internal_outcome() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.outcome_.Get();
+  return static_cast<::xtcp_treatment::v1::Outcome>(_impl_.outcome_);
 }
-inline void Phase::_internal_set_outcome(const ::std::string& value) {
+inline void Phase::_internal_set_outcome(::xtcp_treatment::v1::Outcome value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.outcome_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL Phase::_internal_mutable_outcome() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.outcome_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE Phase::release_outcome() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Phase.outcome)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
-  auto* released = _impl_.outcome_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.outcome_.Set("", GetArena());
-  }
-  return released;
-}
-inline void Phase::set_allocated_outcome(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
-  }
-  _impl_.outcome_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.outcome_.IsDefault()) {
-    _impl_.outcome_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.Phase.outcome)
+  _impl_.outcome_ = value;
 }
 
 // string reviewer = 7 [json_name = "reviewer", (.buf.validate.field) = {
 inline void Phase::clear_reviewer() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.reviewer_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
 }
 inline const ::std::string& Phase::reviewer() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -8490,13 +8421,13 @@ inline const ::std::string& Phase::reviewer() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void Phase::set_reviewer(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   _impl_.reviewer_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Phase.reviewer)
 }
 inline ::std::string* PROTOBUF_NONNULL Phase::mutable_reviewer()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   ::std::string* _s = _internal_mutable_reviewer();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Phase.reviewer)
   return _s;
@@ -8516,10 +8447,10 @@ inline ::std::string* PROTOBUF_NONNULL Phase::_internal_mutable_reviewer() {
 inline ::std::string* PROTOBUF_NULLABLE Phase::release_reviewer() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Phase.reviewer)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   auto* released = _impl_.reviewer_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.reviewer_.Set("", GetArena());
@@ -8529,9 +8460,9 @@ inline ::std::string* PROTOBUF_NULLABLE Phase::release_reviewer() {
 inline void Phase::set_allocated_reviewer(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   }
   _impl_.reviewer_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.reviewer_.IsDefault()) {
@@ -8544,7 +8475,7 @@ inline void Phase::set_allocated_reviewer(::std::string* PROTOBUF_NULLABLE value
 inline void Phase::clear_reason() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.reason_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
 }
 inline const ::std::string& Phase::reason() const
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
@@ -8554,13 +8485,13 @@ inline const ::std::string& Phase::reason() const
 template <typename Arg_, typename... Args_>
 PROTOBUF_ALWAYS_INLINE void Phase::set_reason(Arg_&& arg, Args_... args) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   _impl_.reason_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Phase.reason)
 }
 inline ::std::string* PROTOBUF_NONNULL Phase::mutable_reason()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   ::std::string* _s = _internal_mutable_reason();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Phase.reason)
   return _s;
@@ -8580,10 +8511,10 @@ inline ::std::string* PROTOBUF_NONNULL Phase::_internal_mutable_reason() {
 inline ::std::string* PROTOBUF_NULLABLE Phase::release_reason() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Phase.reason)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000004U)) {
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000002U)) {
     return nullptr;
   }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   auto* released = _impl_.reason_.Release();
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
     _impl_.reason_.Set("", GetArena());
@@ -8593,9 +8524,9 @@ inline ::std::string* PROTOBUF_NULLABLE Phase::release_reason() {
 inline void Phase::set_allocated_reason(::std::string* PROTOBUF_NULLABLE value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
   }
   _impl_.reason_.SetAllocated(value, GetArena());
   if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.reason_.IsDefault()) {
@@ -8802,14 +8733,14 @@ inline void Experiment::set_allocated_hypothesis(::std::string* PROTOBUF_NULLABL
 
 // .xtcp_treatment.v1.Treatment treatment = 4 [json_name = "treatment", (.buf.validate.field) = {
 inline bool Experiment::has_treatment() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000040U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000020U);
   PROTOBUF_ASSUME(!value || _impl_.treatment_ != nullptr);
   return value;
 }
 inline void Experiment::clear_treatment() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.treatment_ != nullptr) _impl_.treatment_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
 }
 inline const ::xtcp_treatment::v1::Treatment& Experiment::_internal_treatment() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -8828,16 +8759,16 @@ inline void Experiment::unsafe_arena_set_allocated_treatment(
   }
   _impl_.treatment_ = reinterpret_cast<::xtcp_treatment::v1::Treatment*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Experiment.treatment)
 }
 inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE Experiment::release_treatment() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   ::xtcp_treatment::v1::Treatment* released = _impl_.treatment_;
   _impl_.treatment_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -8857,7 +8788,7 @@ inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NULLABLE Experiment::unsafe_are
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Experiment.treatment)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   ::xtcp_treatment::v1::Treatment* temp = _impl_.treatment_;
   _impl_.treatment_ = nullptr;
   return temp;
@@ -8872,7 +8803,7 @@ inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NONNULL Experiment::_internal_m
 }
 inline ::xtcp_treatment::v1::Treatment* PROTOBUF_NONNULL Experiment::mutable_treatment()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   ::xtcp_treatment::v1::Treatment* _msg = _internal_mutable_treatment();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Experiment.treatment)
   return _msg;
@@ -8889,9 +8820,9 @@ inline void Experiment::set_allocated_treatment(::xtcp_treatment::v1::Treatment*
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
   }
 
   _impl_.treatment_ = reinterpret_cast<::xtcp_treatment::v1::Treatment*>(value);
@@ -8900,14 +8831,14 @@ inline void Experiment::set_allocated_treatment(::xtcp_treatment::v1::Treatment*
 
 // .xtcp_treatment.v1.ExperimentPolicy policy = 5 [json_name = "policy", (.buf.validate.field) = {
 inline bool Experiment::has_policy() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000080U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000040U);
   PROTOBUF_ASSUME(!value || _impl_.policy_ != nullptr);
   return value;
 }
 inline void Experiment::clear_policy() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.policy_ != nullptr) _impl_.policy_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
 }
 inline const ::xtcp_treatment::v1::ExperimentPolicy& Experiment::_internal_policy() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -8926,16 +8857,16 @@ inline void Experiment::unsafe_arena_set_allocated_policy(
   }
   _impl_.policy_ = reinterpret_cast<::xtcp_treatment::v1::ExperimentPolicy*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Experiment.policy)
 }
 inline ::xtcp_treatment::v1::ExperimentPolicy* PROTOBUF_NULLABLE Experiment::release_policy() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   ::xtcp_treatment::v1::ExperimentPolicy* released = _impl_.policy_;
   _impl_.policy_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -8955,7 +8886,7 @@ inline ::xtcp_treatment::v1::ExperimentPolicy* PROTOBUF_NULLABLE Experiment::uns
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Experiment.policy)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   ::xtcp_treatment::v1::ExperimentPolicy* temp = _impl_.policy_;
   _impl_.policy_ = nullptr;
   return temp;
@@ -8970,7 +8901,7 @@ inline ::xtcp_treatment::v1::ExperimentPolicy* PROTOBUF_NONNULL Experiment::_int
 }
 inline ::xtcp_treatment::v1::ExperimentPolicy* PROTOBUF_NONNULL Experiment::mutable_policy()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   ::xtcp_treatment::v1::ExperimentPolicy* _msg = _internal_mutable_policy();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Experiment.policy)
   return _msg;
@@ -8987,9 +8918,9 @@ inline void Experiment::set_allocated_policy(::xtcp_treatment::v1::ExperimentPol
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   }
 
   _impl_.policy_ = reinterpret_cast<::xtcp_treatment::v1::ExperimentPolicy*>(value);
@@ -8998,14 +8929,14 @@ inline void Experiment::set_allocated_policy(::xtcp_treatment::v1::ExperimentPol
 
 // .xtcp_treatment.v1.Evidence baseline = 6 [json_name = "baseline", (.buf.validate.field) = {
 inline bool Experiment::has_baseline() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000100U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000080U);
   PROTOBUF_ASSUME(!value || _impl_.baseline_ != nullptr);
   return value;
 }
 inline void Experiment::clear_baseline() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.baseline_ != nullptr) _impl_.baseline_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
 }
 inline const ::xtcp_treatment::v1::Evidence& Experiment::_internal_baseline() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -9024,16 +8955,16 @@ inline void Experiment::unsafe_arena_set_allocated_baseline(
   }
   _impl_.baseline_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Experiment.baseline)
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE Experiment::release_baseline() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   ::xtcp_treatment::v1::Evidence* released = _impl_.baseline_;
   _impl_.baseline_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -9053,7 +8984,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE Experiment::unsafe_aren
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Experiment.baseline)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   ::xtcp_treatment::v1::Evidence* temp = _impl_.baseline_;
   _impl_.baseline_ = nullptr;
   return temp;
@@ -9068,7 +8999,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL Experiment::_internal_mu
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL Experiment::mutable_baseline()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   ::xtcp_treatment::v1::Evidence* _msg = _internal_mutable_baseline();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Experiment.baseline)
   return _msg;
@@ -9085,9 +9016,9 @@ inline void Experiment::set_allocated_baseline(::xtcp_treatment::v1::Evidence* P
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   }
 
   _impl_.baseline_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
@@ -9225,7 +9156,7 @@ Experiment::_internal_mutable_phases() {
 inline void Experiment::clear_status() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.status_ = 0;
-  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
 }
 inline ::xtcp_treatment::v1::ExperimentStatus Experiment::status() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Experiment.status)
@@ -9233,7 +9164,7 @@ inline ::xtcp_treatment::v1::ExperimentStatus Experiment::status() const {
 }
 inline void Experiment::set_status(::xtcp_treatment::v1::ExperimentStatus value) {
   _internal_set_status(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Experiment.status)
 }
 inline ::xtcp_treatment::v1::ExperimentStatus Experiment::_internal_status() const {
@@ -9249,7 +9180,7 @@ inline void Experiment::_internal_set_status(::xtcp_treatment::v1::ExperimentSta
 inline void Experiment::clear_revision() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.revision_ = ::uint64_t{0u};
-  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
 }
 inline ::uint64_t Experiment::revision() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Experiment.revision)
@@ -9257,7 +9188,7 @@ inline ::uint64_t Experiment::revision() const {
 }
 inline void Experiment::set_revision(::uint64_t value) {
   _internal_set_revision(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Experiment.revision)
 }
 inline ::uint64_t Experiment::_internal_revision() const {
@@ -9271,7 +9202,7 @@ inline void Experiment::_internal_set_revision(::uint64_t value) {
 
 // .google.protobuf.Timestamp proposed_at = 11 [json_name = "proposedAt"];
 inline bool Experiment::has_proposed_at() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000200U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000100U);
   PROTOBUF_ASSUME(!value || _impl_.proposed_at_ != nullptr);
   return value;
 }
@@ -9292,16 +9223,16 @@ inline void Experiment::unsafe_arena_set_allocated_proposed_at(
   }
   _impl_.proposed_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Experiment.proposed_at)
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Experiment::release_proposed_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   ::google::protobuf::Timestamp* released = _impl_.proposed_at_;
   _impl_.proposed_at_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -9321,7 +9252,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Experiment::unsafe_arena
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Experiment.proposed_at)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   ::google::protobuf::Timestamp* temp = _impl_.proposed_at_;
   _impl_.proposed_at_ = nullptr;
   return temp;
@@ -9336,7 +9267,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Experiment::_internal_mut
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Experiment::mutable_proposed_at()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   ::google::protobuf::Timestamp* _msg = _internal_mutable_proposed_at();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Experiment.proposed_at)
   return _msg;
@@ -9353,9 +9284,9 @@ inline void Experiment::set_allocated_proposed_at(::google::protobuf::Timestamp*
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   }
 
   _impl_.proposed_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
@@ -9364,14 +9295,14 @@ inline void Experiment::set_allocated_proposed_at(::google::protobuf::Timestamp*
 
 // .xtcp_treatment.v1.Evidence latest_evidence = 12 [json_name = "latestEvidence"];
 inline bool Experiment::has_latest_evidence() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000400U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000200U);
   PROTOBUF_ASSUME(!value || _impl_.latest_evidence_ != nullptr);
   return value;
 }
 inline void Experiment::clear_latest_evidence() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.latest_evidence_ != nullptr) _impl_.latest_evidence_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
 }
 inline const ::xtcp_treatment::v1::Evidence& Experiment::_internal_latest_evidence() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -9390,16 +9321,16 @@ inline void Experiment::unsafe_arena_set_allocated_latest_evidence(
   }
   _impl_.latest_evidence_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.Experiment.latest_evidence)
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE Experiment::release_latest_evidence() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   ::xtcp_treatment::v1::Evidence* released = _impl_.latest_evidence_;
   _impl_.latest_evidence_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -9419,7 +9350,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE Experiment::unsafe_aren
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Experiment.latest_evidence)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   ::xtcp_treatment::v1::Evidence* temp = _impl_.latest_evidence_;
   _impl_.latest_evidence_ = nullptr;
   return temp;
@@ -9434,7 +9365,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL Experiment::_internal_mu
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL Experiment::mutable_latest_evidence()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   ::xtcp_treatment::v1::Evidence* _msg = _internal_mutable_latest_evidence();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Experiment.latest_evidence)
   return _msg;
@@ -9451,77 +9382,37 @@ inline void Experiment::set_allocated_latest_evidence(::xtcp_treatment::v1::Evid
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   }
 
   _impl_.latest_evidence_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.Experiment.latest_evidence)
 }
 
-// string latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
+// .xtcp_treatment.v1.Outcome latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
 inline void Experiment::clear_latest_outcome() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.latest_outcome_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  _impl_.latest_outcome_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
 }
-inline const ::std::string& Experiment::latest_outcome() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+inline ::xtcp_treatment::v1::Outcome Experiment::latest_outcome() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Experiment.latest_outcome)
   return _internal_latest_outcome();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void Experiment::set_latest_outcome(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
-  _impl_.latest_outcome_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+inline void Experiment::set_latest_outcome(::xtcp_treatment::v1::Outcome value) {
+  _internal_set_latest_outcome(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Experiment.latest_outcome)
 }
-inline ::std::string* PROTOBUF_NONNULL Experiment::mutable_latest_outcome()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
-  ::std::string* _s = _internal_mutable_latest_outcome();
-  // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Experiment.latest_outcome)
-  return _s;
-}
-inline const ::std::string& Experiment::_internal_latest_outcome() const {
+inline ::xtcp_treatment::v1::Outcome Experiment::_internal_latest_outcome() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.latest_outcome_.Get();
+  return static_cast<::xtcp_treatment::v1::Outcome>(_impl_.latest_outcome_);
 }
-inline void Experiment::_internal_set_latest_outcome(const ::std::string& value) {
+inline void Experiment::_internal_set_latest_outcome(::xtcp_treatment::v1::Outcome value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.latest_outcome_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL Experiment::_internal_mutable_latest_outcome() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.latest_outcome_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE Experiment::release_latest_outcome() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Experiment.latest_outcome)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000020U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
-  auto* released = _impl_.latest_outcome_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.latest_outcome_.Set("", GetArena());
-  }
-  return released;
-}
-inline void Experiment::set_allocated_latest_outcome(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
-  }
-  _impl_.latest_outcome_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.latest_outcome_.IsDefault()) {
-    _impl_.latest_outcome_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.Experiment.latest_outcome)
+  _impl_.latest_outcome_ = value;
 }
 
 #ifdef __GNUC__
@@ -9553,6 +9444,12 @@ struct is_proto_enum<::xtcp_treatment::v1::ApplyStatus> : std::true_type {};
 template <>
 inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::xtcp_treatment::v1::ApplyStatus>() {
   return ::xtcp_treatment::v1::ApplyStatus_descriptor();
+}
+template <>
+struct is_proto_enum<::xtcp_treatment::v1::Outcome> : std::true_type {};
+template <>
+inline const EnumDescriptor* PROTOBUF_NONNULL GetEnumDescriptor<::xtcp_treatment::v1::Outcome>() {
+  return ::xtcp_treatment::v1::Outcome_descriptor();
 }
 template <>
 struct is_proto_enum<::xtcp_treatment::v1::ExperimentStatus> : std::true_type {};

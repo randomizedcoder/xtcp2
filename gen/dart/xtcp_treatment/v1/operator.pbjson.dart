@@ -122,14 +122,22 @@ const AnalyzeResponse$json = {
       '6': '.xtcp_treatment.v1.Evidence',
       '10': 'evidence'
     },
-    {'1': 'outcome', '3': 2, '4': 1, '5': 9, '10': 'outcome'},
+    {
+      '1': 'outcome',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.xtcp_treatment.v1.Outcome',
+      '10': 'outcome'
+    },
   ],
 };
 
 /// Descriptor for `AnalyzeResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List analyzeResponseDescriptor = $convert.base64Decode(
     'Cg9BbmFseXplUmVzcG9uc2USNwoIZXZpZGVuY2UYASABKAsyGy54dGNwX3RyZWF0bWVudC52MS'
-    '5FdmlkZW5jZVIIZXZpZGVuY2USGAoHb3V0Y29tZRgCIAEoCVIHb3V0Y29tZQ==');
+    '5FdmlkZW5jZVIIZXZpZGVuY2USNAoHb3V0Y29tZRgCIAEoDjIaLnh0Y3BfdHJlYXRtZW50LnYx'
+    'Lk91dGNvbWVSB291dGNvbWU=');
 
 @$core.Deprecated('Use reviewRequestDescriptor instead')
 const ReviewRequest$json = {

@@ -275,7 +275,6 @@ class Treatment extends $pb.GeneratedMessage {
 
 class Assignment extends $pb.GeneratedMessage {
   factory Assignment({
-    $core.String? id,
     $core.String? experimentId,
     Treatment? treatment,
     AssignmentMode? mode,
@@ -284,7 +283,6 @@ class Assignment extends $pb.GeneratedMessage {
     $fixnum.Int64? generation,
   }) {
     final result = Assignment._();
-    if (id != null) result.id = id;
     if (experimentId != null) result.experimentId = experimentId;
     if (treatment != null) result.treatment = treatment;
     if (mode != null) result.mode = mode;
@@ -308,7 +306,6 @@ class Assignment extends $pb.GeneratedMessage {
       package:
           const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_treatment.v1'),
       createEmptyInstance: Assignment.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'experimentId')
     ..aOM<Treatment>(3, _omitFieldNames ? '' : 'treatment',
         subBuilder: Treatment.$_createMessage)
@@ -343,74 +340,65 @@ class Assignment extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<Assignment>(Assignment.$_createMessage);
   static Assignment? _defaultInstance;
 
-  @$pb.TagNumber(1)
-  $core.String get id => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set id($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasId() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearId() => $_clearField(1);
-
   @$pb.TagNumber(2)
-  $core.String get experimentId => $_getSZ(1);
+  $core.String get experimentId => $_getSZ(0);
   @$pb.TagNumber(2)
-  set experimentId($core.String value) => $_setString(1, value);
+  set experimentId($core.String value) => $_setString(0, value);
   @$pb.TagNumber(2)
-  $core.bool hasExperimentId() => $_has(1);
+  $core.bool hasExperimentId() => $_has(0);
   @$pb.TagNumber(2)
   void clearExperimentId() => $_clearField(2);
 
   @$pb.TagNumber(3)
-  Treatment get treatment => $_getN(2);
+  Treatment get treatment => $_getN(1);
   @$pb.TagNumber(3)
   set treatment(Treatment value) => $_setField(3, value);
   @$pb.TagNumber(3)
-  $core.bool hasTreatment() => $_has(2);
+  $core.bool hasTreatment() => $_has(1);
   @$pb.TagNumber(3)
   void clearTreatment() => $_clearField(3);
   @$pb.TagNumber(3)
-  Treatment ensureTreatment() => $_ensure(2);
+  Treatment ensureTreatment() => $_ensure(1);
 
   @$pb.TagNumber(4)
-  AssignmentMode get mode => $_getN(3);
+  AssignmentMode get mode => $_getN(2);
   @$pb.TagNumber(4)
   set mode(AssignmentMode value) => $_setField(4, value);
   @$pb.TagNumber(4)
-  $core.bool hasMode() => $_has(3);
+  $core.bool hasMode() => $_has(2);
   @$pb.TagNumber(4)
   void clearMode() => $_clearField(4);
 
   @$pb.TagNumber(5)
-  $0.Timestamp get leaseExpiresAt => $_getN(4);
+  $0.Timestamp get leaseExpiresAt => $_getN(3);
   @$pb.TagNumber(5)
   set leaseExpiresAt($0.Timestamp value) => $_setField(5, value);
   @$pb.TagNumber(5)
-  $core.bool hasLeaseExpiresAt() => $_has(4);
+  $core.bool hasLeaseExpiresAt() => $_has(3);
   @$pb.TagNumber(5)
   void clearLeaseExpiresAt() => $_clearField(5);
   @$pb.TagNumber(5)
-  $0.Timestamp ensureLeaseExpiresAt() => $_ensure(4);
+  $0.Timestamp ensureLeaseExpiresAt() => $_ensure(3);
 
   /// Previous approved stable treatment, restored on trial expiry/rollback.
   @$pb.TagNumber(6)
-  Treatment get predecessor => $_getN(5);
+  Treatment get predecessor => $_getN(4);
   @$pb.TagNumber(6)
   set predecessor(Treatment value) => $_setField(6, value);
   @$pb.TagNumber(6)
-  $core.bool hasPredecessor() => $_has(5);
+  $core.bool hasPredecessor() => $_has(4);
   @$pb.TagNumber(6)
   void clearPredecessor() => $_clearField(6);
   @$pb.TagNumber(6)
-  Treatment ensurePredecessor() => $_ensure(5);
+  Treatment ensurePredecessor() => $_ensure(4);
 
   /// Increment only on an explicitly approved reactivation, not lease renewal.
   @$pb.TagNumber(7)
-  $fixnum.Int64 get generation => $_getI64(6);
+  $fixnum.Int64 get generation => $_getI64(5);
   @$pb.TagNumber(7)
-  set generation($fixnum.Int64 value) => $_setInt64(6, value);
+  set generation($fixnum.Int64 value) => $_setInt64(5, value);
   @$pb.TagNumber(7)
-  $core.bool hasGeneration() => $_has(6);
+  $core.bool hasGeneration() => $_has(5);
   @$pb.TagNumber(7)
   void clearGeneration() => $_clearField(7);
 }
@@ -1424,7 +1412,7 @@ class Phase extends $pb.GeneratedMessage {
     $0.Timestamp? observationStartedAt,
     $0.Timestamp? evaluatedAt,
     Evidence? evidence,
-    $core.String? outcome,
+    Outcome? outcome,
     $core.String? reviewer,
     $core.String? reason,
   }) {
@@ -1465,7 +1453,8 @@ class Phase extends $pb.GeneratedMessage {
         subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<Evidence>(5, _omitFieldNames ? '' : 'evidence',
         subBuilder: Evidence.$_createMessage)
-    ..aOS(6, _omitFieldNames ? '' : 'outcome')
+    ..aE<Outcome>(6, _omitFieldNames ? '' : 'outcome',
+        enumValues: Outcome.values)
     ..aOS(7, _omitFieldNames ? '' : 'reviewer')
     ..aOS(8, _omitFieldNames ? '' : 'reason')
     ..hasRequiredFields = false;
@@ -1544,9 +1533,9 @@ class Phase extends $pb.GeneratedMessage {
   Evidence ensureEvidence() => $_ensure(4);
 
   @$pb.TagNumber(6)
-  $core.String get outcome => $_getSZ(5);
+  Outcome get outcome => $_getN(5);
   @$pb.TagNumber(6)
-  set outcome($core.String value) => $_setString(5, value);
+  set outcome(Outcome value) => $_setField(6, value);
   @$pb.TagNumber(6)
   $core.bool hasOutcome() => $_has(5);
   @$pb.TagNumber(6)
@@ -1585,7 +1574,7 @@ class Experiment extends $pb.GeneratedMessage {
     $fixnum.Int64? revision,
     $0.Timestamp? proposedAt,
     Evidence? latestEvidence,
-    $core.String? latestOutcome,
+    Outcome? latestOutcome,
   }) {
     final result = Experiment._();
     if (id != null) result.id = id;
@@ -1639,7 +1628,8 @@ class Experiment extends $pb.GeneratedMessage {
         subBuilder: $0.Timestamp.$_createMessage)
     ..aOM<Evidence>(12, _omitFieldNames ? '' : 'latestEvidence',
         subBuilder: Evidence.$_createMessage)
-    ..aOS(13, _omitFieldNames ? '' : 'latestOutcome')
+    ..aE<Outcome>(13, _omitFieldNames ? '' : 'latestOutcome',
+        enumValues: Outcome.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1770,9 +1760,9 @@ class Experiment extends $pb.GeneratedMessage {
   Evidence ensureLatestEvidence() => $_ensure(11);
 
   @$pb.TagNumber(13)
-  $core.String get latestOutcome => $_getSZ(12);
+  Outcome get latestOutcome => $_getN(12);
   @$pb.TagNumber(13)
-  set latestOutcome($core.String value) => $_setString(12, value);
+  set latestOutcome(Outcome value) => $_setField(13, value);
   @$pb.TagNumber(13)
   $core.bool hasLatestOutcome() => $_has(12);
   @$pb.TagNumber(13)

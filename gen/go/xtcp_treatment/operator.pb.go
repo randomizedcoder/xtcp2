@@ -239,7 +239,7 @@ func (x *AnalyzeRequest) GetExpectedRevision() uint64 {
 type AnalyzeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Evidence      *Evidence              `protobuf:"bytes,1,opt,name=evidence,proto3" json:"evidence,omitempty"`
-	Outcome       string                 `protobuf:"bytes,2,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	Outcome       Outcome                `protobuf:"varint,2,opt,name=outcome,proto3,enum=xtcp_treatment.v1.Outcome" json:"outcome,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -281,11 +281,11 @@ func (x *AnalyzeResponse) GetEvidence() *Evidence {
 	return nil
 }
 
-func (x *AnalyzeResponse) GetOutcome() string {
+func (x *AnalyzeResponse) GetOutcome() Outcome {
 	if x != nil {
 		return x.Outcome
 	}
-	return ""
+	return Outcome_OUTCOME_UNSPECIFIED
 }
 
 type ReviewRequest struct {
@@ -683,10 +683,10 @@ const file_xtcp_treatment_v1_operator_proto_rawDesc = "" +
 	"experiment\"\x8d\x01\n" +
 	"\x0eAnalyzeRequest\x12N\n" +
 	"\rexperiment_id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\fexperimentId\x12+\n" +
-	"\x11expected_revision\x18\x02 \x01(\x04R\x10expectedRevision\"d\n" +
+	"\x11expected_revision\x18\x02 \x01(\x04R\x10expectedRevision\"\x80\x01\n" +
 	"\x0fAnalyzeResponse\x127\n" +
-	"\bevidence\x18\x01 \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\bevidence\x12\x18\n" +
-	"\aoutcome\x18\x02 \x01(\tR\aoutcome\"\xe6\x03\n" +
+	"\bevidence\x18\x01 \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\bevidence\x124\n" +
+	"\aoutcome\x18\x02 \x01(\x0e2\x1a.xtcp_treatment.v1.OutcomeR\aoutcome\"\xe6\x03\n" +
 	"\rReviewRequest\x12N\n" +
 	"\rexperiment_id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\fexperimentId\x12+\n" +
 	"\x11expected_revision\x18\x02 \x01(\x04R\x10expectedRevision\x12\x18\n" +
@@ -766,34 +766,36 @@ var file_xtcp_treatment_v1_operator_proto_goTypes = []any{
 	(*InspectResponse)(nil), // 10: xtcp_treatment.v1.InspectResponse
 	(*Experiment)(nil),      // 11: xtcp_treatment.v1.Experiment
 	(*Evidence)(nil),        // 12: xtcp_treatment.v1.Evidence
-	(*DesiredState)(nil),    // 13: xtcp_treatment.v1.DesiredState
-	(*CheckInRequest)(nil),  // 14: xtcp_treatment.v1.CheckInRequest
+	(Outcome)(0),            // 13: xtcp_treatment.v1.Outcome
+	(*DesiredState)(nil),    // 14: xtcp_treatment.v1.DesiredState
+	(*CheckInRequest)(nil),  // 15: xtcp_treatment.v1.CheckInRequest
 }
 var file_xtcp_treatment_v1_operator_proto_depIdxs = []int32{
 	11, // 0: xtcp_treatment.v1.ProposeRequest.experiment:type_name -> xtcp_treatment.v1.Experiment
 	11, // 1: xtcp_treatment.v1.ProposeResponse.experiment:type_name -> xtcp_treatment.v1.Experiment
 	12, // 2: xtcp_treatment.v1.AnalyzeResponse.evidence:type_name -> xtcp_treatment.v1.Evidence
-	12, // 3: xtcp_treatment.v1.ReviewRequest.evidence:type_name -> xtcp_treatment.v1.Evidence
-	11, // 4: xtcp_treatment.v1.ReviewResponse.experiment:type_name -> xtcp_treatment.v1.Experiment
-	0,  // 5: xtcp_treatment.v1.ControlRequest.action:type_name -> xtcp_treatment.v1.ControlAction
-	11, // 6: xtcp_treatment.v1.InspectResponse.experiments:type_name -> xtcp_treatment.v1.Experiment
-	13, // 7: xtcp_treatment.v1.InspectResponse.desired:type_name -> xtcp_treatment.v1.DesiredState
-	14, // 8: xtcp_treatment.v1.InspectResponse.observed:type_name -> xtcp_treatment.v1.CheckInRequest
-	1,  // 9: xtcp_treatment.v1.OperatorService.Propose:input_type -> xtcp_treatment.v1.ProposeRequest
-	3,  // 10: xtcp_treatment.v1.OperatorService.Analyze:input_type -> xtcp_treatment.v1.AnalyzeRequest
-	5,  // 11: xtcp_treatment.v1.OperatorService.Review:input_type -> xtcp_treatment.v1.ReviewRequest
-	7,  // 12: xtcp_treatment.v1.OperatorService.Control:input_type -> xtcp_treatment.v1.ControlRequest
-	9,  // 13: xtcp_treatment.v1.OperatorService.Inspect:input_type -> xtcp_treatment.v1.InspectRequest
-	2,  // 14: xtcp_treatment.v1.OperatorService.Propose:output_type -> xtcp_treatment.v1.ProposeResponse
-	4,  // 15: xtcp_treatment.v1.OperatorService.Analyze:output_type -> xtcp_treatment.v1.AnalyzeResponse
-	6,  // 16: xtcp_treatment.v1.OperatorService.Review:output_type -> xtcp_treatment.v1.ReviewResponse
-	8,  // 17: xtcp_treatment.v1.OperatorService.Control:output_type -> xtcp_treatment.v1.ControlResponse
-	10, // 18: xtcp_treatment.v1.OperatorService.Inspect:output_type -> xtcp_treatment.v1.InspectResponse
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	13, // 3: xtcp_treatment.v1.AnalyzeResponse.outcome:type_name -> xtcp_treatment.v1.Outcome
+	12, // 4: xtcp_treatment.v1.ReviewRequest.evidence:type_name -> xtcp_treatment.v1.Evidence
+	11, // 5: xtcp_treatment.v1.ReviewResponse.experiment:type_name -> xtcp_treatment.v1.Experiment
+	0,  // 6: xtcp_treatment.v1.ControlRequest.action:type_name -> xtcp_treatment.v1.ControlAction
+	11, // 7: xtcp_treatment.v1.InspectResponse.experiments:type_name -> xtcp_treatment.v1.Experiment
+	14, // 8: xtcp_treatment.v1.InspectResponse.desired:type_name -> xtcp_treatment.v1.DesiredState
+	15, // 9: xtcp_treatment.v1.InspectResponse.observed:type_name -> xtcp_treatment.v1.CheckInRequest
+	1,  // 10: xtcp_treatment.v1.OperatorService.Propose:input_type -> xtcp_treatment.v1.ProposeRequest
+	3,  // 11: xtcp_treatment.v1.OperatorService.Analyze:input_type -> xtcp_treatment.v1.AnalyzeRequest
+	5,  // 12: xtcp_treatment.v1.OperatorService.Review:input_type -> xtcp_treatment.v1.ReviewRequest
+	7,  // 13: xtcp_treatment.v1.OperatorService.Control:input_type -> xtcp_treatment.v1.ControlRequest
+	9,  // 14: xtcp_treatment.v1.OperatorService.Inspect:input_type -> xtcp_treatment.v1.InspectRequest
+	2,  // 15: xtcp_treatment.v1.OperatorService.Propose:output_type -> xtcp_treatment.v1.ProposeResponse
+	4,  // 16: xtcp_treatment.v1.OperatorService.Analyze:output_type -> xtcp_treatment.v1.AnalyzeResponse
+	6,  // 17: xtcp_treatment.v1.OperatorService.Review:output_type -> xtcp_treatment.v1.ReviewResponse
+	8,  // 18: xtcp_treatment.v1.OperatorService.Control:output_type -> xtcp_treatment.v1.ControlResponse
+	10, // 19: xtcp_treatment.v1.OperatorService.Inspect:output_type -> xtcp_treatment.v1.InspectResponse
+	15, // [15:20] is the sub-list for method output_type
+	10, // [10:15] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_treatment_v1_operator_proto_init() }

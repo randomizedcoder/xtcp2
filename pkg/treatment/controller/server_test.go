@@ -368,7 +368,7 @@ func TestPostgresAnalyzeRefreshesWithoutApproval(t *testing.T) {
 	ev.Id = "refresh-1"
 	s.EvidenceSource = fixedEvidence{ev}
 	out, e := s.Analyze(operator, &pb.AnalyzeRequest{ExperimentId: p.Experiment.Id, ExpectedRevision: 1})
-	if e != nil || out.Outcome != "baseline" {
+	if e != nil || out.Outcome != pb.Outcome_OUTCOME_BASELINE {
 		t.Fatal("refresh", out, e)
 	}
 	inspected, e := s.Inspect(operator, &pb.InspectRequest{ExperimentId: p.Experiment.Id})

@@ -186,12 +186,10 @@ func (m *AnalyzeResponse) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.Outcome) > 0 {
-		i -= len(m.Outcome)
-		copy(dAtA[i:], m.Outcome)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Outcome)))
+	if m.Outcome != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Outcome))
 		i--
-		dAtA[i] = 0x12
+		dAtA[i] = 0x10
 	}
 	if m.Evidence != nil {
 		size, err := m.Evidence.MarshalToSizedBufferVT(dAtA[:i])
@@ -624,9 +622,8 @@ func (m *AnalyzeResponse) SizeVT() (n int) {
 		l = m.Evidence.SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.Outcome)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	if m.Outcome != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.Outcome))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1147,10 +1144,10 @@ func (m *AnalyzeResponse) UnmarshalVT(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 2:
-			if wireType != 2 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Outcome", wireType)
 			}
-			var stringLen uint64
+			m.Outcome = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -1160,24 +1157,11 @@ func (m *AnalyzeResponse) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
+				m.Outcome |= Outcome(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Outcome = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])

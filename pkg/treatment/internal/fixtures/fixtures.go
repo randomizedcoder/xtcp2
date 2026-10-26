@@ -21,7 +21,6 @@ func Desired(now time.Time) *pb.DesiredState {
 		Revision: 1,
 		IssuedAt: timestamppb.New(now),
 		Assignments: []*pb.Assignment{{
-			Id:             "trial-1",
 			ExperimentId:   "trial-1",
 			Generation:     1,
 			Mode:           pb.AssignmentMode_ASSIGNMENT_MODE_TRIAL,

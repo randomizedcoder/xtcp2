@@ -32,7 +32,7 @@ func TestCheckInValidation(t *testing.T) {
 		{"long-algorithm", "algorithm names fit kernel ABI", func(r *pb.CheckInRequest) { r.Capabilities.CongestionAlgorithms = []string{strings.Repeat("a", 16)} }, codes.InvalidArgument},
 		{"nil-record", "nil application record fails closed", func(r *pb.CheckInRequest) { r.Records = []*pb.ApplicationRecord{nil} }, codes.InvalidArgument},
 		{"kernel-bytes", "kernel route bytes must remain local", func(r *pb.CheckInRequest) {
-			r.Records = []*pb.ApplicationRecord{{Assignment: &pb.Assignment{Id: "assignment"}, InstalledRoute: []byte{1}}}
+			r.Records = []*pb.ApplicationRecord{{Assignment: &pb.Assignment{ExperimentId: "assignment"}, InstalledRoute: []byte{1}}}
 		}, codes.InvalidArgument},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

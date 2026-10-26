@@ -257,12 +257,12 @@ func TestDesiredValidation(t *testing.T) {
 		}, "identity"},
 		{"duplicate-destination", "active routes cannot overlap", func(p **pb.DesiredState) {
 			a := proto.Clone((*p).Assignments[0]).(*pb.Assignment)
-			a.Id = "other"
+			a.ExperimentId = "other"
 			(*p).Assignments = append((*p).Assignments, a)
 		}, "overlapping"},
 		{"retired-overlap", "retired routes may overlap active routes", func(p **pb.DesiredState) {
 			a := proto.Clone((*p).Assignments[0]).(*pb.Assignment)
-			a.Id = "other"
+			a.ExperimentId = "other"
 			a.Mode = pb.AssignmentMode_ASSIGNMENT_MODE_RETIRED
 			(*p).Assignments = append((*p).Assignments, a)
 		}, ""},
@@ -293,7 +293,7 @@ func TestDesiredValidation(t *testing.T) {
 			(*p).Assignments = nil
 			for i := range n {
 				a := proto.Clone(base).(*pb.Assignment)
-				a.Id = fmt.Sprintf("a-%d", i)
+				a.ExperimentId = fmt.Sprintf("a-%d", i)
 				a.Treatment.Destination = fmt.Sprintf("198.18.%d.%d/32", i/256, i%256)
 				(*p).Assignments = append((*p).Assignments, a)
 			}

@@ -383,7 +383,7 @@ func runController(soak bool) {
 		defer cancel()
 		analysis = must(op.Analyze(ctx, &pb.AnalyzeRequest{ExperimentId: e.Id, ExpectedRevision: e.Revision}))
 		log.Printf("analysis: %s", analysis.Outcome)
-		return analysis.Outcome == "safety_only"
+		return analysis.Outcome == pb.Outcome_OUTCOME_SAFETY_ONLY
 	})
 	eventually("approve second host with current check-ins", time.Minute, func() bool { e = review(op, inspect(op, e.Id), "approve-second", analysis.Evidence); return true })
 	require(e.Phases[len(e.Phases)-1].TargetHosts == 2, "wrong phase target")
@@ -395,7 +395,7 @@ func runController(soak bool) {
 	eventually("automatic rollback on measured netem harm", 5*time.Minute, func() bool { return inspect(op, e.Id).Status == pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK })
 	eventually("all overrides withdrawn", time.Minute, func() bool { return routeCount() == 0 })
 	e = inspect(op, e.Id)
-	require(e.Phases[len(e.Phases)-1].Outcome == "harmful", "wrong rollback reason")
+	require(e.Phases[len(e.Phases)-1].Outcome == pb.Outcome_OUTCOME_HARMFUL, "wrong rollback reason")
 	pass("ROLLBACK")
 	remote(second, action{Name: "delay", Seconds: 5}, nil)
 	for _, h := range hosts {

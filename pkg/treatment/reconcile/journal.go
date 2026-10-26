@@ -59,13 +59,13 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 		}
 		seen := map[string]bool{}
 		for _, r := range s.Records {
-			if r.Assignment == nil || !treatment.ValidID(r.Assignment.Id) {
+			if r.Assignment == nil || !treatment.ValidID(r.Assignment.ExperimentId) {
 				return errors.New("invalid journal record")
 			}
-			if seen[r.Assignment.Id] {
+			if seen[r.Assignment.ExperimentId] {
 				return errors.New("duplicate journal record")
 			}
-			seen[r.Assignment.Id] = true
+			seen[r.Assignment.ExperimentId] = true
 			if err = treatment.ValidateTreatment(r.Assignment.Treatment); err != nil {
 				return fmt.Errorf("invalid journal treatment: %w", err)
 			}
@@ -95,7 +95,7 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 			if err != nil {
 				return errors.Join(result, err)
 			}
-			name := "assignment-" + r.Assignment.Id + ".textproto"
+			name := "assignment-" + r.Assignment.ExperimentId + ".textproto"
 			old, _ := os.ReadFile(filepath.Join(j.Dir, name))
 			if bytes.Equal(old, b) {
 				continue

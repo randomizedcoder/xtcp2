@@ -52,8 +52,8 @@ class AnalyzeResponse(_message.Message):
     EVIDENCE_FIELD_NUMBER: _ClassVar[int]
     OUTCOME_FIELD_NUMBER: _ClassVar[int]
     evidence: _treatment_pb2.Evidence
-    outcome: str
-    def __init__(self, evidence: _Optional[_Union[_treatment_pb2.Evidence, _Mapping]] = ..., outcome: _Optional[str] = ...) -> None: ...
+    outcome: _treatment_pb2.Outcome
+    def __init__(self, evidence: _Optional[_Union[_treatment_pb2.Evidence, _Mapping]] = ..., outcome: _Optional[_Union[_treatment_pb2.Outcome, str]] = ...) -> None: ...
 
 class ReviewRequest(_message.Message):
     __slots__ = ("experiment_id", "expected_revision", "approve", "reason", "request_id", "evidence")

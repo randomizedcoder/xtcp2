@@ -1565,24 +1565,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AnalyzeResponse final : public ::go
 
   // accessors -------------------------------------------------------
   enum : int {
-    kOutcomeFieldNumber = 2,
     kEvidenceFieldNumber = 1,
+    kOutcomeFieldNumber = 2,
   };
-  // string outcome = 2 [json_name = "outcome"];
-  void clear_outcome() ;
-  [[nodiscard]] const ::std::string& outcome() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_outcome(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_outcome();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_outcome();
-  void set_allocated_outcome(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_outcome() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_outcome(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_outcome();
-
-  public:
   // .xtcp_treatment.v1.Evidence evidence = 1 [json_name = "evidence"];
   [[nodiscard]] bool has_evidence() const;
   void clear_evidence() ;
@@ -1598,12 +1583,22 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AnalyzeResponse final : public ::go
   ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL _internal_mutable_evidence();
 
   public:
+  // .xtcp_treatment.v1.Outcome outcome = 2 [json_name = "outcome"];
+  void clear_outcome() ;
+  [[nodiscard]] ::xtcp_treatment::v1::Outcome outcome() const;
+  void set_outcome(::xtcp_treatment::v1::Outcome value);
+
+  private:
+  ::xtcp_treatment::v1::Outcome _internal_outcome() const;
+  void _internal_set_outcome(::xtcp_treatment::v1::Outcome value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_treatment.v1.AnalyzeResponse)
  private:
   class _Internal;
   using ParseTableT_ =
       ::google::protobuf::internal::TcParseTable<1, 2,
-                          1, 49,
+                          1, 0,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -1631,8 +1626,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED AnalyzeResponse final : public ::go
         const AnalyzeResponse& from_msg);
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::internal::ArenaStringPtr outcome_;
     ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE evidence_;
+    int outcome_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -2897,7 +2892,7 @@ inline void AnalyzeRequest::_internal_set_expected_revision(::uint64_t value) {
 
 // .xtcp_treatment.v1.Evidence evidence = 1 [json_name = "evidence"];
 inline bool AnalyzeResponse::has_evidence() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000002U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000001U);
   PROTOBUF_ASSUME(!value || _impl_.evidence_ != nullptr);
   return value;
 }
@@ -2918,16 +2913,16 @@ inline void AnalyzeResponse::unsafe_arena_set_allocated_evidence(
   }
   _impl_.evidence_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment.v1.AnalyzeResponse.evidence)
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE AnalyzeResponse::release_evidence() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   ::xtcp_treatment::v1::Evidence* released = _impl_.evidence_;
   _impl_.evidence_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -2947,7 +2942,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NULLABLE AnalyzeResponse::unsafe
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment.v1.AnalyzeResponse.evidence)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   ::xtcp_treatment::v1::Evidence* temp = _impl_.evidence_;
   _impl_.evidence_ = nullptr;
   return temp;
@@ -2962,7 +2957,7 @@ inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL AnalyzeResponse::_intern
 }
 inline ::xtcp_treatment::v1::Evidence* PROTOBUF_NONNULL AnalyzeResponse::mutable_evidence()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   ::xtcp_treatment::v1::Evidence* _msg = _internal_mutable_evidence();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.AnalyzeResponse.evidence)
   return _msg;
@@ -2979,77 +2974,37 @@ inline void AnalyzeResponse::set_allocated_evidence(::xtcp_treatment::v1::Eviden
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000002U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
   }
 
   _impl_.evidence_ = reinterpret_cast<::xtcp_treatment::v1::Evidence*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.AnalyzeResponse.evidence)
 }
 
-// string outcome = 2 [json_name = "outcome"];
+// .xtcp_treatment.v1.Outcome outcome = 2 [json_name = "outcome"];
 inline void AnalyzeResponse::clear_outcome() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.outcome_.ClearToEmpty();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
+  _impl_.outcome_ = 0;
+  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
 }
-inline const ::std::string& AnalyzeResponse::outcome() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+inline ::xtcp_treatment::v1::Outcome AnalyzeResponse::outcome() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.AnalyzeResponse.outcome)
   return _internal_outcome();
 }
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void AnalyzeResponse::set_outcome(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  _impl_.outcome_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+inline void AnalyzeResponse::set_outcome(::xtcp_treatment::v1::Outcome value) {
+  _internal_set_outcome(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000002U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.AnalyzeResponse.outcome)
 }
-inline ::std::string* PROTOBUF_NONNULL AnalyzeResponse::mutable_outcome()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  ::std::string* _s = _internal_mutable_outcome();
-  // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.AnalyzeResponse.outcome)
-  return _s;
-}
-inline const ::std::string& AnalyzeResponse::_internal_outcome() const {
+inline ::xtcp_treatment::v1::Outcome AnalyzeResponse::_internal_outcome() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.outcome_.Get();
+  return static_cast<::xtcp_treatment::v1::Outcome>(_impl_.outcome_);
 }
-inline void AnalyzeResponse::_internal_set_outcome(const ::std::string& value) {
+inline void AnalyzeResponse::_internal_set_outcome(::xtcp_treatment::v1::Outcome value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.outcome_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL AnalyzeResponse::_internal_mutable_outcome() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _impl_.outcome_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE AnalyzeResponse::release_outcome() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:xtcp_treatment.v1.AnalyzeResponse.outcome)
-  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000001U)) {
-    return nullptr;
-  }
-  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
-  auto* released = _impl_.outcome_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.outcome_.Set("", GetArena());
-  }
-  return released;
-}
-inline void AnalyzeResponse::set_allocated_outcome(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000001U);
-  } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
-  }
-  _impl_.outcome_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.outcome_.IsDefault()) {
-    _impl_.outcome_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.AnalyzeResponse.outcome)
+  _impl_.outcome_ = value;
 }
 
 // -------------------------------------------------------------------

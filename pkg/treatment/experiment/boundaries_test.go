@@ -14,57 +14,58 @@ import (
 func TestEvaluationBoundaries(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 	for _, tc := range []struct {
-		name, description, want string
-		wantError               bool
-		change                  func(*pb.Experiment, *pb.Evidence)
+		name, description string
+		want              Outcome
+		wantError         bool
+		change            func(*pb.Experiment, *pb.Evidence)
 	}{
-		{"no-phase", "unstarted experiment cannot be evaluated", "", true, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases = nil }},
-		{"no-observation", "all canaries must acknowledge exposure", "awaiting_exposure", false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].ObservationStartedAt = nil }},
-		{"expiry-equality", "phase expires exactly at its deadline", "expired", false, func(e *pb.Experiment, _ *pb.Evidence) {
+		{"no-phase", "unstarted experiment cannot be evaluated", OutcomeUnspecified, true, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases = nil }},
+		{"no-observation", "all canaries must acknowledge exposure", OutcomeAwaitingExposure, false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].ObservationStartedAt = nil }},
+		{"expiry-equality", "phase expires exactly at its deadline", OutcomeExpired, false, func(e *pb.Experiment, _ *pb.Evidence) {
 			e.Phases[0].IssuedAt = timestamppb.New(now.Add(-24 * time.Hour))
 		}},
-		{"freshness-equality", "evidence at maximum age is usable", "beneficial", false, func(_ *pb.Experiment, v *pb.Evidence) { v.WindowEnd = timestamppb.New(now.Add(-2 * time.Minute)) }},
-		{"freshness-over", "one nanosecond beyond maximum age is stale", "stale", false, func(_ *pb.Experiment, v *pb.Evidence) {
+		{"freshness-equality", "evidence at maximum age is usable", OutcomeBeneficial, false, func(_ *pb.Experiment, v *pb.Evidence) { v.WindowEnd = timestamppb.New(now.Add(-2 * time.Minute)) }},
+		{"freshness-over", "one nanosecond beyond maximum age is stale", OutcomeStale, false, func(_ *pb.Experiment, v *pb.Evidence) {
 			v.WindowEnd = timestamppb.New(now.Add(-2*time.Minute - time.Nanosecond))
 		}},
-		{"clock-equality", "30 seconds of forward clock skew is allowed", "beneficial", false, func(_ *pb.Experiment, v *pb.Evidence) { v.AnalyzedAt = timestamppb.New(now.Add(30 * time.Second)) }},
-		{"clock-over", "excess forward skew is rejected", "stale", false, func(_ *pb.Experiment, v *pb.Evidence) {
+		{"clock-equality", "30 seconds of forward clock skew is allowed", OutcomeBeneficial, false, func(_ *pb.Experiment, v *pb.Evidence) { v.AnalyzedAt = timestamppb.New(now.Add(30 * time.Second)) }},
+		{"clock-over", "excess forward skew is rejected", OutcomeStale, false, func(_ *pb.Experiment, v *pb.Evidence) {
 			v.AnalyzedAt = timestamppb.New(now.Add(30*time.Second + time.Nanosecond))
 		}},
-		{"duration-equality", "exactly minimum observation is sufficient", "beneficial", false, func(_ *pb.Experiment, v *pb.Evidence) {
+		{"duration-equality", "exactly minimum observation is sufficient", OutcomeBeneficial, false, func(_ *pb.Experiment, v *pb.Evidence) {
 			v.WindowStart = timestamppb.New(v.WindowEnd.AsTime().Add(-30 * time.Minute))
 		}},
-		{"duration-under", "one nanosecond short is insufficient", "insufficient_duration", false, func(_ *pb.Experiment, v *pb.Evidence) {
+		{"duration-under", "one nanosecond short is insufficient", OutcomeInsufficientDuration, false, func(_ *pb.Experiment, v *pb.Evidence) {
 			v.WindowStart = timestamppb.New(v.WindowEnd.AsTime().Add(-30*time.Minute + time.Nanosecond))
 		}},
-		{"old-window", "pre-treatment data cannot support promotion", "insufficient_duration", false, func(e *pb.Experiment, v *pb.Evidence) {
+		{"old-window", "pre-treatment data cannot support promotion", OutcomeInsufficientDuration, false, func(e *pb.Experiment, v *pb.Evidence) {
 			v.WindowStart = timestamppb.New(e.Phases[0].ObservationStartedAt.AsTime().Add(-time.Nanosecond))
 		}},
-		{"zero-target", "phase must have at least one canary", "", true, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 0 }},
-		{"over-target", "phase cannot exceed fleet size", "", true, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 17 }},
-		{"sample-equality", "exact sample and exposure thresholds suffice", "beneficial", false, func(e *pb.Experiment, v *pb.Evidence) {
+		{"zero-target", "phase must have at least one canary", OutcomeUnspecified, true, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 0 }},
+		{"over-target", "phase cannot exceed fleet size", OutcomeUnspecified, true, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 17 }},
+		{"sample-equality", "exact sample and exposure thresholds suffice", OutcomeBeneficial, false, func(e *pb.Experiment, v *pb.Evidence) {
 			for _, h := range v.Hosts {
 				h.Sockets = e.Policy.MinimumSocketsPerHost
 				h.ExposedSockets = h.Sockets
 				h.BytesAcked = e.Policy.MinimumBytesPerHost
 			}
 		}},
-		{"missing-host", "missing cohort host blocks evaluation", "insufficient_data", false, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts = v.Hosts[1:] }},
-		{"missing-baseline", "missing baseline host blocks evaluation", "insufficient_data", false, func(e *pb.Experiment, _ *pb.Evidence) { e.Baseline.Hosts = e.Baseline.Hosts[1:] }},
-		{"low-bytes", "too few bytes blocks evaluation", "insufficient_data", false, func(e *pb.Experiment, v *pb.Evidence) { v.Hosts[0].BytesAcked = e.Policy.MinimumBytesPerHost - 1 }},
-		{"zero-goodput", "zero goodput cannot enter log comparison", "insufficient_data", false, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].GoodputBps = 0 }},
-		{"zero-baseline-rtt", "zero baseline RTT cannot enter ratio", "insufficient_data", false, func(e *pb.Experiment, _ *pb.Evidence) { e.Baseline.Hosts[0].RttP95Ms = 0 }},
-		{"first-canary", "small cohorts permit safety review only", "safety_only", false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 1 }},
-		{"small-cohort-regression", "large goodput loss blocks small cohort promotion", "harmful", false, func(e *pb.Experiment, v *pb.Evidence) { e.Phases[0].TargetHosts = 1; v.Hosts[0].GoodputBps = 1 }},
-		{"one-control", "one control cannot estimate variance", "insufficient_controls", false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 15 }},
-		{"full-fleet", "last phase checks safety without controls", "final_safety", false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 16 }},
-		{"full-fleet-harm", "last phase still rejects goodput regression", "harmful", false, func(e *pb.Experiment, v *pb.Evidence) {
+		{"missing-host", "missing cohort host blocks evaluation", OutcomeInsufficientData, false, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts = v.Hosts[1:] }},
+		{"missing-baseline", "missing baseline host blocks evaluation", OutcomeInsufficientData, false, func(e *pb.Experiment, _ *pb.Evidence) { e.Baseline.Hosts = e.Baseline.Hosts[1:] }},
+		{"low-bytes", "too few bytes blocks evaluation", OutcomeInsufficientData, false, func(e *pb.Experiment, v *pb.Evidence) { v.Hosts[0].BytesAcked = e.Policy.MinimumBytesPerHost - 1 }},
+		{"zero-goodput", "zero goodput cannot enter log comparison", OutcomeInsufficientData, false, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].GoodputBps = 0 }},
+		{"zero-baseline-rtt", "zero baseline RTT cannot enter ratio", OutcomeInsufficientData, false, func(e *pb.Experiment, _ *pb.Evidence) { e.Baseline.Hosts[0].RttP95Ms = 0 }},
+		{"first-canary", "small cohorts permit safety review only", OutcomeSafetyOnly, false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 1 }},
+		{"small-cohort-regression", "large goodput loss blocks small cohort promotion", OutcomeHarmful, false, func(e *pb.Experiment, v *pb.Evidence) { e.Phases[0].TargetHosts = 1; v.Hosts[0].GoodputBps = 1 }},
+		{"one-control", "one control cannot estimate variance", OutcomeInsufficientControls, false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 15 }},
+		{"full-fleet", "last phase checks safety without controls", OutcomeFinalSafety, false, func(e *pb.Experiment, _ *pb.Evidence) { e.Phases[0].TargetHosts = 16 }},
+		{"full-fleet-harm", "last phase still rejects goodput regression", OutcomeHarmful, false, func(e *pb.Experiment, v *pb.Evidence) {
 			e.Phases[0].TargetHosts = 16
 			for _, h := range v.Hosts {
 				h.GoodputBps = 1
 			}
 		}},
-		{"invalid-evidence", "malformed evidence fails before decision", "", true, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0] = nil }},
+		{"invalid-evidence", "malformed evidence fails before decision", OutcomeUnspecified, true, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0] = nil }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
@@ -179,11 +180,11 @@ func TestDefaultRTTGuardExactBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		description string
 		rtt         float64
-		want        string
+		want        Outcome
 		healthy     bool
 	}{
-		{"exactly ten percent increase is within the configured guard", 5.5, "beneficial", true},
-		{"measurable increase above ten percent is harmful", 5.500001, "harmful", false},
+		{"exactly ten percent increase is within the configured guard", 5.5, OutcomeBeneficial, true},
+		{"measurable increase above ten percent is harmful", 5.500001, OutcomeHarmful, false},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			now := time.Unix(1700000000, 0)
@@ -213,7 +214,7 @@ func TestRTTGuardFleetBoundary(t *testing.T) {
 			h.RttP95Ms = 5.5
 		}
 		got, err := Evaluate(e, v, now)
-		if err != nil || got.Outcome != "beneficial" {
+		if err != nil || got.Outcome != OutcomeBeneficial {
 			t.Errorf("%d hosts at exactly the RTT guard: %v %v", n, got, err)
 		}
 	}

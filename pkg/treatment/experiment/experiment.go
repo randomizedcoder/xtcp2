@@ -13,7 +13,7 @@ import (
 )
 
 type Evaluation struct {
-	Outcome                 string
+	Outcome                 Outcome
 	Improvement, LowerBound float64
 }
 
@@ -31,16 +31,16 @@ func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, err
 	p := e.Policy
 	phase := e.Phases[len(e.Phases)-1]
 	if phase.ObservationStartedAt == nil {
-		return Evaluation{Outcome: "awaiting_exposure"}, nil
+		return Evaluation{Outcome: OutcomeAwaitingExposure}, nil
 	}
 	if now.Sub(phase.IssuedAt.AsTime()) >= p.MaximumPhase.AsDuration() {
-		return Evaluation{Outcome: "expired"}, nil
+		return Evaluation{Outcome: OutcomeExpired}, nil
 	}
 	if ev.AnalyzedAt.AsTime().After(now.Add(30*time.Second)) || now.Sub(ev.WindowEnd.AsTime()) > p.MaximumEvidenceAge.AsDuration() {
-		return Evaluation{Outcome: "stale"}, nil
+		return Evaluation{Outcome: OutcomeStale}, nil
 	}
 	if ev.WindowStart.AsTime().Before(phase.ObservationStartedAt.AsTime()) || ev.WindowEnd.AsTime().Sub(ev.WindowStart.AsTime()) < p.MinimumObservation.AsDuration() {
-		return Evaluation{Outcome: "insufficient_duration"}, nil
+		return Evaluation{Outcome: OutcomeInsufficientDuration}, nil
 	}
 	base := make(map[string]*pb.HostEvidence, len(e.Baseline.Hosts))
 	current := make(map[string]*pb.HostEvidence, len(ev.Hosts))
@@ -60,10 +60,10 @@ func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, err
 	for i, id := range e.CohortOrder {
 		h, b := current[id], base[id]
 		if h == nil || b == nil || !h.CollectionHealthy || !b.CollectionHealthy || h.Sockets < p.MinimumSocketsPerHost || h.BytesAcked < p.MinimumBytesPerHost || h.GoodputBps <= 0 || b.GoodputBps <= 0 || b.RttP95Ms <= 0 {
-			return Evaluation{Outcome: "insufficient_data"}, nil
+			return Evaluation{Outcome: OutcomeInsufficientData}, nil
 		}
 		if i < target && h.ExposedSockets < p.MinimumSocketsPerHost {
-			return Evaluation{Outcome: "awaiting_exposure"}, nil
+			return Evaluation{Outcome: OutcomeAwaitingExposure}, nil
 		}
 		x := math.Log(h.GoodputBps / b.GoodputBps)
 		if i < target {
@@ -79,25 +79,25 @@ func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, err
 	// Guardrails protect controls as well as treated traffic. A shared-link
 	// regression is harmful even if treated hosts outperform their peers.
 	if mean(tr) > p.MaximumRetransmissionIncrease || mean(cr) > p.MaximumRetransmissionIncrease || mean(tlat) > math.Log1p(p.MaximumRttIncrease) || mean(clat) > math.Log1p(p.MaximumRttIncrease) {
-		return Evaluation{Outcome: "harmful"}, nil
+		return Evaluation{Outcome: OutcomeHarmful}, nil
 	}
 	effect := mean(treated) - mean(control)
 	if len(control) == 0 {
 		// Final 100% phase is a safety check; causal benefit was established
 		// before the last control cohort received the treatment.
 		if effect < -math.Log1p(p.MinimumImprovement) {
-			return Evaluation{Outcome: "harmful"}, nil
+			return Evaluation{Outcome: OutcomeHarmful}, nil
 		}
-		return Evaluation{Outcome: "final_safety", Improvement: math.Expm1(effect)}, nil
+		return Evaluation{Outcome: OutcomeFinalSafety, Improvement: math.Expm1(effect)}, nil
 	}
 	if len(treated) < int(p.MinimumTreatedHosts) {
 		if effect < -math.Log1p(p.MinimumImprovement) {
-			return Evaluation{Outcome: "harmful"}, nil
+			return Evaluation{Outcome: OutcomeHarmful}, nil
 		}
-		return Evaluation{Outcome: "safety_only", Improvement: math.Expm1(effect)}, nil
+		return Evaluation{Outcome: OutcomeSafetyOnly, Improvement: math.Expm1(effect)}, nil
 	}
 	if len(control) < 2 {
-		return Evaluation{Outcome: "insufficient_controls"}, nil
+		return Evaluation{Outcome: OutcomeInsufficientControls}, nil
 	}
 	a, b := variance(treated)/float64(len(treated)), variance(control)/float64(len(control))
 	se := math.Sqrt(a + b)
@@ -107,9 +107,9 @@ func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, err
 		looks := (math.Ceil(math.Log2(float64(len(e.CohortOrder)))) + 2) * math.Ceil(p.MaximumPhase.AsDuration().Minutes())
 		lower -= studentQuantile(1-.05/looks, df) * se
 	}
-	out := Evaluation{Outcome: "inconclusive", Improvement: math.Expm1(effect), LowerBound: math.Expm1(lower)}
+	out := Evaluation{Outcome: OutcomeInconclusive, Improvement: math.Expm1(effect), LowerBound: math.Expm1(lower)}
 	if lower > math.Log1p(p.MinimumImprovement) {
-		out.Outcome = "beneficial"
+		out.Outcome = OutcomeBeneficial
 	}
 	return out, nil
 }
@@ -239,8 +239,10 @@ func NextCohort(current, total int) int {
 // assignments in one PostgreSQL transaction after authenticating the reviewer.
 func Advance(e *pb.Experiment, ev *pb.Evidence, now time.Time, reviewer, reason string) (*pb.Experiment, error) {
 	n := proto.Clone(e).(*pb.Experiment)
-	if n.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_PROPOSED && n.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING {
-		return nil, errors.New("experiment cannot advance in its current state")
+	// Both outcomes of approval are checked up front so an illegal status
+	// fails before any evidence is attached to the phase.
+	if _, err := Transition(n.Status, EventApprove); err != nil {
+		return nil, err
 	}
 	target := 0
 	if len(n.Phases) > 0 {
@@ -250,22 +252,30 @@ func Advance(e *pb.Experiment, ev *pb.Evidence, now time.Time, reviewer, reason 
 		if err != nil {
 			return nil, err
 		}
-		if v.Outcome != "beneficial" && v.Outcome != "safety_only" && v.Outcome != "final_safety" {
+		if !v.Outcome.Promotable() {
 			return nil, fmt.Errorf("promotion blocked: %s", v.Outcome)
 		}
 		phase.Evidence = proto.Clone(ev).(*pb.Evidence)
-		phase.Outcome = v.Outcome
+		phase.Outcome = v.Outcome.Wire()
 		phase.EvaluatedAt = timestamppb.New(now)
 		phase.Reviewer = reviewer
 		phase.Reason = reason
 		if target == len(n.CohortOrder) {
-			n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_COMPLETE
+			status, err := Transition(n.Status, EventApproveFinal)
+			if err != nil {
+				return nil, err
+			}
+			n.Status = status
 			n.Revision++
 			return n, nil
 		}
 	}
 	n.Phases = append(n.Phases, &pb.Phase{TargetHosts: uint32(NextCohort(target, len(n.CohortOrder))), IssuedAt: timestamppb.New(now), Reviewer: reviewer, Reason: reason})
-	n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING
+	status, err := Transition(n.Status, EventApprove)
+	if err != nil {
+		return nil, err
+	}
+	n.Status = status
 	n.Revision++
 	return n, nil
 }

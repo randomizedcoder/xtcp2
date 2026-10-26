@@ -13,7 +13,7 @@ import (
 
 func TestStampDistinguishesAssignedAndActuallyExposed(t *testing.T) {
 	a := &Agent{Config: Config{AgentID: "host-1"}, namespace: 123, collectionID: "session", Reconciler: &reconcile.Reconciler{BootID: "boot-1"}}
-	s := &pb.LocalState{Desired: &pb.DesiredState{Revision: 2}, Records: []*pb.ApplicationRecord{{Status: pb.ApplyStatus_APPLY_STATUS_VERIFIED, AppliedAt: timestamppb.Now(), Assignment: &pb.Assignment{Id: "exp-1", Generation: 1, Mode: pb.AssignmentMode_ASSIGNMENT_MODE_STABLE, Treatment: &pb.Treatment{Destination: "192.0.2.1/32", Settings: &pb.TCPSettings{CongestionControl: proto.String("cubic")}}}}}}
+	s := &pb.LocalState{Desired: &pb.DesiredState{Revision: 2}, Records: []*pb.ApplicationRecord{{Status: pb.ApplyStatus_APPLY_STATUS_VERIFIED, AppliedAt: timestamppb.Now(), Assignment: &pb.Assignment{ExperimentId: "exp-1", Generation: 1, Mode: pb.AssignmentMode_ASSIGNMENT_MODE_STABLE, Treatment: &pb.Treatment{Destination: "192.0.2.1/32", Settings: &pb.TCPSettings{CongestionControl: proto.String("cubic")}}}}}}
 	a.publish(s)
 	r := &flat.XtcpFlatRecord{NetnsInode: 123, InetDiagMsgFamily: 2, InetDiagMsgSocketDestination: []byte{192, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, InetDiagCong: "bbr"}
 	a.Stamp(r)

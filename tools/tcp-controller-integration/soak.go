@@ -167,7 +167,7 @@ func (s *soakRun) assertMeasuredRTT() {
 // A low netem delay does not guarantee this aggressive profile is beneficial.
 // Accept an early safety withdrawal only with valid, exposed, harmful evidence.
 func validateSoakRollback(e *pb.Experiment, injectedLatency bool) error {
-	if e == nil || e.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK || len(e.Phases) != 1 || e.Phases[0].Outcome != "harmful" || len(e.CohortOrder) == 0 || e.Policy == nil || e.Baseline == nil || e.LatestEvidence == nil {
+	if e == nil || e.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK || len(e.Phases) != 1 || e.Phases[0].Outcome != pb.Outcome_OUTCOME_HARMFUL || len(e.CohortOrder) == 0 || e.Policy == nil || e.Baseline == nil || e.LatestEvidence == nil {
 		return fmt.Errorf("rollback is missing its harmful phase or evidence")
 	}
 	if err := treatment.ValidateEvidence(e.Baseline); err != nil {

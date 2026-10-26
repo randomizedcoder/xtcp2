@@ -221,7 +221,7 @@ func TestPredecessorExpiryAndGenerationRejectionPreserveJournal(t *testing.T) {
 	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
 	d := fixtures.Desired(now)
 	a := d.Assignments[0]
-	a.Id = "state"
+	a.ExperimentId = "state"
 	a.Generation = 2
 	a.Predecessor = proto.Clone(a.Treatment).(*pb.Treatment)
 	a.Predecessor.Settings.CongestionControl = proto.String("bbr")

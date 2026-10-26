@@ -16,21 +16,22 @@ func TestEvaluationBenefitHarmAndEvidenceGates(t *testing.T) {
 	now := time.Now()
 	e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 	for _, tc := range []struct {
-		name, want string
-		change     func(*pb.Experiment, *pb.Evidence)
+		name   string
+		want   Outcome
+		change func(*pb.Experiment, *pb.Evidence)
 	}{
-		{"benefit", "beneficial", func(*pb.Experiment, *pb.Evidence) {}},
-		{"loss", "harmful", func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].RetransmissionRatio = .2 }},
-		{"control harm", "harmful", func(_ *pb.Experiment, v *pb.Evidence) {
+		{"benefit", OutcomeBeneficial, func(*pb.Experiment, *pb.Evidence) {}},
+		{"loss", OutcomeHarmful, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].RetransmissionRatio = .2 }},
+		{"control harm", OutcomeHarmful, func(_ *pb.Experiment, v *pb.Evidence) {
 			for _, h := range v.Hosts[4:] {
 				h.RttP95Ms = 3
 			}
 		}},
-		{"missing exposure", "awaiting_exposure", func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].ExposedSockets = 0 }},
-		{"stale", "stale", func(_ *pb.Experiment, v *pb.Evidence) { v.WindowEnd = timestamppb.New(now.Add(-3 * time.Minute)) }},
-		{"missing data", "insufficient_data", func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].CollectionHealthy = false }},
-		{"too early", "insufficient_duration", func(_ *pb.Experiment, v *pb.Evidence) { v.WindowStart = timestamppb.New(now.Add(-5 * time.Minute)) }},
-		{"no benefit", "inconclusive", func(_ *pb.Experiment, v *pb.Evidence) {
+		{"missing exposure", OutcomeAwaitingExposure, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].ExposedSockets = 0 }},
+		{"stale", OutcomeStale, func(_ *pb.Experiment, v *pb.Evidence) { v.WindowEnd = timestamppb.New(now.Add(-3 * time.Minute)) }},
+		{"missing data", OutcomeInsufficientData, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].CollectionHealthy = false }},
+		{"too early", OutcomeInsufficientDuration, func(_ *pb.Experiment, v *pb.Evidence) { v.WindowStart = timestamppb.New(now.Add(-5 * time.Minute)) }},
+		{"no benefit", OutcomeInconclusive, func(_ *pb.Experiment, v *pb.Evidence) {
 			for _, h := range v.Hosts {
 				h.GoodputBps = 1e8
 			}

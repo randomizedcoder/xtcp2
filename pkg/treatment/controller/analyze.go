@@ -59,13 +59,13 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 	if e != nil {
 		return nil, failure(e)
 	}
-	out := &pb.AnalyzeResponse{Evidence: ev, Outcome: "baseline"}
+	out := &pb.AnalyzeResponse{Evidence: ev, Outcome: pb.Outcome_OUTCOME_BASELINE}
 	if len(n.Phases) > 0 {
 		v, e := experiment.Evaluate(input, ev, s.now())
 		if e != nil {
 			return nil, failure(e)
 		}
-		out.Outcome = v.Outcome
+		out.Outcome = v.Outcome.Wire()
 	}
 	e = s.Store.mutate(ctx, func(tx *sql.Tx) error {
 		current, e := loadExperiment(ctx, tx, n.Id)

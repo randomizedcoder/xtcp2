@@ -153,6 +153,38 @@ trial leases eventually expire. Stable assignments have no lease. Completed
 experiments receive hourly drift analysis; regressions request operator review
 instead of automatically changing approved stable routes.
 
+### Lifecycle
+
+An experiment's status only changes through the transition table in
+[`experiment.Transition`](../pkg/treatment/experiment/statemachine.go); Review,
+Control and maintenance all apply a named event to the current status, and any
+pair outside the table fails with `FailedPrecondition`. `TestTransitionExhaustive`
+pins every status and event pair.
+
+| From | Event | To |
+| --- | --- | --- |
+| PROPOSED | approve | RUNNING |
+| RUNNING | approve (cohorts remain) | RUNNING, next phase issued |
+| RUNNING | approve_final (100% phase) | COMPLETE |
+| RUNNING | pause | PAUSED (routes stay, leases run down) |
+| PROPOSED, RUNNING, PAUSED, COMPLETE | suspend | SUSPENDED (routes withdrawn) |
+| PAUSED, SUSPENDED | resume | RUNNING with a fresh phase of the same size |
+| PAUSED, SUSPENDED | resume_stable (last phase was FINAL_SAFETY) | COMPLETE |
+| RUNNING, PAUSED | expire | ROLLED_BACK |
+| RUNNING | harm | ROLLED_BACK |
+| any non-terminal | reject, retire | RETIRED |
+| any non-terminal | rollback | ROLLED_BACK |
+
+RETIRED and ROLLED_BACK are terminal; propose a new experiment instead.
+
+Evaluation results are the `Outcome` enum in `treatment.proto`, mirrored by
+`experiment.Outcome`. Only `BENEFICIAL`, `SAFETY_ONLY` and `FINAL_SAFETY` can
+promote a phase, and only through a review; `HARMFUL` and `EXPIRED` withdraw
+automatically; `STALE` and `INSUFFICIENT_DATA` cannot renew a lease. `OBSERVING`
+means every treated host has verified the assignment and the window is open.
+An assignment is identified by its `experiment_id`; one experiment never issues
+two concurrent assignments to the same host.
+
 [analysis.sql](../pkg/treatment/controller/analysis.sql) computes whole-window
 counter deltas per boot, host, namespace and socket cookie, deduplicates poll
 timestamps, then aggregates per host. It rejects negative endpoint deltas and

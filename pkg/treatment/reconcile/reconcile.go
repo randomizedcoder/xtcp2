@@ -104,7 +104,7 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 			}
 			for _, a := range in.Assignments {
 				for _, record := range s.Records {
-					if record.Assignment.Id == a.Id && a.Generation < record.Assignment.Generation {
+					if record.Assignment.ExperimentId == a.ExperimentId && a.Generation < record.Assignment.Generation {
 						return errors.New("stale assignment generation")
 					}
 				}
@@ -124,7 +124,7 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 		}
 		byID := map[string]*pb.ApplicationRecord{}
 		for _, v := range s.Records {
-			byID[v.Assignment.Id] = v
+			byID[v.Assignment.ExperimentId] = v
 		}
 		active := map[string]bool{}
 		var errs []error
@@ -140,12 +140,12 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 			if err := ctx.Err(); err != nil {
 				return errors.Join(err, save())
 			}
-			active[a.Id] = true
-			v := byID[a.Id]
+			active[a.ExperimentId] = true
+			v := byID[a.ExperimentId]
 			if v == nil {
 				v = &pb.ApplicationRecord{Assignment: proto.Clone(a).(*pb.Assignment), ReceivedAt: stamp(), Status: pb.ApplyStatus_APPLY_STATUS_PENDING}
 				s.Records = append(s.Records, v)
-				byID[a.Id] = v
+				byID[a.ExperimentId] = v
 			}
 			if a.Generation < v.Assignment.Generation {
 				return errors.New("stale assignment generation")
@@ -193,7 +193,7 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 			if err != nil {
 				v.Status = pb.ApplyStatus_APPLY_STATUS_FAILED
 				v.Error = err.Error()
-				errs = append(errs, fmt.Errorf("%s: %w", a.Id, err))
+				errs = append(errs, fmt.Errorf("%s: %w", a.ExperimentId, err))
 			} else {
 				v.Error = ""
 			}
@@ -201,7 +201,7 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 		// Entries absent from the committed snapshot are tombstones, never
 		// candidates for startup application.
 		for _, v := range s.Records {
-			if active[v.Assignment.Id] || len(v.InstalledRoute) == 0 {
+			if active[v.Assignment.ExperimentId] || len(v.InstalledRoute) == 0 {
 				continue
 			}
 			if v.InstalledBootId == r.BootID {

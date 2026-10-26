@@ -55,7 +55,7 @@ message AnalyzeRequest {
 
 message AnalyzeResponse {
   Evidence evidence = 1;
-  string outcome = 2;
+  Outcome outcome = 2;
 }
 
 message ReviewRequest {

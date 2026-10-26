@@ -1284,55 +1284,55 @@ constexpr Phase::ParseTableT_ Phase::InternalGenerateParseTable_(const ::_pbi::C
     }, {{
       // string reason = 8 [json_name = "reason", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS1,
-       {66, 2, 0,
+       {66, 1, 0,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.reason_)}},
       // uint32 target_hosts = 1 [json_name = "targetHosts", (.buf.validate.field) = {
-      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Phase, _impl_.target_hosts_), 7>(),
-       {8, 7, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Phase, _impl_.target_hosts_), 6>(),
+       {8, 6, 0,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.target_hosts_)}},
       // .google.protobuf.Timestamp issued_at = 2 [json_name = "issuedAt"];
       {::_pbi::TcParser::FastMtS1,
-       {18, 3, 0,
+       {18, 2, 0,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.issued_at_)}},
       // .google.protobuf.Timestamp observation_started_at = 3 [json_name = "observationStartedAt"];
       {::_pbi::TcParser::FastMtS1,
-       {26, 4, 1,
+       {26, 3, 1,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.observation_started_at_)}},
       // .google.protobuf.Timestamp evaluated_at = 4 [json_name = "evaluatedAt"];
       {::_pbi::TcParser::FastMtS1,
-       {34, 5, 2,
+       {34, 4, 2,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.evaluated_at_)}},
       // .xtcp_treatment.v1.Evidence evidence = 5 [json_name = "evidence"];
       {::_pbi::TcParser::FastMtS1,
-       {42, 6, 3,
+       {42, 5, 3,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.evidence_)}},
-      // string outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
-      {::_pbi::TcParser::FastUS1,
-       {50, 0, 0,
+      // .xtcp_treatment.v1.Outcome outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Phase, _impl_.outcome_), 7>(),
+       {48, 7, 0,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.outcome_)}},
       // string reviewer = 7 [json_name = "reviewer", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS1,
-       {58, 1, 0,
+       {58, 0, 0,
         PROTOBUF_FIELD_OFFSET(Phase, _impl_.reviewer_)}},
     }}, {{
       65535, 65535
     }}, {{
       // uint32 target_hosts = 1 [json_name = "targetHosts", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.target_hosts_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.target_hosts_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // .google.protobuf.Timestamp issued_at = 2 [json_name = "issuedAt"];
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.issued_at_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.issued_at_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .google.protobuf.Timestamp observation_started_at = 3 [json_name = "observationStartedAt"];
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.observation_started_at_), _Internal::kHasBitsOffset + 4, 1, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.observation_started_at_), _Internal::kHasBitsOffset + 3, 1, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .google.protobuf.Timestamp evaluated_at = 4 [json_name = "evaluatedAt"];
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.evaluated_at_), _Internal::kHasBitsOffset + 5, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.evaluated_at_), _Internal::kHasBitsOffset + 4, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .xtcp_treatment.v1.Evidence evidence = 5 [json_name = "evidence"];
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.evidence_), _Internal::kHasBitsOffset + 6, 3, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
-      // string outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.outcome_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.evidence_), _Internal::kHasBitsOffset + 5, 3, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // .xtcp_treatment.v1.Outcome outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.outcome_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
       // string reviewer = 7 [json_name = "reviewer", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.reviewer_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.reviewer_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string reason = 8 [json_name = "reason", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.reason_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(Phase, _impl_.reason_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     }},
     {{
         #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -1357,9 +1357,8 @@ constexpr Phase::ParseTableT_ Phase::InternalGenerateParseTable_(const ::_pbi::C
         #endif
     }},
     {{
-      "\27\0\0\0\0\0\7\10\6\0\0\0\0\0\0\0"
+      "\27\0\0\0\0\0\0\10\6\0\0\0\0\0\0\0"
       "xtcp_treatment.v1.Phase"
-      "outcome"
       "reviewer"
       "reason"
     }},
@@ -1370,10 +1369,7 @@ constexpr Phase::ParseTableT_ Phase::InternalGenerateParseTable_(const ::_pbi::C
 inline constexpr Phase::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     ::_pbi::ConstantInitialized) noexcept
-      : outcome_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        reviewer_(
+      : reviewer_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         reason_(
@@ -1383,7 +1379,8 @@ inline constexpr Phase::Impl_::Impl_(
         observation_started_at_{nullptr},
         evaluated_at_{nullptr},
         evidence_{nullptr},
-        target_hosts_{0u} {}
+        target_hosts_{0u},
+        outcome_{static_cast< ::xtcp_treatment::v1::Outcome >(0)} {}
 
 template <typename>
 constexpr Phase::Phase(::_pbi::ConstantInitialized,
@@ -1491,9 +1488,9 @@ constexpr Assignment::ParseTableT_ Assignment::InternalGenerateParseTable_(const
       0, // no _extensions_
       7, 56,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967168,  // skipmap
+      4294967169,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      7,  // num_field_entries
+      6,  // num_field_entries
       3,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
@@ -1504,51 +1501,46 @@ constexpr Assignment::ParseTableT_ Assignment::InternalGenerateParseTable_(const
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
       {::_pbi::TcParser::MiniParse, {}},
-      // string id = 1 [json_name = "id", (.buf.validate.field) = {
-      {::_pbi::TcParser::FastUS1,
-       {10, 0, 0,
-        PROTOBUF_FIELD_OFFSET(Assignment, _impl_.id_)}},
+      {::_pbi::TcParser::MiniParse, {}},
       // string experiment_id = 2 [json_name = "experimentId", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS1,
-       {18, 1, 0,
+       {18, 0, 0,
         PROTOBUF_FIELD_OFFSET(Assignment, _impl_.experiment_id_)}},
       // .xtcp_treatment.v1.Treatment treatment = 3 [json_name = "treatment", (.buf.validate.field) = {
       {::_pbi::TcParser::FastMtS1,
-       {26, 2, 0,
+       {26, 1, 0,
         PROTOBUF_FIELD_OFFSET(Assignment, _impl_.treatment_)}},
       // .xtcp_treatment.v1.AssignmentMode mode = 4 [json_name = "mode", (.buf.validate.field) = {
-      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Assignment, _impl_.mode_), 6>(),
-       {32, 6, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Assignment, _impl_.mode_), 5>(),
+       {32, 5, 0,
         PROTOBUF_FIELD_OFFSET(Assignment, _impl_.mode_)}},
       // .google.protobuf.Timestamp lease_expires_at = 5 [json_name = "leaseExpiresAt"];
       {::_pbi::TcParser::FastMtS1,
-       {42, 3, 1,
+       {42, 2, 1,
         PROTOBUF_FIELD_OFFSET(Assignment, _impl_.lease_expires_at_)}},
       // .xtcp_treatment.v1.Treatment predecessor = 6 [json_name = "predecessor"];
       {::_pbi::TcParser::FastMtS1,
-       {50, 4, 2,
+       {50, 3, 2,
         PROTOBUF_FIELD_OFFSET(Assignment, _impl_.predecessor_)}},
       // uint64 generation = 7 [json_name = "generation", (.buf.validate.field) = {
-      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(Assignment, _impl_.generation_), 5>(),
-       {56, 5, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(Assignment, _impl_.generation_), 4>(),
+       {56, 4, 0,
         PROTOBUF_FIELD_OFFSET(Assignment, _impl_.generation_)}},
     }}, {{
       65535, 65535
     }}, {{
-      // string id = 1 [json_name = "id", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.id_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string experiment_id = 2 [json_name = "experimentId", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.experiment_id_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.experiment_id_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // .xtcp_treatment.v1.Treatment treatment = 3 [json_name = "treatment", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.treatment_), _Internal::kHasBitsOffset + 2, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.treatment_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .xtcp_treatment.v1.AssignmentMode mode = 4 [json_name = "mode", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.mode_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.mode_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
       // .google.protobuf.Timestamp lease_expires_at = 5 [json_name = "leaseExpiresAt"];
-      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.lease_expires_at_), _Internal::kHasBitsOffset + 3, 1, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.lease_expires_at_), _Internal::kHasBitsOffset + 2, 1, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .xtcp_treatment.v1.Treatment predecessor = 6 [json_name = "predecessor"];
-      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.predecessor_), _Internal::kHasBitsOffset + 4, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.predecessor_), _Internal::kHasBitsOffset + 3, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // uint64 generation = 7 [json_name = "generation", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.generation_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      {PROTOBUF_FIELD_OFFSET(Assignment, _impl_.generation_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     }},
     {{
         #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -1568,9 +1560,8 @@ constexpr Assignment::ParseTableT_ Assignment::InternalGenerateParseTable_(const
         #endif
     }},
     {{
-      "\34\2\15\0\0\0\0\0"
+      "\34\15\0\0\0\0\0\0"
       "xtcp_treatment.v1.Assignment"
-      "id"
       "experiment_id"
     }},
   };
@@ -1580,10 +1571,7 @@ constexpr Assignment::ParseTableT_ Assignment::InternalGenerateParseTable_(const
 inline constexpr Assignment::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     ::_pbi::ConstantInitialized) noexcept
-      : id_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        experiment_id_(
+      : experiment_id_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         treatment_{nullptr},
@@ -1725,15 +1713,15 @@ constexpr Experiment::ParseTableT_ Experiment::InternalGenerateParseTable_(const
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.hypothesis_)}},
       // .xtcp_treatment.v1.Treatment treatment = 4 [json_name = "treatment", (.buf.validate.field) = {
       {::_pbi::TcParser::FastMtS1,
-       {34, 6, 0,
+       {34, 5, 0,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.treatment_)}},
       // .xtcp_treatment.v1.ExperimentPolicy policy = 5 [json_name = "policy", (.buf.validate.field) = {
       {::_pbi::TcParser::FastMtS1,
-       {42, 7, 1,
+       {42, 6, 1,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.policy_)}},
       // .xtcp_treatment.v1.Evidence baseline = 6 [json_name = "baseline", (.buf.validate.field) = {
       {::_pbi::TcParser::FastMtS1,
-       {50, 8, 2,
+       {50, 7, 2,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.baseline_)}},
       // repeated string cohort_order = 7 [json_name = "cohortOrder", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUR1,
@@ -1744,24 +1732,24 @@ constexpr Experiment::ParseTableT_ Experiment::InternalGenerateParseTable_(const
        {66, 1, 3,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.phases_)}},
       // .xtcp_treatment.v1.ExperimentStatus status = 9 [json_name = "status", (.buf.validate.field) = {
-      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Experiment, _impl_.status_), 12>(),
-       {72, 12, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Experiment, _impl_.status_), 11>(),
+       {72, 11, 0,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.status_)}},
       // uint64 revision = 10 [json_name = "revision"];
-      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(Experiment, _impl_.revision_), 11>(),
-       {80, 11, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(Experiment, _impl_.revision_), 10>(),
+       {80, 10, 0,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.revision_)}},
       // .google.protobuf.Timestamp proposed_at = 11 [json_name = "proposedAt"];
       {::_pbi::TcParser::FastMtS1,
-       {90, 9, 4,
+       {90, 8, 4,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.proposed_at_)}},
       // .xtcp_treatment.v1.Evidence latest_evidence = 12 [json_name = "latestEvidence"];
       {::_pbi::TcParser::FastMtS1,
-       {98, 10, 5,
+       {98, 9, 5,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.latest_evidence_)}},
-      // string latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
-      {::_pbi::TcParser::FastUS1,
-       {106, 5, 0,
+      // .xtcp_treatment.v1.Outcome latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(Experiment, _impl_.latest_outcome_), 12>(),
+       {104, 12, 0,
         PROTOBUF_FIELD_OFFSET(Experiment, _impl_.latest_outcome_)}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
@@ -1775,25 +1763,25 @@ constexpr Experiment::ParseTableT_ Experiment::InternalGenerateParseTable_(const
       // string hypothesis = 3 [json_name = "hypothesis", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.hypothesis_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // .xtcp_treatment.v1.Treatment treatment = 4 [json_name = "treatment", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.treatment_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.treatment_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .xtcp_treatment.v1.ExperimentPolicy policy = 5 [json_name = "policy", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.policy_), _Internal::kHasBitsOffset + 7, 1, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.policy_), _Internal::kHasBitsOffset + 6, 1, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .xtcp_treatment.v1.Evidence baseline = 6 [json_name = "baseline", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.baseline_), _Internal::kHasBitsOffset + 8, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.baseline_), _Internal::kHasBitsOffset + 7, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // repeated string cohort_order = 7 [json_name = "cohortOrder", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.cohort_order_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcRepeated | ::_fl::kUtf8String | ::_fl::kRepSString)},
       // repeated .xtcp_treatment.v1.Phase phases = 8 [json_name = "phases", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.phases_), _Internal::kHasBitsOffset + 1, 3, (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
       // .xtcp_treatment.v1.ExperimentStatus status = 9 [json_name = "status", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.status_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.status_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
       // uint64 revision = 10 [json_name = "revision"];
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.revision_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.revision_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
       // .google.protobuf.Timestamp proposed_at = 11 [json_name = "proposedAt"];
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.proposed_at_), _Internal::kHasBitsOffset + 9, 4, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.proposed_at_), _Internal::kHasBitsOffset + 8, 4, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // .xtcp_treatment.v1.Evidence latest_evidence = 12 [json_name = "latestEvidence"];
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.latest_evidence_), _Internal::kHasBitsOffset + 10, 5, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
-      // string latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.latest_outcome_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.latest_evidence_), _Internal::kHasBitsOffset + 9, 5, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // .xtcp_treatment.v1.Outcome latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(Experiment, _impl_.latest_outcome_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     }},
     {{
         #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -1828,13 +1816,12 @@ constexpr Experiment::ParseTableT_ Experiment::InternalGenerateParseTable_(const
         #endif
     }},
     {{
-      "\34\2\10\12\0\0\0\14\0\0\0\0\0\16\0\0"
+      "\34\2\10\12\0\0\0\14\0\0\0\0\0\0\0\0"
       "xtcp_treatment.v1.Experiment"
       "id"
       "location"
       "hypothesis"
       "cohort_order"
-      "latest_outcome"
     }},
   };
 }
@@ -1862,16 +1849,14 @@ inline constexpr Experiment::Impl_::Impl_(
         hypothesis_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
-        latest_outcome_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
         treatment_{nullptr},
         policy_{nullptr},
         baseline_{nullptr},
         proposed_at_{nullptr},
         latest_evidence_{nullptr},
         revision_{::uint64_t{0u}},
-        status_{static_cast< ::xtcp_treatment::v1::ExperimentStatus >(0)} {}
+        status_{static_cast< ::xtcp_treatment::v1::ExperimentStatus >(0)},
+        latest_outcome_{static_cast< ::xtcp_treatment::v1::Outcome >(0)} {}
 
 template <typename>
 constexpr Experiment::Experiment(::_pbi::ConstantInitialized,
@@ -2617,7 +2602,7 @@ const ::_pbi::ClassData* LocalState_get_class_data() {
 }  // namespace v1
 }  // namespace xtcp_treatment
 static const ::_pb::EnumDescriptor* PROTOBUF_NONNULL
-    file_level_enum_descriptors_xtcp_5ftreatment_2fv1_2ftreatment_2eproto[4];
+    file_level_enum_descriptors_xtcp_5ftreatment_2fv1_2ftreatment_2eproto[5];
 static constexpr const ::_pb::ServiceDescriptor* PROTOBUF_NONNULL* PROTOBUF_NULLABLE
     file_level_service_descriptors_xtcp_5ftreatment_2fv1_2ftreatment_2eproto = nullptr;
 const ::uint32_t
@@ -2655,8 +2640,7 @@ const ::uint32_t
         4,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Assignment, _impl_._has_bits_),
-        10, // hasbit index offset
-        PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Assignment, _impl_.id_),
+        9, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Assignment, _impl_.experiment_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Assignment, _impl_.treatment_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Assignment, _impl_.mode_),
@@ -2665,11 +2649,10 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Assignment, _impl_.generation_),
         0,
         1,
+        5,
         2,
-        6,
         3,
         4,
-        5,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::DesiredState, _impl_._has_bits_),
         8, // hasbit index offset
@@ -2806,14 +2789,14 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Phase, _impl_.outcome_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Phase, _impl_.reviewer_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Phase, _impl_.reason_),
-        7,
+        6,
+        2,
         3,
         4,
         5,
-        6,
+        7,
         0,
         1,
-        2,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Experiment, _impl_._has_bits_),
         16, // hasbit index offset
@@ -2833,16 +2816,16 @@ const ::uint32_t
         2,
         3,
         4,
+        5,
         6,
         7,
-        8,
         0,
         1,
-        12,
         11,
-        9,
         10,
-        5,
+        8,
+        9,
+        12,
 };
 
 static const ::_pbi::MigrationSchema
@@ -2850,15 +2833,15 @@ static const ::_pbi::MigrationSchema
         {0, sizeof(::xtcp_treatment::v1::TCPSettings)},
         {17, sizeof(::xtcp_treatment::v1::Treatment)},
         {30, sizeof(::xtcp_treatment::v1::Assignment)},
-        {47, sizeof(::xtcp_treatment::v1::DesiredState)},
-        {60, sizeof(::xtcp_treatment::v1::Capabilities)},
-        {73, sizeof(::xtcp_treatment::v1::ApplicationRecord)},
-        {100, sizeof(::xtcp_treatment::v1::LocalState)},
-        {113, sizeof(::xtcp_treatment::v1::HostEvidence)},
-        {132, sizeof(::xtcp_treatment::v1::Evidence)},
-        {151, sizeof(::xtcp_treatment::v1::ExperimentPolicy)},
-        {172, sizeof(::xtcp_treatment::v1::Phase)},
-        {191, sizeof(::xtcp_treatment::v1::Experiment)},
+        {45, sizeof(::xtcp_treatment::v1::DesiredState)},
+        {58, sizeof(::xtcp_treatment::v1::Capabilities)},
+        {71, sizeof(::xtcp_treatment::v1::ApplicationRecord)},
+        {98, sizeof(::xtcp_treatment::v1::LocalState)},
+        {111, sizeof(::xtcp_treatment::v1::HostEvidence)},
+        {130, sizeof(::xtcp_treatment::v1::Evidence)},
+        {149, sizeof(::xtcp_treatment::v1::ExperimentPolicy)},
+        {170, sizeof(::xtcp_treatment::v1::Phase)},
+        {189, sizeof(::xtcp_treatment::v1::Experiment)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -2916,159 +2899,173 @@ const char descriptor_table_protodef_xtcp_5ftreatment_2fv1_2ftreatment_2eproto[]
     "ified ECN fabric and explicit ECN\032^this."
     "settings.congestion_control != \'dctcp\' |"
     "| (this.ecn_fabric_verified && this.sett"
-    "ings.ecn)\"\375\005\n\nAssignment\0229\n\002id\030\001 \001(\tB)\272H"
-    "&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R"
-    "\002id\022N\n\rexperiment_id\030\002 \001(\tB)\272H&r$2\"^[a-z"
-    "A-Z0-9][a-zA-Z0-9_.-]{0,127}$R\014experimen"
-    "tId\022B\n\ttreatment\030\003 \001(\0132\034.xtcp_treatment."
-    "v1.TreatmentB\006\272H\003\310\001\001R\ttreatment\022A\n\004mode\030"
-    "\004 \001(\0162!.xtcp_treatment.v1.AssignmentMode"
-    "B\n\272H\007\202\001\004\020\001 \000R\004mode\022D\n\020lease_expires_at\030\005"
-    " \001(\0132\032.google.protobuf.TimestampR\016leaseE"
-    "xpiresAt\022>\n\013predecessor\030\006 \001(\0132\034.xtcp_tre"
-    "atment.v1.TreatmentR\013predecessor\022\'\n\ngene"
-    "ration\030\007 \001(\004B\007\272H\0042\002 \000R\ngeneration:\255\002\272H\251\002"
-    "\032}\n\037assignment.trial_requires_lease\022,a t"
-    "rial assignment requires lease_expires_a"
-    "t\032,this.mode != 1 || has(this.lease_expi"
-    "res_at)\032\247\001\n\"assignment.predecessor_desti"
-    "nation\022+predecessor must cover the same "
-    "destination\032T!has(this.predecessor) || t"
-    "his.predecessor.destination == this.trea"
-    "tment.destination\"\244\002\n\014DesiredState\022D\n\010ag"
-    "ent_id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-Z"
-    "0-9_.-]{0,127}$R\007agentId\022#\n\010revision\030\002 \001"
-    "(\004B\007\272H\0042\002 \000R\010revision\022\034\n\tsuspended\030\003 \001(\010"
-    "R\tsuspended\022J\n\013assignments\030\004 \003(\0132\035.xtcp_"
-    "treatment.v1.AssignmentB\t\272H\006\222\001\003\020\200 R\013assi"
-    "gnments\022\?\n\tissued_at\030\005 \001(\0132\032.google.prot"
-    "obuf.TimestampB\006\272H\003\310\001\001R\010issuedAt\"\243\002\n\014Cap"
-    "abilities\022B\n\007boot_id\030\001 \001(\tB)\272H&r$2\"^[a-z"
-    "A-Z0-9][a-zA-Z0-9_.-]{0,127}$R\006bootId\022/\n"
-    "\016kernel_release\030\002 \001(\tB\010\272H\005r\003\030\200\002R\rkernelR"
-    "elease\022C\n\025congestion_algorithms\030\003 \003(\tB\016\272"
-    "H\013\222\001\010\020@\"\004r\002\030\017R\024congestionAlgorithms\022.\n\023s"
-    "imple_host_routing\030\004 \001(\010R\021simpleHostRout"
-    "ing\022)\n\020actuator_enabled\030\005 \001(\010R\017actuatorE"
-    "nabled\"\250\005\n\021ApplicationRecord\022E\n\nassignme"
-    "nt\030\001 \001(\0132\035.xtcp_treatment.v1.AssignmentB"
-    "\006\272H\003\310\001\001R\nassignment\022)\n\020desired_revision\030"
-    "\002 \001(\004R\017desiredRevision\022@\n\006status\030\003 \001(\0162\036"
-    ".xtcp_treatment.v1.ApplyStatusB\010\272H\005\202\001\002\020\001"
-    "R\006status\022;\n\013received_at\030\004 \001(\0132\032.google.p"
-    "rotobuf.TimestampR\nreceivedAt\022=\n\014attempt"
-    "ed_at\030\005 \001(\0132\032.google.protobuf.TimestampR"
-    "\013attemptedAt\0229\n\napplied_at\030\006 \001(\0132\032.googl"
-    "e.protobuf.TimestampR\tappliedAt\022;\n\013verif"
-    "ied_at\030\007 \001(\0132\032.google.protobuf.Timestamp"
-    "R\nverifiedAt\0229\n\nremoved_at\030\010 \001(\0132\032.googl"
-    "e.protobuf.TimestampR\tremovedAt\022\036\n\005error"
-    "\030\t \001(\tB\010\272H\005r\003\030\200 R\005error\0221\n\017installed_rou"
-    "te\030\n \001(\014B\010\272H\005z\003\030\200 R\016installedRoute\0224\n\021in"
-    "stalled_boot_id\030\013 \001(\tB\010\272H\005r\003\030\200\001R\017install"
-    "edBootId\022\'\n\017expired_latched\030\014 \001(\010R\016expir"
-    "edLatched\"\261\002\n\nLocalState\0229\n\007desired\030\001 \001("
-    "\0132\037.xtcp_treatment.v1.DesiredStateR\007desi"
-    "red\022+\n\021locally_suspended\030\002 \001(\010R\020locallyS"
-    "uspended\0225\n\021suspension_reason\030\003 \001(\tB\010\272H\005"
-    "r\003\030\200\010R\020suspensionReason\022I\n\007records\030\004 \003(\013"
-    "2$.xtcp_treatment.v1.ApplicationRecordB\t"
-    "\272H\006\222\001\003\020\200@R\007records\0229\n\nupdated_at\030\005 \001(\0132\032"
-    ".google.protobuf.TimestampR\tupdatedAt\"\211\004"
-    "\n\014HostEvidence\022D\n\010agent_id\030\001 \001(\tB)\272H&r$2"
-    "\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\007age"
-    "ntId\022\030\n\007sockets\030\002 \001(\004R\007sockets\022\037\n\013bytes_"
-    "acked\030\003 \001(\004R\nbytesAcked\0221\n\013goodput_bps\030\004"
-    " \001(\001B\020\272H\r\022\013)\000\000\000\000\000\000\000\000@\001R\ngoodputBps\022C\n\024re"
-    "transmission_ratio\030\005 \001(\001B\020\272H\r\022\013)\000\000\000\000\000\000\000\000"
-    "@\001R\023retransmissionRatio\022.\n\nrtt_p95_ms\030\006 "
-    "\001(\001B\020\272H\r\022\013)\000\000\000\000\000\000\000\000@\001R\010rttP95Ms\022\'\n\017expos"
-    "ed_sockets\030\007 \001(\004R\016exposedSockets\022-\n\022coll"
-    "ection_healthy\030\010 \001(\010R\021collectionHealthy:"
-    "x\272Hu\032s\n$host_evidence.exposed_within_soc"
-    "kets\022%exposed_sockets cannot exceed sock"
-    "ets\032$this.exposed_sockets <= this.socket"
-    "s\"\274\005\n\010Evidence\0229\n\002id\030\001 \001(\tB)\272H&r$2\"^[a-z"
-    "A-Z0-9][a-zA-Z0-9_.-]{0,127}$R\002id\022C\n\013ana"
-    "lyzed_at\030\002 \001(\0132\032.google.protobuf.Timesta"
-    "mpB\006\272H\003\310\001\001R\nanalyzedAt\022E\n\014window_start\030\003"
-    " \001(\0132\032.google.protobuf.TimestampB\006\272H\003\310\001\001"
-    "R\013windowStart\022A\n\nwindow_end\030\004 \001(\0132\032.goog"
-    "le.protobuf.TimestampB\006\272H\003\310\001\001R\twindowEnd"
-    "\022/\n\rquery_version\030\005 \001(\tB\n\272H\007r\005\020\001\030\200\002R\014que"
-    "ryVersion\0227\n\022enrichment_version\030\006 \001(\tB\010\272"
-    "H\005r\003\030\200\002R\021enrichmentVersion\022B\n\005hosts\030\007 \003("
-    "\0132\037.xtcp_treatment.v1.HostEvidenceB\013\272H\010\222"
-    "\001\005\010\001\020\220NR\005hosts\022>\n\017artifact_sha256\030\010 \001(\tB"
-    "\025\272H\022r\0202\016^[0-9a-f]{64}$R\016artifactSha256:\267"
-    "\001\272H\263\001\032\260\001\n\021evidence.interval\022Owindow_end "
-    "must follow window_start and analyzed_at"
-    " must not precede window_end\032Jthis.windo"
-    "w_end > this.window_start && this.analyz"
-    "ed_at >= this.window_end\"\354\006\n\020ExperimentP"
-    "olicy\022]\n\023minimum_observation\030\001 \001(\0132\031.goo"
+    "ings.ecn)\"\314\005\n\nAssignment\022N\n\rexperiment_i"
+    "d\030\002 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_."
+    "-]{0,127}$R\014experimentId\022B\n\ttreatment\030\003 "
+    "\001(\0132\034.xtcp_treatment.v1.TreatmentB\006\272H\003\310\001"
+    "\001R\ttreatment\022A\n\004mode\030\004 \001(\0162!.xtcp_treatm"
+    "ent.v1.AssignmentModeB\n\272H\007\202\001\004\020\001 \000R\004mode\022"
+    "D\n\020lease_expires_at\030\005 \001(\0132\032.google.proto"
+    "buf.TimestampR\016leaseExpiresAt\022>\n\013predece"
+    "ssor\030\006 \001(\0132\034.xtcp_treatment.v1.Treatment"
+    "R\013predecessor\022\'\n\ngeneration\030\007 \001(\004B\007\272H\0042\002"
+    " \000R\ngeneration:\255\002\272H\251\002\032}\n\037assignment.tria"
+    "l_requires_lease\022,a trial assignment req"
+    "uires lease_expires_at\032,this.mode != 1 |"
+    "| has(this.lease_expires_at)\032\247\001\n\"assignm"
+    "ent.predecessor_destination\022+predecessor"
+    " must cover the same destination\032T!has(t"
+    "his.predecessor) || this.predecessor.des"
+    "tination == this.treatment.destinationJ\004"
+    "\010\001\020\002R\002id\"\244\002\n\014DesiredState\022D\n\010agent_id\030\001 "
+    "\001(\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0"
+    ",127}$R\007agentId\022#\n\010revision\030\002 \001(\004B\007\272H\0042\002"
+    " \000R\010revision\022\034\n\tsuspended\030\003 \001(\010R\tsuspend"
+    "ed\022J\n\013assignments\030\004 \003(\0132\035.xtcp_treatment"
+    ".v1.AssignmentB\t\272H\006\222\001\003\020\200 R\013assignments\022\?"
+    "\n\tissued_at\030\005 \001(\0132\032.google.protobuf.Time"
+    "stampB\006\272H\003\310\001\001R\010issuedAt\"\243\002\n\014Capabilities"
+    "\022B\n\007boot_id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a"
+    "-zA-Z0-9_.-]{0,127}$R\006bootId\022/\n\016kernel_r"
+    "elease\030\002 \001(\tB\010\272H\005r\003\030\200\002R\rkernelRelease\022C\n"
+    "\025congestion_algorithms\030\003 \003(\tB\016\272H\013\222\001\010\020@\"\004"
+    "r\002\030\017R\024congestionAlgorithms\022.\n\023simple_hos"
+    "t_routing\030\004 \001(\010R\021simpleHostRouting\022)\n\020ac"
+    "tuator_enabled\030\005 \001(\010R\017actuatorEnabled\"\250\005"
+    "\n\021ApplicationRecord\022E\n\nassignment\030\001 \001(\0132"
+    "\035.xtcp_treatment.v1.AssignmentB\006\272H\003\310\001\001R\n"
+    "assignment\022)\n\020desired_revision\030\002 \001(\004R\017de"
+    "siredRevision\022@\n\006status\030\003 \001(\0162\036.xtcp_tre"
+    "atment.v1.ApplyStatusB\010\272H\005\202\001\002\020\001R\006status\022"
+    ";\n\013received_at\030\004 \001(\0132\032.google.protobuf.T"
+    "imestampR\nreceivedAt\022=\n\014attempted_at\030\005 \001"
+    "(\0132\032.google.protobuf.TimestampR\013attempte"
+    "dAt\0229\n\napplied_at\030\006 \001(\0132\032.google.protobu"
+    "f.TimestampR\tappliedAt\022;\n\013verified_at\030\007 "
+    "\001(\0132\032.google.protobuf.TimestampR\nverifie"
+    "dAt\0229\n\nremoved_at\030\010 \001(\0132\032.google.protobu"
+    "f.TimestampR\tremovedAt\022\036\n\005error\030\t \001(\tB\010\272"
+    "H\005r\003\030\200 R\005error\0221\n\017installed_route\030\n \001(\014B"
+    "\010\272H\005z\003\030\200 R\016installedRoute\0224\n\021installed_b"
+    "oot_id\030\013 \001(\tB\010\272H\005r\003\030\200\001R\017installedBootId\022"
+    "\'\n\017expired_latched\030\014 \001(\010R\016expiredLatched"
+    "\"\261\002\n\nLocalState\0229\n\007desired\030\001 \001(\0132\037.xtcp_"
+    "treatment.v1.DesiredStateR\007desired\022+\n\021lo"
+    "cally_suspended\030\002 \001(\010R\020locallySuspended\022"
+    "5\n\021suspension_reason\030\003 \001(\tB\010\272H\005r\003\030\200\010R\020su"
+    "spensionReason\022I\n\007records\030\004 \003(\0132$.xtcp_t"
+    "reatment.v1.ApplicationRecordB\t\272H\006\222\001\003\020\200@"
+    "R\007records\0229\n\nupdated_at\030\005 \001(\0132\032.google.p"
+    "rotobuf.TimestampR\tupdatedAt\"\211\004\n\014HostEvi"
+    "dence\022D\n\010agent_id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z"
+    "0-9][a-zA-Z0-9_.-]{0,127}$R\007agentId\022\030\n\007s"
+    "ockets\030\002 \001(\004R\007sockets\022\037\n\013bytes_acked\030\003 \001"
+    "(\004R\nbytesAcked\0221\n\013goodput_bps\030\004 \001(\001B\020\272H\r"
+    "\022\013)\000\000\000\000\000\000\000\000@\001R\ngoodputBps\022C\n\024retransmiss"
+    "ion_ratio\030\005 \001(\001B\020\272H\r\022\013)\000\000\000\000\000\000\000\000@\001R\023retra"
+    "nsmissionRatio\022.\n\nrtt_p95_ms\030\006 \001(\001B\020\272H\r\022"
+    "\013)\000\000\000\000\000\000\000\000@\001R\010rttP95Ms\022\'\n\017exposed_socket"
+    "s\030\007 \001(\004R\016exposedSockets\022-\n\022collection_he"
+    "althy\030\010 \001(\010R\021collectionHealthy:x\272Hu\032s\n$h"
+    "ost_evidence.exposed_within_sockets\022%exp"
+    "osed_sockets cannot exceed sockets\032$this"
+    ".exposed_sockets <= this.sockets\"\274\005\n\010Evi"
+    "dence\0229\n\002id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a"
+    "-zA-Z0-9_.-]{0,127}$R\002id\022C\n\013analyzed_at\030"
+    "\002 \001(\0132\032.google.protobuf.TimestampB\006\272H\003\310\001"
+    "\001R\nanalyzedAt\022E\n\014window_start\030\003 \001(\0132\032.go"
+    "ogle.protobuf.TimestampB\006\272H\003\310\001\001R\013windowS"
+    "tart\022A\n\nwindow_end\030\004 \001(\0132\032.google.protob"
+    "uf.TimestampB\006\272H\003\310\001\001R\twindowEnd\022/\n\rquery"
+    "_version\030\005 \001(\tB\n\272H\007r\005\020\001\030\200\002R\014queryVersion"
+    "\0227\n\022enrichment_version\030\006 \001(\tB\010\272H\005r\003\030\200\002R\021"
+    "enrichmentVersion\022B\n\005hosts\030\007 \003(\0132\037.xtcp_"
+    "treatment.v1.HostEvidenceB\013\272H\010\222\001\005\010\001\020\220NR\005"
+    "hosts\022>\n\017artifact_sha256\030\010 \001(\tB\025\272H\022r\0202\016^"
+    "[0-9a-f]{64}$R\016artifactSha256:\267\001\272H\263\001\032\260\001\n"
+    "\021evidence.interval\022Owindow_end must foll"
+    "ow window_start and analyzed_at must not"
+    " precede window_end\032Jthis.window_end > t"
+    "his.window_start && this.analyzed_at >= "
+    "this.window_end\"\354\006\n\020ExperimentPolicy\022]\n\023"
+    "minimum_observation\030\001 \001(\0132\031.google.proto"
+    "buf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\022minimum"
+    "Observation\022Q\n\rmaximum_phase\030\002 \001(\0132\031.goo"
     "gle.protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001"
-    "R\022minimumObservation\022Q\n\rmaximum_phase\030\002 "
-    "\001(\0132\031.google.protobuf.DurationB\021\272H\016\252\001\010\"\004"
-    "\010\200\365$*\000\310\001\001R\014maximumPhase\022@\n\030minimum_socke"
-    "ts_per_host\030\003 \001(\004B\007\272H\0042\002 \000R\025minimumSocke"
-    "tsPerHost\022<\n\026minimum_bytes_per_host\030\004 \001("
-    "\004B\007\272H\0042\002 \000R\023minimumBytesPerHost\022>\n\025minim"
-    "um_treated_hosts\030\005 \001(\rB\n\272H\007*\005\030\220N(\002R\023mini"
-    "mumTreatedHosts\022J\n\023minimum_improvement\030\006"
-    " \001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\022minimum"
-    "Improvement\022a\n\037maximum_retransmission_in"
-    "crease\030\007 \001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R"
-    "\035maximumRetransmissionIncrease\022K\n\024maximu"
-    "m_rtt_increase\030\010 \001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000"
-    "\000\000\000\000\000@\001R\022maximumRttIncrease\022^\n\024maximum_e"
-    "vidence_age\030\t \001(\0132\031.google.protobuf.Dura"
-    "tionB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\022maximumEvidence"
-    "Age:\211\001\272H\205\001\032\202\001\n\037policy.observation_within"
-    "_phase\022/minimum_observation cannot excee"
-    "d maximum_phase\032.this.minimum_observatio"
-    "n <= this.maximum_phase\"\244\003\n\005Phase\022-\n\014tar"
-    "get_hosts\030\001 \001(\rB\n\272H\007*\005\030\220N(\001R\013targetHosts"
-    "\0227\n\tissued_at\030\002 \001(\0132\032.google.protobuf.Ti"
-    "mestampR\010issuedAt\022P\n\026observation_started"
-    "_at\030\003 \001(\0132\032.google.protobuf.TimestampR\024o"
-    "bservationStartedAt\022=\n\014evaluated_at\030\004 \001("
-    "\0132\032.google.protobuf.TimestampR\013evaluated"
-    "At\0227\n\010evidence\030\005 \001(\0132\033.xtcp_treatment.v1"
-    ".EvidenceR\010evidence\022!\n\007outcome\030\006 \001(\tB\007\272H"
-    "\004r\002\030@R\007outcome\022$\n\010reviewer\030\007 \001(\tB\010\272H\005r\003\030"
-    "\200\001R\010reviewer\022 \n\006reason\030\010 \001(\tB\010\272H\005r\003\030\200 R\006"
-    "reason\"\260\006\n\nExperiment\0229\n\002id\030\001 \001(\tB)\272H&r$"
-    "2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\002id"
-    "\022E\n\010location\030\002 \001(\tB)\272H&r$2\"^[a-zA-Z0-9]["
-    "a-zA-Z0-9_.-]{0,127}$R\010location\022*\n\nhypot"
-    "hesis\030\003 \001(\tB\n\272H\007r\005\020\001\030\200@R\nhypothesis\022B\n\tt"
-    "reatment\030\004 \001(\0132\034.xtcp_treatment.v1.Treat"
-    "mentB\006\272H\003\310\001\001R\ttreatment\022C\n\006policy\030\005 \001(\0132"
-    "#.xtcp_treatment.v1.ExperimentPolicyB\006\272H"
-    "\003\310\001\001R\006policy\022\?\n\010baseline\030\006 \001(\0132\033.xtcp_tr"
-    "eatment.v1.EvidenceB\006\272H\003\310\001\001R\010baseline\022X\n"
-    "\014cohort_order\030\007 \003(\tB5\272H2\222\001/\010\003\020\220N\030\001\"&r$2\""
-    "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\013coho"
-    "rtOrder\022:\n\006phases\030\010 \003(\0132\030.xtcp_treatment"
-    ".v1.PhaseB\010\272H\005\222\001\002\020@R\006phases\022E\n\006status\030\t "
-    "\001(\0162#.xtcp_treatment.v1.ExperimentStatus"
-    "B\010\272H\005\202\001\002\020\001R\006status\022\032\n\010revision\030\n \001(\004R\010re"
-    "vision\022;\n\013proposed_at\030\013 \001(\0132\032.google.pro"
-    "tobuf.TimestampR\nproposedAt\022D\n\017latest_ev"
-    "idence\030\014 \001(\0132\033.xtcp_treatment.v1.Evidenc"
-    "eR\016latestEvidence\022.\n\016latest_outcome\030\r \001("
-    "\tB\007\272H\004r\002\030@R\rlatestOutcome*\?\n\004Role\022\024\n\020ROL"
-    "E_UNSPECIFIED\020\000\022\016\n\nROLE_AGENT\020\001\022\021\n\rROLE_"
-    "OPERATOR\020\002*\244\001\n\016AssignmentMode\022\037\n\033ASSIGNM"
-    "ENT_MODE_UNSPECIFIED\020\000\022\031\n\025ASSIGNMENT_MOD"
-    "E_TRIAL\020\001\022\032\n\026ASSIGNMENT_MODE_STABLE\020\002\022\035\n"
-    "\031ASSIGNMENT_MODE_SUSPENDED\020\003\022\033\n\027ASSIGNME"
-    "NT_MODE_RETIRED\020\004*\255\001\n\013ApplyStatus\022\034\n\030APP"
-    "LY_STATUS_UNSPECIFIED\020\000\022\030\n\024APPLY_STATUS_"
-    "PENDING\020\001\022\031\n\025APPLY_STATUS_VERIFIED\020\002\022\030\n\024"
-    "APPLY_STATUS_REMOVED\020\003\022\030\n\024APPLY_STATUS_E"
-    "XPIRED\020\004\022\027\n\023APPLY_STATUS_FAILED\020\005*\225\002\n\020Ex"
+    "R\014maximumPhase\022@\n\030minimum_sockets_per_ho"
+    "st\030\003 \001(\004B\007\272H\0042\002 \000R\025minimumSocketsPerHost"
+    "\022<\n\026minimum_bytes_per_host\030\004 \001(\004B\007\272H\0042\002 "
+    "\000R\023minimumBytesPerHost\022>\n\025minimum_treate"
+    "d_hosts\030\005 \001(\rB\n\272H\007*\005\030\220N(\002R\023minimumTreate"
+    "dHosts\022J\n\023minimum_improvement\030\006 \001(\001B\031\272H\026"
+    "\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\022minimumImproveme"
+    "nt\022a\n\037maximum_retransmission_increase\030\007 "
+    "\001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\035maximumR"
+    "etransmissionIncrease\022K\n\024maximum_rtt_inc"
+    "rease\030\010 \001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\022"
+    "maximumRttIncrease\022^\n\024maximum_evidence_a"
+    "ge\030\t \001(\0132\031.google.protobuf.DurationB\021\272H\016"
+    "\252\001\010\"\004\010\200\365$*\000\310\001\001R\022maximumEvidenceAge:\211\001\272H\205"
+    "\001\032\202\001\n\037policy.observation_within_phase\022/m"
+    "inimum_observation cannot exceed maximum"
+    "_phase\032.this.minimum_observation <= this"
+    ".maximum_phase\"\301\003\n\005Phase\022-\n\014target_hosts"
+    "\030\001 \001(\rB\n\272H\007*\005\030\220N(\001R\013targetHosts\0227\n\tissue"
+    "d_at\030\002 \001(\0132\032.google.protobuf.TimestampR\010"
+    "issuedAt\022P\n\026observation_started_at\030\003 \001(\013"
+    "2\032.google.protobuf.TimestampR\024observatio"
+    "nStartedAt\022=\n\014evaluated_at\030\004 \001(\0132\032.googl"
+    "e.protobuf.TimestampR\013evaluatedAt\0227\n\010evi"
+    "dence\030\005 \001(\0132\033.xtcp_treatment.v1.Evidence"
+    "R\010evidence\022>\n\007outcome\030\006 \001(\0162\032.xtcp_treat"
+    "ment.v1.OutcomeB\010\272H\005\202\001\002\020\001R\007outcome\022$\n\010re"
+    "viewer\030\007 \001(\tB\010\272H\005r\003\030\200\001R\010reviewer\022 \n\006reas"
+    "on\030\010 \001(\tB\010\272H\005r\003\030\200 R\006reason\"\315\006\n\nExperimen"
+    "t\0229\n\002id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-"
+    "Z0-9_.-]{0,127}$R\002id\022E\n\010location\030\002 \001(\tB)"
+    "\272H&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}"
+    "$R\010location\022*\n\nhypothesis\030\003 \001(\tB\n\272H\007r\005\020\001"
+    "\030\200@R\nhypothesis\022B\n\ttreatment\030\004 \001(\0132\034.xtc"
+    "p_treatment.v1.TreatmentB\006\272H\003\310\001\001R\ttreatm"
+    "ent\022C\n\006policy\030\005 \001(\0132#.xtcp_treatment.v1."
+    "ExperimentPolicyB\006\272H\003\310\001\001R\006policy\022\?\n\010base"
+    "line\030\006 \001(\0132\033.xtcp_treatment.v1.EvidenceB"
+    "\006\272H\003\310\001\001R\010baseline\022X\n\014cohort_order\030\007 \003(\tB"
+    "5\272H2\222\001/\010\003\020\220N\030\001\"&r$2\"^[a-zA-Z0-9][a-zA-Z0"
+    "-9_.-]{0,127}$R\013cohortOrder\022:\n\006phases\030\010 "
+    "\003(\0132\030.xtcp_treatment.v1.PhaseB\010\272H\005\222\001\002\020@R"
+    "\006phases\022E\n\006status\030\t \001(\0162#.xtcp_treatment"
+    ".v1.ExperimentStatusB\010\272H\005\202\001\002\020\001R\006status\022\032"
+    "\n\010revision\030\n \001(\004R\010revision\022;\n\013proposed_a"
+    "t\030\013 \001(\0132\032.google.protobuf.TimestampR\npro"
+    "posedAt\022D\n\017latest_evidence\030\014 \001(\0132\033.xtcp_"
+    "treatment.v1.EvidenceR\016latestEvidence\022K\n"
+    "\016latest_outcome\030\r \001(\0162\032.xtcp_treatment.v"
+    "1.OutcomeB\010\272H\005\202\001\002\020\001R\rlatestOutcome*\?\n\004Ro"
+    "le\022\024\n\020ROLE_UNSPECIFIED\020\000\022\016\n\nROLE_AGENT\020\001"
+    "\022\021\n\rROLE_OPERATOR\020\002*\244\001\n\016AssignmentMode\022\037"
+    "\n\033ASSIGNMENT_MODE_UNSPECIFIED\020\000\022\031\n\025ASSIG"
+    "NMENT_MODE_TRIAL\020\001\022\032\n\026ASSIGNMENT_MODE_ST"
+    "ABLE\020\002\022\035\n\031ASSIGNMENT_MODE_SUSPENDED\020\003\022\033\n"
+    "\027ASSIGNMENT_MODE_RETIRED\020\004*\255\001\n\013ApplyStat"
+    "us\022\034\n\030APPLY_STATUS_UNSPECIFIED\020\000\022\030\n\024APPL"
+    "Y_STATUS_PENDING\020\001\022\031\n\025APPLY_STATUS_VERIF"
+    "IED\020\002\022\030\n\024APPLY_STATUS_REMOVED\020\003\022\030\n\024APPLY"
+    "_STATUS_EXPIRED\020\004\022\027\n\023APPLY_STATUS_FAILED"
+    "\020\005*\244\004\n\007Outcome\022\027\n\023OUTCOME_UNSPECIFIED\020\000\022"
+    "\024\n\020OUTCOME_BASELINE\020\001\022 \n\034OUTCOME_AWAITIN"
+    "G_APPLICATION\020\002\022\035\n\031OUTCOME_AWAITING_EXPO"
+    "SURE\020\003\022!\n\035OUTCOME_INSUFFICIENT_DURATION\020"
+    "\004\022\035\n\031OUTCOME_INSUFFICIENT_DATA\020\005\022!\n\035OUTC"
+    "OME_INSUFFICIENT_CONTROLS\020\006\022\021\n\rOUTCOME_S"
+    "TALE\020\007\022\027\n\023OUTCOME_UNAVAILABLE\020\010\022\030\n\024OUTCO"
+    "ME_INCONCLUSIVE\020\t\022\027\n\023OUTCOME_SAFETY_ONLY"
+    "\020\n\022\030\n\024OUTCOME_FINAL_SAFETY\020\013\022\026\n\022OUTCOME_"
+    "BENEFICIAL\020\014\022\023\n\017OUTCOME_HARMFUL\020\r\022\023\n\017OUT"
+    "COME_EXPIRED\020\016\022\033\n\027OUTCOME_STABLE_OBSERVE"
+    "D\020\017\022&\n\"OUTCOME_STABLE_EVIDENCE_INCOMPLET"
+    "E\020\020\022-\n)OUTCOME_STABLE_REGRESSION_REVIEW_"
+    "REQUIRED\020\021\022\025\n\021OUTCOME_OBSERVING\020\022*\225\002\n\020Ex"
     "perimentStatus\022!\n\035EXPERIMENT_STATUS_UNSP"
     "ECIFIED\020\000\022\036\n\032EXPERIMENT_STATUS_PROPOSED\020"
     "\001\022\035\n\031EXPERIMENT_STATUS_RUNNING\020\002\022\034\n\030EXPE"
@@ -3095,7 +3092,7 @@ static ::absl::once_flag descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2epr
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2eproto = {
     false,
     false,
-    8235,
+    8795,
     descriptor_table_protodef_xtcp_5ftreatment_2fv1_2ftreatment_2eproto,
     "xtcp_treatment/v1/treatment.proto",
     &descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2eproto_once,
@@ -3132,9 +3129,16 @@ ApplyStatus_descriptor() {
 PROTOBUF_CONSTINIT const uint32_t ApplyStatus_internal_data_[] = {
     393216u, 0u, };
 [[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
-ExperimentStatus_descriptor() {
+Outcome_descriptor() {
   ::google::protobuf::internal::AssignDescriptors(&descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2eproto);
   return file_level_enum_descriptors_xtcp_5ftreatment_2fv1_2ftreatment_2eproto[3];
+}
+PROTOBUF_CONSTINIT const uint32_t Outcome_internal_data_[] = {
+    1245184u, 0u, };
+[[nodiscard]] const ::google::protobuf::EnumDescriptor* PROTOBUF_NONNULL
+ExperimentStatus_descriptor() {
+  ::google::protobuf::internal::AssignDescriptors(&descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2eproto);
+  return file_level_enum_descriptors_xtcp_5ftreatment_2fv1_2ftreatment_2eproto[4];
 }
 PROTOBUF_CONSTINIT const uint32_t ExperimentStatus_internal_data_[] = {
     524288u, 0u, };
@@ -3801,7 +3805,7 @@ void Treatment::InternalSwap(Treatment* PROTOBUF_RESTRICT PROTOBUF_NONNULL other
 void Assignment::clear_lease_expires_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.lease_expires_at_ != nullptr) _impl_.lease_expires_at_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
 }
 Assignment::Assignment(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
@@ -3817,7 +3821,6 @@ PROTOBUF_NDEBUG_INLINE Assignment::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
     [[maybe_unused]] const ::xtcp_treatment::v1::Assignment& from_msg)
       : _has_bits_{from._has_bits_},
-        id_(arena, from.id_),
         experiment_id_(arena, from.experiment_id_) {}
 
 Assignment::Assignment(
@@ -3835,13 +3838,13 @@ Assignment::Assignment(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::uint32_t cached_has_bits = _impl_._has_bits_[0];
-  _impl_.treatment_ = (CheckHasBit(cached_has_bits, 0x00000004U))
+  _impl_.treatment_ = (CheckHasBit(cached_has_bits, 0x00000002U))
                  ? Super_::CopyConstruct(arena, *from._impl_.treatment_)
                  : nullptr;
-  _impl_.lease_expires_at_ = (CheckHasBit(cached_has_bits, 0x00000008U))
+  _impl_.lease_expires_at_ = (CheckHasBit(cached_has_bits, 0x00000004U))
                  ? Super_::CopyConstruct(arena, *from._impl_.lease_expires_at_)
                  : nullptr;
-  _impl_.predecessor_ = (CheckHasBit(cached_has_bits, 0x00000010U))
+  _impl_.predecessor_ = (CheckHasBit(cached_has_bits, 0x00000008U))
                  ? Super_::CopyConstruct(arena, *from._impl_.predecessor_)
                  : nullptr;
   ::memcpy(reinterpret_cast<char*>(&_impl_) +
@@ -3857,8 +3860,7 @@ Assignment::Assignment(
 PROTOBUF_NDEBUG_INLINE Assignment::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
-      : id_(arena),
-        experiment_id_(arena) {}
+      : experiment_id_(arena) {}
 
 inline void Assignment::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -3880,7 +3882,6 @@ inline void Assignment::SharedDtor(MessageLite& self) {
   }
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
-  this_._impl_.id_.Destroy();
   this_._impl_.experiment_id_.Destroy();
   delete this_._impl_.treatment_;
   delete this_._impl_.lease_expires_at_;
@@ -3921,27 +3922,24 @@ PROTOBUF_NOINLINE void Assignment::Clear() {
   ::uint32_t cached_has_bits [[maybe_unused]] = 0;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      this_._impl_.id_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       this_._impl_.experiment_id_.ClearNonDefaultToEmpty();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       ABSL_DCHECK(this_._impl_.treatment_ != nullptr);
       this_._impl_.treatment_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       ABSL_DCHECK(this_._impl_.lease_expires_at_ != nullptr);
       this_._impl_.lease_expires_at_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       ABSL_DCHECK(this_._impl_.predecessor_ != nullptr);
       this_._impl_.predecessor_->Clear();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000060U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00000030U)) {
     ::memset(&this_._impl_.generation_, 0,
              static_cast<::size_t>(
                  reinterpret_cast<char*>(&this_._impl_.mode_) -
@@ -3971,18 +3969,8 @@ PROTOBUF_NOINLINE void Assignment::Clear() {
   (void)cached_has_bits;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  // string id = 1 [json_name = "id", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    if (!this_._internal_id().empty()) {
-      const ::std::string& _s = this_._internal_id();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_treatment.v1.Assignment.id");
-      target = stream->WriteStringMaybeAliased(1, _s, target);
-    }
-  }
-
   // string experiment_id = 2 [json_name = "experimentId", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
     if (!this_._internal_experiment_id().empty()) {
       const ::std::string& _s = this_._internal_experiment_id();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
@@ -3992,14 +3980,14 @@ PROTOBUF_NOINLINE void Assignment::Clear() {
   }
 
   // .xtcp_treatment.v1.Treatment treatment = 3 [json_name = "treatment", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         3, *this_._impl_.treatment_, this_._impl_.treatment_->GetCachedSize(), target,
         stream);
   }
 
   // .xtcp_treatment.v1.AssignmentMode mode = 4 [json_name = "mode", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     if (this_._internal_mode() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -4008,21 +3996,21 @@ PROTOBUF_NOINLINE void Assignment::Clear() {
   }
 
   // .google.protobuf.Timestamp lease_expires_at = 5 [json_name = "leaseExpiresAt"];
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         5, *this_._impl_.lease_expires_at_, this_._impl_.lease_expires_at_->GetCachedSize(), target,
         stream);
   }
 
   // .xtcp_treatment.v1.Treatment predecessor = 6 [json_name = "predecessor"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         6, *this_._impl_.predecessor_, this_._impl_.predecessor_->GetCachedSize(), target,
         stream);
   }
 
   // uint64 generation = 7 [json_name = "generation", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
     if (this_._internal_generation() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -4053,45 +4041,38 @@ PROTOBUF_NOINLINE void Assignment::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
-    // string id = 1 [json_name = "id", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (!this_._internal_id().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_id());
-      }
-    }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     // string experiment_id = 2 [json_name = "experimentId", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_experiment_id().empty()) {
         total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_experiment_id());
       }
     }
     // .xtcp_treatment.v1.Treatment treatment = 3 [json_name = "treatment", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.treatment_);
     }
     // .google.protobuf.Timestamp lease_expires_at = 5 [json_name = "leaseExpiresAt"];
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.lease_expires_at_);
     }
     // .xtcp_treatment.v1.Treatment predecessor = 6 [json_name = "predecessor"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.predecessor_);
     }
     // uint64 generation = 7 [json_name = "generation", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (this_._internal_generation() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_generation());
       }
     }
     // .xtcp_treatment.v1.AssignmentMode mode = 4 [json_name = "mode", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (this_._internal_mode() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_mode());
@@ -4116,17 +4097,8 @@ void Assignment::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (!from._internal_id().empty()) {
-        _this->_internal_set_id(from._internal_id());
-      } else {
-        if (_this->_impl_.id_.IsDefault()) {
-          _this->_internal_set_id("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (!from._internal_experiment_id().empty()) {
         _this->_internal_set_experiment_id(from._internal_experiment_id());
       } else {
@@ -4135,7 +4107,7 @@ void Assignment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       ABSL_DCHECK(from._impl_.treatment_ != nullptr);
       if (_this->_impl_.treatment_ == nullptr) {
         _this->_impl_.treatment_ = Super_::CopyConstruct(arena, *from._impl_.treatment_);
@@ -4143,7 +4115,7 @@ void Assignment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.treatment_->MergeFrom(*from._impl_.treatment_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       ABSL_DCHECK(from._impl_.lease_expires_at_ != nullptr);
       if (_this->_impl_.lease_expires_at_ == nullptr) {
         _this->_impl_.lease_expires_at_ = Super_::CopyConstruct(arena, *from._impl_.lease_expires_at_);
@@ -4151,7 +4123,7 @@ void Assignment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.lease_expires_at_->MergeFrom(*from._impl_.lease_expires_at_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       ABSL_DCHECK(from._impl_.predecessor_ != nullptr);
       if (_this->_impl_.predecessor_ == nullptr) {
         _this->_impl_.predecessor_ = Super_::CopyConstruct(arena, *from._impl_.predecessor_);
@@ -4159,12 +4131,12 @@ void Assignment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.predecessor_->MergeFrom(*from._impl_.predecessor_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (from._internal_generation() != 0) {
         _this->_impl_.generation_ = from._impl_.generation_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (from._internal_mode() != 0) {
         _this->_impl_.mode_ = from._impl_.mode_;
       }
@@ -4189,7 +4161,6 @@ void Assignment::InternalSwap(Assignment* PROTOBUF_RESTRICT PROTOBUF_NONNULL oth
   ABSL_DCHECK_EQ(arena, other->GetArena());
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.id_, &other->_impl_.id_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.experiment_id_, &other->_impl_.experiment_id_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(Assignment, _impl_.mode_)
@@ -7111,17 +7082,17 @@ void ExperimentPolicy::InternalSwap(ExperimentPolicy* PROTOBUF_RESTRICT PROTOBUF
 void Phase::clear_issued_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.issued_at_ != nullptr) _impl_.issued_at_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000004U);
 }
 void Phase::clear_observation_started_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.observation_started_at_ != nullptr) _impl_.observation_started_at_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
 }
 void Phase::clear_evaluated_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.evaluated_at_ != nullptr) _impl_.evaluated_at_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
 }
 Phase::Phase(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
@@ -7137,7 +7108,6 @@ PROTOBUF_NDEBUG_INLINE Phase::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
     [[maybe_unused]] const ::xtcp_treatment::v1::Phase& from_msg)
       : _has_bits_{from._has_bits_},
-        outcome_(arena, from.outcome_),
         reviewer_(arena, from.reviewer_),
         reason_(arena, from.reason_) {}
 
@@ -7156,27 +7126,32 @@ Phase::Phase(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::uint32_t cached_has_bits = _impl_._has_bits_[0];
-  _impl_.issued_at_ = (CheckHasBit(cached_has_bits, 0x00000008U))
+  _impl_.issued_at_ = (CheckHasBit(cached_has_bits, 0x00000004U))
                  ? Super_::CopyConstruct(arena, *from._impl_.issued_at_)
                  : nullptr;
-  _impl_.observation_started_at_ = (CheckHasBit(cached_has_bits, 0x00000010U))
+  _impl_.observation_started_at_ = (CheckHasBit(cached_has_bits, 0x00000008U))
                  ? Super_::CopyConstruct(arena, *from._impl_.observation_started_at_)
                  : nullptr;
-  _impl_.evaluated_at_ = (CheckHasBit(cached_has_bits, 0x00000020U))
+  _impl_.evaluated_at_ = (CheckHasBit(cached_has_bits, 0x00000010U))
                  ? Super_::CopyConstruct(arena, *from._impl_.evaluated_at_)
                  : nullptr;
-  _impl_.evidence_ = (CheckHasBit(cached_has_bits, 0x00000040U))
+  _impl_.evidence_ = (CheckHasBit(cached_has_bits, 0x00000020U))
                  ? Super_::CopyConstruct(arena, *from._impl_.evidence_)
                  : nullptr;
-  _impl_.target_hosts_ = from._impl_.target_hosts_;
+  ::memcpy(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, target_hosts_),
+           reinterpret_cast<const char*>(&from._impl_) +
+               offsetof(Impl_, target_hosts_),
+           offsetof(Impl_, outcome_) -
+               offsetof(Impl_, target_hosts_) +
+               sizeof(Impl_::outcome_));
 
   // @@protoc_insertion_point(copy_constructor:xtcp_treatment.v1.Phase)
 }
 PROTOBUF_NDEBUG_INLINE Phase::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
-      : outcome_(arena),
-        reviewer_(arena),
+      : reviewer_(arena),
         reason_(arena) {}
 
 inline void Phase::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
@@ -7184,9 +7159,9 @@ inline void Phase::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, issued_at_),
            0,
-           offsetof(Impl_, target_hosts_) -
+           offsetof(Impl_, outcome_) -
                offsetof(Impl_, issued_at_) +
-               sizeof(Impl_::target_hosts_));
+               sizeof(Impl_::outcome_));
 }
 Phase::~Phase() {
   // @@protoc_insertion_point(destructor:xtcp_treatment.v1.Phase)
@@ -7199,7 +7174,6 @@ inline void Phase::SharedDtor(MessageLite& self) {
   }
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
-  this_._impl_.outcome_.Destroy();
   this_._impl_.reviewer_.Destroy();
   this_._impl_.reason_.Destroy();
   delete this_._impl_.issued_at_;
@@ -7242,34 +7216,37 @@ PROTOBUF_NOINLINE void Phase::Clear() {
   ::uint32_t cached_has_bits [[maybe_unused]] = 0;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      this_._impl_.outcome_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       this_._impl_.reviewer_.ClearNonDefaultToEmpty();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       this_._impl_.reason_.ClearNonDefaultToEmpty();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       ABSL_DCHECK(this_._impl_.issued_at_ != nullptr);
       this_._impl_.issued_at_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       ABSL_DCHECK(this_._impl_.observation_started_at_ != nullptr);
       this_._impl_.observation_started_at_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       ABSL_DCHECK(this_._impl_.evaluated_at_ != nullptr);
       this_._impl_.evaluated_at_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       ABSL_DCHECK(this_._impl_.evidence_ != nullptr);
       this_._impl_.evidence_->Clear();
     }
   }
-  this_._impl_.target_hosts_ = 0u;
+  if (BatchCheckHasBit(cached_has_bits, 0x000000c0U)) {
+    ::memset(&this_._impl_.target_hosts_, 0,
+             static_cast<::size_t>(
+                 reinterpret_cast<char*>(&this_._impl_.outcome_) -
+                 reinterpret_cast<char*>(&this_._impl_.target_hosts_)) +
+                 sizeof(_impl_.outcome_));
+  }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -7294,7 +7271,7 @@ PROTOBUF_NOINLINE void Phase::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[0];
   // uint32 target_hosts = 1 [json_name = "targetHosts", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_target_hosts() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -7303,45 +7280,44 @@ PROTOBUF_NOINLINE void Phase::Clear() {
   }
 
   // .google.protobuf.Timestamp issued_at = 2 [json_name = "issuedAt"];
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         2, *this_._impl_.issued_at_, this_._impl_.issued_at_->GetCachedSize(), target,
         stream);
   }
 
   // .google.protobuf.Timestamp observation_started_at = 3 [json_name = "observationStartedAt"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         3, *this_._impl_.observation_started_at_, this_._impl_.observation_started_at_->GetCachedSize(), target,
         stream);
   }
 
   // .google.protobuf.Timestamp evaluated_at = 4 [json_name = "evaluatedAt"];
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         4, *this_._impl_.evaluated_at_, this_._impl_.evaluated_at_->GetCachedSize(), target,
         stream);
   }
 
   // .xtcp_treatment.v1.Evidence evidence = 5 [json_name = "evidence"];
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         5, *this_._impl_.evidence_, this_._impl_.evidence_->GetCachedSize(), target,
         stream);
   }
 
-  // string outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    if (!this_._internal_outcome().empty()) {
-      const ::std::string& _s = this_._internal_outcome();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_treatment.v1.Phase.outcome");
-      target = stream->WriteStringMaybeAliased(6, _s, target);
+  // .xtcp_treatment.v1.Outcome outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_outcome() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          6, this_._internal_outcome(), target);
     }
   }
 
   // string reviewer = 7 [json_name = "reviewer", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
     if (!this_._internal_reviewer().empty()) {
       const ::std::string& _s = this_._internal_reviewer();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
@@ -7351,7 +7327,7 @@ PROTOBUF_NOINLINE void Phase::Clear() {
   }
 
   // string reason = 8 [json_name = "reason", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
     if (!this_._internal_reason().empty()) {
       const ::std::string& _s = this_._internal_reason();
       ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
@@ -7384,52 +7360,52 @@ PROTOBUF_NOINLINE void Phase::Clear() {
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
-    // string outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (!this_._internal_outcome().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_outcome());
-      }
-    }
     // string reviewer = 7 [json_name = "reviewer", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       if (!this_._internal_reviewer().empty()) {
         total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_reviewer());
       }
     }
     // string reason = 8 [json_name = "reason", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (!this_._internal_reason().empty()) {
         total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
                                         this_._internal_reason());
       }
     }
     // .google.protobuf.Timestamp issued_at = 2 [json_name = "issuedAt"];
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.issued_at_);
     }
     // .google.protobuf.Timestamp observation_started_at = 3 [json_name = "observationStartedAt"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.observation_started_at_);
     }
     // .google.protobuf.Timestamp evaluated_at = 4 [json_name = "evaluatedAt"];
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.evaluated_at_);
     }
     // .xtcp_treatment.v1.Evidence evidence = 5 [json_name = "evidence"];
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.evidence_);
     }
     // uint32 target_hosts = 1 [json_name = "targetHosts", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (this_._internal_target_hosts() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt32SizePlusOne(
             this_._internal_target_hosts());
+      }
+    }
+    // .xtcp_treatment.v1.Outcome outcome = 6 [json_name = "outcome", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (this_._internal_outcome() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_outcome());
       }
     }
   }
@@ -7453,15 +7429,6 @@ void Phase::MergeImpl(::google::protobuf::MessageLite& to_msg,
   cached_has_bits = from._impl_._has_bits_[0];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (!from._internal_outcome().empty()) {
-        _this->_internal_set_outcome(from._internal_outcome());
-      } else {
-        if (_this->_impl_.outcome_.IsDefault()) {
-          _this->_internal_set_outcome("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (!from._internal_reviewer().empty()) {
         _this->_internal_set_reviewer(from._internal_reviewer());
       } else {
@@ -7470,7 +7437,7 @@ void Phase::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       if (!from._internal_reason().empty()) {
         _this->_internal_set_reason(from._internal_reason());
       } else {
@@ -7479,7 +7446,7 @@ void Phase::MergeImpl(::google::protobuf::MessageLite& to_msg,
         }
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       ABSL_DCHECK(from._impl_.issued_at_ != nullptr);
       if (_this->_impl_.issued_at_ == nullptr) {
         _this->_impl_.issued_at_ = Super_::CopyConstruct(arena, *from._impl_.issued_at_);
@@ -7487,7 +7454,7 @@ void Phase::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.issued_at_->MergeFrom(*from._impl_.issued_at_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
       ABSL_DCHECK(from._impl_.observation_started_at_ != nullptr);
       if (_this->_impl_.observation_started_at_ == nullptr) {
         _this->_impl_.observation_started_at_ = Super_::CopyConstruct(arena, *from._impl_.observation_started_at_);
@@ -7495,7 +7462,7 @@ void Phase::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.observation_started_at_->MergeFrom(*from._impl_.observation_started_at_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       ABSL_DCHECK(from._impl_.evaluated_at_ != nullptr);
       if (_this->_impl_.evaluated_at_ == nullptr) {
         _this->_impl_.evaluated_at_ = Super_::CopyConstruct(arena, *from._impl_.evaluated_at_);
@@ -7503,7 +7470,7 @@ void Phase::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.evaluated_at_->MergeFrom(*from._impl_.evaluated_at_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       ABSL_DCHECK(from._impl_.evidence_ != nullptr);
       if (_this->_impl_.evidence_ == nullptr) {
         _this->_impl_.evidence_ = Super_::CopyConstruct(arena, *from._impl_.evidence_);
@@ -7511,9 +7478,14 @@ void Phase::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.evidence_->MergeFrom(*from._impl_.evidence_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (from._internal_target_hosts() != 0) {
         _this->_impl_.target_hosts_ = from._impl_.target_hosts_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (from._internal_outcome() != 0) {
+        _this->_impl_.outcome_ = from._impl_.outcome_;
       }
     }
   }
@@ -7536,12 +7508,11 @@ void Phase::InternalSwap(Phase* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
   ABSL_DCHECK_EQ(arena, other->GetArena());
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.outcome_, &other->_impl_.outcome_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.reviewer_, &other->_impl_.reviewer_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.reason_, &other->_impl_.reason_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(Phase, _impl_.target_hosts_)
-      + sizeof(Phase::_impl_.target_hosts_)
+      PROTOBUF_FIELD_OFFSET(Phase, _impl_.outcome_)
+      + sizeof(Phase::_impl_.outcome_)
       - PROTOBUF_FIELD_OFFSET(Phase, _impl_.issued_at_)>(
           reinterpret_cast<char*>(&_impl_.issued_at_),
           reinterpret_cast<char*>(&other->_impl_.issued_at_));
@@ -7555,7 +7526,7 @@ void Phase::InternalSwap(Phase* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
 void Experiment::clear_proposed_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.proposed_at_ != nullptr) _impl_.proposed_at_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
 }
 Experiment::Experiment(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
@@ -7587,8 +7558,7 @@ PROTOBUF_NDEBUG_INLINE Experiment::Impl_::Impl_(
         ,
         id_(arena, from.id_),
         location_(arena, from.location_),
-        hypothesis_(arena, from.hypothesis_),
-        latest_outcome_(arena, from.latest_outcome_) {}
+        hypothesis_(arena, from.hypothesis_) {}
 
 Experiment::Experiment(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -7605,28 +7575,28 @@ Experiment::Experiment(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::uint32_t cached_has_bits = _impl_._has_bits_[0];
-  _impl_.treatment_ = (CheckHasBit(cached_has_bits, 0x00000040U))
+  _impl_.treatment_ = (CheckHasBit(cached_has_bits, 0x00000020U))
                  ? Super_::CopyConstruct(arena, *from._impl_.treatment_)
                  : nullptr;
-  _impl_.policy_ = (CheckHasBit(cached_has_bits, 0x00000080U))
+  _impl_.policy_ = (CheckHasBit(cached_has_bits, 0x00000040U))
                  ? Super_::CopyConstruct(arena, *from._impl_.policy_)
                  : nullptr;
-  _impl_.baseline_ = (CheckHasBit(cached_has_bits, 0x00000100U))
+  _impl_.baseline_ = (CheckHasBit(cached_has_bits, 0x00000080U))
                  ? Super_::CopyConstruct(arena, *from._impl_.baseline_)
                  : nullptr;
-  _impl_.proposed_at_ = (CheckHasBit(cached_has_bits, 0x00000200U))
+  _impl_.proposed_at_ = (CheckHasBit(cached_has_bits, 0x00000100U))
                  ? Super_::CopyConstruct(arena, *from._impl_.proposed_at_)
                  : nullptr;
-  _impl_.latest_evidence_ = (CheckHasBit(cached_has_bits, 0x00000400U))
+  _impl_.latest_evidence_ = (CheckHasBit(cached_has_bits, 0x00000200U))
                  ? Super_::CopyConstruct(arena, *from._impl_.latest_evidence_)
                  : nullptr;
   ::memcpy(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, revision_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, revision_),
-           offsetof(Impl_, status_) -
+           offsetof(Impl_, latest_outcome_) -
                offsetof(Impl_, revision_) +
-               sizeof(Impl_::status_));
+               sizeof(Impl_::latest_outcome_));
 
   // @@protoc_insertion_point(copy_constructor:xtcp_treatment.v1.Experiment)
 }
@@ -7645,17 +7615,16 @@ PROTOBUF_NDEBUG_INLINE Experiment::Impl_::Impl_(
         ,
         id_(arena),
         location_(arena),
-        hypothesis_(arena),
-        latest_outcome_(arena) {}
+        hypothesis_(arena) {}
 
 inline void Experiment::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, treatment_),
            0,
-           offsetof(Impl_, status_) -
+           offsetof(Impl_, latest_outcome_) -
                offsetof(Impl_, treatment_) +
-               sizeof(Impl_::status_));
+               sizeof(Impl_::latest_outcome_));
 }
 Experiment::~Experiment() {
   // @@protoc_insertion_point(destructor:xtcp_treatment.v1.Experiment)
@@ -7671,7 +7640,6 @@ inline void Experiment::SharedDtor(MessageLite& self) {
   this_._impl_.id_.Destroy();
   this_._impl_.location_.Destroy();
   this_._impl_.hypothesis_.Destroy();
-  this_._impl_.latest_outcome_.Destroy();
   delete this_._impl_.treatment_;
   delete this_._impl_.policy_;
   delete this_._impl_.baseline_;
@@ -7730,37 +7698,34 @@ PROTOBUF_NOINLINE void Experiment::Clear() {
       this_._impl_.hypothesis_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      this_._impl_.latest_outcome_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       ABSL_DCHECK(this_._impl_.treatment_ != nullptr);
       this_._impl_.treatment_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       ABSL_DCHECK(this_._impl_.policy_ != nullptr);
       this_._impl_.policy_->Clear();
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00000700U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       ABSL_DCHECK(this_._impl_.baseline_ != nullptr);
       this_._impl_.baseline_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00000300U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       ABSL_DCHECK(this_._impl_.proposed_at_ != nullptr);
       this_._impl_.proposed_at_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       ABSL_DCHECK(this_._impl_.latest_evidence_ != nullptr);
       this_._impl_.latest_evidence_->Clear();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00001800U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00001c00U)) {
     ::memset(&this_._impl_.revision_, 0,
              static_cast<::size_t>(
-                 reinterpret_cast<char*>(&this_._impl_.status_) -
+                 reinterpret_cast<char*>(&this_._impl_.latest_outcome_) -
                  reinterpret_cast<char*>(&this_._impl_.revision_)) +
-                 sizeof(_impl_.status_));
+                 sizeof(_impl_.latest_outcome_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -7816,21 +7781,21 @@ PROTOBUF_NOINLINE void Experiment::Clear() {
   }
 
   // .xtcp_treatment.v1.Treatment treatment = 4 [json_name = "treatment", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         4, *this_._impl_.treatment_, this_._impl_.treatment_->GetCachedSize(), target,
         stream);
   }
 
   // .xtcp_treatment.v1.ExperimentPolicy policy = 5 [json_name = "policy", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         5, *this_._impl_.policy_, this_._impl_.policy_->GetCachedSize(), target,
         stream);
   }
 
   // .xtcp_treatment.v1.Evidence baseline = 6 [json_name = "baseline", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         6, *this_._impl_.baseline_, this_._impl_.baseline_->GetCachedSize(), target,
         stream);
@@ -7859,7 +7824,7 @@ PROTOBUF_NOINLINE void Experiment::Clear() {
   }
 
   // .xtcp_treatment.v1.ExperimentStatus status = 9 [json_name = "status", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
     if (this_._internal_status() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -7868,7 +7833,7 @@ PROTOBUF_NOINLINE void Experiment::Clear() {
   }
 
   // uint64 revision = 10 [json_name = "revision"];
-  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
     if (this_._internal_revision() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
@@ -7877,26 +7842,25 @@ PROTOBUF_NOINLINE void Experiment::Clear() {
   }
 
   // .google.protobuf.Timestamp proposed_at = 11 [json_name = "proposedAt"];
-  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         11, *this_._impl_.proposed_at_, this_._impl_.proposed_at_->GetCachedSize(), target,
         stream);
   }
 
   // .xtcp_treatment.v1.Evidence latest_evidence = 12 [json_name = "latestEvidence"];
-  if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         12, *this_._impl_.latest_evidence_, this_._impl_.latest_evidence_->GetCachedSize(), target,
         stream);
   }
 
-  // string latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-    if (!this_._internal_latest_outcome().empty()) {
-      const ::std::string& _s = this_._internal_latest_outcome();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_treatment.v1.Experiment.latest_outcome");
-      target = stream->WriteStringMaybeAliased(13, _s, target);
+  // .xtcp_treatment.v1.Outcome latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (this_._internal_latest_outcome() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          13, this_._internal_latest_outcome(), target);
     }
   }
 
@@ -7961,52 +7925,52 @@ PROTOBUF_NOINLINE void Experiment::Clear() {
                                         this_._internal_hypothesis());
       }
     }
-    // string latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (!this_._internal_latest_outcome().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_latest_outcome());
-      }
-    }
     // .xtcp_treatment.v1.Treatment treatment = 4 [json_name = "treatment", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.treatment_);
     }
     // .xtcp_treatment.v1.ExperimentPolicy policy = 5 [json_name = "policy", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.policy_);
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00001f00U)) {
     // .xtcp_treatment.v1.Evidence baseline = 6 [json_name = "baseline", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.baseline_);
     }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00001f00U)) {
     // .google.protobuf.Timestamp proposed_at = 11 [json_name = "proposedAt"];
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.proposed_at_);
     }
     // .xtcp_treatment.v1.Evidence latest_evidence = 12 [json_name = "latestEvidence"];
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.latest_evidence_);
     }
     // uint64 revision = 10 [json_name = "revision"];
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
       if (this_._internal_revision() != 0) {
         total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
             this_._internal_revision());
       }
     }
     // .xtcp_treatment.v1.ExperimentStatus status = 9 [json_name = "status", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (this_._internal_status() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_status());
+      }
+    }
+    // .xtcp_treatment.v1.Outcome latest_outcome = 13 [json_name = "latestOutcome", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (this_._internal_latest_outcome() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_latest_outcome());
       }
     }
   }
@@ -8067,15 +8031,6 @@ void Experiment::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (!from._internal_latest_outcome().empty()) {
-        _this->_internal_set_latest_outcome(from._internal_latest_outcome());
-      } else {
-        if (_this->_impl_.latest_outcome_.IsDefault()) {
-          _this->_internal_set_latest_outcome("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       ABSL_DCHECK(from._impl_.treatment_ != nullptr);
       if (_this->_impl_.treatment_ == nullptr) {
         _this->_impl_.treatment_ = Super_::CopyConstruct(arena, *from._impl_.treatment_);
@@ -8083,7 +8038,7 @@ void Experiment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.treatment_->MergeFrom(*from._impl_.treatment_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       ABSL_DCHECK(from._impl_.policy_ != nullptr);
       if (_this->_impl_.policy_ == nullptr) {
         _this->_impl_.policy_ = Super_::CopyConstruct(arena, *from._impl_.policy_);
@@ -8091,9 +8046,7 @@ void Experiment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.policy_->MergeFrom(*from._impl_.policy_);
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00001f00U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       ABSL_DCHECK(from._impl_.baseline_ != nullptr);
       if (_this->_impl_.baseline_ == nullptr) {
         _this->_impl_.baseline_ = Super_::CopyConstruct(arena, *from._impl_.baseline_);
@@ -8101,7 +8054,9 @@ void Experiment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.baseline_->MergeFrom(*from._impl_.baseline_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x00001f00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       ABSL_DCHECK(from._impl_.proposed_at_ != nullptr);
       if (_this->_impl_.proposed_at_ == nullptr) {
         _this->_impl_.proposed_at_ = Super_::CopyConstruct(arena, *from._impl_.proposed_at_);
@@ -8109,7 +8064,7 @@ void Experiment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.proposed_at_->MergeFrom(*from._impl_.proposed_at_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       ABSL_DCHECK(from._impl_.latest_evidence_ != nullptr);
       if (_this->_impl_.latest_evidence_ == nullptr) {
         _this->_impl_.latest_evidence_ = Super_::CopyConstruct(arena, *from._impl_.latest_evidence_);
@@ -8117,14 +8072,19 @@ void Experiment::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.latest_evidence_->MergeFrom(*from._impl_.latest_evidence_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000400U)) {
       if (from._internal_revision() != 0) {
         _this->_impl_.revision_ = from._impl_.revision_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000800U)) {
       if (from._internal_status() != 0) {
         _this->_impl_.status_ = from._impl_.status_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+      if (from._internal_latest_outcome() != 0) {
+        _this->_impl_.latest_outcome_ = from._impl_.latest_outcome_;
       }
     }
   }
@@ -8152,10 +8112,9 @@ void Experiment::InternalSwap(Experiment* PROTOBUF_RESTRICT PROTOBUF_NONNULL oth
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.id_, &other->_impl_.id_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.location_, &other->_impl_.location_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.hypothesis_, &other->_impl_.hypothesis_, arena);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.latest_outcome_, &other->_impl_.latest_outcome_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(Experiment, _impl_.status_)
-      + sizeof(Experiment::_impl_.status_)
+      PROTOBUF_FIELD_OFFSET(Experiment, _impl_.latest_outcome_)
+      + sizeof(Experiment::_impl_.latest_outcome_)
       - PROTOBUF_FIELD_OFFSET(Experiment, _impl_.treatment_)>(
           reinterpret_cast<char*>(&_impl_.treatment_),
           reinterpret_cast<char*>(&other->_impl_.treatment_));

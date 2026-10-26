@@ -68,6 +68,45 @@ final $typed_data.Uint8List applyStatusDescriptor = $convert.base64Decode(
     'U19SRU1PVkVEEAMSGAoUQVBQTFlfU1RBVFVTX0VYUElSRUQQBBIXChNBUFBMWV9TVEFUVVNfRk'
     'FJTEVEEAU=');
 
+@$core.Deprecated('Use outcomeDescriptor instead')
+const Outcome$json = {
+  '1': 'Outcome',
+  '2': [
+    {'1': 'OUTCOME_UNSPECIFIED', '2': 0},
+    {'1': 'OUTCOME_BASELINE', '2': 1},
+    {'1': 'OUTCOME_AWAITING_APPLICATION', '2': 2},
+    {'1': 'OUTCOME_AWAITING_EXPOSURE', '2': 3},
+    {'1': 'OUTCOME_INSUFFICIENT_DURATION', '2': 4},
+    {'1': 'OUTCOME_INSUFFICIENT_DATA', '2': 5},
+    {'1': 'OUTCOME_INSUFFICIENT_CONTROLS', '2': 6},
+    {'1': 'OUTCOME_STALE', '2': 7},
+    {'1': 'OUTCOME_UNAVAILABLE', '2': 8},
+    {'1': 'OUTCOME_INCONCLUSIVE', '2': 9},
+    {'1': 'OUTCOME_SAFETY_ONLY', '2': 10},
+    {'1': 'OUTCOME_FINAL_SAFETY', '2': 11},
+    {'1': 'OUTCOME_BENEFICIAL', '2': 12},
+    {'1': 'OUTCOME_HARMFUL', '2': 13},
+    {'1': 'OUTCOME_EXPIRED', '2': 14},
+    {'1': 'OUTCOME_STABLE_OBSERVED', '2': 15},
+    {'1': 'OUTCOME_STABLE_EVIDENCE_INCOMPLETE', '2': 16},
+    {'1': 'OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED', '2': 17},
+    {'1': 'OUTCOME_OBSERVING', '2': 18},
+  ],
+};
+
+/// Descriptor for `Outcome`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List outcomeDescriptor = $convert.base64Decode(
+    'CgdPdXRjb21lEhcKE09VVENPTUVfVU5TUEVDSUZJRUQQABIUChBPVVRDT01FX0JBU0VMSU5FEA'
+    'ESIAocT1VUQ09NRV9BV0FJVElOR19BUFBMSUNBVElPThACEh0KGU9VVENPTUVfQVdBSVRJTkdf'
+    'RVhQT1NVUkUQAxIhCh1PVVRDT01FX0lOU1VGRklDSUVOVF9EVVJBVElPThAEEh0KGU9VVENPTU'
+    'VfSU5TVUZGSUNJRU5UX0RBVEEQBRIhCh1PVVRDT01FX0lOU1VGRklDSUVOVF9DT05UUk9MUxAG'
+    'EhEKDU9VVENPTUVfU1RBTEUQBxIXChNPVVRDT01FX1VOQVZBSUxBQkxFEAgSGAoUT1VUQ09NRV'
+    '9JTkNPTkNMVVNJVkUQCRIXChNPVVRDT01FX1NBRkVUWV9PTkxZEAoSGAoUT1VUQ09NRV9GSU5B'
+    'TF9TQUZFVFkQCxIWChJPVVRDT01FX0JFTkVGSUNJQUwQDBITCg9PVVRDT01FX0hBUk1GVUwQDR'
+    'ITCg9PVVRDT01FX0VYUElSRUQQDhIbChdPVVRDT01FX1NUQUJMRV9PQlNFUlZFRBAPEiYKIk9V'
+    'VENPTUVfU1RBQkxFX0VWSURFTkNFX0lOQ09NUExFVEUQEBItCilPVVRDT01FX1NUQUJMRV9SRU'
+    'dSRVNTSU9OX1JFVklFV19SRVFVSVJFRBAREhUKEU9VVENPTUVfT0JTRVJWSU5HEBI=');
+
 @$core.Deprecated('Use experimentStatusDescriptor instead')
 const ExperimentStatus$json = {
   '1': 'ExperimentStatus',
@@ -222,7 +261,6 @@ final $typed_data.Uint8List treatmentDescriptor = $convert.base64Decode(
 const Assignment$json = {
   '1': 'Assignment',
   '2': [
-    {'1': 'id', '3': 1, '4': 1, '5': 9, '8': {}, '10': 'id'},
     {
       '1': 'experiment_id',
       '3': 2,
@@ -268,24 +306,27 @@ const Assignment$json = {
     {'1': 'generation', '3': 7, '4': 1, '5': 4, '8': {}, '10': 'generation'},
   ],
   '7': {},
+  '9': [
+    {'1': 1, '2': 2},
+  ],
+  '10': ['id'],
 };
 
 /// Descriptor for `Assignment`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List assignmentDescriptor = $convert.base64Decode(
-    'CgpBc3NpZ25tZW50EjkKAmlkGAEgASgJQim6SCZyJDIiXlthLXpBLVowLTldW2EtekEtWjAtOV'
-    '8uLV17MCwxMjd9JFICaWQSTgoNZXhwZXJpbWVudF9pZBgCIAEoCUIpukgmciQyIl5bYS16QS1a'
-    'MC05XVthLXpBLVowLTlfLi1dezAsMTI3fSRSDGV4cGVyaW1lbnRJZBJCCgl0cmVhdG1lbnQYAy'
-    'ABKAsyHC54dGNwX3RyZWF0bWVudC52MS5UcmVhdG1lbnRCBrpIA8gBAVIJdHJlYXRtZW50EkEK'
-    'BG1vZGUYBCABKA4yIS54dGNwX3RyZWF0bWVudC52MS5Bc3NpZ25tZW50TW9kZUIKukgHggEEEA'
-    'EgAFIEbW9kZRJEChBsZWFzZV9leHBpcmVzX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRp'
-    'bWVzdGFtcFIObGVhc2VFeHBpcmVzQXQSPgoLcHJlZGVjZXNzb3IYBiABKAsyHC54dGNwX3RyZW'
-    'F0bWVudC52MS5UcmVhdG1lbnRSC3ByZWRlY2Vzc29yEicKCmdlbmVyYXRpb24YByABKARCB7pI'
-    'BDICIABSCmdlbmVyYXRpb246rQK6SKkCGn0KH2Fzc2lnbm1lbnQudHJpYWxfcmVxdWlyZXNfbG'
-    'Vhc2USLGEgdHJpYWwgYXNzaWdubWVudCByZXF1aXJlcyBsZWFzZV9leHBpcmVzX2F0Gix0aGlz'
-    'Lm1vZGUgIT0gMSB8fCBoYXModGhpcy5sZWFzZV9leHBpcmVzX2F0KRqnAQoiYXNzaWdubWVudC'
-    '5wcmVkZWNlc3Nvcl9kZXN0aW5hdGlvbhIrcHJlZGVjZXNzb3IgbXVzdCBjb3ZlciB0aGUgc2Ft'
-    'ZSBkZXN0aW5hdGlvbhpUIWhhcyh0aGlzLnByZWRlY2Vzc29yKSB8fCB0aGlzLnByZWRlY2Vzc2'
-    '9yLmRlc3RpbmF0aW9uID09IHRoaXMudHJlYXRtZW50LmRlc3RpbmF0aW9u');
+    'CgpBc3NpZ25tZW50Ek4KDWV4cGVyaW1lbnRfaWQYAiABKAlCKbpIJnIkMiJeW2EtekEtWjAtOV'
+    '1bYS16QS1aMC05Xy4tXXswLDEyN30kUgxleHBlcmltZW50SWQSQgoJdHJlYXRtZW50GAMgASgL'
+    'MhwueHRjcF90cmVhdG1lbnQudjEuVHJlYXRtZW50Qga6SAPIAQFSCXRyZWF0bWVudBJBCgRtb2'
+    'RlGAQgASgOMiEueHRjcF90cmVhdG1lbnQudjEuQXNzaWdubWVudE1vZGVCCrpIB4IBBBABIABS'
+    'BG1vZGUSRAoQbGVhc2VfZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3'
+    'RhbXBSDmxlYXNlRXhwaXJlc0F0Ej4KC3ByZWRlY2Vzc29yGAYgASgLMhwueHRjcF90cmVhdG1l'
+    'bnQudjEuVHJlYXRtZW50UgtwcmVkZWNlc3NvchInCgpnZW5lcmF0aW9uGAcgASgEQge6SAQyAi'
+    'AAUgpnZW5lcmF0aW9uOq0CukipAhp9Ch9hc3NpZ25tZW50LnRyaWFsX3JlcXVpcmVzX2xlYXNl'
+    'EixhIHRyaWFsIGFzc2lnbm1lbnQgcmVxdWlyZXMgbGVhc2VfZXhwaXJlc19hdBosdGhpcy5tb2'
+    'RlICE9IDEgfHwgaGFzKHRoaXMubGVhc2VfZXhwaXJlc19hdCkapwEKImFzc2lnbm1lbnQucHJl'
+    'ZGVjZXNzb3JfZGVzdGluYXRpb24SK3ByZWRlY2Vzc29yIG11c3QgY292ZXIgdGhlIHNhbWUgZG'
+    'VzdGluYXRpb24aVCFoYXModGhpcy5wcmVkZWNlc3NvcikgfHwgdGhpcy5wcmVkZWNlc3Nvci5k'
+    'ZXN0aW5hdGlvbiA9PSB0aGlzLnRyZWF0bWVudC5kZXN0aW5hdGlvbkoECAEQAlICaWQ=');
 
 @$core.Deprecated('Use desiredStateDescriptor instead')
 const DesiredState$json = {
@@ -794,7 +835,15 @@ const Phase$json = {
       '6': '.xtcp_treatment.v1.Evidence',
       '10': 'evidence'
     },
-    {'1': 'outcome', '3': 6, '4': 1, '5': 9, '8': {}, '10': 'outcome'},
+    {
+      '1': 'outcome',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.xtcp_treatment.v1.Outcome',
+      '8': {},
+      '10': 'outcome'
+    },
     {'1': 'reviewer', '3': 7, '4': 1, '5': 9, '8': {}, '10': 'reviewer'},
     {'1': 'reason', '3': 8, '4': 1, '5': 9, '8': {}, '10': 'reason'},
   ],
@@ -807,9 +856,10 @@ final $typed_data.Uint8List phaseDescriptor = $convert.base64Decode(
     'ElAKFm9ic2VydmF0aW9uX3N0YXJ0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZX'
     'N0YW1wUhRvYnNlcnZhdGlvblN0YXJ0ZWRBdBI9CgxldmFsdWF0ZWRfYXQYBCABKAsyGi5nb29n'
     'bGUucHJvdG9idWYuVGltZXN0YW1wUgtldmFsdWF0ZWRBdBI3CghldmlkZW5jZRgFIAEoCzIbLn'
-    'h0Y3BfdHJlYXRtZW50LnYxLkV2aWRlbmNlUghldmlkZW5jZRIhCgdvdXRjb21lGAYgASgJQge6'
-    'SARyAhhAUgdvdXRjb21lEiQKCHJldmlld2VyGAcgASgJQgi6SAVyAxiAAVIIcmV2aWV3ZXISIA'
-    'oGcmVhc29uGAggASgJQgi6SAVyAxiAIFIGcmVhc29u');
+    'h0Y3BfdHJlYXRtZW50LnYxLkV2aWRlbmNlUghldmlkZW5jZRI+CgdvdXRjb21lGAYgASgOMhou'
+    'eHRjcF90cmVhdG1lbnQudjEuT3V0Y29tZUIIukgFggECEAFSB291dGNvbWUSJAoIcmV2aWV3ZX'
+    'IYByABKAlCCLpIBXIDGIABUghyZXZpZXdlchIgCgZyZWFzb24YCCABKAlCCLpIBXIDGIAgUgZy'
+    'ZWFzb24=');
 
 @$core.Deprecated('Use experimentDescriptor instead')
 const Experiment$json = {
@@ -885,7 +935,8 @@ const Experiment$json = {
       '1': 'latest_outcome',
       '3': 13,
       '4': 1,
-      '5': 9,
+      '5': 14,
+      '6': '.xtcp_treatment.v1.Outcome',
       '8': {},
       '10': 'latestOutcome'
     },
@@ -907,5 +958,6 @@ final $typed_data.Uint8List experimentDescriptor = $convert.base64Decode(
     'Iy54dGNwX3RyZWF0bWVudC52MS5FeHBlcmltZW50U3RhdHVzQgi6SAWCAQIQAVIGc3RhdHVzEh'
     'oKCHJldmlzaW9uGAogASgEUghyZXZpc2lvbhI7Cgtwcm9wb3NlZF9hdBgLIAEoCzIaLmdvb2ds'
     'ZS5wcm90b2J1Zi5UaW1lc3RhbXBSCnByb3Bvc2VkQXQSRAoPbGF0ZXN0X2V2aWRlbmNlGAwgAS'
-    'gLMhsueHRjcF90cmVhdG1lbnQudjEuRXZpZGVuY2VSDmxhdGVzdEV2aWRlbmNlEi4KDmxhdGVz'
-    'dF9vdXRjb21lGA0gASgJQge6SARyAhhAUg1sYXRlc3RPdXRjb21l');
+    'gLMhsueHRjcF90cmVhdG1lbnQudjEuRXZpZGVuY2VSDmxhdGVzdEV2aWRlbmNlEksKDmxhdGVz'
+    'dF9vdXRjb21lGA0gASgOMhoueHRjcF90cmVhdG1lbnQudjEuT3V0Y29tZUIIukgFggECEAFSDW'
+    'xhdGVzdE91dGNvbWU=');

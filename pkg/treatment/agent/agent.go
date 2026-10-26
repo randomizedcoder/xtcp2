@@ -370,7 +370,7 @@ func (a *Agent) Stamp(r *flat.XtcpFlatRecord) {
 		if a.Mode == pb.AssignmentMode_ASSIGNMENT_MODE_TRIAL && (a.LeaseExpiresAt == nil || !a.LeaseExpiresAt.AsTime().After(time.Now())) {
 			return
 		}
-		r.TreatmentAssignmentId = a.Id
+		r.TreatmentAssignmentId = a.ExperimentId
 		r.TreatmentGeneration = a.Generation
 		r.TreatmentAppliedTimestampNs = v.AppliedAt.AsTime().UnixNano()
 		r.TreatmentAlgorithmExposed = a.Treatment.Settings.GetCongestionControl() != "" && r.InetDiagCong == a.Treatment.Settings.GetCongestionControl()

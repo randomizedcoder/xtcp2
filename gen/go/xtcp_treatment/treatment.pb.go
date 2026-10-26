@@ -210,6 +210,116 @@ func (ApplyStatus) EnumDescriptor() ([]byte, []int) {
 	return file_xtcp_treatment_v1_treatment_proto_rawDescGZIP(), []int{2}
 }
 
+// Outcome is the result of evaluating one evidence window against a phase,
+// or the standing of a completed treatment under drift monitoring. Only
+// BENEFICIAL, SAFETY_ONLY and FINAL_SAFETY can advance a phase, and only
+// after an operator review; HARMFUL and EXPIRED withdraw automatically.
+type Outcome int32
+
+const (
+	Outcome_OUTCOME_UNSPECIFIED Outcome = 0
+	// Analysis of a proposal that has no phase yet.
+	Outcome_OUTCOME_BASELINE Outcome = 1
+	// Not every treated host has verified the assignment.
+	Outcome_OUTCOME_AWAITING_APPLICATION Outcome = 2
+	// Treated hosts have not yet carried enough exposed sockets.
+	Outcome_OUTCOME_AWAITING_EXPOSURE     Outcome = 3
+	Outcome_OUTCOME_INSUFFICIENT_DURATION Outcome = 4
+	Outcome_OUTCOME_INSUFFICIENT_DATA     Outcome = 5
+	Outcome_OUTCOME_INSUFFICIENT_CONTROLS Outcome = 6
+	Outcome_OUTCOME_STALE                 Outcome = 7
+	// No evidence source was available for this maintenance pass.
+	Outcome_OUTCOME_UNAVAILABLE  Outcome = 8
+	Outcome_OUTCOME_INCONCLUSIVE Outcome = 9
+	// Cohort too small for a causal estimate; no regression observed.
+	Outcome_OUTCOME_SAFETY_ONLY Outcome = 10
+	// Final 100% phase: no controls remain; no regression observed.
+	Outcome_OUTCOME_FINAL_SAFETY Outcome = 11
+	Outcome_OUTCOME_BENEFICIAL   Outcome = 12
+	Outcome_OUTCOME_HARMFUL      Outcome = 13
+	Outcome_OUTCOME_EXPIRED      Outcome = 14
+	// Completed treatment under drift monitoring.
+	Outcome_OUTCOME_STABLE_OBSERVED                   Outcome = 15
+	Outcome_OUTCOME_STABLE_EVIDENCE_INCOMPLETE        Outcome = 16
+	Outcome_OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED Outcome = 17
+	// Every treated host has verified the assignment; the observation window
+	// is open and no evidence has been evaluated yet.
+	Outcome_OUTCOME_OBSERVING Outcome = 18
+)
+
+// Enum value maps for Outcome.
+var (
+	Outcome_name = map[int32]string{
+		0:  "OUTCOME_UNSPECIFIED",
+		1:  "OUTCOME_BASELINE",
+		2:  "OUTCOME_AWAITING_APPLICATION",
+		3:  "OUTCOME_AWAITING_EXPOSURE",
+		4:  "OUTCOME_INSUFFICIENT_DURATION",
+		5:  "OUTCOME_INSUFFICIENT_DATA",
+		6:  "OUTCOME_INSUFFICIENT_CONTROLS",
+		7:  "OUTCOME_STALE",
+		8:  "OUTCOME_UNAVAILABLE",
+		9:  "OUTCOME_INCONCLUSIVE",
+		10: "OUTCOME_SAFETY_ONLY",
+		11: "OUTCOME_FINAL_SAFETY",
+		12: "OUTCOME_BENEFICIAL",
+		13: "OUTCOME_HARMFUL",
+		14: "OUTCOME_EXPIRED",
+		15: "OUTCOME_STABLE_OBSERVED",
+		16: "OUTCOME_STABLE_EVIDENCE_INCOMPLETE",
+		17: "OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED",
+		18: "OUTCOME_OBSERVING",
+	}
+	Outcome_value = map[string]int32{
+		"OUTCOME_UNSPECIFIED":                       0,
+		"OUTCOME_BASELINE":                          1,
+		"OUTCOME_AWAITING_APPLICATION":              2,
+		"OUTCOME_AWAITING_EXPOSURE":                 3,
+		"OUTCOME_INSUFFICIENT_DURATION":             4,
+		"OUTCOME_INSUFFICIENT_DATA":                 5,
+		"OUTCOME_INSUFFICIENT_CONTROLS":             6,
+		"OUTCOME_STALE":                             7,
+		"OUTCOME_UNAVAILABLE":                       8,
+		"OUTCOME_INCONCLUSIVE":                      9,
+		"OUTCOME_SAFETY_ONLY":                       10,
+		"OUTCOME_FINAL_SAFETY":                      11,
+		"OUTCOME_BENEFICIAL":                        12,
+		"OUTCOME_HARMFUL":                           13,
+		"OUTCOME_EXPIRED":                           14,
+		"OUTCOME_STABLE_OBSERVED":                   15,
+		"OUTCOME_STABLE_EVIDENCE_INCOMPLETE":        16,
+		"OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED": 17,
+		"OUTCOME_OBSERVING":                         18,
+	}
+)
+
+func (x Outcome) Enum() *Outcome {
+	p := new(Outcome)
+	*p = x
+	return p
+}
+
+func (x Outcome) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Outcome) Descriptor() protoreflect.EnumDescriptor {
+	return file_xtcp_treatment_v1_treatment_proto_enumTypes[3].Descriptor()
+}
+
+func (Outcome) Type() protoreflect.EnumType {
+	return &file_xtcp_treatment_v1_treatment_proto_enumTypes[3]
+}
+
+func (x Outcome) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Outcome.Descriptor instead.
+func (Outcome) EnumDescriptor() ([]byte, []int) {
+	return file_xtcp_treatment_v1_treatment_proto_rawDescGZIP(), []int{3}
+}
+
 type ExperimentStatus int32
 
 const (
@@ -258,11 +368,11 @@ func (x ExperimentStatus) String() string {
 }
 
 func (ExperimentStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_xtcp_treatment_v1_treatment_proto_enumTypes[3].Descriptor()
+	return file_xtcp_treatment_v1_treatment_proto_enumTypes[4].Descriptor()
 }
 
 func (ExperimentStatus) Type() protoreflect.EnumType {
-	return &file_xtcp_treatment_v1_treatment_proto_enumTypes[3]
+	return &file_xtcp_treatment_v1_treatment_proto_enumTypes[4]
 }
 
 func (x ExperimentStatus) Number() protoreflect.EnumNumber {
@@ -271,7 +381,7 @@ func (x ExperimentStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ExperimentStatus.Descriptor instead.
 func (ExperimentStatus) EnumDescriptor() ([]byte, []int) {
-	return file_xtcp_treatment_v1_treatment_proto_rawDescGZIP(), []int{3}
+	return file_xtcp_treatment_v1_treatment_proto_rawDescGZIP(), []int{4}
 }
 
 // TCPSettings are the per-route TCP parameters a treatment installs. Every
@@ -449,7 +559,6 @@ func (x *Treatment) GetEcnFabricVerified() bool {
 
 type Assignment struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ExperimentId   string                 `protobuf:"bytes,2,opt,name=experiment_id,json=experimentId,proto3" json:"experiment_id,omitempty"`
 	Treatment      *Treatment             `protobuf:"bytes,3,opt,name=treatment,proto3" json:"treatment,omitempty"`
 	Mode           AssignmentMode         `protobuf:"varint,4,opt,name=mode,proto3,enum=xtcp_treatment.v1.AssignmentMode" json:"mode,omitempty"`
@@ -490,13 +599,6 @@ func (x *Assignment) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Assignment.ProtoReflect.Descriptor instead.
 func (*Assignment) Descriptor() ([]byte, []int) {
 	return file_xtcp_treatment_v1_treatment_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *Assignment) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
 }
 
 func (x *Assignment) GetExperimentId() string {
@@ -1225,7 +1327,7 @@ type Phase struct {
 	ObservationStartedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=observation_started_at,json=observationStartedAt,proto3" json:"observation_started_at,omitempty"`
 	EvaluatedAt          *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=evaluated_at,json=evaluatedAt,proto3" json:"evaluated_at,omitempty"`
 	Evidence             *Evidence              `protobuf:"bytes,5,opt,name=evidence,proto3" json:"evidence,omitempty"`
-	Outcome              string                 `protobuf:"bytes,6,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	Outcome              Outcome                `protobuf:"varint,6,opt,name=outcome,proto3,enum=xtcp_treatment.v1.Outcome" json:"outcome,omitempty"`
 	Reviewer             string                 `protobuf:"bytes,7,opt,name=reviewer,proto3" json:"reviewer,omitempty"`
 	Reason               string                 `protobuf:"bytes,8,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields        protoimpl.UnknownFields
@@ -1297,11 +1399,11 @@ func (x *Phase) GetEvidence() *Evidence {
 	return nil
 }
 
-func (x *Phase) GetOutcome() string {
+func (x *Phase) GetOutcome() Outcome {
 	if x != nil {
 		return x.Outcome
 	}
-	return ""
+	return Outcome_OUTCOME_UNSPECIFIED
 }
 
 func (x *Phase) GetReviewer() string {
@@ -1333,7 +1435,7 @@ type Experiment struct {
 	Revision       uint64                 `protobuf:"varint,10,opt,name=revision,proto3" json:"revision,omitempty"`
 	ProposedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=proposed_at,json=proposedAt,proto3" json:"proposed_at,omitempty"`
 	LatestEvidence *Evidence              `protobuf:"bytes,12,opt,name=latest_evidence,json=latestEvidence,proto3" json:"latest_evidence,omitempty"`
-	LatestOutcome  string                 `protobuf:"bytes,13,opt,name=latest_outcome,json=latestOutcome,proto3" json:"latest_outcome,omitempty"`
+	LatestOutcome  Outcome                `protobuf:"varint,13,opt,name=latest_outcome,json=latestOutcome,proto3,enum=xtcp_treatment.v1.Outcome" json:"latest_outcome,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1452,11 +1554,11 @@ func (x *Experiment) GetLatestEvidence() *Evidence {
 	return nil
 }
 
-func (x *Experiment) GetLatestOutcome() string {
+func (x *Experiment) GetLatestOutcome() Outcome {
 	if x != nil {
 		return x.LatestOutcome
 	}
-	return ""
+	return Outcome_OUTCOME_UNSPECIFIED
 }
 
 var file_xtcp_treatment_v1_treatment_proto_extTypes = []protoimpl.ExtensionInfo{
@@ -1511,10 +1613,9 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\xbaH\ar\x05\x181\xe8\x01\x01R\vdestination\x12B\n" +
 	"\bsettings\x18\x04 \x01(\v2\x1e.xtcp_treatment.v1.TCPSettingsB\x06\xbaH\x03\xc8\x01\x01R\bsettings\x12.\n" +
 	"\x13ecn_fabric_verified\x18\x05 \x01(\bR\x11ecnFabricVerified:\xc8\x01\xbaH\xc4\x01\x1a\xc1\x01\n" +
-	"\x1ctreatment.dctcp_requires_ecn\x12ADCTCP requires independently verified ECN fabric and explicit ECN\x1a^this.settings.congestion_control != 'dctcp' || (this.ecn_fabric_verified && this.settings.ecn)\"\xfd\x05\n" +
+	"\x1ctreatment.dctcp_requires_ecn\x12ADCTCP requires independently verified ECN fabric and explicit ECN\x1a^this.settings.congestion_control != 'dctcp' || (this.ecn_fabric_verified && this.settings.ecn)\"\xcc\x05\n" +
 	"\n" +
-	"Assignment\x129\n" +
-	"\x02id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\x02id\x12N\n" +
+	"Assignment\x12N\n" +
 	"\rexperiment_id\x18\x02 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\fexperimentId\x12B\n" +
 	"\ttreatment\x18\x03 \x01(\v2\x1c.xtcp_treatment.v1.TreatmentB\x06\xbaH\x03\xc8\x01\x01R\ttreatment\x12A\n" +
 	"\x04mode\x18\x04 \x01(\x0e2!.xtcp_treatment.v1.AssignmentModeB\n" +
@@ -1525,7 +1626,7 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"generation\x18\a \x01(\x04B\a\xbaH\x042\x02 \x00R\n" +
 	"generation:\xad\x02\xbaH\xa9\x02\x1a}\n" +
 	"\x1fassignment.trial_requires_lease\x12,a trial assignment requires lease_expires_at\x1a,this.mode != 1 || has(this.lease_expires_at)\x1a\xa7\x01\n" +
-	"\"assignment.predecessor_destination\x12+predecessor must cover the same destination\x1aT!has(this.predecessor) || this.predecessor.destination == this.treatment.destination\"\xa4\x02\n" +
+	"\"assignment.predecessor_destination\x12+predecessor must cover the same destination\x1aT!has(this.predecessor) || this.predecessor.destination == this.treatment.destinationJ\x04\b\x01\x10\x02R\x02id\"\xa4\x02\n" +
 	"\fDesiredState\x12D\n" +
 	"\bagent_id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\aagentId\x12#\n" +
 	"\brevision\x18\x02 \x01(\x04B\a\xbaH\x042\x02 \x00R\brevision\x12\x1c\n" +
@@ -1603,17 +1704,17 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\x1fmaximum_retransmission_increase\x18\a \x01(\x01B\x19\xbaH\x16\x12\x14@\x01\x19\x00\x00\x00\x00\x00\x00\xf0?)\x00\x00\x00\x00\x00\x00\x00\x00R\x1dmaximumRetransmissionIncrease\x12K\n" +
 	"\x14maximum_rtt_increase\x18\b \x01(\x01B\x19\xbaH\x16\x12\x14@\x01\x19\x00\x00\x00\x00\x00\x00\xf0?)\x00\x00\x00\x00\x00\x00\x00\x00R\x12maximumRttIncrease\x12^\n" +
 	"\x14maximum_evidence_age\x18\t \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$*\x00R\x12maximumEvidenceAge:\x89\x01\xbaH\x85\x01\x1a\x82\x01\n" +
-	"\x1fpolicy.observation_within_phase\x12/minimum_observation cannot exceed maximum_phase\x1a.this.minimum_observation <= this.maximum_phase\"\xa4\x03\n" +
+	"\x1fpolicy.observation_within_phase\x12/minimum_observation cannot exceed maximum_phase\x1a.this.minimum_observation <= this.maximum_phase\"\xc1\x03\n" +
 	"\x05Phase\x12-\n" +
 	"\ftarget_hosts\x18\x01 \x01(\rB\n" +
 	"\xbaH\a*\x05\x18\x90N(\x01R\vtargetHosts\x127\n" +
 	"\tissued_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bissuedAt\x12P\n" +
 	"\x16observation_started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x14observationStartedAt\x12=\n" +
 	"\fevaluated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vevaluatedAt\x127\n" +
-	"\bevidence\x18\x05 \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\bevidence\x12!\n" +
-	"\aoutcome\x18\x06 \x01(\tB\a\xbaH\x04r\x02\x18@R\aoutcome\x12$\n" +
+	"\bevidence\x18\x05 \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\bevidence\x12>\n" +
+	"\aoutcome\x18\x06 \x01(\x0e2\x1a.xtcp_treatment.v1.OutcomeB\b\xbaH\x05\x82\x01\x02\x10\x01R\aoutcome\x12$\n" +
 	"\breviewer\x18\a \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01R\breviewer\x12 \n" +
-	"\x06reason\x18\b \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x06reason\"\xb0\x06\n" +
+	"\x06reason\x18\b \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x06reason\"\xcd\x06\n" +
 	"\n" +
 	"Experiment\x129\n" +
 	"\x02id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\x02id\x12E\n" +
@@ -1632,8 +1733,8 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	" \x01(\x04R\brevision\x12;\n" +
 	"\vproposed_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"proposedAt\x12D\n" +
-	"\x0flatest_evidence\x18\f \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\x0elatestEvidence\x12.\n" +
-	"\x0elatest_outcome\x18\r \x01(\tB\a\xbaH\x04r\x02\x18@R\rlatestOutcome*?\n" +
+	"\x0flatest_evidence\x18\f \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\x0elatestEvidence\x12K\n" +
+	"\x0elatest_outcome\x18\r \x01(\x0e2\x1a.xtcp_treatment.v1.OutcomeB\b\xbaH\x05\x82\x01\x02\x10\x01R\rlatestOutcome*?\n" +
 	"\x04Role\x12\x14\n" +
 	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -1651,7 +1752,28 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\x15APPLY_STATUS_VERIFIED\x10\x02\x12\x18\n" +
 	"\x14APPLY_STATUS_REMOVED\x10\x03\x12\x18\n" +
 	"\x14APPLY_STATUS_EXPIRED\x10\x04\x12\x17\n" +
-	"\x13APPLY_STATUS_FAILED\x10\x05*\x95\x02\n" +
+	"\x13APPLY_STATUS_FAILED\x10\x05*\xa4\x04\n" +
+	"\aOutcome\x12\x17\n" +
+	"\x13OUTCOME_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10OUTCOME_BASELINE\x10\x01\x12 \n" +
+	"\x1cOUTCOME_AWAITING_APPLICATION\x10\x02\x12\x1d\n" +
+	"\x19OUTCOME_AWAITING_EXPOSURE\x10\x03\x12!\n" +
+	"\x1dOUTCOME_INSUFFICIENT_DURATION\x10\x04\x12\x1d\n" +
+	"\x19OUTCOME_INSUFFICIENT_DATA\x10\x05\x12!\n" +
+	"\x1dOUTCOME_INSUFFICIENT_CONTROLS\x10\x06\x12\x11\n" +
+	"\rOUTCOME_STALE\x10\a\x12\x17\n" +
+	"\x13OUTCOME_UNAVAILABLE\x10\b\x12\x18\n" +
+	"\x14OUTCOME_INCONCLUSIVE\x10\t\x12\x17\n" +
+	"\x13OUTCOME_SAFETY_ONLY\x10\n" +
+	"\x12\x18\n" +
+	"\x14OUTCOME_FINAL_SAFETY\x10\v\x12\x16\n" +
+	"\x12OUTCOME_BENEFICIAL\x10\f\x12\x13\n" +
+	"\x0fOUTCOME_HARMFUL\x10\r\x12\x13\n" +
+	"\x0fOUTCOME_EXPIRED\x10\x0e\x12\x1b\n" +
+	"\x17OUTCOME_STABLE_OBSERVED\x10\x0f\x12&\n" +
+	"\"OUTCOME_STABLE_EVIDENCE_INCOMPLETE\x10\x10\x12-\n" +
+	")OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED\x10\x11\x12\x15\n" +
+	"\x11OUTCOME_OBSERVING\x10\x12*\x95\x02\n" +
 	"\x10ExperimentStatus\x12!\n" +
 	"\x1dEXPERIMENT_STATUS_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aEXPERIMENT_STATUS_PROPOSED\x10\x01\x12\x1d\n" +
@@ -1676,72 +1798,75 @@ func file_xtcp_treatment_v1_treatment_proto_rawDescGZIP() []byte {
 	return file_xtcp_treatment_v1_treatment_proto_rawDescData
 }
 
-var file_xtcp_treatment_v1_treatment_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_xtcp_treatment_v1_treatment_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_xtcp_treatment_v1_treatment_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_xtcp_treatment_v1_treatment_proto_goTypes = []any{
 	(Role)(0),                          // 0: xtcp_treatment.v1.Role
 	(AssignmentMode)(0),                // 1: xtcp_treatment.v1.AssignmentMode
 	(ApplyStatus)(0),                   // 2: xtcp_treatment.v1.ApplyStatus
-	(ExperimentStatus)(0),              // 3: xtcp_treatment.v1.ExperimentStatus
-	(*TCPSettings)(nil),                // 4: xtcp_treatment.v1.TCPSettings
-	(*Treatment)(nil),                  // 5: xtcp_treatment.v1.Treatment
-	(*Assignment)(nil),                 // 6: xtcp_treatment.v1.Assignment
-	(*DesiredState)(nil),               // 7: xtcp_treatment.v1.DesiredState
-	(*Capabilities)(nil),               // 8: xtcp_treatment.v1.Capabilities
-	(*ApplicationRecord)(nil),          // 9: xtcp_treatment.v1.ApplicationRecord
-	(*LocalState)(nil),                 // 10: xtcp_treatment.v1.LocalState
-	(*HostEvidence)(nil),               // 11: xtcp_treatment.v1.HostEvidence
-	(*Evidence)(nil),                   // 12: xtcp_treatment.v1.Evidence
-	(*ExperimentPolicy)(nil),           // 13: xtcp_treatment.v1.ExperimentPolicy
-	(*Phase)(nil),                      // 14: xtcp_treatment.v1.Phase
-	(*Experiment)(nil),                 // 15: xtcp_treatment.v1.Experiment
-	(*timestamppb.Timestamp)(nil),      // 16: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),        // 17: google.protobuf.Duration
-	(*descriptorpb.MethodOptions)(nil), // 18: google.protobuf.MethodOptions
+	(Outcome)(0),                       // 3: xtcp_treatment.v1.Outcome
+	(ExperimentStatus)(0),              // 4: xtcp_treatment.v1.ExperimentStatus
+	(*TCPSettings)(nil),                // 5: xtcp_treatment.v1.TCPSettings
+	(*Treatment)(nil),                  // 6: xtcp_treatment.v1.Treatment
+	(*Assignment)(nil),                 // 7: xtcp_treatment.v1.Assignment
+	(*DesiredState)(nil),               // 8: xtcp_treatment.v1.DesiredState
+	(*Capabilities)(nil),               // 9: xtcp_treatment.v1.Capabilities
+	(*ApplicationRecord)(nil),          // 10: xtcp_treatment.v1.ApplicationRecord
+	(*LocalState)(nil),                 // 11: xtcp_treatment.v1.LocalState
+	(*HostEvidence)(nil),               // 12: xtcp_treatment.v1.HostEvidence
+	(*Evidence)(nil),                   // 13: xtcp_treatment.v1.Evidence
+	(*ExperimentPolicy)(nil),           // 14: xtcp_treatment.v1.ExperimentPolicy
+	(*Phase)(nil),                      // 15: xtcp_treatment.v1.Phase
+	(*Experiment)(nil),                 // 16: xtcp_treatment.v1.Experiment
+	(*timestamppb.Timestamp)(nil),      // 17: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),        // 18: google.protobuf.Duration
+	(*descriptorpb.MethodOptions)(nil), // 19: google.protobuf.MethodOptions
 }
 var file_xtcp_treatment_v1_treatment_proto_depIdxs = []int32{
-	4,  // 0: xtcp_treatment.v1.Treatment.settings:type_name -> xtcp_treatment.v1.TCPSettings
-	5,  // 1: xtcp_treatment.v1.Assignment.treatment:type_name -> xtcp_treatment.v1.Treatment
+	5,  // 0: xtcp_treatment.v1.Treatment.settings:type_name -> xtcp_treatment.v1.TCPSettings
+	6,  // 1: xtcp_treatment.v1.Assignment.treatment:type_name -> xtcp_treatment.v1.Treatment
 	1,  // 2: xtcp_treatment.v1.Assignment.mode:type_name -> xtcp_treatment.v1.AssignmentMode
-	16, // 3: xtcp_treatment.v1.Assignment.lease_expires_at:type_name -> google.protobuf.Timestamp
-	5,  // 4: xtcp_treatment.v1.Assignment.predecessor:type_name -> xtcp_treatment.v1.Treatment
-	6,  // 5: xtcp_treatment.v1.DesiredState.assignments:type_name -> xtcp_treatment.v1.Assignment
-	16, // 6: xtcp_treatment.v1.DesiredState.issued_at:type_name -> google.protobuf.Timestamp
-	6,  // 7: xtcp_treatment.v1.ApplicationRecord.assignment:type_name -> xtcp_treatment.v1.Assignment
+	17, // 3: xtcp_treatment.v1.Assignment.lease_expires_at:type_name -> google.protobuf.Timestamp
+	6,  // 4: xtcp_treatment.v1.Assignment.predecessor:type_name -> xtcp_treatment.v1.Treatment
+	7,  // 5: xtcp_treatment.v1.DesiredState.assignments:type_name -> xtcp_treatment.v1.Assignment
+	17, // 6: xtcp_treatment.v1.DesiredState.issued_at:type_name -> google.protobuf.Timestamp
+	7,  // 7: xtcp_treatment.v1.ApplicationRecord.assignment:type_name -> xtcp_treatment.v1.Assignment
 	2,  // 8: xtcp_treatment.v1.ApplicationRecord.status:type_name -> xtcp_treatment.v1.ApplyStatus
-	16, // 9: xtcp_treatment.v1.ApplicationRecord.received_at:type_name -> google.protobuf.Timestamp
-	16, // 10: xtcp_treatment.v1.ApplicationRecord.attempted_at:type_name -> google.protobuf.Timestamp
-	16, // 11: xtcp_treatment.v1.ApplicationRecord.applied_at:type_name -> google.protobuf.Timestamp
-	16, // 12: xtcp_treatment.v1.ApplicationRecord.verified_at:type_name -> google.protobuf.Timestamp
-	16, // 13: xtcp_treatment.v1.ApplicationRecord.removed_at:type_name -> google.protobuf.Timestamp
-	7,  // 14: xtcp_treatment.v1.LocalState.desired:type_name -> xtcp_treatment.v1.DesiredState
-	9,  // 15: xtcp_treatment.v1.LocalState.records:type_name -> xtcp_treatment.v1.ApplicationRecord
-	16, // 16: xtcp_treatment.v1.LocalState.updated_at:type_name -> google.protobuf.Timestamp
-	16, // 17: xtcp_treatment.v1.Evidence.analyzed_at:type_name -> google.protobuf.Timestamp
-	16, // 18: xtcp_treatment.v1.Evidence.window_start:type_name -> google.protobuf.Timestamp
-	16, // 19: xtcp_treatment.v1.Evidence.window_end:type_name -> google.protobuf.Timestamp
-	11, // 20: xtcp_treatment.v1.Evidence.hosts:type_name -> xtcp_treatment.v1.HostEvidence
-	17, // 21: xtcp_treatment.v1.ExperimentPolicy.minimum_observation:type_name -> google.protobuf.Duration
-	17, // 22: xtcp_treatment.v1.ExperimentPolicy.maximum_phase:type_name -> google.protobuf.Duration
-	17, // 23: xtcp_treatment.v1.ExperimentPolicy.maximum_evidence_age:type_name -> google.protobuf.Duration
-	16, // 24: xtcp_treatment.v1.Phase.issued_at:type_name -> google.protobuf.Timestamp
-	16, // 25: xtcp_treatment.v1.Phase.observation_started_at:type_name -> google.protobuf.Timestamp
-	16, // 26: xtcp_treatment.v1.Phase.evaluated_at:type_name -> google.protobuf.Timestamp
-	12, // 27: xtcp_treatment.v1.Phase.evidence:type_name -> xtcp_treatment.v1.Evidence
-	5,  // 28: xtcp_treatment.v1.Experiment.treatment:type_name -> xtcp_treatment.v1.Treatment
-	13, // 29: xtcp_treatment.v1.Experiment.policy:type_name -> xtcp_treatment.v1.ExperimentPolicy
-	12, // 30: xtcp_treatment.v1.Experiment.baseline:type_name -> xtcp_treatment.v1.Evidence
-	14, // 31: xtcp_treatment.v1.Experiment.phases:type_name -> xtcp_treatment.v1.Phase
-	3,  // 32: xtcp_treatment.v1.Experiment.status:type_name -> xtcp_treatment.v1.ExperimentStatus
-	16, // 33: xtcp_treatment.v1.Experiment.proposed_at:type_name -> google.protobuf.Timestamp
-	12, // 34: xtcp_treatment.v1.Experiment.latest_evidence:type_name -> xtcp_treatment.v1.Evidence
-	18, // 35: xtcp_treatment.v1.role:extendee -> google.protobuf.MethodOptions
-	0,  // 36: xtcp_treatment.v1.role:type_name -> xtcp_treatment.v1.Role
-	37, // [37:37] is the sub-list for method output_type
-	37, // [37:37] is the sub-list for method input_type
-	36, // [36:37] is the sub-list for extension type_name
-	35, // [35:36] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	17, // 9: xtcp_treatment.v1.ApplicationRecord.received_at:type_name -> google.protobuf.Timestamp
+	17, // 10: xtcp_treatment.v1.ApplicationRecord.attempted_at:type_name -> google.protobuf.Timestamp
+	17, // 11: xtcp_treatment.v1.ApplicationRecord.applied_at:type_name -> google.protobuf.Timestamp
+	17, // 12: xtcp_treatment.v1.ApplicationRecord.verified_at:type_name -> google.protobuf.Timestamp
+	17, // 13: xtcp_treatment.v1.ApplicationRecord.removed_at:type_name -> google.protobuf.Timestamp
+	8,  // 14: xtcp_treatment.v1.LocalState.desired:type_name -> xtcp_treatment.v1.DesiredState
+	10, // 15: xtcp_treatment.v1.LocalState.records:type_name -> xtcp_treatment.v1.ApplicationRecord
+	17, // 16: xtcp_treatment.v1.LocalState.updated_at:type_name -> google.protobuf.Timestamp
+	17, // 17: xtcp_treatment.v1.Evidence.analyzed_at:type_name -> google.protobuf.Timestamp
+	17, // 18: xtcp_treatment.v1.Evidence.window_start:type_name -> google.protobuf.Timestamp
+	17, // 19: xtcp_treatment.v1.Evidence.window_end:type_name -> google.protobuf.Timestamp
+	12, // 20: xtcp_treatment.v1.Evidence.hosts:type_name -> xtcp_treatment.v1.HostEvidence
+	18, // 21: xtcp_treatment.v1.ExperimentPolicy.minimum_observation:type_name -> google.protobuf.Duration
+	18, // 22: xtcp_treatment.v1.ExperimentPolicy.maximum_phase:type_name -> google.protobuf.Duration
+	18, // 23: xtcp_treatment.v1.ExperimentPolicy.maximum_evidence_age:type_name -> google.protobuf.Duration
+	17, // 24: xtcp_treatment.v1.Phase.issued_at:type_name -> google.protobuf.Timestamp
+	17, // 25: xtcp_treatment.v1.Phase.observation_started_at:type_name -> google.protobuf.Timestamp
+	17, // 26: xtcp_treatment.v1.Phase.evaluated_at:type_name -> google.protobuf.Timestamp
+	13, // 27: xtcp_treatment.v1.Phase.evidence:type_name -> xtcp_treatment.v1.Evidence
+	3,  // 28: xtcp_treatment.v1.Phase.outcome:type_name -> xtcp_treatment.v1.Outcome
+	6,  // 29: xtcp_treatment.v1.Experiment.treatment:type_name -> xtcp_treatment.v1.Treatment
+	14, // 30: xtcp_treatment.v1.Experiment.policy:type_name -> xtcp_treatment.v1.ExperimentPolicy
+	13, // 31: xtcp_treatment.v1.Experiment.baseline:type_name -> xtcp_treatment.v1.Evidence
+	15, // 32: xtcp_treatment.v1.Experiment.phases:type_name -> xtcp_treatment.v1.Phase
+	4,  // 33: xtcp_treatment.v1.Experiment.status:type_name -> xtcp_treatment.v1.ExperimentStatus
+	17, // 34: xtcp_treatment.v1.Experiment.proposed_at:type_name -> google.protobuf.Timestamp
+	13, // 35: xtcp_treatment.v1.Experiment.latest_evidence:type_name -> xtcp_treatment.v1.Evidence
+	3,  // 36: xtcp_treatment.v1.Experiment.latest_outcome:type_name -> xtcp_treatment.v1.Outcome
+	19, // 37: xtcp_treatment.v1.role:extendee -> google.protobuf.MethodOptions
+	0,  // 38: xtcp_treatment.v1.role:type_name -> xtcp_treatment.v1.Role
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	38, // [38:39] is the sub-list for extension type_name
+	37, // [37:38] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_treatment_v1_treatment_proto_init() }
@@ -1755,7 +1880,7 @@ func file_xtcp_treatment_v1_treatment_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_xtcp_treatment_v1_treatment_proto_rawDesc), len(file_xtcp_treatment_v1_treatment_proto_rawDesc)),
-			NumEnums:      4,
+			NumEnums:      5,
 			NumMessages:   12,
 			NumExtensions: 1,
 			NumServices:   0,

@@ -136,13 +136,13 @@ func TestConcurrentPublishStampState(t *testing.T) {
 					return
 				}
 				state := a.State()
-				state.Records[0].Assignment.Id = "caller mutation"
+				state.Records[0].Assignment.ExperimentId = "caller mutation"
 				a.Wake()
 			}
 		})
 	}
 	wg.Wait()
-	if a.State().Records[0].Assignment.Id != "assignment-0" {
+	if a.State().Records[0].Assignment.ExperimentId != "assignment-0" {
 		t.Fatal("State leaked mutable internal snapshot")
 	}
 	select {

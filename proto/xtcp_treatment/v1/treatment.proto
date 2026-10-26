@@ -64,6 +64,41 @@ enum ApplyStatus {
   APPLY_STATUS_FAILED = 5;
 }
 
+// Outcome is the result of evaluating one evidence window against a phase,
+// or the standing of a completed treatment under drift monitoring. Only
+// BENEFICIAL, SAFETY_ONLY and FINAL_SAFETY can advance a phase, and only
+// after an operator review; HARMFUL and EXPIRED withdraw automatically.
+enum Outcome {
+  OUTCOME_UNSPECIFIED = 0;
+  // Analysis of a proposal that has no phase yet.
+  OUTCOME_BASELINE = 1;
+  // Not every treated host has verified the assignment.
+  OUTCOME_AWAITING_APPLICATION = 2;
+  // Treated hosts have not yet carried enough exposed sockets.
+  OUTCOME_AWAITING_EXPOSURE = 3;
+  OUTCOME_INSUFFICIENT_DURATION = 4;
+  OUTCOME_INSUFFICIENT_DATA = 5;
+  OUTCOME_INSUFFICIENT_CONTROLS = 6;
+  OUTCOME_STALE = 7;
+  // No evidence source was available for this maintenance pass.
+  OUTCOME_UNAVAILABLE = 8;
+  OUTCOME_INCONCLUSIVE = 9;
+  // Cohort too small for a causal estimate; no regression observed.
+  OUTCOME_SAFETY_ONLY = 10;
+  // Final 100% phase: no controls remain; no regression observed.
+  OUTCOME_FINAL_SAFETY = 11;
+  OUTCOME_BENEFICIAL = 12;
+  OUTCOME_HARMFUL = 13;
+  OUTCOME_EXPIRED = 14;
+  // Completed treatment under drift monitoring.
+  OUTCOME_STABLE_OBSERVED = 15;
+  OUTCOME_STABLE_EVIDENCE_INCOMPLETE = 16;
+  OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED = 17;
+  // Every treated host has verified the assignment; the observation window
+  // is open and no evidence has been evaluated yet.
+  OUTCOME_OBSERVING = 18;
+}
+
 enum ExperimentStatus {
   EXPERIMENT_STATUS_UNSPECIFIED = 0;
   EXPERIMENT_STATUS_PROPOSED = 1;
@@ -127,7 +162,11 @@ message Assignment {
     message: "predecessor must cover the same destination"
     expression: "!has(this.predecessor) || this.predecessor.destination == this.treatment.destination"
   };
-  string id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  // Field 1 was a separate assignment id that always equalled experiment_id.
+  // An agent holds at most one assignment per experiment, so the experiment
+  // is the identity; journals and telemetry key on experiment_id.
+  reserved 1;
+  reserved "id";
   string experiment_id = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
   Treatment treatment = 3 [(buf.validate.field).required = true];
   AssignmentMode mode = 4 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
@@ -253,7 +292,7 @@ message Phase {
   google.protobuf.Timestamp observation_started_at = 3;
   google.protobuf.Timestamp evaluated_at = 4;
   Evidence evidence = 5;
-  string outcome = 6 [(buf.validate.field).string.max_len = 64];
+  Outcome outcome = 6 [(buf.validate.field).enum.defined_only = true];
   string reviewer = 7 [(buf.validate.field).string.max_len = 128];
   string reason = 8 [(buf.validate.field).string.max_len = 4096];
 }
@@ -277,5 +316,5 @@ message Experiment {
   uint64 revision = 10;
   google.protobuf.Timestamp proposed_at = 11;
   Evidence latest_evidence = 12;
-  string latest_outcome = 13 [(buf.validate.field).string.max_len = 64];
+  Outcome latest_outcome = 13 [(buf.validate.field).enum.defined_only = true];
 }

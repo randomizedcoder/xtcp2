@@ -72,10 +72,10 @@ func ValidateDesired(d *pb.DesiredState) error {
 	}
 	ids, destinations := map[string]bool{}, map[string]bool{}
 	for _, a := range d.Assignments {
-		if a == nil || !ValidID(a.Id) || !ValidID(a.ExperimentId) || a.Generation == 0 || ids[a.Id] {
+		if a == nil || !ValidID(a.ExperimentId) || a.Generation == 0 || ids[a.ExperimentId] {
 			return errors.New("invalid or duplicate assignment identity")
 		}
-		ids[a.Id] = true
+		ids[a.ExperimentId] = true
 		if err := ValidateTreatment(a.Treatment); err != nil {
 			return err
 		}

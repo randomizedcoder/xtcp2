@@ -921,21 +921,21 @@ constexpr AnalyzeResponse::ParseTableT_ AnalyzeResponse::InternalGenerateParseTa
       ::_pbi::TcParser::GetTable<::xtcp_treatment::v1::AnalyzeResponse>(),  // to_prefetch
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
-      // string outcome = 2 [json_name = "outcome"];
-      {::_pbi::TcParser::FastUS1,
-       {18, 0, 0,
+      // .xtcp_treatment.v1.Outcome outcome = 2 [json_name = "outcome"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(AnalyzeResponse, _impl_.outcome_), 1>(),
+       {16, 1, 0,
         PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.outcome_)}},
       // .xtcp_treatment.v1.Evidence evidence = 1 [json_name = "evidence"];
       {::_pbi::TcParser::FastMtS1,
-       {10, 1, 0,
+       {10, 0, 0,
         PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.evidence_)}},
     }}, {{
       65535, 65535
     }}, {{
       // .xtcp_treatment.v1.Evidence evidence = 1 [json_name = "evidence"];
-      {PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.evidence_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
-      // string outcome = 2 [json_name = "outcome"];
-      {PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.outcome_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      {PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.evidence_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // .xtcp_treatment.v1.Outcome outcome = 2 [json_name = "outcome"];
+      {PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.outcome_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     }},
     {{
         #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -945,9 +945,6 @@ constexpr AnalyzeResponse::ParseTableT_ AnalyzeResponse::InternalGenerateParseTa
         #endif
     }},
     {{
-      "\41\0\7\0\0\0\0\0"
-      "xtcp_treatment.v1.AnalyzeResponse"
-      "outcome"
     }},
   };
 }
@@ -956,10 +953,8 @@ constexpr AnalyzeResponse::ParseTableT_ AnalyzeResponse::InternalGenerateParseTa
 inline constexpr AnalyzeResponse::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     ::_pbi::ConstantInitialized) noexcept
-      : outcome_(
-            &::google::protobuf::internal::fixed_address_empty_string,
-            ::_pbi::ConstantInitialized()),
-        evidence_{nullptr} {}
+      : evidence_{nullptr},
+        outcome_{static_cast< ::xtcp_treatment::v1::Outcome >(0)} {}
 
 template <typename>
 constexpr AnalyzeResponse::AnalyzeResponse(::_pbi::ConstantInitialized,
@@ -977,7 +972,7 @@ inline void* PROTOBUF_NONNULL AnalyzeResponse::PlacementNew_(
   return ::new (mem) AnalyzeResponse(arena);
 }
 constexpr auto AnalyzeResponse::InternalNewImpl_() {
-  return ::google::protobuf::internal::MessageCreator::CopyInit(sizeof(AnalyzeResponse), alignof(AnalyzeResponse));
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(AnalyzeResponse), alignof(AnalyzeResponse));
 }
 constexpr auto AnalyzeResponse::InternalGenerateClassData_(
     const MessageLite& prototype,
@@ -1719,8 +1714,8 @@ const ::uint32_t
         5, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::AnalyzeResponse, _impl_.evidence_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::AnalyzeResponse, _impl_.outcome_),
-        1,
         0,
+        1,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::ReviewRequest, _impl_._has_bits_),
         9, // hasbit index offset
@@ -1826,77 +1821,77 @@ const char descriptor_table_protodef_xtcp_5ftreatment_2fv1_2foperator_2eproto[] 
     "Request\022N\n\rexperiment_id\030\001 \001(\tB)\272H&r$2\"^"
     "[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\014exper"
     "imentId\022+\n\021expected_revision\030\002 \001(\004R\020expe"
-    "ctedRevision\"d\n\017AnalyzeResponse\0227\n\010evide"
-    "nce\030\001 \001(\0132\033.xtcp_treatment.v1.EvidenceR\010"
-    "evidence\022\030\n\007outcome\030\002 \001(\tR\007outcome\"\346\003\n\rR"
-    "eviewRequest\022N\n\rexperiment_id\030\001 \001(\tB)\272H&"
-    "r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\014"
-    "experimentId\022+\n\021expected_revision\030\002 \001(\004R"
-    "\020expectedRevision\022\030\n\007approve\030\003 \001(\010R\007appr"
-    "ove\022\"\n\006reason\030\004 \001(\tB\n\272H\007r\005\020\001\030\200 R\006reason\022"
-    "H\n\nrequest_id\030\005 \001(\tB)\272H&r$2\"^[a-zA-Z0-9]"
-    "[a-zA-Z0-9_.-]{0,127}$R\trequestId\0227\n\010evi"
-    "dence\030\006 \001(\0132\033.xtcp_treatment.v1.Evidence"
-    "R\010evidence:\226\001\272H\222\001\032\217\001\n\030review.request_id_"
-    "suffix\022Mrequest_id must not end with .re"
-    "sult (reserved for the paired response e"
-    "vent)\032$!this.request_id.endsWith(\'.resul"
-    "t\')\"O\n\016ReviewResponse\022=\n\nexperiment\030\001 \001("
-    "\0132\035.xtcp_treatment.v1.ExperimentR\nexperi"
-    "ment\"\272\006\n\016ControlRequest\022Q\n\rexperiment_id"
-    "\030\001 \001(\tB,\272H)r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-"
-    "]{0,127}$\330\001\001R\014experimentId\022G\n\010agent_id\030\002"
+    "ctedRevision\"\200\001\n\017AnalyzeResponse\0227\n\010evid"
+    "ence\030\001 \001(\0132\033.xtcp_treatment.v1.EvidenceR"
+    "\010evidence\0224\n\007outcome\030\002 \001(\0162\032.xtcp_treatm"
+    "ent.v1.OutcomeR\007outcome\"\346\003\n\rReviewReques"
+    "t\022N\n\rexperiment_id\030\001 \001(\tB)\272H&r$2\"^[a-zA-"
+    "Z0-9][a-zA-Z0-9_.-]{0,127}$R\014experimentI"
+    "d\022+\n\021expected_revision\030\002 \001(\004R\020expectedRe"
+    "vision\022\030\n\007approve\030\003 \001(\010R\007approve\022\"\n\006reas"
+    "on\030\004 \001(\tB\n\272H\007r\005\020\001\030\200 R\006reason\022H\n\nrequest_"
+    "id\030\005 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_"
+    ".-]{0,127}$R\trequestId\0227\n\010evidence\030\006 \001(\013"
+    "2\033.xtcp_treatment.v1.EvidenceR\010evidence:"
+    "\226\001\272H\222\001\032\217\001\n\030review.request_id_suffix\022Mreq"
+    "uest_id must not end with .result (reser"
+    "ved for the paired response event)\032$!thi"
+    "s.request_id.endsWith(\'.result\')\"O\n\016Revi"
+    "ewResponse\022=\n\nexperiment\030\001 \001(\0132\035.xtcp_tr"
+    "eatment.v1.ExperimentR\nexperiment\"\272\006\n\016Co"
+    "ntrolRequest\022Q\n\rexperiment_id\030\001 \001(\tB,\272H)"
+    "r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$\330\001"
+    "\001R\014experimentId\022G\n\010agent_id\030\002 \001(\tB,\272H)r$"
+    "2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$\330\001\001R"
+    "\007agentId\022H\n\010location\030\003 \001(\tB,\272H)r$2\"^[a-z"
+    "A-Z0-9][a-zA-Z0-9_.-]{0,127}$\330\001\001R\010locati"
+    "on\022\024\n\005fleet\030\004 \001(\010R\005fleet\022D\n\006action\030\005 \001(\016"
+    "2 .xtcp_treatment.v1.ControlActionB\n\272H\007\202"
+    "\001\004\020\001 \000R\006action\022\"\n\006reason\030\006 \001(\tB\n\272H\007r\005\020\001\030"
+    "\200 R\006reason\022H\n\nrequest_id\030\007 \001(\tB)\272H&r$2\"^"
+    "[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\treque"
+    "stId:\367\002\272H\363\002\032\220\001\n\031control.request_id_suffi"
+    "x\022Mrequest_id must not end with .result "
+    "(reserved for the paired response event)"
+    "\032$!this.request_id.endsWith(\'.result\')\032\335"
+    "\001\n\024control.one_selector\022Eexactly one of "
+    "experiment_id, agent_id, location or fle"
+    "et is required\032~(this.fleet \? 1 : 0) + ("
+    "this.experiment_id != \'\' \? 1 : 0) + (thi"
+    "s.agent_id != \'\' \? 1 : 0) + (this.locati"
+    "on != \'\' \? 1 : 0) == 1\":\n\017ControlRespons"
+    "e\022\'\n\017affected_agents\030\001 \001(\rR\016affectedAgen"
+    "ts\"\254\001\n\016InspectRequest\022Q\n\rexperiment_id\030\001"
     " \001(\tB,\272H)r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{"
-    "0,127}$\330\001\001R\007agentId\022H\n\010location\030\003 \001(\tB,\272"
-    "H)r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"
-    "\330\001\001R\010location\022\024\n\005fleet\030\004 \001(\010R\005fleet\022D\n\006a"
-    "ction\030\005 \001(\0162 .xtcp_treatment.v1.ControlA"
-    "ctionB\n\272H\007\202\001\004\020\001 \000R\006action\022\"\n\006reason\030\006 \001("
-    "\tB\n\272H\007r\005\020\001\030\200 R\006reason\022H\n\nrequest_id\030\007 \001("
-    "\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,1"
-    "27}$R\trequestId:\367\002\272H\363\002\032\220\001\n\031control.reque"
-    "st_id_suffix\022Mrequest_id must not end wi"
-    "th .result (reserved for the paired resp"
-    "onse event)\032$!this.request_id.endsWith(\'"
-    ".result\')\032\335\001\n\024control.one_selector\022Eexac"
-    "tly one of experiment_id, agent_id, loca"
-    "tion or fleet is required\032~(this.fleet \?"
-    " 1 : 0) + (this.experiment_id != \'\' \? 1 "
-    ": 0) + (this.agent_id != \'\' \? 1 : 0) + ("
-    "this.location != \'\' \? 1 : 0) == 1\":\n\017Con"
-    "trolResponse\022\'\n\017affected_agents\030\001 \001(\rR\016a"
-    "ffectedAgents\"\254\001\n\016InspectRequest\022Q\n\rexpe"
-    "riment_id\030\001 \001(\tB,\272H)r$2\"^[a-zA-Z0-9][a-z"
-    "A-Z0-9_.-]{0,127}$\330\001\001R\014experimentId\022G\n\010a"
-    "gent_id\030\002 \001(\tB,\272H)r$2\"^[a-zA-Z0-9][a-zA-"
-    "Z0-9_.-]{0,127}$\330\001\001R\007agentId\"\314\001\n\017Inspect"
-    "Response\022\?\n\013experiments\030\001 \003(\0132\035.xtcp_tre"
-    "atment.v1.ExperimentR\013experiments\0229\n\007des"
-    "ired\030\002 \003(\0132\037.xtcp_treatment.v1.DesiredSt"
-    "ateR\007desired\022=\n\010observed\030\003 \003(\0132!.xtcp_tr"
-    "eatment.v1.CheckInRequestR\010observed*\270\001\n\r"
-    "ControlAction\022\036\n\032CONTROL_ACTION_UNSPECIF"
-    "IED\020\000\022\030\n\024CONTROL_ACTION_PAUSE\020\001\022\032\n\026CONTR"
-    "OL_ACTION_SUSPEND\020\002\022\031\n\025CONTROL_ACTION_RE"
-    "SUME\020\003\022\033\n\027CONTROL_ACTION_ROLLBACK\020\004\022\031\n\025C"
-    "ONTROL_ACTION_RETIRE\020\0052\306\003\n\017OperatorServi"
-    "ce\022V\n\007Propose\022!.xtcp_treatment.v1.Propos"
-    "eRequest\032\".xtcp_treatment.v1.ProposeResp"
-    "onse\"\004\320\363\030\002\022V\n\007Analyze\022!.xtcp_treatment.v"
-    "1.AnalyzeRequest\032\".xtcp_treatment.v1.Ana"
-    "lyzeResponse\"\004\320\363\030\002\022S\n\006Review\022 .xtcp_trea"
-    "tment.v1.ReviewRequest\032!.xtcp_treatment."
-    "v1.ReviewResponse\"\004\320\363\030\002\022V\n\007Control\022!.xtc"
-    "p_treatment.v1.ControlRequest\032\".xtcp_tre"
-    "atment.v1.ControlResponse\"\004\320\363\030\002\022V\n\007Inspe"
-    "ct\022!.xtcp_treatment.v1.InspectRequest\032\"."
-    "xtcp_treatment.v1.InspectResponse\"\004\320\363\030\002B"
-    "\277\001\n\025com.xtcp_treatment.v1B\rOperatorProto"
-    "P\001Z6github.com/randomizedcoder/xtcp2/gen"
-    "/go/xtcp_treatment\242\002\003XXX\252\002\020XtcpTreatment"
-    ".V1\312\002\020XtcpTreatment\\V1\342\002\034XtcpTreatment\\V"
-    "1\\GPBMetadata\352\002\021XtcpTreatment::V1b\006proto"
-    "3"
+    "0,127}$\330\001\001R\014experimentId\022G\n\010agent_id\030\002 \001"
+    "(\tB,\272H)r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,"
+    "127}$\330\001\001R\007agentId\"\314\001\n\017InspectResponse\022\?\n"
+    "\013experiments\030\001 \003(\0132\035.xtcp_treatment.v1.E"
+    "xperimentR\013experiments\0229\n\007desired\030\002 \003(\0132"
+    "\037.xtcp_treatment.v1.DesiredStateR\007desire"
+    "d\022=\n\010observed\030\003 \003(\0132!.xtcp_treatment.v1."
+    "CheckInRequestR\010observed*\270\001\n\rControlActi"
+    "on\022\036\n\032CONTROL_ACTION_UNSPECIFIED\020\000\022\030\n\024CO"
+    "NTROL_ACTION_PAUSE\020\001\022\032\n\026CONTROL_ACTION_S"
+    "USPEND\020\002\022\031\n\025CONTROL_ACTION_RESUME\020\003\022\033\n\027C"
+    "ONTROL_ACTION_ROLLBACK\020\004\022\031\n\025CONTROL_ACTI"
+    "ON_RETIRE\020\0052\306\003\n\017OperatorService\022V\n\007Propo"
+    "se\022!.xtcp_treatment.v1.ProposeRequest\032\"."
+    "xtcp_treatment.v1.ProposeResponse\"\004\320\363\030\002\022"
+    "V\n\007Analyze\022!.xtcp_treatment.v1.AnalyzeRe"
+    "quest\032\".xtcp_treatment.v1.AnalyzeRespons"
+    "e\"\004\320\363\030\002\022S\n\006Review\022 .xtcp_treatment.v1.Re"
+    "viewRequest\032!.xtcp_treatment.v1.ReviewRe"
+    "sponse\"\004\320\363\030\002\022V\n\007Control\022!.xtcp_treatment"
+    ".v1.ControlRequest\032\".xtcp_treatment.v1.C"
+    "ontrolResponse\"\004\320\363\030\002\022V\n\007Inspect\022!.xtcp_t"
+    "reatment.v1.InspectRequest\032\".xtcp_treatm"
+    "ent.v1.InspectResponse\"\004\320\363\030\002B\277\001\n\025com.xtc"
+    "p_treatment.v1B\rOperatorProtoP\001Z6github."
+    "com/randomizedcoder/xtcp2/gen/go/xtcp_tr"
+    "eatment\242\002\003XXX\252\002\020XtcpTreatment.V1\312\002\020XtcpT"
+    "reatment\\V1\342\002\034XtcpTreatment\\V1\\GPBMetada"
+    "ta\352\002\021XtcpTreatment::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5ftreatment_2fv1_2foperator_2eproto_deps[3] = {
@@ -1908,7 +1903,7 @@ static ::absl::once_flag descriptor_table_xtcp_5ftreatment_2fv1_2foperator_2epro
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5ftreatment_2fv1_2foperator_2eproto = {
     false,
     false,
-    3481,
+    3510,
     descriptor_table_protodef_xtcp_5ftreatment_2fv1_2foperator_2eproto,
     "xtcp_treatment/v1/operator.proto",
     &descriptor_table_xtcp_5ftreatment_2fv1_2foperator_2eproto_once,
@@ -2635,7 +2630,7 @@ void AnalyzeRequest::InternalSwap(AnalyzeRequest* PROTOBUF_RESTRICT PROTOBUF_NON
 void AnalyzeResponse::clear_evidence() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.evidence_ != nullptr) _impl_.evidence_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000002U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000001U);
 }
 AnalyzeResponse::AnalyzeResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
@@ -2650,8 +2645,7 @@ PROTOBUF_NDEBUG_INLINE AnalyzeResponse::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
     [[maybe_unused]] const ::xtcp_treatment::v1::AnalyzeResponse& from_msg)
-      : _has_bits_{from._has_bits_},
-        outcome_(arena, from.outcome_) {}
+      : _has_bits_{from._has_bits_} {}
 
 AnalyzeResponse::AnalyzeResponse(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -2668,20 +2662,26 @@ AnalyzeResponse::AnalyzeResponse(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::uint32_t cached_has_bits = _impl_._has_bits_[0];
-  _impl_.evidence_ = (CheckHasBit(cached_has_bits, 0x00000002U))
+  _impl_.evidence_ = (CheckHasBit(cached_has_bits, 0x00000001U))
                  ? Super_::CopyConstruct(arena, *from._impl_.evidence_)
                  : nullptr;
+  _impl_.outcome_ = from._impl_.outcome_;
 
   // @@protoc_insertion_point(copy_constructor:xtcp_treatment.v1.AnalyzeResponse)
 }
 PROTOBUF_NDEBUG_INLINE AnalyzeResponse::Impl_::Impl_(
     [[maybe_unused]] ::google::protobuf::internal::InternalVisibility visibility,
     [[maybe_unused]] ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
-      : outcome_(arena) {}
+     {}
 
 inline void AnalyzeResponse::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
-  _impl_.evidence_ = {};
+  ::memset(reinterpret_cast<char*>(&_impl_) +
+               offsetof(Impl_, evidence_),
+           0,
+           offsetof(Impl_, outcome_) -
+               offsetof(Impl_, evidence_) +
+               sizeof(Impl_::outcome_));
 }
 AnalyzeResponse::~AnalyzeResponse() {
   // @@protoc_insertion_point(destructor:xtcp_treatment.v1.AnalyzeResponse)
@@ -2694,7 +2694,6 @@ inline void AnalyzeResponse::SharedDtor(MessageLite& self) {
   }
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
-  this_._impl_.outcome_.Destroy();
   delete this_._impl_.evidence_;
   this_._impl_.~Impl_();
 }
@@ -2732,15 +2731,11 @@ PROTOBUF_NOINLINE void AnalyzeResponse::Clear() {
   ::uint32_t cached_has_bits [[maybe_unused]] = 0;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      this_._impl_.outcome_.ClearNonDefaultToEmpty();
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
-      ABSL_DCHECK(this_._impl_.evidence_ != nullptr);
-      this_._impl_.evidence_->Clear();
-    }
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
+    ABSL_DCHECK(this_._impl_.evidence_ != nullptr);
+    this_._impl_.evidence_->Clear();
   }
+  this_._impl_.outcome_ = 0;
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -2765,19 +2760,18 @@ PROTOBUF_NOINLINE void AnalyzeResponse::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[0];
   // .xtcp_treatment.v1.Evidence evidence = 1 [json_name = "evidence"];
-  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         1, *this_._impl_.evidence_, this_._impl_.evidence_->GetCachedSize(), target,
         stream);
   }
 
-  // string outcome = 2 [json_name = "outcome"];
-  if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-    if (!this_._internal_outcome().empty()) {
-      const ::std::string& _s = this_._internal_outcome();
-      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
-          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_treatment.v1.AnalyzeResponse.outcome");
-      target = stream->WriteStringMaybeAliased(2, _s, target);
+  // .xtcp_treatment.v1.Outcome outcome = 2 [json_name = "outcome"];
+  if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (this_._internal_outcome() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          2, this_._internal_outcome(), target);
     }
   }
 
@@ -2805,17 +2799,17 @@ PROTOBUF_NOINLINE void AnalyzeResponse::Clear() {
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
   if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
-    // string outcome = 2 [json_name = "outcome"];
-    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (!this_._internal_outcome().empty()) {
-        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
-                                        this_._internal_outcome());
-      }
-    }
     // .xtcp_treatment.v1.Evidence evidence = 1 [json_name = "evidence"];
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.evidence_);
+    }
+    // .xtcp_treatment.v1.Outcome outcome = 2 [json_name = "outcome"];
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (this_._internal_outcome() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_outcome());
+      }
     }
   }
   return this_.MaybeComputeUnknownFieldsSize(total_size,
@@ -2838,20 +2832,16 @@ void AnalyzeResponse::MergeImpl(::google::protobuf::MessageLite& to_msg,
   cached_has_bits = from._impl_._has_bits_[0];
   if (BatchCheckHasBit(cached_has_bits, 0x00000003U)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
-      if (!from._internal_outcome().empty()) {
-        _this->_internal_set_outcome(from._internal_outcome());
-      } else {
-        if (_this->_impl_.outcome_.IsDefault()) {
-          _this->_internal_set_outcome("");
-        }
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
       ABSL_DCHECK(from._impl_.evidence_ != nullptr);
       if (_this->_impl_.evidence_ == nullptr) {
         _this->_impl_.evidence_ = Super_::CopyConstruct(arena, *from._impl_.evidence_);
       } else {
         _this->_impl_.evidence_->MergeFrom(*from._impl_.evidence_);
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000002U)) {
+      if (from._internal_outcome() != 0) {
+        _this->_impl_.outcome_ = from._impl_.outcome_;
       }
     }
   }
@@ -2870,12 +2860,14 @@ void AnalyzeResponse::CopyFrom(const AnalyzeResponse& from) {
 
 void AnalyzeResponse::InternalSwap(AnalyzeResponse* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
   using ::std::swap;
-  auto* arena = GetArena();
-  ABSL_DCHECK_EQ(arena, other->GetArena());
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
-  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.outcome_, &other->_impl_.outcome_, arena);
-  swap(_impl_.evidence_, other->_impl_.evidence_);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.outcome_)
+      + sizeof(AnalyzeResponse::_impl_.outcome_)
+      - PROTOBUF_FIELD_OFFSET(AnalyzeResponse, _impl_.evidence_)>(
+          reinterpret_cast<char*>(&_impl_.evidence_),
+          reinterpret_cast<char*>(&other->_impl_.evidence_));
 }
 
 ::google::protobuf::Metadata AnalyzeResponse::GetMetadata() const {

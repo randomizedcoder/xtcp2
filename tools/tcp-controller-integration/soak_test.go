@@ -22,7 +22,7 @@ func TestSoakRollbackEvidence(t *testing.T) {
 	latest.Hosts[0].ExposedSockets = 32
 	policy := treatment.DefaultPolicy()
 	policy.MaximumRttIncrease = 1
-	fixture := &pb.Experiment{Status: pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK, CohortOrder: []string{"canary"}, Policy: policy, Baseline: baseline, LatestEvidence: latest, Phases: []*pb.Phase{{Outcome: "harmful"}}}
+	fixture := &pb.Experiment{Status: pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK, CohortOrder: []string{"canary"}, Policy: policy, Baseline: baseline, LatestEvidence: latest, Phases: []*pb.Phase{{Outcome: pb.Outcome_OUTCOME_HARMFUL}}}
 	for _, tc := range []struct {
 		name            string
 		injected, valid bool
@@ -37,7 +37,7 @@ func TestSoakRollbackEvidence(t *testing.T) {
 			e.LatestEvidence.Hosts[0].ExposedSockets = 0
 		}},
 		{"missing-evidence", false, false, func(e *pb.Experiment) { e.LatestEvidence = nil }},
-		{"wrong-outcome", false, false, func(e *pb.Experiment) { e.Phases[0].Outcome = "expired" }},
+		{"wrong-outcome", false, false, func(e *pb.Experiment) { e.Phases[0].Outcome = pb.Outcome_OUTCOME_EXPIRED }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := proto.Clone(fixture).(*pb.Experiment)

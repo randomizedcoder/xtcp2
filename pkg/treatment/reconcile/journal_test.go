@@ -24,7 +24,7 @@ func TestJournalRejectsInvalidSnapshots(t *testing.T) {
 		{"valid", "valid snapshot can be reopened", func(*pb.LocalState) {}, ""},
 		{"bad-desired", "invalid desired state is not recovered", func(s *pb.LocalState) { s.Desired.Revision = 0 }, "invalid persisted"},
 		{"missing-assignment", "records require an assignment", func(s *pb.LocalState) { s.Records[0].Assignment = nil }, "invalid journal record"},
-		{"bad-id", "projection names cannot contain paths", func(s *pb.LocalState) { s.Records[0].Assignment.Id = "../escape"; s.Desired = nil }, "invalid journal record"},
+		{"bad-id", "projection names cannot contain paths", func(s *pb.LocalState) { s.Records[0].Assignment.ExperimentId = "../escape"; s.Desired = nil }, "invalid journal record"},
 		{"duplicate", "duplicate records cannot shadow each other", func(s *pb.LocalState) { s.Records = append(s.Records, s.Records[0]) }, "duplicate"},
 		{"bad-treatment", "invalid treatment cannot be recovered", func(s *pb.LocalState) { s.Records[0].Assignment.Treatment = nil; s.Desired = nil }, "invalid journal treatment"},
 	} {

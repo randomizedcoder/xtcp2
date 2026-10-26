@@ -94,7 +94,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 			}
 			phase := n.Phases[len(n.Phases)-1]
 			now := s.now()
-			outcome := "unavailable"
+			outcome := experiment.OutcomeUnavailable
 			if n.Status == pb.ExperimentStatus_EXPERIMENT_STATUS_COMPLETE {
 				if ev != nil {
 					if e = saveEvidence(ctx, tx, id, ev); e != nil {
@@ -102,12 +102,12 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 					}
 					healthy, harmful := experiment.HealthyEvidence(n, ev, now)
 					n.LatestEvidence = ev
-					n.LatestOutcome = "stable_observed"
+					n.LatestOutcome = pb.Outcome_OUTCOME_STABLE_OBSERVED
 					if !healthy {
-						n.LatestOutcome = "stable_evidence_incomplete"
+						n.LatestOutcome = pb.Outcome_OUTCOME_STABLE_EVIDENCE_INCOMPLETE
 					}
 					if harmful {
-						n.LatestOutcome = "stable_regression_review_required"
+						n.LatestOutcome = pb.Outcome_OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED
 						if e = audit(ctx, tx, "drift-monitor", "", "stable_regression", ev); e != nil {
 							return e
 						}
@@ -116,7 +116,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 				return saveExperiment(ctx, tx, n)
 			}
 			if now.Sub(phase.IssuedAt.AsTime()) >= n.Policy.MaximumPhase.AsDuration() {
-				outcome = "expired"
+				outcome = experiment.OutcomeExpired
 			} else if ev != nil {
 				if e = saveEvidence(ctx, tx, id, ev); e != nil {
 					return e
@@ -130,14 +130,20 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 				// approved/evaluated. Only Review writes reviewer and outcome.
 				n.LatestEvidence = ev
 				if _, harmful := experiment.HealthyEvidence(n, ev, now); harmful {
-					outcome = "harmful"
+					outcome = experiment.OutcomeHarmful
 				}
 			}
-			n.LatestOutcome = outcome
-			if outcome == "harmful" || outcome == "expired" {
-				phase.Outcome = outcome
+			n.LatestOutcome = outcome.Wire()
+			if outcome.Withdraws() {
+				event := experiment.EventExpire
+				if outcome == experiment.OutcomeHarmful {
+					event = experiment.EventHarm
+				}
+				if n.Status, e = experiment.Transition(n.Status, event); e != nil {
+					return e
+				}
+				phase.Outcome = outcome.Wire()
 				phase.EvaluatedAt = timestamppb.New(now)
-				n.Status = pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK
 				n.Revision++
 				if e = s.assign(ctx, tx, n, false); e != nil {
 					return e
@@ -149,7 +155,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 				// Before the 30-minute decision window completes, fresh health
 				// evidence can renew the existing phase but cannot expand it.
 				healthy, _ := experiment.HealthyEvidence(n, ev, now)
-				if healthy && outcome != "stale" && outcome != "insufficient_data" {
+				if healthy && outcome.RenewsLease() {
 					if e = s.renew(ctx, tx, n, now); e != nil {
 						return e
 					}
@@ -191,7 +197,7 @@ func (s *Server) renew(ctx context.Context, tx *sql.Tx, n *pb.Experiment, now ti
 			}
 			verified := false
 			for _, r := range o.Records {
-				if r.Assignment.Id == a.Id && r.Assignment.Generation == a.Generation && r.Status == pb.ApplyStatus_APPLY_STATUS_VERIFIED {
+				if r.Assignment.ExperimentId == a.ExperimentId && r.Assignment.Generation == a.Generation && r.Status == pb.ApplyStatus_APPLY_STATUS_VERIFIED {
 					verified = true
 				}
 			}
