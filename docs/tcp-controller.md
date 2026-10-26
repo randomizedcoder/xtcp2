@@ -80,6 +80,20 @@ Agents consume complete revisioned snapshots, so missed notifications are safe.
 A shared two-second notification scan coalesces updates; jittered check-ins run
 approximately every thirty seconds. No message broker is required.
 
+The scan is incremental. Every desired-state write stamps the agent row with
+the database clock (`clock_timestamp()`, taken after the advisory lock, so
+stamps commit in lock order), and each scan reads only rows stamped at or
+after the previous scan's newest stamp less a one-second margin, through the
+`desired_updated_at` index. The first scan after a restart reads every row so
+late subscribers learn the current revision; the hub drops repeated revisions.
+A check-in writes one agent row: the record and algorithm rows are rewritten
+only when a digest of the report's content changes, so a steady fleet costs
+one single-row update per heartbeat. Maintenance and candidate discovery run
+under a session-level advisory lease (`pg_try_advisory_lock` on a dedicated
+connection) that one replica holds for the pass; the others log that they are
+skipping. The lease is about cost, not correctness: every write is still fenced
+by the transaction-level mutation lock.
+
 ## Supported routes and TCP semantics
 
 The first actuator supports IPv4 `/32` and IPv6 `/128` destinations in the host
@@ -291,9 +305,11 @@ Two B-tree indexes on plain columns support these paths:
 The budget query uses `EXISTS` rather than counting every match. Evidence host
 rows live in `xtcp_treatment_evidence_hosts`, keyed by evidence ID, so an
 experiment row stays small no matter how many hosts were measured. Agent
-primary-key and location indexes already cover their current lookups; no extra
-heartbeat indexes were added. An all-agent notification scan still needs to
-read all agents, so an additional index alone would not eliminate that work.
+primary-key and location indexes cover their lookups; the notification scan
+reads through `xtcp_treatment_agents_desired_updated` with a watermark, so it
+touches the rows that changed since the last scan rather than the fleet.
+`TestPostgresObserveRewritesOnlyChangedReports` checks, through row `xmin`
+values, that an unchanged report leaves the record and algorithm rows alone.
 
 `TestPostgresExperimentQueryIndexes` (in `store/postgres`) loads 100,000 retired
 experiments and five active experiments, runs `ANALYZE`, and compares
@@ -329,9 +345,9 @@ its invalid index before retrying: `IF NOT EXISTS` does not repair an invalid
 index. The startup migration uses ordinary index creation, not concurrent DDL.
 
 Further scaling work should measure per-host SQL round trips during review and
-lease renewal, large experiment-document rewrites, evidence/audit retention, and
-the notification scan. Those need batching or data-layout changes, not blanket
-indexes on every field. Discovery currently considers the ten busiest candidate
+lease renewal, large experiment-document rewrites, and evidence/audit
+retention. Those need batching or data-layout changes, not blanket indexes on
+every field. Discovery currently considers the ten busiest candidate
 destinations per template before the PostgreSQL destination filter; pagination
 or earlier exclusion would be needed to avoid already-treated destinations
 occupying all ten slots.

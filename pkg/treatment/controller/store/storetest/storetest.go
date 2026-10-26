@@ -38,6 +38,7 @@ func Run(t *testing.T, open Opener) {
 	t.Run("Holds", func(t *testing.T) { holds(t, open) })
 	t.Run("Audit", func(t *testing.T) { audit(t, open) })
 	t.Run("Tx", func(t *testing.T) { tx(t, open) })
+	t.Run("Lease", func(t *testing.T) { lease(t, open) })
 	t.Run("Metrics", func(t *testing.T) { metrics(t, open) })
 }
 
@@ -128,10 +129,67 @@ func agents(t *testing.T, open Opener) {
 			got, err := a.Desired(ctx, "host-1")
 			must(t, err)
 			sameDesired(t, "expected the saved desired state", got, d)
-			revs, err := a.DesiredRevisions(ctx)
+			revs, err := a.DesiredSince(ctx, time.Time{})
 			must(t, err)
-			if len(revs) != 1 || revs["host-1"] != 7 {
-				t.Fatalf("expected revision 7 for host-1, got %v", revs)
+			if len(revs) != 1 || revs[0].AgentID != "host-1" || revs[0].Revision != 7 || revs[0].UpdatedAt.IsZero() {
+				t.Fatalf("expected a stamped revision 7 for host-1, got %+v", revs)
+			}
+		}},
+		{"desired-since-all", "positive: a zero watermark returns every agent, enrolled or saved, ordered by stamp then ID", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-2", "dc1", &treatment.DesiredState{AgentID: "host-2", Revision: 1, IssuedAt: now}))
+			settle()
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			settle()
+			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "host-2", Revision: 2, IssuedAt: now}))
+			got, err := a.DesiredSince(ctx, time.Time{})
+			must(t, err)
+			if len(got) != 2 || got[0].AgentID != "host-1" || got[0].Revision != 1 || got[1].AgentID != "host-2" || got[1].Revision != 2 || !got[0].UpdatedAt.Before(got[1].UpdatedAt) {
+				t.Fatalf("expected host-1 rev 1 then host-2 rev 2 in stamp order, got %+v", got)
+			}
+		}},
+		{"desired-since-changed", "positive: a watermark after the older stamp returns only the agent saved since", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			must(t, a.Enroll(ctx, "host-2", "dc1", initial))
+			all, err := a.DesiredSince(ctx, time.Time{})
+			must(t, err)
+			newest := all[len(all)-1].UpdatedAt
+			settle()
+			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "host-1", Revision: 5, IssuedAt: now}))
+			got, err := a.DesiredSince(ctx, newest.Add(time.Microsecond))
+			must(t, err)
+			if len(got) != 1 || got[0].AgentID != "host-1" || got[0].Revision != 5 || !got[0].UpdatedAt.After(newest) {
+				t.Fatalf("expected only host-1 at revision 5, got %+v", got)
+			}
+		}},
+		{"desired-since-equal", "boundary: a row stamped exactly at the watermark is included", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			settle()
+			must(t, a.Enroll(ctx, "host-2", "dc1", initial))
+			all, err := a.DesiredSince(ctx, time.Time{})
+			must(t, err)
+			got, err := a.DesiredSince(ctx, all[1].UpdatedAt)
+			must(t, err)
+			if len(got) != 1 || got[0].AgentID != all[1].AgentID || !got[0].UpdatedAt.Equal(all[1].UpdatedAt) {
+				t.Fatalf("expected exactly the row stamped at the watermark, got %+v", got)
+			}
+		}},
+		{"desired-since-none", "boundary: a watermark past the newest stamp returns nothing without error", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			all, err := a.DesiredSince(ctx, time.Time{})
+			must(t, err)
+			got, err := a.DesiredSince(ctx, all[0].UpdatedAt.Add(time.Microsecond))
+			must(t, err)
+			if len(got) != 0 {
+				t.Fatalf("expected no rows, got %+v", got)
+			}
+		}},
+		{"desired-since-stamp-is-store-clock", "corner: the stamp is the store's clock, not the desired state's issued_at", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "host-1", Revision: 2, IssuedAt: now.Add(-24 * time.Hour)}))
+			got, err := a.DesiredSince(ctx, now)
+			must(t, err)
+			if len(got) != 1 || got[0].UpdatedAt.Before(now) {
+				t.Fatalf("expected a current stamp despite an old issued_at, got %+v", got)
 			}
 		}},
 		{"enroll-idempotent", "corner: a second enrollment never changes location or desired state", func(t *testing.T, a store.Agents) {
@@ -718,6 +776,88 @@ func tx(t *testing.T, open Opener) {
 		must(t, err)
 		if first.Sequence >= second.Sequence {
 			t.Fatalf("expected sequence %d < %d", first.Sequence, second.Sequence)
+		}
+	})
+}
+
+// settle separates two stamps by more than a timestamptz microsecond so the
+// watermark tests order them deterministically on either store.
+func settle() { time.Sleep(2 * time.Millisecond) }
+
+func lease(t *testing.T, open Opener) {
+	ctx := context.Background()
+	t.Run("free", func(t *testing.T) {
+		t.Log("positive: a free lease runs fn and reports held")
+		s := open(t)
+		ran := false
+		held, err := s.Lease(ctx, "housekeeping", func() error { ran = true; return nil })
+		must(t, err)
+		if !held || !ran {
+			t.Fatalf("expected held and run, got held=%t ran=%t", held, ran)
+		}
+	})
+	t.Run("held-elsewhere", func(t *testing.T) {
+		t.Log("corner: while one caller holds the lease a second caller is told so and fn never runs")
+		s := open(t)
+		entered, release := make(chan struct{}), make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			held, err := s.Lease(ctx, "housekeeping", func() error { close(entered); <-release; return nil })
+			if err != nil || !held {
+				t.Errorf("first holder: held=%t err=%v", held, err)
+			}
+		})
+		<-entered
+		held, err := s.Lease(ctx, "housekeeping", func() error { t.Error("second caller ran under a held lease"); return nil })
+		must(t, err)
+		if held {
+			t.Fatal("expected the second caller to be refused")
+		}
+		close(release)
+		wg.Wait()
+		held, err = s.Lease(ctx, "housekeeping", func() error { return nil })
+		must(t, err)
+		if !held {
+			t.Fatal("expected the lease to be free once the holder returned")
+		}
+	})
+	t.Run("released-on-error", func(t *testing.T) {
+		t.Log("negative: fn's error is returned with held=true and the lease is released")
+		s := open(t)
+		boom := errors.New("boom")
+		held, err := s.Lease(ctx, "housekeeping", func() error { return boom })
+		if !held || !errors.Is(err, boom) {
+			t.Fatalf("expected held with the callback error, got held=%t err=%v", held, err)
+		}
+		held, err = s.Lease(ctx, "housekeeping", func() error { return nil })
+		must(t, err)
+		if !held {
+			t.Fatal("expected the lease to be free after a failed pass")
+		}
+	})
+	t.Run("independent-names", func(t *testing.T) {
+		t.Log("boundary: different names are different leases")
+		s := open(t)
+		held, err := s.Lease(ctx, "a", func() error {
+			inner, err := s.Lease(ctx, "b", func() error { return nil })
+			if err != nil || !inner {
+				return fmt.Errorf("expected lease b while holding a, got held=%t err=%v", inner, err)
+			}
+			return nil
+		})
+		must(t, err)
+		if !held {
+			t.Fatal("expected lease a")
+		}
+	})
+	t.Run("cancelled-context", func(t *testing.T) {
+		t.Log("negative: a cancelled context fails before fn runs")
+		s := open(t)
+		cancelled, cancel := context.WithCancel(ctx)
+		cancel()
+		held, err := s.Lease(cancelled, "housekeeping", func() error { t.Error("fn ran with a cancelled context"); return nil })
+		if err == nil || held {
+			t.Fatalf("expected an error and held=false, got held=%t err=%v", held, err)
 		}
 	})
 }

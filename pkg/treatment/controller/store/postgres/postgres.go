@@ -6,9 +6,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	_ "embed"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
 
@@ -76,6 +78,46 @@ func (s *Store) Tx(ctx context.Context, fn func(store.Repos) error) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// Lease takes a session-level advisory lock on a dedicated connection, so
+// it outlives any transaction and ends when fn returns or the connection
+// drops. Names hash into the same key space as mutationLock; the lock a
+// name maps to is stable across replicas because the hash is.
+func (s *Store) Lease(ctx context.Context, name string, fn func() error) (bool, error) {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer conn.Close()
+	key := leaseKey(name)
+	var held bool
+	if err = conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&held); err != nil {
+		return false, err
+	}
+	if !held {
+		return false, nil
+	}
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), leaseUnlockTimeoutCst)
+		defer cancel()
+		if _, e := conn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock($1)", key); e != nil {
+			// A pooled connection must never carry the lock into its next
+			// use; discarding it releases the session lock server-side.
+			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+		}
+	}()
+	return true, fn()
+}
+
+// leaseUnlockTimeoutCst bounds the unlock that runs after the caller's
+// context may already be cancelled.
+const leaseUnlockTimeoutCst = 5 * time.Second
+
+func leaseKey(name string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(name))
+	return int64(h.Sum64())
 }
 
 func repos(r *runner) store.Repos {

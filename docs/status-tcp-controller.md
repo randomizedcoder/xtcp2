@@ -18,9 +18,9 @@ review being addressed. Items are listed in execution order.
 | 6 | auth as interceptor with per-RPC role option | done | d7fefee4 |
 | 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | done | this commit |
 | 9 | identity/location startup check | done | this commit |
-| 10 | blocking journal lock | done | this commit |
-| 11 | scale: notification watermark, heartbeat split, leader lease | next | |
-| 12 | docs: threat model, naming, SIGHUP, philosophy sentence | pending | |
+| 10 | blocking journal lock | done | 3478d9b3 |
+| 11 | scale: notification watermark, heartbeat split, leader lease | done | this commit |
+| 12 | docs: threat model, naming, SIGHUP, philosophy sentence | next | |
 
 Dual-mode agent (library + `cmd/xtcp2-treatment-agent` + `treatment` build tag
 in `cmd/xtcp2`, with an `attribution` journal reader for the untagged daemon)
@@ -172,6 +172,43 @@ process.
   lock with a half-written temp file and checks the lock is free, the
   snapshot intact and the temp file swept.
 
+## Item 11 notes
+
+- Notification scan: `Agents.DesiredRevisions` (full scan) became
+  `Agents.DesiredSince(ctx, since) []DesiredRevision{AgentID, Revision,
+  UpdatedAt}` with `>=` on `desired_updated_at`, ordered by stamp then ID.
+  `SaveDesired` and `Enroll` stamp with `clock_timestamp()` rather than
+  `now()`: `now()` is transaction start, which precedes the advisory lock, so
+  a stamp could sort before a row that committed earlier. With every stamping
+  writer under the mutation lock, stamps commit in order and the watermark
+  (newest stamp less a one-second margin, store clock only) cannot skip a
+  row; the margin covers a store clock step under a second and the hub drops
+  the repeats it causes. A step larger than the margin leaves that revision
+  to the agent's next check-in, which always returns desired state on a
+  revision mismatch. `TestNotifyWatermark` walks a scanner through first
+  scan, change, no change, equal stamp, scan failure, future stamp and
+  behind-watermark steps.
+- Heartbeat split: `report_digest` column on `xtcp_treatment_agents` holds a
+  SHA-256 over the algorithm list and every record in insert-column form.
+  `Observe` does one `UPDATE ... FROM (... FOR UPDATE) RETURNING
+  o.report_digest` and rewrites the child rows only when the digest changed.
+  `TestPostgresObserveRewritesOnlyChangedReports` compares row `xmin` values
+  across identical, heartbeat-only, status, timestamp, order, algorithm and
+  dropped-record reports.
+- Leader lease: `Store.Lease(ctx, name, fn) (held bool, err error)`.
+  Postgres takes `pg_try_advisory_lock(fnv64a(name))` on a dedicated
+  `db.Conn`, unlocks after `fn` with a bounded context, and discards the
+  connection if the unlock fails so a pooled connection never carries the
+  lock. Memory is a try-lock map outside the Tx snapshot.
+  `Server.Housekeep` runs `Maintain` and, when due, `Discover` under the
+  `housekeeping` lease; the controller main loop logs leader transitions
+  and advances its discovery cadence whether or not it held the lease.
+  Conformance rows: free, held-elsewhere, released-on-error,
+  independent-names, cancelled-context; `TestHousekeepLease` covers the
+  controller side.
+- The schema is pre-release, so `report_digest` is added to the `CREATE
+  TABLE` rather than through an `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
+
 ## TODO
 
 - The watchdog and `pkg/treatment/local` still link gRPC, through
@@ -182,8 +219,6 @@ process.
 - `Experiments.List` loads each experiment with its own round trips
   (cohort, phases, evidence). Fine for `inspect` limits; batch before any
   fleet-wide listing path.
-- `Agents.Observe` rewrites every record row per heartbeat. Item 11 splits the
-  heartbeat update from record writes.
 - `docs/benchmarks/tcp-controller/postgres-indexes.txt` still shows the JSONB
   expression-index timings; refresh from `TestPostgresExperimentQueryIndexes`
   on the Nix fixture.

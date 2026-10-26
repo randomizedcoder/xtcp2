@@ -53,19 +53,52 @@ func (h *NotificationHub) publish(id string, revision uint64) {
 		ch <- revision
 	}
 }
+
+// notificationIntervalCst is the scan period; check-ins deliver desired
+// state anyway, so a missed scan costs latency, not correctness.
+const notificationIntervalCst = 2 * time.Second
+
+// notificationLagCst is taken off the watermark between scans. Stamps and
+// commits are ordered by the mutation lock, so the margin only covers a
+// store clock stepping backwards; the hub drops the repeats it causes.
+const notificationLagCst = time.Second
+
+// RunNotifications publishes desired-state changes to subscribed agents.
+// The first scan reads every agent so that late subscribers learn the
+// current revision; each later scan reads only rows stamped at or after the
+// previous scan's newest stamp less the lag, so its cost follows the change
+// rate rather than the fleet size. Watermarks are store stamps, never this
+// process's clock.
 func (s *Server) RunNotifications(ctx context.Context) {
-	t := time.NewTicker(2 * time.Second)
+	t := time.NewTicker(notificationIntervalCst)
 	defer t.Stop()
+	var since time.Time
 	for {
-		if revisions, e := s.Store.Repos().Agents.DesiredRevisions(ctx); e == nil {
-			for id, rev := range revisions {
-				s.Hub.publish(id, rev)
-			}
-		}
+		since = s.notify(ctx, since)
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
 	}
+}
+
+// notify publishes every change stamped at or after since and returns the
+// next watermark. A failed scan keeps the watermark so nothing is skipped.
+func (s *Server) notify(ctx context.Context, since time.Time) time.Time {
+	changes, e := s.Store.Repos().Agents.DesiredSince(ctx, since)
+	if e != nil {
+		return since
+	}
+	newest := since
+	for _, c := range changes {
+		s.Hub.publish(c.AgentID, c.Revision)
+		if c.UpdatedAt.After(newest) {
+			newest = c.UpdatedAt
+		}
+	}
+	if next := newest.Add(-notificationLagCst); next.After(since) {
+		return next
+	}
+	return since
 }

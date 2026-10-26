@@ -2,8 +2,11 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
@@ -14,8 +17,8 @@ type agents struct{ *runner }
 
 func (a *agents) Enroll(ctx context.Context, id, location string, initial *treatment.DesiredState) error {
 	return a.atomic(ctx, func(q querier) error {
-		res, err := q.ExecContext(ctx, `INSERT INTO xtcp_treatment_agents(id,location,desired_revision,desired_suspended,desired_issued_at)
- VALUES($1,$2,$3,$4,$5) ON CONFLICT(id) DO NOTHING`, id, location, int64(initial.Revision), initial.Suspended, initial.IssuedAt)
+		res, err := q.ExecContext(ctx, `INSERT INTO xtcp_treatment_agents(id,location,desired_revision,desired_suspended,desired_issued_at,desired_updated_at)
+ VALUES($1,$2,$3,$4,$5,clock_timestamp()) ON CONFLICT(id) DO NOTHING`, id, location, int64(initial.Revision), initial.Suspended, initial.IssuedAt)
 		if err != nil {
 			return err
 		}
@@ -77,19 +80,31 @@ func (a *agents) Get(ctx context.Context, id string) (*store.Agent, error) {
 	return out, nil
 }
 
+// Observe always stamps the heartbeat columns on the agents row. The
+// algorithm and record rows are rewritten only when their digest differs
+// from the one stored with the previous report, so a steady fleet costs one
+// single-row update per check-in.
 func (a *agents) Observe(ctx context.Context, report *treatment.AgentReport, seen time.Time) error {
+	digest := reportDigest(report)
 	return a.atomic(ctx, func(q querier) error {
 		c := report.Capabilities
-		res, err := q.ExecContext(ctx, `UPDATE xtcp_treatment_agents SET last_seen=$3,boot_id=$4,kernel_release=$5,simple_host_routing=$6,actuator_enabled=$7,locally_suspended=$8,reported_revision=$9
- WHERE id=$1 AND location=$2`, report.AgentID, report.Location, seen, c.BootID, c.KernelRelease, c.SimpleHostRouting, c.ActuatorEnabled, report.LocallySuspended, int64(report.DesiredRevision))
+		var previous string
+		// The subquery's report_digest is the value before this update.
+		err := q.QueryRowContext(ctx, `UPDATE xtcp_treatment_agents AS a
+ SET last_seen=$3,boot_id=$4,kernel_release=$5,simple_host_routing=$6,actuator_enabled=$7,
+     locally_suspended=$8,reported_revision=$9,report_digest=$10
+ FROM (SELECT id,report_digest FROM xtcp_treatment_agents WHERE id=$1 AND location=$2 FOR UPDATE) AS o
+ WHERE a.id=o.id RETURNING o.report_digest`,
+			report.AgentID, report.Location, seen, c.BootID, c.KernelRelease, c.SimpleHostRouting, c.ActuatorEnabled,
+			report.LocallySuspended, int64(report.DesiredRevision), digest).Scan(&previous)
+		if errors.Is(err, sql.ErrNoRows) {
+			return store.ErrNotEnrolled
+		}
 		if err != nil {
 			return err
 		}
-		if n, err := res.RowsAffected(); err != nil || n == 0 {
-			if err != nil {
-				return err
-			}
-			return store.ErrNotEnrolled
+		if previous == digest {
+			return nil
 		}
 		if _, err = q.ExecContext(ctx, "DELETE FROM xtcp_treatment_agent_algorithms WHERE agent_id=$1", report.AgentID); err != nil {
 			return err
@@ -110,6 +125,27 @@ func (a *agents) Observe(ctx context.Context, report *treatment.AgentReport, see
 		}
 		return batchInsert(ctx, q, "xtcp_treatment_records", recordColumns, recs)
 	})
+}
+
+// reportDigest covers exactly what Observe writes outside the agents row:
+// the algorithm list and every record in the column form it would be
+// inserted with. Reports with equal digests produce identical rows.
+func reportDigest(report *treatment.AgentReport) string {
+	h := sha256.New()
+	for _, name := range report.Capabilities.CongestionAlgorithms {
+		fmt.Fprintf(h, "%s\x00", name)
+	}
+	h.Write([]byte{0xff})
+	for i := range report.Records {
+		for _, v := range recordArgs(report.AgentID, i, &report.Records[i]) {
+			if t, ok := v.(time.Time); ok {
+				v = t.UnixNano()
+			}
+			fmt.Fprintf(h, "%v\x00", v)
+		}
+		h.Write([]byte{0xfe})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (a *agents) Desired(ctx context.Context, id string) (*treatment.DesiredState, error) {
@@ -149,7 +185,7 @@ func (a *agents) Desired(ctx context.Context, id string) (*treatment.DesiredStat
 
 func (a *agents) SaveDesired(ctx context.Context, d *treatment.DesiredState) error {
 	return a.atomic(ctx, func(q querier) error {
-		res, err := q.ExecContext(ctx, "UPDATE xtcp_treatment_agents SET desired_revision=$2,desired_suspended=$3,desired_issued_at=$4,desired_updated_at=now() WHERE id=$1", d.AgentID, int64(d.Revision), d.Suspended, d.IssuedAt)
+		res, err := q.ExecContext(ctx, "UPDATE xtcp_treatment_agents SET desired_revision=$2,desired_suspended=$3,desired_issued_at=$4,desired_updated_at=clock_timestamp() WHERE id=$1", d.AgentID, int64(d.Revision), d.Suspended, d.IssuedAt)
 		if err != nil {
 			return err
 		}
@@ -191,20 +227,22 @@ func (a *agents) List(ctx context.Context, location string) ([]store.AgentRef, e
 	return out, errors.Join(rows.Err(), rows.Close())
 }
 
-func (a *agents) DesiredRevisions(ctx context.Context) (map[string]uint64, error) {
-	rows, err := a.q().QueryContext(ctx, "SELECT id,desired_revision FROM xtcp_treatment_agents")
+func (a *agents) DesiredSince(ctx context.Context, since time.Time) ([]store.DesiredRevision, error) {
+	rows, err := a.q().QueryContext(ctx, `SELECT id,desired_revision,desired_updated_at FROM xtcp_treatment_agents
+ WHERE desired_updated_at>=$1 ORDER BY desired_updated_at,id`, since)
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]uint64{}
+	var out []store.DesiredRevision
 	for rows.Next() {
-		var id string
+		var r store.DesiredRevision
 		var rev int64
-		if err = rows.Scan(&id, &rev); err != nil {
+		if err = rows.Scan(&r.AgentID, &rev, &r.UpdatedAt); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		out[id] = uint64(rev)
+		r.Revision = uint64(rev)
+		out = append(out, r)
 	}
 	return out, errors.Join(rows.Err(), rows.Close())
 }

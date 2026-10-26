@@ -86,14 +86,15 @@ func cloneAgent(a *agentRow) *agentRow {
 
 // Store satisfies store.Store.
 type Store struct {
-	mu sync.Mutex
-	st *state
+	mu     sync.Mutex
+	st     *state
+	leases map[string]bool
 	// Now stamps updated_at columns; tests may pin it.
 	Now func() time.Time
 }
 
 func New() *Store {
-	return &Store{st: &state{agents: map[string]*agentRow{}, experiments: map[string]*experimentRow{}, evidence: map[string]evidenceRow{}, holds: map[string]string{}}}
+	return &Store{st: &state{agents: map[string]*agentRow{}, experiments: map[string]*experimentRow{}, evidence: map[string]evidenceRow{}, holds: map[string]string{}}, leases: map[string]bool{}}
 }
 
 func (s *Store) now() time.Time {
@@ -127,6 +128,27 @@ func (s *Store) Tx(ctx context.Context, fn func(store.Repos) error) error {
 		return err
 	}
 	return nil
+}
+
+// Lease is a try-lock per name. Leases are not state: a rolled-back Tx
+// does not release one.
+func (s *Store) Lease(ctx context.Context, name string, fn func() error) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	if s.leases[name] {
+		s.mu.Unlock()
+		return false, nil
+	}
+	s.leases[name] = true
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.leases, name)
+		s.mu.Unlock()
+	}()
+	return true, fn()
 }
 
 type repo struct {
@@ -220,12 +242,20 @@ func (r agentsRepo) List(_ context.Context, location string) ([]store.AgentRef, 
 	return out, nil
 }
 
-func (r agentsRepo) DesiredRevisions(context.Context) (map[string]uint64, error) {
+func (r agentsRepo) DesiredSince(_ context.Context, since time.Time) ([]store.DesiredRevision, error) {
 	defer r.enter()()
-	out := make(map[string]uint64, len(r.s.st.agents))
+	var out []store.DesiredRevision
 	for id, a := range r.s.st.agents {
-		out[id] = a.desired.Revision
+		if !a.updatedAt.Before(since) {
+			out = append(out, store.DesiredRevision{AgentID: id, Revision: a.desired.Revision, UpdatedAt: a.updatedAt})
+		}
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].UpdatedAt.Equal(out[j].UpdatedAt) {
+			return out[i].UpdatedAt.Before(out[j].UpdatedAt)
+		}
+		return out[i].AgentID < out[j].AgentID
+	})
 	return out, nil
 }
 

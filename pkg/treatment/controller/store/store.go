@@ -71,8 +71,20 @@ type Agents interface {
 	// List returns agents in the location, or every agent when location is
 	// empty, ordered by ID.
 	List(ctx context.Context, location string) ([]AgentRef, error)
-	// DesiredRevisions returns every agent's current desired revision.
-	DesiredRevisions(ctx context.Context) (map[string]uint64, error)
+	// DesiredSince returns the desired revision of every agent whose
+	// desired state was stamped at or after since, ordered by stamp then
+	// ID. A zero since returns every agent. Stamps come from the store's
+	// own clock, so callers carry the newest stamp returned forward as the
+	// next since rather than comparing it with their clock.
+	DesiredSince(ctx context.Context, since time.Time) ([]DesiredRevision, error)
+}
+
+// DesiredRevision is one agent's desired revision and the store's stamp of
+// when it last changed.
+type DesiredRevision struct {
+	AgentID   string
+	Revision  uint64
+	UpdatedAt time.Time
 }
 
 // Experiments stores experiments with their cohort, phases and evidence
@@ -159,10 +171,16 @@ type Repos struct {
 // Store is the root. Repos performs each call in its own implicit
 // transaction. Tx runs fn inside one transaction that holds the controller's
 // mutation lock, so every control-plane change is serialized across replicas;
-// agent heartbeats never take it.
+// agent heartbeats never take it. Lease elects which replica does periodic
+// work without making any replica special.
 type Store interface {
 	Repos() Repos
 	Tx(ctx context.Context, fn func(Repos) error) error
+	// Lease runs fn while holding the named lease, which at most one caller
+	// across every replica holds at a time. When another caller holds it,
+	// Lease returns false without calling fn. The lease is released when fn
+	// returns, whatever it returns.
+	Lease(ctx context.Context, name string, fn func() error) (bool, error)
 	Ping(ctx context.Context) error
 	Close() error
 }

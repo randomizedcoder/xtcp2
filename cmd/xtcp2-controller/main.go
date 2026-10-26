@@ -115,18 +115,32 @@ func run() error {
 		tick := time.NewTicker(time.Minute)
 		defer tick.Stop()
 		nextDiscovery := time.Now()
+		leader := false
 		for {
-			if e := s.Maintain(ctx, source); e != nil {
-				log.Printf("controller maintenance: %v", e)
-			}
+			// Discovery is due on this replica's own cadence whether or not
+			// it holds the lease, so a follower that becomes leader does not
+			// run a backlog of passes.
+			var due evidence.Warehouse
 			if warehouse != nil && !time.Now().Before(nextDiscovery) {
-				if e := s.Discover(ctx, warehouse, templates); e != nil {
-					log.Printf("candidate discovery: %v", e)
-				}
+				due = warehouse
 				// Keep the cadence independent of query duration; otherwise a
 				// one-minute interval can accidentally skip every other tick.
 				for !nextDiscovery.After(time.Now()) {
 					nextDiscovery = nextDiscovery.Add(*discoveryInterval)
+				}
+			}
+			held, e := s.Housekeep(ctx, source, due, templates)
+			if e != nil {
+				log.Printf("controller housekeeping: %v", e)
+			}
+			// A failed Lease call reports held=false with an error; that is
+			// not a follower, so the leader state is kept until it answers.
+			if (e == nil || held) && held != leader {
+				leader = held
+				if held {
+					log.Print("controller housekeeping: this replica holds the lease")
+				} else {
+					log.Print("controller housekeeping: another replica holds the lease; skipping passes")
 				}
 			}
 			select {

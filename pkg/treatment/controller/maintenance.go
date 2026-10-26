@@ -23,6 +23,31 @@ func (s *Server) driftInput(n *treatment.Experiment) *treatment.Experiment {
 	return input
 }
 
+// housekeepingLeaseCst names the lease one replica holds while it runs
+// maintenance and discovery; the others skip the tick.
+const housekeepingLeaseCst = "housekeeping"
+
+// Housekeep runs one maintenance pass, and a discovery pass when warehouse
+// is non-nil, under the housekeeping lease. It reports whether this replica
+// held the lease; false means another replica did the work for this tick.
+// Correctness never depended on a single runner (the mutation lock fences
+// every write); the lease keeps the evidence queries from running once per
+// replica.
+func (s *Server) Housekeep(ctx context.Context, source evidence.Source, warehouse evidence.Warehouse, templates []DiscoveryTemplate) (bool, error) {
+	return s.Store.Lease(ctx, housekeepingLeaseCst, func() error {
+		var errs []error
+		if e := s.Maintain(ctx, source); e != nil {
+			errs = append(errs, fmt.Errorf("maintenance: %w", e))
+		}
+		if warehouse != nil {
+			if e := s.Discover(ctx, warehouse, templates); e != nil {
+				errs = append(errs, fmt.Errorf("candidate discovery: %w", e))
+			}
+		}
+		return errors.Join(errs...)
+	})
+}
+
 // Maintain refreshes exposure, stores evidence, renews healthy leases, and
 // withdraws harmful/expired trials. It NEVER promotes a phase. A fresh human
 // review remains necessary for each increase in exposure. A nil source (no

@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS xtcp_treatment_agents (
   actuator_enabled boolean NOT NULL DEFAULT false,
   locally_suspended boolean NOT NULL DEFAULT false,
   reported_revision bigint NOT NULL DEFAULT 0,
+  -- Digest of the algorithm and record rows last written for this agent;
+  -- a heartbeat with an equal digest updates this row only.
+  report_digest text NOT NULL DEFAULT '',
   desired_revision bigint NOT NULL,
   desired_suspended boolean NOT NULL DEFAULT false,
   desired_issued_at timestamptz NOT NULL,
