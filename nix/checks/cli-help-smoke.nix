@@ -35,9 +35,14 @@ let
     # A tools/ binary, exported beside the cmd ones (nix/binaries.nix).
     "rtnlmon-probe"
     "xtcp2"
+    "xtcp2-controller"
+    "xtcp2-controllerctl"
+    "xtcp2-treatment-agent"
+    "xtcp2-treatmentctl"
     "xtcp2client"
     "xtcp2ctl"
     "xtcp2_kafka_client"
+    "zstd-probe"
   ];
 
   mkSmoke =
