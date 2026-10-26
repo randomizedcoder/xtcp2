@@ -2922,6 +2922,311 @@ var commands = withArgs([]Command{
 		// plain spelling and Name is the allowlist key.
 		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupP0,
 	},
+	// The VLAN family's write rows (goip-link-kinds.md, KG2-T05): KC3's
+	// vlan, macvlan, macvtap, ipvlan and ipvtap rows that sent a request, in
+	// kind-write-corpus.exp's order, from pkg/xtcpnl/testdata/7_3_0/
+	// link-write/kinds/<kind>/. Each Floor is the row's ip.pcap record
+	// count: the lower's lookup and the write (4), or the write alone for a
+	// row with no `link` (2); a set is the device's lookup and the write.
+	// Each Setup is the row's topology file. The 22 rows ip refuses before
+	// netlink are not rows; the kinds' refusal tests hold them offline.
+	{
+		Name: "link add link d0 name v0 type vlan id 10", Slug: "link_vlan_add_default",
+		// The d0 lookup for `link`, then the write (4).
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 protocol 802.1ad", Slug: "link_vlan_add_protocol",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 reorder_hdr off", Slug: "link_vlan_add_reorder_hdr",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 gvrp on", Slug: "link_vlan_add_gvrp",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 mvrp on", Slug: "link_vlan_add_mvrp",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 loose_binding on", Slug: "link_vlan_add_loose_binding",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 bridge_binding on", Slug: "link_vlan_add_bridge_binding",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 ingress-qos-map 1:2 3:4", Slug: "link_vlan_add_ingress_qos_map",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 egress-qos-map 2:1 4:3", Slug: "link_vlan_add_egress_qos_map",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 protocol 802.1ad gvrp on mvrp on", Slug: "link_vlan_add_several",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 4094", Slug: "link_vlan_add_id_max",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan i 10", Slug: "link_vlan_add_abbrev",
+		// `i` is `id`: matches() takes a prefix.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set v0 type vlan loose_binding on", Slug: "link_vlan_set_flags",
+		Floor: 4, Implemented: true, Write: true, Setup: vlanWriteSetupV0,
+	},
+	{
+		Name: "link set v0 type vlan egress-qos-map 1:5", Slug: "link_vlan_set_egress_qos_map",
+		Floor: 4, Implemented: true, Write: true, Setup: vlanWriteSetupV0,
+	},
+	{
+		Name: "link set v0 type vlan id 20", Slug: "link_vlan_set_id",
+		// vlan_changelink ignores the id: accepted, nothing changes.
+		Floor: 4, Implemented: true, Write: true, Setup: vlanWriteSetupV0,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan", Slug: "link_vlan_add_no_id",
+		// "VLAN properties not specified" (an extack), compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add name v0 type vlan id 10", Slug: "link_vlan_add_no_link",
+		// "link not specified" (an extack): no lookup, the write alone (2).
+		Floor: 2, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 4095", Slug: "link_vlan_add_id_over",
+		// "Invalid VLAN id" (an extack), compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v0 type vlan id 10 protocol ip", Slug: "link_vlan_add_protocol_unsupported",
+		// "Invalid VLAN protocol" (an extack), compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name v1 type vlan id 10", Slug: "link_vlan_add_duplicate_id",
+		// "VLAN device already exists" (an extack): v1 on v0's id.
+		Floor: 4, Implemented: true, Write: true, Setup: vlanWriteSetupV0,
+	},
+	{
+		Name: "link add link lo name v0 type vlan id 10", Slug: "link_vlan_add_on_loopback",
+		// "VLANs not supported on device" (an extack): lo is the lower.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan", Slug: "link_macvlan_add_default",
+		// No options: IFLA_INFO_KIND alone, after the d0 lookup (4).
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode private", Slug: "link_macvlan_add_mode_private",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode vepa", Slug: "link_macvlan_add_mode_vepa",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode bridge", Slug: "link_macvlan_add_mode_bridge",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode passthru", Slug: "link_macvlan_add_mode_passthru",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode source", Slug: "link_macvlan_add_mode_source",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode bridge flag nodst", Slug: "link_macvlan_add_flag_nodst",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode bridge nodst", Slug: "link_macvlan_add_nodst",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode bridge flag null", Slug: "link_macvlan_add_flag_null",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode passthru nopromisc", Slug: "link_macvlan_add_passthru_nopromisc",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan bcqueuelen 2000", Slug: "link_macvlan_add_bcqueuelen",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan bclim 10", Slug: "link_macvlan_add_bclim",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan bclim -1", Slug: "link_macvlan_add_bclim_negative",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode source macaddr add 02:00:00:00:00:01", Slug: "link_macvlan_add_macaddr_add",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode source macaddr set 02:00:00:00:00:01 02:00:00:00:00:02", Slug: "link_macvlan_add_macaddr_set",
+		// The set reads both addresses; the word it stops on is pushed back.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mo bridge", Slug: "link_macvlan_add_abbrev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set m0 type macvlan mode private", Slug: "link_macvlan_set_mode",
+		Floor: 4, Implemented: true, Write: true, Setup: macvlanWriteSetupM0,
+	},
+	{
+		Name: "link set m0 type macvlan macaddr del 02:00:00:00:00:01", Slug: "link_macvlan_set_macaddr_del",
+		Floor: 4, Implemented: true, Write: true, Setup: macvlanWriteSetupM0Source,
+	},
+	{
+		Name: "link set m0 type macvlan macaddr flush", Slug: "link_macvlan_set_macaddr_flush",
+		Floor: 4, Implemented: true, Write: true, Setup: macvlanWriteSetupM0Source,
+	},
+	{
+		Name: "link set m0 type macvlan bcqueuelen 500", Slug: "link_macvlan_set_bcqueuelen",
+		Floor: 4, Implemented: true, Write: true, Setup: macvlanWriteSetupM0,
+	},
+	{
+		Name: "link set m0 type macvlan mode passthru", Slug: "link_macvlan_set_passthru",
+		// EINVAL: passthru is not set by a change, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: macvlanWriteSetupM0,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode bridge macaddr add 02:00:00:00:00:01", Slug: "link_macvlan_add_macaddr_not_source",
+		// EINVAL: source addresses outside source mode, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m0 type macvlan mode source macaddr add 01:00:5e:00:00:01", Slug: "link_macvlan_add_macaddr_multicast",
+		// EADDRNOTAVAIL: a multicast source address, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name m1 type macvlan mode passthru", Slug: "link_macvlan_add_second_passthru",
+		// EINVAL: one passthru per lower; m1 on m0's d0.
+		Floor: 4, Implemented: true, Write: true, Setup: macvlanWriteSetupM0Passthru,
+	},
+	{
+		Name: "link add link lo name m0 type macvlan", Slug: "link_macvlan_add_on_loopback",
+		// EINVAL: lo is the lower, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name t0 type macvtap", Slug: "link_macvtap_add_default",
+		// macvlan_parse_opt under its own kind name.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name t0 type macvtap mode bridge", Slug: "link_macvtap_add_mode_bridge",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name t0 type macvtap mode passthru", Slug: "link_macvtap_add_mode_passthru",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name t0 type macvtap bcqueuelen 2000", Slug: "link_macvtap_add_bcqueuelen",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set t0 type macvtap mode private", Slug: "link_macvtap_set_mode",
+		Floor: 4, Implemented: true, Write: true, Setup: macvtapWriteSetupT0,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan", Slug: "link_ipvlan_add_default",
+		// No options: no IFLA_INFO_DATA at all.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan mode l2", Slug: "link_ipvlan_add_mode_l2",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan mode l3", Slug: "link_ipvlan_add_mode_l3",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan mode l3s", Slug: "link_ipvlan_add_mode_l3s",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan private", Slug: "link_ipvlan_add_private",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan vepa", Slug: "link_ipvlan_add_vepa",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan bridge", Slug: "link_ipvlan_add_bridge",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan mode l2 vepa", Slug: "link_ipvlan_add_mode_and_flag",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name i0 type ipvlan mo l2", Slug: "link_ipvlan_add_abbrev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set i0 type ipvlan mode l2", Slug: "link_ipvlan_set_mode",
+		// IFLA_IPVLAN_FLAGS 0 with the mode: the set clears private.
+		Floor: 4, Implemented: true, Write: true, Setup: ipvlanWriteSetupI0Private,
+	},
+	{
+		Name: "link set i0 type ipvlan vepa", Slug: "link_ipvlan_set_flag",
+		Floor: 4, Implemented: true, Write: true, Setup: ipvlanWriteSetupI0,
+	},
+	{
+		Name: "link add name i0 type ipvlan", Slug: "link_ipvlan_add_no_link",
+		// EINVAL: no lower, so no lookup, the write alone (2).
+		Floor: 2, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link lo name i0 type ipvlan", Slug: "link_ipvlan_add_on_loopback",
+		// EINVAL: lo is not Ethernet, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 dev i0 type ipvlan", Slug: "link_ipvlan_add_on_busy_lower",
+		// EBUSY: m0 holds d0's rx handler. Spelled with `dev`, which sends the
+		// same request, since add_default has the `name` spelling and Name is the
+		// allowlist key.
+		Floor: 4, Implemented: true, Write: true, Setup: macvlanWriteSetupM0,
+	},
+	{
+		Name: "link add link d0 name j0 type ipvtap", Slug: "link_ipvtap_add_default",
+		// ipvlan_parse_opt under its own kind name.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add link d0 name j0 type ipvtap mode l2", Slug: "link_ipvtap_add_mode_l2",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set j0 type ipvtap mode l2", Slug: "link_ipvtap_set_mode",
+		Floor: 4, Implemented: true, Write: true, Setup: ipvtapWriteSetupJ0,
+	},
 	// The bridge read rows: br0's IFLA_INFO_DATA and p0's
 	// IFLA_INFO_SLAVE_DATA under -d, text and JSON, on one bridge with two
 	// ports. The stdout comparison is the facets, so the timers move freely;
@@ -2944,6 +3249,50 @@ var commands = withArgs([]Command{
 	{
 		Name: "-d -j link show dev p0", Slug: "link_show_details_bridge_slave_json",
 		Setup: bridgeReadSetup, Floor: 6, Implemented: true,
+	},
+	// The VLAN family's read rows: each kind's IFLA_INFO_DATA under -d,
+	// text and JSON, on d0 and the device's add. Each is the device's two
+	// gets, then d0's to name the `@d0` (6);
+	// TestLinkShowDetailVlanFamilyMatchesSidecar is the text and JSON oracle.
+	{
+		Name: "-d link show dev v0", Slug: "link_show_details_vlan",
+		Setup: vlanWriteSetupV0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev v0", Slug: "link_show_details_vlan_json",
+		Setup: vlanWriteSetupV0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev m0", Slug: "link_show_details_macvlan",
+		Setup: macvlanWriteSetupM0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev m0", Slug: "link_show_details_macvlan_json",
+		Setup: macvlanWriteSetupM0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev t0", Slug: "link_show_details_macvtap",
+		Setup: macvtapWriteSetupT0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev t0", Slug: "link_show_details_macvtap_json",
+		Setup: macvtapWriteSetupT0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev i0", Slug: "link_show_details_ipvlan",
+		Setup: ipvlanWriteSetupI0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev i0", Slug: "link_show_details_ipvlan_json",
+		Setup: ipvlanWriteSetupI0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev j0", Slug: "link_show_details_ipvtap",
+		Setup: ipvtapWriteSetupJ0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev j0", Slug: "link_show_details_ipvtap_json",
+		Setup: ipvtapWriteSetupJ0, Floor: 6, Implemented: true,
 	},
 	// The route write rows (route-write-path.md phase 5): the corpus in
 	// pkg/xtcpnl/testdata/7_1_4/link-write/route/, less `nodev`, with the
@@ -4096,6 +4445,20 @@ var (
 	bridgeWriteSetupPortsUp     = append(slices.Clone(bridgeWriteSetupPorts), "link set p0 addrgenmode none", "link set p0 up")
 	bridgeWriteSetupPortsBackup = append(slices.Clone(bridgeWriteSetupPorts), "link set dev p0 type bridge_slave backup_port p1")
 	bridgeWriteSetupP0          = []string{"link add p0 type dummy"}
+)
+
+// The VLAN family's preconditions past PRE_D0 (linkWriteSetupDummy):
+// kind-write-corpus.exp's PRE_V0, PRE_M0, PRE_M0_SOURCE, PRE_M0_PASSTHRU,
+// PRE_T0, PRE_I0, PRE_I0_PRIVATE and PRE_J0, each after d0.
+var (
+	vlanWriteSetupV0            = []string{"link add d0 type dummy", "link add link d0 name v0 type vlan id 10"}
+	macvlanWriteSetupM0         = []string{"link add d0 type dummy", "link add link d0 name m0 type macvlan mode bridge"}
+	macvlanWriteSetupM0Source   = []string{"link add d0 type dummy", "link add link d0 name m0 type macvlan mode source macaddr add 02:00:00:00:00:01"}
+	macvlanWriteSetupM0Passthru = []string{"link add d0 type dummy", "link add link d0 name m0 type macvlan mode passthru"}
+	macvtapWriteSetupT0         = []string{"link add d0 type dummy", "link add link d0 name t0 type macvtap mode bridge"}
+	ipvlanWriteSetupI0          = []string{"link add d0 type dummy", "link add link d0 name i0 type ipvlan"}
+	ipvlanWriteSetupI0Private   = []string{"link add d0 type dummy", "link add link d0 name i0 type ipvlan private"}
+	ipvtapWriteSetupJ0          = []string{"link add d0 type dummy", "link add link d0 name j0 type ipvtap"}
 )
 
 // bridgeReadSetup is the bridge read rows' namespace, PRE_PORTS: br0 and

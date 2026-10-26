@@ -3030,6 +3030,8 @@ The device each row shows is `kindShowDevice`'s: the name before `@` on its `ip_
 | positive: the ten read rows | the read rows | not writes; floor 6; d0 and the device |
 | positive: every row is gated | the 78 rows' names | each `IsGated` in the embedded allowlist |
 
+`TestCompareWriteRow`'s every-write-row case runs the 68 on their own corpus captures, and `TestAllowlistCommitted` and `TestUngatedSurfaceIsNotVacuous` hold the 78 gated, so the 78 go in `TestAllowlistCommitted`'s earned list too.
+
 | description (VM) | input | expected |
 |---|---|---|
 | positive: two consecutive clean section runs | `goip-parity -- --timeout 12000 --section link`, twice | the 78 rows `PASS` on both, and every gated `link` row still `PASS` |

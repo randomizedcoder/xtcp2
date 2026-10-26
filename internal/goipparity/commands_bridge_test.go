@@ -11,26 +11,38 @@ import (
 )
 
 const (
-	// bridgeSlugPrefixCst and bridgeSlaveSlugPrefixCst mark KG1-T05's write
-	// rows; a bridge_slave slug has both, so it is tried first.
-	bridgeSlugPrefixCst      = "link_bridge_"
-	bridgeSlaveSlugPrefixCst = "link_bridge_slave_"
-	bridgeKindCst            = "bridge"
-	bridgeSlaveKindCst       = "bridge_slave"
+	bridgeKindCst      = "bridge"
+	bridgeSlaveKindCst = "bridge_slave"
 	// bridgeTopologyPrefixCst is the start of a topology line the step ran
 	// cleanly on, before the step's argv.
 	bridgeTopologyPrefixCst = "ok    [lacpa] ip "
 )
 
-// bridgeRowKind is a bridge write row's corpus kind and slug.
-func bridgeRowKind(slug string) (kind, row string, ok bool) {
-	if row, ok = strings.CutPrefix(slug, bridgeSlaveSlugPrefixCst); ok {
-		return bridgeSlaveKindCst, row, true
-	}
-	if row, ok = strings.CutPrefix(slug, bridgeSlugPrefixCst); ok {
-		return bridgeKindCst, row, true
+// kindRowKinds are the corpus kinds with write rows, each row's slug
+// `link_<kind>_<row>` (KG1-T05, KG2-T05). bridge_slave's prefix starts
+// with bridge's, so it is tried first.
+var kindRowKinds = []string{
+	bridgeSlaveKindCst, bridgeKindCst,
+	vlanKindCst, macvlanKindCst, macvtapKindCst, ipvlanKindCst, ipvtapKindCst,
+}
+
+// kindRowKind is a kind write row's corpus kind and slug.
+func kindRowKind(slug string) (kind, row string, ok bool) {
+	for _, kind := range kindRowKinds {
+		if row, ok = strings.CutPrefix(slug, "link_"+kind+"_"); ok {
+			return kind, row, true
+		}
 	}
 	return "", "", false
+}
+
+// bridgeRowKind is kindRowKind for KG1-T05's two kinds alone.
+func bridgeRowKind(slug string) (kind, row string, ok bool) {
+	kind, row, ok = kindRowKind(slug)
+	if kind != bridgeKindCst && kind != bridgeSlaveKindCst {
+		return "", "", false
+	}
+	return kind, row, ok
 }
 
 // bridgeCorpusRows is each KC2 row of kind whose ip.rc is one of rcs.
