@@ -22,10 +22,10 @@ import (
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -366,8 +366,7 @@ func runController(soak bool) {
 	act(canary, "hup")
 	time.Sleep(5 * time.Second)
 	s := status(canary)
-	state := new(pb.LocalState)
-	check(prototext.Unmarshal([]byte(s.State), state))
+	state := must(reconcile.UnmarshalText([]byte(s.State)))
 	require(state.LocallySuspended && !hasRoute(canary), "remote resume cleared local hold")
 	act(canary, "resume")
 	eventually("local resume", time.Minute, func() bool { return hasRoute(canary) })

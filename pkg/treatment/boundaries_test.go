@@ -19,9 +19,11 @@ import (
 //	pkg/treatment                  domain types, limits, validators: proto-free   [everyone]
 //	pkg/treatment/wire             domain <-> generated proto conversion          [gRPC boundary]
 //	pkg/treatment/identity         SPIFFE identity + TLS                          [agent, controller, tools]
-//	pkg/treatment/reconcile        journal + reconciler + Backend                 [agent, watchdog]
+//	pkg/treatment/reconcile        journal (xtcp_treatment_journal.v1) + reconciler + Backend; no RPC proto, no gRPC   [agent, watchdog]
+//	pkg/treatment/local            host config + goip-backed reconciler; no TLS, no gRPC    [agent, watchdog, treatmentctl]
+//	pkg/treatment/attribution      ExposureIndex + telemetry stamping from a journal snapshot [daemon, agent]
 //	pkg/treatment/experiment       statistics + state machine, pure               [controller]
-//	pkg/treatment/agent            check-in loop + stamping                       [daemon, agent binary]
+//	pkg/treatment/agent            check-in loop + watch over local + attribution [daemon (treatment tag), agent binary]
 //	pkg/treatment/controller       gRPC handlers over store ports                 [controller binary only]
 //	pkg/treatment/controller/store ports; postgres/ and memory/ implement them    [controller]
 //
@@ -75,23 +77,38 @@ func treatmentBoundaryRules() []boundaryRule {
 			expectAny:   []string{tp("pkg/treatment")},
 		},
 		{
-			// TODO(dual-mode agent): forbid pkg/treatment/identity and google.golang.org/grpc
-			// once the watchdog builds on pkg/treatment/reconcile instead of agent.
-			description: "boundary: the watchdog never reaches the controller or a database",
+			// TODO(flat-record stubs): also forbid google.golang.org/grpc here
+			// and for pkg/treatment/local. Today pkg/xtcpnl imports
+			// gen/go/xtcp_flat_record, whose Go package carries the gRPC and
+			// gateway stubs of that proto, so every goip user links gRPC
+			// through the netlink library. The treatment packages themselves
+			// are clean: the reconcile rule below forbids gRPC.
+			description: "boundary: the watchdog never reaches the controller, a database, TLS identity, the agent or the RPC proto",
 			root:        tp("cmd/xtcp2-treatmentctl"),
-			forbidden:   []string{tp("pkg/treatment/controller")},
-			forbidden3p: []string{"database/sql", "jackc/pgx"},
-			expectAny:   []string{tp("pkg/treatment")},
+			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/attribution"), tp("pkg/treatment/wire"), tp("pkg/treatment/experiment"), tp("gen/go/xtcp_treatment")},
+			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse", "google.golang.org/grpc/credentials"},
+			expectAny:   []string{tp("pkg/treatment"), tp("pkg/treatment/local"), tp("pkg/treatment/reconcile")},
 		},
 		{
-			// TODO(dual-mode agent): forbid gen/go/xtcp_treatment and
-			// google.golang.org/grpc once the journal is a journal-specific
-			// message converted from domain types.
-			description: "positive: the reconcile package is host-side only: no identity, no experiment statistics",
+			description: "positive: the reconcile package is host-side only: journal proto and domain, never the RPC proto, gRPC, identity, goip or experiment statistics",
 			root:        tp("pkg/treatment/reconcile"),
-			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/experiment"), tp("pkg/treatment/agent"), tp("pkg/treatment/controller")},
-			forbidden3p: []string{"database/sql"},
-			expectAny:   []string{tp("pkg/treatment")},
+			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/experiment"), tp("pkg/treatment/agent"), tp("pkg/treatment/controller"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("internal/goip")},
+			forbidden3p: []string{"database/sql", "google.golang.org/grpc"},
+			expectAny:   []string{tp("pkg/treatment"), tp("gen/go/xtcp_treatment_journal")},
+		},
+		{
+			description: "positive: the local package builds the kernel-backed reconciler without TLS or the RPC proto",
+			root:        tp("pkg/treatment/local"),
+			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/attribution"), tp("pkg/treatment/controller"), tp("pkg/treatment/experiment"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment")},
+			forbidden3p: []string{"database/sql", "google.golang.org/grpc/credentials"},
+			expectAny:   []string{tp("pkg/treatment/reconcile"), tp("internal/goip")},
+		},
+		{
+			description: "positive: attribution reads journal snapshots and the flat record; never identity, goip, the agent or the RPC proto",
+			root:        tp("pkg/treatment/attribution"),
+			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/local"), tp("pkg/treatment/controller"), tp("pkg/treatment/experiment"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("internal/goip")},
+			forbidden3p: []string{"database/sql", "jackc/pgx"},
+			expectAny:   []string{tp("pkg/treatment/reconcile"), tp("gen/go/xtcp_flat_record")},
 		},
 		{
 			description: "positive: the experiment package is pure: no proto, no gRPC, no journal, no identity, no syscalls",
@@ -114,9 +131,9 @@ func treatmentBoundaryRules() []boundaryRule {
 			expectAny:   []string{tp("pkg/treatment/controller/store")},
 		},
 		{
-			description: "negative: the controller never reaches the host-side reconcile package or goip",
+			description: "negative: the controller never reaches the host-side reconcile, local or attribution packages, goip or the journal proto",
 			root:        tp("pkg/treatment/controller"),
-			forbidden:   []string{tp("pkg/treatment/reconcile"), tp("internal/goip")},
+			forbidden:   []string{tp("pkg/treatment/reconcile"), tp("pkg/treatment/local"), tp("pkg/treatment/attribution"), tp("internal/goip"), tp("gen/go/xtcp_treatment_journal")},
 			expectAny:   []string{tp("pkg/treatment/experiment")},
 		},
 		{

@@ -77,6 +77,26 @@ type Assignment struct {
 	Generation  uint64
 }
 
+// Equal compares every field, including the predecessor by value.
+func (a Assignment) Equal(o Assignment) bool {
+	if a.ExperimentID != o.ExperimentID || a.Mode != o.Mode || a.Generation != o.Generation || !a.LeaseExpiresAt.Equal(o.LeaseExpiresAt) || !a.Treatment.Equal(o.Treatment) {
+		return false
+	}
+	if a.Predecessor == nil || o.Predecessor == nil {
+		return a.Predecessor == o.Predecessor
+	}
+	return a.Predecessor.Equal(*o.Predecessor)
+}
+
+// Clone copies the predecessor so the two values share nothing.
+func (a Assignment) Clone() Assignment {
+	if a.Predecessor != nil {
+		p := *a.Predecessor
+		a.Predecessor = &p
+	}
+	return a
+}
+
 // DesiredState is everything the controller wants one agent to hold.
 type DesiredState struct {
 	AgentID     string
@@ -84,6 +104,35 @@ type DesiredState struct {
 	Suspended   bool
 	Assignments []Assignment
 	IssuedAt    time.Time
+}
+
+// Equal compares the header and every assignment in order.
+func (d *DesiredState) Equal(o *DesiredState) bool {
+	if d == nil || o == nil {
+		return d == o
+	}
+	if d.AgentID != o.AgentID || d.Revision != o.Revision || d.Suspended != o.Suspended || !d.IssuedAt.Equal(o.IssuedAt) || len(d.Assignments) != len(o.Assignments) {
+		return false
+	}
+	for i := range d.Assignments {
+		if !d.Assignments[i].Equal(o.Assignments[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// Clone deep-copies the assignments.
+func (d *DesiredState) Clone() *DesiredState {
+	if d == nil {
+		return nil
+	}
+	c := *d
+	c.Assignments = make([]Assignment, len(d.Assignments))
+	for i := range d.Assignments {
+		c.Assignments[i] = d.Assignments[i].Clone()
+	}
+	return &c
 }
 
 // Find returns a pointer into d.Assignments for the experiment, or nil.

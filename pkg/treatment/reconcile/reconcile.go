@@ -7,16 +7,15 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 )
 
 // Package reconcile owns the host-side half of the treatment contract: the
 // intent journal and the reconciler that drives a Backend from it. It is
 // shared by the in-daemon/standalone agent and by the independent watchdog;
-// it never speaks gRPC and never imports the controller.
+// it never speaks gRPC, never imports the RPC proto and never imports the
+// controller. The journal file format is its own proto package
+// (xtcp_treatment_journal.v1) converted to and from the domain types.
 
 // Mode selects how much a reconciliation pass may do.
 type Mode uint8
@@ -48,7 +47,7 @@ type Backend interface {
 	// BeginReconcile marks the start of one pass so a backend may drop any
 	// per-pass caches (kernel route snapshots) before Plan/Verify read them.
 	BeginReconcile()
-	Plan(context.Context, *pb.Treatment) ([]byte, error)
+	Plan(context.Context, *treatment.Treatment) ([]byte, error)
 	Install(context.Context, []byte) error
 	Verify(context.Context, []byte) error
 	Remove(context.Context, []byte) error
@@ -56,12 +55,16 @@ type Backend interface {
 	Disable(context.Context) error
 }
 
+// Reconciler drives one Backend from one Journal on behalf of one agent.
+// AgentID, Location and BootID are written into the journal header on every
+// save so the snapshot identifies its writer.
 type Reconciler struct {
-	Journal Journal
-	Backend Backend
-	AgentID string
-	BootID  string
-	Now     func() time.Time
+	Journal  Journal
+	Backend  Backend
+	AgentID  string
+	Location string
+	BootID   string
+	Now      func() time.Time
 }
 
 func (r *Reconciler) now() time.Time {
@@ -71,150 +74,153 @@ func (r *Reconciler) now() time.Time {
 	return time.Now()
 }
 
+func (r *Reconciler) header(s *State, now time.Time) {
+	s.AgentID = r.AgentID
+	s.Location = r.Location
+	s.BootID = r.BootID
+	s.UpdatedAt = now
+}
+
 // Run saves intent before touching the kernel and verifies before reporting
-// success. See Mode for what ModeExpiryOnly may and may not do.
-func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*pb.LocalState, error) {
+// success. See Mode for what ModeExpiryOnly may and may not do. The returned
+// snapshot is a copy of the journal after the pass, even when it failed.
+func (r *Reconciler) Run(ctx context.Context, in *treatment.DesiredState, mode Mode) (*State, error) {
 	if mode != ModeFull && mode != ModeExpiryOnly {
 		return nil, fmt.Errorf("unknown reconcile mode %d", mode)
 	}
 	expiryOnly := mode == ModeExpiryOnly
-	var result *pb.LocalState
-	err := r.Journal.WithLock(func(s *pb.LocalState, save func() error) error {
-		defer func() { result = proto.Clone(s).(*pb.LocalState) }()
+	var result *State
+	err := r.Journal.WithLock(func(s *State, save func() error) error {
+		defer func() { result = s.Clone() }()
 		r.Backend.BeginReconcile()
 		now := r.now()
-		stamp := func() *timestamppb.Timestamp { return timestamppb.New(now) }
+		if s.AgentID != "" && s.AgentID != r.AgentID {
+			return errors.New("journal belongs to another agent")
+		}
 		if in != nil {
 			if expiryOnly {
 				return errors.New("watchdog cannot accept desired state")
 			}
-			if err := wire.ValidateDesired(in); err != nil {
+			if err := treatment.ValidateDesired(in); err != nil {
 				return err
 			}
-			if in.AgentId != r.AgentID {
+			if in.AgentID != r.AgentID {
 				return errors.New("desired state is for another agent")
 			}
 			if s.Desired != nil {
 				if in.Revision < s.Desired.Revision {
 					return errors.New("stale desired revision")
 				}
-				if in.Revision == s.Desired.Revision && !proto.Equal(in, s.Desired) {
+				if in.Revision == s.Desired.Revision && !in.Equal(s.Desired) {
 					return errors.New("conflicting desired state at same revision")
 				}
 			}
-			for _, a := range in.Assignments {
-				for _, record := range s.Records {
-					if record.Assignment.ExperimentId == a.ExperimentId && a.Generation < record.Assignment.Generation {
-						return errors.New("stale assignment generation")
-					}
+			for i := range in.Assignments {
+				a := &in.Assignments[i]
+				if v := s.Record(a.ExperimentID); v != nil && a.Generation < v.Assignment.Generation {
+					return errors.New("stale assignment generation")
 				}
 			}
-			s.Desired = proto.Clone(in).(*pb.DesiredState)
-			s.UpdatedAt = stamp()
+			s.Desired = in.Clone()
+			r.header(s, now)
 			if err := save(); err != nil {
 				return err
 			}
 		}
 		if s.Desired == nil {
-			result = proto.Clone(s).(*pb.LocalState)
 			return nil
-		}
-		if s.Desired.AgentId != r.AgentID {
-			return errors.New("journal belongs to another agent")
-		}
-		byID := map[string]*pb.ApplicationRecord{}
-		for _, v := range s.Records {
-			byID[v.Assignment.ExperimentId] = v
 		}
 		active := map[string]bool{}
 		var errs []error
 		// Disable first: an interrupted cleanup must not leave suspended routes
 		// effective. Removal remains per-route and ownership checked.
-		held := s.LocallySuspended || s.Desired.Suspended
+		held := s.Held()
 		if held {
 			if err := r.Backend.Disable(ctx); err != nil {
 				errs = append(errs, err)
 			}
 		}
-		for _, a := range s.Desired.Assignments {
+		for i := range s.Desired.Assignments {
+			a := &s.Desired.Assignments[i]
 			if err := ctx.Err(); err != nil {
+				r.header(s, now)
 				return errors.Join(err, save())
 			}
-			active[a.ExperimentId] = true
-			v := byID[a.ExperimentId]
+			active[a.ExperimentID] = true
+			v := s.Record(a.ExperimentID)
 			if v == nil {
-				v = &pb.ApplicationRecord{Assignment: proto.Clone(a).(*pb.Assignment), ReceivedAt: stamp(), Status: pb.ApplyStatus_APPLY_STATUS_PENDING}
-				s.Records = append(s.Records, v)
-				byID[a.ExperimentId] = v
+				s.Records = append(s.Records, Record{ApplicationRecord: treatment.ApplicationRecord{Assignment: a.Clone(), ReceivedAt: now, Status: treatment.ApplyPending}})
+				v = &s.Records[len(s.Records)-1]
 			}
 			if a.Generation < v.Assignment.Generation {
 				return errors.New("stale assignment generation")
 			}
 			if a.Generation > v.Assignment.Generation {
 				v.ExpiredLatched = false
-				v.ReceivedAt = stamp()
+				v.ReceivedAt = now
 			}
-			v.Assignment = proto.Clone(a).(*pb.Assignment)
+			v.Assignment = a.Clone()
 			v.DesiredRevision = s.Desired.Revision
-			if a.Mode == pb.AssignmentMode_ASSIGNMENT_MODE_TRIAL && !a.LeaseExpiresAt.AsTime().After(now) {
+			if a.Mode == treatment.ModeTrial && !a.LeaseExpiresAt.After(now) {
 				v.ExpiredLatched = true
 			}
-			remove := held || a.Mode == pb.AssignmentMode_ASSIGNMENT_MODE_SUSPENDED || a.Mode == pb.AssignmentMode_ASSIGNMENT_MODE_RETIRED || v.ExpiredLatched
+			remove := held || a.Mode == treatment.ModeSuspended || a.Mode == treatment.ModeRetired || v.ExpiredLatched
 			if expiryOnly && !remove {
 				continue
 			}
 			var err error
-			if v.ExpiredLatched && !held && a.Mode == pb.AssignmentMode_ASSIGNMENT_MODE_TRIAL && a.Predecessor != nil {
+			if v.ExpiredLatched && !held && a.Mode == treatment.ModeTrial && a.Predecessor != nil {
 				err = r.install(ctx, v, a.Predecessor, save, now)
 				if err == nil {
-					v.Status = pb.ApplyStatus_APPLY_STATUS_EXPIRED
+					v.Status = treatment.ApplyExpired
 				}
 			} else if remove {
-				v.AttemptedAt = stamp()
+				v.AttemptedAt = now
 				if len(v.InstalledRoute) > 0 {
 					if err := save(); err != nil {
 						return err
 					}
 				}
-				if len(v.InstalledRoute) > 0 && v.InstalledBootId == r.BootID {
+				if len(v.InstalledRoute) > 0 && v.InstalledBootID == r.BootID {
 					err = r.Backend.Remove(ctx, v.InstalledRoute)
 				}
 				if err == nil {
 					v.InstalledRoute = nil
-					v.RemovedAt = stamp()
-					v.Status = pb.ApplyStatus_APPLY_STATUS_REMOVED
+					v.RemovedAt = now
+					v.Status = treatment.ApplyRemoved
 					if v.ExpiredLatched {
-						v.Status = pb.ApplyStatus_APPLY_STATUS_EXPIRED
+						v.Status = treatment.ApplyExpired
 					}
 				}
 			} else {
-				err = r.install(ctx, v, a.Treatment, save, now)
+				err = r.install(ctx, v, &a.Treatment, save, now)
 			}
 			if err != nil {
-				v.Status = pb.ApplyStatus_APPLY_STATUS_FAILED
+				v.Status = treatment.ApplyFailed
 				v.Error = err.Error()
-				errs = append(errs, fmt.Errorf("%s: %w", a.ExperimentId, err))
+				errs = append(errs, fmt.Errorf("%s: %w", a.ExperimentID, err))
 			} else {
 				v.Error = ""
 			}
 		}
 		// Entries absent from the committed snapshot are tombstones, never
 		// candidates for startup application.
-		for _, v := range s.Records {
-			if active[v.Assignment.ExperimentId] || len(v.InstalledRoute) == 0 {
+		for i := range s.Records {
+			v := &s.Records[i]
+			if active[v.Assignment.ExperimentID] || len(v.InstalledRoute) == 0 {
 				continue
 			}
-			if v.InstalledBootId == r.BootID {
+			if v.InstalledBootID == r.BootID {
 				if err := r.Backend.Remove(ctx, v.InstalledRoute); err != nil {
 					v.Error = err.Error()
-					v.Status = pb.ApplyStatus_APPLY_STATUS_FAILED
+					v.Status = treatment.ApplyFailed
 					errs = append(errs, err)
 					continue
 				}
 			}
 			v.InstalledRoute = nil
-			v.Status = pb.ApplyStatus_APPLY_STATUS_REMOVED
-			v.RemovedAt = stamp()
+			v.Status = treatment.ApplyRemoved
+			v.RemovedAt = now
 		}
 		if len(errs) > 0 {
 			// A failed withdrawal must not leave an expired/unknown override
@@ -222,23 +228,23 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 			if err := r.Backend.Disable(ctx); err != nil {
 				errs = append(errs, err)
 			}
-			for _, v := range s.Records {
-				if v.Status == pb.ApplyStatus_APPLY_STATUS_VERIFIED {
-					v.Status = pb.ApplyStatus_APPLY_STATUS_FAILED
+			for i := range s.Records {
+				if v := &s.Records[i]; v.Status == treatment.ApplyVerified {
+					v.Status = treatment.ApplyFailed
 					v.Error = "owned route lookup disabled after reconciliation failure"
 				}
 			}
 		} else if !held && !expiryOnly {
 			hasRoutes := false
-			for _, v := range s.Records {
-				hasRoutes = hasRoutes || len(v.InstalledRoute) > 0
+			for i := range s.Records {
+				hasRoutes = hasRoutes || len(s.Records[i].InstalledRoute) > 0
 			}
 			if hasRoutes {
 				if err := r.Backend.Enable(ctx); err != nil {
 					errs = append(errs, err, r.Backend.Disable(ctx))
-					for _, v := range s.Records {
-						if v.Status == pb.ApplyStatus_APPLY_STATUS_VERIFIED {
-							v.Status = pb.ApplyStatus_APPLY_STATUS_FAILED
+					for i := range s.Records {
+						if v := &s.Records[i]; v.Status == treatment.ApplyVerified {
+							v.Status = treatment.ApplyFailed
 							v.Error = err.Error()
 						}
 					}
@@ -247,21 +253,20 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 				errs = append(errs, err)
 			}
 		}
-		s.UpdatedAt = stamp()
+		r.header(s, now)
 		if err := save(); err != nil {
 			return err
 		}
-		result = proto.Clone(s).(*pb.LocalState)
 		return errors.Join(errs...)
 	})
 	return result, err
 }
 
-func (r *Reconciler) install(ctx context.Context, v *pb.ApplicationRecord, t *pb.Treatment, save func() error, now time.Time) error {
+func (r *Reconciler) install(ctx context.Context, v *Record, t *treatment.Treatment, save func() error, now time.Time) error {
 	b, err := r.Backend.Plan(ctx, t)
 	if err != nil {
 		// A forwarding change invalidates the override; remove it immediately.
-		if len(v.InstalledRoute) > 0 && v.InstalledBootId == r.BootID {
+		if len(v.InstalledRoute) > 0 && v.InstalledBootID == r.BootID {
 			if e := r.Backend.Remove(ctx, v.InstalledRoute); e != nil {
 				return errors.Join(err, e)
 			}
@@ -269,47 +274,52 @@ func (r *Reconciler) install(ctx context.Context, v *pb.ApplicationRecord, t *pb
 		}
 		return err
 	}
-	if len(v.InstalledRoute) > 0 && v.InstalledBootId == r.BootID && !bytes.Equal(b, v.InstalledRoute) {
+	if len(v.InstalledRoute) > 0 && v.InstalledBootID == r.BootID && !bytes.Equal(b, v.InstalledRoute) {
 		if err = r.Backend.Remove(ctx, v.InstalledRoute); err != nil {
 			return err
 		}
 	}
-	changed := !bytes.Equal(b, v.InstalledRoute) || v.InstalledBootId != r.BootID
-	if !changed && (v.Status == pb.ApplyStatus_APPLY_STATUS_VERIFIED || v.Status == pb.ApplyStatus_APPLY_STATUS_EXPIRED && v.ExpiredLatched) {
+	changed := !bytes.Equal(b, v.InstalledRoute) || v.InstalledBootID != r.BootID
+	if !changed && (v.Status == treatment.ApplyVerified || v.Status == treatment.ApplyExpired && v.ExpiredLatched) {
 		if err = r.Backend.Verify(ctx, b); err == nil {
-			v.VerifiedAt = timestamppb.New(now)
+			v.VerifiedAt = now
 			return nil
 		}
 	}
-	v.AttemptedAt = timestamppb.New(now)
+	v.AttemptedAt = now
 	v.InstalledRoute = b
-	v.InstalledBootId = r.BootID
-	v.Status = pb.ApplyStatus_APPLY_STATUS_PENDING
+	v.InstalledBootID = r.BootID
+	v.Status = treatment.ApplyPending
 	if err = save(); err != nil {
 		return err
 	}
 	if err = r.Backend.Install(ctx, b); err != nil {
 		return err
 	}
-	if changed || v.AppliedAt == nil {
-		v.AppliedAt = timestamppb.New(now)
+	if changed || v.AppliedAt.IsZero() {
+		v.AppliedAt = now
 	}
 	if err = r.Backend.Verify(ctx, b); err != nil {
 		return err
 	}
-	v.VerifiedAt = timestamppb.New(now)
-	v.Status = pb.ApplyStatus_APPLY_STATUS_VERIFIED
+	v.VerifiedAt = now
+	v.Status = treatment.ApplyVerified
 	return nil
 }
 
+// SuspendLocal persists an offline hold (or lifts it) that controller
+// requests cannot clear. A reason is required for the audit trail.
 func (r *Reconciler) SuspendLocal(suspended bool, reason string) error {
 	if len(reason) == 0 || len(reason) > 1024 {
 		return errors.New("suspension/resume reason required (maximum 1024 bytes)")
 	}
-	return r.Journal.WithLock(func(s *pb.LocalState, save func() error) error {
+	return r.Journal.WithLock(func(s *State, save func() error) error {
+		if s.AgentID != "" && s.AgentID != r.AgentID {
+			return errors.New("journal belongs to another agent")
+		}
 		s.LocallySuspended = suspended
 		s.SuspensionReason = reason
-		s.UpdatedAt = timestamppb.New(r.now())
+		r.header(s, r.now())
 		return save()
 	})
 }

@@ -5,14 +5,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func ptr[T any](v T) *T { return &v }
 
 type fakeBackend struct {
 	routes     map[string]bool
@@ -25,8 +26,8 @@ type fakeBackend struct {
 
 func (f *fakeBackend) BeginReconcile() {}
 
-func (f *fakeBackend) Plan(_ context.Context, t *pb.Treatment) ([]byte, error) {
-	return []byte(t.Destination + ":" + t.Settings.GetCongestionControl()), nil
+func (f *fakeBackend) Plan(_ context.Context, t *treatment.Treatment) ([]byte, error) {
+	return []byte(t.Destination.String() + ":" + t.Settings.Algorithm()), nil
 }
 func (f *fakeBackend) Install(_ context.Context, b []byte) error {
 	f.installs++
@@ -49,12 +50,23 @@ func (f *fakeBackend) Remove(_ context.Context, b []byte) error {
 	delete(f.routes, string(b))
 	return nil
 }
+func (f *fakeBackend) Enable(context.Context) error  { f.enabled = true; return nil }
+func (f *fakeBackend) Disable(context.Context) error { f.enabled = false; return nil }
+
+func newReconciler(t *testing.T, b Backend, now *time.Time) *Reconciler {
+	t.Helper()
+	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", Location: "dc1", BootID: "boot-1"}
+	if now != nil {
+		r.Now = func() time.Time { return *now }
+	}
+	return r
+}
 
 func TestFailedWithdrawalDisablesOwnedLookup(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
-	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	if _, e := r.Run(context.Background(), fixtures.DesiredWire(now), ModeFull); e != nil {
+	r := newReconciler(t, b, &now)
+	if _, e := r.Run(context.Background(), fixtures.Desired(now), ModeFull); e != nil {
 		t.Fatal(e)
 	}
 	if !b.enabled {
@@ -80,10 +92,10 @@ func TestFailedWithdrawalDisablesOwnedLookup(t *testing.T) {
 func TestStableRouteSurvivesOfflineReboot(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
-	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	d := fixtures.DesiredWire(now)
-	d.Assignments[0].Mode = pb.AssignmentMode_ASSIGNMENT_MODE_STABLE
-	d.Assignments[0].LeaseExpiresAt = nil
+	r := newReconciler(t, b, &now)
+	d := fixtures.Desired(now)
+	d.Assignments[0].Mode = treatment.ModeStable
+	d.Assignments[0].LeaseExpiresAt = time.Time{}
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
@@ -92,26 +104,24 @@ func TestStableRouteSurvivesOfflineReboot(t *testing.T) {
 	b.routes = map[string]bool{}
 	b.enabled = false
 	s, e := r.Run(context.Background(), nil, ModeFull)
-	if e != nil || len(b.routes) != 1 || !b.enabled || s.Records[0].InstalledBootId != "boot-2" {
+	if e != nil || len(b.routes) != 1 || !b.enabled || s.Records[0].InstalledBootID != "boot-2" || s.BootID != "boot-2" {
 		t.Fatal("offline reboot did not restore stable treatment", e)
 	}
 }
-func (f *fakeBackend) Enable(context.Context) error  { f.enabled = true; return nil }
-func (f *fakeBackend) Disable(context.Context) error { f.enabled = false; return nil }
 
 func TestJournalIntentPrecedesKernelAndCrashRecovery(t *testing.T) {
 	now := time.Now()
-	dir := t.TempDir()
 	b := &fakeBackend{routes: map[string]bool{}, failVerify: true}
-	r := &Reconciler{Journal: Journal{Dir: dir}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
+	r := newReconciler(t, b, &now)
+	dir := r.Journal.Dir
 	b.onInstall = func() {
-		raw, e := os.ReadFile(filepath.Join(dir, "state.textproto"))
+		raw, e := os.ReadFile(filepath.Join(dir, SnapshotFile))
 		if e != nil || len(raw) == 0 {
 			t.Fatal("intent not durable before install", e)
 		}
 	}
-	s, e := r.Run(context.Background(), fixtures.DesiredWire(now), ModeFull)
-	if e == nil || s.Records[0].Status != pb.ApplyStatus_APPLY_STATUS_FAILED {
+	s, e := r.Run(context.Background(), fixtures.Desired(now), ModeFull)
+	if e == nil || s.Records[0].Status != treatment.ApplyFailed {
 		t.Fatal("must report readback failure", s, e)
 	}
 	// The kernel changed before success was persisted. A fresh reconciler uses
@@ -119,7 +129,7 @@ func TestJournalIntentPrecedesKernelAndCrashRecovery(t *testing.T) {
 	b.failVerify = false
 	r2 := *r
 	s, e = r2.Run(context.Background(), nil, ModeFull)
-	if e != nil || s.Records[0].Status != pb.ApplyStatus_APPLY_STATUS_VERIFIED || len(b.routes) != 1 {
+	if e != nil || s.Records[0].Status != treatment.ApplyVerified || len(b.routes) != 1 {
 		t.Fatal("restart did not converge", s, e)
 	}
 }
@@ -127,18 +137,18 @@ func TestJournalIntentPrecedesKernelAndCrashRecovery(t *testing.T) {
 func TestTrialExpiryCannotBeResurrectedByRenewalOrRestart(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
-	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	d := fixtures.DesiredWire(now)
+	r := newReconciler(t, b, &now)
+	d := fixtures.Desired(now)
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
 	now = now.Add(61 * time.Minute)
 	s, e := r.Run(context.Background(), nil, ModeExpiryOnly)
-	if e != nil || len(b.routes) != 0 || s.Records[0].Status != pb.ApplyStatus_APPLY_STATUS_EXPIRED {
+	if e != nil || len(b.routes) != 0 || s.Records[0].Status != treatment.ApplyExpired {
 		t.Fatal("watchdog expiry", s, e)
 	}
 	d.Revision++
-	d.Assignments[0].LeaseExpiresAt = timestamppb.New(now.Add(time.Hour))
+	d.Assignments[0].LeaseExpiresAt = now.Add(time.Hour)
 	if _, e = r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
@@ -158,9 +168,9 @@ func TestTrialExpiryCannotBeResurrectedByRenewalOrRestart(t *testing.T) {
 func TestPersistentHoldAndTombstones(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
-	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1"}
-	d := fixtures.DesiredWire(now)
-	d.Assignments[0].Mode = pb.AssignmentMode_ASSIGNMENT_MODE_STABLE
+	r := newReconciler(t, b, nil)
+	d := fixtures.Desired(now)
+	d.Assignments[0].Mode = treatment.ModeStable
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
@@ -202,12 +212,12 @@ func TestPersistentHoldAndTombstones(t *testing.T) {
 
 func TestCorruptJournalDoesNotInstall(t *testing.T) {
 	dir := t.TempDir()
-	if e := os.WriteFile(filepath.Join(dir, "state.textproto"), []byte("invalid!!"), 0600); e != nil {
+	if e := os.WriteFile(filepath.Join(dir, SnapshotFile), []byte("invalid!!"), 0600); e != nil {
 		t.Fatal(e)
 	}
 	b := &fakeBackend{routes: map[string]bool{}}
 	r := &Reconciler{Journal: Journal{Dir: dir}, Backend: b, AgentID: "host-1"}
-	if _, e := r.Run(context.Background(), fixtures.DesiredWire(time.Now()), ModeFull); e == nil {
+	if _, e := r.Run(context.Background(), fixtures.Desired(time.Now()), ModeFull); e == nil {
 		t.Fatal("corrupt journal overwritten")
 	}
 	if b.installs != 0 {
@@ -218,19 +228,20 @@ func TestCorruptJournalDoesNotInstall(t *testing.T) {
 func TestPredecessorExpiryAndGenerationRejectionPreserveJournal(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
-	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	d := fixtures.DesiredWire(now)
-	a := d.Assignments[0]
-	a.ExperimentId = "state"
+	r := newReconciler(t, b, &now)
+	d := fixtures.Desired(now)
+	a := &d.Assignments[0]
+	a.ExperimentID = "state"
 	a.Generation = 2
-	a.Predecessor = proto.Clone(a.Treatment).(*pb.Treatment)
-	a.Predecessor.Settings.CongestionControl = proto.String("bbr")
+	pred := a.Treatment
+	pred.Settings.CongestionControl = ptr("bbr")
+	a.Predecessor = &pred
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
 	now = now.Add(61 * time.Minute)
 	s, e := r.Run(context.Background(), nil, ModeExpiryOnly)
-	if e != nil || !b.routes["192.0.2.1/32:bbr"] || s.Records[0].Status != pb.ApplyStatus_APPLY_STATUS_EXPIRED {
+	if e != nil || !b.routes["192.0.2.1/32:bbr"] || s.Records[0].Status != treatment.ApplyExpired {
 		t.Fatal("predecessor not restored", e)
 	}
 	installs := b.installs
@@ -240,13 +251,13 @@ func TestPredecessorExpiryAndGenerationRejectionPreserveJournal(t *testing.T) {
 	if b.installs != installs {
 		t.Fatal("watchdog repeatedly reinstalled predecessor")
 	}
-	bad := proto.Clone(d).(*pb.DesiredState)
+	bad := d.Clone()
 	bad.Revision++
 	bad.Assignments[0].Generation--
 	if _, e = r.Run(context.Background(), bad, ModeFull); e == nil {
 		t.Fatal("stale generation accepted")
 	}
-	if e = r.Journal.WithLock(func(s *pb.LocalState, _ func() error) error {
+	if e = r.Journal.WithLock(func(s *State, _ func() error) error {
 		if s.Desired.Revision != d.Revision {
 			t.Fatal("rejected generation poisoned persisted desired state")
 		}
@@ -255,11 +266,32 @@ func TestPredecessorExpiryAndGenerationRejectionPreserveJournal(t *testing.T) {
 		t.Fatal(e)
 	}
 	d.Revision++
-	a.Mode = pb.AssignmentMode_ASSIGNMENT_MODE_RETIRED
+	a.Mode = treatment.ModeRetired
 	if _, e = r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
 	if len(b.routes) != 0 {
 		t.Fatal("retired assignment restored predecessor")
+	}
+}
+
+func TestJournalHeaderIdentifiesWriter(t *testing.T) {
+	now := time.Unix(1700000000, 0)
+	b := &fakeBackend{routes: map[string]bool{}}
+	r := newReconciler(t, b, &now)
+	s, e := r.Run(context.Background(), fixtures.Desired(now), ModeFull)
+	if e != nil || s.AgentID != "host-1" || s.Location != "dc1" || s.BootID != "boot-1" || !s.UpdatedAt.Equal(now) {
+		t.Fatalf("header not written: %+v %v", s, e)
+	}
+	other := *r
+	other.AgentID = "host-2"
+	if _, e = other.Run(context.Background(), nil, ModeFull); e == nil || !strings.Contains(e.Error(), "another agent") {
+		t.Fatalf("foreign journal accepted: %v", e)
+	}
+	if e = other.SuspendLocal(true, "x"); e == nil || !strings.Contains(e.Error(), "another agent") {
+		t.Fatalf("foreign journal suspended: %v", e)
+	}
+	if b.installs != 1 {
+		t.Fatal("foreign reconciler touched the kernel")
 	}
 }

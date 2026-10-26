@@ -8,11 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"golang.org/x/sys/unix"
-	"google.golang.org/protobuf/encoding/prototext"
 )
 
 // Journal serializes the daemon, watchdog and local administrative commands.
@@ -20,7 +17,11 @@ import (
 // readable projections only, never an input to recovery.
 type Journal struct{ Dir string }
 
-func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
+// WithLock loads the snapshot under the exclusive journal lock, runs fn with
+// a save callback that persists the current state atomically, and refreshes
+// the per-assignment projections if anything was saved. A snapshot that
+// fails validation never reaches fn.
+func (j Journal) WithLock(fn func(*State, func() error) error) error {
 	if err := os.MkdirAll(j.Dir, 0700); err != nil {
 		return err
 	}
@@ -33,10 +34,10 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 		return fmt.Errorf("treatment journal busy: %w", err)
 	}
 	defer unix.Flock(fd, unix.LOCK_UN)
-	s := new(pb.LocalState)
-	f, err := os.OpenFile(filepath.Join(j.Dir, "state.textproto"), os.O_RDONLY|unix.O_NOFOLLOW, 0)
+	s := new(State)
+	f, err := os.OpenFile(filepath.Join(j.Dir, SnapshotFile), os.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err == nil {
-		b, rerr := io.ReadAll(io.LimitReader(f, treatment.MaxStateBytes+1))
+		b, rerr := readLimited(f)
 		cerr := f.Close()
 		if rerr != nil {
 			return rerr
@@ -44,46 +45,22 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 		if cerr != nil {
 			return cerr
 		}
-		if len(b) > treatment.MaxStateBytes {
-			return errors.New("journal too large")
-		}
-		if err = prototext.Unmarshal(b, s); err != nil {
-			return fmt.Errorf("invalid treatment journal: %w", err)
-		}
-		if s.Desired != nil {
-			if err = wire.ValidateDesired(s.Desired); err != nil {
-				return fmt.Errorf("invalid persisted desired state: %w", err)
-			}
-		}
-		if len(s.Records) > treatment.MaxAssignments*2 {
-			return errors.New("too many journal records")
-		}
-		seen := map[string]bool{}
-		for _, r := range s.Records {
-			if r.Assignment == nil || !treatment.ValidID(r.Assignment.ExperimentId) {
-				return errors.New("invalid journal record")
-			}
-			if seen[r.Assignment.ExperimentId] {
-				return errors.New("duplicate journal record")
-			}
-			seen[r.Assignment.ExperimentId] = true
-			if err = wire.ValidateTreatment(r.Assignment.Treatment); err != nil {
-				return fmt.Errorf("invalid journal treatment: %w", err)
-			}
+		if s, err = UnmarshalText(b); err != nil {
+			return err
 		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	dirty := false
 	save := func() error {
-		b, err := prototext.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(s)
+		b, err := MarshalText(s)
 		if err != nil {
 			return err
 		}
 		if len(b) > treatment.MaxStateBytes {
 			return errors.New("journal exceeds size limit")
 		}
-		if err = atomicFile(j.Dir, "state.textproto", b); err != nil {
+		if err = atomicFile(j.Dir, SnapshotFile, b); err != nil {
 			return err
 		}
 		dirty = true
@@ -91,12 +68,13 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 	}
 	result := fn(s, save)
 	if dirty {
-		for _, r := range s.Records {
-			b, err := prototext.MarshalOptions{Multiline: true, Indent: "  "}.Marshal(r)
+		for i := range s.Records {
+			r := &s.Records[i]
+			b, err := recordText(r)
 			if err != nil {
 				return errors.Join(result, err)
 			}
-			name := "assignment-" + r.Assignment.ExperimentId + ".textproto"
+			name := "assignment-" + r.Assignment.ExperimentID + ".textproto"
 			old, _ := os.ReadFile(filepath.Join(j.Dir, name))
 			if bytes.Equal(old, b) {
 				continue
@@ -107,6 +85,17 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 		}
 	}
 	return result
+}
+
+func readLimited(f *os.File) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(f, treatment.MaxStateBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > treatment.MaxStateBytes {
+		return nil, errors.New("journal too large")
+	}
+	return b, nil
 }
 
 func atomicFile(dir, name string, b []byte) error {

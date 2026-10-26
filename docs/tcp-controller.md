@@ -24,16 +24,19 @@ flowchart LR
 
 The implementation lives under [pkg/treatment](../pkg/treatment), split by
 audience so that each binary links only the half of the contract it needs, with
-a typed [protobuf contract](../proto/xtcp_treatment/v1/) (`xtcp_treatment.v1`: `treatment.proto` types, `agent.proto`, `operator.proto`):
+a typed [protobuf contract](../proto/xtcp_treatment/v1/) (`xtcp_treatment.v1`: `treatment.proto` types, `agent.proto`, `operator.proto`) and a separate
+[journal file format](../proto/xtcp_treatment_journal/v1/journal.proto) (`xtcp_treatment_journal.v1`) that the host side reads and writes without the RPC stubs:
 
 | Package | Used by | Contents |
 | --- | --- | --- |
 | `pkg/treatment` | everyone | the domain model (`Treatment`, `Experiment`, `Evidence`, `DesiredState`, enums), limits and validators; proto-free |
 | `pkg/treatment/wire` | gRPC boundary | domain ↔ generated proto conversion; `Parse*` fails closed on unknown enums and invalid timestamps |
 | `pkg/treatment/identity` | agent, controller, tools | SPIFFE URI identity, mTLS configuration, gRPC peer resolution |
-| `pkg/treatment/reconcile` | agent, watchdog | intent journal, reconciler, `Backend` interface, `Mode` (full or expiry-only) |
+| `pkg/treatment/reconcile` | agent, watchdog | intent journal (`State`, `Record`, the `xtcp_treatment_journal.v1` file format), reconciler, `Backend` interface, `Mode` (full or expiry-only); domain types only, no RPC proto, no gRPC |
+| `pkg/treatment/local` | agent, watchdog, `treatmentctl` | the shared `controller-agent.json` config and the goip-backed reconciler built from it; no TLS, no controller |
+| `pkg/treatment/attribution` | `xtcp2`, agent | the exposure index built from a journal snapshot and the hot-path telemetry stamp; the same code serves the embedded agent and a telemetry-only daemon |
 | `pkg/treatment/experiment` | controller | evaluation statistics, cohort allocation, phase advancement, state machine; pure functions over domain types |
-| `pkg/treatment/agent` | `xtcp2` | check-in loop, watch stream, capabilities, telemetry stamping |
+| `pkg/treatment/agent` | `xtcp2`, agent binary | check-in loop, watch stream, capabilities, over `local` and `attribution`; a library with two front ends |
 | `pkg/treatment/controller` | `xtcp2-controller` | gRPC handlers, maintenance and discovery over the store ports; ClickHouse evidence |
 | `pkg/treatment/controller/store` | controller | repository interfaces (`Agents`, `Experiments`, `Evidence`, `Holds`, `Audit`, `Metrics`) and `Store.Tx` |
 | `pkg/treatment/controller/store/postgres` | `xtcp2-controller` | the only package with SQL: relational schema, pgx through `database/sql`, advisory-lock transactions |
@@ -47,9 +50,11 @@ only JSON column is the append-only audit payload.
 
 `pkg/treatment/boundaries_test.go` enforces the layering: `xtcp2` and the agent
 never link the controller, a SQL driver or the ClickHouse client; the domain
-and experiment packages never import the proto or gRPC; SQL lives only in the
-postgres store; the controller never links the host-side reconcile package or
-goip. The binaries are:
+and experiment packages never import the proto or gRPC; the reconcile package
+never imports the RPC proto or gRPC; the watchdog never links TLS identity, the
+agent or the RPC proto; SQL lives only in the postgres store; the controller
+never links the host-side reconcile, local or attribution packages or goip.
+The binaries are:
 
 | Binary | Responsibility |
 | --- | --- |
@@ -311,7 +316,11 @@ occupying all ten slots.
 
 ## Persistence, restart and withdrawal
 
-`/var/lib/xtcp2/routes/state.textproto` is the authoritative atomic snapshot.
+`/var/lib/xtcp2/routes/state.textproto` is the authoritative atomic snapshot:
+prototext of `xtcp_treatment_journal.v1.Journal`, a file format of its own with
+a header naming the writing agent, location and boot. It is converted to and
+from the domain types on every pass and validated on every load; a snapshot in
+any other shape (including the pre-rework `LocalState` text) fails closed.
 `assignment-<id>.textproto` files are readable projections containing receipt,
 attempt, application, verification and removal times. Projection files are never
 replayed independently. A private directory, file lock, temp-file rename and file
