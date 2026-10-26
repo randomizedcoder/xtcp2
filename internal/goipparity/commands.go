@@ -3227,6 +3227,592 @@ var commands = withArgs([]Command{
 		Name: "link set j0 type ipvtap mode l2", Slug: "link_ipvtap_set_mode",
 		Floor: 4, Implemented: true, Write: true, Setup: ipvtapWriteSetupJ0,
 	},
+	// The UDP overlays' write rows (goip-link-kinds.md, KG3-T05): KC4's
+	// vxlan, geneve, bareudp, amt and gtp rows that sent a request, in
+	// kind-write-corpus.exp's order, from pkg/xtcpnl/testdata/7_3_0/
+	// link-write/kinds/<kind>/. Each Floor is the row's ip.pcap record
+	// count: the write alone (2), a lower's or the device's lookup and the
+	// write (4), or both lookups and the write (6). Each Setup is the row's
+	// topology file. The 41 rows the kernel refuses compare on the request;
+	// the 50 rows ip refuses before netlink are not rows, and the kinds'
+	// refusal tests hold them offline.
+	{
+		Name: "link add vx0 type vxlan id 42", Slug: "link_vxlan_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789", Slug: "link_vxlan_add_dstport",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 0", Slug: "link_vxlan_add_dstport_zero",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 0 dstport 4789", Slug: "link_vxlan_add_id_zero",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 16777215 dstport 4789", Slug: "link_vxlan_add_id_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan v 42 dstport 4789", Slug: "link_vxlan_add_vni_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 remote 10.0.0.1", Slug: "link_vxlan_add_remote",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 remote 2001:db8::1", Slug: "link_vxlan_add_remote6",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 group 239.1.1.1 dev d0", Slug: "link_vxlan_add_group",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 group ff05::1 dev d0", Slug: "link_vxlan_add_group6",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 local 10.0.0.1", Slug: "link_vxlan_add_local",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 local fe80::1 dev d0", Slug: "link_vxlan_add_local6_link_local",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 ttl 64", Slug: "link_vxlan_add_ttl",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 ttl auto", Slug: "link_vxlan_add_ttl_auto",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 ttl inherit", Slug: "link_vxlan_add_ttl_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 tos 10", Slug: "link_vxlan_add_tos",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 tos inherit", Slug: "link_vxlan_add_tos_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 df set", Slug: "link_vxlan_add_df_set",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 df unset", Slug: "link_vxlan_add_df_unset",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 df inherit", Slug: "link_vxlan_add_df_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 remote 2001:db8::1 flowlabel 0x12345", Slug: "link_vxlan_add_flowlabel",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 " + vxlanAgeingCst + " 600", Slug: "link_vxlan_add_" + vxlanAgeingCst,
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 " + vxlanAgeingCst + " none", Slug: "link_vxlan_add_" + vxlanAgeingCst + "_none",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 maxaddress 100", Slug: "link_vxlan_add_maxaddress",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 srcport 1000 2000", Slug: "link_vxlan_add_srcport",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 proxy", Slug: "link_vxlan_add_proxy",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 rsc", Slug: "link_vxlan_add_rsc",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 l2miss", Slug: "link_vxlan_add_l2miss",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 l3miss", Slug: "link_vxlan_add_l3miss",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 noudpcsum", Slug: "link_vxlan_add_noudpcsum",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 udp6zerocsumtx", Slug: "link_vxlan_add_udp6zerocsumtx",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 udp6zerocsumrx", Slug: "link_vxlan_add_udp6zerocsumrx",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 remcsumtx", Slug: "link_vxlan_add_remcsumtx",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 remcsumrx", Slug: "link_vxlan_add_remcsumrx",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 nolearning", Slug: "link_vxlan_add_nolearning",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 nolocalbypass", Slug: "link_vxlan_add_nolocalbypass",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 gbp", Slug: "link_vxlan_add_gbp",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 mcroute", Slug: "link_vxlan_add_mcroute",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan external", Slug: "link_vxlan_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan external vnifilter dstport 4789", Slug: "link_vxlan_add_vnifilter",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan external gpe", Slug: "link_vxlan_add_gpe",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 reserved_bits 0", Slug: "link_vxlan_add_reserved_bits",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 dstport 4789 no", Slug: "link_vxlan_add_no_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set vx0 type vxlan ttl 32 tos inherit df set " + vxlanAgeingCst + " 600 nolearning remote 10.0.0.2", Slug: "link_vxlan_set_changeable",
+		Floor: 4, Implemented: true, Write: true, Setup: vxlanWriteSetupVx0,
+	},
+	{
+		Name: "link set vx0 type vxlan dev d0", Slug: "link_vxlan_set_dev",
+		Floor: 6, Implemented: true, Write: true, Setup: vxlanWriteSetupD0Vx0,
+	},
+	{
+		Name: "link set vx0 type vxlan id 42", Slug: "link_vxlan_set_id_same",
+		Floor: 4, Implemented: true, Write: true, Setup: vxlanWriteSetupVx0,
+	},
+	{
+		Name: "link add vx0 type vxlan", Slug: "link_vxlan_add_no_option",
+		// "Required attributes not provided to perform the operation", compared on
+		// the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx1 type vxlan id 42 dstport 4789", Slug: "link_vxlan_add_duplicate_vni",
+		// "A VXLAN device with the specified VNI already exists", compared on the
+		// request.
+		Floor: 2, Implemented: true, Write: true, Setup: vxlanWriteSetupVx0,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 local fe80::1", Slug: "link_vxlan_add_link_local_no_dev",
+		// "Local interface required for link-local local/remote addresses",
+		// compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 local fe80::1 remote 2001:db8::1", Slug: "link_vxlan_add_scope_mix",
+		// "Invalid combination of local and remote address scopes", compared on
+		// the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 flowlabel 5", Slug: "link_vxlan_add_flowlabel_v4",
+		// "Label attribute only applies to IPv6 VXLAN devices", compared on the
+		// request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 srcport 2000 1000", Slug: "link_vxlan_add_srcport_inverted",
+		// "Invalid source port range", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 gpe", Slug: "link_vxlan_add_gpe_no_external",
+		// "VXLAN GPE does not support this combination of attributes", compared on
+		// the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vx0 type vxlan id 42 reserved_bits 0x0800000000000000", Slug: "link_vxlan_add_reserved_bits_overlap",
+		// "Used bits 0x08000000ffffff00 cannot overlap reserved bits
+		// 0x0800000000000000", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set vx0 type vxlan id 43", Slug: "link_vxlan_set_id",
+		// "Cannot change VNI", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vxlanWriteSetupVx0,
+	},
+	{
+		Name: "link set vx0 type vxlan dstport 4789", Slug: "link_vxlan_set_dstport",
+		// "Cannot change port", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vxlanWriteSetupVx0,
+	},
+	{
+		Name: "link set vx0 type vxlan proxy", Slug: "link_vxlan_set_proxy",
+		// "vxlan: cannot change PROXY flag", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vxlanWriteSetupVx0,
+	},
+	{
+		Name: "link set vx0 type vxlan remote 2001:db8::1", Slug: "link_vxlan_set_family",
+		// "New group address family does not match old group", compared on the
+		// request.
+		Floor: 4, Implemented: true, Write: true, Setup: vxlanWriteSetupVx0,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1", Slug: "link_geneve_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 2001:db8::1", Slug: "link_geneve_add_remote6",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve external", Slug: "link_geneve_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 16777215 remote 10.0.0.1", Slug: "link_geneve_add_id_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve i 1 r 10.0.0.1", Slug: "link_geneve_add_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 local 10.0.0.2", Slug: "link_geneve_add_local",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 2001:db8::1 local 2001:db8::2", Slug: "link_geneve_add_local6",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve external local 192.168.0.1", Slug: "link_geneve_add_external_local",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve external local 2001:db8::1", Slug: "link_geneve_add_external_local6",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 ttl 64", Slug: "link_geneve_add_ttl",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 ttl inherit", Slug: "link_geneve_add_ttl_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 tos 10", Slug: "link_geneve_add_tos",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 df set", Slug: "link_geneve_add_df",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 dstport 4789", Slug: "link_geneve_add_dstport",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 dstport 0", Slug: "link_geneve_add_dstport_zero",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 2001:db8::1 flowlabel 0xfffff", Slug: "link_geneve_add_flowlabel",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 2001:db8::1 udp6zerocsumtx udp6zerocsumrx", Slug: "link_geneve_add_zero_csum6",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 udpcsum udp6zerocsumtx", Slug: "link_geneve_add_csum_cancel",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 innerprotoinherit", Slug: "link_geneve_add_innerprotoinherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set gn0 type geneve id 1 ttl 5 tos 10 df set", Slug: "link_geneve_set_changeable",
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0,
+	},
+	{
+		Name: "link set gn0 type geneve id 1 remote 10.0.0.9", Slug: "link_geneve_set_remote",
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0,
+	},
+	{
+		Name: "link set gn0 type geneve id 1 local 10.0.0.2", Slug: "link_geneve_set_local_same",
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0Local,
+	},
+	{
+		Name: "link add gn0 type geneve", Slug: "link_geneve_add_no_option",
+		// "Not enough attributes provided to perform the operation", compared on
+		// the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote fe80::1", Slug: "link_geneve_add_remote6_link_local",
+		// "Remote IPv6 address cannot be link-local", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 2001:db8::1 local fe80::2", Slug: "link_geneve_add_local6_link_local",
+		// "Local IPv6 address cannot be link-local", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 local 2001:db8::2", Slug: "link_geneve_add_local_family_mix",
+		// "Cannot specify both IPv4/IPv6 Remote/Local addresses", compared on the
+		// request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve id 1 remote 10.0.0.1 label 5", Slug: "link_geneve_add_flowlabel_v4",
+		// "Label attribute only applies for IPv6 Geneve devices", compared on the
+		// request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn0 type geneve external udpcsum", Slug: "link_geneve_add_external_udpcsum",
+		// "Device is externally controlled, so attributes (VNI, Port, and so on)
+		// must not be specified", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gn1 type geneve id 1 remote 10.0.0.1", Slug: "link_geneve_add_duplicate",
+		// "Device or resource busy", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: geneveWriteSetupGn0,
+	},
+	{
+		Name: "link add dev gn1 type geneve id 1 remote 10.0.0.1", Slug: "link_geneve_add_after_external",
+		// "There already exists an externally controlled device on this
+		// destination port and the source address", compared on the request.
+		// Spelled with iplink_parse's optional `dev`, which sends the same
+		// request, since add_duplicate has the plain spelling and Name is the
+		// allowlist key.
+		Floor: 2, Implemented: true, Write: true, Setup: geneveWriteSetupGn0External,
+	},
+	{
+		Name: "link set gn0 type geneve id 2", Slug: "link_geneve_set_id",
+		// "Changing VNI, Port, endpoint IP address family, external,
+		// inner_proto_inherit, gro_hint and UDP checksum attributes are not
+		// supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0,
+	},
+	{
+		Name: "link set gn0 type geneve id 1 dstport 6081", Slug: "link_geneve_set_dstport",
+		// "Changing VNI, Port, endpoint IP address family, external,
+		// inner_proto_inherit, gro_hint and UDP checksum attributes are not
+		// supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0,
+	},
+	{
+		Name: "link set gn0 type geneve id 1 remote 2001:db8::1", Slug: "link_geneve_set_family",
+		// "Changing VNI, Port, endpoint IP address family, external,
+		// inner_proto_inherit, gro_hint and UDP checksum attributes are not
+		// supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0,
+	},
+	{
+		Name: "link set dev gn0 type geneve id 1 local 10.0.0.2", Slug: "link_geneve_set_local_new",
+		// "Changing VNI, Port, endpoint IP address family, external,
+		// inner_proto_inherit, gro_hint and UDP checksum attributes are not
+		// supported", compared on the request. Spelled with `dev` for
+		// set_local_same's plain spelling, as add_after_external is.
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0,
+	},
+	{
+		Name: "link set gn0 type geneve id 0", Slug: "link_geneve_set_on_external",
+		// "Operation not supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: geneveWriteSetupGn0External,
+	},
+	{
+		Name: "link add b0 type bareudp dstport 6635 ethertype mpls_uc", Slug: "link_bareudp_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b0 type bareudp dstport 6635 ethertype ipv4", Slug: "link_bareudp_add_ethertype_ipv4",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b0 type bareudp dstport 6635 ethertype 0x1234", Slug: "link_bareudp_add_ethertype_number",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b0 type bareudp dstport 6635 ethertype ip srcportmin 1000", Slug: "link_bareudp_add_srcportmin",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b0 type bareudp dstport 6635 ethertype mpls_uc multiproto", Slug: "link_bareudp_add_multiproto",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b0 type bareudp d 6635 e ip s 1 m", Slug: "link_bareudp_add_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b0 type bareudp", Slug: "link_bareudp_add_no_option",
+		// "Not enough attributes provided to perform the operation", compared on
+		// the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b0 type bareudp dstport 6635 ethertype ipv6 multiproto", Slug: "link_bareudp_add_multiproto_ipv6",
+		// "Cannot set multiproto mode for this ethertype (only IPv4 and unicast
+		// MPLS are supported)", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add b1 type bareudp dstport 6635 ethertype mpls_uc", Slug: "link_bareudp_add_port_busy",
+		// "Another bareudp device using the same port already exists", compared on
+		// the request.
+		Floor: 2, Implemented: true, Write: true, Setup: bareudpWriteSetupB0,
+	},
+	{
+		Name: "link set b0 type bareudp dstport 6635 ethertype ip", Slug: "link_bareudp_set_same",
+		// "Operation not supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: bareudpWriteSetupB0,
+	},
+	{
+		Name: "link add a0 type amt mode gateway dev d0 local 10.0.0.1 discovery 10.0.0.2", Slug: "link_amt_add_gateway",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode relay dev d0 local 10.0.0.1", Slug: "link_amt_add_relay",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode gateway dev d0 local 10.0.0.1 discovery 10.0.0.2 relay_port 3000 gateway_port 3001 max_tunnels 10", Slug: "link_amt_add_ports",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode relay dev d0 local 10.0.0.1 max_tunnels 0", Slug: "link_amt_add_max_tunnels_zero",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode gateway mode relay dev d0 local 10.0.0.1", Slug: "link_amt_add_mode_twice",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt", Slug: "link_amt_add_no_option",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode relay local 10.0.0.1", Slug: "link_amt_add_no_link",
+		// "Link attribute is required", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode gateway dev d0 local 10.0.0.1", Slug: "link_amt_add_gateway_no_discovery",
+		// "Discovery attribute is required", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode relay dev lo local 10.0.0.1", Slug: "link_amt_add_on_loopback",
+		// "Invalid stream device type", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode relay dev d0 local 127.0.0.1", Slug: "link_amt_add_local_loopback",
+		// "Invalid Local address", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode relay dev d0 local 10.0.0.1 relay_port 0", Slug: "link_amt_add_relay_port_zero",
+		// "relay port must not be 0", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add a0 type amt mode gateway dev d0 local 10.0.0.1 discovery 224.0.0.1", Slug: "link_amt_add_discovery_multicast",
+		// "discovery must be unicast", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set a0 type amt mode relay dev d0 local 10.0.0.1", Slug: "link_amt_set_same",
+		// "Operation not supported", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: amtWriteSetupA0,
+	},
+	{
+		Name: "link add g0 type gtp role ggsn", Slug: "link_gtp_add_ggsn",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g0 type gtp role sgsn", Slug: "link_gtp_add_sgsn",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g0 type gtp role ggsn hsize 4096", Slug: "link_gtp_add_hsize",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g0 type gtp role ggsn hsize 131071", Slug: "link_gtp_add_hsize_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g0 type gtp role ggsn hsize 0", Slug: "link_gtp_add_hsize_zero",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g0 type gtp role ggsn restart_count 255", Slug: "link_gtp_add_restart_count",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g0 type gtp role ggsn foo", Slug: "link_gtp_add_unknown_skipped",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g0 type gtp", Slug: "link_gtp_add_no_option",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g1 type gtp role sgsn", Slug: "link_gtp_add_second",
+		// "Address already in use", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: gtpWriteSetupG0,
+	},
+	{
+		Name: "link set g0 type gtp role ggsn", Slug: "link_gtp_set_same",
+		// "Operation not supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: gtpWriteSetupG0,
+	},
+	{
+		Name: "link set g0 type gtp", Slug: "link_gtp_set_no_option",
+		// "Invalid argument", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: gtpWriteSetupG0,
+	},
 	// The bridge read rows: br0's IFLA_INFO_DATA and p0's
 	// IFLA_INFO_SLAVE_DATA under -d, text and JSON, on one bridge with two
 	// ports. The stdout comparison is the facets, so the timers move freely;
@@ -3293,6 +3879,55 @@ var commands = withArgs([]Command{
 	{
 		Name: "-d -j link show dev j0", Slug: "link_show_details_ipvtap_json",
 		Setup: ipvtapWriteSetupJ0, Floor: 6, Implemented: true,
+	},
+	// The UDP overlays' read rows: each kind's IFLA_INFO_DATA under -d,
+	// text and JSON, on the device's add. Each is the device's two gets
+	// (4), and a0's is d0's get too, for amt's `dev` (6); vx0 has no lower.
+	// TestLinkShowDetailUdpOverlayMatchesSidecar is the text and JSON
+	// oracle. `-d -d` is vx0's every bool, at its default or not.
+	{
+		Name: "-d link show dev vx0", Slug: "link_show_details_vxlan",
+		Setup: vxlanWriteSetupVx0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev vx0", Slug: "link_show_details_vxlan_json",
+		Setup: vxlanWriteSetupVx0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev gn0", Slug: "link_show_details_geneve",
+		Setup: geneveWriteSetupGn0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev gn0", Slug: "link_show_details_geneve_json",
+		Setup: geneveWriteSetupGn0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev b0", Slug: "link_show_details_bareudp",
+		Setup: bareudpWriteSetupB0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev b0", Slug: "link_show_details_bareudp_json",
+		Setup: bareudpWriteSetupB0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev a0", Slug: "link_show_details_amt",
+		Setup: amtWriteSetupA0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev a0", Slug: "link_show_details_amt_json",
+		Setup: amtWriteSetupA0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev g0", Slug: "link_show_details_gtp",
+		Setup: gtpWriteSetupG0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev g0", Slug: "link_show_details_gtp_json",
+		Setup: gtpWriteSetupG0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -d link show dev vx0", Slug: "link_show_details_vxlan_twice",
+		Setup: vxlanWriteSetupVx0, Floor: 4, Implemented: true,
 	},
 	// The route write rows (route-write-path.md phase 5): the corpus in
 	// pkg/xtcpnl/testdata/7_1_4/link-write/route/, less `nodev`, with the
@@ -4435,6 +5070,10 @@ var (
 // spelling and the keyword is iproute2's.
 const bridgeAgeingTimeCst = "age" + "ing_time"
 
+// vxlanAgeingCst is vxlan's British-spelled timer keyword, split as
+// xtcpnl.VxlanKeywordAgeing is, for bridgeAgeingTimeCst's reason.
+const vxlanAgeingCst = "age" + "ing"
+
 // The bridge write rows' preconditions, kind-write-corpus.exp's PRE_BR,
 // PRE_BR_STP and PRE_PORTS, and the steps the state, nobackup_port and
 // not_enslaved rows add or take away.
@@ -4459,6 +5098,20 @@ var (
 	ipvlanWriteSetupI0          = []string{"link add d0 type dummy", "link add link d0 name i0 type ipvlan"}
 	ipvlanWriteSetupI0Private   = []string{"link add d0 type dummy", "link add link d0 name i0 type ipvlan private"}
 	ipvtapWriteSetupJ0          = []string{"link add d0 type dummy", "link add link d0 name j0 type ipvtap"}
+)
+
+// The UDP overlays' preconditions (kind-write-corpus.exp): PRE_VX0,
+// PRE_VX0 after d0, PRE_GN0, PRE_GN0_LOCAL, PRE_GN0_EXTERNAL, PRE_B0,
+// amt's a0 after d0, and PRE_G0.
+var (
+	vxlanWriteSetupVx0          = []string{"link add vx0 type vxlan id 42 dstport 4789"}
+	vxlanWriteSetupD0Vx0        = []string{"link add d0 type dummy", "link add vx0 type vxlan id 42 dstport 4789"}
+	geneveWriteSetupGn0         = []string{"link add gn0 type geneve id 1 remote 10.0.0.1"}
+	geneveWriteSetupGn0Local    = []string{"link add gn0 type geneve id 1 remote 10.0.0.1 local 10.0.0.2"}
+	geneveWriteSetupGn0External = []string{"link add gn0 type geneve external"}
+	bareudpWriteSetupB0         = []string{"link add b0 type bareudp dstport 6635 ethertype ip"}
+	amtWriteSetupA0             = []string{"link add d0 type dummy", "link add a0 type amt mode relay dev d0 local 10.0.0.1"}
+	gtpWriteSetupG0             = []string{"link add g0 type gtp role ggsn"}
 )
 
 // bridgeReadSetup is the bridge read rows' namespace, PRE_PORTS: br0 and

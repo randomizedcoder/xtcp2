@@ -18,6 +18,15 @@ const (
 	ipvtapKindCst  = "ipvtap"
 )
 
+// vlanFamilyKind is one KC3 kind's device and its corpus's request and
+// refused row counts.
+type vlanFamilyKind struct {
+	kind    string
+	dev     string
+	rows    int
+	refused int
+}
+
 // TestVlanFamilyMatrixRows pins KG2-T05's rows (goip-link-kinds.md,
 // "KG2-T05 The VLAN family matrix rows"): one write row per KC3 row that
 // sent a request, each with its capture's floor and its topology's steps,
@@ -25,12 +34,7 @@ const (
 //
 // go test ./internal/goipparity/ -run TestVlanFamilyMatrixRows
 func TestVlanFamilyMatrixRows(t *testing.T) {
-	kinds := []struct {
-		kind    string
-		dev     string
-		rows    int
-		refused int
-	}{
+	kinds := []vlanFamilyKind{
 		{vlanKindCst, "v0", 21, 7},
 		{macvlanKindCst, "m0", 25, 9},
 		{macvtapKindCst, "t0", 5, 1},
@@ -40,7 +44,7 @@ func TestVlanFamilyMatrixRows(t *testing.T) {
 	got := map[string][]string{}
 	var rows []Command
 	for _, c := range Commands() {
-		if kind, slug, ok := kindRowKind(c.Slug); ok && kind != bridgeKindCst && kind != bridgeSlaveKindCst {
+		if kind, slug, ok := kindRowKind(c.Slug); ok && slices.ContainsFunc(kinds, func(k vlanFamilyKind) bool { return k.kind == kind }) {
 			got[kind] = append(got[kind], slug)
 			rows = append(rows, c)
 		}

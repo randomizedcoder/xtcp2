@@ -118,7 +118,7 @@ const (
 	tdRtnl = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	// tdRtnl730 is the 7.3.0 rtnetlink corpus, KC1-T01's inet rows among it.
 	tdRtnl730 = "../../pkg/xtcpnl/testdata/7_3_0/link-write/rtnl"
-	// tdKinds730 is the 7.3.0 link kind corpus, KC2's and KC3's rows among it.
+	// tdKinds730 is the 7.3.0 link kind corpus, KC2's to KC4's rows among it.
 	tdKinds730       = "../../pkg/xtcpnl/testdata/7_3_0/link-write/kinds"
 	pcapGlobalHdrCst = 24
 	pcapRecordHdrCst = 16
