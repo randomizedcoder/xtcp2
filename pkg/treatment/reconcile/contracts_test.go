@@ -105,7 +105,7 @@ func TestReconcileRevisionContracts(t *testing.T) {
 			if b.installs != 1 {
 				t.Fatal("rejected/idempotent state reinstalled route")
 			}
-			if err = r.Journal.WithLock(func(s *State, _ func() error) error {
+			if err = r.Journal.WithLock(context.Background(), func(s *State, _ func() error) error {
 				if !s.Desired.Equal(original) {
 					t.Fatal("rejected request changed journal")
 				}

@@ -150,7 +150,7 @@ func TestStartTreatmentsAttributionMode(t *testing.T) {
 	d := &treatment.DesiredState{AgentID: "host-1", Revision: 1, IssuedAt: now, Assignments: []treatment.Assignment{{ExperimentID: "trial-1", Generation: 1, Mode: treatment.ModeStable, Treatment: treatment.Treatment{ID: "cubic", Revision: 1, Destination: netip.MustParsePrefix("192.0.2.1/32"), Settings: treatment.TCPSettings{CongestionControl: &cubic}}}}}
 	write := func(revision uint64) {
 		d.Revision = revision
-		err := reconcile.Journal{Dir: dir}.WithLock(func(s *reconcile.State, save func() error) error {
+		err := reconcile.Journal{Dir: dir}.WithLock(context.Background(), func(s *reconcile.State, save func() error) error {
 			*s = reconcile.State{AgentID: "host-1", Location: "dc1", BootID: "boot-1", Desired: d, Records: []reconcile.Record{{ApplicationRecord: treatment.ApplicationRecord{Assignment: d.Assignments[0], Status: treatment.ApplyVerified, AppliedAt: now}}}}
 			return save()
 		})

@@ -20,7 +20,7 @@ import (
 // by atomic rename.
 func writeJournal(t *testing.T, dir string, s *reconcile.State) {
 	t.Helper()
-	err := reconcile.Journal{Dir: dir}.WithLock(func(cur *reconcile.State, save func() error) error {
+	err := reconcile.Journal{Dir: dir}.WithLock(context.Background(), func(cur *reconcile.State, save func() error) error {
 		*cur = *s
 		return save()
 	})

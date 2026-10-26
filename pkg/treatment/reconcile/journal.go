@@ -2,11 +2,14 @@ package reconcile
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"golang.org/x/sys/unix"
@@ -17,11 +20,32 @@ import (
 // readable projections only, never an input to recovery.
 type Journal struct{ Dir string }
 
+// ErrJournalBusy is returned, wrapping the context's error, when the lock
+// was still held by another process or goroutine at the context's deadline.
+var ErrJournalBusy = errors.New("treatment journal busy")
+
+// lockPollMaxCst bounds the retry interval while waiting for the lock. The
+// kernel's blocking flock cannot be interrupted by a context, so the wait is
+// a non-blocking attempt repeated with a doubling delay from 1 ms to this.
+const lockPollMaxCst = 50 * time.Millisecond
+
+// pendingPrefix names atomicFile's temporary files. One is only ever created
+// under the lock, so any found by a new lock holder belongs to a writer that
+// died mid-write and is swept before the snapshot is read.
+const pendingPrefix = ".pending-"
+
 // WithLock loads the snapshot under the exclusive journal lock, runs fn with
 // a save callback that persists the current state atomically, and refreshes
 // the per-assignment projections if anything was saved. A snapshot that
 // fails validation never reaches fn.
-func (j Journal) WithLock(fn func(*State, func() error) error) error {
+//
+// The lock waits: the daemon's reconcile pass, the watchdog's expiry pass and
+// a local suspend/resume each take it in turn rather than one skipping its
+// pass because another held it. The wait is bounded by ctx; at its deadline
+// WithLock returns ErrJournalBusy wrapping ctx.Err() without having read or
+// written anything. `treatmentctl status` reads the snapshot without the lock
+// and never waits.
+func (j Journal) WithLock(ctx context.Context, fn func(*State, func() error) error) error {
 	if err := os.MkdirAll(j.Dir, 0700); err != nil {
 		return err
 	}
@@ -30,10 +54,13 @@ func (j Journal) WithLock(fn func(*State, func() error) error) error {
 		return err
 	}
 	defer unix.Close(fd)
-	if err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		return fmt.Errorf("treatment journal busy: %w", err)
+	if err = lock(ctx, fd); err != nil {
+		return err
 	}
 	defer unix.Flock(fd, unix.LOCK_UN)
+	if err = j.sweepPending(); err != nil {
+		return err
+	}
 	s := new(State)
 	f, err := os.OpenFile(filepath.Join(j.Dir, SnapshotFile), os.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err == nil {
@@ -87,6 +114,46 @@ func (j Journal) WithLock(fn func(*State, func() error) error) error {
 	return result
 }
 
+// lock takes the exclusive flock, waiting until ctx is done.
+func lock(ctx context.Context, fd int) error {
+	delay := time.Millisecond
+	for {
+		err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, unix.EWOULDBLOCK) {
+			return err
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("%w: %w", ErrJournalBusy, ctx.Err())
+		case <-timer.C:
+		}
+		delay = min(2*delay, lockPollMaxCst)
+	}
+}
+
+// sweepPending removes temporary files left by a writer that died between
+// CreateTemp and Rename. The caller holds the lock, so none is in use.
+func (j Journal) sweepPending() error {
+	entries, err := os.ReadDir(j.Dir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), pendingPrefix) {
+			continue
+		}
+		if err = os.Remove(filepath.Join(j.Dir, e.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
 func readLimited(f *os.File) ([]byte, error) {
 	b, err := io.ReadAll(io.LimitReader(f, treatment.MaxStateBytes+1))
 	if err != nil {
@@ -99,7 +166,7 @@ func readLimited(f *os.File) ([]byte, error) {
 }
 
 func atomicFile(dir, name string, b []byte) error {
-	f, err := os.CreateTemp(dir, ".pending-")
+	f, err := os.CreateTemp(dir, pendingPrefix)
 	if err != nil {
 		return err
 	}

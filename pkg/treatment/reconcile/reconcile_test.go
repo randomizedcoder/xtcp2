@@ -174,7 +174,7 @@ func TestPersistentHoldAndTombstones(t *testing.T) {
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
-	if e := r.SuspendLocal(true, "incident test"); e != nil {
+	if e := r.SuspendLocal(context.Background(), true, "incident test"); e != nil {
 		t.Fatal(e)
 	}
 	if _, e := r.Run(context.Background(), nil, ModeFull); e != nil {
@@ -190,7 +190,7 @@ func TestPersistentHoldAndTombstones(t *testing.T) {
 	if len(b.routes) != 0 {
 		t.Fatal("controller update cleared local hold")
 	}
-	if e := r.SuspendLocal(false, "test complete"); e != nil {
+	if e := r.SuspendLocal(context.Background(), false, "test complete"); e != nil {
 		t.Fatal(e)
 	}
 	d.Revision++
@@ -257,7 +257,7 @@ func TestPredecessorExpiryAndGenerationRejectionPreserveJournal(t *testing.T) {
 	if _, e = r.Run(context.Background(), bad, ModeFull); e == nil {
 		t.Fatal("stale generation accepted")
 	}
-	if e = r.Journal.WithLock(func(s *State, _ func() error) error {
+	if e = r.Journal.WithLock(context.Background(), func(s *State, _ func() error) error {
 		if s.Desired.Revision != d.Revision {
 			t.Fatal("rejected generation poisoned persisted desired state")
 		}
@@ -288,7 +288,7 @@ func TestJournalHeaderIdentifiesWriter(t *testing.T) {
 	if _, e = other.Run(context.Background(), nil, ModeFull); e == nil || !strings.Contains(e.Error(), "another agent") {
 		t.Fatalf("foreign journal accepted: %v", e)
 	}
-	if e = other.SuspendLocal(true, "x"); e == nil || !strings.Contains(e.Error(), "another agent") {
+	if e = other.SuspendLocal(context.Background(), true, "x"); e == nil || !strings.Contains(e.Error(), "another agent") {
 		t.Fatalf("foreign journal suspended: %v", e)
 	}
 	if b.installs != 1 {

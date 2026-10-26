@@ -90,7 +90,7 @@ func (r *Reconciler) Run(ctx context.Context, in *treatment.DesiredState, mode M
 	}
 	expiryOnly := mode == ModeExpiryOnly
 	var result *State
-	err := r.Journal.WithLock(func(s *State, save func() error) error {
+	err := r.Journal.WithLock(ctx, func(s *State, save func() error) error {
 		defer func() { result = s.Clone() }()
 		r.Backend.BeginReconcile()
 		now := r.now()
@@ -308,12 +308,13 @@ func (r *Reconciler) install(ctx context.Context, v *Record, t *treatment.Treatm
 }
 
 // SuspendLocal persists an offline hold (or lifts it) that controller
-// requests cannot clear. A reason is required for the audit trail.
-func (r *Reconciler) SuspendLocal(suspended bool, reason string) error {
+// requests cannot clear. A reason is required for the audit trail. ctx
+// bounds the wait for the journal lock.
+func (r *Reconciler) SuspendLocal(ctx context.Context, suspended bool, reason string) error {
 	if len(reason) == 0 || len(reason) > 1024 {
 		return errors.New("suspension/resume reason required (maximum 1024 bytes)")
 	}
-	return r.Journal.WithLock(func(s *State, save func() error) error {
+	return r.Journal.WithLock(ctx, func(s *State, save func() error) error {
 		if s.AgentID != "" && s.AgentID != r.AgentID {
 			return errors.New("journal belongs to another agent")
 		}

@@ -51,7 +51,11 @@ func run() error {
 		_, e = os.Stdout.Write(b)
 		return e
 	case "suspend", "resume":
-		if e = h.Reconciler.SuspendLocal(*mode == "suspend", *reason); e != nil {
+		// Waits for a reconcile pass in progress; a watchdog pass is bounded
+		// at 25 s, so a longer wait means the journal is wedged.
+		hold, cancelHold := context.WithTimeout(ctx, 30*time.Second)
+		defer cancelHold()
+		if e = h.Reconciler.SuspendLocal(hold, *mode == "suspend", *reason); e != nil {
 			return e
 		}
 	case "reconcile":

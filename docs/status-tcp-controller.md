@@ -18,8 +18,8 @@ review being addressed. Items are listed in execution order.
 | 6 | auth as interceptor with per-RPC role option | done | d7fefee4 |
 | 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | done | this commit |
 | 9 | identity/location startup check | done | this commit |
-| 10 | blocking journal lock | next | |
-| 11 | scale: notification watermark, heartbeat split, leader lease | pending | |
+| 10 | blocking journal lock | done | this commit |
+| 11 | scale: notification watermark, heartbeat split, leader lease | next | |
 | 12 | docs: threat model, naming, SIGHUP, philosophy sentence | pending | |
 
 Dual-mode agent (library + `cmd/xtcp2-treatment-agent` + `treatment` build tag
@@ -155,6 +155,22 @@ process.
   `TestEmbeddedTreatmentAgentLocation` (unset and equal reach the
   credential error, differs is refused before it), and the existing
   attribution watcher rows for the standalone side.
+
+## Item 10 notes
+
+- `Journal.WithLock(ctx, fn)` waits for the flock (non-blocking attempts with
+  a 1 to 50 ms doubling delay, since a blocking flock cannot be interrupted by
+  a context) and returns `ErrJournalBusy` wrapping `ctx.Err()` at the
+  deadline, before reading the snapshot. Under the lock it sweeps
+  `.pending-*` files, which only a writer that died mid-write can leave.
+  `Reconciler.Run` passes its ctx; `SuspendLocal` gained a ctx and
+  `treatmentctl suspend|resume` bounds it at 30 s. `status` was already
+  lock-free and stays so; no `LOCK_NB` entry point is needed.
+- Tests: `TestJournalLockWaits` (uncontended, contended-waits, ctx-deadline,
+  zero-budget), `TestJournalLockFreeReadUnderLock`, and
+  `TestJournalLockHolderDies`, which kills a child test process holding the
+  lock with a half-written temp file and checks the lock is free, the
+  snapshot intact and the temp file swept.
 
 ## TODO
 
