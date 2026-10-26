@@ -53,32 +53,47 @@ cases; it is not based only on happy-path workflows.
 | Controller | mTLS role and enrollment boundaries, authenticated status/readiness, desired-state watch cancellation, notification coalescing/reconnects, HTTP failures/body closure/size limits, SQL counter deltas/resets, real transaction/review races, durable holds, discovery ASN/prefix filters and cooldown across controller restart. |
 | Route planning | Opt-in and private resource bounds, unsupported forwarding attributes, IPv6 encoding, explicit ECN/quickack enable/disable, preservation of unrelated metrics/locks, complete nearby profile and baseline immutability. |
 
-Final direct Go run: race detector enabled, three repetitions, PostgreSQL and
-ClickHouse fixtures enabled, no skips in `pkg/treatment/...` or the soak helper
-suite. Route unit tests also passed three race-enabled repetitions. Focused
-concurrency tests passed ten repetitions. `go vet` passed for the feature,
-integration helper and goip packages.
+The table below is generated, not hand-collected:
+`nix build .#test-tcp-controller-unit` writes it to `result/coverage-table.md`
+from the unit run's `go test -cover` lines (PostgreSQL and ClickHouse fixtures
+enabled, no skips), and `result/coverage.txt` holds the per-function figures.
+`internal/goip/actuate` runs only its `TestTreatment*` tests there. The race
+target (`test-tcp-controller-race`) runs the same packages three times under
+`-race` and reports no coverage.
 
-| Package | Direct race run | Nix unit check |
-| --- | ---: | ---: |
-| `pkg/treatment` | 89.1% | 89.0% |
-| `pkg/treatment/agent` | 71.4% | 67.5% |
-| `pkg/treatment/controller` | 74.3% | 73.9% |
+| Package | Statements covered |
+| --- | ---: |
+| `pkg/treatment` | 54.7% |
+| `pkg/treatment/agent` | 61.9% |
+| `pkg/treatment/attribution` | 88.1% |
+| `pkg/treatment/controller` | 74.0% |
+| `pkg/treatment/controller/evidence` | 100.0% |
+| `pkg/treatment/controller/evidence/clickhouse` | 93.5% |
+| `pkg/treatment/controller/store/memory` | 95.3% |
+| `pkg/treatment/controller/store/postgres` | 85.5% |
+| `pkg/treatment/experiment` | 93.8% |
+| `pkg/treatment/identity` | 90.5% |
+| `pkg/treatment/local` | 70.5% |
+| `pkg/treatment/reconcile` | 87.0% |
+| `pkg/treatment/wire` | 86.2% |
+| `tools/tcp-controller-integration` | 4.1% |
+| `internal/goip/actuate` | 22.1% |
 
-`Evaluate`, `HealthyEvidence`, and treatment, TCP-settings, policy, evidence and
-proposal validators reached 100% statement coverage in both builds. In the direct
-race run, `ValidateDesired` reached
-91.3%, socket stamping 97.6%, discovery 80.2%, and agent `Run` 87.8%.
-Statement coverage is not branch coverage or a proof of correctness. The final
-Nix unit and race checks also passed; the figures above retain both measurements
-rather than mixing coverage from different builds and environments.
+`HealthyEvidence` and the treatment, TCP-settings, policy, evidence, proposal
+and report validators reach 100% statement coverage; `Evaluate` 94.7%,
+`ValidateDesired` 91.7%, socket stamping 100%, discovery 87.3%, the agent's
+`Run` 97.4%, the reconciler's `Run` 88.9% and the attribution watcher's `Run`
+87.9%. `pkg/treatment` reads lower than before the split because coverage is per
+package (no `-coverpkg`): its enum, `Clone` and `Equal` methods are exercised
+by the `wire`, store and controller tests, which do not count toward it.
+Statement coverage is not branch coverage or a proof of correctness.
 
 Remaining gaps include some filesystem/syscall error paths, live namespace
 inspection, TLS client construction, reconnect/backoff timing, and all
 combinations of controller database failures. Kernel route mutation and network
 behavior remain the responsibility of the existing disposable-namespace and
 seven-guest VM tests. The integration harness itself has low unit coverage
-(3.8%); most of its code only executes inside those VMs. This audit did not rerun
+(4.1%); most of its code only executes inside those VMs. This audit did not rerun
 the 30-minute soak; the previous three-cycle soak passed before these changes.
 
 The new RTT boundary regression exposed floating-point cancellation: `5.5/5-1`

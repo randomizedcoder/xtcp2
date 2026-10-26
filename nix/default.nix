@@ -1099,6 +1099,7 @@ in
       test-tcp-controller-unit = tests.tcp-controller-quality.unit;
       test-tcp-controller-race = tests.tcp-controller-quality.race;
       bench-tcp-controller = tests.tcp-controller-quality.bench;
+      bench-tcp-controller-postgres-indexes = tests.tcp-controller-quality.postgres-indexes;
       test-go-race = tests.go-race;
       test-listener-security = tests.listener-security;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;

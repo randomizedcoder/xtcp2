@@ -393,10 +393,10 @@ in-memory store) covers all lifecycle states, cooldown boundaries and
 location/destination isolation. Concurrent proposal tests verify that only one
 automatic proposal is persisted.
 
-On the local PostgreSQL 15.19 fixture, three repeated runs measured a median
-25.34 ms without indexes versus 0.023 ms with them for an old destination's
-cooldown lookup. These are synthetic query execution times, not end-to-end
-production latency. [Raw query-plan timing results](benchmarks/tcp-controller/postgres-indexes.txt)
+On the Nix PostgreSQL 18.6 fixture (`nix build .#bench-tcp-controller-postgres-indexes`),
+three repeated runs measured a median 22.27 ms without indexes versus 0.023 ms
+with them for an old destination's cooldown lookup. These are synthetic query
+execution times, not end-to-end production latency. [Raw query-plan timing results](benchmarks/tcp-controller/postgres-indexes.txt)
 also include missing destinations and active/idle data-center budget checks.
 
 Startup migration creates missing indexes idempotently. For an existing busy
