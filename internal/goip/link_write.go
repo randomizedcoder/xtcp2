@@ -642,7 +642,7 @@ func kindData(errOut io.Writer, verb *linkWriteVerb, family uint8, kind string, 
 	resolve linkResolver,
 ) ([]byte, error) {
 	switch kind {
-	case kindVxlanCst, kindGeneveCst:
+	case kindVxlanCst, kindGeneveCst, kindBareudpCst, kindAmtCst, kindGtpCst:
 		return overlayData(errOut, verb.setOp(), family, kind, rest, resolve)
 	case kindBridgeCst:
 		settings, err := parseBridgeArgs(errOut, rest)
@@ -704,18 +704,38 @@ func kindData(errOut io.Writer, verb *linkWriteVerb, family uint8, kind string, 
 func overlayData(errOut io.Writer, set bool, family uint8, kind string, rest []string,
 	resolve linkResolver,
 ) ([]byte, error) {
-	if kind == kindGeneveCst {
+	switch kind {
+	case kindGeneveCst:
 		settings, err := parseGeneveArgs(set, rest)
 		if err != nil {
 			return nil, err
 		}
 		return xtcpnl.EncodeGeneveInfoData(settings, set)
+	case kindBareudpCst:
+		settings, err := parseBareudpArgs(rest)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeBareudpInfoData(settings)
+	case kindAmtCst:
+		settings, err := parseAmtArgs(rest, resolve)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeAmtInfoData(settings)
+	case kindGtpCst:
+		settings, err := parseGtpArgs(rest)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeGtpInfoData(settings)
+	default:
+		settings, err := parseVxlanArgs(errOut, family, set, rest, resolve)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeVxlanInfoData(settings, set)
 	}
-	settings, err := parseVxlanArgs(errOut, family, set, rest, resolve)
-	if err != nil {
-		return nil, err
-	}
-	return xtcpnl.EncodeVxlanInfoData(settings, set)
 }
 
 // vethData is veth_parse_opt: `peer` and then a second iplink_parse, whose
