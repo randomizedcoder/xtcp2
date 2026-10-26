@@ -388,14 +388,20 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 
 // renderableInfoData reports whether goip reproduces the per-kind print_opt
 // output for a kind: vrf (a single table id), bond (bond_print_opt,
-// grounded on the 7_1_4 link-write fixtures) and bridge (bridge_print_opt,
-// grounded on the 7_3_0 kind corpus). Every other kind's blob stays
+// grounded on the 7_1_4 link-write fixtures), bridge (bridge_print_opt) and
+// the VLAN family, vlan, macvlan, macvtap, ipvlan and ipvtap (their
+// print_opts), grounded on the 7_3_0 kind corpus. Every other kind's blob stays
 // undecoded and its -d render refused, which keeps the gate kind-agnostic
 // for everything goip has not verified against a capture. The list is
 // render's, so the gate and the renderer cannot disagree about which kinds
 // have a print_opt.
 func renderableInfoData(kind string) bool {
-	return kind == render.VrfKindCst || kind == render.BondKindCst || kind == render.BridgeKindCst
+	switch kind {
+	case render.VrfKindCst, render.BondKindCst, render.BridgeKindCst, render.VlanKindCst,
+		render.MacvlanKindCst, render.MacvtapKindCst, render.IpvlanKindCst, render.IpvtapKindCst:
+		return true
+	}
+	return false
 }
 
 // renderableSlaveInfoData is renderableInfoData for IFLA_INFO_SLAVE_KIND,

@@ -166,6 +166,12 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
 		return bondData(li.Bond, names)
 	case BridgeKindCst:
 		return bridgeData(li.Bridge)
+	case VlanKindCst:
+		return vlanData(li.Vlan)
+	case MacvlanKindCst, MacvtapKindCst:
+		return macvlanData(li.Macvlan)
+	case IpvlanKindCst, IpvtapKindCst:
+		return ipvlanData(li.Ipvlan)
 	}
 	return nil
 }

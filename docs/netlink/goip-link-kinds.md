@@ -2976,6 +2976,9 @@ The plan's "`FLAGS` left out without a flag word" and "the data sent with no opt
 | corner: source mode's remotes | `macvlan/add_macaddr_set` | `remotes (2) 02:00:00:00:00:02 02:00:00:00:00:01`; JSON `macaddr_data` |
 | corner: ipvlan's leading space | `ipvlan/add_default` | `ipvlan  mode l3 bridge ` |
 | corner: macvtap's own kind word | `macvtap/add_default` | `macvtap mode vepa …` |
+| corner: source mode's remotes in `-j` | `macvlan/add_macaddr_set`, `-d -j` | `"macaddr_data":["02:00:00:00:00:02","02:00:00:00:00:01"]` |
+
+The device each row shows is `kindShowDevice`'s: the name before `@` on its `ip_getlink_detail`'s first line.
 
 `TestVlanFamilyDataRender` (`internal/goip/render`) holds what no readback reaches:
 
@@ -2991,6 +2994,8 @@ The plan's "`FLAGS` left out without a flag word" and "the data sent with no opt
 | corner: an empty qos map | ingress, no pairs | `      ingress-qos-map { } `; `"ingress_qos":[]` |
 | corner: ipvlan private over vepa | flags 3 | `private ` only |
 | corner: remotes outside source mode | mode bridge, count 2 | no `remotes` |
+| boundary: a remote count past an int | mode source, count 0xffffffff | `remotes (-1) `; `"macaddr_count":-1` |
+| corner: vlan flags in print order, not bit order | flags 0xc | `<MVRP,LOOSE_BINDING> ` |
 
 **Mutation check:**
 - the qos map without its line break (the qos corner row);
@@ -2999,7 +3004,8 @@ The plan's "`FLAGS` left out without a flag word" and "the data sent with no opt
 - `remotes` printed in every mode (its render row);
 - vlan flags in bit order (`add_several`: MVRP before LOOSE_BINDING, and the unnamed-bit row);
 - `bclim` as unsigned (`add_bclim_negative`);
-- vlan left out of `renderableInfoData` (every vlan row).
+- vlan left out of `renderableInfoData` (every vlan row);
+- an unnamed flag bit in decimal, not hex (the unnamed-bit row).
 
 **Done when:** as KG2-T01.
 
