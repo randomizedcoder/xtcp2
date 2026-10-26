@@ -395,6 +395,17 @@ func TestEncodeGeneveInfoData(t *testing.T) {
 			settings:    args("id 1 remote 10.0.0.1 ttl inherit df set"),
 			expected:    slices.Concat(u8(unix.IFLA_GENEVE_TTL_INHERIT, 1), u8(unix.IFLA_GENEVE_DF, 1), id1, remote, zeros),
 		},
+		{
+			description: "corner: a v4-mapped multicast remote is a REMOTE6",
+			settings: []GeneveSetting{{Option: GeneveOptionID, Value: 1},
+				{Option: GeneveOptionRemote, Addr: netip.MustParseAddr("::ffff:239.1.1.1")}},
+			expected: slices.Concat(id1, rtattr(unix.IFLA_GENEVE_REMOTE6, netip.MustParseAddr("::ffff:239.1.1.1").AsSlice()), zeros),
+		},
+		{
+			description: "negative: a multicast remote",
+			settings:    args("id 1 remote 239.1.1.1"),
+			err:         ErrKindSettingRange,
+		},
 	}
 	words := geneveCorpusWords()
 	ents, err := os.ReadDir(tdLinkWrite_7_3_0 + "/kinds/" + geneveKindCst)

@@ -66,6 +66,16 @@ func kindAddr16(val []byte, old netip.Addr) netip.Addr {
 	return netip.AddrFrom16([16]byte(val[:bridgeIPv6LenCst]))
 }
 
+// kindMulticast is set_address_type's multicast test, IN_MULTICAST or
+// IN6_IS_ADDR_MULTICAST on the bytes: unlike netip's IsMulticast, a
+// v4-mapped 239.1.1.1 is not multicast.
+func kindMulticast(a netip.Addr) bool {
+	if a.Is4() {
+		return a.As4()[0]&0xf0 == 0xe0
+	}
+	return a.As16()[0] == 0xff
+}
+
 func kindPutAddr(ab *AttrBuilder, a netip.Addr, type4, type6 uint16) error {
 	switch {
 	case !a.IsValid():

@@ -372,7 +372,7 @@ func (e *vxlanEnc) put(s VxlanSetting) error {
 // local of the other family, is refused as get_addr refuses it.
 func (e *vxlanEnc) putAddr(s VxlanSetting) error {
 	a := s.Addr
-	if !a.IsValid() || vxlanMulticast(a) != (s.Option == VxlanOptionGroup) {
+	if !a.IsValid() || kindMulticast(a) != (s.Option == VxlanOptionGroup) {
 		return ErrKindSettingRange
 	}
 	other := e.local
@@ -385,16 +385,6 @@ func (e *vxlanEnc) putAddr(s VxlanSetting) error {
 	}
 	*dst = a
 	return nil
-}
-
-// vxlanMulticast is set_address_type's multicast test, IN_MULTICAST or
-// IN6_IS_ADDR_MULTICAST on the bytes: unlike netip's IsMulticast, a
-// v4-mapped 239.1.1.1 is not multicast.
-func vxlanMulticast(a netip.Addr) bool {
-	if a.Is4() {
-		return a.As4()[0]&0xf0 == 0xe0
-	}
-	return a.As16()[0] == 0xff
 }
 
 func (e *vxlanEnc) putSrcPort(s VxlanSetting) error {
@@ -424,7 +414,7 @@ func (e *vxlanEnc) putBool(s VxlanSetting) error {
 // attributes it holds back.
 func (e *vxlanEnc) finish(set bool) error {
 	switch {
-	case !e.metadata && e.vnifilter, e.metadata && e.hasID, vxlanMulticast(e.remote) && !e.hasLink:
+	case !e.metadata && e.vnifilter, e.metadata && e.hasID, kindMulticast(e.remote) && !e.hasLink:
 		return ErrKindSettingConflict
 	case !e.metadata && !e.vnifilter && !e.hasID && !set:
 		return ErrKindSettingMissing

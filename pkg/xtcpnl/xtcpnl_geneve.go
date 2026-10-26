@@ -230,7 +230,7 @@ func (e *geneveEnc) put(s GeneveSetting) error {
 		e.vni, e.hasID = s.Value, true
 		return kindMax(s.Value, kindVniMaxCst)
 	case GeneveOptionRemote, GeneveOptionLocal:
-		if !s.Addr.IsValid() || s.Addr.IsMulticast() {
+		if !s.Addr.IsValid() || kindMulticast(s.Addr) {
 			return ErrKindSettingRange
 		}
 		if s.Option == GeneveOptionRemote {

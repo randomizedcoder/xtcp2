@@ -642,12 +642,8 @@ func kindData(errOut io.Writer, verb *linkWriteVerb, family uint8, kind string, 
 	resolve linkResolver,
 ) ([]byte, error) {
 	switch kind {
-	case kindVxlanCst:
-		settings, err := parseVxlanArgs(errOut, family, verb.setOp(), rest, resolve)
-		if err != nil {
-			return nil, err
-		}
-		return xtcpnl.EncodeVxlanInfoData(settings, verb.setOp())
+	case kindVxlanCst, kindGeneveCst:
+		return overlayData(errOut, verb.setOp(), family, kind, rest, resolve)
 	case kindBridgeCst:
 		settings, err := parseBridgeArgs(errOut, rest)
 		if err != nil {
@@ -702,6 +698,24 @@ func kindData(errOut io.Writer, verb *linkWriteVerb, family uint8, kind string, 
 	default:
 		return nil, fmt.Errorf("link type %q options: %w", kind, ErrNotImplemented)
 	}
+}
+
+// overlayData is the UDP overlays' parse_opts (KG3). set is set_op.
+func overlayData(errOut io.Writer, set bool, family uint8, kind string, rest []string,
+	resolve linkResolver,
+) ([]byte, error) {
+	if kind == kindGeneveCst {
+		settings, err := parseGeneveArgs(set, rest)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeGeneveInfoData(settings, set)
+	}
+	settings, err := parseVxlanArgs(errOut, family, set, rest, resolve)
+	if err != nil {
+		return nil, err
+	}
+	return xtcpnl.EncodeVxlanInfoData(settings, set)
 }
 
 // vethData is veth_parse_opt: `peer` and then a second iplink_parse, whose
