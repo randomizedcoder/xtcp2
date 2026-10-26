@@ -23,9 +23,9 @@
 - The KP tier is done. KG0 is planned (DOC015): KG0-T01 puts `inet` in goip's keyword chain, with `ip`'s exit statuses, and KG0-T02 gates its 11 matrix rows.
 - KG0 is done (KG0-T01, KG0-T02; planned in DOC015): goip builds `ip link set … inet …` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, and refuses the 7 `ip` refuses with `ip`'s texts and statuses. `parseLinkArgs`' `exit(-1)` refusals now exit 255 through `ErrLinkUsage`. The 11 `link_inet_*` matrix rows are gated, on a clean full run and a clean `--section link` run (V135, V136), the first rows gated with a section run. KG1 is planned (DOC016).
 - KG1 is done (KG1-T01, KG1-T02, KG1-T03, KG1-T04, KG1-T05; planned in DOC016): goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets. The 92 write rows and 4 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V154, V155). KG2 is planned (DOC017).
-- KG2 is in progress (KG2-T01, KG2-T02 done): goip takes `iplink_parse`'s `link` keyword, resolving the lower device before `IFLA_IFNAME` on a create, and builds `ip link add|set … type vlan|macvlan|macvtap …` byte for byte as `ip` does for KC3's 21 vlan, 25 macvlan and 5 macvtap rows that sent a request, lookups included, and refuses the 17 `ip` refuses with `ip`'s texts and statuses.
+- KG2 is in progress (KG2-T01, KG2-T02, KG2-T03 done): goip takes `iplink_parse`'s `link` keyword, resolving the lower device before `IFLA_IFNAME` on a create, and builds `ip link add|set … type vlan|macvlan|macvtap …` byte for byte as `ip` does for KC3's 21 vlan, 25 macvlan and 5 macvtap rows that sent a request, lookups included, and refuses the 17 `ip` refuses with `ip`'s texts and statuses. KG2-T03 adds `type ipvlan|ipvtap …`: KC3's 14 ipvlan and 3 ipvtap rows that sent a request, and the 5 refusals.
 
-**Next action:** [KG2-T03](goip-link-kinds.md#kg2-t03-the-ipvlan-and-ipvtap-words): the ipvlan and ipvtap words.
+**Next action:** [KG2-T04](goip-link-kinds.md#kg2-t04-the-vlan-familys--d-output): the VLAN family's `-d` output.
 
 ## Contents
 
@@ -65,7 +65,7 @@
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | KP5-T04 | done | V117–V128, DOC015 |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | KG0-T02 | done | V129–V139, DOC016 |
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156, DOC017 |
-| [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | KG2-T03 | in progress | V157–V162 |
+| [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | KG2-T04 | in progress | V157–V165 |
 | [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | | not started | |
 | [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | | not started | |
 | [KG5](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip | the remaining kinds | | not started | |
@@ -126,7 +126,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG1-T05](goip-link-kinds.md#kg1-t05-the-bridge-matrix-rows) | the bridge matrix rows | done | V152–V156 |
 | [x] | [KG2-T01](goip-link-kinds.md#kg2-t01-the-link-keyword-and-the-vlan-words) | the `link` keyword and the vlan words | done | V157–V159 |
 | [x] | [KG2-T02](goip-link-kinds.md#kg2-t02-the-macvlan-and-macvtap-words) | the macvlan and macvtap words | done | V160–V162 |
-| [ ] | [KG2-T03](goip-link-kinds.md#kg2-t03-the-ipvlan-and-ipvtap-words) | the ipvlan and ipvtap words | not started | |
+| [x] | [KG2-T03](goip-link-kinds.md#kg2-t03-the-ipvlan-and-ipvtap-words) | the ipvlan and ipvtap words | done | V163–V165 |
 | [ ] | [KG2-T04](goip-link-kinds.md#kg2-t04-the-vlan-familys--d-output) | the VLAN family's `-d` output | not started | |
 | [ ] | [KG2-T05](goip-link-kinds.md#kg2-t05-the-vlan-family-matrix-rows) | the VLAN family matrix rows | not started | |
 | [ ] | [KG3-T01…](goip-link-kinds.md#kg3--goip-udp-overlays) | goip UDP overlays | not started | |
@@ -316,6 +316,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V160 | 2026-10-25 | KG2-T02 | `go vet ./internal/goip/`, `go test -count=1 -race ./internal/goip/... ./internal/goipparity/` | all pass: `TestLinkMacvlanWriteMatchesIp` (25 macvlan and 5 macvtap rows, each against its own KC3 capture), `TestLinkMacvlanRefusals` (10 corpus rows, 7 built), `TestParseMacvlanArgs` (8 rows), `TestLLAddrA2NPart` (8 rows), `TestMacvlanCorpusArgv` (34 and 6 rows); the existing `llAddrA2N` rows unchanged over the wrapper | this commit |
 | V161 | 2026-10-25 | KG2-T02 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `bclim` by prefix; the `nopromisc` check inside the loop; `nodst` tried before `nopromisc`; the set loop's word consumed; the silent length failure warned in an add; the warning printed for every word that ends a set; the usage naming macvlan for macvtap; `llAddrCut` leaving the word whole | 8 of 8 killed: by `add_bclim_abbrev`; the nopromisc-first rows; `n` is `nopromisc`; the four set rows; the one-part-short row; the hex-word set row; macvtap's usage row; the `mode:x` and seven-part rows | scratch |
 | V162 | 2026-10-25 | KG2-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; goconst (the `mode` and `bridge` literals, now `xfrmModeCst` and `kindBridgeCst`) and exhaustive (the flag-arm switch's `default:`) were fixed before the first clean run | this commit |
+| V163 | 2026-10-25 | KG2-T03 | `go vet ./internal/goip/`, `go test -count=1 -race ./internal/goip/... ./internal/goipparity/` | all pass: `TestLinkIpvlanWriteMatchesIp` (14 ipvlan and 3 ipvtap rows, each against its own KC3 capture), `TestLinkIpvlanRefusals` (5 corpus rows, 4 built), `TestParseIpvlanArgs` (5 rows), `TestIpvlanCorpusArgv` (18 and 4 rows) | this commit |
+| V164 | 2026-10-25 | KG2-T03 | mutation, scratch worktrees, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: a second flag word accepted; the mode compared without case; `help` dropped; the unknown-option text naming ipvlan for ipvtap | 4 of 4 killed: by `add_two_flags` and `bridge private`; `mode L2`; the help row; ipvtap's row. The first version of the first mutant didn't build (`flagGiven` unused) and was rewritten to keep it read | scratch |
+| V165 | 2026-10-25 | KG2-T03 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 
 ## Decision log
 

@@ -2941,15 +2941,18 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 - `mode l2 mode l3` sends two `MODE`s in order;
 - `b` is `bridge` (`FLAGS` 0);
 - `p` is `private`;
-- `vepa mode l3s` puts the mode, then `FLAGS` 2.
+- `vepa mode l3s` puts the mode, then `FLAGS` 2;
+- `private mode l3`: a mode after the flag word is still a mode.
 
 `TestIpvlanCorpusArgv` checks the 18 and 4 corpus rows.
 
 **Mutation check:**
 - a second flag word accepted (`add_two_flags`);
-- `FLAGS` left out without a flag word (`add_mode_l2`);
-- the data sent with no option (`add_default`);
+- the mode's value compared without case (`mode L2`);
+- `help` dropped from the chain (the help row);
 - the unknown-option text naming ipvlan for ipvtap (ipvtap's row).
+
+The plan's "`FLAGS` left out without a flag word" and "the data sent with no option" are `EncodeIpvlanInfoData`'s, which KP2 held, so the two mutants above stand in for them.
 
 **Done when:** as KG2-T01.
 
