@@ -20,7 +20,8 @@ review being addressed. Items are listed in execution order.
 | 9 | identity/location startup check | done | 9372e0bf |
 | 10 | blocking journal lock | done | 3478d9b3 |
 | 11 | scale: notification watermark, heartbeat split, leader lease | done | 91ccde4a |
-| 12 | docs: threat model, naming, SIGHUP, philosophy sentence | done | this commit |
+| 12 | docs: threat model, naming, SIGHUP, philosophy sentence | done | b6df3de9 |
+| L | lint: comprehensive tier clean on the new code; `lint-baseline` gate passes | done | c3981ff1 |
 
 Dual-mode agent (library + `cmd/xtcp2-treatment-agent` + `treatment` build tag
 in `cmd/xtcp2`, with an `attribution` journal reader for the untagged daemon)
@@ -226,6 +227,17 @@ process.
 - `docs/README.md`: the hub intro and the link-monitor paragraph now say that
   xtcp2 observes by default and that the treatment controller is the one
   opt-in, operator-reviewed component that changes host state.
+
+## Lint notes
+
+- The comprehensive tier went from 107 findings to zero on the treatment
+  packages, the four binaries, `internal/goip/actuate` and the integration
+  tool, with no `//nolint`, no exclusions and no threshold changes. Long
+  functions (`reconcile.Run`, `Maintain`, `Control`, `Evaluate`, `Plan`, the
+  controller `main`) were split into named steps with unchanged behavior;
+  close, rollback and unlock errors are now joined into the returned error.
+- The ClickHouse SQL test finds `clickhouse` on `PATH` (the unit check adds
+  it to `nativeBuildInputs`) instead of `XTCP_CLICKHOUSE_TEST_BINARY`.
 
 ## TODO
 
