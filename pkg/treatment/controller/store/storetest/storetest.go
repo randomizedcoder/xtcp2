@@ -834,28 +834,7 @@ func tx(t *testing.T, open Opener) {
 			return nil
 		}))
 	})
-	t.Run("list-in-tx", func(t *testing.T) {
-		t.Log("corner: List inside a Tx locks its rows and returns what List outside returns")
-		s := open(t)
-		for i := range 3 {
-			must(t, s.Repos().Experiments.Save(ctx, Numbered(i)))
-		}
-		outside, err := s.Repos().Experiments.List(ctx, "", 10)
-		must(t, err)
-		must(t, s.Tx(ctx, func(rp store.Repos) error {
-			inside, err := rp.Experiments.List(ctx, "", 10)
-			if err != nil {
-				return err
-			}
-			if len(inside) != len(outside) {
-				return fmt.Errorf("expected %d experiments inside the transaction, got %d", len(outside), len(inside))
-			}
-			for i := range inside {
-				sameExperiment(t, inside[i].ID, inside[i], outside[i])
-			}
-			return nil
-		}))
-	})
+	t.Run("list-in-tx", func(t *testing.T) { listInTx(t, open) })
 	t.Run("canceled-context", func(t *testing.T) {
 		t.Log("boundary: a canceled context fails the Tx and persists nothing")
 		s := open(t)
@@ -918,6 +897,32 @@ func tx(t *testing.T, open Opener) {
 
 // settle separates two stamps by more than a timestamptz microsecond so the
 // watermark tests order them deterministically on either store.
+// listInTx: List inside a Tx locks its rows and returns what List outside
+// returns.
+func listInTx(t *testing.T, open Opener) {
+	ctx := context.Background()
+	t.Log("corner: List inside a Tx locks its rows and returns what List outside returns")
+	s := open(t)
+	for i := range 3 {
+		must(t, s.Repos().Experiments.Save(ctx, Numbered(i)))
+	}
+	outside, err := s.Repos().Experiments.List(ctx, "", 10)
+	must(t, err)
+	must(t, s.Tx(ctx, func(rp store.Repos) error {
+		inside, err := rp.Experiments.List(ctx, "", 10)
+		if err != nil {
+			return err
+		}
+		if len(inside) != len(outside) {
+			return fmt.Errorf("expected %d experiments inside the transaction, got %d", len(outside), len(inside))
+		}
+		for i := range inside {
+			sameExperiment(t, inside[i].ID, inside[i], outside[i])
+		}
+		return nil
+	}))
+}
+
 func settle() { time.Sleep(2 * time.Millisecond) }
 
 func lease(t *testing.T, open Opener) {
