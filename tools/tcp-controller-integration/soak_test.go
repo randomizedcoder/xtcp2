@@ -7,6 +7,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -20,7 +21,7 @@ func TestSoakRollbackEvidence(t *testing.T) {
 	latest.WindowStart = timestamppb.New(now.Add(-time.Minute))
 	latest.WindowEnd = timestamppb.New(now.Add(-20 * time.Second))
 	latest.Hosts[0].ExposedSockets = 32
-	policy := treatment.DefaultPolicy()
+	policy := wire.Policy(treatment.DefaultPolicy())
 	policy.MaximumRttIncrease = 1
 	fixture := &pb.Experiment{Status: pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK, CohortOrder: []string{"canary"}, Policy: policy, Baseline: baseline, LatestEvidence: latest, Phases: []*pb.Phase{{Outcome: pb.Outcome_OUTCOME_HARMFUL}}}
 	for _, tc := range []struct {

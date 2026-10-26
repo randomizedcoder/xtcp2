@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -253,7 +255,7 @@ func propose(op pb.OperatorServiceClient, id string) *pb.Experiment {
 		end := time.Now().Add(-20 * time.Second)
 		ctx, cancel := rpcContext()
 		defer cancel()
-		baseline = must(ch.Evidence(ctx, "test-dc", "198.18.0.1/32", id, hosts, end.Add(-60*time.Second), end))
+		baseline = wire.Evidence(must(ch.Evidence(ctx, "test-dc", netip.MustParsePrefix("198.18.0.1/32"), id, hosts, end.Add(-60*time.Second), end)))
 		require(len(baseline.Hosts) == 6, "baseline needs six hosts: %v", baseline.Hosts)
 		for _, h := range baseline.Hosts {
 			require(h.CollectionHealthy && h.Sockets >= 8 && h.BytesAcked >= 4096, "baseline not ready: %v", h)

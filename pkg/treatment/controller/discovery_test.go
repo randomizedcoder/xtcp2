@@ -6,19 +6,16 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/memory"
 	"google.golang.org/protobuf/proto"
 )
-
-type discoveryTransport func(*http.Request) (*http.Response, error)
-
-func (f discoveryTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestDiscoveryWindow(t *testing.T) {
 	now := time.Unix(1800000000, 0)
@@ -45,7 +42,7 @@ func TestDiscoveryWindow(t *testing.T) {
 				}
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
 			})}}
-			s := &Server{Store: emptyDiscoveryStore(t), Now: func() time.Time { return now }, DiscoveryWindow: tc.window}
+			s := &Server{Store: memory.New(), Now: func() time.Time { return now }, DiscoveryWindow: tc.window}
 			err := s.Discover(context.Background(), ch, []DiscoveryTemplate{{ID: "near", Location: "test-dc", CongestionControl: "cubic", MaximumRTTMs: 15}})
 			if (err != nil) != tc.invalid || called == tc.invalid {
 				t.Fatalf("err=%v query-called=%t invalid=%t", err, called, tc.invalid)
@@ -75,7 +72,7 @@ func TestDiscoveryRTTPolicy(t *testing.T) {
 				called = true
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
 			})}}
-			err := (&Server{Store: emptyDiscoveryStore(t)}).Discover(context.Background(), ch, []DiscoveryTemplate{template})
+			err := (&Server{Store: memory.New()}).Discover(context.Background(), ch, []DiscoveryTemplate{template})
 			if (err != nil) != tc.invalid || called == tc.invalid {
 				t.Fatalf("err=%v queried=%t", err, called)
 			}
@@ -83,9 +80,9 @@ func TestDiscoveryRTTPolicy(t *testing.T) {
 				return
 			}
 			want := treatment.DefaultPolicy()
-			want.MaximumRttIncrease = tc.want
-			if !proto.Equal(template.policy(), want) {
-				t.Fatalf("wrong policy: %v", template.policy())
+			want.MaximumRTTIncrease = tc.want
+			if template.policy() != want {
+				t.Fatalf("wrong policy: %+v", template.policy())
 			}
 		})
 	}
@@ -94,16 +91,16 @@ func TestDiscoveryRTTPolicy(t *testing.T) {
 func TestDiscoveryRouteSettings(t *testing.T) {
 	for _, tc := range []struct {
 		name, fields string
-		want         *pb.TCPSettings
+		want         treatment.TCPSettings
 		invalid      bool
 	}{
-		{"algorithm-only", "", &pb.TCPSettings{CongestionControl: proto.String("cubic")}, false},
-		{"nearby", `,"rto_min_ms":5,"quick_ack":true,"initial_congestion_window":100,"initial_receive_window":100`, &pb.TCPSettings{CongestionControl: proto.String("cubic"), RtoMinMs: proto.Uint32(5), QuickAck: proto.Bool(true), InitialCongestionWindow: proto.Uint32(100), InitialReceiveWindow: proto.Uint32(100)}, false},
-		{"explicit-off", `,"quick_ack":false`, &pb.TCPSettings{CongestionControl: proto.String("cubic"), QuickAck: proto.Bool(false)}, false},
-		{"zero-rto", `,"rto_min_ms":0`, nil, true},
-		{"large-rto", `,"rto_min_ms":120001`, nil, true},
-		{"zero-cwnd", `,"initial_congestion_window":0`, nil, true},
-		{"large-rwnd", `,"initial_receive_window":1025`, nil, true},
+		{"algorithm-only", "", treatment.TCPSettings{CongestionControl: proto.String("cubic")}, false},
+		{"nearby", `,"rto_min_ms":5,"quick_ack":true,"initial_congestion_window":100,"initial_receive_window":100`, treatment.TCPSettings{CongestionControl: proto.String("cubic"), RTOMinMs: proto.Uint32(5), QuickAck: proto.Bool(true), InitialCongestionWindow: proto.Uint32(100), InitialReceiveWindow: proto.Uint32(100)}, false},
+		{"explicit-off", `,"quick_ack":false`, treatment.TCPSettings{CongestionControl: proto.String("cubic"), QuickAck: proto.Bool(false)}, false},
+		{"zero-rto", `,"rto_min_ms":0`, treatment.TCPSettings{}, true},
+		{"large-rto", `,"rto_min_ms":120001`, treatment.TCPSettings{}, true},
+		{"zero-cwnd", `,"initial_congestion_window":0`, treatment.TCPSettings{}, true},
+		{"large-rwnd", `,"initial_receive_window":1025`, treatment.TCPSettings{}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var template DiscoveryTemplate
@@ -115,17 +112,17 @@ func TestDiscoveryRouteSettings(t *testing.T) {
 				called = true
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
 			})}}
-			err := (&Server{Store: emptyDiscoveryStore(t)}).Discover(context.Background(), ch, []DiscoveryTemplate{template})
+			err := (&Server{Store: memory.New()}).Discover(context.Background(), ch, []DiscoveryTemplate{template})
 			if (err != nil) != tc.invalid || called == tc.invalid {
 				t.Fatalf("err=%v query-called=%t", err, called)
 			}
 			if tc.invalid {
 				return
 			}
-			if !proto.Equal(template.settings(), tc.want) {
-				t.Fatalf("got %v, want %v", template.settings(), tc.want)
+			if got := template.settings(); !got.Equal(tc.want) {
+				t.Fatalf("got %+v, want %+v", got, tc.want)
 			}
-			if err := treatment.ValidateTreatment(&pb.Treatment{Id: template.ID, Revision: 1, Destination: "192.0.2.1/32", Settings: template.settings()}); err != nil {
+			if err := treatment.ValidateTreatment(&treatment.Treatment{ID: template.ID, Revision: 1, Destination: netip.MustParsePrefix("192.0.2.1/32"), Settings: template.settings()}); err != nil {
 				t.Fatal(err)
 			}
 		})

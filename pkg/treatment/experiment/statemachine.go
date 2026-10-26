@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 )
 
 // Event is something that can change an experiment's status. Review, Control
@@ -62,37 +62,28 @@ func Events() []Event {
 	return out
 }
 
-// Statuses lists every defined status, for exhaustive tests.
-func Statuses() []pb.ExperimentStatus {
-	out := make([]pb.ExperimentStatus, 0, len(pb.ExperimentStatus_name))
-	for i := range int32(len(pb.ExperimentStatus_name)) {
-		out = append(out, pb.ExperimentStatus(i))
-	}
-	return out
-}
-
 // ErrIllegalTransition is returned for any (status, event) pair not in the
 // table. Callers map it to FailedPrecondition.
 var ErrIllegalTransition = errors.New("illegal experiment transition")
 
 type transitionKey struct {
-	from  pb.ExperimentStatus
+	from  treatment.Status
 	event Event
 }
 
 const (
-	proposed   = pb.ExperimentStatus_EXPERIMENT_STATUS_PROPOSED
-	running    = pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING
-	paused     = pb.ExperimentStatus_EXPERIMENT_STATUS_PAUSED
-	suspended  = pb.ExperimentStatus_EXPERIMENT_STATUS_SUSPENDED
-	complete   = pb.ExperimentStatus_EXPERIMENT_STATUS_COMPLETE
-	retired    = pb.ExperimentStatus_EXPERIMENT_STATUS_RETIRED
-	rolledBack = pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK
+	proposed   = treatment.StatusProposed
+	running    = treatment.StatusRunning
+	paused     = treatment.StatusPaused
+	suspended  = treatment.StatusSuspended
+	complete   = treatment.StatusComplete
+	retired    = treatment.StatusRetired
+	rolledBack = treatment.StatusRolledBack
 )
 
 // transitions is the whole state machine. Retired and rolled back are
 // terminal: nothing reactivates them. A new experiment is proposed instead.
-var transitions = map[transitionKey]pb.ExperimentStatus{
+var transitions = map[transitionKey]treatment.Status{
 	{proposed, EventApprove}:  running,
 	{proposed, EventReject}:   retired,
 	{proposed, EventSuspend}:  suspended,
@@ -132,15 +123,10 @@ var transitions = map[transitionKey]pb.ExperimentStatus{
 
 // Transition returns the status that follows from applying event to from, or
 // ErrIllegalTransition. It is pure; callers bump the revision and persist.
-func Transition(from pb.ExperimentStatus, event Event) (pb.ExperimentStatus, error) {
+func Transition(from treatment.Status, event Event) (treatment.Status, error) {
 	to, ok := transitions[transitionKey{from, event}]
 	if !ok {
 		return from, fmt.Errorf("%w: %s on %s", ErrIllegalTransition, event, from)
 	}
 	return to, nil
-}
-
-// Terminal reports whether no event can move the experiment again.
-func Terminal(s pb.ExperimentStatus) bool {
-	return s == retired || s == rolledBack
 }

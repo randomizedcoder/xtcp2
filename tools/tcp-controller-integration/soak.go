@@ -12,6 +12,7 @@ import (
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -170,16 +171,20 @@ func validateSoakRollback(e *pb.Experiment, injectedLatency bool) error {
 	if e == nil || e.Status != pb.ExperimentStatus_EXPERIMENT_STATUS_ROLLED_BACK || len(e.Phases) != 1 || e.Phases[0].Outcome != pb.Outcome_OUTCOME_HARMFUL || len(e.CohortOrder) == 0 || e.Policy == nil || e.Baseline == nil || e.LatestEvidence == nil {
 		return fmt.Errorf("rollback is missing its harmful phase or evidence")
 	}
-	if err := treatment.ValidateEvidence(e.Baseline); err != nil {
+	d, err := wire.ParseExperiment(e)
+	if err != nil {
 		return err
 	}
-	if err := treatment.ValidateEvidence(e.LatestEvidence); err != nil {
+	if err := treatment.ValidateEvidence(d.Baseline); err != nil {
 		return err
 	}
-	if err := treatment.ValidatePolicy(e.Policy); err != nil {
+	if err := treatment.ValidateEvidence(d.LatestEvidence); err != nil {
 		return err
 	}
-	_, harmful := experiment.HealthyEvidence(e, e.LatestEvidence, e.LatestEvidence.AnalyzedAt.AsTime())
+	if err := treatment.ValidatePolicy(d.Policy); err != nil {
+		return err
+	}
+	_, harmful := experiment.HealthyEvidence(d, d.LatestEvidence, d.LatestEvidence.AnalyzedAt)
 	if !harmful {
 		return fmt.Errorf("rollback evidence does not cross a safety guard")
 	}

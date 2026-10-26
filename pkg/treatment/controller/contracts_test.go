@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -89,10 +90,12 @@ func TestClickHouseEvidenceContracts(t *testing.T) {
 	const host = `{"agent_id":"host","sockets":30,"bytes_acked":1048576,"goodput_bps":1000,"rtt_p95_ms":5,"collection_healthy":true}`
 	now := time.Unix(1700000000, 0)
 	for _, tc := range []struct {
-		name, description, body, destination string
-		agents                               []string
-		window                               time.Duration
-		wantError                            string
+		name, description, body string
+		destination             netip.Prefix
+		agents                  []string
+		window                  time.Duration
+		invalidDestination      bool
+		wantError               string
 	}{
 		{name: "valid", description: "complete response records provenance", body: host},
 		{name: "empty", description: "empty response cannot renew a lease", wantError: "population"},
@@ -101,7 +104,7 @@ func TestClickHouseEvidenceContracts(t *testing.T) {
 		{name: "bad-window", description: "empty analysis interval is rejected", window: -time.Second, wantError: "window"},
 		{name: "long-window", description: "analysis is limited to seven days", window: 7*24*time.Hour + time.Second, wantError: "window"},
 		{name: "bad-agent", description: "agent IDs cannot inject query parameters", agents: []string{"host'"}, wantError: "invalid agent"},
-		{name: "bad-destination", description: "malformed destination fails before query", destination: "bad", wantError: "ParsePrefix"},
+		{name: "bad-destination", description: "an invalid destination fails before the query", destination: netip.Prefix{}, invalidDestination: true, wantError: "invalid destination"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			window := tc.window
@@ -113,8 +116,8 @@ func TestClickHouseEvidenceContracts(t *testing.T) {
 				agents = []string{"host"}
 			}
 			dest := tc.destination
-			if dest == "" {
-				dest = "192.0.2.1/32"
+			if !tc.invalidDestination {
+				dest = netip.MustParsePrefix("192.0.2.1/32")
 			}
 			c := &ClickHouse{URL: "http://fixture.invalid", Table: "db.rows", Now: func() time.Time { return now }, Client: &http.Client{Transport: discoveryTransport(func(r *http.Request) (*http.Response, error) {
 				if r.URL.Query().Get("param_destination_hex") != "C0000201000000000000000000000000" {
@@ -132,7 +135,7 @@ func TestClickHouseEvidenceContracts(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(ev.Hosts) != 1 || len(ev.ArtifactSha256) != 64 || ev.QueryVersion != "tcp-host-deltas-v1" || !ev.AnalyzedAt.AsTime().Equal(now) {
+			if len(ev.Hosts) != 1 || len(ev.ArtifactSHA256) != 64 || ev.QueryVersion != "tcp-host-deltas-v1" || !ev.AnalyzedAt.Equal(now) {
 				t.Fatalf("%s: bad evidence %v", tc.description, ev)
 			}
 		})

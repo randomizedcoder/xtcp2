@@ -2,18 +2,16 @@ package controller
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Analyze refreshes evidence for review without accepting or promoting it.
@@ -30,18 +28,18 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 	if s.EvidenceSource == nil {
 		return nil, status.Error(codes.Unavailable, "ClickHouse analysis is disabled")
 	}
-	var n *pb.Experiment
-	e = s.Store.mutate(ctx, func(tx *sql.Tx) error {
+	var n *treatment.Experiment
+	e = s.Store.Tx(ctx, func(rp store.Repos) error {
 		var e error
-		n, e = loadExperiment(ctx, tx, r.ExperimentId)
+		n, e = rp.Experiments.Get(ctx, r.ExperimentId)
 		if e != nil {
 			return e
 		}
 		if n.Revision != r.ExpectedRevision {
 			return errors.New("experiment revision changed")
 		}
-		if n.Status == pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING {
-			return s.startObservation(ctx, tx, n)
+		if n.Status == treatment.StatusRunning {
+			return s.startObservation(ctx, rp, n)
 		}
 		return nil
 	})
@@ -49,41 +47,39 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 		return nil, failure(e)
 	}
 	input := n
-	if n.Status == pb.ExperimentStatus_EXPERIMENT_STATUS_COMPLETE {
-		input = proto.Clone(n).(*pb.Experiment)
-		p := input.Phases[len(input.Phases)-1]
-		p.IssuedAt = timestamppb.New(s.now().Add(-time.Hour))
-		p.ObservationStartedAt = p.IssuedAt
+	if n.Status == treatment.StatusComplete {
+		input = s.driftInput(n)
 	}
 	ev, e := s.EvidenceSource.Analyze(ctx, input)
 	if e != nil {
 		return nil, failure(e)
 	}
-	out := &pb.AnalyzeResponse{Evidence: ev, Outcome: pb.Outcome_OUTCOME_BASELINE}
+	outcome := treatment.OutcomeBaseline
 	if len(n.Phases) > 0 {
 		v, e := experiment.Evaluate(input, ev, s.now())
 		if e != nil {
 			return nil, failure(e)
 		}
-		out.Outcome = v.Outcome.Wire()
+		outcome = v.Outcome
 	}
-	e = s.Store.mutate(ctx, func(tx *sql.Tx) error {
-		current, e := loadExperiment(ctx, tx, n.Id)
+	out := &pb.AnalyzeResponse{Evidence: wire.Evidence(ev), Outcome: wire.Outcome(outcome)}
+	e = s.Store.Tx(ctx, func(rp store.Repos) error {
+		current, e := rp.Experiments.Get(ctx, n.ID)
 		if e != nil {
 			return e
 		}
 		if current.Revision != r.ExpectedRevision {
 			return errors.New("experiment changed during analysis; analyze again")
 		}
-		if e = saveEvidence(ctx, tx, n.Id, ev); e != nil {
+		if e = saveEvidence(ctx, rp, n.ID, ev); e != nil {
 			return e
 		}
 		current.LatestEvidence = ev
-		current.LatestOutcome = out.Outcome
-		if e = saveExperiment(ctx, tx, current); e != nil {
+		current.LatestOutcome = outcome
+		if e = s.save(ctx, rp, current); e != nil {
 			return e
 		}
-		return audit(ctx, tx, actor, "", "analysis", out)
+		return audit(ctx, rp, actor, "", "analysis", out)
 	})
 	return out, failure(e)
 }

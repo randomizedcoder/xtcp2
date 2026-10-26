@@ -940,6 +940,14 @@ const Experiment$json = {
       '8': {},
       '10': 'latestOutcome'
     },
+    {
+      '1': 'updated_at',
+      '3': 14,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Timestamp',
+      '10': 'updatedAt'
+    },
   ],
 };
 
@@ -960,4 +968,5 @@ final $typed_data.Uint8List experimentDescriptor = $convert.base64Decode(
     'ZS5wcm90b2J1Zi5UaW1lc3RhbXBSCnByb3Bvc2VkQXQSRAoPbGF0ZXN0X2V2aWRlbmNlGAwgAS'
     'gLMhsueHRjcF90cmVhdG1lbnQudjEuRXZpZGVuY2VSDmxhdGVzdEV2aWRlbmNlEksKDmxhdGVz'
     'dF9vdXRjb21lGA0gASgOMhoueHRjcF90cmVhdG1lbnQudjEuT3V0Y29tZUIIukgFggECEAFSDW'
-    'xhdGVzdE91dGNvbWU=');
+    'xhdGVzdE91dGNvbWUSOQoKdXBkYXRlZF9hdBgOIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1l'
+    'c3RhbXBSCXVwZGF0ZWRBdA==');

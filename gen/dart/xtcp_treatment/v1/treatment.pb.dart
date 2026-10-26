@@ -1575,6 +1575,7 @@ class Experiment extends $pb.GeneratedMessage {
     $0.Timestamp? proposedAt,
     Evidence? latestEvidence,
     Outcome? latestOutcome,
+    $0.Timestamp? updatedAt,
   }) {
     final result = Experiment._();
     if (id != null) result.id = id;
@@ -1590,6 +1591,7 @@ class Experiment extends $pb.GeneratedMessage {
     if (proposedAt != null) result.proposedAt = proposedAt;
     if (latestEvidence != null) result.latestEvidence = latestEvidence;
     if (latestOutcome != null) result.latestOutcome = latestOutcome;
+    if (updatedAt != null) result.updatedAt = updatedAt;
     return result;
   }
 
@@ -1630,6 +1632,8 @@ class Experiment extends $pb.GeneratedMessage {
         subBuilder: Evidence.$_createMessage)
     ..aE<Outcome>(13, _omitFieldNames ? '' : 'latestOutcome',
         enumValues: Outcome.values)
+    ..aOM<$0.Timestamp>(14, _omitFieldNames ? '' : 'updatedAt',
+        subBuilder: $0.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1767,6 +1771,19 @@ class Experiment extends $pb.GeneratedMessage {
   $core.bool hasLatestOutcome() => $_has(12);
   @$pb.TagNumber(13)
   void clearLatestOutcome() => $_clearField(13);
+
+  /// When the controller last changed this experiment. Terminal experiments
+  /// suppress rediscovery of their destination for a day after this instant.
+  @$pb.TagNumber(14)
+  $0.Timestamp get updatedAt => $_getN(13);
+  @$pb.TagNumber(14)
+  set updatedAt($0.Timestamp value) => $_setField(14, value);
+  @$pb.TagNumber(14)
+  $core.bool hasUpdatedAt() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearUpdatedAt() => $_clearField(14);
+  @$pb.TagNumber(14)
+  $0.Timestamp ensureUpdatedAt() => $_ensure(13);
 }
 
 class TreatmentExt {

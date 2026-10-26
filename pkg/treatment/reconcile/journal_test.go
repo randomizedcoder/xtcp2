@@ -30,7 +30,7 @@ func TestJournalRejectsInvalidSnapshots(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			j := Journal{Dir: t.TempDir()}
-			d := fixtures.Desired(time.Unix(1700000000, 0))
+			d := fixtures.DesiredWire(time.Unix(1700000000, 0))
 			s := &pb.LocalState{Desired: d, Records: []*pb.ApplicationRecord{{Assignment: d.Assignments[0]}}}
 			tc.change(s)
 			raw, err := prototext.Marshal(s)

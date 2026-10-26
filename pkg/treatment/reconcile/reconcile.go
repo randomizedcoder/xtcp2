@@ -8,7 +8,7 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -88,7 +88,7 @@ func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*
 			if expiryOnly {
 				return errors.New("watchdog cannot accept desired state")
 			}
-			if err := treatment.ValidateDesired(in); err != nil {
+			if err := wire.ValidateDesired(in); err != nil {
 				return err
 			}
 			if in.AgentId != r.AgentID {

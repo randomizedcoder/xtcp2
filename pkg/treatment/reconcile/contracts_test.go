@@ -52,7 +52,7 @@ func TestReconcileFailureRecovery(t *testing.T) {
 			now := time.Unix(1700000000, 0)
 			b := &faultBackend{fakeBackend: &fakeBackend{routes: map[string]bool{}}}
 			r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot", Now: func() time.Time { return now }}
-			d := fixtures.Desired(now)
+			d := fixtures.DesiredWire(now)
 			if tc.name == "plan" {
 				if _, err := r.Run(context.Background(), d, ModeFull); err != nil {
 					t.Fatal(err)
@@ -88,7 +88,7 @@ func TestReconcileRevisionContracts(t *testing.T) {
 			now := time.Unix(1700000000, 0)
 			b := &fakeBackend{routes: map[string]bool{}}
 			r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot", Now: func() time.Time { return now }}
-			d := fixtures.Desired(now)
+			d := fixtures.DesiredWire(now)
 			s, err := r.Run(context.Background(), d, ModeFull)
 			if err != nil {
 				t.Fatal(err)
@@ -133,7 +133,7 @@ func TestReconcileLeaseBoundary(t *testing.T) {
 			now := time.Unix(1700000000, 0)
 			b := &fakeBackend{routes: map[string]bool{}}
 			r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot", Now: func() time.Time { return now }}
-			d := fixtures.Desired(now)
+			d := fixtures.DesiredWire(now)
 			d.Assignments[0].LeaseExpiresAt = timestamppb.New(now.Add(tc.offset))
 			s, err := r.Run(context.Background(), d, ModeFull)
 			if err != nil || s.Records[0].Status != tc.want || len(b.routes) != tc.routes {

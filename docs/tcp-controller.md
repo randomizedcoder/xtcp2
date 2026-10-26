@@ -28,16 +28,28 @@ a typed [protobuf contract](../proto/xtcp_treatment/v1/) (`xtcp_treatment.v1`: `
 
 | Package | Used by | Contents |
 | --- | --- | --- |
-| `pkg/treatment` | everyone | identifiers, limits and validators: the shared contract |
+| `pkg/treatment` | everyone | the domain model (`Treatment`, `Experiment`, `Evidence`, `DesiredState`, enums), limits and validators; proto-free |
+| `pkg/treatment/wire` | gRPC boundary | domain ↔ generated proto conversion; `Parse*` fails closed on unknown enums and invalid timestamps |
 | `pkg/treatment/identity` | agent, controller, tools | SPIFFE URI identity, mTLS configuration, gRPC peer resolution |
 | `pkg/treatment/reconcile` | agent, watchdog | intent journal, reconciler, `Backend` interface, `Mode` (full or expiry-only) |
-| `pkg/treatment/experiment` | controller | evaluation statistics, cohort allocation, phase advancement |
+| `pkg/treatment/experiment` | controller | evaluation statistics, cohort allocation, phase advancement, state machine; pure functions over domain types |
 | `pkg/treatment/agent` | `xtcp2` | check-in loop, watch stream, capabilities, telemetry stamping |
-| `pkg/treatment/controller` | `xtcp2-controller` | gRPC services, PostgreSQL store, ClickHouse evidence, maintenance, discovery |
+| `pkg/treatment/controller` | `xtcp2-controller` | gRPC handlers, maintenance and discovery over the store ports; ClickHouse evidence |
+| `pkg/treatment/controller/store` | controller | repository interfaces (`Agents`, `Experiments`, `Evidence`, `Holds`, `Audit`, `Metrics`) and `Store.Tx` |
+| `pkg/treatment/controller/store/postgres` | `xtcp2-controller` | the only package with SQL: relational schema, pgx through `database/sql`, advisory-lock transactions |
+| `pkg/treatment/controller/store/memory` | handler tests | map-backed store that passes the same conformance suite (`store/storetest`) |
+
+The generated protobuf types are wire-only. The controller works on the Go
+domain types and converts at the gRPC boundary; PostgreSQL holds a relational
+schema (one column per field, `cidr` destinations, evidence stored once and
+referenced by ID), so a proto field rename can never break SQL or an index. The
+only JSON column is the append-only audit payload.
 
 `pkg/treatment/boundaries_test.go` enforces the layering: `xtcp2` and the agent
-never link the controller, a SQL driver or the ClickHouse client; the controller
-never links the host-side reconcile package or goip. The binaries are:
+never link the controller, a SQL driver or the ClickHouse client; the domain
+and experiment packages never import the proto or gRPC; SQL lives only in the
+postgres store; the controller never links the host-side reconcile package or
+goip. The binaries are:
 
 | Binary | Responsibility |
 | --- | --- |
@@ -242,26 +254,29 @@ destination check under the existing advisory lock, and repeats the DC budget
 check, so concurrent controllers or changes during ClickHouse analysis cannot
 insert competing automatic proposals. A database lookup failure stops discovery.
 
-Two B-tree expression indexes support these paths:
+Two B-tree indexes on plain columns support these paths:
 
 | Index | Keys | Purpose |
 | --- | --- | --- |
-| `xtcp_control_experiments_destination` | location, treatment destination, updated_at descending | Existing-treatment and cooldown lookup without scanning unrelated history. |
-| `xtcp_control_experiments_status_location` | experiment status, location | DC budget lookup and status-based maintenance selection. |
+| `xtcp_treatment_experiments_destination` | location, treatment destination (`cidr`), updated_at | Existing-treatment and cooldown lookup without scanning unrelated history. |
+| `xtcp_treatment_experiments_location_status` | location, experiment status | DC budget lookup and status-based maintenance selection. |
 
-The budget query uses `EXISTS` rather than counting every match. The large JSONB
-state/evidence document is not indexed wholesale. Agent primary-key and location
-indexes already cover their current lookups; no extra heartbeat indexes were
-added. An all-agent notification scan still needs to read all agents, so an
-additional index alone would not eliminate that work.
+The budget query uses `EXISTS` rather than counting every match. Evidence host
+rows live in `xtcp_treatment_evidence_hosts`, keyed by evidence ID, so an
+experiment row stays small no matter how many hosts were measured. Agent
+primary-key and location indexes already cover their current lookups; no extra
+heartbeat indexes were added. An all-agent notification scan still needs to
+read all agents, so an additional index alone would not eliminate that work.
 
-`TestPostgresExperimentQueryIndexes` loads 100,000 retired experiments and five
-active experiments, runs `ANALYZE`, and compares `EXPLAIN (ANALYZE, BUFFERS)` with
-and without these indexes. It checks that PostgreSQL chooses an appropriate
-index without disabling sequential scans; execution times are logged, not used
-as brittle pass/fail thresholds. Eligibility tables cover all lifecycle states,
-cooldown boundaries and location/destination isolation. Concurrent proposal tests
-verify that only one automatic proposal is persisted.
+`TestPostgresExperimentQueryIndexes` (in `store/postgres`) loads 100,000 retired
+experiments and five active experiments, runs `ANALYZE`, and compares
+`EXPLAIN (ANALYZE, BUFFERS)` with and without these indexes. It checks that
+PostgreSQL chooses an appropriate index without disabling sequential scans;
+execution times are logged, not used as brittle pass/fail thresholds. The store
+conformance suite (`store/storetest`, run against both PostgreSQL and the
+in-memory store) covers all lifecycle states, cooldown boundaries and
+location/destination isolation. Concurrent proposal tests verify that only one
+automatic proposal is persisted.
 
 On the local PostgreSQL 15.19 fixture, three repeated runs measured a median
 25.34 ms without indexes versus 0.023 ms with them for an old destination's
@@ -274,11 +289,10 @@ database, prebuild these indexes before restarting controllers:
 
 ```sql
 -- Run outside a transaction, using the controller database/schema.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS xtcp_control_experiments_destination
-  ON xtcp_control_experiments
-  (location, (state->'treatment'->>'destination'), updated_at DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS xtcp_control_experiments_status_location
-  ON xtcp_control_experiments ((state->>'status'), location);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS xtcp_treatment_experiments_destination
+  ON xtcp_treatment_experiments (location, treatment_destination, updated_at);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS xtcp_treatment_experiments_location_status
+  ON xtcp_treatment_experiments (location, status);
 ```
 
 Normal index creation blocks writes while building; PostgreSQL's
@@ -474,12 +488,15 @@ and IPv4/IPv6 netlink mutation in a disposable namespace:
 ```sh
 go test ./pkg/treatment/... ./internal/goip/...
 XTCP_CONTROLLER_TEST_DSN='host=... dbname=... user=... sslmode=...' \
-  go test ./pkg/treatment/controller -run Postgres
+  go test ./pkg/treatment/controller/... 
 XTCP_CLICKHOUSE_TEST_BINARY=/path/to/clickhouse \
   go test ./pkg/treatment/controller -run ClickHouse
 XTCP_TREATMENT_LIVE_TEST=1 go test ./internal/goip -run '^TestTreatmentLiveNamespace$'
 ```
 
+Every controller handler test runs twice, as `<Test>/memory` and
+`<Test>/postgres`; without the DSN the PostgreSQL half skips. The store
+conformance suite runs the same way from `store/memory` and `store/postgres`.
 The PostgreSQL tests create and drop only unique test schemas. The route test
 creates its own user/network namespace and verifies that it differs from the
 parent namespace before any write. It requires `ip`, `unshare` and a kernel that

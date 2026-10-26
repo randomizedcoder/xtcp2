@@ -18,9 +18,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 //go:embed analysis.sql
@@ -88,20 +86,32 @@ func (c *ClickHouse) query(ctx context.Context, query string, params map[string]
 	return b, nil
 }
 
-func (c *ClickHouse) Analyze(ctx context.Context, e *pb.Experiment) (*pb.Evidence, error) {
-	if len(e.Phases) == 0 {
+func (c *ClickHouse) Analyze(ctx context.Context, e *treatment.Experiment) (*treatment.Evidence, error) {
+	p := e.CurrentPhase()
+	if p == nil {
 		end := c.now().Add(-20 * time.Second)
-		return c.Evidence(ctx, e.Location, e.Treatment.Destination, e.Id, e.CohortOrder, end.Add(-time.Hour), end)
+		return c.Evidence(ctx, e.Location, e.Treatment.Destination, e.ID, e.CohortOrder, end.Add(-time.Hour), end)
 	}
-	p := e.Phases[len(e.Phases)-1]
-	start := p.IssuedAt.AsTime()
-	if p.ObservationStartedAt != nil {
-		start = p.ObservationStartedAt.AsTime()
+	start := p.IssuedAt
+	if !p.ObservationStartedAt.IsZero() {
+		start = p.ObservationStartedAt
 	}
-	return c.Evidence(ctx, e.Location, e.Treatment.Destination, e.Id, e.CohortOrder, start, c.now().Add(-20*time.Second))
+	return c.Evidence(ctx, e.Location, e.Treatment.Destination, e.ID, e.CohortOrder, start, c.now().Add(-20*time.Second))
 }
 
-func (c *ClickHouse) Evidence(ctx context.Context, location, destination, assignment string, agents []string, start, end time.Time) (*pb.Evidence, error) {
+// hostRow is one JSONEachRow line of analysis.sql.
+type hostRow struct {
+	AgentID             string  `json:"agent_id"`
+	Sockets             uint64  `json:"sockets"`
+	BytesAcked          uint64  `json:"bytes_acked"`
+	GoodputBps          float64 `json:"goodput_bps"`
+	RetransmissionRatio float64 `json:"retransmission_ratio"`
+	RttP95Ms            float64 `json:"rtt_p95_ms"`
+	ExposedSockets      uint64  `json:"exposed_sockets"`
+	CollectionHealthy   bool    `json:"collection_healthy"`
+}
+
+func (c *ClickHouse) Evidence(ctx context.Context, location string, destination netip.Prefix, assignment string, agents []string, start, end time.Time) (*treatment.Evidence, error) {
 	if !end.After(start) || end.Sub(start) > 7*24*time.Hour || len(agents) == 0 || len(agents) > treatment.MaxAgents {
 		return nil, errors.New("invalid analysis window/population")
 	}
@@ -112,12 +122,11 @@ func (c *ClickHouse) Evidence(ctx context.Context, location, destination, assign
 		}
 		quoted[i] = "'" + id + "'"
 	}
-	p, e := netip.ParsePrefix(destination)
-	if e != nil {
-		return nil, e
+	if !destination.IsValid() {
+		return nil, errors.New("invalid destination")
 	}
-	addr := p.Addr().AsSlice()
-	if p.Addr().Is4() {
+	addr := destination.Addr().AsSlice()
+	if destination.Addr().Is4() {
 		addr = append(addr, make([]byte, 12)...)
 	}
 	params := map[string]string{"start": strconv.FormatInt(start.UnixNano(), 10), "end": strconv.FormatInt(end.UnixNano(), 10), "location": location, "assignment": assignment, "agents": "[" + strings.Join(quoted, ",") + "]", "destination_hex": strings.ToUpper(hex.EncodeToString(addr))}
@@ -128,18 +137,18 @@ func (c *ClickHouse) Evidence(ctx context.Context, location, destination, assign
 	digest := sha256.Sum256(b)
 	sha := hex.EncodeToString(digest[:])
 	analyzed := c.now()
-	v := &pb.Evidence{Id: "ev-" + sha[:24] + "-" + strconv.FormatInt(analyzed.UnixNano(), 10), AnalyzedAt: timestamppb.New(analyzed), WindowStart: timestamppb.New(start), WindowEnd: timestamppb.New(end), QueryVersion: "tcp-host-deltas-v1", EnrichmentVersion: "xtcp-schema-2", ArtifactSha256: sha}
+	v := &treatment.Evidence{ID: "ev-" + sha[:24] + "-" + strconv.FormatInt(analyzed.UnixNano(), 10), AnalyzedAt: analyzed, WindowStart: start, WindowEnd: end, QueryVersion: "tcp-host-deltas-v1", EnrichmentVersion: "xtcp-schema-2", ArtifactSHA256: sha}
 	dec := json.NewDecoder(bytes.NewReader(b))
 	for {
-		h := new(pb.HostEvidence)
-		e := dec.Decode(h)
+		var h hostRow
+		e := dec.Decode(&h)
 		if e == io.EOF {
 			break
 		}
 		if e != nil {
 			return nil, e
 		}
-		v.Hosts = append(v.Hosts, h)
+		v.Hosts = append(v.Hosts, treatment.HostEvidence(h))
 	}
 	if e = treatment.ValidateEvidence(v); e != nil {
 		return nil, e

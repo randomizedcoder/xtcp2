@@ -5,23 +5,21 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
-	"google.golang.org/protobuf/proto"
 )
 
-func fleetFixture(n int) (*pb.Experiment, *pb.Evidence, time.Time) {
+func fleetFixture(n int) (*treatment.Experiment, *treatment.Evidence, time.Time) {
 	now := time.Unix(1700000000, 0)
 	e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 	e.CohortOrder, e.Baseline.Hosts, v.Hosts = nil, nil, nil
 	e.Phases[0].TargetHosts = uint32(n / 2)
 	for i := range n {
 		id := fmt.Sprintf("host-%d", i)
-		h := &pb.HostEvidence{AgentId: id, Sockets: 100, ExposedSockets: 100, BytesAcked: 1 << 25, GoodputBps: 1e8, RttP95Ms: 5, CollectionHealthy: true}
+		h := treatment.HostEvidence{AgentID: id, Sockets: 100, ExposedSockets: 100, BytesAcked: 1 << 25, GoodputBps: 1e8, RttP95Ms: 5, CollectionHealthy: true}
 		e.CohortOrder = append(e.CohortOrder, id)
 		e.Baseline.Hosts = append(e.Baseline.Hosts, h)
-		current := proto.Clone(h).(*pb.HostEvidence)
+		current := h
 		if i < n/2 {
 			current.GoodputBps *= 1.3 + float64(i%7)*.001
 		}
@@ -47,7 +45,7 @@ func BenchmarkFleetEvidence(b *testing.B) {
 			}},
 			{"Evaluate", func() error {
 				got, err := Evaluate(e, v, now)
-				if err == nil && got.Outcome != OutcomeBeneficial {
+				if err == nil && got.Outcome != treatment.OutcomeBeneficial {
 					return fmt.Errorf("unexpected outcome %s", got.Outcome)
 				}
 				return err

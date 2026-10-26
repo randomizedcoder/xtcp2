@@ -1,4 +1,4 @@
-package treatment
+package wire_test
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 
 	"buf.build/go/protovalidate"
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -27,12 +28,12 @@ func TestProtoRulesMirrorValidators(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 	id128 := strings.Repeat("a", 128)
 	experiment := func(mut func(*pb.Experiment)) proto.Message {
-		e, _ := fixtures.Experiment(now, DefaultPolicy())
+		e, _ := fixtures.ExperimentWire(now, treatment.DefaultPolicy())
 		mut(e)
 		return e
 	}
 	desired := func(mut func(*pb.DesiredState)) proto.Message {
-		d := fixtures.Desired(now)
+		d := fixtures.DesiredWire(now)
 		mut(d)
 		return d
 	}

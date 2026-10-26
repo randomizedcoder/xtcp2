@@ -1436,8 +1436,11 @@ type Experiment struct {
 	ProposedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=proposed_at,json=proposedAt,proto3" json:"proposed_at,omitempty"`
 	LatestEvidence *Evidence              `protobuf:"bytes,12,opt,name=latest_evidence,json=latestEvidence,proto3" json:"latest_evidence,omitempty"`
 	LatestOutcome  Outcome                `protobuf:"varint,13,opt,name=latest_outcome,json=latestOutcome,proto3,enum=xtcp_treatment.v1.Outcome" json:"latest_outcome,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// When the controller last changed this experiment. Terminal experiments
+	// suppress rediscovery of their destination for a day after this instant.
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Experiment) Reset() {
@@ -1559,6 +1562,13 @@ func (x *Experiment) GetLatestOutcome() Outcome {
 		return x.LatestOutcome
 	}
 	return Outcome_OUTCOME_UNSPECIFIED
+}
+
+func (x *Experiment) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
 }
 
 var file_xtcp_treatment_v1_treatment_proto_extTypes = []protoimpl.ExtensionInfo{
@@ -1714,7 +1724,7 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\bevidence\x18\x05 \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\bevidence\x12>\n" +
 	"\aoutcome\x18\x06 \x01(\x0e2\x1a.xtcp_treatment.v1.OutcomeB\b\xbaH\x05\x82\x01\x02\x10\x01R\aoutcome\x12$\n" +
 	"\breviewer\x18\a \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01R\breviewer\x12 \n" +
-	"\x06reason\x18\b \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x06reason\"\xcd\x06\n" +
+	"\x06reason\x18\b \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x06reason\"\x88\a\n" +
 	"\n" +
 	"Experiment\x129\n" +
 	"\x02id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\x02id\x12E\n" +
@@ -1734,7 +1744,9 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\vproposed_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"proposedAt\x12D\n" +
 	"\x0flatest_evidence\x18\f \x01(\v2\x1b.xtcp_treatment.v1.EvidenceR\x0elatestEvidence\x12K\n" +
-	"\x0elatest_outcome\x18\r \x01(\x0e2\x1a.xtcp_treatment.v1.OutcomeB\b\xbaH\x05\x82\x01\x02\x10\x01R\rlatestOutcome*?\n" +
+	"\x0elatest_outcome\x18\r \x01(\x0e2\x1a.xtcp_treatment.v1.OutcomeB\b\xbaH\x05\x82\x01\x02\x10\x01R\rlatestOutcome\x129\n" +
+	"\n" +
+	"updated_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt*?\n" +
 	"\x04Role\x12\x14\n" +
 	"\x10ROLE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -1860,13 +1872,14 @@ var file_xtcp_treatment_v1_treatment_proto_depIdxs = []int32{
 	17, // 34: xtcp_treatment.v1.Experiment.proposed_at:type_name -> google.protobuf.Timestamp
 	13, // 35: xtcp_treatment.v1.Experiment.latest_evidence:type_name -> xtcp_treatment.v1.Evidence
 	3,  // 36: xtcp_treatment.v1.Experiment.latest_outcome:type_name -> xtcp_treatment.v1.Outcome
-	19, // 37: xtcp_treatment.v1.role:extendee -> google.protobuf.MethodOptions
-	0,  // 38: xtcp_treatment.v1.role:type_name -> xtcp_treatment.v1.Role
-	39, // [39:39] is the sub-list for method output_type
-	39, // [39:39] is the sub-list for method input_type
-	38, // [38:39] is the sub-list for extension type_name
-	37, // [37:38] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	17, // 37: xtcp_treatment.v1.Experiment.updated_at:type_name -> google.protobuf.Timestamp
+	19, // 38: xtcp_treatment.v1.role:extendee -> google.protobuf.MethodOptions
+	0,  // 39: xtcp_treatment.v1.role:type_name -> xtcp_treatment.v1.Role
+	40, // [40:40] is the sub-list for method output_type
+	40, // [40:40] is the sub-list for method input_type
+	39, // [39:40] is the sub-list for extension type_name
+	38, // [38:39] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_treatment_v1_treatment_proto_init() }

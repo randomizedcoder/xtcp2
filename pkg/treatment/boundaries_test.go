@@ -16,12 +16,14 @@ import (
 // parser (no toolchain, no module cache, works outside nix exactly like
 // internal/goip/imports_test.go) and asserts the layering below.
 //
-//	pkg/treatment             contract: IDs, limits, validators      [everyone]
-//	pkg/treatment/identity    SPIFFE identity + TLS                  [agent, controller, tools]
-//	pkg/treatment/reconcile   journal + reconciler + Backend         [agent, watchdog]
-//	pkg/treatment/experiment  statistics + state machine             [controller]
-//	pkg/treatment/agent       check-in loop + stamping               [daemon, agent binary]
-//	pkg/treatment/controller  gRPC handlers, store, evidence         [controller binary only]
+//	pkg/treatment                  domain types, limits, validators: proto-free   [everyone]
+//	pkg/treatment/wire             domain <-> generated proto conversion          [gRPC boundary]
+//	pkg/treatment/identity         SPIFFE identity + TLS                          [agent, controller, tools]
+//	pkg/treatment/reconcile        journal + reconciler + Backend                 [agent, watchdog]
+//	pkg/treatment/experiment       statistics + state machine, pure               [controller]
+//	pkg/treatment/agent            check-in loop + stamping                       [daemon, agent binary]
+//	pkg/treatment/controller       gRPC handlers over store ports                 [controller binary only]
+//	pkg/treatment/controller/store ports; postgres/ and memory/ implement them    [controller]
 //
 // The daemon (cmd/xtcp2) must never reach the controller, a SQL driver or the
 // ClickHouse client: that was the regression that prompted this file.
@@ -48,37 +50,43 @@ func treatmentBoundaryRules() []boundaryRule {
 			description: "positive: the daemon links neither the controller, a SQL driver nor ClickHouse",
 			root:        tp("cmd/xtcp2"),
 			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/experiment")},
-			forbidden3p: []string{"database/sql", "lib/pq", "jackc/pgx", "clickhouse"},
+			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse"},
 			expectAny:   []string{tp("pkg/xtcp")},
 		},
 		{
 			description: "positive: the agent library stands on identity and the contract, never on the controller",
 			root:        tp("pkg/treatment/agent"),
 			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/experiment")},
-			forbidden3p: []string{"database/sql", "lib/pq", "jackc/pgx"},
+			forbidden3p: []string{"database/sql", "jackc/pgx"},
 			expectAny:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment")},
 		},
 		{
-			// TODO(item 2): add gen/go/xtcp_treatment to forbidden once the
-			// contract package stops importing the proto (domain types land).
-			description: "negative: the identity package is a leaf below the contract and gRPC credentials",
+			description: "positive: the domain package is proto-free and depends on nothing first-party",
+			root:        tp("pkg/treatment"),
+			forbidden:   []string{tp("gen/go/xtcp_treatment"), tp("pkg/treatment/wire"), tp("pkg/treatment/identity"), tp("pkg/treatment/controller")},
+			forbidden3p: []string{"google.golang.org/protobuf", "google.golang.org/grpc", "database/sql"},
+			expectAny:   []string{tp("pkg/treatment")},
+		},
+		{
+			description: "negative: the identity package is a leaf below the domain and gRPC credentials, never the proto",
 			root:        tp("pkg/treatment/identity"),
-			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/agent")},
+			forbidden:   []string{tp("gen/go/xtcp_treatment"), tp("pkg/treatment/wire"), tp("pkg/treatment/controller"), tp("pkg/treatment/agent")},
 			forbidden3p: []string{"database/sql"},
 			expectAny:   []string{tp("pkg/treatment")},
 		},
 		{
-			// TODO(item 2): forbid pkg/treatment/identity and google.golang.org/grpc
+			// TODO(dual-mode agent): forbid pkg/treatment/identity and google.golang.org/grpc
 			// once the watchdog builds on pkg/treatment/reconcile instead of agent.
 			description: "boundary: the watchdog never reaches the controller or a database",
 			root:        tp("cmd/xtcp2-treatmentctl"),
 			forbidden:   []string{tp("pkg/treatment/controller")},
-			forbidden3p: []string{"database/sql", "lib/pq", "jackc/pgx"},
+			forbidden3p: []string{"database/sql", "jackc/pgx"},
 			expectAny:   []string{tp("pkg/treatment")},
 		},
 		{
-			// TODO(item 4): forbid google.golang.org/grpc once domain types
-			// replace the generated proto package, which bundles the stubs.
+			// TODO(dual-mode agent): forbid gen/go/xtcp_treatment and
+			// google.golang.org/grpc once the journal is a journal-specific
+			// message converted from domain types.
 			description: "positive: the reconcile package is host-side only: no identity, no experiment statistics",
 			root:        tp("pkg/treatment/reconcile"),
 			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/experiment"), tp("pkg/treatment/agent"), tp("pkg/treatment/controller")},
@@ -86,13 +94,24 @@ func treatmentBoundaryRules() []boundaryRule {
 			expectAny:   []string{tp("pkg/treatment")},
 		},
 		{
-			// TODO(item 4): forbid google.golang.org/grpc once domain types
-			// replace the generated proto package, which bundles the stubs.
-			description: "positive: the experiment package is pure: no journal, no identity, no syscalls",
+			description: "positive: the experiment package is pure: no proto, no gRPC, no journal, no identity, no syscalls",
 			root:        tp("pkg/treatment/experiment"),
-			forbidden:   []string{tp("pkg/treatment/reconcile"), tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/controller"), tp("internal/goip")},
-			forbidden3p: []string{"database/sql", "golang.org/x/sys"},
+			forbidden:   []string{tp("gen/go/xtcp_treatment"), tp("pkg/treatment/wire"), tp("pkg/treatment/reconcile"), tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/controller")},
+			forbidden3p: []string{"google.golang.org/protobuf", "google.golang.org/grpc", "database/sql", "golang.org/x/sys"},
 			expectAny:   []string{tp("pkg/treatment")},
+		},
+		{
+			description: "positive: the store ports and the memory store know no driver and no proto",
+			root:        tp("pkg/treatment/controller/store/memory"),
+			forbidden:   []string{tp("gen/go/xtcp_treatment"), tp("pkg/treatment/wire"), tp("pkg/treatment/controller"), tp("pkg/treatment/controller/store/postgres")},
+			forbidden3p: []string{"database/sql", "jackc/pgx", "google.golang.org/protobuf", "google.golang.org/grpc"},
+			expectAny:   []string{tp("pkg/treatment/controller/store"), tp("pkg/treatment")},
+		},
+		{
+			description: "corner: every SQL string lives in the postgres package, which never reaches the handlers",
+			root:        tp("pkg/treatment/controller/store/postgres"),
+			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("pkg/treatment/experiment")},
+			expectAny:   []string{tp("pkg/treatment/controller/store")},
 		},
 		{
 			description: "negative: the controller never reaches the host-side reconcile package or goip",

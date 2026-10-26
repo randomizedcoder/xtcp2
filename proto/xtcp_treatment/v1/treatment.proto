@@ -317,4 +317,7 @@ message Experiment {
   google.protobuf.Timestamp proposed_at = 11;
   Evidence latest_evidence = 12;
   Outcome latest_outcome = 13 [(buf.validate.field).enum.defined_only = true];
+  // When the controller last changed this experiment. Terminal experiments
+  // suppress rediscovery of their destination for a day after this instant.
+  google.protobuf.Timestamp updated_at = 14;
 }

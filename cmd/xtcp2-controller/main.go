@@ -19,6 +19,7 @@ import (
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/postgres"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -64,17 +65,17 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	store, e := controller.Open(ctx, dsn)
+	db, e := postgres.Open(ctx, dsn)
 	if e != nil {
 		return e
 	}
-	defer store.DB.Close()
+	defer db.Close()
 	if *migrate {
-		if e = store.Migrate(ctx); e != nil {
+		if e = db.Migrate(ctx); e != nil {
 			return e
 		}
 	}
-	s := &controller.Server{Store: store, Hub: controller.NewNotificationHub(), DiscoveryWindow: *discoveryWindow}
+	s := &controller.Server{Store: db, Hub: controller.NewNotificationHub(), DiscoveryWindow: *discoveryWindow}
 	var analysis *controller.ClickHouse
 	var source controller.EvidenceSource
 	if *clickhouse != "" {

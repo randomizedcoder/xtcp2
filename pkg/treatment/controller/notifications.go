@@ -57,16 +57,10 @@ func (s *Server) RunNotifications(ctx context.Context) {
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
 	for {
-		rows, e := s.Store.DB.QueryContext(ctx, "SELECT id,(desired->>'revision')::bigint FROM xtcp_control_agents")
-		if e == nil {
-			for rows.Next() {
-				var id string
-				var rev uint64
-				if rows.Scan(&id, &rev) == nil {
-					s.Hub.publish(id, rev)
-				}
+		if revisions, e := s.Store.Repos().Agents.DesiredRevisions(ctx); e == nil {
+			for id, rev := range revisions {
+				s.Hub.publish(id, rev)
 			}
-			rows.Close()
 		}
 		select {
 		case <-ctx.Done():

@@ -15,7 +15,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
-	"google.golang.org/protobuf/proto"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 )
 
 // Templates only authorize candidate discovery. Every generated hypothesis and
@@ -36,18 +36,19 @@ type DiscoveryTemplate struct {
 	Prefixes                   []string `json:"prefixes"`
 }
 
-func (t DiscoveryTemplate) policy() *pb.ExperimentPolicy {
+func (t DiscoveryTemplate) policy() treatment.Policy {
 	p := treatment.DefaultPolicy()
 	if t.MaximumRTTIncrease != nil {
-		p.MaximumRttIncrease = *t.MaximumRTTIncrease
+		p.MaximumRTTIncrease = *t.MaximumRTTIncrease
 	}
 	return p
 }
 
-func (t DiscoveryTemplate) settings() *pb.TCPSettings {
-	return &pb.TCPSettings{
-		CongestionControl:       proto.String(t.CongestionControl),
-		RtoMinMs:                t.RtoMinMs,
+func (t DiscoveryTemplate) settings() treatment.TCPSettings {
+	cc := t.CongestionControl
+	return treatment.TCPSettings{
+		CongestionControl:       &cc,
+		RTOMinMs:                t.RtoMinMs,
 		InitialCongestionWindow: t.InitialCongestionWindow,
 		InitialReceiveWindow:    t.InitialReceiveWindow,
 		QuickAck:                t.QuickAck,
@@ -105,7 +106,7 @@ func (s *Server) Discover(ctx context.Context, c *ClickHouse, templates []Discov
 		}
 		// Avoid warehouse aggregation while this location cannot accept a
 		// new experiment. The transaction below still rechecks the budget.
-		busy, e := hasActiveExperiment(ctx, s.Store.DB, t.Location)
+		busy, e := s.Store.Repos().Experiments.HasActive(ctx, t.Location)
 		if e != nil {
 			failures = append(failures, e)
 			continue
@@ -168,10 +169,10 @@ func (s *Server) Discover(ctx context.Context, c *ClickHouse, templates []Discov
 					continue
 				}
 			}
-			destination := netip.PrefixFrom(ip, ip.BitLen()).String()
+			destination := netip.PrefixFrom(ip, ip.BitLen())
 			// Completed or held treatments and recent rejected trials suppress
 			// repeat proposals. Cooldown is at least a day after terminal state.
-			exists, e := discoveryDestinationBlocked(ctx, s.Store.DB, t.Location, destination, s.now())
+			exists, e := s.Store.Repos().Experiments.DestinationBlocked(ctx, t.Location, destination, s.now().Add(-24*time.Hour))
 			if e != nil {
 				failures = append(failures, e)
 				continue
@@ -179,15 +180,15 @@ func (s *Server) Discover(ctx context.Context, c *ClickHouse, templates []Discov
 			if exists {
 				continue
 			}
-			seed := sha256.Sum256([]byte(t.ID + "/" + destination + "/" + s.now().UTC().Format("2006-01-02")))
+			seed := sha256.Sum256([]byte(t.ID + "/" + destination.String() + "/" + s.now().UTC().Format("2006-01-02")))
 			id := "hyp-" + hex.EncodeToString(seed[:12])
 			baseline, e := c.Evidence(ctx, t.Location, destination, id, row.Agents, start, end)
 			if e != nil {
 				failures = append(failures, e)
 				continue
 			}
-			n := &pb.Experiment{Id: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, destination, row.ASN, row.RTT, row.Retransmission), Treatment: &pb.Treatment{Id: t.ID, Revision: 1, Destination: destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: row.Agents}
-			if _, e = s.propose(ctx, &pb.ProposeRequest{Experiment: n, RequestId: id}, "candidate-discovery", true); e != nil {
+			n := &treatment.Experiment{ID: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, destination, row.ASN, row.RTT, row.Retransmission), Treatment: treatment.Treatment{ID: t.ID, Revision: 1, Destination: destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: row.Agents}
+			if _, e = s.propose(ctx, &pb.ProposeRequest{Experiment: wire.Experiment(n), RequestId: id}, "candidate-discovery", true); e != nil {
 				if !errors.Is(e, errExperimentBudget) && !errors.Is(e, errDiscoverySuppressed) {
 					failures = append(failures, e)
 				}

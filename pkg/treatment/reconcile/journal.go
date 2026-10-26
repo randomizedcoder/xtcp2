@@ -10,6 +10,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/prototext"
 )
@@ -50,7 +51,7 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 			return fmt.Errorf("invalid treatment journal: %w", err)
 		}
 		if s.Desired != nil {
-			if err = treatment.ValidateDesired(s.Desired); err != nil {
+			if err = wire.ValidateDesired(s.Desired); err != nil {
 				return fmt.Errorf("invalid persisted desired state: %w", err)
 			}
 		}
@@ -66,7 +67,7 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 				return errors.New("duplicate journal record")
 			}
 			seen[r.Assignment.ExperimentId] = true
-			if err = treatment.ValidateTreatment(r.Assignment.Treatment); err != nil {
+			if err = wire.ValidateTreatment(r.Assignment.Treatment); err != nil {
 				return fmt.Errorf("invalid journal treatment: %w", err)
 			}
 		}

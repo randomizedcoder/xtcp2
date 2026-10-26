@@ -4,13 +4,13 @@ import (
 	"context"
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/internal/goip"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 )
 
 type routeBackend struct{ *goip.TreatmentBackend }
 
 func (b *routeBackend) Plan(ctx context.Context, t *pb.Treatment) ([]byte, error) {
-	if e := treatment.ValidateTreatment(t); e != nil {
+	if e := wire.ValidateTreatment(t); e != nil {
 		return nil, e
 	}
 	s := t.Settings

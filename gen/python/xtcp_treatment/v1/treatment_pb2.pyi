@@ -313,7 +313,7 @@ class Phase(_message.Message):
     def __init__(self, target_hosts: _Optional[int] = ..., issued_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., observation_started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evaluated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evidence: _Optional[_Union[Evidence, _Mapping]] = ..., outcome: _Optional[_Union[Outcome, str]] = ..., reviewer: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
 
 class Experiment(_message.Message):
-    __slots__ = ("id", "location", "hypothesis", "treatment", "policy", "baseline", "cohort_order", "phases", "status", "revision", "proposed_at", "latest_evidence", "latest_outcome")
+    __slots__ = ("id", "location", "hypothesis", "treatment", "policy", "baseline", "cohort_order", "phases", "status", "revision", "proposed_at", "latest_evidence", "latest_outcome", "updated_at")
     ID_FIELD_NUMBER: _ClassVar[int]
     LOCATION_FIELD_NUMBER: _ClassVar[int]
     HYPOTHESIS_FIELD_NUMBER: _ClassVar[int]
@@ -327,6 +327,7 @@ class Experiment(_message.Message):
     PROPOSED_AT_FIELD_NUMBER: _ClassVar[int]
     LATEST_EVIDENCE_FIELD_NUMBER: _ClassVar[int]
     LATEST_OUTCOME_FIELD_NUMBER: _ClassVar[int]
+    UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
     id: str
     location: str
     hypothesis: str
@@ -340,4 +341,5 @@ class Experiment(_message.Message):
     proposed_at: _timestamp_pb2.Timestamp
     latest_evidence: Evidence
     latest_outcome: Outcome
-    def __init__(self, id: _Optional[str] = ..., location: _Optional[str] = ..., hypothesis: _Optional[str] = ..., treatment: _Optional[_Union[Treatment, _Mapping]] = ..., policy: _Optional[_Union[ExperimentPolicy, _Mapping]] = ..., baseline: _Optional[_Union[Evidence, _Mapping]] = ..., cohort_order: _Optional[_Iterable[str]] = ..., phases: _Optional[_Iterable[_Union[Phase, _Mapping]]] = ..., status: _Optional[_Union[ExperimentStatus, str]] = ..., revision: _Optional[int] = ..., proposed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., latest_evidence: _Optional[_Union[Evidence, _Mapping]] = ..., latest_outcome: _Optional[_Union[Outcome, str]] = ...) -> None: ...
+    updated_at: _timestamp_pb2.Timestamp
+    def __init__(self, id: _Optional[str] = ..., location: _Optional[str] = ..., hypothesis: _Optional[str] = ..., treatment: _Optional[_Union[Treatment, _Mapping]] = ..., policy: _Optional[_Union[ExperimentPolicy, _Mapping]] = ..., baseline: _Optional[_Union[Evidence, _Mapping]] = ..., cohort_order: _Optional[_Iterable[str]] = ..., phases: _Optional[_Iterable[_Union[Phase, _Mapping]]] = ..., status: _Optional[_Union[ExperimentStatus, str]] = ..., revision: _Optional[int] = ..., proposed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., latest_evidence: _Optional[_Union[Evidence, _Mapping]] = ..., latest_outcome: _Optional[_Union[Outcome, str]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...

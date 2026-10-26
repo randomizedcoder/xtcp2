@@ -5,11 +5,8 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestEvaluationBenefitHarmAndEvidenceGates(t *testing.T) {
@@ -17,29 +14,31 @@ func TestEvaluationBenefitHarmAndEvidenceGates(t *testing.T) {
 	e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 	for _, tc := range []struct {
 		name   string
-		want   Outcome
-		change func(*pb.Experiment, *pb.Evidence)
+		want   treatment.Outcome
+		change func(*treatment.Experiment, *treatment.Evidence)
 	}{
-		{"benefit", OutcomeBeneficial, func(*pb.Experiment, *pb.Evidence) {}},
-		{"loss", OutcomeHarmful, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].RetransmissionRatio = .2 }},
-		{"control harm", OutcomeHarmful, func(_ *pb.Experiment, v *pb.Evidence) {
-			for _, h := range v.Hosts[4:] {
+		{"benefit", treatment.OutcomeBeneficial, func(*treatment.Experiment, *treatment.Evidence) {}},
+		{"loss", treatment.OutcomeHarmful, func(_ *treatment.Experiment, v *treatment.Evidence) { v.Hosts[0].RetransmissionRatio = .2 }},
+		{"control harm", treatment.OutcomeHarmful, func(_ *treatment.Experiment, v *treatment.Evidence) {
+			for i := range v.Hosts[4:] {
+				h := &v.Hosts[4+i]
 				h.RttP95Ms = 3
 			}
 		}},
-		{"missing exposure", OutcomeAwaitingExposure, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].ExposedSockets = 0 }},
-		{"stale", OutcomeStale, func(_ *pb.Experiment, v *pb.Evidence) { v.WindowEnd = timestamppb.New(now.Add(-3 * time.Minute)) }},
-		{"missing data", OutcomeInsufficientData, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].CollectionHealthy = false }},
-		{"too early", OutcomeInsufficientDuration, func(_ *pb.Experiment, v *pb.Evidence) { v.WindowStart = timestamppb.New(now.Add(-5 * time.Minute)) }},
-		{"no benefit", OutcomeInconclusive, func(_ *pb.Experiment, v *pb.Evidence) {
-			for _, h := range v.Hosts {
+		{"missing exposure", treatment.OutcomeAwaitingExposure, func(_ *treatment.Experiment, v *treatment.Evidence) { v.Hosts[0].ExposedSockets = 0 }},
+		{"stale", treatment.OutcomeStale, func(_ *treatment.Experiment, v *treatment.Evidence) { v.WindowEnd = now.Add(-3 * time.Minute) }},
+		{"missing data", treatment.OutcomeInsufficientData, func(_ *treatment.Experiment, v *treatment.Evidence) { v.Hosts[0].CollectionHealthy = false }},
+		{"too early", treatment.OutcomeInsufficientDuration, func(_ *treatment.Experiment, v *treatment.Evidence) { v.WindowStart = now.Add(-5 * time.Minute) }},
+		{"no benefit", treatment.OutcomeInconclusive, func(_ *treatment.Experiment, v *treatment.Evidence) {
+			for i := range v.Hosts {
+				h := &v.Hosts[i]
 				h.GoodputBps = 1e8
 			}
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			n := proto.Clone(e).(*pb.Experiment)
-			w := proto.Clone(v).(*pb.Evidence)
+			n := e.Clone()
+			w := v.Clone()
 			tc.change(n, w)
 			got, err := Evaluate(n, w, now)
 			if err != nil || got.Outcome != tc.want {
@@ -65,11 +64,13 @@ func TestHealthyEvidenceSoakRTTRegression(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			now := time.Now()
 			e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
-			e.Policy.MaximumRttIncrease = tc.limit
-			for _, h := range e.Baseline.Hosts {
+			e.Policy.MaximumRTTIncrease = tc.limit
+			for i := range e.Baseline.Hosts {
+				h := &e.Baseline.Hosts[i]
 				h.RttP95Ms = 5.305
 			}
-			for _, h := range v.Hosts {
+			for i := range v.Hosts {
+				h := &v.Hosts[i]
 				h.RttP95Ms = 5.305
 			}
 			v.Hosts[0].RttP95Ms, v.Hosts[0].RetransmissionRatio = tc.rtt, tc.retrans

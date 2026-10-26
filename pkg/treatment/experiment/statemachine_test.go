@@ -4,12 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 )
 
 // legal is the expected state machine written out independently of the
 // implementation table. A pair missing here must return ErrIllegalTransition.
-var legal = map[pb.ExperimentStatus]map[Event]pb.ExperimentStatus{
+var legal = map[treatment.Status]map[Event]treatment.Status{
 	proposed: {
 		EventApprove:  running,
 		EventReject:   retired,
@@ -51,18 +51,18 @@ var legal = map[pb.ExperimentStatus]map[Event]pb.ExperimentStatus{
 		EventRollback: rolledBack,
 		EventRetire:   retired,
 	},
-	retired:    {},
-	rolledBack: {},
-	pb.ExperimentStatus_EXPERIMENT_STATUS_UNSPECIFIED: {},
+	retired:                     {},
+	rolledBack:                  {},
+	treatment.StatusUnspecified: {},
 }
 
-// TestTransitionExhaustive visits every (status, event) pair the generated
-// enums and Events() can produce and checks it against the legal table, so
+// TestTransitionExhaustive visits every (status, event) pair treatment.Statuses()
+// and Events() can produce and checks it against the legal table, so
 // adding a status, an event or a transition without updating both fails.
 func TestTransitionExhaustive(t *testing.T) {
-	statuses, events := Statuses(), Events()
+	statuses, events := treatment.Statuses(), Events()
 	if len(statuses) != len(legal) {
-		t.Fatalf("legal table covers %d statuses, proto defines %d", len(legal), len(statuses))
+		t.Fatalf("legal table covers %d statuses, the domain defines %d", len(legal), len(statuses))
 	}
 	if len(events) != int(eventCount)-1 {
 		t.Fatalf("Events() returned %d, want %d", len(events), eventCount-1)
@@ -101,9 +101,9 @@ func TestTransitionExhaustive(t *testing.T) {
 func TestTransitionCases(t *testing.T) {
 	for _, tc := range []struct {
 		name, description string
-		from              pb.ExperimentStatus
+		from              treatment.Status
 		event             Event
-		expected          pb.ExperimentStatus
+		expected          treatment.Status
 		expectError       bool
 	}{
 		{"proposed-approve", "positive: first review starts the trial", proposed, EventApprove, running, false},
@@ -114,7 +114,7 @@ func TestTransitionCases(t *testing.T) {
 		{"rolled-back-resume", "negative: rollback is final", rolledBack, EventResume, rolledBack, true},
 		{"proposed-pause", "negative: nothing to pause before the first phase", proposed, EventPause, proposed, true},
 		{"complete-expire", "negative: completed treatments have no lease to expire", complete, EventExpire, complete, true},
-		{"unspecified-status", "boundary: zero status accepts no event", pb.ExperimentStatus_EXPERIMENT_STATUS_UNSPECIFIED, EventApprove, pb.ExperimentStatus_EXPERIMENT_STATUS_UNSPECIFIED, true},
+		{"unspecified-status", "boundary: zero status accepts no event", treatment.StatusUnspecified, EventApprove, treatment.StatusUnspecified, true},
 		{"unspecified-event", "boundary: zero event is never legal", running, eventUnspecified, running, true},
 		{"event-count-sentinel", "boundary: the sentinel just past the last event is illegal", running, eventCount, running, true},
 		{"unknown-event", "corner: an event value from a newer build is rejected, not defaulted", running, Event(200), running, true},
@@ -134,9 +134,9 @@ func TestTransitionCases(t *testing.T) {
 }
 
 func TestTerminal(t *testing.T) {
-	for _, s := range Statuses() {
-		got := Terminal(s)
-		expected := len(legal[s]) == 0 && s != pb.ExperimentStatus_EXPERIMENT_STATUS_UNSPECIFIED
+	for _, s := range treatment.Statuses() {
+		got := s.Terminal()
+		expected := len(legal[s]) == 0 && s != treatment.StatusUnspecified
 		if got != expected {
 			t.Errorf("Terminal(%s)=%t, expected %t", s, got, expected)
 		}

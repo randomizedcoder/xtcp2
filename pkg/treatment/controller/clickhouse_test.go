@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 )
 
 // Execute the production SQL against an isolated ClickHouse local database.
@@ -50,12 +48,12 @@ func TestClickHouseAnalysisCounterDeltas(t *testing.T) {
 		}
 		return out
 	}
-	var h pb.HostEvidence
+	var h hostRow
 	if e := json.Unmarshal(run(setup+query), &h); e != nil {
 		t.Fatal(e)
 	}
 	if h.Sockets != 1 || h.BytesAcked != 5000 || h.ExposedSockets != 1 || !h.CollectionHealthy || h.RttP95Ms != 1 || h.RetransmissionRatio != .01 {
-		t.Fatalf("bad window deltas/deduplication: %v", &h)
+		t.Fatalf("bad window deltas/deduplication: %+v", h)
 	}
 	reset := `INSERT INTO default.sockets SELECT 'host-1','boot-1',1,1,
  fromUnixTimestamp64Nano(1700000055000000000),1,1,0,1000,500,true,'trial','dc1',1,

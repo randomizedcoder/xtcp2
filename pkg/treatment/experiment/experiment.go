@@ -1,3 +1,7 @@
+// Package experiment is the controller's pure decision core: evidence
+// evaluation, the safety gate, cohort growth, phase advancement and the
+// experiment state machine. Every function here is a function of its inputs
+// and now; persistence and authorization live in package controller.
 package experiment
 
 import (
@@ -6,14 +10,11 @@ import (
 	"math"
 	"time"
 
-	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Evaluation struct {
-	Outcome                 Outcome
+	Outcome                 treatment.Outcome
 	Improvement, LowerBound float64
 }
 
@@ -21,35 +22,31 @@ type Evaluation struct {
 // The host is the randomization unit; polls and sockets are not replicates.
 // A conservative Welch interval budgets minute-by-minute looks across all
 // planned phases. This interval is a review aid, not an automatic promotion.
-func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, error) {
+func Evaluate(e *treatment.Experiment, ev *treatment.Evidence, now time.Time) (Evaluation, error) {
 	if err := treatment.ValidateEvidence(ev); err != nil {
 		return Evaluation{}, err
 	}
-	if len(e.Phases) == 0 {
+	phase := e.CurrentPhase()
+	if phase == nil {
 		return Evaluation{}, errors.New("experiment has no phase")
 	}
 	p := e.Policy
-	phase := e.Phases[len(e.Phases)-1]
-	if phase.ObservationStartedAt == nil {
-		return Evaluation{Outcome: OutcomeAwaitingExposure}, nil
+	if phase.ObservationStartedAt.IsZero() {
+		return Evaluation{Outcome: treatment.OutcomeAwaitingExposure}, nil
 	}
-	if now.Sub(phase.IssuedAt.AsTime()) >= p.MaximumPhase.AsDuration() {
-		return Evaluation{Outcome: OutcomeExpired}, nil
+	if now.Sub(phase.IssuedAt) >= p.MaximumPhase {
+		return Evaluation{Outcome: treatment.OutcomeExpired}, nil
 	}
-	if ev.AnalyzedAt.AsTime().After(now.Add(30*time.Second)) || now.Sub(ev.WindowEnd.AsTime()) > p.MaximumEvidenceAge.AsDuration() {
-		return Evaluation{Outcome: OutcomeStale}, nil
+	if ev.AnalyzedAt.After(now.Add(30*time.Second)) || now.Sub(ev.WindowEnd) > p.MaximumEvidenceAge {
+		return Evaluation{Outcome: treatment.OutcomeStale}, nil
 	}
-	if ev.WindowStart.AsTime().Before(phase.ObservationStartedAt.AsTime()) || ev.WindowEnd.AsTime().Sub(ev.WindowStart.AsTime()) < p.MinimumObservation.AsDuration() {
-		return Evaluation{Outcome: OutcomeInsufficientDuration}, nil
+	if ev.WindowStart.Before(phase.ObservationStartedAt) || ev.WindowEnd.Sub(ev.WindowStart) < p.MinimumObservation {
+		return Evaluation{Outcome: treatment.OutcomeInsufficientDuration}, nil
 	}
-	base := make(map[string]*pb.HostEvidence, len(e.Baseline.Hosts))
-	current := make(map[string]*pb.HostEvidence, len(ev.Hosts))
-	for _, h := range e.Baseline.Hosts {
-		base[h.AgentId] = h
+	if e.Baseline == nil {
+		return Evaluation{}, errors.New("experiment has no baseline")
 	}
-	for _, h := range ev.Hosts {
-		current[h.AgentId] = h
-	}
+	base, current := hostIndex(e.Baseline.Hosts), hostIndex(ev.Hosts)
 	target := int(phase.TargetHosts)
 	if target < 1 || target > len(e.CohortOrder) {
 		return Evaluation{}, errors.New("invalid phase cohort size")
@@ -60,10 +57,10 @@ func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, err
 	for i, id := range e.CohortOrder {
 		h, b := current[id], base[id]
 		if h == nil || b == nil || !h.CollectionHealthy || !b.CollectionHealthy || h.Sockets < p.MinimumSocketsPerHost || h.BytesAcked < p.MinimumBytesPerHost || h.GoodputBps <= 0 || b.GoodputBps <= 0 || b.RttP95Ms <= 0 {
-			return Evaluation{Outcome: OutcomeInsufficientData}, nil
+			return Evaluation{Outcome: treatment.OutcomeInsufficientData}, nil
 		}
 		if i < target && h.ExposedSockets < p.MinimumSocketsPerHost {
-			return Evaluation{Outcome: OutcomeAwaitingExposure}, nil
+			return Evaluation{Outcome: treatment.OutcomeAwaitingExposure}, nil
 		}
 		x := math.Log(h.GoodputBps / b.GoodputBps)
 		if i < target {
@@ -78,56 +75,57 @@ func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, err
 	}
 	// Guardrails protect controls as well as treated traffic. A shared-link
 	// regression is harmful even if treated hosts outperform their peers.
-	if mean(tr) > p.MaximumRetransmissionIncrease || mean(cr) > p.MaximumRetransmissionIncrease || mean(tlat) > math.Log1p(p.MaximumRttIncrease) || mean(clat) > math.Log1p(p.MaximumRttIncrease) {
-		return Evaluation{Outcome: OutcomeHarmful}, nil
+	if mean(tr) > p.MaximumRetransmissionIncrease || mean(cr) > p.MaximumRetransmissionIncrease || mean(tlat) > math.Log1p(p.MaximumRTTIncrease) || mean(clat) > math.Log1p(p.MaximumRTTIncrease) {
+		return Evaluation{Outcome: treatment.OutcomeHarmful}, nil
 	}
 	effect := mean(treated) - mean(control)
 	if len(control) == 0 {
 		// Final 100% phase is a safety check; causal benefit was established
 		// before the last control cohort received the treatment.
 		if effect < -math.Log1p(p.MinimumImprovement) {
-			return Evaluation{Outcome: OutcomeHarmful}, nil
+			return Evaluation{Outcome: treatment.OutcomeHarmful}, nil
 		}
-		return Evaluation{Outcome: OutcomeFinalSafety, Improvement: math.Expm1(effect)}, nil
+		return Evaluation{Outcome: treatment.OutcomeFinalSafety, Improvement: math.Expm1(effect)}, nil
 	}
 	if len(treated) < int(p.MinimumTreatedHosts) {
 		if effect < -math.Log1p(p.MinimumImprovement) {
-			return Evaluation{Outcome: OutcomeHarmful}, nil
+			return Evaluation{Outcome: treatment.OutcomeHarmful}, nil
 		}
-		return Evaluation{Outcome: OutcomeSafetyOnly, Improvement: math.Expm1(effect)}, nil
+		return Evaluation{Outcome: treatment.OutcomeSafetyOnly, Improvement: math.Expm1(effect)}, nil
 	}
 	if len(control) < 2 {
-		return Evaluation{Outcome: OutcomeInsufficientControls}, nil
+		return Evaluation{Outcome: treatment.OutcomeInsufficientControls}, nil
 	}
 	a, b := variance(treated)/float64(len(treated)), variance(control)/float64(len(control))
 	se := math.Sqrt(a + b)
 	lower := effect
 	if se > 0 {
 		df := (a + b) * (a + b) / (a*a/float64(len(treated)-1) + b*b/float64(len(control)-1))
-		looks := (math.Ceil(math.Log2(float64(len(e.CohortOrder)))) + 2) * math.Ceil(p.MaximumPhase.AsDuration().Minutes())
+		looks := (math.Ceil(math.Log2(float64(len(e.CohortOrder)))) + 2) * math.Ceil(p.MaximumPhase.Minutes())
 		lower -= studentQuantile(1-.05/looks, df) * se
 	}
-	out := Evaluation{Outcome: OutcomeInconclusive, Improvement: math.Expm1(effect), LowerBound: math.Expm1(lower)}
+	out := Evaluation{Outcome: treatment.OutcomeInconclusive, Improvement: math.Expm1(effect), LowerBound: math.Expm1(lower)}
 	if lower > math.Log1p(p.MinimumImprovement) {
-		out.Outcome = OutcomeBeneficial
+		out.Outcome = treatment.OutcomeBeneficial
 	}
 	return out, nil
 }
 
+func hostIndex(hosts []treatment.HostEvidence) map[string]*treatment.HostEvidence {
+	m := make(map[string]*treatment.HostEvidence, len(hosts))
+	for i := range hosts {
+		m[hosts[i].AgentID] = &hosts[i]
+	}
+	return m
+}
+
 // HealthyEvidence is the fast safety gate, independent of the minimum benefit
 // observation window. It also prevents missing hosts from renewing leases.
-func HealthyEvidence(e *pb.Experiment, v *pb.Evidence, now time.Time) (healthy, harmful bool) {
-	if treatment.ValidateEvidence(v) != nil || v.AnalyzedAt.AsTime().After(now.Add(30*time.Second)) || now.Sub(v.WindowEnd.AsTime()) > e.Policy.MaximumEvidenceAge.AsDuration() {
+func HealthyEvidence(e *treatment.Experiment, v *treatment.Evidence, now time.Time) (healthy, harmful bool) {
+	if e.Baseline == nil || treatment.ValidateEvidence(v) != nil || v.AnalyzedAt.After(now.Add(30*time.Second)) || now.Sub(v.WindowEnd) > e.Policy.MaximumEvidenceAge {
 		return false, false
 	}
-	base := make(map[string]*pb.HostEvidence, len(e.Baseline.Hosts))
-	current := make(map[string]*pb.HostEvidence, len(v.Hosts))
-	for _, h := range e.Baseline.Hosts {
-		base[h.AgentId] = h
-	}
-	for _, h := range v.Hosts {
-		current[h.AgentId] = h
-	}
+	base, current := hostIndex(e.Baseline.Hosts), hostIndex(v.Hosts)
 	healthy = true
 	for _, id := range e.CohortOrder {
 		h, b := current[id], base[id]
@@ -135,7 +133,7 @@ func HealthyEvidence(e *pb.Experiment, v *pb.Evidence, now time.Time) (healthy, 
 			healthy = false
 			continue
 		}
-		if h.RetransmissionRatio-b.RetransmissionRatio > e.Policy.MaximumRetransmissionIncrease || b.RttP95Ms > 0 && (h.RttP95Ms-b.RttP95Ms)/b.RttP95Ms > e.Policy.MaximumRttIncrease {
+		if h.RetransmissionRatio-b.RetransmissionRatio > e.Policy.MaximumRetransmissionIncrease || b.RttP95Ms > 0 && (h.RttP95Ms-b.RttP95Ms)/b.RttP95Ms > e.Policy.MaximumRTTIncrease {
 			harmful = true
 		}
 	}
@@ -237,16 +235,15 @@ func NextCohort(current, total int) int {
 
 // Advance is pure and returns a new experiment. Callers persist it and all
 // assignments in one PostgreSQL transaction after authenticating the reviewer.
-func Advance(e *pb.Experiment, ev *pb.Evidence, now time.Time, reviewer, reason string) (*pb.Experiment, error) {
-	n := proto.Clone(e).(*pb.Experiment)
+func Advance(e *treatment.Experiment, ev *treatment.Evidence, now time.Time, reviewer, reason string) (*treatment.Experiment, error) {
+	n := e.Clone()
 	// Both outcomes of approval are checked up front so an illegal status
 	// fails before any evidence is attached to the phase.
 	if _, err := Transition(n.Status, EventApprove); err != nil {
 		return nil, err
 	}
 	target := 0
-	if len(n.Phases) > 0 {
-		phase := n.Phases[len(n.Phases)-1]
+	if phase := n.CurrentPhase(); phase != nil {
 		target = int(phase.TargetHosts)
 		v, err := Evaluate(n, ev, now)
 		if err != nil {
@@ -255,9 +252,9 @@ func Advance(e *pb.Experiment, ev *pb.Evidence, now time.Time, reviewer, reason 
 		if !v.Outcome.Promotable() {
 			return nil, fmt.Errorf("promotion blocked: %s", v.Outcome)
 		}
-		phase.Evidence = proto.Clone(ev).(*pb.Evidence)
-		phase.Outcome = v.Outcome.Wire()
-		phase.EvaluatedAt = timestamppb.New(now)
+		phase.Evidence = ev.Clone()
+		phase.Outcome = v.Outcome
+		phase.EvaluatedAt = now
 		phase.Reviewer = reviewer
 		phase.Reason = reason
 		if target == len(n.CohortOrder) {
@@ -270,7 +267,7 @@ func Advance(e *pb.Experiment, ev *pb.Evidence, now time.Time, reviewer, reason 
 			return n, nil
 		}
 	}
-	n.Phases = append(n.Phases, &pb.Phase{TargetHosts: uint32(NextCohort(target, len(n.CohortOrder))), IssuedAt: timestamppb.New(now), Reviewer: reviewer, Reason: reason})
+	n.Phases = append(n.Phases, treatment.Phase{TargetHosts: uint32(NextCohort(target, len(n.CohortOrder))), IssuedAt: now, Reviewer: reviewer, Reason: reason})
 	status, err := Transition(n.Status, EventApprove)
 	if err != nil {
 		return nil, err

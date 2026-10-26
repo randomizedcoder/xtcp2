@@ -1,0 +1,767 @@
+// Package storetest is the conformance suite every store.Store implementation
+// must pass. The memory and postgres packages both run it, so a handler
+// tested against the memory store sees the same contract production sees.
+package storetest
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/netip"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
+	"google.golang.org/protobuf/proto"
+)
+
+// Opener returns a fresh, empty store for one test.
+type Opener func(t *testing.T) store.Store
+
+// now is microsecond-aligned and in UTC, the precision timestamptz keeps.
+var now = time.Unix(1700000000, 0).UTC()
+
+func ptr[T any](v T) *T { return &v }
+
+// Run executes the suite against stores from open.
+func Run(t *testing.T, open Opener) {
+	t.Run("Agents", func(t *testing.T) { agents(t, open) })
+	t.Run("Experiments", func(t *testing.T) { experiments(t, open) })
+	t.Run("Eligibility", func(t *testing.T) { eligibility(t, open) })
+	t.Run("Evidence", func(t *testing.T) { evidence(t, open) })
+	t.Run("Holds", func(t *testing.T) { holds(t, open) })
+	t.Run("Audit", func(t *testing.T) { audit(t, open) })
+	t.Run("Tx", func(t *testing.T) { tx(t, open) })
+	t.Run("Metrics", func(t *testing.T) { metrics(t, open) })
+}
+
+func report(id, location string) *treatment.AgentReport {
+	d := fixtures.Desired(now)
+	return &treatment.AgentReport{
+		AgentID:          id,
+		Location:         location,
+		Capabilities:     treatment.Capabilities{BootID: "boot-1", KernelRelease: "6.12.0", CongestionAlgorithms: []string{"cubic", "bbr", "dctcp"}, SimpleHostRouting: true, ActuatorEnabled: true},
+		DesiredRevision:  3,
+		LocallySuspended: true,
+		Records: []treatment.ApplicationRecord{{
+			Assignment: d.Assignments[0], DesiredRevision: 3, Status: treatment.ApplyVerified,
+			ReceivedAt: now, AttemptedAt: now.Add(time.Second), AppliedAt: now.Add(2 * time.Second), VerifiedAt: now.Add(3 * time.Second),
+		}, {
+			Assignment:      treatment.Assignment{ExperimentID: "old", Generation: 2, Mode: treatment.ModeRetired, Treatment: fixtures.Treatment()},
+			DesiredRevision: 2, Status: treatment.ApplyFailed, Error: "ENETUNREACH", ExpiredLatched: true, RemovedAt: now,
+		}},
+	}
+}
+
+func sameDesired(t *testing.T, description string, got, want *treatment.DesiredState) {
+	t.Helper()
+	if !proto.Equal(wire.Desired(got), wire.Desired(want)) {
+		t.Fatalf("%s:\n got %+v\nwant %+v", description, got, want)
+	}
+}
+
+func sameReport(t *testing.T, description string, got, want *treatment.AgentReport) {
+	t.Helper()
+	if !proto.Equal(wire.Report(got), wire.Report(want)) {
+		t.Fatalf("%s:\n got %+v\nwant %+v", description, got, want)
+	}
+}
+
+func sameExperiment(t *testing.T, description string, got, want *treatment.Experiment) {
+	t.Helper()
+	if !proto.Equal(wire.Experiment(got), wire.Experiment(want)) {
+		t.Fatalf("%s:\n got %+v\nwant %+v", description, got, want)
+	}
+}
+
+func sameEvidence(t *testing.T, description string, got, want *treatment.Evidence) {
+	t.Helper()
+	if !proto.Equal(wire.Evidence(got), wire.Evidence(want)) {
+		t.Fatalf("%s:\n got %+v\nwant %+v", description, got, want)
+	}
+}
+
+func agents(t *testing.T, open Opener) {
+	ctx := context.Background()
+	initial := &treatment.DesiredState{AgentID: "host-1", Revision: 1, Suspended: true, IssuedAt: now}
+	for _, tc := range []struct {
+		name, description string
+		run               func(t *testing.T, a store.Agents)
+	}{
+		{"enroll-roundtrip", "positive: enrollment stores location and the initial desired state", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			got, err := a.Get(ctx, "host-1")
+			must(t, err)
+			if got.ID != "host-1" || got.Location != "dc1" || got.EnrolledAt.IsZero() || !got.LastSeen.IsZero() || got.Report.AgentID != "host-1" || got.Report.Location != "dc1" {
+				t.Fatalf("expected an enrolled agent without a report, got %+v", got)
+			}
+			d, err := a.Desired(ctx, "host-1")
+			must(t, err)
+			sameDesired(t, "expected the initial desired state", d, initial)
+		}},
+		{"observe-roundtrip", "positive: a report is stored with every capability and record column", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			r := report("host-1", "dc1")
+			must(t, a.Observe(ctx, r, now.Add(time.Minute)))
+			got, err := a.Get(ctx, "host-1")
+			must(t, err)
+			if !got.LastSeen.Equal(now.Add(time.Minute)) || !got.Seen(now.Add(2*time.Minute), 2*time.Minute) || got.Seen(now.Add(4*time.Minute), 2*time.Minute) {
+				t.Fatalf("expected last_seen %s, got %s", now.Add(time.Minute), got.LastSeen)
+			}
+			sameReport(t, "expected the observed report", &got.Report, r)
+		}},
+		{"desired-roundtrip", "positive: every assignment column, predecessor and lease survives", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			d := fixtures.Desired(now)
+			d.Revision = 7
+			pred := fixtures.Treatment()
+			pred.Revision = 2
+			pred.Settings = treatment.TCPSettings{CongestionControl: ptr("bbr"), CongestionLock: true, RTOMinMs: ptr(uint32(5)), InitialCongestionWindow: ptr(uint32(100)), InitialReceiveWindow: ptr(uint32(0)), QuickAck: ptr(false), ECN: ptr(true)}
+			d.Assignments = append(d.Assignments, treatment.Assignment{ExperimentID: "stable-1", Generation: 4, Mode: treatment.ModeStable, Treatment: treatment.Treatment{ID: "v6", Revision: 3, Destination: netip.MustParsePrefix("2001:db8::1/128"), Settings: pred.Settings, ECNFabricVerified: true}, Predecessor: &pred})
+			must(t, a.SaveDesired(ctx, d))
+			got, err := a.Desired(ctx, "host-1")
+			must(t, err)
+			sameDesired(t, "expected the saved desired state", got, d)
+			revs, err := a.DesiredRevisions(ctx)
+			must(t, err)
+			if len(revs) != 1 || revs["host-1"] != 7 {
+				t.Fatalf("expected revision 7 for host-1, got %v", revs)
+			}
+		}},
+		{"enroll-idempotent", "corner: a second enrollment never changes location or desired state", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			must(t, a.Enroll(ctx, "host-1", "dc2", &treatment.DesiredState{AgentID: "host-1", Revision: 9, IssuedAt: now}))
+			got, err := a.Get(ctx, "host-1")
+			must(t, err)
+			d, err := a.Desired(ctx, "host-1")
+			must(t, err)
+			if got.Location != "dc1" || d.Revision != 1 || !d.Suspended {
+				t.Fatalf("expected the first enrollment to win, got %s revision %d", got.Location, d.Revision)
+			}
+		}},
+		{"observe-location-change", "negative: a host cannot move location by reporting a new one", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			if err := a.Observe(ctx, report("host-1", "dc2"), now); !errors.Is(err, store.ErrNotEnrolled) {
+				t.Fatalf("expected ErrNotEnrolled, got %v", err)
+			}
+			got, err := a.Get(ctx, "host-1")
+			must(t, err)
+			if !got.LastSeen.IsZero() || len(got.Report.Records) != 0 {
+				t.Fatal("expected the rejected report to leave no trace")
+			}
+		}},
+		{"unknown-agent", "negative: lookups of an unenrolled agent return the documented sentinels", func(t *testing.T, a store.Agents) {
+			if _, err := a.Get(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("expected ErrNotFound from Get, got %v", err)
+			}
+			if _, err := a.Desired(ctx, "ghost"); !errors.Is(err, store.ErrNotEnrolled) {
+				t.Fatalf("expected ErrNotEnrolled from Desired, got %v", err)
+			}
+			if err := a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "ghost", Revision: 1, IssuedAt: now}); !errors.Is(err, store.ErrNotEnrolled) {
+				t.Fatalf("expected ErrNotEnrolled from SaveDesired, got %v", err)
+			}
+			if err := a.Observe(ctx, report("ghost", "dc1"), now); !errors.Is(err, store.ErrNotEnrolled) {
+				t.Fatalf("expected ErrNotEnrolled from Observe, got %v", err)
+			}
+		}},
+		{"empty-desired", "boundary: a desired state with no assignments replaces a populated one", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", fixtures.Desired(now)))
+			empty := &treatment.DesiredState{AgentID: "host-1", Revision: 2, IssuedAt: now.Add(time.Minute)}
+			must(t, a.SaveDesired(ctx, empty))
+			got, err := a.Desired(ctx, "host-1")
+			must(t, err)
+			sameDesired(t, "expected no assignments", got, empty)
+		}},
+		{"max-assignments", "boundary: MaxAssignments assignments are stored in order", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			d := &treatment.DesiredState{AgentID: "host-1", Revision: 2, IssuedAt: now}
+			for i := range treatment.MaxAssignments {
+				d.Assignments = append(d.Assignments, treatment.Assignment{ExperimentID: fmt.Sprintf("exp-%05d", i), Generation: uint64(i), Mode: treatment.ModeTrial, LeaseExpiresAt: now.Add(time.Hour), Treatment: fixtures.Treatment()})
+			}
+			must(t, a.SaveDesired(ctx, d))
+			got, err := a.Desired(ctx, "host-1")
+			must(t, err)
+			if len(got.Assignments) != treatment.MaxAssignments {
+				t.Fatalf("expected %d assignments, got %d", treatment.MaxAssignments, len(got.Assignments))
+			}
+			for i := range got.Assignments {
+				if got.Assignments[i].ExperimentID != d.Assignments[i].ExperimentID {
+					t.Fatalf("expected position %d to hold %s, got %s", i, d.Assignments[i].ExperimentID, got.Assignments[i].ExperimentID)
+				}
+			}
+		}},
+		{"list-by-location", "positive: List filters by location and orders by ID; empty location lists everyone", func(t *testing.T, a store.Agents) {
+			for _, h := range []struct{ id, loc string }{{"c", "dc2"}, {"a", "dc1"}, {"b", "dc1"}} {
+				must(t, a.Enroll(ctx, h.id, h.loc, &treatment.DesiredState{AgentID: h.id, Revision: 1, IssuedAt: now}))
+			}
+			dc1, err := a.List(ctx, "dc1")
+			must(t, err)
+			all, err := a.List(ctx, "")
+			must(t, err)
+			none, err := a.List(ctx, "dc3")
+			must(t, err)
+			want := []store.AgentRef{{ID: "a", Location: "dc1"}, {ID: "b", Location: "dc1"}}
+			if !slices.Equal(dc1, want) || len(all) != 3 || all[2].ID != "c" || len(none) != 0 {
+				t.Fatalf("expected %v / 3 / 0, got %v / %d / %d", want, dc1, len(all), len(none))
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			tc.run(t, open(t).Repos().Agents)
+		})
+	}
+}
+
+func populated() *treatment.Experiment {
+	e, after := fixtures.Experiment(now, treatment.DefaultPolicy())
+	e.ProposedAt = now.Add(-2 * time.Hour)
+	e.UpdatedAt = now
+	e.LatestEvidence = after
+	e.LatestOutcome = treatment.OutcomeBeneficial
+	e.Phases[0].EvaluatedAt = now
+	e.Phases[0].Evidence = after
+	e.Phases[0].Outcome = treatment.OutcomeBeneficial
+	e.Phases[0].Reviewer = "operator/alice"
+	e.Phases[0].Reason = "reviewed"
+	e.Phases = append(e.Phases, treatment.Phase{TargetHosts: 8, IssuedAt: now})
+	return e
+}
+
+func experiments(t *testing.T, open Opener) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, description string
+		run               func(t *testing.T, rp store.Repos)
+	}{
+		{"insert-relational", "positive: cohort, phases, baseline and evidence references reconstruct the experiment exactly", func(t *testing.T, rp store.Repos) {
+			e := populated()
+			must(t, rp.Experiments.Save(ctx, e))
+			got, err := rp.Experiments.Get(ctx, e.ID)
+			must(t, err)
+			sameExperiment(t, "expected the saved experiment", got, e)
+			exists, err := rp.Experiments.Exists(ctx, e.ID)
+			must(t, err)
+			if !exists {
+				t.Fatal("expected Exists to be true")
+			}
+			baseline, err := rp.Evidence.Get(ctx, "baseline")
+			must(t, err)
+			sameEvidence(t, "expected the baseline stored once in the evidence repository", baseline, e.Baseline)
+		}},
+		{"update-replaces", "positive: saving again replaces status, revision, phases and evidence references", func(t *testing.T, rp store.Repos) {
+			e := populated()
+			must(t, rp.Experiments.Save(ctx, e))
+			n := e.Clone()
+			n.Status = treatment.StatusComplete
+			n.Revision = 3
+			n.UpdatedAt = now.Add(time.Hour)
+			n.Phases = n.Phases[:1]
+			n.Phases[0].Outcome = treatment.OutcomeStableObserved
+			must(t, rp.Experiments.Save(ctx, n))
+			got, err := rp.Experiments.Get(ctx, e.ID)
+			must(t, err)
+			sameExperiment(t, "expected the replacement with the trailing phase removed", got, n)
+		}},
+		{"cohort-immutable", "corner: the cohort order written first is kept even if a later save differs", func(t *testing.T, rp store.Repos) {
+			e := populated()
+			must(t, rp.Experiments.Save(ctx, e))
+			n := e.Clone()
+			n.CohortOrder = n.CohortOrder[:2]
+			must(t, rp.Experiments.Save(ctx, n))
+			got, err := rp.Experiments.Get(ctx, e.ID)
+			must(t, err)
+			if len(got.CohortOrder) != 16 {
+				t.Fatalf("expected the 16-host cohort to survive, got %d", len(got.CohortOrder))
+			}
+		}},
+		{"no-evidence", "boundary: an experiment without baseline, latest evidence or phases round-trips", func(t *testing.T, rp store.Repos) {
+			e := &treatment.Experiment{ID: "bare", Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: treatment.StatusProposed, Revision: 1, ProposedAt: now, UpdatedAt: now}
+			must(t, rp.Experiments.Save(ctx, e))
+			got, err := rp.Experiments.Get(ctx, "bare")
+			must(t, err)
+			sameExperiment(t, "expected the bare experiment", got, e)
+		}},
+		{"max-cohort", "boundary: a cohort of MaxAgents positions is stored in order", func(t *testing.T, rp store.Repos) {
+			e := &treatment.Experiment{ID: "big", Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: treatment.StatusProposed, Revision: 1, ProposedAt: now, UpdatedAt: now}
+			for i := range treatment.MaxAgents {
+				e.CohortOrder = append(e.CohortOrder, fmt.Sprintf("host-%05d", i))
+			}
+			must(t, rp.Experiments.Save(ctx, e))
+			got, err := rp.Experiments.Get(ctx, "big")
+			must(t, err)
+			if !slices.Equal(got.CohortOrder, e.CohortOrder) {
+				t.Fatalf("expected %d ordered cohort members, got %d", len(e.CohortOrder), len(got.CohortOrder))
+			}
+		}},
+		{"missing", "negative: an unknown experiment is ErrNotFound and does not exist", func(t *testing.T, rp store.Repos) {
+			if _, err := rp.Experiments.Get(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("expected ErrNotFound, got %v", err)
+			}
+			exists, err := rp.Experiments.Exists(ctx, "ghost")
+			must(t, err)
+			if exists {
+				t.Fatal("expected Exists to be false")
+			}
+			list, err := rp.Experiments.List(ctx, "ghost", 10)
+			must(t, err)
+			if len(list) != 0 {
+				t.Fatalf("expected an empty list, got %d", len(list))
+			}
+		}},
+		{"evidence-conflict", "negative: an experiment cannot claim evidence another experiment stored", func(t *testing.T, rp store.Repos) {
+			e := populated()
+			must(t, rp.Experiments.Save(ctx, e))
+			other := e.Clone()
+			other.ID = "other"
+			if err := rp.Experiments.Save(ctx, other); !errors.Is(err, store.ErrEvidenceConflict) {
+				t.Fatalf("expected ErrEvidenceConflict, got %v", err)
+			}
+			exists, err := rp.Experiments.Exists(ctx, "other")
+			must(t, err)
+			if exists {
+				t.Fatal("expected the conflicting save to leave no row")
+			}
+		}},
+		{"list-and-ids", "positive: List orders by ID and honours the limit; IDs filters by status", func(t *testing.T, rp store.Repos) {
+			for i, s := range []treatment.Status{treatment.StatusRunning, treatment.StatusProposed, treatment.StatusRetired, treatment.StatusRunning} {
+				e := &treatment.Experiment{ID: fmt.Sprintf("e%d", 3-i), Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: s, Revision: 1, ProposedAt: now, UpdatedAt: now}
+				must(t, rp.Experiments.Save(ctx, e))
+			}
+			list, err := rp.Experiments.List(ctx, "", 3)
+			must(t, err)
+			ids := make([]string, len(list))
+			for i, e := range list {
+				ids[i] = e.ID
+			}
+			if !slices.Equal(ids, []string{"e0", "e1", "e2"}) {
+				t.Fatalf("expected e0,e1,e2, got %v", ids)
+			}
+			one, err := rp.Experiments.List(ctx, "e3", 3)
+			must(t, err)
+			if len(one) != 1 || one[0].ID != "e3" {
+				t.Fatalf("expected only e3, got %d", len(one))
+			}
+			running, err := rp.Experiments.IDs(ctx, treatment.StatusRunning, treatment.StatusPaused)
+			must(t, err)
+			none, err := rp.Experiments.IDs(ctx)
+			must(t, err)
+			if !slices.Equal(running, []string{"e0", "e3"}) || len(none) != 0 {
+				t.Fatalf("expected [e0 e3] and nothing for no statuses, got %v %v", running, none)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			tc.run(t, open(t).Repos())
+		})
+	}
+}
+
+// eligibility is the discovery contract: which prior experiments reserve a
+// destination or consume the location's single-experiment budget.
+func eligibility(t *testing.T, open Opener) {
+	ctx := context.Background()
+	dst := netip.MustParsePrefix("192.0.2.1/32")
+	for _, tc := range []struct {
+		name, description     string
+		status                treatment.Status
+		age                   time.Duration
+		location, destination string
+		expectBlocked         bool
+		expectActive          bool
+	}{
+		{"proposed", "positive: pending review reserves the destination", treatment.StatusProposed, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
+		{"running", "positive: an active trial is not rediscovered", treatment.StatusRunning, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
+		{"paused", "positive: paused trials remain reserved", treatment.StatusPaused, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
+		{"suspended", "positive: temporary holds are not bypassed", treatment.StatusSuspended, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
+		{"stable", "positive: completed stable treatments stay reserved and free the budget", treatment.StatusComplete, 48 * time.Hour, "dc1", "192.0.2.1/32", true, false},
+		{"recent-rollback", "negative: a recent withdrawal is in cooldown", treatment.StatusRolledBack, 23 * time.Hour, "dc1", "192.0.2.1/32", true, false},
+		{"recent-retirement", "negative: a recent retirement is in cooldown", treatment.StatusRetired, 23 * time.Hour, "dc1", "192.0.2.1/32", true, false},
+		{"cooldown-boundary", "boundary: cooldown ends at exactly 24 hours", treatment.StatusRolledBack, 24 * time.Hour, "dc1", "192.0.2.1/32", false, false},
+		{"old-retirement", "boundary: an old retirement does not reserve the destination", treatment.StatusRetired, 25 * time.Hour, "dc1", "192.0.2.1/32", false, false},
+		{"other-location", "corner: reservation is location specific", treatment.StatusRunning, time.Hour, "dc2", "192.0.2.1/32", false, false},
+		{"other-destination", "corner: another destination consumes the budget only", treatment.StatusRunning, time.Hour, "dc1", "192.0.2.2/32", false, true},
+		{"covering-prefix", "corner: a /24 experiment does not reserve a /32 inside it", treatment.StatusRunning, time.Hour, "dc1", "192.0.2.0/24", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rp := open(t).Repos()
+			tr := fixtures.Treatment()
+			tr.Destination = netip.MustParsePrefix(tc.destination)
+			must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: "prior", Location: tc.location, Hypothesis: "h", Treatment: tr, Policy: treatment.DefaultPolicy(), Status: tc.status, Revision: 1, ProposedAt: now.Add(-tc.age), UpdatedAt: now.Add(-tc.age)}))
+			blocked, err := rp.Experiments.DestinationBlocked(ctx, "dc1", dst, now.Add(-24*time.Hour))
+			must(t, err)
+			active, err := rp.Experiments.HasActive(ctx, "dc1")
+			must(t, err)
+			if blocked != tc.expectBlocked || active != tc.expectActive {
+				t.Fatalf("%s: blocked=%t active=%t, expected %t/%t", tc.description, blocked, active, tc.expectBlocked, tc.expectActive)
+			}
+		})
+	}
+	t.Run("v6-destination", func(t *testing.T) {
+		t.Log("corner: a /128 destination is reserved by exact match")
+		rp := open(t).Repos()
+		tr := fixtures.Treatment()
+		tr.Destination = netip.MustParsePrefix("2001:db8::1/128")
+		must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: "v6", Location: "dc1", Hypothesis: "h", Treatment: tr, Policy: treatment.DefaultPolicy(), Status: treatment.StatusRunning, Revision: 1, ProposedAt: now, UpdatedAt: now}))
+		hit, err := rp.Experiments.DestinationBlocked(ctx, "dc1", tr.Destination, now)
+		must(t, err)
+		miss, err := rp.Experiments.DestinationBlocked(ctx, "dc1", netip.MustParsePrefix("2001:db8::2/128"), now)
+		must(t, err)
+		if !hit || miss {
+			t.Fatalf("expected exact /128 match only, got hit=%t miss=%t", hit, miss)
+		}
+	})
+}
+
+func evidence(t *testing.T, open Opener) {
+	ctx := context.Background()
+	base := func() *treatment.Evidence {
+		return &treatment.Evidence{ID: "ev-1", AnalyzedAt: now, WindowStart: now.Add(-time.Hour), WindowEnd: now, QueryVersion: "v1", EnrichmentVersion: "e1", ArtifactSHA256: strings.Repeat("b", 64), Hosts: []treatment.HostEvidence{{AgentID: "host-1", Sockets: 10, BytesAcked: 1 << 20, GoodputBps: 1e6, RetransmissionRatio: .001, RttP95Ms: 2.5, ExposedSockets: 9, CollectionHealthy: true}}}
+	}
+	for _, tc := range []struct {
+		name, description string
+		run               func(t *testing.T, v store.Evidence)
+	}{
+		{"roundtrip", "positive: every column and host row survives", func(t *testing.T, v store.Evidence) {
+			e := base()
+			must(t, v.Put(ctx, "exp", e))
+			got, err := v.Get(ctx, "ev-1")
+			must(t, err)
+			sameEvidence(t, "expected the stored evidence", got, e)
+		}},
+		{"idempotent", "positive: storing identical content again under the same owner is a no-op", func(t *testing.T, v store.Evidence) {
+			must(t, v.Put(ctx, "exp", base()))
+			must(t, v.Put(ctx, "exp", base()))
+		}},
+		{"content-conflict", "negative: the same ID with different content is rejected", func(t *testing.T, v store.Evidence) {
+			must(t, v.Put(ctx, "exp", base()))
+			e := base()
+			e.Hosts[0].GoodputBps++
+			if err := v.Put(ctx, "exp", e); !errors.Is(err, store.ErrEvidenceConflict) {
+				t.Fatalf("expected ErrEvidenceConflict, got %v", err)
+			}
+			got, err := v.Get(ctx, "ev-1")
+			must(t, err)
+			sameEvidence(t, "expected the original content to remain", got, base())
+		}},
+		{"owner-conflict", "negative: another experiment cannot adopt the evidence", func(t *testing.T, v store.Evidence) {
+			must(t, v.Put(ctx, "exp", base()))
+			if err := v.Put(ctx, "other", base()); !errors.Is(err, store.ErrEvidenceConflict) {
+				t.Fatalf("expected ErrEvidenceConflict, got %v", err)
+			}
+		}},
+		{"nanosecond-clock", "corner: evidence stamped with a nanosecond clock re-saves after a microsecond read back", func(t *testing.T, v store.Evidence) {
+			e := base()
+			e.AnalyzedAt = e.AnalyzedAt.Add(1500 * time.Nanosecond)
+			e.WindowEnd = e.WindowEnd.Add(999 * time.Nanosecond)
+			must(t, v.Put(ctx, "exp", e))
+			got, err := v.Get(ctx, "ev-1")
+			must(t, err)
+			must(t, v.Put(ctx, "exp", got))
+			must(t, v.Put(ctx, "exp", e))
+		}},
+		{"missing", "negative: unknown evidence is ErrNotFound", func(t *testing.T, v store.Evidence) {
+			if _, err := v.Get(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("expected ErrNotFound, got %v", err)
+			}
+		}},
+		{"no-hosts", "boundary: evidence with an empty population stores and reads back empty", func(t *testing.T, v store.Evidence) {
+			e := base()
+			e.Hosts = nil
+			must(t, v.Put(ctx, "exp", e))
+			got, err := v.Get(ctx, "ev-1")
+			must(t, err)
+			if len(got.Hosts) != 0 {
+				t.Fatalf("expected no hosts, got %d", len(got.Hosts))
+			}
+		}},
+		{"max-hosts", "boundary: MaxAgents host rows are stored in order in one call", func(t *testing.T, v store.Evidence) {
+			e := base()
+			e.Hosts = nil
+			for i := range treatment.MaxAgents {
+				e.Hosts = append(e.Hosts, treatment.HostEvidence{AgentID: fmt.Sprintf("host-%05d", i), Sockets: uint64(i), BytesAcked: 1 << 20, GoodputBps: float64(i), RttP95Ms: 1, CollectionHealthy: i%2 == 0})
+			}
+			must(t, v.Put(ctx, "exp", e))
+			got, err := v.Get(ctx, "ev-1")
+			must(t, err)
+			if len(got.Hosts) != treatment.MaxAgents {
+				t.Fatalf("expected %d hosts, got %d", treatment.MaxAgents, len(got.Hosts))
+			}
+			for i := range got.Hosts {
+				if got.Hosts[i] != e.Hosts[i] {
+					t.Fatalf("expected host %d to be %+v, got %+v", i, e.Hosts[i], got.Hosts[i])
+				}
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			tc.run(t, open(t).Repos().Evidence)
+		})
+	}
+}
+
+func holds(t *testing.T, open Opener) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, description string
+		set, clear, ask   []string
+		expected          bool
+	}{
+		{"fleet", "positive: a fleet hold answers any scope list containing it", []string{"fleet"}, nil, []string{"fleet", "location:dc1", "agent:h"}, true},
+		{"narrower", "positive: an agent hold is seen when asked for that agent", []string{"agent:h"}, nil, []string{"fleet", "location:dc1", "agent:h"}, true},
+		{"cleared", "negative: a cleared hold no longer answers", []string{"fleet"}, []string{"fleet"}, []string{"fleet"}, false},
+		{"other-scope", "negative: holds on other scopes do not answer", []string{"location:dc2"}, nil, []string{"fleet", "location:dc1"}, false},
+		{"no-scopes", "boundary: asking for no scopes is never held", []string{"fleet"}, nil, nil, false},
+		{"clear-missing", "corner: clearing an absent scope is not an error and leaves others set", []string{"fleet"}, []string{"agent:ghost"}, []string{"fleet"}, true},
+		{"reset-reason", "corner: setting a held scope again keeps it held", []string{"fleet", "fleet"}, nil, []string{"fleet"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			h := open(t).Repos().Holds
+			for _, s := range tc.set {
+				must(t, h.Set(ctx, s, "reason "+s))
+			}
+			for _, s := range tc.clear {
+				must(t, h.Clear(ctx, s))
+			}
+			got, err := h.Held(ctx, tc.ask...)
+			must(t, err)
+			if got != tc.expected {
+				t.Fatalf("expected held=%t, got %t", tc.expected, got)
+			}
+		})
+	}
+}
+
+func audit(t *testing.T, open Opener) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, description string
+		run               func(t *testing.T, a store.Audit)
+	}{
+		{"append-lookup", "positive: an event is found by request ID with its payload intact", func(t *testing.T, a store.Audit) {
+			must(t, a.Append(ctx, "operator/alice", "req-1", "review", []byte(`{"approve":true}`)))
+			got, err := a.Lookup(ctx, "req-1")
+			must(t, err)
+			if got.Actor != "operator/alice" || got.Kind != "review" || got.RequestID != "req-1" || got.Sequence < 1 || got.OccurredAt.IsZero() || !strings.Contains(string(got.Payload), `"approve"`) {
+				t.Fatalf("expected the appended event, got %+v", got)
+			}
+		}},
+		{"duplicate-request", "negative: a request ID can be appended once", func(t *testing.T, a store.Audit) {
+			must(t, a.Append(ctx, "x", "req-1", "review", []byte(`{}`)))
+			if err := a.Append(ctx, "x", "req-1", "control", []byte(`{}`)); !errors.Is(err, store.ErrExists) {
+				t.Fatalf("expected ErrExists, got %v", err)
+			}
+			n, err := a.Count(ctx)
+			must(t, err)
+			if n != 1 {
+				t.Fatalf("expected one event, got %d", n)
+			}
+		}},
+		{"anonymous-events", "boundary: events without a request ID never collide", func(t *testing.T, a store.Audit) {
+			must(t, a.Append(ctx, "maintenance", "", "renew", []byte(`{}`)))
+			must(t, a.Append(ctx, "maintenance", "", "renew", []byte(`{}`)))
+			n, err := a.Count(ctx)
+			must(t, err)
+			if n != 2 {
+				t.Fatalf("expected two events, got %d", n)
+			}
+			if _, err := a.Lookup(ctx, ""); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("expected ErrNotFound for the empty request ID, got %v", err)
+			}
+		}},
+		{"missing", "negative: an unknown request ID is ErrNotFound", func(t *testing.T, a store.Audit) {
+			if _, err := a.Lookup(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
+				t.Fatalf("expected ErrNotFound, got %v", err)
+			}
+		}},
+		{"monotonic", "corner: sequence numbers increase in append order", func(t *testing.T, a store.Audit) {
+			var last int64
+			for i := range 5 {
+				id := fmt.Sprintf("req-%d", i)
+				must(t, a.Append(ctx, "x", id, "k", []byte(`{}`)))
+				got, err := a.Lookup(ctx, id)
+				must(t, err)
+				if got.Sequence <= last {
+					t.Fatalf("expected sequence above %d, got %d", last, got.Sequence)
+				}
+				last = got.Sequence
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			tc.run(t, open(t).Repos().Audit)
+		})
+	}
+}
+
+func tx(t *testing.T, open Opener) {
+	ctx := context.Background()
+	t.Run("commit", func(t *testing.T) {
+		t.Log("positive: writes inside a successful Tx are visible afterwards")
+		s := open(t)
+		must(t, s.Tx(ctx, func(rp store.Repos) error {
+			if err := rp.Holds.Set(ctx, "fleet", "incident"); err != nil {
+				return err
+			}
+			return rp.Agents.Enroll(ctx, "host-1", "dc1", fixtures.Desired(now))
+		}))
+		held, err := s.Repos().Holds.Held(ctx, "fleet")
+		must(t, err)
+		if _, err := s.Repos().Agents.Get(ctx, "host-1"); err != nil || !held {
+			t.Fatalf("expected committed hold and agent, got held=%t err=%v", held, err)
+		}
+	})
+	t.Run("rollback", func(t *testing.T) {
+		t.Log("negative: a failing Tx leaves no trace of its writes")
+		s := open(t)
+		boom := errors.New("boom")
+		err := s.Tx(ctx, func(rp store.Repos) error {
+			if err := rp.Holds.Set(ctx, "fleet", "incident"); err != nil {
+				return err
+			}
+			if err := rp.Audit.Append(ctx, "x", "req-1", "k", []byte(`{}`)); err != nil {
+				return err
+			}
+			return boom
+		})
+		if !errors.Is(err, boom) {
+			t.Fatalf("expected the callback error, got %v", err)
+		}
+		held, err := s.Repos().Holds.Held(ctx, "fleet")
+		must(t, err)
+		n, err := s.Repos().Audit.Count(ctx)
+		must(t, err)
+		if held || n != 0 {
+			t.Fatalf("expected nothing persisted, got held=%t events=%d", held, n)
+		}
+	})
+	t.Run("read-your-writes", func(t *testing.T) {
+		t.Log("positive: a Tx sees its own uncommitted writes")
+		s := open(t)
+		must(t, s.Tx(ctx, func(rp store.Repos) error {
+			if err := rp.Experiments.Save(ctx, populated()); err != nil {
+				return err
+			}
+			got, err := rp.Experiments.Get(ctx, "exp")
+			if err != nil {
+				return err
+			}
+			if got.Revision != 2 {
+				return fmt.Errorf("expected revision 2 inside the transaction, got %d", got.Revision)
+			}
+			return nil
+		}))
+	})
+	t.Run("cancelled-context", func(t *testing.T) {
+		t.Log("boundary: a cancelled context fails the Tx and persists nothing")
+		s := open(t)
+		cancelled, cancel := context.WithCancel(ctx)
+		cancel()
+		if err := s.Tx(cancelled, func(rp store.Repos) error { return rp.Holds.Set(ctx, "fleet", "x") }); err == nil {
+			t.Fatal("expected an error from a cancelled context")
+		}
+		held, err := s.Repos().Holds.Held(ctx, "fleet")
+		must(t, err)
+		if held {
+			t.Fatal("expected no hold after a cancelled transaction")
+		}
+	})
+	t.Run("serialises", func(t *testing.T) {
+		t.Log("corner: two concurrent Tx calls run one after the other, both commit, sequences stay monotonic")
+		s := open(t)
+		entered := make(chan struct{})
+		var mu sync.Mutex
+		var order []string
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			must(t, s.Tx(ctx, func(rp store.Repos) error {
+				close(entered)
+				mu.Lock()
+				order = append(order, "first-start")
+				mu.Unlock()
+				time.Sleep(200 * time.Millisecond)
+				mu.Lock()
+				order = append(order, "first-end")
+				mu.Unlock()
+				return rp.Audit.Append(ctx, "x", "first", "k", []byte(`{}`))
+			}))
+		}()
+		go func() {
+			defer wg.Done()
+			<-entered
+			must(t, s.Tx(ctx, func(rp store.Repos) error {
+				mu.Lock()
+				order = append(order, "second-start")
+				mu.Unlock()
+				return rp.Audit.Append(ctx, "x", "second", "k", []byte(`{}`))
+			}))
+		}()
+		wg.Wait()
+		if !slices.Equal(order, []string{"first-start", "first-end", "second-start"}) {
+			t.Fatalf("expected the second transaction to wait for the first, got %v", order)
+		}
+		first, err := s.Repos().Audit.Lookup(ctx, "first")
+		must(t, err)
+		second, err := s.Repos().Audit.Lookup(ctx, "second")
+		must(t, err)
+		if first.Sequence >= second.Sequence {
+			t.Fatalf("expected sequence %d < %d", first.Sequence, second.Sequence)
+		}
+	})
+}
+
+func metrics(t *testing.T, open Opener) {
+	ctx := context.Background()
+	t.Run("empty", func(t *testing.T) {
+		t.Log("boundary: an empty store reports every gauge as zero")
+		got, err := open(t).Repos().Metrics.Snapshot(ctx, now)
+		must(t, err)
+		for _, k := range []string{"agents", "agents_connected", "agents_suspended", "assignments", "routes_verified", "routes_failed", "routes_expired", "experiments_pending", "experiments_running", "experiments_complete", "audit_events"} {
+			v, ok := got[k]
+			if !ok || v != 0 {
+				t.Fatalf("expected %s=0, got %v (present=%t)", k, v, ok)
+			}
+		}
+	})
+	t.Run("populated", func(t *testing.T) {
+		t.Log("positive: gauges reflect agents, records, experiments and events")
+		s := open(t)
+		rp := s.Repos()
+		must(t, rp.Agents.Enroll(ctx, "host-1", "dc1", fixtures.Desired(now)))
+		must(t, rp.Agents.Observe(ctx, report("host-1", "dc1"), now.Add(-time.Minute)))
+		must(t, rp.Agents.Enroll(ctx, "host-2", "dc1", &treatment.DesiredState{AgentID: "host-2", Revision: 1, Suspended: true, IssuedAt: now}))
+		must(t, rp.Agents.Enroll(ctx, "host-3", "dc1", &treatment.DesiredState{AgentID: "host-3", Revision: 1, IssuedAt: now}))
+		must(t, rp.Agents.Observe(ctx, &treatment.AgentReport{AgentID: "host-3", Location: "dc1", Capabilities: treatment.Capabilities{BootID: "b"}, Records: []treatment.ApplicationRecord{{Assignment: fixtures.Desired(now).Assignments[0], Status: treatment.ApplyExpired, ExpiredLatched: true}}}, now.Add(-10*time.Minute)))
+		for id, st := range map[string]treatment.Status{"p": treatment.StatusProposed, "r": treatment.StatusRunning, "c": treatment.StatusComplete, "x": treatment.StatusRetired} {
+			must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: id, Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: st, Revision: 1, ProposedAt: now, UpdatedAt: now}))
+		}
+		must(t, rp.Audit.Append(ctx, "x", "", "k", []byte(`{}`)))
+		got, err := rp.Metrics.Snapshot(ctx, now)
+		must(t, err)
+		expected := map[string]float64{"agents": 3, "agents_connected": 1, "agents_suspended": 2, "assignments": 1, "routes_verified": 1, "routes_failed": 1, "routes_expired": 1, "experiments_pending": 1, "experiments_running": 1, "experiments_complete": 1, "audit_events": 1}
+		for k, v := range expected {
+			if got[k] != v {
+				t.Errorf("expected %s=%g, got %g", k, v, got[k])
+			}
+		}
+	})
+}
+
+func must(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}

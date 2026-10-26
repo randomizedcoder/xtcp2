@@ -54,7 +54,7 @@ func TestFailedWithdrawalDisablesOwnedLookup(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
 	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	if _, e := r.Run(context.Background(), fixtures.Desired(now), ModeFull); e != nil {
+	if _, e := r.Run(context.Background(), fixtures.DesiredWire(now), ModeFull); e != nil {
 		t.Fatal(e)
 	}
 	if !b.enabled {
@@ -81,7 +81,7 @@ func TestStableRouteSurvivesOfflineReboot(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
 	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	d := fixtures.Desired(now)
+	d := fixtures.DesiredWire(now)
 	d.Assignments[0].Mode = pb.AssignmentMode_ASSIGNMENT_MODE_STABLE
 	d.Assignments[0].LeaseExpiresAt = nil
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
@@ -110,7 +110,7 @@ func TestJournalIntentPrecedesKernelAndCrashRecovery(t *testing.T) {
 			t.Fatal("intent not durable before install", e)
 		}
 	}
-	s, e := r.Run(context.Background(), fixtures.Desired(now), ModeFull)
+	s, e := r.Run(context.Background(), fixtures.DesiredWire(now), ModeFull)
 	if e == nil || s.Records[0].Status != pb.ApplyStatus_APPLY_STATUS_FAILED {
 		t.Fatal("must report readback failure", s, e)
 	}
@@ -128,7 +128,7 @@ func TestTrialExpiryCannotBeResurrectedByRenewalOrRestart(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
 	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	d := fixtures.Desired(now)
+	d := fixtures.DesiredWire(now)
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
 	}
@@ -159,7 +159,7 @@ func TestPersistentHoldAndTombstones(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
 	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1"}
-	d := fixtures.Desired(now)
+	d := fixtures.DesiredWire(now)
 	d.Assignments[0].Mode = pb.AssignmentMode_ASSIGNMENT_MODE_STABLE
 	if _, e := r.Run(context.Background(), d, ModeFull); e != nil {
 		t.Fatal(e)
@@ -207,7 +207,7 @@ func TestCorruptJournalDoesNotInstall(t *testing.T) {
 	}
 	b := &fakeBackend{routes: map[string]bool{}}
 	r := &Reconciler{Journal: Journal{Dir: dir}, Backend: b, AgentID: "host-1"}
-	if _, e := r.Run(context.Background(), fixtures.Desired(time.Now()), ModeFull); e == nil {
+	if _, e := r.Run(context.Background(), fixtures.DesiredWire(time.Now()), ModeFull); e == nil {
 		t.Fatal("corrupt journal overwritten")
 	}
 	if b.installs != 0 {
@@ -219,7 +219,7 @@ func TestPredecessorExpiryAndGenerationRejectionPreserveJournal(t *testing.T) {
 	now := time.Now()
 	b := &fakeBackend{routes: map[string]bool{}}
 	r := &Reconciler{Journal: Journal{Dir: t.TempDir()}, Backend: b, AgentID: "host-1", BootID: "boot-1", Now: func() time.Time { return now }}
-	d := fixtures.Desired(now)
+	d := fixtures.DesiredWire(now)
 	a := d.Assignments[0]
 	a.ExperimentId = "state"
 	a.Generation = 2
