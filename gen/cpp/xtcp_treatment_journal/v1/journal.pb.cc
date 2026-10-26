@@ -1067,11 +1067,11 @@ constexpr Journal::ParseTableT_ Journal::InternalGenerateParseTable_(const ::_pb
     {
       PROTOBUF_FIELD_OFFSET(Journal, _impl_._has_bits_),
       0, // no _extensions_
-      8, 56,  // max_field_number, fast_idx_mask
+      9, 120,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967040,  // skipmap
+      4294966784,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      8,  // num_field_entries
+      9,  // num_field_entries
       3,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
@@ -1081,10 +1081,7 @@ constexpr Journal::ParseTableT_ Journal::InternalGenerateParseTable_(const ::_pb
       ::_pbi::TcParser::GetTable<::xtcp_treatment_journal::v1::Journal>(),  // to_prefetch
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
-      // .google.protobuf.Timestamp updated_at = 8 [json_name = "updatedAt"];
-      {::_pbi::TcParser::FastMtS1,
-       {66, 6, 2,
-        PROTOBUF_FIELD_OFFSET(Journal, _impl_.updated_at_)}},
+      {::_pbi::TcParser::MiniParse, {}},
       // string agent_id = 1 [json_name = "agentId"];
       {::_pbi::TcParser::FastUS1,
        {10, 1, 0,
@@ -1099,11 +1096,11 @@ constexpr Journal::ParseTableT_ Journal::InternalGenerateParseTable_(const ::_pb
         PROTOBUF_FIELD_OFFSET(Journal, _impl_.boot_id_)}},
       // .xtcp_treatment_journal.v1.Desired desired = 4 [json_name = "desired"];
       {::_pbi::TcParser::FastMtS1,
-       {34, 5, 0,
+       {34, 6, 0,
         PROTOBUF_FIELD_OFFSET(Journal, _impl_.desired_)}},
       // bool locally_suspended = 5 [json_name = "locallySuspended"];
-      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(Journal, _impl_.locally_suspended_), 7>(),
-       {40, 7, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(Journal, _impl_.locally_suspended_), 8>(),
+       {40, 8, 0,
         PROTOBUF_FIELD_OFFSET(Journal, _impl_.locally_suspended_)}},
       // string suspension_reason = 6 [json_name = "suspensionReason"];
       {::_pbi::TcParser::FastUS1,
@@ -1113,6 +1110,20 @@ constexpr Journal::ParseTableT_ Journal::InternalGenerateParseTable_(const ::_pb
       {::_pbi::TcParser::FastMtR1,
        {58, 0, 1,
         PROTOBUF_FIELD_OFFSET(Journal, _impl_.records_)}},
+      // .google.protobuf.Timestamp updated_at = 8 [json_name = "updatedAt"];
+      {::_pbi::TcParser::FastMtS1,
+       {66, 7, 2,
+        PROTOBUF_FIELD_OFFSET(Journal, _impl_.updated_at_)}},
+      // string collection_id = 9 [json_name = "collectionId"];
+      {::_pbi::TcParser::FastUS1,
+       {74, 5, 0,
+        PROTOBUF_FIELD_OFFSET(Journal, _impl_.collection_id_)}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
     }}, {{
       65535, 65535
     }}, {{
@@ -1123,15 +1134,17 @@ constexpr Journal::ParseTableT_ Journal::InternalGenerateParseTable_(const ::_pb
       // string boot_id = 3 [json_name = "bootId"];
       {PROTOBUF_FIELD_OFFSET(Journal, _impl_.boot_id_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // .xtcp_treatment_journal.v1.Desired desired = 4 [json_name = "desired"];
-      {PROTOBUF_FIELD_OFFSET(Journal, _impl_.desired_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Journal, _impl_.desired_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // bool locally_suspended = 5 [json_name = "locallySuspended"];
-      {PROTOBUF_FIELD_OFFSET(Journal, _impl_.locally_suspended_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(Journal, _impl_.locally_suspended_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string suspension_reason = 6 [json_name = "suspensionReason"];
       {PROTOBUF_FIELD_OFFSET(Journal, _impl_.suspension_reason_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // repeated .xtcp_treatment_journal.v1.Record records = 7 [json_name = "records"];
       {PROTOBUF_FIELD_OFFSET(Journal, _impl_.records_), _Internal::kHasBitsOffset + 0, 1, (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
       // .google.protobuf.Timestamp updated_at = 8 [json_name = "updatedAt"];
-      {PROTOBUF_FIELD_OFFSET(Journal, _impl_.updated_at_), _Internal::kHasBitsOffset + 6, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      {PROTOBUF_FIELD_OFFSET(Journal, _impl_.updated_at_), _Internal::kHasBitsOffset + 7, 2, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // string collection_id = 9 [json_name = "collectionId"];
+      {PROTOBUF_FIELD_OFFSET(Journal, _impl_.collection_id_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     }},
     {{
         #ifndef PROTOBUF_MESSAGE_GLOBALS
@@ -1151,12 +1164,13 @@ constexpr Journal::ParseTableT_ Journal::InternalGenerateParseTable_(const ::_pb
         #endif
     }},
     {{
-      "\41\10\10\7\0\0\21\0\0\0\0\0\0\0\0\0"
+      "\41\10\10\7\0\0\21\0\0\15\0\0\0\0\0\0"
       "xtcp_treatment_journal.v1.Journal"
       "agent_id"
       "location"
       "boot_id"
       "suspension_reason"
+      "collection_id"
     }},
   };
 }
@@ -1180,6 +1194,9 @@ inline constexpr Journal::Impl_::Impl_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         suspension_reason_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        collection_id_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         desired_{nullptr},
@@ -1372,7 +1389,7 @@ const ::uint32_t
         11,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_._has_bits_),
-        11, // hasbit index offset
+        12, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_.agent_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_.location_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_.boot_id_),
@@ -1381,14 +1398,16 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_.suspension_reason_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_.records_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_.updated_at_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_treatment_journal::v1::Journal, _impl_.collection_id_),
         1,
         2,
         3,
-        5,
-        7,
+        6,
+        8,
         4,
         0,
-        6,
+        7,
+        5,
 };
 
 static const ::_pbi::MigrationSchema
@@ -1459,7 +1478,7 @@ const char descriptor_table_protodef_xtcp_5ftreatment_5fjournal_2fv1_2fjournal_2
     "\022\024\n\005error\030\t \001(\tR\005error\022\'\n\017installed_rout"
     "e\030\n \001(\014R\016installedRoute\022*\n\021installed_boo"
     "t_id\030\013 \001(\tR\017installedBootId\022\'\n\017expired_l"
-    "atched\030\014 \001(\010R\016expiredLatched\"\351\002\n\007Journal"
+    "atched\030\014 \001(\010R\016expiredLatched\"\216\003\n\007Journal"
     "\022\031\n\010agent_id\030\001 \001(\tR\007agentId\022\032\n\010location\030"
     "\002 \001(\tR\010location\022\027\n\007boot_id\030\003 \001(\tR\006bootId"
     "\022<\n\007desired\030\004 \001(\0132\".xtcp_treatment_journ"
@@ -1468,22 +1487,23 @@ const char descriptor_table_protodef_xtcp_5ftreatment_5fjournal_2fv1_2fjournal_2
     "n_reason\030\006 \001(\tR\020suspensionReason\022;\n\007reco"
     "rds\030\007 \003(\0132!.xtcp_treatment_journal.v1.Re"
     "cordR\007records\0229\n\nupdated_at\030\010 \001(\0132\032.goog"
-    "le.protobuf.TimestampR\tupdatedAt*\244\001\n\016Ass"
-    "ignmentMode\022\037\n\033ASSIGNMENT_MODE_UNSPECIFI"
-    "ED\020\000\022\031\n\025ASSIGNMENT_MODE_TRIAL\020\001\022\032\n\026ASSIG"
-    "NMENT_MODE_STABLE\020\002\022\035\n\031ASSIGNMENT_MODE_S"
-    "USPENDED\020\003\022\033\n\027ASSIGNMENT_MODE_RETIRED\020\004*"
-    "\255\001\n\013ApplyStatus\022\034\n\030APPLY_STATUS_UNSPECIF"
-    "IED\020\000\022\030\n\024APPLY_STATUS_PENDING\020\001\022\031\n\025APPLY"
-    "_STATUS_VERIFIED\020\002\022\030\n\024APPLY_STATUS_REMOV"
-    "ED\020\003\022\030\n\024APPLY_STATUS_EXPIRED\020\004\022\027\n\023APPLY_"
-    "STATUS_FAILED\020\005B\352\001\n\035com.xtcp_treatment_j"
-    "ournal.v1B\014JournalProtoP\001Z>github.com/ra"
-    "ndomizedcoder/xtcp2/gen/go/xtcp_treatmen"
-    "t_journal\242\002\003XXX\252\002\027XtcpTreatmentJournal.V"
-    "1\312\002\027XtcpTreatmentJournal\\V1\342\002#XtcpTreatm"
-    "entJournal\\V1\\GPBMetadata\352\002\030XtcpTreatmen"
-    "tJournal::V1b\006proto3"
+    "le.protobuf.TimestampR\tupdatedAt\022#\n\rcoll"
+    "ection_id\030\t \001(\tR\014collectionId*\244\001\n\016Assign"
+    "mentMode\022\037\n\033ASSIGNMENT_MODE_UNSPECIFIED\020"
+    "\000\022\031\n\025ASSIGNMENT_MODE_TRIAL\020\001\022\032\n\026ASSIGNME"
+    "NT_MODE_STABLE\020\002\022\035\n\031ASSIGNMENT_MODE_SUSP"
+    "ENDED\020\003\022\033\n\027ASSIGNMENT_MODE_RETIRED\020\004*\255\001\n"
+    "\013ApplyStatus\022\034\n\030APPLY_STATUS_UNSPECIFIED"
+    "\020\000\022\030\n\024APPLY_STATUS_PENDING\020\001\022\031\n\025APPLY_ST"
+    "ATUS_VERIFIED\020\002\022\030\n\024APPLY_STATUS_REMOVED\020"
+    "\003\022\030\n\024APPLY_STATUS_EXPIRED\020\004\022\027\n\023APPLY_STA"
+    "TUS_FAILED\020\005B\352\001\n\035com.xtcp_treatment_jour"
+    "nal.v1B\014JournalProtoP\001Z>github.com/rando"
+    "mizedcoder/xtcp2/gen/go/xtcp_treatment_j"
+    "ournal\242\002\003XXX\252\002\027XtcpTreatmentJournal.V1\312\002"
+    "\027XtcpTreatmentJournal\\V1\342\002#XtcpTreatment"
+    "Journal\\V1\\GPBMetadata\352\002\030XtcpTreatmentJo"
+    "urnal::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5ftreatment_5fjournal_2fv1_2fjournal_2eproto_deps[1] = {
@@ -1493,7 +1513,7 @@ static ::absl::once_flag descriptor_table_xtcp_5ftreatment_5fjournal_2fv1_2fjour
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5ftreatment_5fjournal_2fv1_2fjournal_2eproto = {
     false,
     false,
-    2900,
+    2937,
     descriptor_table_protodef_xtcp_5ftreatment_5fjournal_2fv1_2fjournal_2eproto,
     "xtcp_treatment_journal/v1/journal.proto",
     &descriptor_table_xtcp_5ftreatment_5fjournal_2fv1_2fjournal_2eproto_once,
@@ -3444,7 +3464,7 @@ void Record::InternalSwap(Record* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
 void Journal::clear_updated_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.updated_at_ != nullptr) _impl_.updated_at_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
 }
 Journal::Journal(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
@@ -3470,7 +3490,8 @@ PROTOBUF_NDEBUG_INLINE Journal::Impl_::Impl_(
         agent_id_(arena, from.agent_id_),
         location_(arena, from.location_),
         boot_id_(arena, from.boot_id_),
-        suspension_reason_(arena, from.suspension_reason_) {}
+        suspension_reason_(arena, from.suspension_reason_),
+        collection_id_(arena, from.collection_id_) {}
 
 Journal::Journal(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -3487,10 +3508,10 @@ Journal::Journal(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::uint32_t cached_has_bits = _impl_._has_bits_[0];
-  _impl_.desired_ = (CheckHasBit(cached_has_bits, 0x00000020U))
+  _impl_.desired_ = (CheckHasBit(cached_has_bits, 0x00000040U))
                  ? Super_::CopyConstruct(arena, *from._impl_.desired_)
                  : nullptr;
-  _impl_.updated_at_ = (CheckHasBit(cached_has_bits, 0x00000040U))
+  _impl_.updated_at_ = (CheckHasBit(cached_has_bits, 0x00000080U))
                  ? Super_::CopyConstruct(arena, *from._impl_.updated_at_)
                  : nullptr;
   _impl_.locally_suspended_ = from._impl_.locally_suspended_;
@@ -3508,7 +3529,8 @@ PROTOBUF_NDEBUG_INLINE Journal::Impl_::Impl_(
         agent_id_(arena),
         location_(arena),
         boot_id_(arena),
-        suspension_reason_(arena) {}
+        suspension_reason_(arena),
+        collection_id_(arena) {}
 
 inline void Journal::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -3534,6 +3556,7 @@ inline void Journal::SharedDtor(MessageLite& self) {
   this_._impl_.location_.Destroy();
   this_._impl_.boot_id_.Destroy();
   this_._impl_.suspension_reason_.Destroy();
+  this_._impl_.collection_id_.Destroy();
   delete this_._impl_.desired_;
   delete this_._impl_.updated_at_;
   this_._impl_.~Impl_();
@@ -3572,7 +3595,7 @@ PROTOBUF_NOINLINE void Journal::Clear() {
   ::uint32_t cached_has_bits [[maybe_unused]] = 0;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000007fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       _impl_.records_.Clear();
     }
@@ -3589,10 +3612,13 @@ PROTOBUF_NOINLINE void Journal::Clear() {
       this_._impl_.suspension_reason_.ClearNonDefaultToEmpty();
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      this_._impl_.collection_id_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       ABSL_DCHECK(this_._impl_.desired_ != nullptr);
       this_._impl_.desired_->Clear();
     }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       ABSL_DCHECK(this_._impl_.updated_at_ != nullptr);
       this_._impl_.updated_at_->Clear();
     }
@@ -3652,14 +3678,14 @@ PROTOBUF_NOINLINE void Journal::Clear() {
   }
 
   // .xtcp_treatment_journal.v1.Desired desired = 4 [json_name = "desired"];
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         4, *this_._impl_.desired_, this_._impl_.desired_->GetCachedSize(), target,
         stream);
   }
 
   // bool locally_suspended = 5 [json_name = "locallySuspended"];
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
     if (this_._internal_locally_suspended() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -3690,10 +3716,20 @@ PROTOBUF_NOINLINE void Journal::Clear() {
   }
 
   // .google.protobuf.Timestamp updated_at = 8 [json_name = "updatedAt"];
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         8, *this_._impl_.updated_at_, this_._impl_.updated_at_->GetCachedSize(), target,
         stream);
+  }
+
+  // string collection_id = 9 [json_name = "collectionId"];
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (!this_._internal_collection_id().empty()) {
+      const ::std::string& _s = this_._internal_collection_id();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_treatment_journal.v1.Journal.collection_id");
+      target = stream->WriteStringMaybeAliased(9, _s, target);
+    }
   }
 
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
@@ -3755,18 +3791,27 @@ PROTOBUF_NOINLINE void Journal::Clear() {
                                         this_._internal_suspension_reason());
       }
     }
-    // .xtcp_treatment_journal.v1.Desired desired = 4 [json_name = "desired"];
+    // string collection_id = 9 [json_name = "collectionId"];
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!this_._internal_collection_id().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_collection_id());
+      }
+    }
+    // .xtcp_treatment_journal.v1.Desired desired = 4 [json_name = "desired"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.desired_);
     }
     // .google.protobuf.Timestamp updated_at = 8 [json_name = "updatedAt"];
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.updated_at_);
     }
+  }
+   {
     // bool locally_suspended = 5 [json_name = "locallySuspended"];
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_locally_suspended() != 0) {
         total_size += 2;
       }
@@ -3833,6 +3878,15 @@ void Journal::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (!from._internal_collection_id().empty()) {
+        _this->_internal_set_collection_id(from._internal_collection_id());
+      } else {
+        if (_this->_impl_.collection_id_.IsDefault()) {
+          _this->_internal_set_collection_id("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       ABSL_DCHECK(from._impl_.desired_ != nullptr);
       if (_this->_impl_.desired_ == nullptr) {
         _this->_impl_.desired_ = Super_::CopyConstruct(arena, *from._impl_.desired_);
@@ -3840,7 +3894,7 @@ void Journal::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.desired_->MergeFrom(*from._impl_.desired_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       ABSL_DCHECK(from._impl_.updated_at_ != nullptr);
       if (_this->_impl_.updated_at_ == nullptr) {
         _this->_impl_.updated_at_ = Super_::CopyConstruct(arena, *from._impl_.updated_at_);
@@ -3848,10 +3902,10 @@ void Journal::MergeImpl(::google::protobuf::MessageLite& to_msg,
         _this->_impl_.updated_at_->MergeFrom(*from._impl_.updated_at_);
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (from._internal_locally_suspended() != 0) {
-        _this->_impl_.locally_suspended_ = from._impl_.locally_suspended_;
-      }
+  }
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (from._internal_locally_suspended() != 0) {
+      _this->_impl_.locally_suspended_ = from._impl_.locally_suspended_;
     }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;
@@ -3878,6 +3932,7 @@ void Journal::InternalSwap(Journal* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.location_, &other->_impl_.location_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.boot_id_, &other->_impl_.boot_id_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.suspension_reason_, &other->_impl_.suspension_reason_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.collection_id_, &other->_impl_.collection_id_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(Journal, _impl_.locally_suspended_)
       + sizeof(Journal::_impl_.locally_suspended_)

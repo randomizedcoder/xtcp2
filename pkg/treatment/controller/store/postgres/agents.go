@@ -35,8 +35,8 @@ func (a *agents) Get(ctx context.Context, id string) (*store.Agent, error) {
 	out := &store.Agent{ID: id}
 	var seen sql.NullTime
 	var reported int64
-	err := q.QueryRowContext(ctx, `SELECT location,enrolled_at,last_seen,boot_id,kernel_release,simple_host_routing,actuator_enabled,locally_suspended,reported_revision
- FROM xtcp_treatment_agents WHERE id=$1`, id).Scan(&out.Location, &out.EnrolledAt, &seen, &out.Report.Capabilities.BootID, &out.Report.Capabilities.KernelRelease, &out.Report.Capabilities.SimpleHostRouting, &out.Report.Capabilities.ActuatorEnabled, &out.Report.LocallySuspended, &reported)
+	err := q.QueryRowContext(ctx, `SELECT location,enrolled_at,last_seen,boot_id,collection_id,kernel_release,simple_host_routing,actuator_enabled,locally_suspended,reported_revision
+ FROM xtcp_treatment_agents WHERE id=$1`, id).Scan(&out.Location, &out.EnrolledAt, &seen, &out.Report.Capabilities.BootID, &out.Report.Capabilities.CollectionID, &out.Report.Capabilities.KernelRelease, &out.Report.Capabilities.SimpleHostRouting, &out.Report.Capabilities.ActuatorEnabled, &out.Report.LocallySuspended, &reported)
 	if err != nil {
 		return nil, notFound(err)
 	}
@@ -77,10 +77,11 @@ func (a *agents) Get(ctx context.Context, id string) (*store.Agent, error) {
 	return out, nil
 }
 
-// Observe always stamps the heartbeat columns on the agents row. The
-// algorithm and record rows are rewritten only when their digest differs
-// from the one stored with the previous report, so a steady fleet costs one
-// single-row update per check-in.
+// Observe always stamps the heartbeat columns on the agents row and records
+// the reported session. The algorithm and record rows are rewritten only
+// when their digest differs from the one stored with the previous report,
+// and a known session's last_seen only every SessionRefresh, so a steady
+// fleet costs one single-row update and one no-op upsert per check-in.
 func (a *agents) Observe(ctx context.Context, report *treatment.AgentReport, seen time.Time) error {
 	digest := reportDigest(report)
 	return a.atomic(ctx, func(q querier) error {
@@ -89,15 +90,18 @@ func (a *agents) Observe(ctx context.Context, report *treatment.AgentReport, see
 		// The subquery's report_digest is the value before this update.
 		err := q.QueryRowContext(ctx, `UPDATE xtcp_treatment_agents AS a
  SET last_seen=$3,boot_id=$4,kernel_release=$5,simple_host_routing=$6,actuator_enabled=$7,
-     locally_suspended=$8,reported_revision=$9,report_digest=$10
+     locally_suspended=$8,reported_revision=$9,report_digest=$10,collection_id=$11
  FROM (SELECT id,report_digest FROM xtcp_treatment_agents WHERE id=$1 AND location=$2 FOR UPDATE) AS o
  WHERE a.id=o.id RETURNING o.report_digest`,
 			report.AgentID, report.Location, seen, c.BootID, c.KernelRelease, c.SimpleHostRouting, c.ActuatorEnabled,
-			report.LocallySuspended, int64(report.DesiredRevision), digest).Scan(&previous)
+			report.LocallySuspended, int64(report.DesiredRevision), digest, c.CollectionID).Scan(&previous)
 		if errors.Is(err, sql.ErrNoRows) {
 			return store.ErrNotEnrolled
 		}
 		if err != nil {
+			return err
+		}
+		if _, err = q.ExecContext(ctx, upsertSessionSQL, report.AgentID, c.BootID, c.CollectionID, seen, store.SessionRefresh.Seconds()); err != nil {
 			return err
 		}
 		if previous == digest {
@@ -238,4 +242,38 @@ func (a *agents) DesiredSince(ctx context.Context, since time.Time) ([]store.Des
 		out = append(out, r)
 	}
 	return out, errors.Join(rows.Err(), rows.Close())
+}
+
+// upsertSessionSQL records a session, refreshing last_seen only when it is
+// at least SessionRefresh old so heartbeats do not rewrite the row.
+const upsertSessionSQL = `INSERT INTO xtcp_treatment_agent_sessions(agent_id,boot_id,collection_id,first_seen,last_seen)
+ VALUES($1,$2,$3,$4,$4) ON CONFLICT(agent_id,boot_id,collection_id) DO UPDATE SET last_seen=EXCLUDED.last_seen
+ WHERE xtcp_treatment_agent_sessions.last_seen <= EXCLUDED.last_seen - make_interval(secs => $5)`
+
+func (a *agents) Sessions(ctx context.Context, ids []string, from, to time.Time) ([]treatment.Session, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	rows, err := a.q().QueryContext(ctx, `SELECT agent_id,boot_id,collection_id,first_seen,last_seen FROM xtcp_treatment_agent_sessions
+ WHERE agent_id = ANY($1) AND last_seen >= $2 AND first_seen <= $3 ORDER BY agent_id,first_seen,boot_id,collection_id`, ids, from, to)
+	if err != nil {
+		return nil, err
+	}
+	var out []treatment.Session
+	for rows.Next() {
+		var s treatment.Session
+		if err = rows.Scan(&s.AgentID, &s.BootID, &s.CollectionID, &s.FirstSeen, &s.LastSeen); err != nil {
+			return nil, errors.Join(err, rows.Close())
+		}
+		out = append(out, s)
+	}
+	return out, errors.Join(rows.Err(), rows.Close())
+}
+
+func (a *agents) PruneSessions(ctx context.Context, before time.Time) (int64, error) {
+	r, err := a.q().ExecContext(ctx, "DELETE FROM xtcp_treatment_agent_sessions WHERE last_seen < $1", before)
+	if err != nil {
+		return 0, err
+	}
+	return r.RowsAffected()
 }

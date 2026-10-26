@@ -48,6 +48,8 @@ func TestJournalRejectsInvalidSnapshots(t *testing.T) {
 		{"unknown-status", "negative: an apply status from a newer writer is refused", func(j *jpb.Journal) { j.Records[0].Status = 42 }, "", "unknown apply status"},
 		{"bad-timestamp", "negative: an out-of-range timestamp is a parse error", func(j *jpb.Journal) { j.UpdatedAt = &timestamppb.Timestamp{Seconds: 1 << 60} }, "", "updated_at"},
 		{"bad-identity", "negative: a path-like agent id in the header is refused", func(j *jpb.Journal) { j.AgentId = "../x" }, "", "invalid journal identity"},
+		{"bad-collection", "negative: a collection nonce that is not 32 hex digits is refused before it is stamped", func(j *jpb.Journal) { j.CollectionId = "x'" }, "", "invalid journal identity"},
+		{"no-collection", "boundary: a journal written before the agent owned a nonce still opens", func(j *jpb.Journal) { j.CollectionId = "" }, "", ""},
 		{"legacy-format", "corner: the pre-journal-package LocalState text fails closed", nil, legacySnapshot, "invalid treatment journal"},
 		{"garbage", "corner: non-prototext bytes fail closed", nil, "\x00\x01 not text", "invalid treatment journal"},
 	} {

@@ -35,7 +35,7 @@ func verifiedState(revision uint64) *reconcile.State {
 	d.Revision = revision
 	d.Assignments[0].Mode = treatment.ModeStable
 	d.Assignments[0].LeaseExpiresAt = time.Time{}
-	return &reconcile.State{AgentID: "host-1", Location: "dc1", BootID: "boot-1", Desired: d, Records: []reconcile.Record{{ApplicationRecord: treatment.ApplicationRecord{Assignment: d.Assignments[0], Status: treatment.ApplyVerified, AppliedAt: now, DesiredRevision: revision}, InstalledRoute: []byte{1}, InstalledBootID: "boot-1"}}}
+	return &reconcile.State{AgentID: "host-1", Location: "dc1", BootID: "boot-1", CollectionID: fixtures.CollectionID, Desired: d, Records: []reconcile.Record{{ApplicationRecord: treatment.ApplicationRecord{Assignment: d.Assignments[0], Status: treatment.ApplyVerified, AppliedAt: now, DesiredRevision: revision}, InstalledRoute: []byte{1}, InstalledBootID: "boot-1"}}}
 }
 
 func record() *flat.XtcpFlatRecord {
@@ -87,34 +87,40 @@ func TestWatcherRefreshContracts(t *testing.T) {
 		wantLogged        string
 		daemonLocation    string
 		wantLocation      string
+		wantCollection    string
 	}{
-		{"journal", "positive: a committed journal attributes records with the journal's agent and the daemon's location", func(t *testing.T, dir string) { writeJournal(t, dir, verifiedState(3)) }, "", "host-1", "trial-1", "", "dc1", "dc1"},
-		{"missing-file", "negative: no snapshot yet means identity is not invented", func(*testing.T, string) {}, "", "", "", "", "dc1", "dc1"},
+		{"journal", "positive: a committed journal attributes records with the journal's agent, nonce and the daemon's location", func(t *testing.T, dir string) { writeJournal(t, dir, verifiedState(3)) }, "", "host-1", "trial-1", "", "dc1", "dc1", fixtures.CollectionID},
+		{"missing-file", "negative: no snapshot yet means identity is not invented", func(*testing.T, string) {}, "", "", "", "", "dc1", "dc1", ""},
 		{"missing-dir", "negative: a directory that does not exist yet is not an error", func(t *testing.T, dir string) {
 			if err := os.RemoveAll(dir); err != nil {
 				t.Fatal(err)
 			}
-		}, "", "", "", "", "dc1", "dc1"},
+		}, "", "", "", "", "dc1", "dc1", ""},
 		{"corrupt", "negative: an invalid snapshot clears attribution and is logged", func(t *testing.T, dir string) {
 			if err := os.WriteFile(filepath.Join(dir, reconcile.SnapshotFile), []byte("nonsense {"), 0600); err != nil {
 				t.Fatal(err)
 			}
-		}, "invalid treatment journal", "", "", "not attributed", "dc1", "dc1"},
+		}, "invalid treatment journal", "", "", "not attributed", "dc1", "dc1", ""},
 		{"held", "boundary: a journal under a hold stamps identity but no treatment", func(t *testing.T, dir string) {
 			s := verifiedState(4)
 			s.LocallySuspended = true
 			writeJournal(t, dir, s)
-		}, "", "host-1", "", "", "dc1", "dc1"},
+		}, "", "host-1", "", "", "dc1", "dc1", fixtures.CollectionID},
 		{"location-mismatch", "corner: a journal from another location keeps the daemon's label and warns once", func(t *testing.T, dir string) {
 			s := verifiedState(5)
 			s.Location = "elsewhere"
 			writeJournal(t, dir, s)
-		}, "", "host-1", "trial-1", "differs from this daemon", "dc1", "dc1"},
+		}, "", "host-1", "trial-1", "differs from this daemon", "dc1", "dc1", fixtures.CollectionID},
 		{"adopt-location", "corner: a daemon without its own -location takes the journal's so evidence queries can find it", func(t *testing.T, dir string) {
 			s := verifiedState(6)
 			s.Location = "journal-dc"
 			writeJournal(t, dir, s)
-		}, "", "host-1", "trial-1", "records take the journal's", "", "journal-dc"},
+		}, "", "host-1", "trial-1", "records take the journal's", "", "journal-dc", fixtures.CollectionID},
+		{"no-nonce", "boundary: a journal written before the agent owned a nonce stamps none and warns once", func(t *testing.T, dir string) {
+			s := verifiedState(7)
+			s.CollectionID = ""
+			writeJournal(t, dir, s)
+		}, "", "host-1", "trial-1", "carries no collection nonce", "dc1", "dc1", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -134,7 +140,7 @@ func TestWatcherRefreshContracts(t *testing.T) {
 			if r.AgentId != tc.wantAgent || r.TreatmentAssignmentId != tc.wantAssignment || r.Location != tc.wantLocation {
 				t.Fatalf("%s: agent=%q assignment=%q location=%q", tc.description, r.AgentId, r.TreatmentAssignmentId, r.Location)
 			}
-			if tc.wantAgent != "" && (r.HostBootId != "boot-1" || len(r.CollectionId) != 32) {
+			if tc.wantAgent != "" && r.HostBootId != "boot-1" || r.CollectionId != tc.wantCollection {
 				t.Fatalf("%s: boot/collection not stamped: %+v", tc.description, r)
 			}
 			// A second refresh logs nothing new: errors and warnings are once per cause.
@@ -142,7 +148,7 @@ func TestWatcherRefreshContracts(t *testing.T) {
 			if tc.wantLogged != "" && sink.count(tc.wantLogged) != 1 {
 				t.Fatalf("%s: expected one log line containing %q, got %v", tc.description, tc.wantLogged, sink.lines)
 			}
-			if tc.wantLogged == "" && sink.count("not attributed")+sink.count("differs") != 0 {
+			if tc.wantLogged == "" && sink.count("not attributed")+sink.count("differs")+sink.count("collection nonce") != 0 {
 				t.Fatalf("%s: unexpected log lines %v", tc.description, sink.lines)
 			}
 		})

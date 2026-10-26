@@ -859,6 +859,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED HostEvidence final : public ::googl
     kRetransmissionRatioFieldNumber = 5,
     kRttP95MsFieldNumber = 6,
     kExposedSocketsFieldNumber = 7,
+    kUnboundSocketsFieldNumber = 9,
     kCollectionHealthyFieldNumber = 8,
   };
   // string agent_id = 1 [json_name = "agentId", (.buf.validate.field) = {
@@ -936,6 +937,16 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED HostEvidence final : public ::googl
   void _internal_set_exposed_sockets(::uint64_t value);
 
   public:
+  // uint64 unbound_sockets = 9 [json_name = "unboundSockets"];
+  void clear_unbound_sockets() ;
+  [[nodiscard]] ::uint64_t unbound_sockets() const;
+  void set_unbound_sockets(::uint64_t value);
+
+  private:
+  ::uint64_t _internal_unbound_sockets() const;
+  void _internal_set_unbound_sockets(::uint64_t value);
+
+  public:
   // bool collection_healthy = 8 [json_name = "collectionHealthy"];
   void clear_collection_healthy() ;
   [[nodiscard]] bool collection_healthy() const;
@@ -950,7 +961,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED HostEvidence final : public ::googl
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<3, 8,
+      ::google::protobuf::internal::TcParseTable<4, 9,
                           0, 55,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -986,6 +997,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED HostEvidence final : public ::googl
     double retransmission_ratio_;
     double rtt_p95_ms_;
     ::uint64_t exposed_sockets_;
+    ::uint64_t unbound_sockets_;
     bool collection_healthy_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -1145,6 +1157,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Capabilities final : public ::googl
     kCongestionAlgorithmsFieldNumber = 3,
     kBootIdFieldNumber = 1,
     kKernelReleaseFieldNumber = 2,
+    kCollectionIdFieldNumber = 6,
     kSimpleHostRoutingFieldNumber = 4,
     kActuatorEnabledFieldNumber = 5,
   };
@@ -1204,6 +1217,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Capabilities final : public ::googl
   ::std::string* PROTOBUF_NONNULL _internal_mutable_kernel_release();
 
   public:
+  // string collection_id = 6 [json_name = "collectionId", (.buf.validate.field) = {
+  void clear_collection_id() ;
+  [[nodiscard]] const ::std::string& collection_id() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_collection_id(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_collection_id();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_collection_id();
+  void set_allocated_collection_id(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_collection_id() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_collection_id(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_collection_id();
+
+  public:
   // bool simple_host_routing = 4 [json_name = "simpleHostRouting"];
   void clear_simple_host_routing() ;
   [[nodiscard]] bool simple_host_routing() const;
@@ -1228,8 +1256,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Capabilities final : public ::googl
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<3, 5,
-                          0, 81,
+      ::google::protobuf::internal::TcParseTable<3, 6,
+                          0, 94,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -1260,6 +1288,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Capabilities final : public ::googl
     ::google::protobuf::RepeatedPtrField<::std::string> congestion_algorithms_;
     ::google::protobuf::internal::ArenaStringPtr boot_id_;
     ::google::protobuf::internal::ArenaStringPtr kernel_release_;
+    ::google::protobuf::internal::ArenaStringPtr collection_id_;
     bool simple_host_routing_;
     bool actuator_enabled_;
     PROTOBUF_TSAN_DECLARE_MEMBER
@@ -5525,7 +5554,7 @@ Capabilities::_internal_mutable_congestion_algorithms() {
 inline void Capabilities::clear_simple_host_routing() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.simple_host_routing_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
 }
 inline bool Capabilities::simple_host_routing() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Capabilities.simple_host_routing)
@@ -5533,7 +5562,7 @@ inline bool Capabilities::simple_host_routing() const {
 }
 inline void Capabilities::set_simple_host_routing(bool value) {
   _internal_set_simple_host_routing(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Capabilities.simple_host_routing)
 }
 inline bool Capabilities::_internal_simple_host_routing() const {
@@ -5549,7 +5578,7 @@ inline void Capabilities::_internal_set_simple_host_routing(bool value) {
 inline void Capabilities::clear_actuator_enabled() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.actuator_enabled_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000010U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
 }
 inline bool Capabilities::actuator_enabled() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Capabilities.actuator_enabled)
@@ -5557,7 +5586,7 @@ inline bool Capabilities::actuator_enabled() const {
 }
 inline void Capabilities::set_actuator_enabled(bool value) {
   _internal_set_actuator_enabled(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Capabilities.actuator_enabled)
 }
 inline bool Capabilities::_internal_actuator_enabled() const {
@@ -5567,6 +5596,70 @@ inline bool Capabilities::_internal_actuator_enabled() const {
 inline void Capabilities::_internal_set_actuator_enabled(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.actuator_enabled_ = value;
+}
+
+// string collection_id = 6 [json_name = "collectionId", (.buf.validate.field) = {
+inline void Capabilities::clear_collection_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.collection_id_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+}
+inline const ::std::string& Capabilities::collection_id() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_treatment.v1.Capabilities.collection_id)
+  return _internal_collection_id();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void Capabilities::set_collection_id(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  _impl_.collection_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_treatment.v1.Capabilities.collection_id)
+}
+inline ::std::string* PROTOBUF_NONNULL Capabilities::mutable_collection_id()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  ::std::string* _s = _internal_mutable_collection_id();
+  // @@protoc_insertion_point(field_mutable:xtcp_treatment.v1.Capabilities.collection_id)
+  return _s;
+}
+inline const ::std::string& Capabilities::_internal_collection_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.collection_id_.Get();
+}
+inline void Capabilities::_internal_set_collection_id(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.collection_id_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL Capabilities::_internal_mutable_collection_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.collection_id_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE Capabilities::release_collection_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_treatment.v1.Capabilities.collection_id)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000008U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  auto* released = _impl_.collection_id_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.collection_id_.Set("", GetArena());
+  }
+  return released;
+}
+inline void Capabilities::set_allocated_collection_id(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000008U);
+  }
+  _impl_.collection_id_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.collection_id_.IsDefault()) {
+    _impl_.collection_id_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_treatment.v1.Capabilities.collection_id)
 }
 
 // -------------------------------------------------------------------
@@ -6954,7 +7047,7 @@ inline void HostEvidence::_internal_set_exposed_sockets(::uint64_t value) {
 inline void HostEvidence::clear_collection_healthy() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.collection_healthy_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
 }
 inline bool HostEvidence::collection_healthy() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment.v1.HostEvidence.collection_healthy)
@@ -6962,7 +7055,7 @@ inline bool HostEvidence::collection_healthy() const {
 }
 inline void HostEvidence::set_collection_healthy(bool value) {
   _internal_set_collection_healthy(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_treatment.v1.HostEvidence.collection_healthy)
 }
 inline bool HostEvidence::_internal_collection_healthy() const {
@@ -6972,6 +7065,30 @@ inline bool HostEvidence::_internal_collection_healthy() const {
 inline void HostEvidence::_internal_set_collection_healthy(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.collection_healthy_ = value;
+}
+
+// uint64 unbound_sockets = 9 [json_name = "unboundSockets"];
+inline void HostEvidence::clear_unbound_sockets() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.unbound_sockets_ = ::uint64_t{0u};
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+}
+inline ::uint64_t HostEvidence::unbound_sockets() const {
+  // @@protoc_insertion_point(field_get:xtcp_treatment.v1.HostEvidence.unbound_sockets)
+  return _internal_unbound_sockets();
+}
+inline void HostEvidence::set_unbound_sockets(::uint64_t value) {
+  _internal_set_unbound_sockets(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  // @@protoc_insertion_point(field_set:xtcp_treatment.v1.HostEvidence.unbound_sockets)
+}
+inline ::uint64_t HostEvidence::_internal_unbound_sockets() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.unbound_sockets_;
+}
+inline void HostEvidence::_internal_set_unbound_sockets(::uint64_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.unbound_sockets_ = value;
 }
 
 // -------------------------------------------------------------------

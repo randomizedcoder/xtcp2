@@ -15,7 +15,7 @@ import (
 
 type evidence struct{ *runner }
 
-var hostColumns = []string{"evidence_id", positionColumnCst, agentIDColumnCst, "sockets", "bytes_acked", "goodput_bps", "retransmission_ratio", "rtt_p95_ms", "exposed_sockets", "collection_healthy"}
+var hostColumns = []string{"evidence_id", positionColumnCst, agentIDColumnCst, "sockets", "bytes_acked", "goodput_bps", "retransmission_ratio", "rtt_p95_ms", "exposed_sockets", "collection_healthy", "unbound_sockets"}
 
 // digest is a content hash over the domain value so Put can detect reuse of
 // an evidence ID for different content without reloading every host row.
@@ -28,6 +28,11 @@ func digest(e *treatment.Evidence) string {
 	for i := range e.Hosts {
 		v := &e.Hosts[i]
 		fmt.Fprintf(h, "%s\x00%d\x00%d\x00%d\x00%d\x00%d\x00%d\x00%t\x00", v.AgentID, v.Sockets, v.BytesAcked, math.Float64bits(v.GoodputBps), math.Float64bits(v.RetransmissionRatio), math.Float64bits(v.RttP95Ms), v.ExposedSockets, v.CollectionHealthy)
+		// Hashed only when set, so evidence stored before the column
+		// existed keeps the digest it was stored with.
+		if v.UnboundSockets != 0 {
+			fmt.Fprintf(h, "u%d\x00", v.UnboundSockets)
+		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -75,18 +80,18 @@ func getEvidenceMany(ctx context.Context, q querier, ids []string) (map[string]*
 // loadEvidenceHosts appends each evidence document's host rows in position
 // order.
 func loadEvidenceHosts(ctx context.Context, q querier, ids []string, into map[string]*treatment.Evidence) error {
-	rows, err := q.QueryContext(ctx, "SELECT evidence_id,agent_id,sockets,bytes_acked,goodput_bps,retransmission_ratio,rtt_p95_ms,exposed_sockets,collection_healthy FROM xtcp_treatment_evidence_hosts WHERE evidence_id = ANY($1) ORDER BY evidence_id,position", ids)
+	rows, err := q.QueryContext(ctx, "SELECT evidence_id,agent_id,sockets,bytes_acked,goodput_bps,retransmission_ratio,rtt_p95_ms,exposed_sockets,collection_healthy,unbound_sockets FROM xtcp_treatment_evidence_hosts WHERE evidence_id = ANY($1) ORDER BY evidence_id,position", ids)
 	if err != nil {
 		return err
 	}
 	for rows.Next() {
 		var id string
 		var h treatment.HostEvidence
-		var sockets, bytes, exposed int64
-		if err = rows.Scan(&id, &h.AgentID, &sockets, &bytes, &h.GoodputBps, &h.RetransmissionRatio, &h.RttP95Ms, &exposed, &h.CollectionHealthy); err != nil {
+		var sockets, bytes, exposed, unbound int64
+		if err = rows.Scan(&id, &h.AgentID, &sockets, &bytes, &h.GoodputBps, &h.RetransmissionRatio, &h.RttP95Ms, &exposed, &h.CollectionHealthy, &unbound); err != nil {
 			return errors.Join(err, rows.Close())
 		}
-		h.Sockets, h.BytesAcked, h.ExposedSockets = uint64(sockets), uint64(bytes), uint64(exposed)
+		h.Sockets, h.BytesAcked, h.ExposedSockets, h.UnboundSockets = uint64(sockets), uint64(bytes), uint64(exposed), uint64(unbound)
 		if e, ok := into[id]; ok {
 			e.Hosts = append(e.Hosts, h)
 		}
@@ -124,7 +129,7 @@ func putEvidence(ctx context.Context, q querier, experimentID string, e *treatme
 	rows := make([][]any, len(e.Hosts))
 	for i := range e.Hosts {
 		h := &e.Hosts[i]
-		rows[i] = []any{e.ID, i, h.AgentID, int64(h.Sockets), int64(h.BytesAcked), h.GoodputBps, h.RetransmissionRatio, h.RttP95Ms, int64(h.ExposedSockets), h.CollectionHealthy}
+		rows[i] = []any{e.ID, i, h.AgentID, int64(h.Sockets), int64(h.BytesAcked), h.GoodputBps, h.RetransmissionRatio, h.RttP95Ms, int64(h.ExposedSockets), h.CollectionHealthy, int64(h.UnboundSockets)}
 	}
 	return batchInsert(ctx, q, "xtcp_treatment_evidence_hosts", hostColumns, rows)
 }

@@ -59,7 +59,7 @@ func report(id, location string) *treatment.AgentReport {
 	return &treatment.AgentReport{
 		AgentID:          id,
 		Location:         location,
-		Capabilities:     treatment.Capabilities{BootID: "boot-1", KernelRelease: "6.12.0", CongestionAlgorithms: []string{"cubic", "bbr", "dctcp"}, SimpleHostRouting: true, ActuatorEnabled: true},
+		Capabilities:     treatment.Capabilities{BootID: "boot-1", CollectionID: fixtures.CollectionID, KernelRelease: "6.12.0", CongestionAlgorithms: []string{"cubic", "bbr", "dctcp"}, SimpleHostRouting: true, ActuatorEnabled: true},
 		DesiredRevision:  3,
 		LocallySuspended: true,
 		Records: []treatment.ApplicationRecord{{
@@ -109,11 +109,96 @@ type agentCase struct {
 func agents(t *testing.T, open Opener) {
 	ctx := context.Background()
 	initial := &treatment.DesiredState{AgentID: host1Cst, Revision: 1, Suspended: true, IssuedAt: now}
-	for _, tc := range slices.Concat(agentEnrollCases(ctx, initial), agentDesiredSinceCases(ctx, initial), agentLookupCases(ctx, initial)) {
+	for _, tc := range slices.Concat(agentEnrollCases(ctx, initial), agentDesiredSinceCases(ctx, initial), agentLookupCases(ctx, initial), agentSessionCases(ctx, initial)) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Log(tc.description)
 			tc.run(t, open(t).Repos().Agents)
 		})
+	}
+}
+
+// observeSession checks host-1 in with the given boot and nonce at seen.
+func observeSession(ctx context.Context, t *testing.T, a store.Agents, boot, collection string, seen time.Time) {
+	t.Helper()
+	r := report(host1Cst, locationCst)
+	r.Capabilities.BootID, r.Capabilities.CollectionID = boot, collection
+	must(t, a.Observe(ctx, r, seen))
+}
+
+// sessionKeys renders sessions as boot/nonce@first..last for comparison.
+func sessionKeys(sessions []treatment.Session) []string {
+	out := make([]string, len(sessions))
+	for i, s := range sessions {
+		out[i] = fmt.Sprintf("%s/%s/%s@%d..%d", s.AgentID, s.BootID, s.CollectionID[len(s.CollectionID)-1:], s.FirstSeen.Unix()-now.Unix(), s.LastSeen.Unix()-now.Unix())
+	}
+	return out
+}
+
+// agentSessionCases covers the (boot, collection) history evidence binds to.
+func agentSessionCases(ctx context.Context, initial *treatment.DesiredState) []agentCase {
+	const nonce1, nonce2 = "00000000000000000000000000000001", "00000000000000000000000000000002"
+	sessions := func(t *testing.T, a store.Agents, from, to time.Time, expected ...string) {
+		t.Helper()
+		got, err := a.Sessions(ctx, []string{host1Cst, "ghost"}, from, to)
+		must(t, err)
+		if keys := sessionKeys(got); !slices.Equal(keys, expected) {
+			t.Fatalf("expected sessions %v, got %v", expected, keys)
+		}
+	}
+	return []agentCase{
+		{"session-recorded", "positive: a check-in records its session and the agent's current nonce", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			observeSession(ctx, t, a, "boot-1", nonce1, now)
+			sessions(t, a, now.Add(-time.Hour), now.Add(time.Hour), "host-1/boot-1/1@0..0")
+			got, err := a.Get(ctx, host1Cst)
+			must(t, err)
+			if got.Report.Capabilities.CollectionID != nonce1 {
+				t.Fatalf("expected the reported nonce on the agent, got %q", got.Report.Capabilities.CollectionID)
+			}
+		}},
+		{"rotation", "positive: a restarted agent adds a session and both overlap a window spanning the restart", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			observeSession(ctx, t, a, "boot-1", nonce1, now)
+			observeSession(ctx, t, a, "boot-1", nonce2, now.Add(10*time.Minute))
+			sessions(t, a, now.Add(-time.Minute), now.Add(time.Hour), "host-1/boot-1/1@0..0", "host-1/boot-1/2@600..600")
+		}},
+		{"outside-window", "negative: sessions last seen before the window or first seen after it are not returned", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			observeSession(ctx, t, a, "boot-1", nonce1, now)
+			observeSession(ctx, t, a, "boot-2", nonce2, now.Add(2*time.Hour))
+			sessions(t, a, now.Add(time.Minute), now.Add(time.Hour))
+			sessions(t, a, now, now, "host-1/boot-1/1@0..0")
+		}},
+		{"heartbeat-throttle", "boundary: last_seen moves only once it is SessionRefresh old", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			observeSession(ctx, t, a, "boot-1", nonce1, now)
+			observeSession(ctx, t, a, "boot-1", nonce1, now.Add(store.SessionRefresh-time.Second))
+			sessions(t, a, now.Add(-time.Hour), now.Add(time.Hour), "host-1/boot-1/1@0..0")
+			observeSession(ctx, t, a, "boot-1", nonce1, now.Add(store.SessionRefresh))
+			sessions(t, a, now.Add(-time.Hour), now.Add(time.Hour), "host-1/boot-1/1@0..300")
+		}},
+		{"retention", "corner: pruning deletes only sessions last seen before the cutoff", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			observeSession(ctx, t, a, "boot-1", nonce1, now)
+			observeSession(ctx, t, a, "boot-1", nonce2, now.Add(time.Hour))
+			n, err := a.PruneSessions(ctx, now.Add(time.Minute))
+			must(t, err)
+			if n != 1 {
+				t.Fatalf("expected one pruned session, got %d", n)
+			}
+			sessions(t, a, now.Add(-time.Hour), now.Add(2*time.Hour), "host-1/boot-1/2@3600..3600")
+		}},
+		{"sessions-unenrolled", "negative: an unknown agent has no sessions and a report for it records none", func(t *testing.T, a store.Agents) {
+			r := report(host1Cst, locationCst)
+			if err := a.Observe(ctx, r, now); !errors.Is(err, store.ErrNotEnrolled) {
+				t.Fatalf("expected ErrNotEnrolled, got %v", err)
+			}
+			got, err := a.Sessions(ctx, []string{host1Cst}, now.Add(-time.Hour), now.Add(time.Hour))
+			must(t, err)
+			if len(got) != 0 {
+				t.Fatalf("expected no sessions, got %d", len(got))
+			}
+		}},
 	}
 }
 

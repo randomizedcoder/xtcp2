@@ -170,7 +170,7 @@ func recordFromJournal(p *jpb.Record) (Record, error) {
 }
 
 func toJournal(s *State) *jpb.Journal {
-	out := &jpb.Journal{AgentId: s.AgentID, Location: s.Location, BootId: s.BootID, Desired: desiredToJournal(s.Desired), LocallySuspended: s.LocallySuspended, SuspensionReason: s.SuspensionReason, UpdatedAt: stamp(s.UpdatedAt)}
+	out := &jpb.Journal{AgentId: s.AgentID, Location: s.Location, BootId: s.BootID, CollectionId: s.CollectionID, Desired: desiredToJournal(s.Desired), LocallySuspended: s.LocallySuspended, SuspensionReason: s.SuspensionReason, UpdatedAt: stamp(s.UpdatedAt)}
 	for i := range s.Records {
 		out.Records = append(out.Records, recordToJournal(&s.Records[i]))
 	}
@@ -178,7 +178,7 @@ func toJournal(s *State) *jpb.Journal {
 }
 
 func fromJournal(p *jpb.Journal) (*State, error) {
-	s := &State{AgentID: p.AgentId, Location: p.Location, BootID: p.BootId, LocallySuspended: p.LocallySuspended, SuspensionReason: p.SuspensionReason}
+	s := &State{AgentID: p.AgentId, Location: p.Location, BootID: p.BootId, CollectionID: p.CollectionId, LocallySuspended: p.LocallySuspended, SuspensionReason: p.SuspensionReason}
 	var err error
 	if s.Desired, err = desiredFromJournal(p.AgentId, p.Desired); err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func fromJournal(p *jpb.Journal) (*State, error) {
 
 // validate is the fail-closed gate every loaded journal passes through.
 func validate(s *State) error {
-	if s.AgentID != "" && !treatment.ValidID(s.AgentID) || s.Location != "" && !treatment.ValidID(s.Location) {
+	if s.AgentID != "" && !treatment.ValidID(s.AgentID) || s.Location != "" && !treatment.ValidID(s.Location) || s.CollectionID != "" && !treatment.ValidCollectionID(s.CollectionID) {
 		return errors.New("invalid journal identity")
 	}
 	if s.Desired != nil {

@@ -729,8 +729,12 @@ type Capabilities struct {
 	CongestionAlgorithms []string               `protobuf:"bytes,3,rep,name=congestion_algorithms,json=congestionAlgorithms,proto3" json:"congestion_algorithms,omitempty"`
 	SimpleHostRouting    bool                   `protobuf:"varint,4,opt,name=simple_host_routing,json=simpleHostRouting,proto3" json:"simple_host_routing,omitempty"`
 	ActuatorEnabled      bool                   `protobuf:"varint,5,opt,name=actuator_enabled,json=actuatorEnabled,proto3" json:"actuator_enabled,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Per-process nonce the agent writes into its journal header and the
+	// daemon stamps into every record as collection_id. Evidence counts only
+	// records whose (agent_id, host_boot_id, collection_id) an agent reported.
+	CollectionId  string `protobuf:"bytes,6,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Capabilities) Reset() {
@@ -796,6 +800,13 @@ func (x *Capabilities) GetActuatorEnabled() bool {
 		return x.ActuatorEnabled
 	}
 	return false
+}
+
+func (x *Capabilities) GetCollectionId() string {
+	if x != nil {
+		return x.CollectionId
+	}
+	return ""
 }
 
 // ApplicationRecord is the agent's account of one assignment. Agents report
@@ -1021,8 +1032,12 @@ type HostEvidence struct {
 	RttP95Ms            float64                `protobuf:"fixed64,6,opt,name=rtt_p95_ms,json=rttP95Ms,proto3" json:"rtt_p95_ms,omitempty"`
 	ExposedSockets      uint64                 `protobuf:"varint,7,opt,name=exposed_sockets,json=exposedSockets,proto3" json:"exposed_sockets,omitempty"`
 	CollectionHealthy   bool                   `protobuf:"varint,8,opt,name=collection_healthy,json=collectionHealthy,proto3" json:"collection_healthy,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Sockets stamped with this agent_id whose boot and collection nonce
+	// match no session the agent reported. They are excluded from every other
+	// field and counted here so a reviewer can see them.
+	UnboundSockets uint64 `protobuf:"varint,9,opt,name=unbound_sockets,json=unboundSockets,proto3" json:"unbound_sockets,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *HostEvidence) Reset() {
@@ -1109,6 +1124,13 @@ func (x *HostEvidence) GetCollectionHealthy() bool {
 		return x.CollectionHealthy
 	}
 	return false
+}
+
+func (x *HostEvidence) GetUnboundSockets() uint64 {
+	if x != nil {
+		return x.UnboundSockets
+	}
+	return 0
 }
 
 type Evidence struct {
@@ -1647,13 +1669,14 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\brevision\x18\x02 \x01(\x04B\a\xbaH\x042\x02 \x00R\brevision\x12\x1c\n" +
 	"\tsuspended\x18\x03 \x01(\bR\tsuspended\x12J\n" +
 	"\vassignments\x18\x04 \x03(\v2\x1d.xtcp_treatment.v1.AssignmentB\t\xbaH\x06\x92\x01\x03\x10\x80 R\vassignments\x12?\n" +
-	"\tissued_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\bissuedAt\"\xa3\x02\n" +
+	"\tissued_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampB\x06\xbaH\x03\xc8\x01\x01R\bissuedAt\"\xdf\x02\n" +
 	"\fCapabilities\x12B\n" +
 	"\aboot_id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\x06bootId\x12/\n" +
 	"\x0ekernel_release\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x02R\rkernelRelease\x12C\n" +
 	"\x15congestion_algorithms\x18\x03 \x03(\tB\x0e\xbaH\v\x92\x01\b\x10@\"\x04r\x02\x18\x0fR\x14congestionAlgorithms\x12.\n" +
 	"\x13simple_host_routing\x18\x04 \x01(\bR\x11simpleHostRouting\x12)\n" +
-	"\x10actuator_enabled\x18\x05 \x01(\bR\x0factuatorEnabled\"\xa8\x05\n" +
+	"\x10actuator_enabled\x18\x05 \x01(\bR\x0factuatorEnabled\x12:\n" +
+	"\rcollection_id\x18\x06 \x01(\tB\x15\xbaH\x12r\x102\x0e^[0-9a-f]{32}$R\fcollectionId\"\xa8\x05\n" +
 	"\x11ApplicationRecord\x12E\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2\x1d.xtcp_treatment.v1.AssignmentB\x06\xbaH\x03\xc8\x01\x01R\n" +
@@ -1681,7 +1704,7 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\x11suspension_reason\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\x80\bR\x10suspensionReason\x12I\n" +
 	"\arecords\x18\x04 \x03(\v2$.xtcp_treatment.v1.ApplicationRecordB\t\xbaH\x06\x92\x01\x03\x10\x80@R\arecords\x129\n" +
 	"\n" +
-	"updated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x89\x04\n" +
+	"updated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb2\x04\n" +
 	"\fHostEvidence\x12D\n" +
 	"\bagent_id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\aagentId\x12\x18\n" +
 	"\asockets\x18\x02 \x01(\x04R\asockets\x12\x1f\n" +
@@ -1693,7 +1716,8 @@ const file_xtcp_treatment_v1_treatment_proto_rawDesc = "" +
 	"\n" +
 	"rtt_p95_ms\x18\x06 \x01(\x01B\x10\xbaH\r\x12\v@\x01)\x00\x00\x00\x00\x00\x00\x00\x00R\brttP95Ms\x12'\n" +
 	"\x0fexposed_sockets\x18\a \x01(\x04R\x0eexposedSockets\x12-\n" +
-	"\x12collection_healthy\x18\b \x01(\bR\x11collectionHealthy:x\xbaHu\x1as\n" +
+	"\x12collection_healthy\x18\b \x01(\bR\x11collectionHealthy\x12'\n" +
+	"\x0funbound_sockets\x18\t \x01(\x04R\x0eunboundSockets:x\xbaHu\x1as\n" +
 	"$host_evidence.exposed_within_sockets\x12%exposed_sockets cannot exceed sockets\x1a$this.exposed_sockets <= this.sockets\"\xbc\x05\n" +
 	"\bEvidence\x129\n" +
 	"\x02id\x18\x01 \x01(\tB)\xbaH&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\x02id\x12C\n" +

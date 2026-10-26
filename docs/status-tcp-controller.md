@@ -22,6 +22,11 @@ review being addressed. Items are listed in execution order.
 | 11 | scale: notification watermark, heartbeat split, leader lease | done | 91ccde4a |
 | 12 | docs: threat model, naming, SIGHUP, philosophy sentence | done | b6df3de9 |
 | L | lint: comprehensive tier clean on the new code; `lint-baseline` gate passes | done | c3981ff1 |
+| F1 | follow-up: `Experiments.List` and `Get` in a fixed number of statements | done | 75093584, lint 5ccc671e |
+| F2 | follow-up: help smoke for the four treatment binaries and `zstd-probe` | done | 926c2c74 |
+| F3 | follow-up: reproducible index timings (`bench-tcp-controller-postgres-indexes`) | done | 30a21cdd |
+| F4 | follow-up: generated coverage table (`coverage-table.md` from the unit target) | done | 30a21cdd |
+| F5 | follow-up: evidence bound to `(agent_id, boot_id, collection_id)` sessions | done | this commit |
 
 Dual-mode agent (library + `cmd/xtcp2-treatment-agent` + `treatment` build tag
 in `cmd/xtcp2`, with an `attribution` journal reader for the untagged daemon)
@@ -239,27 +244,58 @@ process.
 - The ClickHouse SQL test finds `clickhouse` on `PATH` (the unit check adds
   it to `nativeBuildInputs`) instead of `XTCP_CLICKHOUSE_TEST_BINARY`.
 
-## TODO
+## Follow-up notes (F1-F5)
 
-- Evidence binding (threat model): the warehouse query filters by location
-  and cohort agent IDs but does not check the boot ID or collection nonce a
-  record carries against the values the agent reported at check-in. Pass the
-  cohort's `(agent_id, boot_id)` pairs into `analysis.sql` and drop rows that
-  do not match; the nonce needs a check-in field first.
+- F1: `loadMany` reads experiment rows, cohorts and phases with
+  `id = ANY($1)`, then every referenced evidence document and its hosts in
+  two more statements; `List` adds the ID lookup. `TestPostgresListStatements`
+  pins List at six statements and Get at five whatever the population, using
+  `pgtest.OpenCounting` (a pgx query tracer) rather than a hook in the store.
+- F2: `ipmeta-bootstrap` was also missing from `cmdNames` but exits 1 on
+  `-help` (its `ContinueOnError` flag set returns `flag.ErrHelp` as an error),
+  so it stays out; see TODO.
+- F3: the index timings come from the Nix PostgreSQL 18.6 fixture: median
+  22.27 ms without indexes, 0.023 ms with them, for an old destination's
+  cooldown lookup. The fixture setup is shared with the unit and race targets.
+- F4: per-package coverage, no `-coverpkg`, so `pkg/treatment` reads 54.7%:
+  its enum, `Clone` and `Equal` methods are exercised from other packages.
+- F5: the agent owns a per-process nonce, writes it into the journal header
+  on its first pass after starting (`Reconciler.CollectionID`; a reconciler
+  without one, the watchdog, keeps the header's), and reports it as
+  `Capabilities.collection_id`, which is now required. `Agents.Observe`
+  upserts the session and refreshes `last_seen` at most every five minutes;
+  `Agents.Sessions` returns sessions overlapping a window and housekeeping
+  prunes those older than eight days. Every evidence window (analyze,
+  maintenance, discovery baseline, and the VM driver's own baseline) carries
+  the population's sessions widened by ten minutes; `analysis.sql`
+  (`tcp-host-deltas-v2-bound`) measures only bound sockets and returns
+  `unbound_sockets` per host. Discovery keeps only enrolled candidates and
+  skips a candidate with fewer than three. The evidence digest hashes
+  `unbound_sockets` only when non-zero, so evidence stored before the column
+  keeps its digest. Schema additions are `ADD COLUMN IF NOT EXISTS`. The VM
+  test gains `TCP_CONTROLLER_BINDING_PASS`: the driver copies a cohort host's
+  recent records under a fake boot and nonce and requires `Analyze` to count
+  them as unbound; the safety analysis that follows runs with them present.
+- Proto regeneration: `regen-protos` now emits protoc-gen-go v1.36.12 and a
+  newer protoc for C++, while the committed output for the other protos is
+  older, so only the two treatment protos' generated files were committed and
+  the drift in the rest was reverted.
+
+## TODO
 
 - The watchdog and `pkg/treatment/local` still link gRPC, through
   `pkg/xtcpnl` -> `gen/go/xtcp_flat_record`, whose Go package carries that
   proto's gRPC and gateway stubs. Generating the flat record's service stubs
   into a separate package would let the boundary test forbid gRPC for every
   goip user; `reconcile` is already gRPC-free. Boundary rule carries the TODO.
-- `Experiments.List` loads each experiment with its own round trips
-  (cohort, phases, evidence). Fine for `inspect` limits; batch before any
-  fleet-wide listing path.
-- `docs/benchmarks/tcp-controller/postgres-indexes.txt` still shows the JSONB
-  expression-index timings; refresh from `TestPostgresExperimentQueryIndexes`
-  on the Nix fixture.
-- Coverage table in `docs/tcp-controller-testing.md` predates the split; regenerate.
-- `nix/checks/cli-help-smoke.nix` keeps its own `cmdNames` list and does not
-  include the treatment binaries (`xtcp2-controller`, `xtcp2-controllerctl`,
-  `xtcp2-treatment-agent`, `xtcp2-treatmentctl`); add them when that list is
-  next touched.
+  Needs the service in its own `.proto` with a separate `go_package` (a buf
+  `PACKAGE_SAME_GO_PACKAGE` exception keeps the wire method names) and a
+  networked `regen-protos`.
+- Evidence windows travel as ClickHouse URL parameters. At 10,000 agents the
+  `agents` and `sessions` arrays approach ClickHouse's default 1 MiB
+  `http_max_uri_size`; move them to external data in the request body before
+  fleets that large.
+- `ipmeta-bootstrap -help` exits 1; return 0 on `flag.ErrHelp` and add it to
+  the help smoke list.
+- Regenerate all protos with the pinned generators in one commit so the
+  committed `gen/` matches `regen-protos` again.

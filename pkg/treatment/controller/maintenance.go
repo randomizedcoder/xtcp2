@@ -44,6 +44,9 @@ func (s *Server) Housekeep(ctx context.Context, source evidence.Source, warehous
 				errs = append(errs, fmt.Errorf("candidate discovery: %w", e))
 			}
 		}
+		if _, e := s.Store.Repos().Agents.PruneSessions(ctx, s.now().Add(-sessionRetention)); e != nil {
+			errs = append(errs, fmt.Errorf("session retention: %w", e))
+		}
 		return errors.Join(errs...)
 	})
 }
@@ -131,7 +134,7 @@ func (s *Server) fetchEvidence(ctx context.Context, source evidence.Source, snap
 	if snapshot.Status == treatment.StatusComplete {
 		input = s.driftInput(snapshot)
 	}
-	return source.Evidence(ctx, evidence.WindowFor(input, s.now()))
+	return s.boundEvidence(ctx, source, evidence.WindowFor(input, s.now()))
 }
 
 // driftPass records drift evidence for a completed treatment and flags a

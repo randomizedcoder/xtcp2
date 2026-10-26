@@ -375,6 +375,7 @@ const Journal$json = {
       '6': '.google.protobuf.Timestamp',
       '10': 'updatedAt'
     },
+    {'1': 'collection_id', '3': 9, '4': 1, '5': 9, '10': 'collectionId'},
   ],
 };
 
@@ -386,4 +387,5 @@ final $typed_data.Uint8List journalDescriptor = $convert.base64Decode(
     'BlbmRlZBgFIAEoCFIQbG9jYWxseVN1c3BlbmRlZBIrChFzdXNwZW5zaW9uX3JlYXNvbhgGIAEo'
     'CVIQc3VzcGVuc2lvblJlYXNvbhI7CgdyZWNvcmRzGAcgAygLMiEueHRjcF90cmVhdG1lbnRfam'
     '91cm5hbC52MS5SZWNvcmRSB3JlY29yZHMSOQoKdXBkYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5w'
-    'cm90b2J1Zi5UaW1lc3RhbXBSCXVwZGF0ZWRBdA==');
+    'cm90b2J1Zi5UaW1lc3RhbXBSCXVwZGF0ZWRBdBIjCg1jb2xsZWN0aW9uX2lkGAkgASgJUgxjb2'
+    'xsZWN0aW9uSWQ=');

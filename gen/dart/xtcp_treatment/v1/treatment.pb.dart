@@ -519,6 +519,7 @@ class Capabilities extends $pb.GeneratedMessage {
     $core.Iterable<$core.String>? congestionAlgorithms,
     $core.bool? simpleHostRouting,
     $core.bool? actuatorEnabled,
+    $core.String? collectionId,
   }) {
     final result = Capabilities._();
     if (bootId != null) result.bootId = bootId;
@@ -527,6 +528,7 @@ class Capabilities extends $pb.GeneratedMessage {
       result.congestionAlgorithms.addAll(congestionAlgorithms);
     if (simpleHostRouting != null) result.simpleHostRouting = simpleHostRouting;
     if (actuatorEnabled != null) result.actuatorEnabled = actuatorEnabled;
+    if (collectionId != null) result.collectionId = collectionId;
     return result;
   }
 
@@ -549,6 +551,7 @@ class Capabilities extends $pb.GeneratedMessage {
     ..pPS(3, _omitFieldNames ? '' : 'congestionAlgorithms')
     ..aOB(4, _omitFieldNames ? '' : 'simpleHostRouting')
     ..aOB(5, _omitFieldNames ? '' : 'actuatorEnabled')
+    ..aOS(6, _omitFieldNames ? '' : 'collectionId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -611,6 +614,18 @@ class Capabilities extends $pb.GeneratedMessage {
   $core.bool hasActuatorEnabled() => $_has(4);
   @$pb.TagNumber(5)
   void clearActuatorEnabled() => $_clearField(5);
+
+  /// Per-process nonce the agent writes into its journal header and the
+  /// daemon stamps into every record as collection_id. Evidence counts only
+  /// records whose (agent_id, host_boot_id, collection_id) an agent reported.
+  @$pb.TagNumber(6)
+  $core.String get collectionId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set collectionId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasCollectionId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearCollectionId() => $_clearField(6);
 }
 
 /// ApplicationRecord is the agent's account of one assignment. Agents report
@@ -945,6 +960,7 @@ class HostEvidence extends $pb.GeneratedMessage {
     $core.double? rttP95Ms,
     $fixnum.Int64? exposedSockets,
     $core.bool? collectionHealthy,
+    $fixnum.Int64? unboundSockets,
   }) {
     final result = HostEvidence._();
     if (agentId != null) result.agentId = agentId;
@@ -956,6 +972,7 @@ class HostEvidence extends $pb.GeneratedMessage {
     if (rttP95Ms != null) result.rttP95Ms = rttP95Ms;
     if (exposedSockets != null) result.exposedSockets = exposedSockets;
     if (collectionHealthy != null) result.collectionHealthy = collectionHealthy;
+    if (unboundSockets != null) result.unboundSockets = unboundSockets;
     return result;
   }
 
@@ -986,6 +1003,9 @@ class HostEvidence extends $pb.GeneratedMessage {
         7, _omitFieldNames ? '' : 'exposedSockets', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOB(8, _omitFieldNames ? '' : 'collectionHealthy')
+    ..a<$fixnum.Int64>(
+        9, _omitFieldNames ? '' : 'unboundSockets', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1081,6 +1101,18 @@ class HostEvidence extends $pb.GeneratedMessage {
   $core.bool hasCollectionHealthy() => $_has(7);
   @$pb.TagNumber(8)
   void clearCollectionHealthy() => $_clearField(8);
+
+  /// Sockets stamped with this agent_id whose boot and collection nonce
+  /// match no session the agent reported. They are excluded from every other
+  /// field and counted here so a reviewer can see them.
+  @$pb.TagNumber(9)
+  $fixnum.Int64 get unboundSockets => $_getI64(8);
+  @$pb.TagNumber(9)
+  set unboundSockets($fixnum.Int64 value) => $_setInt64(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasUnboundSockets() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearUnboundSockets() => $_clearField(9);
 }
 
 class Evidence extends $pb.GeneratedMessage {

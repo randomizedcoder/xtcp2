@@ -115,4 +115,8 @@ message Journal {
   string suspension_reason = 6;
   repeated Record records = 7;
   google.protobuf.Timestamp updated_at = 8;
+  // Per-process nonce of the agent that owns the journal. The agent writes
+  // it; the watchdog preserves it; a telemetry-only daemon stamps it into
+  // records as collection_id.
+  string collection_id = 9;
 }

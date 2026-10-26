@@ -77,7 +77,20 @@ type Agents interface {
 	// own clock, so callers carry the newest stamp returned forward as the
 	// next since rather than comparing it with their clock.
 	DesiredSince(ctx context.Context, since time.Time) ([]DesiredRevision, error)
+	// Sessions returns the (boot, collection) sessions of the named agents
+	// that overlap [from, to]: first seen no later than to and last seen no
+	// earlier than from. Observe records sessions and refreshes a known
+	// session's LastSeen at most every SessionRefresh, so callers widen from
+	// by at least that much.
+	Sessions(ctx context.Context, ids []string, from, to time.Time) ([]treatment.Session, error)
+	// PruneSessions deletes sessions last seen before the cutoff and
+	// returns how many it deleted.
+	PruneSessions(ctx context.Context, before time.Time) (int64, error)
 }
+
+// SessionRefresh is how stale a session's LastSeen may become before a
+// check-in rewrites it.
+const SessionRefresh = 5 * time.Minute
 
 // DesiredRevision is one agent's desired revision and the store's stamp of
 // when it last changed.

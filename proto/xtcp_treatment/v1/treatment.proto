@@ -197,6 +197,10 @@ message Capabilities {
   }];
   bool simple_host_routing = 4;
   bool actuator_enabled = 5;
+  // Per-process nonce the agent writes into its journal header and the
+  // daemon stamps into every record as collection_id. Evidence counts only
+  // records whose (agent_id, host_boot_id, collection_id) an agent reported.
+  string collection_id = 6 [(buf.validate.field).string.pattern = "^[0-9a-f]{32}$"];
 }
 
 // ApplicationRecord is the agent's account of one assignment. Agents report
@@ -241,6 +245,10 @@ message HostEvidence {
   double rtt_p95_ms = 6 [(buf.validate.field).double = {gte: 0, finite: true}];
   uint64 exposed_sockets = 7;
   bool collection_healthy = 8;
+  // Sockets stamped with this agent_id whose boot and collection nonce
+  // match no session the agent reported. They are excluded from every other
+  // field and counted here so a reviewer can see them.
+  uint64 unbound_sockets = 9;
 }
 
 message Evidence {

@@ -20,8 +20,10 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	evport "github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence/clickhouse"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/postgres"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
@@ -31,6 +33,10 @@ import (
 )
 
 const pkiDir = "/var/lib/controller-test/pki"
+
+// controllerDSN is the controller's database on this guest; the driver reads
+// the agents' sessions from it to bind its own baseline query.
+const controllerDSN = "host=/run/postgresql dbname=xtcp user=root sslmode=disable"
 
 // agentUnit is the systemd unit running the treatment agent when xtcp2 does
 // not embed it (-agentUnit=xtcp2-treatment-agent). Empty means the embedded
@@ -309,7 +315,8 @@ func propose(op pb.OperatorServiceClient, id string) *pb.Experiment {
 		end := time.Now().Add(-20 * time.Second)
 		ctx, cancel := rpcContext()
 		defer cancel()
-		baseline = wire.Evidence(must(ch.Evidence(ctx, evport.Window{Location: "test-dc", Destination: netip.MustParsePrefix("198.18.0.1/32"), ExperimentID: id, Agents: hosts, Start: end.Add(-60 * time.Second), End: end})))
+		start := end.Add(-60 * time.Second)
+		baseline = wire.Evidence(must(ch.Evidence(ctx, evport.Window{Location: "test-dc", Destination: netip.MustParsePrefix("198.18.0.1/32"), ExperimentID: id, Agents: hosts, Sessions: sessions(ctx, start, end), Start: start, End: end})))
 		require(len(baseline.Hosts) == 6, "baseline needs six hosts: %v", baseline.Hosts)
 		for _, h := range baseline.Hosts {
 			require(h.CollectionHealthy && h.Sockets >= 8 && h.BytesAcked >= 4096, "baseline not ready: %v", h)
@@ -326,6 +333,43 @@ func propose(op pb.OperatorServiceClient, id string) *pb.Experiment {
 	require(len(e.Phases) == 0 && routeCount() == 0, "unapproved proposal applied")
 	return review(op, e, id+"-initial", nil)
 }
+
+// sessions reads the sessions the agents reported over a window, widened
+// the way the controller widens it, from the controller's own store.
+func sessions(ctx context.Context, from, to time.Time) []treatment.Session {
+	db := must(postgres.Open(ctx, controllerDSN))
+	defer func() {
+		if cerr := db.Close(); cerr != nil {
+			log.Printf("controller database close: %v", cerr)
+		}
+	}()
+	return must(db.Repos().Agents.Sessions(ctx, hosts, from.Add(-15*time.Minute), to.Add(15*time.Minute)))
+}
+
+// binding copies a cohort host's recent records under a boot and nonce that
+// host never reported, as a host spoofing its agent_id would, and checks the
+// controller counts them as unbound instead of as that host's evidence.
+func binding(op pb.OperatorServiceClient, e *pb.Experiment) {
+	spoofed := e.CohortOrder[len(e.CohortOrder)-1]
+	sql(fmt.Sprintf(`INSERT INTO xtcp.xtcp_flat_records_v2 SELECT * REPLACE ('spoofed-boot' AS host_boot_id, 'ffffffffffffffffffffffffffffffff' AS collection_id,
+ inet_diag_msg_socket_cookie + 1000000000 AS inet_diag_msg_socket_cookie)
+ FROM xtcp.xtcp_flat_records_v2 WHERE agent_id='%s' AND timestamp_ns > now() - INTERVAL 2 MINUTE`, spoofed))
+	eventually("spoofed records counted as unbound, not as evidence", 2*time.Minute, func() bool {
+		e = inspect(op, e.Id)
+		ctx, cancel := rpcContext()
+		defer cancel()
+		a := must(op.Analyze(ctx, &pb.AnalyzeRequest{ExperimentId: e.Id, ExpectedRevision: e.Revision}))
+		for _, h := range a.Evidence.Hosts {
+			if h.AgentId == spoofed {
+				require(h.UnboundSockets > 0, "spoofed records were not counted as unbound: %v", h)
+				write(evidenceDir+"/binding.json", must(json.MarshalIndent(a.Evidence, "", "  ")))
+				return true
+			}
+		}
+		panic(fmt.Sprintf("no evidence row for %s", spoofed))
+	})
+}
+
 func control(op pb.OperatorServiceClient, id string, a pb.ControlAction) {
 	ctx, cancel := rpcContext()
 	defer cancel()
@@ -437,6 +481,10 @@ func runController(soak bool) {
 	assertNearbyRoute(canary, "198.18.0.1")
 	act(canary, "restart-load")
 	pass("HOLD")
+	// The safety analysis below then runs with the spoofed rows present, so
+	// its outcome shows they did not count.
+	binding(op, e)
+	pass("BINDING")
 	var analysis *pb.AnalyzeResponse
 	eventually("measured first-canary safety", 4*time.Minute, func() bool {
 		e = inspect(op, e.Id)

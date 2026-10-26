@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/netip"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 )
 
@@ -234,6 +236,16 @@ func TestClickHouseCandidateContracts(t *testing.T) {
 	}
 }
 
+// clickhouseRows inserts one socket's six polls, ten seconds apart, stamped
+// with the given agent, boot and collection nonce.
+func clickhouseRows(agent, boot, collection string, cookie int) string {
+	return fmt.Sprintf(`INSERT INTO default.sockets SELECT '%s','%s','%s',1,%d,
+ fromUnixTimestamp64Nano(1700000000000000000+toInt64(number)*10000000000),
+ 1000000+number*1000,1000000+number*1000,number*10,1000,500,true,'trial','dc1',1,
+ unhex('C0000201000000000000000000000000'),2,64512 FROM numbers(6);
+`, agent, boot, collection, cookie)
+}
+
 // Execute the production SQL against an isolated ClickHouse local database.
 // No live service or production telemetry is accessed.
 func TestClickHouseAnalysisCounterDeltas(t *testing.T) {
@@ -241,21 +253,18 @@ func TestClickHouseAnalysisCounterDeltas(t *testing.T) {
 	if lerr != nil {
 		t.Skip("clickhouse is not on PATH; the Nix quality check supplies it")
 	}
+	const nonce1, nonce2, nonceX = "00000000000000000000000000000001", "00000000000000000000000000000002", "0000000000000000000000000000000f"
+	// The bound socket is inserted twice to prove poll deduplication.
 	setup := `CREATE TABLE default.sockets (
- agent_id String,host_boot_id String,netns_inode UInt64,inet_diag_msg_socket_cookie UInt64,
+ agent_id String,host_boot_id String,collection_id String,netns_inode UInt64,inet_diag_msg_socket_cookie UInt64,
  timestamp_ns DateTime64(9),tcp_info_bytes_acked UInt64,tcp_info_bytes_sent UInt64,
  tcp_info_bytes_retrans UInt64,tcp_info_rtt UInt32,tcp_info_min_rtt UInt32,
  treatment_algorithm_exposed Bool,treatment_assignment_id String,location String,
  inet_diag_msg_state UInt8,inet_diag_msg_socket_destination FixedString(16),
  inet_diag_msg_family UInt8,enrich_socket_dest_asn UInt64) ENGINE=Memory;
- INSERT INTO default.sockets SELECT 'host-1','boot-1',1,1,
- fromUnixTimestamp64Nano(1700000000000000000+toInt64(number)*10000000000),
- 1000000+number*1000,1000000+number*1000,number*10,1000,500,true,'trial','dc1',1,
- unhex('C0000201000000000000000000000000'),2,64512 FROM numbers(6);
- INSERT INTO default.sockets SELECT * FROM default.sockets;
- `
+` + clickhouseRows("host-1", "boot-1", nonce1, 1) + "INSERT INTO default.sockets SELECT * FROM default.sockets;\n"
 	query := strings.ReplaceAll(analysisSQL, "{{TABLE}}", "default.sockets")
-	run := func(sql string) []byte {
+	run := func(sql, sessions string) []byte {
 		t.Helper()
 		dir := t.TempDir()
 		file := filepath.Join(dir, "query.sql")
@@ -264,7 +273,7 @@ func TestClickHouseAnalysisCounterDeltas(t *testing.T) {
 		}
 		cmd := exec.Command(binary, "local", "--path", filepath.Join(dir, "data"), "--queries-file", file, "--multiquery",
 			"--param_start=1700000000000000000", "--param_end=1700000060000000000", "--param_location=dc1",
-			"--param_agents=['host-1']", "--param_destination_hex=C0000201000000000000000000000000", "--param_assignment=trial",
+			"--param_agents=['host-1']", "--param_sessions="+sessions, "--param_destination_hex=C0000201000000000000000000000000", "--param_assignment=trial",
 			"--param_minimum_rtt=0", "--param_maximum_rtt=10", "--param_minimum_retransmission=0",
 			"--output_format_json_quote_64bit_integers=0")
 		out, e := cmd.CombinedOutput()
@@ -273,25 +282,46 @@ func TestClickHouseAnalysisCounterDeltas(t *testing.T) {
 		}
 		return out
 	}
-	var h hostRow
-	if e := json.Unmarshal(run(setup+query), &h); e != nil {
-		t.Fatal(e)
-	}
-	if h.Sockets != 1 || h.BytesAcked != 5000 || h.ExposedSockets != 1 || !h.CollectionHealthy || h.RttP95Ms != 1 || h.RetransmissionRatio != .01 {
-		t.Fatalf("bad window deltas/deduplication: %+v", h)
-	}
-	reset := `INSERT INTO default.sockets SELECT 'host-1','boot-1',1,1,
+	session1 := sessionsParam([]treatment.Session{{AgentID: "host-1", BootID: "boot-1", CollectionID: nonce1}})
+	bound := hostRow{AgentID: "host-1", Sockets: 1, BytesAcked: 5000, GoodputBps: 5000 * 8 / 60.0, RetransmissionRatio: .01, RttP95Ms: 1, ExposedSockets: 1, CollectionHealthy: true}
+	withUnbound := func(h hostRow, n uint64) hostRow { h.UnboundSockets = n; return h }
+	tests := []struct {
+		description string
+		extra       string
+		sessions    string
+		expected    hostRow
+		healthOnly  bool // a counter reset changes the deltas; only health is pinned
+	}{
+		{"positive: rows of a reported session are measured, with deltas over deduplicated polls", "", session1, bound, false},
+		{"positive: a nonce rotated mid-window counts both sessions' sockets", clickhouseRows("host-1", "boot-1", nonce2, 2),
+			sessionsParam([]treatment.Session{{AgentID: "host-1", BootID: "boot-1", CollectionID: nonce1}, {AgentID: "host-1", BootID: "boot-1", CollectionID: nonce2}}),
+			hostRow{AgentID: "host-1", Sockets: 2, BytesAcked: 10000, GoodputBps: 10000 * 8 / 60.0, RetransmissionRatio: .01, RttP95Ms: 1, ExposedSockets: 2, CollectionHealthy: true}, false},
+		{"negative: rows claiming host-1 from another boot are excluded and counted", clickhouseRows("host-1", "boot-x", nonce1, 3), session1, withUnbound(bound, 1), false},
+		{"negative: rows with the right boot and an unknown nonce are excluded and counted", clickhouseRows("host-1", "boot-1", nonceX, 4), session1, withUnbound(bound, 1), false},
+		{"boundary: rows with an empty nonce (a journal without one) are excluded and counted", clickhouseRows("host-1", "boot-1", "", 5), session1, withUnbound(bound, 1), false},
+		{"corner: with no sessions every socket is unbound and the host is not collection-healthy", "", "[]", hostRow{AgentID: "host-1", UnboundSockets: 1}, false},
+		{"negative: a counter reset inside the window is not collection-healthy", `INSERT INTO default.sockets SELECT 'host-1','boot-1','` + nonce1 + `',1,1,
  fromUnixTimestamp64Nano(1700000055000000000),1,1,0,1000,500,true,'trial','dc1',1,
- unhex('C0000201000000000000000000000000'),2,64512;`
-	if e := json.Unmarshal(run(setup+reset+query), &h); e != nil {
-		t.Fatal(e)
+ unhex('C0000201000000000000000000000000'),2,64512;
+`, session1, hostRow{AgentID: "host-1"}, true},
 	}
-	if h.CollectionHealthy {
-		t.Fatal("counter reset accepted as healthy")
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var h hostRow
+			if e := json.Unmarshal(run(setup+tc.extra+query, tc.sessions), &h); e != nil {
+				t.Fatal(e)
+			}
+			if tc.healthOnly {
+				h = hostRow{AgentID: h.AgentID, CollectionHealthy: h.CollectionHealthy, UnboundSockets: h.UnboundSockets}
+			}
+			if h != tc.expected {
+				t.Fatalf("%s:\n got %+v\nwant %+v", tc.description, h, tc.expected)
+			}
+		})
 	}
 	// Syntax/type-check candidate discovery too; a one-host fixture cannot meet
 	// its six-host eligibility threshold.
-	if out := run(setup + strings.ReplaceAll(discoverySQL, "{{TABLE}}", "default.sockets")); len(out) != 0 {
+	if out := run(setup+strings.ReplaceAll(discoverySQL, "{{TABLE}}", "default.sockets"), session1); len(out) != 0 {
 		t.Fatalf("unexpected discovery: %s", out)
 	}
 }

@@ -631,8 +631,12 @@ type Journal struct {
 	SuspensionReason string                 `protobuf:"bytes,6,opt,name=suspension_reason,json=suspensionReason,proto3" json:"suspension_reason,omitempty"`
 	Records          []*Record              `protobuf:"bytes,7,rep,name=records,proto3" json:"records,omitempty"`
 	UpdatedAt        *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Per-process nonce of the agent that owns the journal. The agent writes
+	// it; the watchdog preserves it; a telemetry-only daemon stamps it into
+	// records as collection_id.
+	CollectionId  string `protobuf:"bytes,9,opt,name=collection_id,json=collectionId,proto3" json:"collection_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Journal) Reset() {
@@ -721,6 +725,13 @@ func (x *Journal) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Journal) GetCollectionId() string {
+	if x != nil {
+		return x.CollectionId
+	}
+	return ""
+}
+
 var File_xtcp_treatment_journal_v1_journal_proto protoreflect.FileDescriptor
 
 const file_xtcp_treatment_journal_v1_journal_proto_rawDesc = "" +
@@ -782,7 +793,7 @@ const file_xtcp_treatment_journal_v1_journal_proto_rawDesc = "" +
 	"\x0finstalled_route\x18\n" +
 	" \x01(\fR\x0einstalledRoute\x12*\n" +
 	"\x11installed_boot_id\x18\v \x01(\tR\x0finstalledBootId\x12'\n" +
-	"\x0fexpired_latched\x18\f \x01(\bR\x0eexpiredLatched\"\xe9\x02\n" +
+	"\x0fexpired_latched\x18\f \x01(\bR\x0eexpiredLatched\"\x8e\x03\n" +
 	"\aJournal\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x12\x1a\n" +
 	"\blocation\x18\x02 \x01(\tR\blocation\x12\x17\n" +
@@ -792,7 +803,8 @@ const file_xtcp_treatment_journal_v1_journal_proto_rawDesc = "" +
 	"\x11suspension_reason\x18\x06 \x01(\tR\x10suspensionReason\x12;\n" +
 	"\arecords\x18\a \x03(\v2!.xtcp_treatment_journal.v1.RecordR\arecords\x129\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt*\xa4\x01\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12#\n" +
+	"\rcollection_id\x18\t \x01(\tR\fcollectionId*\xa4\x01\n" +
 	"\x0eAssignmentMode\x12\x1f\n" +
 	"\x1bASSIGNMENT_MODE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15ASSIGNMENT_MODE_TRIAL\x10\x01\x12\x1a\n" +

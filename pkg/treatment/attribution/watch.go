@@ -1,8 +1,6 @@
 package attribution
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -44,15 +42,17 @@ type WatchConfig struct {
 // agent to speak for, and the daemon degrades to an observation-only
 // producer rather than attributing from stale state.
 type Watcher struct {
-	cfg          WatchConfig
-	stamper      *Stamper
-	collectionID string
-	wake         chan struct{}
-	mu           sync.Mutex
-	lastModTime  time.Time
-	lastSize     int64
-	lastErr      string
-	warnedFor    string
+	cfg         WatchConfig
+	stamper     *Stamper
+	wake        chan struct{}
+	mu          sync.Mutex
+	lastModTime time.Time
+	lastSize    int64
+	lastErr     string
+	warnedFor   string
+	// warnedUnbound is set once a journal without a collection nonce has
+	// been logged, so the warning is not repeated on every refresh.
+	warnedUnbound bool
 }
 
 // NewWatcher validates the configuration and resolves the namespace. It
@@ -74,11 +74,7 @@ func NewWatcher(cfg WatchConfig, s *Stamper) (*Watcher, error) {
 		}
 		cfg.NetnsInode = st.Ino
 	}
-	var nonce [16]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return nil, err
-	}
-	return &Watcher{cfg: cfg, stamper: s, collectionID: hex.EncodeToString(nonce[:]), wake: make(chan struct{}, 1)}, nil
+	return &Watcher{cfg: cfg, stamper: s, wake: make(chan struct{}, 1)}, nil
 }
 
 // Wake asks Run to re-read the snapshot now; concurrent wakes coalesce.
@@ -128,7 +124,13 @@ func (w *Watcher) Refresh(force bool) error {
 		w.warnedFor = s.Location
 		w.cfg.Log("treatment attribution: this daemon has no -location; records take the journal's %q", s.Location)
 	}
-	w.stamper.Publish(Build(s, Identity{AgentID: s.AgentID, Location: s.Location, BootID: s.BootID, CollectionID: w.collectionID, NetnsInode: w.cfg.NetnsInode}, adoptLocation))
+	if s.CollectionID == "" && !w.warnedUnbound {
+		w.warnedUnbound = true
+		w.cfg.Log("treatment attribution: the journal carries no collection nonce; records are stamped without one and the controller will not count them as evidence until the agent rewrites the journal")
+	}
+	// The nonce is the agent's, read from the journal, so the controller
+	// can bind these records to the session the agent reported.
+	w.stamper.Publish(Build(s, Identity{AgentID: s.AgentID, Location: s.Location, BootID: s.BootID, CollectionID: s.CollectionID, NetnsInode: w.cfg.NetnsInode}, adoptLocation))
 	return nil
 }
 

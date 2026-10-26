@@ -1822,6 +1822,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Journal final : public ::google::pr
     kLocationFieldNumber = 2,
     kBootIdFieldNumber = 3,
     kSuspensionReasonFieldNumber = 6,
+    kCollectionIdFieldNumber = 9,
     kDesiredFieldNumber = 4,
     kUpdatedAtFieldNumber = 8,
     kLocallySuspendedFieldNumber = 5,
@@ -1906,6 +1907,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Journal final : public ::google::pr
   ::std::string* PROTOBUF_NONNULL _internal_mutable_suspension_reason();
 
   public:
+  // string collection_id = 9 [json_name = "collectionId"];
+  void clear_collection_id() ;
+  [[nodiscard]] const ::std::string& collection_id() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_collection_id(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_collection_id();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_collection_id();
+  void set_allocated_collection_id(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_collection_id() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_collection_id(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_collection_id();
+
+  public:
   // .xtcp_treatment_journal.v1.Desired desired = 4 [json_name = "desired"];
   [[nodiscard]] bool has_desired() const;
   void clear_desired() ;
@@ -1950,8 +1966,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Journal final : public ::google::pr
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<3, 8,
-                          3, 90,
+      ::google::protobuf::internal::TcParseTable<4, 9,
+                          3, 103,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -1984,6 +2000,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED Journal final : public ::google::pr
     ::google::protobuf::internal::ArenaStringPtr location_;
     ::google::protobuf::internal::ArenaStringPtr boot_id_;
     ::google::protobuf::internal::ArenaStringPtr suspension_reason_;
+    ::google::protobuf::internal::ArenaStringPtr collection_id_;
     ::xtcp_treatment_journal::v1::Desired* PROTOBUF_NULLABLE desired_;
     ::google::protobuf::Timestamp* PROTOBUF_NULLABLE updated_at_;
     bool locally_suspended_;
@@ -4153,14 +4170,14 @@ inline void Journal::set_allocated_boot_id(::std::string* PROTOBUF_NULLABLE valu
 
 // .xtcp_treatment_journal.v1.Desired desired = 4 [json_name = "desired"];
 inline bool Journal::has_desired() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000020U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000040U);
   PROTOBUF_ASSUME(!value || _impl_.desired_ != nullptr);
   return value;
 }
 inline void Journal::clear_desired() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.desired_ != nullptr) _impl_.desired_->Clear();
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
 }
 inline const ::xtcp_treatment_journal::v1::Desired& Journal::_internal_desired() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -4179,16 +4196,16 @@ inline void Journal::unsafe_arena_set_allocated_desired(
   }
   _impl_.desired_ = reinterpret_cast<::xtcp_treatment_journal::v1::Desired*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment_journal.v1.Journal.desired)
 }
 inline ::xtcp_treatment_journal::v1::Desired* PROTOBUF_NULLABLE Journal::release_desired() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   ::xtcp_treatment_journal::v1::Desired* released = _impl_.desired_;
   _impl_.desired_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -4208,7 +4225,7 @@ inline ::xtcp_treatment_journal::v1::Desired* PROTOBUF_NULLABLE Journal::unsafe_
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment_journal.v1.Journal.desired)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   ::xtcp_treatment_journal::v1::Desired* temp = _impl_.desired_;
   _impl_.desired_ = nullptr;
   return temp;
@@ -4223,7 +4240,7 @@ inline ::xtcp_treatment_journal::v1::Desired* PROTOBUF_NONNULL Journal::_interna
 }
 inline ::xtcp_treatment_journal::v1::Desired* PROTOBUF_NONNULL Journal::mutable_desired()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   ::xtcp_treatment_journal::v1::Desired* _msg = _internal_mutable_desired();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment_journal.v1.Journal.desired)
   return _msg;
@@ -4240,9 +4257,9 @@ inline void Journal::set_allocated_desired(::xtcp_treatment_journal::v1::Desired
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
   }
 
   _impl_.desired_ = reinterpret_cast<::xtcp_treatment_journal::v1::Desired*>(value);
@@ -4253,7 +4270,7 @@ inline void Journal::set_allocated_desired(::xtcp_treatment_journal::v1::Desired
 inline void Journal::clear_locally_suspended() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.locally_suspended_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
 }
 inline bool Journal::locally_suspended() const {
   // @@protoc_insertion_point(field_get:xtcp_treatment_journal.v1.Journal.locally_suspended)
@@ -4261,7 +4278,7 @@ inline bool Journal::locally_suspended() const {
 }
 inline void Journal::set_locally_suspended(bool value) {
   _internal_set_locally_suspended(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   // @@protoc_insertion_point(field_set:xtcp_treatment_journal.v1.Journal.locally_suspended)
 }
 inline bool Journal::_internal_locally_suspended() const {
@@ -4394,7 +4411,7 @@ Journal::_internal_mutable_records() {
 
 // .google.protobuf.Timestamp updated_at = 8 [json_name = "updatedAt"];
 inline bool Journal::has_updated_at() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000040U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000080U);
   PROTOBUF_ASSUME(!value || _impl_.updated_at_ != nullptr);
   return value;
 }
@@ -4415,16 +4432,16 @@ inline void Journal::unsafe_arena_set_allocated_updated_at(
   }
   _impl_.updated_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_treatment_journal.v1.Journal.updated_at)
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Journal::release_updated_at() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   ::google::protobuf::Timestamp* released = _impl_.updated_at_;
   _impl_.updated_at_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -4444,7 +4461,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NULLABLE Journal::unsafe_arena_re
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_treatment_journal.v1.Journal.updated_at)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   ::google::protobuf::Timestamp* temp = _impl_.updated_at_;
   _impl_.updated_at_ = nullptr;
   return temp;
@@ -4459,7 +4476,7 @@ inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Journal::_internal_mutabl
 }
 inline ::google::protobuf::Timestamp* PROTOBUF_NONNULL Journal::mutable_updated_at()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   ::google::protobuf::Timestamp* _msg = _internal_mutable_updated_at();
   // @@protoc_insertion_point(field_mutable:xtcp_treatment_journal.v1.Journal.updated_at)
   return _msg;
@@ -4476,13 +4493,77 @@ inline void Journal::set_allocated_updated_at(::google::protobuf::Timestamp* PRO
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000040U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000040U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
   }
 
   _impl_.updated_at_ = reinterpret_cast<::google::protobuf::Timestamp*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_treatment_journal.v1.Journal.updated_at)
+}
+
+// string collection_id = 9 [json_name = "collectionId"];
+inline void Journal::clear_collection_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.collection_id_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+}
+inline const ::std::string& Journal::collection_id() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_treatment_journal.v1.Journal.collection_id)
+  return _internal_collection_id();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void Journal::set_collection_id(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  _impl_.collection_id_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_treatment_journal.v1.Journal.collection_id)
+}
+inline ::std::string* PROTOBUF_NONNULL Journal::mutable_collection_id()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  ::std::string* _s = _internal_mutable_collection_id();
+  // @@protoc_insertion_point(field_mutable:xtcp_treatment_journal.v1.Journal.collection_id)
+  return _s;
+}
+inline const ::std::string& Journal::_internal_collection_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.collection_id_.Get();
+}
+inline void Journal::_internal_set_collection_id(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.collection_id_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL Journal::_internal_mutable_collection_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.collection_id_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE Journal::release_collection_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_treatment_journal.v1.Journal.collection_id)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000020U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  auto* released = _impl_.collection_id_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.collection_id_.Set("", GetArena());
+  }
+  return released;
+}
+inline void Journal::set_allocated_collection_id(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000020U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000020U);
+  }
+  _impl_.collection_id_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.collection_id_.IsDefault()) {
+    _impl_.collection_id_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_treatment_journal.v1.Journal.collection_id)
 }
 
 #ifdef __GNUC__

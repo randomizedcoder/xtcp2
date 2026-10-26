@@ -125,15 +125,32 @@ automatic rollback by faking harm, or mask real harm on a host it impersonates.
 
 What limits that today: evidence queries filter by the experiment's location
 and the frozen cohort's agent IDs, so records naming hosts outside the cohort
-are never read; per-host sample minimums and the two-minute freshness window
-bound how little data can swing a verdict; every expansion and completion is a
-human review of typed evidence, and completed experiments only ever request
-review on drift; evidence rows are immutable once stored, keyed by ID and
-digest, and every decision is in the audit log with the operator's identity.
-What is not done: binding a telemetry record to the boot ID and collection
-nonce the same agent reported at check-in, which would let the warehouse
-query reject records a host did not plausibly produce. That is the next
-hardening step for this boundary and is tracked in the status document.
+are never read. Within the cohort, evidence is bound to sessions: each agent
+process draws a 16-byte collection nonce, writes it into its journal header
+(where a telemetry-only daemon reads it) and reports it with its boot ID on
+every mTLS check-in. The controller keeps every `(agent_id, boot_id,
+collection_id)` it has heard (`xtcp_treatment_agent_sessions`, pruned after
+eight days), passes the population's sessions for the window into the
+analysis query, and measures only records stamped with one of them. Records
+that name a cohort agent under any other boot or nonce are excluded from
+every metric and counted per host as `unbound_sockets`, which `Analyze` and
+`Inspect` return with the evidence a reviewer approves. Discovery proposes
+only cohorts of enrolled agents, because only they have sessions.
+
+Per-host sample minimums and the two-minute freshness window bound how little
+data can swing a verdict; every expansion and completion is a human review of
+typed evidence, and completed experiments only ever request review on drift;
+evidence rows are immutable once stored, keyed by ID and digest, and every
+decision is in the audit log with the operator's identity.
+
+What binding does not stop: the nonce and boot ID travel in the same
+unauthenticated telemetry they protect, so a principal that can read the
+topic (or the warehouse) can copy a live session and forge records that bind.
+It raises the bar from "know an agent ID" to "read the telemetry stream", and
+it turns stale records from a previous boot or agent process into visible
+unbound counts instead of evidence. A compromised host can still misreport
+its own sockets; nothing short of signing records at the source would stop
+that.
 
 Inside the controller, the advisory mutation lock and the housekeeping lease
 order work and bound cost; neither is an authorization mechanism. Request IDs
@@ -502,7 +519,11 @@ observed congestion algorithm matches. Embedded, the index is rebuilt after
 every reconcile pass. Standalone, xtcp2 watches the journal directory
 (inotify on the atomic rename of `state.textproto`, a 30 s poll as fallback,
 SIGHUP to re-read now) and rebuilds it from the snapshot; a missing or invalid
-snapshot clears attribution rather than stamping stale state.
+snapshot clears attribution rather than stamping stale state. The collection
+nonce is the agent's in both arrangements: the agent writes it into the
+journal header on its first pass after starting, the watchdog preserves it,
+and a journal without one (written by an older agent) is stamped without a
+nonce, which the controller counts as unbound, and logged once.
 
 Location follows one rule in both arrangements, because the agent's location
 is certificate-bound and evidence queries filter by it. A daemon started

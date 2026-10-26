@@ -22,7 +22,7 @@ func populatedState(now time.Time) *State {
 	d.Assignments[0].Predecessor = &pred
 	d.Assignments = append(d.Assignments, treatment.Assignment{ExperimentID: "stable-6", Generation: 2, Mode: treatment.ModeStable, Treatment: treatment.Treatment{ID: "v6", Revision: 3, Destination: netip.MustParsePrefix("2001:db8::1/128"), Settings: treatment.TCPSettings{QuickAck: ptr(true)}}})
 	return &State{
-		AgentID: "host-1", Location: "dc1", BootID: "boot-1", Desired: d, LocallySuspended: true, SuspensionReason: "incident 7", UpdatedAt: now,
+		AgentID: "host-1", Location: "dc1", BootID: "boot-1", CollectionID: fixtures.CollectionID, Desired: d, LocallySuspended: true, SuspensionReason: "incident 7", UpdatedAt: now,
 		Records: []Record{
 			{ApplicationRecord: treatment.ApplicationRecord{Assignment: d.Assignments[0], DesiredRevision: 1, Status: treatment.ApplyVerified, ReceivedAt: now, AttemptedAt: now.Add(time.Second), AppliedAt: now.Add(2 * time.Second), VerifiedAt: now.Add(3 * time.Second)}, InstalledRoute: []byte{0x18, 0, 0, 0, 1, 2, 3}, InstalledBootID: "boot-1"},
 			{ApplicationRecord: treatment.ApplicationRecord{Assignment: d.Assignments[1], DesiredRevision: 1, Status: treatment.ApplyPending, ReceivedAt: now}},

@@ -25,8 +25,9 @@ type Identity struct {
 	AgentID  string
 	Location string
 	BootID   string
-	// CollectionID is a per-process nonce so restarts of the stamping
-	// process are distinguishable in evidence.
+	// CollectionID is the agent process's nonce (see
+	// treatment.ValidCollectionID). The controller counts a record as
+	// evidence only when its agent reported this nonce with this boot ID.
 	CollectionID string
 	// NetnsInode is the namespace the treatment routes live in; sockets in
 	// any other namespace are never attributed.

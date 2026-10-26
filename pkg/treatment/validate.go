@@ -22,6 +22,28 @@ var identifier = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$`)
 
 func ValidID(s string) bool { return identifier.MatchString(s) }
 
+// MinimumCohort is the smallest population an experiment may have.
+const MinimumCohort = 3
+
+// CollectionIDLength is the hex length of a collection nonce (16 bytes).
+const CollectionIDLength = 32
+
+// ValidCollectionID reports whether s is a collection nonce: 32 lowercase
+// hex digits. An agent draws one per process, writes it to its journal and
+// reports it at check-in; the daemon stamps it into every record so evidence
+// can be bound to sessions the controller heard about over mTLS.
+func ValidCollectionID(s string) bool {
+	if len(s) != CollectionIDLength {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // ValidDestination reports whether p is a canonical, globally routable /32
 // or /128 host prefix.
 func ValidDestination(p netip.Prefix) bool {
@@ -157,7 +179,7 @@ func ValidateEvidence(e *Evidence) error {
 }
 
 func ValidateProposal(e *Experiment) error {
-	if e == nil || !ValidID(e.ID) || !ValidID(e.Location) || len(e.Hypothesis) == 0 || len(e.Hypothesis) > 8192 || len(e.CohortOrder) < 3 || len(e.CohortOrder) > MaxAgents {
+	if e == nil || !ValidID(e.ID) || !ValidID(e.Location) || len(e.Hypothesis) == 0 || len(e.Hypothesis) > 8192 || len(e.CohortOrder) < MinimumCohort || len(e.CohortOrder) > MaxAgents {
 		return errors.New("invalid experiment identity or population (minimum three hosts)")
 	}
 	if err := ValidateTreatment(&e.Treatment); err != nil {
@@ -188,7 +210,7 @@ func ValidateProposal(e *Experiment) error {
 // ValidateReport checks a check-in before it is stored. Kernel bytes and boot
 // IDs of installed routes are local to the host and must not be reported.
 func ValidateReport(r *AgentReport) error {
-	if r == nil || !ValidID(r.AgentID) || !ValidID(r.Location) || !ValidID(r.Capabilities.BootID) || len(r.Capabilities.KernelRelease) > 256 || len(r.Capabilities.CongestionAlgorithms) > 64 || len(r.Records) > MaxAssignments*2 {
+	if r == nil || !ValidID(r.AgentID) || !ValidID(r.Location) || !ValidID(r.Capabilities.BootID) || !ValidCollectionID(r.Capabilities.CollectionID) || len(r.Capabilities.KernelRelease) > 256 || len(r.Capabilities.CongestionAlgorithms) > 64 || len(r.Records) > MaxAssignments*2 {
 		return errors.New("invalid agent report")
 	}
 	for _, a := range r.Capabilities.CongestionAlgorithms {

@@ -40,7 +40,7 @@ func sampleReport() *treatment.AgentReport {
 	d := fixtures.Desired(now)
 	return &treatment.AgentReport{
 		AgentID: "host-1", Location: "dc1",
-		Capabilities:    treatment.Capabilities{BootID: "boot-1", KernelRelease: "6.12.0", CongestionAlgorithms: []string{"cubic", "bbr"}, ActuatorEnabled: true},
+		Capabilities:    treatment.Capabilities{BootID: "boot-1", CollectionID: fixtures.CollectionID, KernelRelease: "6.12.0", CongestionAlgorithms: []string{"cubic", "bbr"}, ActuatorEnabled: true},
 		DesiredRevision: 3,
 		Records: []treatment.ApplicationRecord{
 			{Assignment: d.Assignments[0], DesiredRevision: 3, Status: treatment.ApplyVerified, ReceivedAt: now, AppliedAt: now.Add(time.Second), VerifiedAt: now.Add(2 * time.Second)},

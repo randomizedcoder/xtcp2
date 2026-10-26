@@ -717,6 +717,7 @@ class Journal extends $pb.GeneratedMessage {
     $core.String? suspensionReason,
     $core.Iterable<Record>? records,
     $0.Timestamp? updatedAt,
+    $core.String? collectionId,
   }) {
     final result = Journal._();
     if (agentId != null) result.agentId = agentId;
@@ -727,6 +728,7 @@ class Journal extends $pb.GeneratedMessage {
     if (suspensionReason != null) result.suspensionReason = suspensionReason;
     if (records != null) result.records.addAll(records);
     if (updatedAt != null) result.updatedAt = updatedAt;
+    if (collectionId != null) result.collectionId = collectionId;
     return result;
   }
 
@@ -755,6 +757,7 @@ class Journal extends $pb.GeneratedMessage {
         subBuilder: Record.$_createMessage)
     ..aOM<$0.Timestamp>(8, _omitFieldNames ? '' : 'updatedAt',
         subBuilder: $0.Timestamp.$_createMessage)
+    ..aOS(9, _omitFieldNames ? '' : 'collectionId')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -848,6 +851,18 @@ class Journal extends $pb.GeneratedMessage {
   void clearUpdatedAt() => $_clearField(8);
   @$pb.TagNumber(8)
   $0.Timestamp ensureUpdatedAt() => $_ensure(7);
+
+  /// Per-process nonce of the agent that owns the journal. The agent writes
+  /// it; the watchdog preserves it; a telemetry-only daemon stamps it into
+  /// records as collection_id.
+  @$pb.TagNumber(9)
+  $core.String get collectionId => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set collectionId($core.String value) => $_setString(8, value);
+  @$pb.TagNumber(9)
+  $core.bool hasCollectionId() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearCollectionId() => $_clearField(9);
 }
 
 const $core.bool _omitFieldNames =

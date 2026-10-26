@@ -258,11 +258,11 @@ constexpr HostEvidence::ParseTableT_ HostEvidence::InternalGenerateParseTable_(c
     {
       PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_._has_bits_),
       0, // no _extensions_
-      8, 56,  // max_field_number, fast_idx_mask
+      9, 120,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967040,  // skipmap
+      4294966784,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      8,  // num_field_entries
+      9,  // num_field_entries
       0,  // num_aux_entries
       offsetof(ParseTableT_, field_names),  // no aux_entries
       class_data,
@@ -272,10 +272,7 @@ constexpr HostEvidence::ParseTableT_ HostEvidence::InternalGenerateParseTable_(c
       ::_pbi::TcParser::GetTable<::xtcp_treatment::v1::HostEvidence>(),  // to_prefetch
       #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
     }, {{
-      // bool collection_healthy = 8 [json_name = "collectionHealthy"];
-      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(HostEvidence, _impl_.collection_healthy_), 7>(),
-       {64, 7, 0,
-        PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.collection_healthy_)}},
+      {::_pbi::TcParser::MiniParse, {}},
       // string agent_id = 1 [json_name = "agentId", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS1,
        {10, 0, 0,
@@ -304,6 +301,20 @@ constexpr HostEvidence::ParseTableT_ HostEvidence::InternalGenerateParseTable_(c
       {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(HostEvidence, _impl_.exposed_sockets_), 6>(),
        {56, 6, 0,
         PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.exposed_sockets_)}},
+      // bool collection_healthy = 8 [json_name = "collectionHealthy"];
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(HostEvidence, _impl_.collection_healthy_), 8>(),
+       {64, 8, 0,
+        PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.collection_healthy_)}},
+      // uint64 unbound_sockets = 9 [json_name = "unboundSockets"];
+      {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(HostEvidence, _impl_.unbound_sockets_), 7>(),
+       {72, 7, 0,
+        PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.unbound_sockets_)}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
+      {::_pbi::TcParser::MiniParse, {}},
     }}, {{
       65535, 65535
     }}, {{
@@ -322,7 +333,9 @@ constexpr HostEvidence::ParseTableT_ HostEvidence::InternalGenerateParseTable_(c
       // uint64 exposed_sockets = 7 [json_name = "exposedSockets"];
       {PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.exposed_sockets_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
       // bool collection_healthy = 8 [json_name = "collectionHealthy"];
-      {PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.collection_healthy_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.collection_healthy_), _Internal::kHasBitsOffset + 8, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      // uint64 unbound_sockets = 9 [json_name = "unboundSockets"];
+      {PROTOBUF_FIELD_OFFSET(HostEvidence, _impl_.unbound_sockets_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt64)},
     }},
     // no aux_entries
     {{
@@ -346,6 +359,7 @@ inline constexpr HostEvidence::Impl_::Impl_(
         retransmission_ratio_{0},
         rtt_p95_ms_{0},
         exposed_sockets_{::uint64_t{0u}},
+        unbound_sockets_{::uint64_t{0u}},
         collection_healthy_{false} {}
 
 template <typename>
@@ -452,11 +466,11 @@ constexpr Capabilities::ParseTableT_ Capabilities::InternalGenerateParseTable_(c
     {
       PROTOBUF_FIELD_OFFSET(Capabilities, _impl_._has_bits_),
       0, // no _extensions_
-      5, 56,  // max_field_number, fast_idx_mask
+      6, 56,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4294967264,  // skipmap
+      4294967232,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      5,  // num_field_entries
+      6,  // num_field_entries
       0,  // num_aux_entries
       offsetof(ParseTableT_, field_names),  // no aux_entries
       class_data,
@@ -480,14 +494,17 @@ constexpr Capabilities::ParseTableT_ Capabilities::InternalGenerateParseTable_(c
        {26, 0, 0,
         PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.congestion_algorithms_)}},
       // bool simple_host_routing = 4 [json_name = "simpleHostRouting"];
-      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(Capabilities, _impl_.simple_host_routing_), 3>(),
-       {32, 3, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(Capabilities, _impl_.simple_host_routing_), 4>(),
+       {32, 4, 0,
         PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.simple_host_routing_)}},
       // bool actuator_enabled = 5 [json_name = "actuatorEnabled"];
-      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(Capabilities, _impl_.actuator_enabled_), 4>(),
-       {40, 4, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(Capabilities, _impl_.actuator_enabled_), 5>(),
+       {40, 5, 0,
         PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.actuator_enabled_)}},
-      {::_pbi::TcParser::MiniParse, {}},
+      // string collection_id = 6 [json_name = "collectionId", (.buf.validate.field) = {
+      {::_pbi::TcParser::FastUS1,
+       {50, 3, 0,
+        PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.collection_id_)}},
       {::_pbi::TcParser::MiniParse, {}},
     }}, {{
       65535, 65535
@@ -499,17 +516,20 @@ constexpr Capabilities::ParseTableT_ Capabilities::InternalGenerateParseTable_(c
       // repeated string congestion_algorithms = 3 [json_name = "congestionAlgorithms", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.congestion_algorithms_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcRepeated | ::_fl::kUtf8String | ::_fl::kRepSString)},
       // bool simple_host_routing = 4 [json_name = "simpleHostRouting"];
-      {PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.simple_host_routing_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.simple_host_routing_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // bool actuator_enabled = 5 [json_name = "actuatorEnabled"];
-      {PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.actuator_enabled_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.actuator_enabled_), _Internal::kHasBitsOffset + 5, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      // string collection_id = 6 [json_name = "collectionId", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.collection_id_), _Internal::kHasBitsOffset + 3, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
     }},
     // no aux_entries
     {{
-      "\36\7\16\25\0\0\0\0"
+      "\36\7\16\25\0\0\15\0"
       "xtcp_treatment.v1.Capabilities"
       "boot_id"
       "kernel_release"
       "congestion_algorithms"
+      "collection_id"
     }},
   };
 }
@@ -527,6 +547,9 @@ inline constexpr Capabilities::Impl_::Impl_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         kernel_release_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        collection_id_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
         simple_host_routing_{false},
@@ -2679,17 +2702,19 @@ const ::uint32_t
         2,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Capabilities, _impl_._has_bits_),
-        8, // hasbit index offset
+        9, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Capabilities, _impl_.boot_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Capabilities, _impl_.kernel_release_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Capabilities, _impl_.congestion_algorithms_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Capabilities, _impl_.simple_host_routing_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Capabilities, _impl_.actuator_enabled_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Capabilities, _impl_.collection_id_),
         1,
         2,
         0,
-        3,
         4,
+        5,
+        3,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::ApplicationRecord, _impl_._has_bits_),
         15, // hasbit index offset
@@ -2732,7 +2757,7 @@ const ::uint32_t
         3,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_._has_bits_),
-        11, // hasbit index offset
+        12, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_.agent_id_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_.sockets_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_.bytes_acked_),
@@ -2741,6 +2766,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_.rtt_p95_ms_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_.exposed_sockets_),
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_.collection_healthy_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::HostEvidence, _impl_.unbound_sockets_),
         0,
         1,
         2,
@@ -2748,6 +2774,7 @@ const ::uint32_t
         4,
         5,
         6,
+        8,
         7,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_treatment::v1::Evidence, _impl_._has_bits_),
@@ -2848,13 +2875,13 @@ static const ::_pbi::MigrationSchema
         {30, sizeof(::xtcp_treatment::v1::Assignment)},
         {45, sizeof(::xtcp_treatment::v1::DesiredState)},
         {58, sizeof(::xtcp_treatment::v1::Capabilities)},
-        {71, sizeof(::xtcp_treatment::v1::ApplicationRecord)},
-        {98, sizeof(::xtcp_treatment::v1::LocalState)},
-        {111, sizeof(::xtcp_treatment::v1::HostEvidence)},
-        {130, sizeof(::xtcp_treatment::v1::Evidence)},
-        {149, sizeof(::xtcp_treatment::v1::ExperimentPolicy)},
-        {170, sizeof(::xtcp_treatment::v1::Phase)},
-        {189, sizeof(::xtcp_treatment::v1::Experiment)},
+        {73, sizeof(::xtcp_treatment::v1::ApplicationRecord)},
+        {100, sizeof(::xtcp_treatment::v1::LocalState)},
+        {113, sizeof(::xtcp_treatment::v1::HostEvidence)},
+        {134, sizeof(::xtcp_treatment::v1::Evidence)},
+        {153, sizeof(::xtcp_treatment::v1::ExperimentPolicy)},
+        {174, sizeof(::xtcp_treatment::v1::Phase)},
+        {193, sizeof(::xtcp_treatment::v1::Experiment)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -2937,164 +2964,166 @@ const char descriptor_table_protodef_xtcp_5ftreatment_2fv1_2ftreatment_2eproto[]
     "ed\022J\n\013assignments\030\004 \003(\0132\035.xtcp_treatment"
     ".v1.AssignmentB\t\272H\006\222\001\003\020\200 R\013assignments\022\?"
     "\n\tissued_at\030\005 \001(\0132\032.google.protobuf.Time"
-    "stampB\006\272H\003\310\001\001R\010issuedAt\"\243\002\n\014Capabilities"
+    "stampB\006\272H\003\310\001\001R\010issuedAt\"\337\002\n\014Capabilities"
     "\022B\n\007boot_id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a"
     "-zA-Z0-9_.-]{0,127}$R\006bootId\022/\n\016kernel_r"
     "elease\030\002 \001(\tB\010\272H\005r\003\030\200\002R\rkernelRelease\022C\n"
     "\025congestion_algorithms\030\003 \003(\tB\016\272H\013\222\001\010\020@\"\004"
     "r\002\030\017R\024congestionAlgorithms\022.\n\023simple_hos"
     "t_routing\030\004 \001(\010R\021simpleHostRouting\022)\n\020ac"
-    "tuator_enabled\030\005 \001(\010R\017actuatorEnabled\"\250\005"
-    "\n\021ApplicationRecord\022E\n\nassignment\030\001 \001(\0132"
-    "\035.xtcp_treatment.v1.AssignmentB\006\272H\003\310\001\001R\n"
-    "assignment\022)\n\020desired_revision\030\002 \001(\004R\017de"
-    "siredRevision\022@\n\006status\030\003 \001(\0162\036.xtcp_tre"
-    "atment.v1.ApplyStatusB\010\272H\005\202\001\002\020\001R\006status\022"
-    ";\n\013received_at\030\004 \001(\0132\032.google.protobuf.T"
-    "imestampR\nreceivedAt\022=\n\014attempted_at\030\005 \001"
-    "(\0132\032.google.protobuf.TimestampR\013attempte"
-    "dAt\0229\n\napplied_at\030\006 \001(\0132\032.google.protobu"
-    "f.TimestampR\tappliedAt\022;\n\013verified_at\030\007 "
-    "\001(\0132\032.google.protobuf.TimestampR\nverifie"
-    "dAt\0229\n\nremoved_at\030\010 \001(\0132\032.google.protobu"
-    "f.TimestampR\tremovedAt\022\036\n\005error\030\t \001(\tB\010\272"
-    "H\005r\003\030\200 R\005error\0221\n\017installed_route\030\n \001(\014B"
-    "\010\272H\005z\003\030\200 R\016installedRoute\0224\n\021installed_b"
-    "oot_id\030\013 \001(\tB\010\272H\005r\003\030\200\001R\017installedBootId\022"
-    "\'\n\017expired_latched\030\014 \001(\010R\016expiredLatched"
-    "\"\261\002\n\nLocalState\0229\n\007desired\030\001 \001(\0132\037.xtcp_"
-    "treatment.v1.DesiredStateR\007desired\022+\n\021lo"
-    "cally_suspended\030\002 \001(\010R\020locallySuspended\022"
-    "5\n\021suspension_reason\030\003 \001(\tB\010\272H\005r\003\030\200\010R\020su"
-    "spensionReason\022I\n\007records\030\004 \003(\0132$.xtcp_t"
-    "reatment.v1.ApplicationRecordB\t\272H\006\222\001\003\020\200@"
-    "R\007records\0229\n\nupdated_at\030\005 \001(\0132\032.google.p"
-    "rotobuf.TimestampR\tupdatedAt\"\211\004\n\014HostEvi"
-    "dence\022D\n\010agent_id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z"
-    "0-9][a-zA-Z0-9_.-]{0,127}$R\007agentId\022\030\n\007s"
-    "ockets\030\002 \001(\004R\007sockets\022\037\n\013bytes_acked\030\003 \001"
-    "(\004R\nbytesAcked\0221\n\013goodput_bps\030\004 \001(\001B\020\272H\r"
-    "\022\013)\000\000\000\000\000\000\000\000@\001R\ngoodputBps\022C\n\024retransmiss"
-    "ion_ratio\030\005 \001(\001B\020\272H\r\022\013)\000\000\000\000\000\000\000\000@\001R\023retra"
-    "nsmissionRatio\022.\n\nrtt_p95_ms\030\006 \001(\001B\020\272H\r\022"
-    "\013)\000\000\000\000\000\000\000\000@\001R\010rttP95Ms\022\'\n\017exposed_socket"
-    "s\030\007 \001(\004R\016exposedSockets\022-\n\022collection_he"
-    "althy\030\010 \001(\010R\021collectionHealthy:x\272Hu\032s\n$h"
-    "ost_evidence.exposed_within_sockets\022%exp"
-    "osed_sockets cannot exceed sockets\032$this"
-    ".exposed_sockets <= this.sockets\"\274\005\n\010Evi"
-    "dence\0229\n\002id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a"
-    "-zA-Z0-9_.-]{0,127}$R\002id\022C\n\013analyzed_at\030"
-    "\002 \001(\0132\032.google.protobuf.TimestampB\006\272H\003\310\001"
-    "\001R\nanalyzedAt\022E\n\014window_start\030\003 \001(\0132\032.go"
-    "ogle.protobuf.TimestampB\006\272H\003\310\001\001R\013windowS"
-    "tart\022A\n\nwindow_end\030\004 \001(\0132\032.google.protob"
-    "uf.TimestampB\006\272H\003\310\001\001R\twindowEnd\022/\n\rquery"
-    "_version\030\005 \001(\tB\n\272H\007r\005\020\001\030\200\002R\014queryVersion"
-    "\0227\n\022enrichment_version\030\006 \001(\tB\010\272H\005r\003\030\200\002R\021"
-    "enrichmentVersion\022B\n\005hosts\030\007 \003(\0132\037.xtcp_"
-    "treatment.v1.HostEvidenceB\013\272H\010\222\001\005\010\001\020\220NR\005"
-    "hosts\022>\n\017artifact_sha256\030\010 \001(\tB\025\272H\022r\0202\016^"
-    "[0-9a-f]{64}$R\016artifactSha256:\267\001\272H\263\001\032\260\001\n"
-    "\021evidence.interval\022Owindow_end must foll"
-    "ow window_start and analyzed_at must not"
-    " precede window_end\032Jthis.window_end > t"
-    "his.window_start && this.analyzed_at >= "
-    "this.window_end\"\354\006\n\020ExperimentPolicy\022]\n\023"
-    "minimum_observation\030\001 \001(\0132\031.google.proto"
-    "buf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\022minimum"
-    "Observation\022Q\n\rmaximum_phase\030\002 \001(\0132\031.goo"
-    "gle.protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001"
-    "R\014maximumPhase\022@\n\030minimum_sockets_per_ho"
-    "st\030\003 \001(\004B\007\272H\0042\002 \000R\025minimumSocketsPerHost"
-    "\022<\n\026minimum_bytes_per_host\030\004 \001(\004B\007\272H\0042\002 "
-    "\000R\023minimumBytesPerHost\022>\n\025minimum_treate"
-    "d_hosts\030\005 \001(\rB\n\272H\007*\005\030\220N(\002R\023minimumTreate"
-    "dHosts\022J\n\023minimum_improvement\030\006 \001(\001B\031\272H\026"
-    "\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\022minimumImproveme"
-    "nt\022a\n\037maximum_retransmission_increase\030\007 "
-    "\001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\035maximumR"
-    "etransmissionIncrease\022K\n\024maximum_rtt_inc"
-    "rease\030\010 \001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\022"
-    "maximumRttIncrease\022^\n\024maximum_evidence_a"
-    "ge\030\t \001(\0132\031.google.protobuf.DurationB\021\272H\016"
-    "\252\001\010\"\004\010\200\365$*\000\310\001\001R\022maximumEvidenceAge:\211\001\272H\205"
-    "\001\032\202\001\n\037policy.observation_within_phase\022/m"
-    "inimum_observation cannot exceed maximum"
-    "_phase\032.this.minimum_observation <= this"
-    ".maximum_phase\"\301\003\n\005Phase\022-\n\014target_hosts"
-    "\030\001 \001(\rB\n\272H\007*\005\030\220N(\001R\013targetHosts\0227\n\tissue"
-    "d_at\030\002 \001(\0132\032.google.protobuf.TimestampR\010"
-    "issuedAt\022P\n\026observation_started_at\030\003 \001(\013"
-    "2\032.google.protobuf.TimestampR\024observatio"
-    "nStartedAt\022=\n\014evaluated_at\030\004 \001(\0132\032.googl"
-    "e.protobuf.TimestampR\013evaluatedAt\0227\n\010evi"
-    "dence\030\005 \001(\0132\033.xtcp_treatment.v1.Evidence"
-    "R\010evidence\022>\n\007outcome\030\006 \001(\0162\032.xtcp_treat"
-    "ment.v1.OutcomeB\010\272H\005\202\001\002\020\001R\007outcome\022$\n\010re"
-    "viewer\030\007 \001(\tB\010\272H\005r\003\030\200\001R\010reviewer\022 \n\006reas"
-    "on\030\010 \001(\tB\010\272H\005r\003\030\200 R\006reason\"\210\007\n\nExperimen"
-    "t\0229\n\002id\030\001 \001(\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-"
-    "Z0-9_.-]{0,127}$R\002id\022E\n\010location\030\002 \001(\tB)"
+    "tuator_enabled\030\005 \001(\010R\017actuatorEnabled\022:\n"
+    "\rcollection_id\030\006 \001(\tB\025\272H\022r\0202\016^[0-9a-f]{3"
+    "2}$R\014collectionId\"\250\005\n\021ApplicationRecord\022"
+    "E\n\nassignment\030\001 \001(\0132\035.xtcp_treatment.v1."
+    "AssignmentB\006\272H\003\310\001\001R\nassignment\022)\n\020desire"
+    "d_revision\030\002 \001(\004R\017desiredRevision\022@\n\006sta"
+    "tus\030\003 \001(\0162\036.xtcp_treatment.v1.ApplyStatu"
+    "sB\010\272H\005\202\001\002\020\001R\006status\022;\n\013received_at\030\004 \001(\013"
+    "2\032.google.protobuf.TimestampR\nreceivedAt"
+    "\022=\n\014attempted_at\030\005 \001(\0132\032.google.protobuf"
+    ".TimestampR\013attemptedAt\0229\n\napplied_at\030\006 "
+    "\001(\0132\032.google.protobuf.TimestampR\tapplied"
+    "At\022;\n\013verified_at\030\007 \001(\0132\032.google.protobu"
+    "f.TimestampR\nverifiedAt\0229\n\nremoved_at\030\010 "
+    "\001(\0132\032.google.protobuf.TimestampR\tremoved"
+    "At\022\036\n\005error\030\t \001(\tB\010\272H\005r\003\030\200 R\005error\0221\n\017in"
+    "stalled_route\030\n \001(\014B\010\272H\005z\003\030\200 R\016installed"
+    "Route\0224\n\021installed_boot_id\030\013 \001(\tB\010\272H\005r\003\030"
+    "\200\001R\017installedBootId\022\'\n\017expired_latched\030\014"
+    " \001(\010R\016expiredLatched\"\261\002\n\nLocalState\0229\n\007d"
+    "esired\030\001 \001(\0132\037.xtcp_treatment.v1.Desired"
+    "StateR\007desired\022+\n\021locally_suspended\030\002 \001("
+    "\010R\020locallySuspended\0225\n\021suspension_reason"
+    "\030\003 \001(\tB\010\272H\005r\003\030\200\010R\020suspensionReason\022I\n\007re"
+    "cords\030\004 \003(\0132$.xtcp_treatment.v1.Applicat"
+    "ionRecordB\t\272H\006\222\001\003\020\200@R\007records\0229\n\nupdated"
+    "_at\030\005 \001(\0132\032.google.protobuf.TimestampR\tu"
+    "pdatedAt\"\262\004\n\014HostEvidence\022D\n\010agent_id\030\001 "
+    "\001(\tB)\272H&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0"
+    ",127}$R\007agentId\022\030\n\007sockets\030\002 \001(\004R\007socket"
+    "s\022\037\n\013bytes_acked\030\003 \001(\004R\nbytesAcked\0221\n\013go"
+    "odput_bps\030\004 \001(\001B\020\272H\r\022\013)\000\000\000\000\000\000\000\000@\001R\ngoodp"
+    "utBps\022C\n\024retransmission_ratio\030\005 \001(\001B\020\272H\r"
+    "\022\013)\000\000\000\000\000\000\000\000@\001R\023retransmissionRatio\022.\n\nrt"
+    "t_p95_ms\030\006 \001(\001B\020\272H\r\022\013)\000\000\000\000\000\000\000\000@\001R\010rttP95"
+    "Ms\022\'\n\017exposed_sockets\030\007 \001(\004R\016exposedSock"
+    "ets\022-\n\022collection_healthy\030\010 \001(\010R\021collect"
+    "ionHealthy\022\'\n\017unbound_sockets\030\t \001(\004R\016unb"
+    "oundSockets:x\272Hu\032s\n$host_evidence.expose"
+    "d_within_sockets\022%exposed_sockets cannot"
+    " exceed sockets\032$this.exposed_sockets <="
+    " this.sockets\"\274\005\n\010Evidence\0229\n\002id\030\001 \001(\tB)"
     "\272H&r$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}"
-    "$R\010location\022*\n\nhypothesis\030\003 \001(\tB\n\272H\007r\005\020\001"
-    "\030\200@R\nhypothesis\022B\n\ttreatment\030\004 \001(\0132\034.xtc"
-    "p_treatment.v1.TreatmentB\006\272H\003\310\001\001R\ttreatm"
-    "ent\022C\n\006policy\030\005 \001(\0132#.xtcp_treatment.v1."
-    "ExperimentPolicyB\006\272H\003\310\001\001R\006policy\022\?\n\010base"
-    "line\030\006 \001(\0132\033.xtcp_treatment.v1.EvidenceB"
-    "\006\272H\003\310\001\001R\010baseline\022X\n\014cohort_order\030\007 \003(\tB"
-    "5\272H2\222\001/\010\003\020\220N\030\001\"&r$2\"^[a-zA-Z0-9][a-zA-Z0"
-    "-9_.-]{0,127}$R\013cohortOrder\022:\n\006phases\030\010 "
-    "\003(\0132\030.xtcp_treatment.v1.PhaseB\010\272H\005\222\001\002\020@R"
-    "\006phases\022E\n\006status\030\t \001(\0162#.xtcp_treatment"
-    ".v1.ExperimentStatusB\010\272H\005\202\001\002\020\001R\006status\022\032"
-    "\n\010revision\030\n \001(\004R\010revision\022;\n\013proposed_a"
-    "t\030\013 \001(\0132\032.google.protobuf.TimestampR\npro"
-    "posedAt\022D\n\017latest_evidence\030\014 \001(\0132\033.xtcp_"
-    "treatment.v1.EvidenceR\016latestEvidence\022K\n"
-    "\016latest_outcome\030\r \001(\0162\032.xtcp_treatment.v"
-    "1.OutcomeB\010\272H\005\202\001\002\020\001R\rlatestOutcome\0229\n\nup"
-    "dated_at\030\016 \001(\0132\032.google.protobuf.Timesta"
-    "mpR\tupdatedAt*\?\n\004Role\022\024\n\020ROLE_UNSPECIFIE"
-    "D\020\000\022\016\n\nROLE_AGENT\020\001\022\021\n\rROLE_OPERATOR\020\002*\244"
-    "\001\n\016AssignmentMode\022\037\n\033ASSIGNMENT_MODE_UNS"
-    "PECIFIED\020\000\022\031\n\025ASSIGNMENT_MODE_TRIAL\020\001\022\032\n"
-    "\026ASSIGNMENT_MODE_STABLE\020\002\022\035\n\031ASSIGNMENT_"
-    "MODE_SUSPENDED\020\003\022\033\n\027ASSIGNMENT_MODE_RETI"
-    "RED\020\004*\255\001\n\013ApplyStatus\022\034\n\030APPLY_STATUS_UN"
-    "SPECIFIED\020\000\022\030\n\024APPLY_STATUS_PENDING\020\001\022\031\n"
-    "\025APPLY_STATUS_VERIFIED\020\002\022\030\n\024APPLY_STATUS"
-    "_REMOVED\020\003\022\030\n\024APPLY_STATUS_EXPIRED\020\004\022\027\n\023"
-    "APPLY_STATUS_FAILED\020\005*\244\004\n\007Outcome\022\027\n\023OUT"
-    "COME_UNSPECIFIED\020\000\022\024\n\020OUTCOME_BASELINE\020\001"
-    "\022 \n\034OUTCOME_AWAITING_APPLICATION\020\002\022\035\n\031OU"
-    "TCOME_AWAITING_EXPOSURE\020\003\022!\n\035OUTCOME_INS"
-    "UFFICIENT_DURATION\020\004\022\035\n\031OUTCOME_INSUFFIC"
-    "IENT_DATA\020\005\022!\n\035OUTCOME_INSUFFICIENT_CONT"
-    "ROLS\020\006\022\021\n\rOUTCOME_STALE\020\007\022\027\n\023OUTCOME_UNA"
-    "VAILABLE\020\010\022\030\n\024OUTCOME_INCONCLUSIVE\020\t\022\027\n\023"
-    "OUTCOME_SAFETY_ONLY\020\n\022\030\n\024OUTCOME_FINAL_S"
-    "AFETY\020\013\022\026\n\022OUTCOME_BENEFICIAL\020\014\022\023\n\017OUTCO"
-    "ME_HARMFUL\020\r\022\023\n\017OUTCOME_EXPIRED\020\016\022\033\n\027OUT"
-    "COME_STABLE_OBSERVED\020\017\022&\n\"OUTCOME_STABLE"
-    "_EVIDENCE_INCOMPLETE\020\020\022-\n)OUTCOME_STABLE"
-    "_REGRESSION_REVIEW_REQUIRED\020\021\022\025\n\021OUTCOME"
-    "_OBSERVING\020\022*\225\002\n\020ExperimentStatus\022!\n\035EXP"
-    "ERIMENT_STATUS_UNSPECIFIED\020\000\022\036\n\032EXPERIME"
-    "NT_STATUS_PROPOSED\020\001\022\035\n\031EXPERIMENT_STATU"
-    "S_RUNNING\020\002\022\034\n\030EXPERIMENT_STATUS_PAUSED\020"
-    "\003\022\037\n\033EXPERIMENT_STATUS_SUSPENDED\020\004\022\036\n\032EX"
-    "PERIMENT_STATUS_COMPLETE\020\005\022\035\n\031EXPERIMENT"
-    "_STATUS_RETIRED\020\006\022!\n\035EXPERIMENT_STATUS_R"
-    "OLLED_BACK\020\007:M\n\004role\022\036.google.protobuf.M"
-    "ethodOptions\030\272\216\003 \001(\0162\027.xtcp_treatment.v1"
-    ".RoleR\004roleB\300\001\n\025com.xtcp_treatment.v1B\016T"
-    "reatmentProtoP\001Z6github.com/randomizedco"
-    "der/xtcp2/gen/go/xtcp_treatment\242\002\003XXX\252\002\020"
-    "XtcpTreatment.V1\312\002\020XtcpTreatment\\V1\342\002\034Xt"
-    "cpTreatment\\V1\\GPBMetadata\352\002\021XtcpTreatme"
-    "nt::V1b\006proto3"
+    "$R\002id\022C\n\013analyzed_at\030\002 \001(\0132\032.google.prot"
+    "obuf.TimestampB\006\272H\003\310\001\001R\nanalyzedAt\022E\n\014wi"
+    "ndow_start\030\003 \001(\0132\032.google.protobuf.Times"
+    "tampB\006\272H\003\310\001\001R\013windowStart\022A\n\nwindow_end\030"
+    "\004 \001(\0132\032.google.protobuf.TimestampB\006\272H\003\310\001"
+    "\001R\twindowEnd\022/\n\rquery_version\030\005 \001(\tB\n\272H\007"
+    "r\005\020\001\030\200\002R\014queryVersion\0227\n\022enrichment_vers"
+    "ion\030\006 \001(\tB\010\272H\005r\003\030\200\002R\021enrichmentVersion\022B"
+    "\n\005hosts\030\007 \003(\0132\037.xtcp_treatment.v1.HostEv"
+    "idenceB\013\272H\010\222\001\005\010\001\020\220NR\005hosts\022>\n\017artifact_s"
+    "ha256\030\010 \001(\tB\025\272H\022r\0202\016^[0-9a-f]{64}$R\016arti"
+    "factSha256:\267\001\272H\263\001\032\260\001\n\021evidence.interval\022"
+    "Owindow_end must follow window_start and"
+    " analyzed_at must not precede window_end"
+    "\032Jthis.window_end > this.window_start &&"
+    " this.analyzed_at >= this.window_end\"\354\006\n"
+    "\020ExperimentPolicy\022]\n\023minimum_observation"
+    "\030\001 \001(\0132\031.google.protobuf.DurationB\021\272H\016\252\001"
+    "\010\"\004\010\200\365$*\000\310\001\001R\022minimumObservation\022Q\n\rmaxi"
+    "mum_phase\030\002 \001(\0132\031.google.protobuf.Durati"
+    "onB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\014maximumPhase\022@\n\030m"
+    "inimum_sockets_per_host\030\003 \001(\004B\007\272H\0042\002 \000R\025"
+    "minimumSocketsPerHost\022<\n\026minimum_bytes_p"
+    "er_host\030\004 \001(\004B\007\272H\0042\002 \000R\023minimumBytesPerH"
+    "ost\022>\n\025minimum_treated_hosts\030\005 \001(\rB\n\272H\007*"
+    "\005\030\220N(\002R\023minimumTreatedHosts\022J\n\023minimum_i"
+    "mprovement\030\006 \001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000"
+    "\000@\001R\022minimumImprovement\022a\n\037maximum_retra"
+    "nsmission_increase\030\007 \001(\001B\031\272H\026\022\024\031\000\000\000\000\000\000\360\?"
+    ")\000\000\000\000\000\000\000\000@\001R\035maximumRetransmissionIncrea"
+    "se\022K\n\024maximum_rtt_increase\030\010 \001(\001B\031\272H\026\022\024\031"
+    "\000\000\000\000\000\000\360\?)\000\000\000\000\000\000\000\000@\001R\022maximumRttIncrease\022"
+    "^\n\024maximum_evidence_age\030\t \001(\0132\031.google.p"
+    "rotobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\022max"
+    "imumEvidenceAge:\211\001\272H\205\001\032\202\001\n\037policy.observ"
+    "ation_within_phase\022/minimum_observation "
+    "cannot exceed maximum_phase\032.this.minimu"
+    "m_observation <= this.maximum_phase\"\301\003\n\005"
+    "Phase\022-\n\014target_hosts\030\001 \001(\rB\n\272H\007*\005\030\220N(\001R"
+    "\013targetHosts\0227\n\tissued_at\030\002 \001(\0132\032.google"
+    ".protobuf.TimestampR\010issuedAt\022P\n\026observa"
+    "tion_started_at\030\003 \001(\0132\032.google.protobuf."
+    "TimestampR\024observationStartedAt\022=\n\014evalu"
+    "ated_at\030\004 \001(\0132\032.google.protobuf.Timestam"
+    "pR\013evaluatedAt\0227\n\010evidence\030\005 \001(\0132\033.xtcp_"
+    "treatment.v1.EvidenceR\010evidence\022>\n\007outco"
+    "me\030\006 \001(\0162\032.xtcp_treatment.v1.OutcomeB\010\272H"
+    "\005\202\001\002\020\001R\007outcome\022$\n\010reviewer\030\007 \001(\tB\010\272H\005r\003"
+    "\030\200\001R\010reviewer\022 \n\006reason\030\010 \001(\tB\010\272H\005r\003\030\200 R"
+    "\006reason\"\210\007\n\nExperiment\0229\n\002id\030\001 \001(\tB)\272H&r"
+    "$2\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\002i"
+    "d\022E\n\010location\030\002 \001(\tB)\272H&r$2\"^[a-zA-Z0-9]"
+    "[a-zA-Z0-9_.-]{0,127}$R\010location\022*\n\nhypo"
+    "thesis\030\003 \001(\tB\n\272H\007r\005\020\001\030\200@R\nhypothesis\022B\n\t"
+    "treatment\030\004 \001(\0132\034.xtcp_treatment.v1.Trea"
+    "tmentB\006\272H\003\310\001\001R\ttreatment\022C\n\006policy\030\005 \001(\013"
+    "2#.xtcp_treatment.v1.ExperimentPolicyB\006\272"
+    "H\003\310\001\001R\006policy\022\?\n\010baseline\030\006 \001(\0132\033.xtcp_t"
+    "reatment.v1.EvidenceB\006\272H\003\310\001\001R\010baseline\022X"
+    "\n\014cohort_order\030\007 \003(\tB5\272H2\222\001/\010\003\020\220N\030\001\"&r$2"
+    "\"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$R\013coh"
+    "ortOrder\022:\n\006phases\030\010 \003(\0132\030.xtcp_treatmen"
+    "t.v1.PhaseB\010\272H\005\222\001\002\020@R\006phases\022E\n\006status\030\t"
+    " \001(\0162#.xtcp_treatment.v1.ExperimentStatu"
+    "sB\010\272H\005\202\001\002\020\001R\006status\022\032\n\010revision\030\n \001(\004R\010r"
+    "evision\022;\n\013proposed_at\030\013 \001(\0132\032.google.pr"
+    "otobuf.TimestampR\nproposedAt\022D\n\017latest_e"
+    "vidence\030\014 \001(\0132\033.xtcp_treatment.v1.Eviden"
+    "ceR\016latestEvidence\022K\n\016latest_outcome\030\r \001"
+    "(\0162\032.xtcp_treatment.v1.OutcomeB\010\272H\005\202\001\002\020\001"
+    "R\rlatestOutcome\0229\n\nupdated_at\030\016 \001(\0132\032.go"
+    "ogle.protobuf.TimestampR\tupdatedAt*\?\n\004Ro"
+    "le\022\024\n\020ROLE_UNSPECIFIED\020\000\022\016\n\nROLE_AGENT\020\001"
+    "\022\021\n\rROLE_OPERATOR\020\002*\244\001\n\016AssignmentMode\022\037"
+    "\n\033ASSIGNMENT_MODE_UNSPECIFIED\020\000\022\031\n\025ASSIG"
+    "NMENT_MODE_TRIAL\020\001\022\032\n\026ASSIGNMENT_MODE_ST"
+    "ABLE\020\002\022\035\n\031ASSIGNMENT_MODE_SUSPENDED\020\003\022\033\n"
+    "\027ASSIGNMENT_MODE_RETIRED\020\004*\255\001\n\013ApplyStat"
+    "us\022\034\n\030APPLY_STATUS_UNSPECIFIED\020\000\022\030\n\024APPL"
+    "Y_STATUS_PENDING\020\001\022\031\n\025APPLY_STATUS_VERIF"
+    "IED\020\002\022\030\n\024APPLY_STATUS_REMOVED\020\003\022\030\n\024APPLY"
+    "_STATUS_EXPIRED\020\004\022\027\n\023APPLY_STATUS_FAILED"
+    "\020\005*\244\004\n\007Outcome\022\027\n\023OUTCOME_UNSPECIFIED\020\000\022"
+    "\024\n\020OUTCOME_BASELINE\020\001\022 \n\034OUTCOME_AWAITIN"
+    "G_APPLICATION\020\002\022\035\n\031OUTCOME_AWAITING_EXPO"
+    "SURE\020\003\022!\n\035OUTCOME_INSUFFICIENT_DURATION\020"
+    "\004\022\035\n\031OUTCOME_INSUFFICIENT_DATA\020\005\022!\n\035OUTC"
+    "OME_INSUFFICIENT_CONTROLS\020\006\022\021\n\rOUTCOME_S"
+    "TALE\020\007\022\027\n\023OUTCOME_UNAVAILABLE\020\010\022\030\n\024OUTCO"
+    "ME_INCONCLUSIVE\020\t\022\027\n\023OUTCOME_SAFETY_ONLY"
+    "\020\n\022\030\n\024OUTCOME_FINAL_SAFETY\020\013\022\026\n\022OUTCOME_"
+    "BENEFICIAL\020\014\022\023\n\017OUTCOME_HARMFUL\020\r\022\023\n\017OUT"
+    "COME_EXPIRED\020\016\022\033\n\027OUTCOME_STABLE_OBSERVE"
+    "D\020\017\022&\n\"OUTCOME_STABLE_EVIDENCE_INCOMPLET"
+    "E\020\020\022-\n)OUTCOME_STABLE_REGRESSION_REVIEW_"
+    "REQUIRED\020\021\022\025\n\021OUTCOME_OBSERVING\020\022*\225\002\n\020Ex"
+    "perimentStatus\022!\n\035EXPERIMENT_STATUS_UNSP"
+    "ECIFIED\020\000\022\036\n\032EXPERIMENT_STATUS_PROPOSED\020"
+    "\001\022\035\n\031EXPERIMENT_STATUS_RUNNING\020\002\022\034\n\030EXPE"
+    "RIMENT_STATUS_PAUSED\020\003\022\037\n\033EXPERIMENT_STA"
+    "TUS_SUSPENDED\020\004\022\036\n\032EXPERIMENT_STATUS_COM"
+    "PLETE\020\005\022\035\n\031EXPERIMENT_STATUS_RETIRED\020\006\022!"
+    "\n\035EXPERIMENT_STATUS_ROLLED_BACK\020\007:M\n\004rol"
+    "e\022\036.google.protobuf.MethodOptions\030\272\216\003 \001("
+    "\0162\027.xtcp_treatment.v1.RoleR\004roleB\300\001\n\025com"
+    ".xtcp_treatment.v1B\016TreatmentProtoP\001Z6gi"
+    "thub.com/randomizedcoder/xtcp2/gen/go/xt"
+    "cp_treatment\242\002\003XXX\252\002\020XtcpTreatment.V1\312\002\020"
+    "XtcpTreatment\\V1\342\002\034XtcpTreatment\\V1\\GPBM"
+    "etadata\352\002\021XtcpTreatment::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2eproto_deps[4] = {
@@ -3107,7 +3136,7 @@ static ::absl::once_flag descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2epr
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2eproto = {
     false,
     false,
-    8854,
+    8955,
     descriptor_table_protodef_xtcp_5ftreatment_2fv1_2ftreatment_2eproto,
     "xtcp_treatment/v1/treatment.proto",
     &descriptor_table_xtcp_5ftreatment_2fv1_2ftreatment_2eproto_once,
@@ -4568,7 +4597,8 @@ PROTOBUF_NDEBUG_INLINE Capabilities::Impl_::Impl_(
         }
         ,
         boot_id_(arena, from.boot_id_),
-        kernel_release_(arena, from.kernel_release_) {}
+        kernel_release_(arena, from.kernel_release_),
+        collection_id_(arena, from.collection_id_) {}
 
 Capabilities::Capabilities(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -4603,7 +4633,8 @@ PROTOBUF_NDEBUG_INLINE Capabilities::Impl_::Impl_(
          }
         ,
         boot_id_(arena),
-        kernel_release_(arena) {}
+        kernel_release_(arena),
+        collection_id_(arena) {}
 
 inline void Capabilities::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -4627,6 +4658,7 @@ inline void Capabilities::SharedDtor(MessageLite& self) {
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.boot_id_.Destroy();
   this_._impl_.kernel_release_.Destroy();
+  this_._impl_.collection_id_.Destroy();
   this_._impl_.~Impl_();
 }
 
@@ -4663,7 +4695,7 @@ PROTOBUF_NOINLINE void Capabilities::Clear() {
   ::uint32_t cached_has_bits [[maybe_unused]] = 0;
 
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x00000007U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000000fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       _impl_.congestion_algorithms_.Clear();
     }
@@ -4672,6 +4704,9 @@ PROTOBUF_NOINLINE void Capabilities::Clear() {
     }
     if (CheckHasBit(cached_has_bits, 0x00000004U)) {
       this_._impl_.kernel_release_.ClearNonDefaultToEmpty();
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      this_._impl_.collection_id_.ClearNonDefaultToEmpty();
     }
   }
   ::memset(&this_._impl_.simple_host_routing_, 0,
@@ -4733,7 +4768,7 @@ PROTOBUF_NOINLINE void Capabilities::Clear() {
   }
 
   // bool simple_host_routing = 4 [json_name = "simpleHostRouting"];
-  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
     if (this_._internal_simple_host_routing() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -4742,11 +4777,21 @@ PROTOBUF_NOINLINE void Capabilities::Clear() {
   }
 
   // bool actuator_enabled = 5 [json_name = "actuatorEnabled"];
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     if (this_._internal_actuator_enabled() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
           5, this_._internal_actuator_enabled(), target);
+    }
+  }
+
+  // string collection_id = 6 [json_name = "collectionId", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+    if (!this_._internal_collection_id().empty()) {
+      const ::std::string& _s = this_._internal_collection_id();
+      ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+          _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_treatment.v1.Capabilities.collection_id");
+      target = stream->WriteStringMaybeAliased(6, _s, target);
     }
   }
 
@@ -4773,7 +4818,7 @@ PROTOBUF_NOINLINE void Capabilities::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     // repeated string congestion_algorithms = 3 [json_name = "congestionAlgorithms", (.buf.validate.field) = {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       total_size +=
@@ -4797,14 +4842,21 @@ PROTOBUF_NOINLINE void Capabilities::Clear() {
                                         this_._internal_kernel_release());
       }
     }
-    // bool simple_host_routing = 4 [json_name = "simpleHostRouting"];
+    // string collection_id = 6 [json_name = "collectionId", (.buf.validate.field) = {
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!this_._internal_collection_id().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::StringSize(
+                                        this_._internal_collection_id());
+      }
+    }
+    // bool simple_host_routing = 4 [json_name = "simpleHostRouting"];
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (this_._internal_simple_host_routing() != 0) {
         total_size += 2;
       }
     }
     // bool actuator_enabled = 5 [json_name = "actuatorEnabled"];
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (this_._internal_actuator_enabled() != 0) {
         total_size += 2;
       }
@@ -4828,7 +4880,7 @@ void Capabilities::MergeImpl(::google::protobuf::MessageLite& to_msg,
   (void)cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (BatchCheckHasBit(cached_has_bits, 0x0000001fU)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x0000003fU)) {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
       _this->_internal_mutable_congestion_algorithms()->InternalMergeFromWithArena(
           ::google::protobuf::MessageLite::internal_visibility(), arena,
@@ -4853,11 +4905,20 @@ void Capabilities::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000008U)) {
+      if (!from._internal_collection_id().empty()) {
+        _this->_internal_set_collection_id(from._internal_collection_id());
+      } else {
+        if (_this->_impl_.collection_id_.IsDefault()) {
+          _this->_internal_set_collection_id("");
+        }
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
       if (from._internal_simple_host_routing() != 0) {
         _this->_impl_.simple_host_routing_ = from._impl_.simple_host_routing_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
       if (from._internal_actuator_enabled() != 0) {
         _this->_impl_.actuator_enabled_ = from._impl_.actuator_enabled_;
       }
@@ -4885,6 +4946,7 @@ void Capabilities::InternalSwap(Capabilities* PROTOBUF_RESTRICT PROTOBUF_NONNULL
   _impl_.congestion_algorithms_.InternalSwap(&other->_impl_.congestion_algorithms_);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.boot_id_, &other->_impl_.boot_id_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.kernel_release_, &other->_impl_.kernel_release_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.collection_id_, &other->_impl_.collection_id_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(Capabilities, _impl_.actuator_enabled_)
       + sizeof(Capabilities::_impl_.actuator_enabled_)
@@ -5922,10 +5984,11 @@ PROTOBUF_NOINLINE void HostEvidence::Clear() {
   if (BatchCheckHasBit(cached_has_bits, 0x000000feU)) {
     ::memset(&this_._impl_.sockets_, 0,
              static_cast<::size_t>(
-                 reinterpret_cast<char*>(&this_._impl_.collection_healthy_) -
+                 reinterpret_cast<char*>(&this_._impl_.unbound_sockets_) -
                  reinterpret_cast<char*>(&this_._impl_.sockets_)) +
-                 sizeof(_impl_.collection_healthy_));
+                 sizeof(_impl_.unbound_sockets_));
   }
+  this_._impl_.collection_healthy_ = false;
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
 }
@@ -6014,11 +6077,20 @@ PROTOBUF_NOINLINE void HostEvidence::Clear() {
   }
 
   // bool collection_healthy = 8 [json_name = "collectionHealthy"];
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
     if (this_._internal_collection_healthy() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
           8, this_._internal_collection_healthy(), target);
+    }
+  }
+
+  // uint64 unbound_sockets = 9 [json_name = "unboundSockets"];
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (this_._internal_unbound_sockets() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteUInt64ToArray(
+          9, this_._internal_unbound_sockets(), target);
     }
   }
 
@@ -6092,8 +6164,17 @@ PROTOBUF_NOINLINE void HostEvidence::Clear() {
             this_._internal_exposed_sockets());
       }
     }
-    // bool collection_healthy = 8 [json_name = "collectionHealthy"];
+    // uint64 unbound_sockets = 9 [json_name = "unboundSockets"];
     if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (this_._internal_unbound_sockets() != 0) {
+        total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(
+            this_._internal_unbound_sockets());
+      }
+    }
+  }
+   {
+    // bool collection_healthy = 8 [json_name = "collectionHealthy"];
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_collection_healthy() != 0) {
         total_size += 2;
       }
@@ -6157,9 +6238,14 @@ void HostEvidence::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (from._internal_collection_healthy() != 0) {
-        _this->_impl_.collection_healthy_ = from._impl_.collection_healthy_;
+      if (from._internal_unbound_sockets() != 0) {
+        _this->_impl_.unbound_sockets_ = from._impl_.unbound_sockets_;
       }
+    }
+  }
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (from._internal_collection_healthy() != 0) {
+      _this->_impl_.collection_healthy_ = from._impl_.collection_healthy_;
     }
   }
   _this->_impl_._has_bits_[0] |= cached_has_bits;

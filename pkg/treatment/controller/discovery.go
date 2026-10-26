@@ -129,6 +129,11 @@ func (s *Server) Discover(ctx context.Context, w evidence.Warehouse, templates [
 			failures = append(failures, e)
 			continue
 		}
+		enrolled, e := s.enrolled(ctx, t.Location)
+		if e != nil {
+			failures = append(failures, e)
+			continue
+		}
 		for _, c := range candidates {
 			if !t.inScope(c, prefixes) {
 				continue
@@ -145,12 +150,18 @@ func (s *Server) Discover(ctx context.Context, w evidence.Warehouse, templates [
 			}
 			seed := sha256.Sum256([]byte(t.ID + "/" + c.Destination.String() + "/" + s.now().UTC().Format("2006-01-02")))
 			id := "hyp-" + hex.EncodeToString(seed[:12])
-			baseline, e := w.Evidence(ctx, evidence.Window{Location: t.Location, Destination: c.Destination, ExperimentID: id, Agents: c.Agents, Start: start, End: end})
+			// Only enrolled agents report sessions, so only they can carry
+			// bound evidence or receive an assignment.
+			cohort := enrolledIn(c.Agents, enrolled)
+			if len(cohort) < treatment.MinimumCohort {
+				continue
+			}
+			baseline, e := s.boundEvidence(ctx, w, evidence.Window{Location: t.Location, Destination: c.Destination, ExperimentID: id, Agents: cohort, Start: start, End: end})
 			if e != nil {
 				failures = append(failures, e)
 				continue
 			}
-			n := &treatment.Experiment{ID: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, c.Destination, c.ASN, c.RTTMs, c.RetransmissionRatio), Treatment: treatment.Treatment{ID: t.ID, Revision: 1, Destination: c.Destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: c.Agents}
+			n := &treatment.Experiment{ID: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, c.Destination, c.ASN, c.RTTMs, c.RetransmissionRatio), Treatment: treatment.Treatment{ID: t.ID, Revision: 1, Destination: c.Destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: cohort}
 			if _, e = s.propose(ctx, &pb.ProposeRequest{Experiment: wire.Experiment(n), RequestId: id}, "candidate-discovery", true); e != nil {
 				if !errors.Is(e, errExperimentBudget) && !errors.Is(e, errDiscoverySuppressed) {
 					failures = append(failures, e)
@@ -160,4 +171,28 @@ func (s *Server) Discover(ctx context.Context, w evidence.Warehouse, templates [
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// enrolled returns the IDs of the agents enrolled in location.
+func (s *Server) enrolled(ctx context.Context, location string) (map[string]bool, error) {
+	refs, err := s.Store.Repos().Agents.List(ctx, location)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(refs))
+	for _, r := range refs {
+		out[r.ID] = true
+	}
+	return out, nil
+}
+
+// enrolledIn keeps the candidate agents that are enrolled, in order.
+func enrolledIn(agents []string, enrolled map[string]bool) []string {
+	out := make([]string, 0, len(agents))
+	for _, a := range agents {
+		if enrolled[a] {
+			out = append(out, a)
+		}
+	}
+	return out
 }

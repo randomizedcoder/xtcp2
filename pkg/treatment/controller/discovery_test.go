@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -51,31 +52,49 @@ func TestDiscoveryWindow(t *testing.T) {
 
 func TestDiscoveryWarehouseFailures(t *testing.T) {
 	now := time.Unix(1800000000, 0)
-	candidate := evidence.Candidate{Destination: netip.MustParsePrefix("192.0.2.1/32"), ASN: 64512, Agents: []string{"a", "b", "c", "d", "e", "f"}, RTTMs: 5}
+	agents := []string{"a", "b", "c", "d", "e", "f"}
+	candidate := evidence.Candidate{Destination: netip.MustParsePrefix("192.0.2.1/32"), ASN: 64512, Agents: agents, RTTMs: 5}
+	failing := func() *fakeWarehouse {
+		return &fakeWarehouse{candidates: []evidence.Candidate{candidate}, evidenceErr: errors.New("baseline timeout")}
+	}
 	for _, tc := range []struct {
 		name, description string
 		warehouse         *fakeWarehouse
 		nilWarehouse      bool
+		enrolled          []string
 		wantErr           string
 		wantWindows       int
+		wantPopulation    []string
 	}{
-		{"candidates-fail", "negative: a failed scan is reported and takes no baseline", &fakeWarehouse{candidateErr: errors.New("warehouse offline")}, false, "warehouse offline", 0},
-		{"baseline-fails", "negative: a failed baseline is reported and proposes nothing", &fakeWarehouse{candidates: []evidence.Candidate{candidate}, evidenceErr: errors.New("baseline timeout")}, false, "baseline timeout", 1},
-		{"no-warehouse", "corner: discovery without a warehouse is a configuration error", nil, true, "requires a warehouse", 0},
-		{"no-candidates", "boundary: an empty scan is not an error", &fakeWarehouse{}, false, "", 0},
+		{"candidates-fail", "negative: a failed scan is reported and takes no baseline", &fakeWarehouse{candidateErr: errors.New("warehouse offline")}, false, agents, "warehouse offline", 0, nil},
+		{"baseline-fails", "negative: a failed baseline is reported and proposes nothing", failing(), false, agents, "baseline timeout", 1, agents},
+		{"no-warehouse", "corner: discovery without a warehouse is a configuration error", nil, true, agents, "requires a warehouse", 0, nil},
+		{"no-candidates", "boundary: an empty scan is not an error", &fakeWarehouse{}, false, agents, "", 0, nil},
+		{"unenrolled", "negative: candidate hosts that never checked in take no baseline and are not an error", failing(), false, nil, "", 0, nil},
+		{"two-enrolled", "boundary: fewer than three enrolled candidate hosts cannot form a cohort", failing(), false, agents[:2], "", 0, nil},
+		{"three-enrolled", "corner: the baseline measures only the enrolled candidates, each with its session", failing(), false, []string{"a", "c", "f"}, "baseline timeout", 1, []string{"a", "c", "f"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := &Server{Store: memory.New(), Now: func() time.Time { return now }}
+			for _, id := range tc.enrolled {
+				enroll(t, s, id)
+			}
 			var w evidence.Warehouse
 			if !tc.nilWarehouse {
 				w = tc.warehouse
 			}
-			err := s.Discover(context.Background(), w, []DiscoveryTemplate{{ID: "near", Location: "test-dc", CongestionControl: "cubic", MaximumRTTMs: 15}})
+			err := s.Discover(context.Background(), w, []DiscoveryTemplate{{ID: "near", Location: "dc1", CongestionControl: "cubic", MaximumRTTMs: 15}})
 			if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
 				t.Fatalf("%s: err=%v want %q", tc.description, err, tc.wantErr)
 			}
 			if tc.warehouse != nil && len(tc.warehouse.windows) != tc.wantWindows {
 				t.Fatalf("%s: baseline windows=%d want %d", tc.description, len(tc.warehouse.windows), tc.wantWindows)
+			}
+			if tc.wantWindows > 0 {
+				win := tc.warehouse.windows[0]
+				if !slices.Equal(win.Agents, tc.wantPopulation) || len(win.Sessions) != len(tc.wantPopulation) {
+					t.Fatalf("%s: population %v with %d sessions, want %v with one session each", tc.description, win.Agents, len(win.Sessions), tc.wantPopulation)
+				}
 			}
 			if n := len(experimentsOf(t, s.Store)); n != 0 {
 				t.Fatalf("%s: proposals=%d", tc.description, n)

@@ -12,6 +12,7 @@ import (
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/postgres"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -39,7 +40,7 @@ func TestCheckInValidation(t *testing.T) {
 		}, codes.InvalidArgument},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			r := &pb.CheckInRequest{AgentId: "host", Location: "dc1", Capabilities: &pb.Capabilities{BootId: "boot", CongestionAlgorithms: []string{"cubic"}}}
+			r := &pb.CheckInRequest{AgentId: "host", Location: "dc1", Capabilities: &pb.Capabilities{BootId: "boot", CollectionId: fixtures.CollectionID, CongestionAlgorithms: []string{"cubic"}}}
 			tc.change(r)
 			_, err := (&Server{}).CheckIn(testIdentity("agent/dc1/host"), r)
 			if status.Code(err) != tc.expected {

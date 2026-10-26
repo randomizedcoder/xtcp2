@@ -37,7 +37,10 @@ type State struct {
 	AgentID  string
 	Location string
 	// BootID is the boot that last wrote the journal.
-	BootID           string
+	BootID string
+	// CollectionID is the owning agent process's nonce; see
+	// treatment.ValidCollectionID. Empty until an agent has written it.
+	CollectionID     string
 	Desired          *treatment.DesiredState
 	LocallySuspended bool
 	SuspensionReason string

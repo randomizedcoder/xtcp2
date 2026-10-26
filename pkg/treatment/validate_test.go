@@ -338,13 +338,16 @@ func TestReportValidation(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 	fresh := func() *treatment.AgentReport {
 		d := fixtures.Desired(now)
-		return &treatment.AgentReport{AgentID: "host-1", Location: "dc1", Capabilities: treatment.Capabilities{BootID: "boot-1", KernelRelease: "6.12", CongestionAlgorithms: []string{"cubic", "bbr"}, SimpleHostRouting: true, ActuatorEnabled: true}, DesiredRevision: 1, Records: []treatment.ApplicationRecord{{Assignment: d.Assignments[0], DesiredRevision: 1, Status: treatment.ApplyVerified, AppliedAt: now}}}
+		return &treatment.AgentReport{AgentID: "host-1", Location: "dc1", Capabilities: treatment.Capabilities{BootID: "boot-1", CollectionID: fixtures.CollectionID, KernelRelease: "6.12", CongestionAlgorithms: []string{"cubic", "bbr"}, SimpleHostRouting: true, ActuatorEnabled: true}, DesiredRevision: 1, Records: []treatment.ApplicationRecord{{Assignment: d.Assignments[0], DesiredRevision: 1, Status: treatment.ApplyVerified, AppliedAt: now}}}
 	}
 	fixed := []validationCase[*treatment.AgentReport]{
 		{"valid", "a verified report is accepted", func(**treatment.AgentReport) {}, ""},
 		{"nil", "a report is required", func(p **treatment.AgentReport) { *p = nil }, "agent report"},
 		{"no-records", "a fresh host reports nothing", func(p **treatment.AgentReport) { (*p).Records = nil }, ""},
 		{"bad-boot-id", "boot IDs are identifiers", func(p **treatment.AgentReport) { (*p).Capabilities.BootID = "" }, "agent report"},
+		{"missing-collection-id", "a report must carry the agent's collection nonce", func(p **treatment.AgentReport) { (*p).Capabilities.CollectionID = "" }, "agent report"},
+		{"short-collection-id", "a 31-digit nonce is refused", func(p **treatment.AgentReport) { (*p).Capabilities.CollectionID = fixtures.CollectionID[1:] }, "agent report"},
+		{"upper-collection-id", "the nonce is lowercase hex, so it can never carry a quote", func(p **treatment.AgentReport) { (*p).Capabilities.CollectionID = strings.ToUpper(fixtures.CollectionID) }, "agent report"},
 		{"long-kernel", "kernel release is bounded", func(p **treatment.AgentReport) { (*p).Capabilities.KernelRelease = strings.Repeat("k", 257) }, "agent report"},
 		{"long-algorithm", "algorithm names respect the kernel limit", func(p **treatment.AgentReport) {
 			(*p).Capabilities.CongestionAlgorithms = []string{strings.Repeat("a", 16)}

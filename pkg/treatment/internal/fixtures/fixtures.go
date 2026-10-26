@@ -16,6 +16,9 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+// CollectionID is a well-formed collection nonce for reports and sessions.
+const CollectionID = "0123456789abcdef0123456789abcdef"
+
 // Treatment is CUBIC on a single /32.
 func Treatment() treatment.Treatment {
 	return treatment.Treatment{ID: "cubic", Revision: 1, Destination: netip.MustParsePrefix("192.0.2.1/32"), Settings: treatment.TCPSettings{CongestionControl: ptr("cubic")}}

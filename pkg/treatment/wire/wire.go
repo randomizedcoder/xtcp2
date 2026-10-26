@@ -199,14 +199,14 @@ func ParseDesired(p *pb.DesiredState) (*treatment.DesiredState, error) {
 // Agent reports.
 
 func Capabilities(c *treatment.Capabilities) *pb.Capabilities {
-	return &pb.Capabilities{BootId: c.BootID, KernelRelease: c.KernelRelease, CongestionAlgorithms: append([]string(nil), c.CongestionAlgorithms...), SimpleHostRouting: c.SimpleHostRouting, ActuatorEnabled: c.ActuatorEnabled}
+	return &pb.Capabilities{BootId: c.BootID, KernelRelease: c.KernelRelease, CongestionAlgorithms: append([]string(nil), c.CongestionAlgorithms...), SimpleHostRouting: c.SimpleHostRouting, ActuatorEnabled: c.ActuatorEnabled, CollectionId: c.CollectionID}
 }
 
 func ParseCapabilities(p *pb.Capabilities) treatment.Capabilities {
 	if p == nil {
 		return treatment.Capabilities{}
 	}
-	return treatment.Capabilities{BootID: p.BootId, KernelRelease: p.KernelRelease, CongestionAlgorithms: append([]string(nil), p.CongestionAlgorithms...), SimpleHostRouting: p.SimpleHostRouting, ActuatorEnabled: p.ActuatorEnabled}
+	return treatment.Capabilities{BootID: p.BootId, KernelRelease: p.KernelRelease, CongestionAlgorithms: append([]string(nil), p.CongestionAlgorithms...), SimpleHostRouting: p.SimpleHostRouting, ActuatorEnabled: p.ActuatorEnabled, CollectionID: p.CollectionId}
 }
 
 func Record(r *treatment.ApplicationRecord) *pb.ApplicationRecord {
@@ -272,14 +272,14 @@ func ParseReport(p *pb.CheckInRequest) (*treatment.AgentReport, error) {
 // Evidence.
 
 func Host(h *treatment.HostEvidence) *pb.HostEvidence {
-	return &pb.HostEvidence{AgentId: h.AgentID, Sockets: h.Sockets, BytesAcked: h.BytesAcked, GoodputBps: h.GoodputBps, RetransmissionRatio: h.RetransmissionRatio, RttP95Ms: h.RttP95Ms, ExposedSockets: h.ExposedSockets, CollectionHealthy: h.CollectionHealthy}
+	return &pb.HostEvidence{AgentId: h.AgentID, Sockets: h.Sockets, BytesAcked: h.BytesAcked, GoodputBps: h.GoodputBps, RetransmissionRatio: h.RetransmissionRatio, RttP95Ms: h.RttP95Ms, ExposedSockets: h.ExposedSockets, CollectionHealthy: h.CollectionHealthy, UnboundSockets: h.UnboundSockets}
 }
 
 func ParseHost(p *pb.HostEvidence) treatment.HostEvidence {
 	if p == nil {
 		return treatment.HostEvidence{}
 	}
-	return treatment.HostEvidence{AgentID: p.AgentId, Sockets: p.Sockets, BytesAcked: p.BytesAcked, GoodputBps: p.GoodputBps, RetransmissionRatio: p.RetransmissionRatio, RttP95Ms: p.RttP95Ms, ExposedSockets: p.ExposedSockets, CollectionHealthy: p.CollectionHealthy}
+	return treatment.HostEvidence{AgentID: p.AgentId, Sockets: p.Sockets, BytesAcked: p.BytesAcked, GoodputBps: p.GoodputBps, RetransmissionRatio: p.RetransmissionRatio, RttP95Ms: p.RttP95Ms, ExposedSockets: p.ExposedSockets, CollectionHealthy: p.CollectionHealthy, UnboundSockets: p.UnboundSockets}
 }
 
 func Evidence(e *treatment.Evidence) *pb.Evidence {

@@ -37,7 +37,7 @@ var tableName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9
 
 // QueryVersion names the analysis query so evidence records which SQL
 // produced them; bump it when analysis.sql changes meaning.
-const QueryVersion = "tcp-host-deltas-v1"
+const QueryVersion = "tcp-host-deltas-v2-bound"
 
 // EnrichmentVersion names the telemetry schema the queries assume.
 const EnrichmentVersion = "xtcp-schema-2"
@@ -119,6 +119,7 @@ type hostRow struct {
 	RttP95Ms            float64 `json:"rtt_p95_ms"`
 	ExposedSockets      uint64  `json:"exposed_sockets"`
 	CollectionHealthy   bool    `json:"collection_healthy"`
+	UnboundSockets      uint64  `json:"unbound_sockets"`
 }
 
 // destinationHex renders an address the way the telemetry stores it: a
@@ -131,6 +132,26 @@ func destinationHex(a netip.Addr) string {
 	return strings.ToUpper(hex.EncodeToString(raw))
 }
 
+// agentsParam renders an Array(String) literal. Quoting is safe only because
+// Window.Validate has checked every ID against treatment.ValidID.
+func agentsParam(agents []string) string {
+	quoted := make([]string, len(agents))
+	for i, id := range agents {
+		quoted[i] = "'" + id + "'"
+	}
+	return "[" + strings.Join(quoted, ",") + "]"
+}
+
+// sessionsParam renders an Array(Tuple(String,String,String)) literal of
+// (agent_id, host_boot_id, collection_id), validated like agentsParam.
+func sessionsParam(sessions []treatment.Session) string {
+	quoted := make([]string, len(sessions))
+	for i, s := range sessions {
+		quoted[i] = "('" + s.AgentID + "','" + s.BootID + "','" + s.CollectionID + "')"
+	}
+	return "[" + strings.Join(quoted, ",") + "]"
+}
+
 // Evidence runs analysis.sql for the window. ArtifactSHA256 is the digest of
 // the raw response bytes as received; the response itself is not archived,
 // so reproducing it means re-running QueryVersion over the same window.
@@ -138,11 +159,7 @@ func (c *Client) Evidence(ctx context.Context, w evidence.Window) (*treatment.Ev
 	if e := w.Validate(); e != nil {
 		return nil, e
 	}
-	quoted := make([]string, len(w.Agents))
-	for i, id := range w.Agents {
-		quoted[i] = "'" + id + "'"
-	}
-	params := map[string]string{"start": strconv.FormatInt(w.Start.UnixNano(), 10), "end": strconv.FormatInt(w.End.UnixNano(), 10), "location": w.Location, "assignment": w.ExperimentID, "agents": "[" + strings.Join(quoted, ",") + "]", "destination_hex": destinationHex(w.Destination.Addr())}
+	params := map[string]string{"start": strconv.FormatInt(w.Start.UnixNano(), 10), "end": strconv.FormatInt(w.End.UnixNano(), 10), "location": w.Location, "assignment": w.ExperimentID, "agents": agentsParam(w.Agents), "sessions": sessionsParam(w.Sessions), "destination_hex": destinationHex(w.Destination.Addr())}
 	b, e := c.query(ctx, analysisSQL, params)
 	if e != nil {
 		return nil, e

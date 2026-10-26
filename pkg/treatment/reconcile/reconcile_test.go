@@ -295,3 +295,42 @@ func TestJournalHeaderIdentifiesWriter(t *testing.T) {
 		t.Fatal("foreign reconciler touched the kernel")
 	}
 }
+
+// TestJournalCollectionIDOwnership: the agent's reconciler writes its nonce
+// into the header; a reconciler without one (the watchdog) keeps whatever
+// the journal holds, so only the owning agent process changes it.
+func TestJournalCollectionIDOwnership(t *testing.T) {
+	const other = "fedcba9876543210fedcba9876543210"
+	for _, tc := range []struct {
+		name, description string
+		first, second     string // CollectionID of the first and second writer
+		expected          string
+	}{
+		{"agent-writes", "positive: the agent's nonce lands in the header", fixtures.CollectionID, fixtures.CollectionID, fixtures.CollectionID},
+		{"watchdog-preserves", "negative: a watchdog pass leaves the agent's nonce alone", fixtures.CollectionID, "", fixtures.CollectionID},
+		{"agent-restart", "corner: a restarted agent replaces the nonce", fixtures.CollectionID, other, other},
+		{"never-set", "boundary: a journal only the watchdog wrote has no nonce", "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Unix(1700000000, 0)
+			b := &fakeBackend{routes: map[string]bool{}}
+			r := newReconciler(t, b, &now)
+			r.CollectionID = tc.first
+			if _, e := r.Run(context.Background(), fixtures.Desired(now), ModeFull); e != nil {
+				t.Fatal(e)
+			}
+			second := *r
+			second.CollectionID = tc.second
+			if _, e := second.Run(context.Background(), nil, ModeExpiryOnly); e != nil {
+				t.Fatal(e)
+			}
+			s, e := ReadSnapshot(r.Journal.Dir)
+			if e != nil {
+				t.Fatal(e)
+			}
+			if s.CollectionID != tc.expected {
+				t.Fatalf("%s: header nonce %q, want %q", tc.description, s.CollectionID, tc.expected)
+			}
+		})
+	}
+}

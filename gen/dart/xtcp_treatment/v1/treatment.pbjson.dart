@@ -394,6 +394,14 @@ const Capabilities$json = {
       '10': 'simpleHostRouting'
     },
     {'1': 'actuator_enabled', '3': 5, '4': 1, '5': 8, '10': 'actuatorEnabled'},
+    {
+      '1': 'collection_id',
+      '3': 6,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'collectionId'
+    },
   ],
 };
 
@@ -404,7 +412,8 @@ final $typed_data.Uint8List capabilitiesDescriptor = $convert.base64Decode(
     'cgMYgAJSDWtlcm5lbFJlbGVhc2USQwoVY29uZ2VzdGlvbl9hbGdvcml0aG1zGAMgAygJQg66SA'
     'uSAQgQQCIEcgIYD1IUY29uZ2VzdGlvbkFsZ29yaXRobXMSLgoTc2ltcGxlX2hvc3Rfcm91dGlu'
     'ZxgEIAEoCFIRc2ltcGxlSG9zdFJvdXRpbmcSKQoQYWN0dWF0b3JfZW5hYmxlZBgFIAEoCFIPYW'
-    'N0dWF0b3JFbmFibGVk');
+    'N0dWF0b3JFbmFibGVkEjoKDWNvbGxlY3Rpb25faWQYBiABKAlCFbpIEnIQMg5eWzAtOWEtZl17'
+    'MzJ9JFIMY29sbGVjdGlvbklk');
 
 @$core.Deprecated('Use applicationRecordDescriptor instead')
 const ApplicationRecord$json = {
@@ -587,6 +596,7 @@ const HostEvidence$json = {
       '5': 8,
       '10': 'collectionHealthy'
     },
+    {'1': 'unbound_sockets', '3': 9, '4': 1, '5': 4, '10': 'unboundSockets'},
   ],
   '7': {},
 };
@@ -600,9 +610,10 @@ final $typed_data.Uint8List hostEvidenceDescriptor = $convert.base64Decode(
     'KAFCELpIDRILQAEpAAAAAAAAAABSE3JldHJhbnNtaXNzaW9uUmF0aW8SLgoKcnR0X3A5NV9tcx'
     'gGIAEoAUIQukgNEgtAASkAAAAAAAAAAFIIcnR0UDk1TXMSJwoPZXhwb3NlZF9zb2NrZXRzGAcg'
     'ASgEUg5leHBvc2VkU29ja2V0cxItChJjb2xsZWN0aW9uX2hlYWx0aHkYCCABKAhSEWNvbGxlY3'
-    'Rpb25IZWFsdGh5Oni6SHUacwokaG9zdF9ldmlkZW5jZS5leHBvc2VkX3dpdGhpbl9zb2NrZXRz'
-    'EiVleHBvc2VkX3NvY2tldHMgY2Fubm90IGV4Y2VlZCBzb2NrZXRzGiR0aGlzLmV4cG9zZWRfc2'
-    '9ja2V0cyA8PSB0aGlzLnNvY2tldHM=');
+    'Rpb25IZWFsdGh5EicKD3VuYm91bmRfc29ja2V0cxgJIAEoBFIOdW5ib3VuZFNvY2tldHM6eLpI'
+    'dRpzCiRob3N0X2V2aWRlbmNlLmV4cG9zZWRfd2l0aGluX3NvY2tldHMSJWV4cG9zZWRfc29ja2'
+    'V0cyBjYW5ub3QgZXhjZWVkIHNvY2tldHMaJHRoaXMuZXhwb3NlZF9zb2NrZXRzIDw9IHRoaXMu'
+    'c29ja2V0cw==');
 
 @$core.Deprecated('Use evidenceDescriptor instead')
 const Evidence$json = {

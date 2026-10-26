@@ -20,6 +20,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/memory"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/pgtest"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -48,7 +49,7 @@ func testServer(s store.Store, now *time.Time) *Server {
 }
 
 func capabilities() *pb.Capabilities {
-	return &pb.Capabilities{BootId: "boot-1", KernelRelease: "test", CongestionAlgorithms: []string{"cubic", "bbr"}, SimpleHostRouting: true, ActuatorEnabled: true}
+	return &pb.Capabilities{BootId: "boot-1", CollectionId: fixtures.CollectionID, KernelRelease: "test", CongestionAlgorithms: []string{"cubic", "bbr"}, SimpleHostRouting: true, ActuatorEnabled: true}
 }
 
 func enroll(t *testing.T, s *Server, id string) {

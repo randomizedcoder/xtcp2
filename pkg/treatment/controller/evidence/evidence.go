@@ -16,23 +16,41 @@ import (
 
 // Window is what a Source measures: one destination, one frozen population,
 // one half-open interval [Start, End). ExperimentID is the assignment the
-// exposure columns are matched against.
+// exposure columns are matched against. Sessions are the (agent, boot,
+// collection) triples the population reported over mTLS; records carrying a
+// population agent ID under any other triple are counted as unbound and
+// excluded from the measurements.
 type Window struct {
 	Location     string
 	Destination  netip.Prefix
 	ExperimentID string
 	Agents       []string
+	Sessions     []treatment.Session
 	Start, End   time.Time
 }
+
+// MaxSessions bounds Window.Sessions: several restarts per host over the
+// longest window.
+const MaxSessions = 8 * treatment.MaxAgents
 
 // Validate applies the bounds every adapter must enforce before querying.
 func (w Window) Validate() error {
 	if !w.End.After(w.Start) || w.End.Sub(w.Start) > MaxWindow || len(w.Agents) == 0 || len(w.Agents) > treatment.MaxAgents {
 		return errors.New("invalid analysis window/population")
 	}
+	population := make(map[string]bool, len(w.Agents))
 	for _, id := range w.Agents {
 		if !treatment.ValidID(id) {
 			return errors.New("invalid agent")
+		}
+		population[id] = true
+	}
+	if len(w.Sessions) > MaxSessions {
+		return errors.New("too many sessions")
+	}
+	for _, s := range w.Sessions {
+		if !population[s.AgentID] || !treatment.ValidID(s.BootID) || !treatment.ValidCollectionID(s.CollectionID) {
+			return errors.New("invalid session")
 		}
 	}
 	if !w.Destination.IsValid() {

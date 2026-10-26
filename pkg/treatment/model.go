@@ -152,6 +152,8 @@ type Capabilities struct {
 	CongestionAlgorithms []string
 	SimpleHostRouting    bool
 	ActuatorEnabled      bool
+	// CollectionID is the agent process's nonce; see ValidCollectionID.
+	CollectionID string
 }
 
 // Supports reports whether the host offers the congestion algorithm.
@@ -194,6 +196,14 @@ func (r *AgentReport) Record(experimentID string) *ApplicationRecord {
 	return nil
 }
 
+// Session is one (boot, collection nonce) pair an agent reported at
+// check-in, with when the controller first and last heard it. Evidence
+// counts only records stamped with a session of the agent they name.
+type Session struct {
+	AgentID, BootID, CollectionID string
+	FirstSeen, LastSeen           time.Time
+}
+
 // HostEvidence is one host's aggregate for one evidence window.
 type HostEvidence struct {
 	AgentID             string
@@ -204,6 +214,9 @@ type HostEvidence struct {
 	RttP95Ms            float64
 	ExposedSockets      uint64
 	CollectionHealthy   bool
+	// UnboundSockets carry this agent ID but no (boot, collection) session
+	// the agent reported; they are excluded from every other field.
+	UnboundSockets uint64
 }
 
 // Evidence is an immutable per-host measurement set for a window.

@@ -65,6 +65,9 @@ func newLocal(c Config, id *local.Identity) (*Agent, error) {
 		return nil, err
 	}
 	a := &Agent{Config: h.Config, Host: h, Reconciler: h.Reconciler, wake: make(chan struct{}, 1), collectionID: hex.EncodeToString(nonce[:])}
+	// The agent owns the nonce: it goes into every journal header it writes,
+	// where a telemetry-only daemon reads it, and into every check-in.
+	h.Reconciler.CollectionID = a.collectionID
 	a.publish(nil)
 	return a, nil
 }
@@ -232,7 +235,7 @@ func (a *Agent) watch(ctx context.Context) {
 }
 
 func (a *Agent) capabilities(ctx context.Context) treatment.Capabilities {
-	c := treatment.Capabilities{BootID: a.Host.Identity.BootID, ActuatorEnabled: a.Config.EnableApply}
+	c := treatment.Capabilities{BootID: a.Host.Identity.BootID, CollectionID: a.collectionID, ActuatorEnabled: a.Config.EnableApply}
 	var u unix.Utsname
 	if unix.Uname(&u) == nil {
 		c.KernelRelease = unix.ByteSliceToString(u.Release[:])

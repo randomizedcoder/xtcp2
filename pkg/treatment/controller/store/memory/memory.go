@@ -4,6 +4,7 @@
 package memory
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"net/netip"
@@ -20,6 +21,7 @@ type agentRow struct {
 	store.Agent
 	desired   treatment.DesiredState
 	updatedAt time.Time
+	sessions  []treatment.Session
 }
 
 type evidenceRow struct {
@@ -81,6 +83,7 @@ func cloneAgent(a *agentRow) *agentRow {
 	c := *a
 	c.Report = cloneReport(&a.Report)
 	c.desired = cloneDesired(&a.desired)
+	c.sessions = slices.Clone(a.sessions)
 	return &c
 }
 
@@ -206,7 +209,60 @@ func (r agentsRepo) Observe(_ context.Context, report *treatment.AgentReport, se
 	}
 	a.Report = cloneReport(report)
 	a.LastSeen = seen
+	a.observeSession(report.Capabilities, seen)
 	return nil
+}
+
+// observeSession mirrors the PostgreSQL upsert: insert a new session,
+// refresh a known one only when its LastSeen is SessionRefresh old.
+func (a *agentRow) observeSession(c treatment.Capabilities, seen time.Time) {
+	for i := range a.sessions {
+		s := &a.sessions[i]
+		if s.BootID == c.BootID && s.CollectionID == c.CollectionID {
+			if !s.LastSeen.After(seen.Add(-store.SessionRefresh)) {
+				s.LastSeen = seen
+			}
+			return
+		}
+	}
+	a.sessions = append(a.sessions, treatment.Session{AgentID: a.ID, BootID: c.BootID, CollectionID: c.CollectionID, FirstSeen: seen, LastSeen: seen})
+}
+
+func (r agentsRepo) Sessions(_ context.Context, ids []string, from, to time.Time) ([]treatment.Session, error) {
+	defer r.enter()()
+	var out []treatment.Session
+	for _, id := range ids {
+		a, ok := r.s.st.agents[id]
+		if !ok {
+			continue
+		}
+		for _, s := range a.sessions {
+			if !s.LastSeen.Before(from) && !s.FirstSeen.After(to) {
+				out = append(out, s)
+			}
+		}
+	}
+	slices.SortFunc(out, func(x, y treatment.Session) int {
+		return cmp.Or(cmp.Compare(x.AgentID, y.AgentID), x.FirstSeen.Compare(y.FirstSeen), cmp.Compare(x.BootID, y.BootID), cmp.Compare(x.CollectionID, y.CollectionID))
+	})
+	return out, nil
+}
+
+func (r agentsRepo) PruneSessions(_ context.Context, before time.Time) (int64, error) {
+	defer r.enter()()
+	var n int64
+	for _, a := range r.s.st.agents {
+		kept := a.sessions[:0]
+		for _, s := range a.sessions {
+			if s.LastSeen.Before(before) {
+				n++
+				continue
+			}
+			kept = append(kept, s)
+		}
+		a.sessions = kept
+	}
+	return n, nil
 }
 
 func (r agentsRepo) Desired(_ context.Context, id string) (*treatment.DesiredState, error) {

@@ -1,7 +1,9 @@
 package agent
 
 import (
+	"context"
 	"net/netip"
+	"strconv"
 	"testing"
 	"time"
 
@@ -67,5 +69,35 @@ func TestStampBeforeFirstReconcile(t *testing.T) {
 	}
 	if a.State() != nil {
 		t.Fatal("state published before any pass")
+	}
+}
+
+// TestAgentOwnsCollectionID: one nonce per agent process, the same in the
+// journal header a telemetry-only daemon reads, in the check-in report and
+// on records the agent stamps itself; a second process draws another.
+func TestAgentOwnsCollectionID(t *testing.T) {
+	a := testAgent(t)
+	a.reconcile(context.Background(), nil)
+	journal, err := reconcile.ReadSnapshot(a.Config.Directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &flat.XtcpFlatRecord{}
+	a.Stamp(r)
+	reported := a.capabilities(context.Background()).CollectionID
+	tests := []struct {
+		description string
+		got         string
+		expected    string
+	}{
+		{"positive: the nonce is well formed", strconv.FormatBool(treatment.ValidCollectionID(reported)), "true"},
+		{"positive: the journal header carries the reported nonce", journal.CollectionID, reported},
+		{"positive: embedded stamping uses the same nonce", r.CollectionId, reported},
+		{"corner: another agent process draws a different nonce", strconv.FormatBool(testAgent(t).collectionID == reported), "false"},
+	}
+	for _, tc := range tests {
+		if tc.got != tc.expected {
+			t.Errorf("%s: got %q, want %q", tc.description, tc.got, tc.expected)
+		}
 	}
 }

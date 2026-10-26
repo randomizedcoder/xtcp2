@@ -51,7 +51,7 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 	if n.Status == treatment.StatusComplete {
 		input = s.driftInput(n)
 	}
-	ev, e := s.EvidenceSource.Evidence(ctx, evidence.WindowFor(input, s.now()))
+	ev, e := s.boundEvidence(ctx, s.EvidenceSource, evidence.WindowFor(input, s.now()))
 	if e != nil {
 		return nil, failure(e)
 	}

@@ -127,7 +127,7 @@ class Record(_message.Message):
     def __init__(self, assignment: _Optional[_Union[Assignment, _Mapping]] = ..., desired_revision: _Optional[int] = ..., status: _Optional[_Union[ApplyStatus, str]] = ..., received_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., attempted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., applied_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., verified_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., removed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., error: _Optional[str] = ..., installed_route: _Optional[bytes] = ..., installed_boot_id: _Optional[str] = ..., expired_latched: _Optional[bool] = ...) -> None: ...
 
 class Journal(_message.Message):
-    __slots__ = ("agent_id", "location", "boot_id", "desired", "locally_suspended", "suspension_reason", "records", "updated_at")
+    __slots__ = ("agent_id", "location", "boot_id", "desired", "locally_suspended", "suspension_reason", "records", "updated_at", "collection_id")
     AGENT_ID_FIELD_NUMBER: _ClassVar[int]
     LOCATION_FIELD_NUMBER: _ClassVar[int]
     BOOT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -136,6 +136,7 @@ class Journal(_message.Message):
     SUSPENSION_REASON_FIELD_NUMBER: _ClassVar[int]
     RECORDS_FIELD_NUMBER: _ClassVar[int]
     UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
+    COLLECTION_ID_FIELD_NUMBER: _ClassVar[int]
     agent_id: str
     location: str
     boot_id: str
@@ -144,4 +145,5 @@ class Journal(_message.Message):
     suspension_reason: str
     records: _containers.RepeatedCompositeFieldContainer[Record]
     updated_at: _timestamp_pb2.Timestamp
-    def __init__(self, agent_id: _Optional[str] = ..., location: _Optional[str] = ..., boot_id: _Optional[str] = ..., desired: _Optional[_Union[Desired, _Mapping]] = ..., locally_suspended: _Optional[bool] = ..., suspension_reason: _Optional[str] = ..., records: _Optional[_Iterable[_Union[Record, _Mapping]]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    collection_id: str
+    def __init__(self, agent_id: _Optional[str] = ..., location: _Optional[str] = ..., boot_id: _Optional[str] = ..., desired: _Optional[_Union[Desired, _Mapping]] = ..., locally_suspended: _Optional[bool] = ..., suspension_reason: _Optional[str] = ..., records: _Optional[_Iterable[_Union[Record, _Mapping]]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., collection_id: _Optional[str] = ...) -> None: ...

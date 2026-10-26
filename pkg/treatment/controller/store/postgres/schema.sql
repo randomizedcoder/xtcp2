@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS xtcp_treatment_agents (
   enrolled_at timestamptz NOT NULL DEFAULT now(),
   last_seen timestamptz,
   boot_id text NOT NULL DEFAULT '',
+  collection_id text NOT NULL DEFAULT '',
   kernel_release text NOT NULL DEFAULT '',
   simple_host_routing boolean NOT NULL DEFAULT false,
   actuator_enabled boolean NOT NULL DEFAULT false,
@@ -24,6 +25,20 @@ CREATE TABLE IF NOT EXISTS xtcp_treatment_agents (
 );
 CREATE INDEX IF NOT EXISTS xtcp_treatment_agents_location ON xtcp_treatment_agents(location);
 CREATE INDEX IF NOT EXISTS xtcp_treatment_agents_desired_updated ON xtcp_treatment_agents(desired_updated_at);
+
+-- Every (boot, collection nonce) an agent has reported, so evidence over a
+-- window that spans a restart still binds the records stamped before it.
+-- last_seen is refreshed at most every few minutes; Agents.PruneSessions
+-- drops rows older than the longest analysis window.
+CREATE TABLE IF NOT EXISTS xtcp_treatment_agent_sessions (
+  agent_id text NOT NULL REFERENCES xtcp_treatment_agents(id) ON DELETE CASCADE,
+  boot_id text NOT NULL,
+  collection_id text NOT NULL,
+  first_seen timestamptz NOT NULL,
+  last_seen timestamptz NOT NULL,
+  PRIMARY KEY (agent_id, boot_id, collection_id)
+);
+CREATE INDEX IF NOT EXISTS xtcp_treatment_agent_sessions_last_seen ON xtcp_treatment_agent_sessions(last_seen);
 
 CREATE TABLE IF NOT EXISTS xtcp_treatment_agent_algorithms (
   agent_id text NOT NULL REFERENCES xtcp_treatment_agents(id) ON DELETE CASCADE,
@@ -134,6 +149,7 @@ CREATE TABLE IF NOT EXISTS xtcp_treatment_evidence_hosts (
   rtt_p95_ms double precision NOT NULL,
   exposed_sockets bigint NOT NULL,
   collection_healthy boolean NOT NULL,
+  unbound_sockets bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (evidence_id, position)
 );
 
@@ -208,3 +224,8 @@ CREATE TABLE IF NOT EXISTS xtcp_treatment_events (
   kind text NOT NULL,
   payload jsonb NOT NULL
 );
+
+-- Columns added after the first pre-release schema. CREATE TABLE IF NOT
+-- EXISTS leaves an existing table alone, so these bring it forward.
+ALTER TABLE xtcp_treatment_agents ADD COLUMN IF NOT EXISTS collection_id text NOT NULL DEFAULT '';
+ALTER TABLE xtcp_treatment_evidence_hosts ADD COLUMN IF NOT EXISTS unbound_sockets bigint NOT NULL DEFAULT 0;

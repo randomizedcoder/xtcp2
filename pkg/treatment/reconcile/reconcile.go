@@ -56,14 +56,17 @@ type Backend interface {
 
 // Reconciler drives one Backend from one Journal on behalf of one agent.
 // AgentID, Location and BootID are written into the journal header on every
-// save so the snapshot identifies its writer.
+// save so the snapshot identifies its writer. CollectionID is written when
+// set; a reconciler without one (the watchdog) keeps the journal's value, so
+// only the agent process that owns the nonce can change it.
 type Reconciler struct {
-	Journal  Journal
-	Backend  Backend
-	AgentID  string
-	Location string
-	BootID   string
-	Now      func() time.Time
+	Journal      Journal
+	Backend      Backend
+	AgentID      string
+	Location     string
+	BootID       string
+	CollectionID string
+	Now          func() time.Time
 }
 
 func (r *Reconciler) now() time.Time {
@@ -77,7 +80,22 @@ func (r *Reconciler) header(s *State, now time.Time) {
 	s.AgentID = r.AgentID
 	s.Location = r.Location
 	s.BootID = r.BootID
+	if r.CollectionID != "" {
+		s.CollectionID = r.CollectionID
+	}
 	s.UpdatedAt = now
+}
+
+// claimCollection writes the reconciler's collection nonce into the header
+// when the journal holds another (or none), even if nothing else changed: a
+// telemetry-only daemon stamps whatever the journal says, and the controller
+// binds evidence to the nonce this process reports.
+func (r *Reconciler) claimCollection(s *State, now time.Time, save func() error) error {
+	if r.CollectionID == "" || s.CollectionID == r.CollectionID {
+		return nil
+	}
+	r.header(s, now)
+	return save()
 }
 
 // Run saves intent before touching the kernel and verifies before reporting
@@ -99,6 +117,9 @@ func (r *Reconciler) Run(ctx context.Context, in *treatment.DesiredState, mode M
 			if err := r.acceptDesired(s, in, mode, now, save); err != nil {
 				return err
 			}
+		}
+		if err := r.claimCollection(s, now, save); err != nil {
+			return err
 		}
 		if s.Desired == nil {
 			return nil

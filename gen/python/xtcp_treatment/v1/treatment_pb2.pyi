@@ -175,18 +175,20 @@ class DesiredState(_message.Message):
     def __init__(self, agent_id: _Optional[str] = ..., revision: _Optional[int] = ..., suspended: _Optional[bool] = ..., assignments: _Optional[_Iterable[_Union[Assignment, _Mapping]]] = ..., issued_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class Capabilities(_message.Message):
-    __slots__ = ("boot_id", "kernel_release", "congestion_algorithms", "simple_host_routing", "actuator_enabled")
+    __slots__ = ("boot_id", "kernel_release", "congestion_algorithms", "simple_host_routing", "actuator_enabled", "collection_id")
     BOOT_ID_FIELD_NUMBER: _ClassVar[int]
     KERNEL_RELEASE_FIELD_NUMBER: _ClassVar[int]
     CONGESTION_ALGORITHMS_FIELD_NUMBER: _ClassVar[int]
     SIMPLE_HOST_ROUTING_FIELD_NUMBER: _ClassVar[int]
     ACTUATOR_ENABLED_FIELD_NUMBER: _ClassVar[int]
+    COLLECTION_ID_FIELD_NUMBER: _ClassVar[int]
     boot_id: str
     kernel_release: str
     congestion_algorithms: _containers.RepeatedScalarFieldContainer[str]
     simple_host_routing: bool
     actuator_enabled: bool
-    def __init__(self, boot_id: _Optional[str] = ..., kernel_release: _Optional[str] = ..., congestion_algorithms: _Optional[_Iterable[str]] = ..., simple_host_routing: _Optional[bool] = ..., actuator_enabled: _Optional[bool] = ...) -> None: ...
+    collection_id: str
+    def __init__(self, boot_id: _Optional[str] = ..., kernel_release: _Optional[str] = ..., congestion_algorithms: _Optional[_Iterable[str]] = ..., simple_host_routing: _Optional[bool] = ..., actuator_enabled: _Optional[bool] = ..., collection_id: _Optional[str] = ...) -> None: ...
 
 class ApplicationRecord(_message.Message):
     __slots__ = ("assignment", "desired_revision", "status", "received_at", "attempted_at", "applied_at", "verified_at", "removed_at", "error", "installed_route", "installed_boot_id", "expired_latched")
@@ -231,7 +233,7 @@ class LocalState(_message.Message):
     def __init__(self, desired: _Optional[_Union[DesiredState, _Mapping]] = ..., locally_suspended: _Optional[bool] = ..., suspension_reason: _Optional[str] = ..., records: _Optional[_Iterable[_Union[ApplicationRecord, _Mapping]]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class HostEvidence(_message.Message):
-    __slots__ = ("agent_id", "sockets", "bytes_acked", "goodput_bps", "retransmission_ratio", "rtt_p95_ms", "exposed_sockets", "collection_healthy")
+    __slots__ = ("agent_id", "sockets", "bytes_acked", "goodput_bps", "retransmission_ratio", "rtt_p95_ms", "exposed_sockets", "collection_healthy", "unbound_sockets")
     AGENT_ID_FIELD_NUMBER: _ClassVar[int]
     SOCKETS_FIELD_NUMBER: _ClassVar[int]
     BYTES_ACKED_FIELD_NUMBER: _ClassVar[int]
@@ -240,6 +242,7 @@ class HostEvidence(_message.Message):
     RTT_P95_MS_FIELD_NUMBER: _ClassVar[int]
     EXPOSED_SOCKETS_FIELD_NUMBER: _ClassVar[int]
     COLLECTION_HEALTHY_FIELD_NUMBER: _ClassVar[int]
+    UNBOUND_SOCKETS_FIELD_NUMBER: _ClassVar[int]
     agent_id: str
     sockets: int
     bytes_acked: int
@@ -248,7 +251,8 @@ class HostEvidence(_message.Message):
     rtt_p95_ms: float
     exposed_sockets: int
     collection_healthy: bool
-    def __init__(self, agent_id: _Optional[str] = ..., sockets: _Optional[int] = ..., bytes_acked: _Optional[int] = ..., goodput_bps: _Optional[float] = ..., retransmission_ratio: _Optional[float] = ..., rtt_p95_ms: _Optional[float] = ..., exposed_sockets: _Optional[int] = ..., collection_healthy: _Optional[bool] = ...) -> None: ...
+    unbound_sockets: int
+    def __init__(self, agent_id: _Optional[str] = ..., sockets: _Optional[int] = ..., bytes_acked: _Optional[int] = ..., goodput_bps: _Optional[float] = ..., retransmission_ratio: _Optional[float] = ..., rtt_p95_ms: _Optional[float] = ..., exposed_sockets: _Optional[int] = ..., collection_healthy: _Optional[bool] = ..., unbound_sockets: _Optional[int] = ...) -> None: ...
 
 class Evidence(_message.Message):
     __slots__ = ("id", "analyzed_at", "window_start", "window_end", "query_version", "enrichment_version", "hosts", "artifact_sha256")

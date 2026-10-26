@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 )
 
 func TestWindowFor(t *testing.T) {
@@ -52,6 +53,11 @@ func TestWindowFor(t *testing.T) {
 	}
 }
 
+// session is a well-formed session of agent.
+func session(agent string) treatment.Session {
+	return treatment.Session{AgentID: agent, BootID: "boot-1", CollectionID: fixtures.CollectionID}
+}
+
 func TestWindowValidate(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 	valid := func() Window {
@@ -76,6 +82,24 @@ func TestWindowValidate(t *testing.T) {
 		{"bad-agent", "negative: an agent ID that could inject a parameter is refused", func(w *Window) { w.Agents = []string{"host'"} }, "invalid agent"},
 		{"bad-destination", "negative: the zero prefix is refused", func(w *Window) { w.Destination = netip.Prefix{} }, "invalid destination"},
 		{"bad-location", "corner: the location is an identifier too", func(w *Window) { w.Location = "dc 1" }, "location"},
+		{"session", "positive: a session of a population agent passes", func(w *Window) { w.Sessions = []treatment.Session{session("a")} }, ""},
+		{"session-outsider", "negative: a session for an agent outside the population is refused", func(w *Window) { w.Sessions = []treatment.Session{session("b")} }, "invalid session"},
+		{"session-bad-nonce", "negative: a nonce that is not 32 lowercase hex digits could inject a parameter", func(w *Window) {
+			s := session("a")
+			s.CollectionID = strings.ToUpper(s.CollectionID)
+			w.Sessions = []treatment.Session{s}
+		}, "invalid session"},
+		{"session-bad-boot", "negative: a boot ID with a quote is refused", func(w *Window) {
+			s := session("a")
+			s.BootID = "boot'"
+			w.Sessions = []treatment.Session{s}
+		}, "invalid session"},
+		{"too-many-sessions", "boundary: one session over MaxSessions is refused", func(w *Window) {
+			w.Sessions = make([]treatment.Session, MaxSessions+1)
+			for i := range w.Sessions {
+				w.Sessions[i] = session("a")
+			}
+		}, "too many sessions"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := valid()
