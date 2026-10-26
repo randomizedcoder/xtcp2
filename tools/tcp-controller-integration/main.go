@@ -30,6 +30,29 @@ import (
 )
 
 const pkiDir = "/var/lib/controller-test/pki"
+
+// agentUnit is the systemd unit running the treatment agent when xtcp2 does
+// not embed it (-agentUnit=xtcp2-treatment-agent). Empty means the embedded
+// arrangement, where the agent lives and dies with the xtcp2 unit.
+var agentUnit string
+
+// agentProcess is the unit whose restart, stop and SIGHUP exercise the agent.
+func agentProcess() string {
+	if agentUnit != "" {
+		return agentUnit
+	}
+	return "xtcp2"
+}
+
+// treatmentUnits lists every unit that must be up for treatments to work.
+func treatmentUnits() []string {
+	units := []string{"xtcp2", "xtcp2-treatment-watchdog"}
+	if agentUnit != "" {
+		units = append(units, agentUnit)
+	}
+	return units
+}
+
 const statePath = "/var/lib/xtcp2/routes/state.textproto"
 const evidenceDir = "/var/lib/controller-test/evidence"
 
@@ -133,17 +156,17 @@ func serveAgent(address string) {
 			command("tc", "qdisc", "add", "dev", "eth0", "parent", "1:3", "handle", "30:", "netem", "delay", "5ms")
 			command("tc", "filter", "add", "dev", "eth0", "parent", "1:", "protocol", "ip", "prio", "1", "u32", "match", "ip", "dst", "198.18.0.2/32", "flowid", "1:2")
 			command("tc", "filter", "add", "dev", "eth0", "parent", "1:", "protocol", "ip", "prio", "2", "u32", "match", "ip", "dst", "198.18.0.0/24", "flowid", "1:3")
-			systemctl("start", "load-near", "load-far", "xtcp2", "xtcp2-treatment-watchdog")
+			systemctl(append([]string{"start", "load-near", "load-far"}, treatmentUnits()...)...)
 		case "status":
 			result = localSnapshot()
 		case "restart-agent":
-			systemctl("restart", "xtcp2")
+			systemctl("restart", agentProcess())
 			agentReady()
 		case "stop-agent":
-			systemctl("stop", "xtcp2")
+			systemctl("stop", agentProcess())
 			systemctl("is-active", "xtcp2-treatment-watchdog")
 		case "start-agent":
-			systemctl("start", "xtcp2")
+			systemctl("start", agentProcess())
 			agentReady()
 		case "restart-load":
 			systemctl("restart", "load-near")
@@ -153,7 +176,7 @@ func serveAgent(address string) {
 			systemctl("restart", "load-near")
 		case "hup":
 			agentReady()
-			systemctl("kill", "-s", "HUP", "xtcp2")
+			systemctl("kill", "-s", "HUP", agentProcess())
 		case "suspend", "resume":
 			command("xtcp2-treatmentctl", "-mode="+a.Name, "-reason=integration-local-"+a.Name)
 		case "delay":
@@ -165,10 +188,14 @@ func serveAgent(address string) {
 			require(a.Seconds > 0, "invalid clock")
 			command("date", "-s", fmt.Sprintf("@%d", a.Seconds))
 		case "healthy":
-			result = systemctl("is-active", "xtcp2", "load-near", "load-far", "xtcp2-treatment-watchdog")
+			result = systemctl(append([]string{"is-active", "load-near", "load-far"}, treatmentUnits()...)...)
 		case "evidence":
 			s := localSnapshot()
-			s.Journal = command("journalctl", "-b", "--no-pager", "-n", "500", "-u", "xtcp2", "-u", "xtcp2-treatment-watchdog", "-u", "controller-test-agent")
+			args := []string{"-b", "--no-pager", "-n", "500", "-u", "controller-test-agent"}
+			for _, u := range treatmentUnits() {
+				args = append(args, "-u", u)
+			}
+			s.Journal = command("journalctl", args...)
 			s.Rules = command("ip", "-j", "rule")
 			s.Qdisc = command("tc", "-s", "qdisc", "show")
 			result = s
@@ -433,6 +460,7 @@ func main() {
 	role := flag.String("role", "", "controller or agent")
 	listen := flag.String("listen", "", "isolated guest fixture address")
 	soak := flag.Bool("soak", false, "run repeated RTT/discovery/rollback cycles from the shared soak-config.json")
+	flag.StringVar(&agentUnit, "agentUnit", "", "agent role: systemd unit of a standalone xtcp2-treatment-agent; empty when xtcp2 embeds the agent")
 	flag.Parse()
 	if _, err := os.Stat("/etc/xtcp-controller-integration"); err != nil {
 		log.Fatal("requires disposable integration VM marker")

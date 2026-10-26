@@ -360,7 +360,8 @@ let
         "$FLAKE_REF#test-focused-asn-locality" \
         "$FLAKE_REF#test-focused-goip" \
         "$FLAKE_REF#test-focused-gordma" \
-        "$FLAKE_REF#test-focused-xtcp-enrich"
+        "$FLAKE_REF#test-focused-xtcp-enrich" \
+        "$FLAKE_REF#test-focused-xtcp-treatment"
 
       echo "==> focused quality checks passed"
     '';
@@ -1110,6 +1111,7 @@ in
       test-focused-goip = tests.focused.focused-goip;
       test-focused-gordma = tests.focused.focused-gordma;
       test-focused-xtcp-enrich = tests.focused.focused-xtcp-enrich;
+      test-focused-xtcp-treatment = tests.focused.focused-xtcp-treatment;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-ipmeta-bootstrap =
         tests.microvm-lifecycle-ipmeta-bootstrap.x86_64.fullTest;

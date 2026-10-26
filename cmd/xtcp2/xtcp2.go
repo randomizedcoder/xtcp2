@@ -252,31 +252,32 @@ var (
 // short and lets the per-section helpers (printFlags, buildConfig,
 // startProfile) take a single argument instead of 30 positional ones.
 type mainFlags struct {
-	treatmentConfig     *string
-	nltimeout           *uint64
-	pollFrequency       *time.Duration
-	pollTimeout         *time.Duration
-	maxLoops            *uint64
-	netlinkers          *uint
-	nlmsgSeq            *uint
-	packetSize          *uint64
-	packetSizeMply      *uint
-	writeFiles          *uint
-	capturePath         *string
-	modulus             *uint64
-	marshal             *string
-	columns             *string
-	envelopeFlushBytes  *uint
-	envelopeFlushRows   *uint
-	kafkaCompression    *string
-	s3Endpoint          *string
-	s3Bucket            *string
-	s3Prefix            *string
-	s3AccessKey         *string
-	s3SecretKey         *string
-	s3Region            *string
-	s3SkipBucketProbe   *bool
-	s3ParquetFlushBytes *uint
+	treatmentConfig      *string
+	treatmentAttribution *string
+	nltimeout            *uint64
+	pollFrequency        *time.Duration
+	pollTimeout          *time.Duration
+	maxLoops             *uint64
+	netlinkers           *uint
+	nlmsgSeq             *uint
+	packetSize           *uint64
+	packetSizeMply       *uint
+	writeFiles           *uint
+	capturePath          *string
+	modulus              *uint64
+	marshal              *string
+	columns              *string
+	envelopeFlushBytes   *uint
+	envelopeFlushRows    *uint
+	kafkaCompression     *string
+	s3Endpoint           *string
+	s3Bucket             *string
+	s3Prefix             *string
+	s3AccessKey          *string
+	s3SecretKey          *string
+	s3Region             *string
+	s3SkipBucketProbe    *bool
+	s3ParquetFlushBytes  *uint
 
 	pollJitterPct             *uint
 	s3FlushInterval           *time.Duration
@@ -440,7 +441,8 @@ func defaultDest() string {
 // of all 92 are pinned by cmd/xtcp2/testdata/defineflags-golden.txt.
 func defineFlags() *mainFlags {
 	f := &mainFlags{}
-	f.treatmentConfig = flag.String("treatmentConfig", "", "optional controller agent JSON config; route application requires enable_apply")
+	f.treatmentConfig = flag.String("treatmentConfig", "", "optional controller agent JSON config, running the treatment agent inside this daemon; needs a build with the treatment tag; route application requires enable_apply. Mutually exclusive with -treatmentAttribution")
+	f.treatmentAttribution = flag.String("treatmentAttribution", "", "optional journal directory of a standalone xtcp2-treatment-agent (its config's directory, default /var/lib/xtcp2/routes); this daemon only reads the snapshot and stamps treatment provenance onto records. Mutually exclusive with -treatmentConfig")
 	f.nltimeout = flag.Uint64("nltimeout", nltimeoutCst, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
 	f.pollFrequency = flag.Duration("frequency", pollFrequencyCst, "Poll frequency")
 	f.pollTimeout = flag.Duration("timeout", pollTimeoutCst, "Poll timeout per name space")
@@ -1131,7 +1133,13 @@ func runMain(ctx context.Context) int {
 		log.Println("config validation succeeded")
 	}
 
-	stopTreatments, err := startTreatments(runCtx, f.treatmentConfig)
+	if err := checkTreatmentFlags(*f.treatmentConfig, *f.treatmentAttribution); err != nil {
+		// A build without the agent, or both modes at once, is a property of
+		// the deployment that is identical on every host: fail loudly.
+		fatalf("%v", err)
+		return 1
+	}
+	stopTreatments, err := startTreatments(runCtx, *f.treatmentConfig, *f.treatmentAttribution, *f.location)
 	if err != nil {
 		// Controller availability/configuration must not stop socket telemetry.
 		log.Printf("treatment agent unavailable: %v", err)
@@ -1156,8 +1164,8 @@ func runMain(ctx context.Context) int {
 // and run RunWithPoller until ctx cancels the WG.
 func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig) {
 	x := xtcp.NewXTCP(ctx, cancel, c)
-	if a := activeTreatments.Load(); a != nil {
-		x.SetTreatmentStamper(a.Stamp)
+	if stamp := treatmentStamper(); stamp != nil {
+		x.SetTreatmentStamper(stamp)
 	}
 	detach, err := linkMonitorHTTP.attach(x)
 	if err != nil {

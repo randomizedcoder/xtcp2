@@ -1,6 +1,7 @@
 package treatment
 
 import (
+	"go/build"
 	"go/parser"
 	"go/token"
 	"os"
@@ -40,6 +41,7 @@ const (
 type boundaryRule struct {
 	description string
 	root        string
+	tags        []string // build tags in effect for the walk; files excluded by //go:build are skipped
 	forbidden   []string // first-party package paths
 	forbidden3p []string // substrings of third-party import paths
 	expectAny   []string // first-party packages that must be present, so the walk is not vacuous
@@ -49,11 +51,26 @@ func treatmentBoundaryRules() []boundaryRule {
 	tp := func(p string) string { return modulePath + "/" + p }
 	return []boundaryRule{
 		{
-			description: "positive: the daemon links neither the controller, a SQL driver nor ClickHouse",
+			description: "positive: the untagged daemon reads journals only: no agent, no TLS identity, no RPC proto, no controller, no SQL driver, no ClickHouse",
 			root:        tp("cmd/xtcp2"),
+			forbidden:   []string{tp("pkg/treatment/agent"), tp("pkg/treatment/identity"), tp("pkg/treatment/local"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("pkg/treatment/controller"), tp("pkg/treatment/experiment")},
+			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse"},
+			expectAny:   []string{tp("pkg/xtcp"), tp("pkg/treatment/attribution")},
+		},
+		{
+			description: "positive: the daemon built with the treatment tag embeds the agent but still never the controller, a SQL driver or ClickHouse",
+			root:        tp("cmd/xtcp2"),
+			tags:        []string{"treatment"},
 			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/experiment")},
 			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse"},
-			expectAny:   []string{tp("pkg/xtcp")},
+			expectAny:   []string{tp("pkg/xtcp"), tp("pkg/treatment/agent"), tp("pkg/treatment/identity")},
+		},
+		{
+			description: "positive: the standalone agent binary stands on the agent library, never on the controller or a database",
+			root:        tp("cmd/xtcp2-treatment-agent"),
+			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/experiment"), tp("pkg/xtcp")},
+			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse"},
+			expectAny:   []string{tp("pkg/treatment/agent"), tp("pkg/treatment/local"), tp("pkg/treatment/attribution")},
 		},
 		{
 			description: "positive: the agent library stands on identity and the contract, never on the controller",
@@ -149,10 +166,10 @@ func treatmentBoundaryRules() []boundaryRule {
 func TestTreatmentImportBoundaries(t *testing.T) {
 	for _, r := range treatmentBoundaryRules() {
 		t.Run(r.description, func(t *testing.T) {
-			closure, thirdParty := firstPartyClosure(t, r.root)
+			closure, thirdParty := firstPartyClosure(t, r.root, r.tags)
 			for _, p := range r.forbidden {
 				if closure[p] {
-					t.Errorf("%s reaches %s; the chain is: %s", r.root, p, importChain(t, r.root, p))
+					t.Errorf("%s reaches %s; the chain is: %s", r.root, p, importChain(t, r.root, p, r.tags))
 				}
 			}
 			for imp, from := range thirdParty {
@@ -173,17 +190,29 @@ func TestTreatmentImportBoundaries(t *testing.T) {
 
 type anImport struct{ path, file string }
 
-func packageImports(t *testing.T, pkgPath string) []anImport {
+// packageImports lists the non-test imports of one package under the given
+// build tags, honouring //go:build lines and _GOOS/_GOARCH suffixes the way
+// the compiler would for the host platform, so a file such as
+// cmd/xtcp2/treatments_embedded.go (//go:build treatment) only counts when
+// the rule asks for that tag.
+func packageImports(t *testing.T, pkgPath string, tags []string) []anImport {
 	t.Helper()
 	dir := filepath.Join(repoRoot, strings.TrimPrefix(pkgPath, modulePath+"/"))
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("read package dir %s (for import %q): %v", dir, pkgPath, err)
 	}
+	ctx := build.Default
+	ctx.BuildTags = append([]string(nil), tags...)
 	var out []anImport
 	fset := token.NewFileSet()
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		if ok, merr := ctx.MatchFile(dir, e.Name()); merr != nil {
+			t.Fatalf("match %s: %v", filepath.Join(dir, e.Name()), merr)
+		} else if !ok {
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
@@ -208,7 +237,7 @@ func isFirstParty(imp string) bool {
 
 // firstPartyClosure follows non-test first-party imports from root and returns
 // the packages reached plus third-party edges mapped to one importer.
-func firstPartyClosure(t *testing.T, root string) (map[string]bool, map[string]string) {
+func firstPartyClosure(t *testing.T, root string, tags []string) (map[string]bool, map[string]string) {
 	t.Helper()
 	closure := map[string]bool{}
 	thirdParty := map[string]string{}
@@ -218,7 +247,7 @@ func firstPartyClosure(t *testing.T, root string) (map[string]bool, map[string]s
 			return
 		}
 		closure[p] = true
-		for _, imp := range packageImports(t, p) {
+		for _, imp := range packageImports(t, p, tags) {
 			switch {
 			case isFirstParty(imp.path):
 				walk(imp.path)
@@ -240,7 +269,7 @@ func firstPartyClosure(t *testing.T, root string) (map[string]bool, map[string]s
 
 // importChain finds one path root -> ... -> target so a failure says where the
 // edge came from instead of only that it exists.
-func importChain(t *testing.T, root, target string) string {
+func importChain(t *testing.T, root, target string, tags []string) string {
 	t.Helper()
 	parent := map[string]string{root: ""}
 	queue := []string{root}
@@ -255,7 +284,7 @@ func importChain(t *testing.T, root, target string) string {
 			sort.SliceStable(chain, func(i, j int) bool { return i > j })
 			return strings.Join(chain, " -> ")
 		}
-		for _, imp := range packageImports(t, p) {
+		for _, imp := range packageImports(t, p, tags) {
 			if isFirstParty(imp.path) {
 				if _, seen := parent[imp.path]; !seen {
 					parent[imp.path] = p

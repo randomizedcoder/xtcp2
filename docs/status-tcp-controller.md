@@ -12,9 +12,9 @@ review being addressed. Items are listed in execution order.
 | 8 | proto moved to `xtcp_treatment/v1` with `buf.validate` rules | done | 460164b1 |
 | 3 | explicit state machine; `Outcome` enum | done | 85b2cf59 |
 | 4 | repository ports, relational schema, pgx, domain types, `wire` | done | eae1d87d |
-| D1 | dual-mode agent, part 1: journal-specific proto, proto-free `reconcile`, `local`, `attribution`, watchdog off the agent | done | this commit |
-| D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | next | |
-| 5 | evidence port (`CandidateSource`), ClickHouse as one adapter | pending | |
+| D1 | dual-mode agent, part 1: journal-specific proto, proto-free `reconcile`, `local`, `attribution`, watchdog off the agent | done | 6398338a |
+| D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | this commit |
+| 5 | evidence port (`CandidateSource`), ClickHouse as one adapter | next | |
 | 6 | auth as interceptor with per-RPC role option | pending | |
 | 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | pending | |
 | 9 | identity/location startup check | pending | |
@@ -56,6 +56,24 @@ process.
   `XTCP_CONTROLLER_TEST_DSN`, against PostgreSQL; both stores pass the shared
   conformance suite in `store/storetest`.
 
+## D2 notes
+
+- `cmd/xtcp2/treatments.go` is always built and owns `-treatmentAttribution`
+  (an `attribution.Watcher` over the journal directory) and the fatal checks;
+  `treatments_embedded.go` (`//go:build treatment`) registers the embedded
+  agent for `-treatmentConfig`. Both flags exist in every build so the flag
+  golden is flavor-neutral; the untagged daemon refuses `-treatmentConfig`.
+- `mkGoBinary` gained `treatment ? null`: fat builds (full destination set)
+  embed the agent, slim flavors do not. `xtcp2-treatment-agent` joined
+  `binaryNames`; `test-focused-xtcp-treatment` runs the tagged daemon tests.
+- The NixOS module gained `treatments.mode` (`embedded` | `standalone`),
+  `agentPackage` and `journalDirectory`; standalone adds the
+  `xtcp2-treatment-agent` service. The VM fixture runs standalone with
+  `xtcp2-min`, which exercises the journal watcher end to end.
+- The boundary walk now honours build tags (`go/build.Context.MatchFile`), so
+  it asserts the untagged daemon never reaches the agent, identity or the
+  RPC proto, and the tagged one does reach the agent but never the controller.
+
 ## TODO
 
 - The watchdog and `pkg/treatment/local` still link gRPC, through
@@ -72,3 +90,7 @@ process.
   expression-index timings; refresh from `TestPostgresExperimentQueryIndexes`
   on the Nix fixture.
 - Coverage table in `docs/tcp-controller-testing.md` predates the split; regenerate.
+- `nix/checks/cli-help-smoke.nix` keeps its own `cmdNames` list and does not
+  include the treatment binaries (`xtcp2-controller`, `xtcp2-controllerctl`,
+  `xtcp2-treatment-agent`, `xtcp2-treatmentctl`); add them when that list is
+  next touched.

@@ -137,11 +137,16 @@ let
       };
       services.xtcp2 = {
         enable = true;
+        # The slim daemon does not embed the agent, so this fixture runs the
+        # standalone arrangement: xtcp2-treatment-agent owns the journal and
+        # the routes, xtcp2 reads the journal to stamp provenance.
         package = binaries.xtcp2-min;
         configFile = "/etc/xtcp2/unused.json";
         linkMonitor.enable = false;
         treatments = {
           enable = true;
+          mode = "standalone";
+          agentPackage = binaries.xtcp2-treatment-agent;
           watchdogPackage = binaries.xtcp2-treatmentctl;
         };
         extraArgs = [
@@ -154,13 +159,14 @@ let
       };
       # The Go fixture installs runtime credentials before starting the daemon.
       systemd.services.xtcp2.wantedBy = lib.mkForce [ ];
+      systemd.services.xtcp2-treatment-agent.wantedBy = lib.mkForce [ ];
       systemd.services.xtcp2-treatment-watchdog.wantedBy = lib.mkForce [ ];
       systemd.services.controller-test-agent = {
         wantedBy = [ "multi-user.target" ];
         after = [ "network-online.target" ];
         wants = [ "network-online.target" ];
         path = fixturePath;
-        serviceConfig.ExecStart = "${harness}/bin/tcp-controller-integration -role=agent -listen=192.168.1.${host}:9009";
+        serviceConfig.ExecStart = "${harness}/bin/tcp-controller-integration -role=agent -listen=192.168.1.${host}:9009 -agentUnit=xtcp2-treatment-agent";
       };
       systemd.services.load-near.serviceConfig = {
         EnvironmentFile = "/var/lib/controller-test/load.env";

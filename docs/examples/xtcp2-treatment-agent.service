@@ -1,0 +1,21 @@
+[Unit]
+Description=xtcp2 TCP route treatment agent (standalone)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/xtcp2-treatment-agent -config=/etc/xtcp2/controller-agent.json
+# Check in and reconcile now; the embedded agent does the same on SIGHUP.
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=2s
+StateDirectory=xtcp2
+StateDirectoryMode=0750
+AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_PTRACE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_PTRACE
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

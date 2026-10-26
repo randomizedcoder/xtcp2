@@ -2,8 +2,12 @@
 
 xtcp2 can now opt into a separate controller that proposes TCP route treatments,
 rolls them out after human review, and withdraws failed trials. Ordinary xtcp2
-collection and the goip CLI retain their existing behavior. Route application
-requires both `-treatmentConfig` and `enable_apply: true`.
+collection and the goip CLI retain their existing behavior. The agent runs
+either inside xtcp2 (`-treatmentConfig`, a build with the `treatment` tag) or
+as the standalone `xtcp2-treatment-agent` beside an xtcp2 that only reads its
+journal (`-treatmentAttribution`); see [Agent deployment](#agent-deployment).
+Route application requires `enable_apply: true` in the agent configuration in
+either arrangement.
 
 ## Components and authority
 
@@ -60,7 +64,8 @@ The binaries are:
 | --- | --- |
 | `xtcp2-controller` | PostgreSQL state, discovery, analysis, review gates, leases, gRPC, status and metrics |
 | `xtcp2-controllerctl` | Authenticated `propose`, `analyze`, `review`, `control`, and `inspect` requests |
-| `xtcp2` | Optional outbound controller connection, reconciliation and telemetry attribution |
+| `xtcp2` | Telemetry attribution from the journal (always); the embedded agent with `-treatmentConfig` when built with the `treatment` tag |
+| `xtcp2-treatment-agent` | The same agent as a standalone process: controller connection, journal and kernel reconciliation; pairs with `-treatmentAttribution` |
 | `xtcp2-treatmentctl` | Local status, suspension, resume, reconciliation, independent watchdog |
 
 ClickHouse is an evidence source; PostgreSQL is the authority for desired state.
@@ -362,16 +367,51 @@ to turn over before interpreting a temporary baseline test. Disconnected agents
 cannot receive an immediate remote hold; use the local command or wait for trial
 expiry. Stable routes intentionally persist during controller outages.
 
-Before disabling `enable_apply`, removing `-treatmentConfig`, or uninstalling
-the watchdog, suspend the treatments and verify withdrawal. Disabling the
+Before disabling `enable_apply`, removing `-treatmentConfig`, stopping a
+standalone agent for good, or uninstalling the watchdog, suspend the treatments
+and verify withdrawal. Disabling the
 actuator prevents further writes; it does not itself delete existing kernel
 routes. Keep the journal through cleanup so ownership can be checked.
 
+## Agent deployment
+
+The agent is a library (`pkg/treatment/agent`) with two front ends. Pick one per
+host; xtcp2 refuses both flags together.
+
+| Arrangement | xtcp2 flag | Who owns the journal and routes | When |
+| --- | --- | --- | --- |
+| Embedded | `-treatmentConfig=/etc/xtcp2/controller-agent.json` | xtcp2 itself | the fat `xtcp2` build (Nix: every attribute with the full destination set carries the `treatment` tag); one process to run and one journal writer |
+| Standalone | `-treatmentAttribution=/var/lib/xtcp2/routes` | `xtcp2-treatment-agent -config=/etc/xtcp2/controller-agent.json` | slim xtcp2 flavors (`xtcp2-min`, `xtcp2-kafka`, ...), which do not embed the agent, or wherever the controller connection and kernel writes should restart independently of collection |
+
+In both arrangements the daemon stamps every record from the same exposure
+index (`pkg/treatment/attribution`): agent, boot, collection nonce, desired
+revision and, for sockets whose destination has a verified route in the host
+namespace, the experiment, generation, application time and whether the
+observed congestion algorithm matches. Embedded, the index is rebuilt after
+every reconcile pass. Standalone, xtcp2 watches the journal directory
+(inotify on the atomic rename of `state.textproto`, a 30 s poll as fallback,
+SIGHUP to re-read now) and rebuilds it from the snapshot; a missing or invalid
+snapshot clears attribution rather than stamping stale state. The embedded
+agent writes its certificate-bound location onto records; the standalone
+arrangement keeps the daemon's own `-location` and logs once if the journal
+disagrees.
+
+A build without the `treatment` tag rejects `-treatmentConfig` at startup with
+a message naming both remedies, the same way a slim build rejects an enricher
+it lacks: a missing build tag is a property of the artifact and must not
+degrade silently. `go test ./cmd/xtcp2` covers the untagged daemon;
+`nix build .#test-focused-xtcp-treatment` (or
+`go test -tags treatment ./cmd/xtcp2 ./cmd/xtcp2-treatment-agent`) covers the
+embedded path. The watchdog, `xtcp2-treatmentctl -mode=watchdog`, is a
+separate process in both arrangements and builds on `pkg/treatment/local` and
+`pkg/treatment/reconcile` only.
+
 ## Deployment
 
-1. Build the controller, client, treatmentctl and your normal xtcp2 build flavor.
-   Nix exposes `.#xtcp2-controller`, `.#xtcp2-controllerctl` and
-   `.#xtcp2-treatmentctl`; all three also build with ordinary `go build`.
+1. Build the controller, client, treatmentctl, the standalone agent if you
+   use it, and your normal xtcp2 build flavor. Nix exposes
+   `.#xtcp2-controller`, `.#xtcp2-controllerctl`, `.#xtcp2-treatment-agent`
+   and `.#xtcp2-treatmentctl`; all of them also build with ordinary `go build`.
 2. Provision PostgreSQL with backups and a restricted database identity. The
    controller's `-migrate` applies the additive schema; use it during controlled
    deployment, then remove it from the long-running command. Back up audit and
@@ -416,7 +456,14 @@ replace its documentation addresses and protected prefixes before use. The
 hypotheses, not recommended network-wide tuning defaults.
 
 On NixOS, set `services.xtcp2.treatments.enable = true`, its `configFile`, and
-`watchdogPackage`. The module creates an independent watchdog service. A runtime
+`watchdogPackage`. `treatments.mode` selects the arrangement: `embedded` (the
+default; `package` must be a build with the `treatment` tag) passes
+`-treatmentConfig`, `standalone` runs `agentPackage`'s
+`xtcp2-treatment-agent` as its own service and passes
+`-treatmentAttribution=<journalDirectory>` to xtcp2. The module creates an
+independent watchdog service in both modes; the example
+[standalone agent unit](examples/xtcp2-treatment-agent.service) is the
+non-NixOS equivalent. A runtime
 JSON file and private keys should remain outside the Nix store. The existing
 `systemctl reload xtcp2` sends SIGUSR1 for link-monitor baseline relearning;
 use `kill -HUP <xtcp2-pid>` for route reconciliation. Other systems can use the

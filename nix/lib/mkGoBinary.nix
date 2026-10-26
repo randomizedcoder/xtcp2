@@ -14,6 +14,10 @@
 #                    destinationFlavors); null = all, [] = stdlib only
 #   enrichments    — enrichment features to compile in (see versions.nix
 #                    enrichmentFlavors); null = all, [] = none
+#   treatment      — compile the TCP route treatment agent into cmd/xtcp2
+#                    (`-tags treatment`, see docs/tcp-controller.md); null =
+#                    only for the full destination set, i.e. the fat builds.
+#                    Slim flavors read a standalone agent's journal instead.
 #   commit, date,
 #   version        — injected into main.{commit,date,version} via -ldflags -X
 #   extraLdflags   — additional -ldflags entries appended after the variant's
@@ -54,6 +58,13 @@ in
   # A list like `[ "asn" ]` → just those. See versions.nix enrichmentFlavors
   # for why these two are compile-time gated when the other enrichers are not.
   enrichments ? null,
+  # Whether cmd/xtcp2 embeds the treatment agent (build tag `treatment`).
+  # `null` → follow the destination axis: the fat builds (destinations ==
+  # null) embed it, the slim per-destination flavors do not and pair with
+  # the standalone xtcp2-treatment-agent + -treatmentAttribution. A build
+  # without the tag refuses -treatmentConfig at startup, like a slim build
+  # refuses an enricher it lacks.
+  treatment ? null,
   vendorHash ? versions.goVendorHash,
   commit ? "nix",
   date ? "1970-01-01-00:00",
@@ -101,6 +112,11 @@ let
 
   enrichmentTags = map (f: "enrich_${f}") effectiveEnrichments;
 
+  # The treatment agent rides the destination axis unless told otherwise:
+  # embedded in the fat builds, left to the standalone binary in slim ones.
+  embedTreatment = if treatment == null then destinations == null else treatment;
+  treatmentTags = lib.optional embedTreatment "treatment";
+
   # Unlike destSuffix there is no "-min" equivalent: the empty enrichment set
   # is the plain name, so `xtcp2-min` / `xtcp2-s3parquet` keep the names they
   # have always had while gaining `-asn` / `-locality` / `-asn-locality`
@@ -128,7 +144,7 @@ buildGoModule {
     CGO_ENABLED = if versions.cgoEnabled then "1" else "0";
   };
 
-  tags = versions.buildTags ++ destinationTags ++ enrichmentTags;
+  tags = versions.buildTags ++ destinationTags ++ enrichmentTags ++ treatmentTags;
 
   ldflags =
     variantCfg.extraLdflags
