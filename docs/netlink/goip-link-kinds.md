@@ -2741,20 +2741,23 @@ The two mesh rows in `TestDetailRefusedForPerKindData` turn positive: `-d link s
 #### KG1-T05 The bridge matrix rows
 
 **Rows.** In `internal/goipparity/commands.go`, after the inet rows:
-- **Write rows**, slug `link_bridge_<slug>` and `link_bridge_slave_<slug>`, one per KC2 row that sent a request (55 and 37), argv as KC2 ran it. `Floor` is the row's `ip.pcap` record count: 2 for an add, 4 for a set, 6 for a backup-port set. `Setup` is the row's `topology`: none for an add, `bridgeSetupBr0` (`link add br0 type bridge`) for a set, `bridgeSetupBr0Stp` for `set_stp_mode_busy`, `bridgeSetupPorts` (br0, p0 and p1 dummies, both enslaved) for a port row, with `state`'s and `nobackup_port`'s extra steps and `set_not_enslaved`'s p0 alone.
-- **Read rows**: `-d link show dev br0`, `-d -j link show dev br0`, `-d link show dev p0` and `-d -j link show dev p0`, on `bridgeSetupPorts`.
+- **Write rows**, slug `link_bridge_<slug>` and `link_bridge_slave_<slug>`, one per KC2 row that sent a request (55 and 37), argv as KC2 ran it, in `kind-write-corpus.exp`'s order. `Floor` is the row's `ip.pcap` record count: 2 for an add, 4 for a set, 6 for the backup-port set. `Setup` is the row's `topology`: none for an add, `bridgeWriteSetupBr0` (`link add br0 type bridge`) for a set, `bridgeWriteSetupBr0Stp` for `set_stp_mode_busy`, `bridgeWriteSetupPorts` (br0, p0 and p1 dummies, both enslaved) for a port row, `bridgeWriteSetupPortsUp` and `bridgeWriteSetupPortsBackup` for `state`'s and `nobackup_port`'s extra steps, and `bridgeWriteSetupP0` for `set_not_enslaved`'s p0 alone. `Name` is the allowlist key, so two rows that share an argv with another row are spelled another way that sends the same request: `set_stp_mode_busy` as `link set dev br0 …` and `set_not_enslaved` as `link set p0 …`.
+- **Read rows**: `-d link show dev br0`, `-d -j link show dev br0` (floor 4), `-d link show dev p0` and `-d -j link show dev p0` (floor 6, the master's get added), on `bridgeReadSetup`, the ports' topology.
 
 The stdout comparison is the facets (`stdout.go`'s `keywords`), not the kind text, so the read rows hold the device's other lines and the timers move freely; the sidecar tests above are the text and JSON oracle.
 
-`TestBridgeMatrixRows`:
+`TestBridgeMatrixRows` (`internal/goipparity/commands_bridge_test.go`):
 
 | description | input | expected |
 |---|---|---|
-| positive: one write row per request row | the `link_bridge_*` slugs | 92, in KC2's order |
-| negative: no `ip`-refused row | the 10 slugs | absent |
+| positive: one write row per request row | the `link_bridge_*` slugs | the corpus's 55 and 37 rows with `ip.rc` 0 or 2, 92 in all |
+| negative: no `ip`-refused row | the 10 rows with `ip.rc` 1 or 255 | absent |
 | boundary: each floor | `Floor` | the row's `ip.pcap` record count |
 | corner: each setup | `Setup` | the row's `topology` file, step for step |
-| positive: every row is gated | `IsGated` | true, after the two runs |
+| positive: the four read rows share the ports' setup | the read rows | not writes; floors 4, 4, 6, 6; `bridgeWriteSetupPorts` |
+| positive: every row is gated | the 92 write rows' and 4 read rows' names | each `IsGated` in the embedded allowlist |
+
+`TestCompareWriteRow`'s every-write-row case runs the 92 on their own corpus captures, and `TestAllowlistCommitted` and `TestUngatedSurfaceIsNotVacuous` hold the 96 gated. The two `ageing_time` names are split in `TestAllowlistCommitted`'s list, as in the table, for misspell's US mode.
 
 | description (VM) | input | expected |
 |---|---|---|
@@ -2763,7 +2766,7 @@ The stdout comparison is the facets (`stdout.go`'s `keywords`), not the kind tex
 
 Then the 96 rows go in `gated_commands`. A full run comes before the next push.
 
-**Mutation check:** a floor short by 2 (the floor row); a setup step dropped (the setup row); a row dropped from `gated_commands` (the gated row).
+**Mutation check:** a floor short by 2 (the floor row); a setup step dropped (the setup row); a row dropped from the table (the request-row row); an `ip`-refused row added (the negative row); a read row's floor short by 2 (the read row); a setup on an add (the setup row); a row dropped from `gated_commands` (`TestUngatedSurfaceIsNotVacuous`, the gated row); a row dropped from `TestAllowlistCommitted`'s list only (its `nothing is gated that no measured run earned` row).
 
 **Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG1.
 

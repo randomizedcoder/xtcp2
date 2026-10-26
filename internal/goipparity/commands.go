@@ -2512,7 +2512,440 @@ var commands = withArgs([]Command{
 		Name: "link set dev d0 inet forwarding on mtu 1400", Slug: "link_inet_then_mtu",
 		// The push-back: IFLA_AF_SPEC, then IFLA_MTU, in one request.
 		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
-	}, // The route write rows (route-write-path.md phase 5): the corpus in
+	},
+	// The bridge rows (goip-link-kinds.md, KG1-T05): KC2's rows that sent a
+	// request, in kind-write-corpus.exp's order, from pkg/xtcpnl/testdata/
+	// 7_3_0/link-write/kinds/{bridge,bridge_slave}/. Each Floor is the row's
+	// ip.pcap record count: an add is the write (2), a set the lookup and the
+	// write (4). Each Setup is the row's topology file. The 10 rows ip
+	// refuses before netlink are not rows, since a write row needs goip to
+	// exit 0; TestLinkBridgeRefusals and TestLinkBridgeSlaveRefusals hold
+	// them offline.
+	{
+		Name: "link add br0 type bridge", Slug: "link_bridge_add_default",
+		// No options: IFLA_INFO_KIND alone.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge forward_delay 400", Slug: "link_bridge_add_forward_delay",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge hello_time 100", Slug: "link_bridge_add_hello_time",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge max_age 1000", Slug: "link_bridge_add_max_age",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge " + bridgeAgeingTimeCst + " 15000", Slug: "link_bridge_add_" + bridgeAgeingTimeCst,
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge stp_state 1", Slug: "link_bridge_add_stp_state",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge priority 100", Slug: "link_bridge_add_priority",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge vlan_filtering 1", Slug: "link_bridge_add_vlan_filtering",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge vlan_protocol 802.1ad", Slug: "link_bridge_add_vlan_protocol",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge group_fwd_mask 8", Slug: "link_bridge_add_group_fwd_mask",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge group_address 01:80:c2:00:00:0e", Slug: "link_bridge_add_group_address",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge no_linklocal_learn 1", Slug: "link_bridge_add_no_linklocal_learn",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mst_enabled 1", Slug: "link_bridge_add_mst_enabled",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge fdb_max_learned 100", Slug: "link_bridge_add_fdb_max_learned",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge vlan_default_pvid 10", Slug: "link_bridge_add_vlan_default_pvid",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge vlan_stats_enabled 1", Slug: "link_bridge_add_vlan_stats_enabled",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge vlan_stats_per_port 1", Slug: "link_bridge_add_vlan_stats_per_port",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_router 2", Slug: "link_bridge_add_mcast_router",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_snooping 0", Slug: "link_bridge_add_mcast_snooping",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge vlan_filtering 1 mcast_vlan_snooping 1", Slug: "link_bridge_add_mcast_vlan_snooping",
+		// Needs vlan_filtering, which br_changelink applies first.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_query_use_ifaddr 1", Slug: "link_bridge_add_mcast_query_use_ifaddr",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_querier 1", Slug: "link_bridge_add_mcast_querier",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_hash_elasticity 8", Slug: "link_bridge_add_mcast_hash_elasticity",
+		// Accepted and ignored: the kernel keeps 16.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_hash_max 1024", Slug: "link_bridge_add_mcast_hash_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_last_member_count 3", Slug: "link_bridge_add_mcast_last_member_count",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_startup_query_count 3", Slug: "link_bridge_add_mcast_startup_query_count",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_last_member_interval 200", Slug: "link_bridge_add_mcast_last_member_interval",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_membership_interval 30000", Slug: "link_bridge_add_mcast_membership_interval",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_querier_interval 30000", Slug: "link_bridge_add_mcast_querier_interval",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_query_interval 15000", Slug: "link_bridge_add_mcast_query_interval",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_query_response_interval 500", Slug: "link_bridge_add_mcast_query_response_interval",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_startup_query_interval 1000", Slug: "link_bridge_add_mcast_startup_query_interval",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_stats_enabled 1", Slug: "link_bridge_add_mcast_stats_enabled",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_igmp_version 3", Slug: "link_bridge_add_mcast_igmp_version",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_mld_version 2", Slug: "link_bridge_add_mcast_mld_version",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge nf_call_iptables 1", Slug: "link_bridge_add_nf_call_iptables",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge nf_call_ip6tables 1", Slug: "link_bridge_add_nf_call_ip6tables",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge nf_call_arptables 1", Slug: "link_bridge_add_nf_call_arptables",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mdb_offload_fail_notification 1", Slug: "link_bridge_add_mdb_offload_fail_notification",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge fdb_local_vlan_0 1", Slug: "link_bridge_add_fdb_local_vlan_0",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge fdb_flush", Slug: "link_bridge_add_fdb_flush",
+		// The flag: an empty IFLA_BR_FDB_FLUSH.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge stp_mode auto", Slug: "link_bridge_add_stp_mode_auto",
+		// 7.2.0's stp_mode names.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge stp_mode user", Slug: "link_bridge_add_stp_mode_user",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge stp_mode kernel", Slug: "link_bridge_add_stp_mode_kernel",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mst_enabled 1 mdb_offload_fail_notification 1 fdb_local_vlan_0 1", Slug: "link_bridge_add_boolopts",
+		// Three boolopts folded into one IFLA_BR_MULTI_BOOLOPT.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge stp_state 1 priority 100 vlan_filtering 1 mcast_snooping 0", Slug: "link_bridge_add_several",
+		// Several options, in the argument order.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set br0 type bridge " + bridgeAgeingTimeCst + " 15000", Slug: "link_bridge_set_" + bridgeAgeingTimeCst,
+		// The change path: the br0 lookup and the write (4).
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupBr0,
+	},
+	{
+		Name: "link set br0 type bridge vlan_filtering 1", Slug: "link_bridge_set_vlan_filtering",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupBr0,
+	},
+	{
+		Name: "link set br0 type bridge stp_mode user", Slug: "link_bridge_set_stp_mode",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupBr0,
+	},
+	{
+		Name: "link set dev br0 type bridge stp_mode user", Slug: "link_bridge_set_stp_mode_busy",
+		// Refused with STP on (an extack), compared on the request. Spelled
+		// with `dev`, which sends the same request, since set_stp_mode has the
+		// plain spelling and Name is the allowlist key.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupBr0Stp,
+	},
+	{
+		Name: "link add br0 type bridge forward_d 400", Slug: "link_bridge_add_abbrev",
+		// A matches()-style keyword by prefix.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge group_address 01:80:c2:00:00:01", Slug: "link_bridge_add_group_address_bad",
+		// EINVAL, a reserved group address, compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge group_fwd_mask 1", Slug: "link_bridge_add_group_fwd_mask_bad",
+		// EINVAL (the STP bit), compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_igmp_version 4", Slug: "link_bridge_add_igmp_version_bad",
+		// EINVAL, compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add br0 type bridge mcast_vlan_snooping 1", Slug: "link_bridge_add_mcast_vlan_snooping_no_vlan",
+		// Refused without vlan_filtering (an extack), compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave state 4", Slug: "link_bridge_slave_set_state",
+		// Needs p0 up (br_set_port_state).
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPortsUp,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave priority 7", Slug: "link_bridge_slave_set_priority",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave cost 10", Slug: "link_bridge_slave_set_cost",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave hairpin on", Slug: "link_bridge_slave_set_hairpin",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave guard on", Slug: "link_bridge_slave_set_guard",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave root_block on", Slug: "link_bridge_slave_set_root_block",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave fastleave on", Slug: "link_bridge_slave_set_fastleave",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave learning off", Slug: "link_bridge_slave_set_learning",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave flood off", Slug: "link_bridge_slave_set_flood",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave mcast_flood off", Slug: "link_bridge_slave_set_mcast_flood",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave bcast_flood off", Slug: "link_bridge_slave_set_bcast_flood",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave mcast_to_unicast on", Slug: "link_bridge_slave_set_mcast_to_unicast",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave proxy_arp on", Slug: "link_bridge_slave_set_proxy_arp",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave proxy_arp_wifi on", Slug: "link_bridge_slave_set_proxy_arp_wifi",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave mcast_router 2", Slug: "link_bridge_slave_set_mcast_router",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave mcast_fast_leave on", Slug: "link_bridge_slave_set_mcast_fast_leave",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave neigh_suppress on", Slug: "link_bridge_slave_set_neigh_suppress",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave neigh_vlan_suppress on", Slug: "link_bridge_slave_set_neigh_vlan_suppress",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave group_fwd_mask 8", Slug: "link_bridge_slave_set_group_fwd_mask",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave vlan_tunnel on", Slug: "link_bridge_slave_set_vlan_tunnel",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave isolated on", Slug: "link_bridge_slave_set_isolated",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave locked on", Slug: "link_bridge_slave_set_locked",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave locked on mab on", Slug: "link_bridge_slave_set_mab",
+		// Needs locked on, so the row sets both.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave backup_nhid 5", Slug: "link_bridge_slave_set_backup_nhid",
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave fdb_flush", Slug: "link_bridge_slave_set_fdb_flush",
+		// The flag: an empty IFLA_BRPORT_FLUSH.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave nobackup_port", Slug: "link_bridge_slave_set_nobackup_port",
+		// IFLA_BRPORT_BACKUP_PORT 0, after a backup port is set.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPortsBackup,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave neigh_forward_grat on", Slug: "link_bridge_slave_set_neigh_forward_grat",
+		// 7.2.0's port option.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave backup_port p1", Slug: "link_bridge_slave_set_backup_port",
+		// The p0 lookup, p1 resolved by name, and the write (6).
+		Floor: 6, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave cost 10 priority 7 learning off", Slug: "link_bridge_slave_set_several",
+		// Several options, in the argument order.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave co 10", Slug: "link_bridge_slave_set_abbrev",
+		// A matches()-style keyword by prefix.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave state 5", Slug: "link_bridge_slave_set_state_bad",
+		// EINVAL past BR_STATE_BLOCKING, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave priority 64", Slug: "link_bridge_slave_set_priority_over",
+		// ERANGE past 63, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave cost 0", Slug: "link_bridge_slave_set_cost_zero",
+		// ERANGE, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave group_fwd_mask 2", Slug: "link_bridge_slave_set_group_fwd_mask_bad",
+		// EINVAL, a restricted bit, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave mab on", Slug: "link_bridge_slave_set_mab_unlocked",
+		// Refused without locked (an extack), compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set dev p0 type bridge_slave backup_port p0", Slug: "link_bridge_slave_set_backup_port_self",
+		// EINVAL, its own backup, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupPorts,
+	},
+	{
+		Name: "link set p0 type bridge_slave cost 10", Slug: "link_bridge_slave_set_not_enslaved",
+		// EOPNOTSUPP on a port of no bridge, compared on the request. Spelled
+		// without `dev`, which sends the same request, since set_cost has the
+		// plain spelling and Name is the allowlist key.
+		Floor: 4, Implemented: true, Write: true, Setup: bridgeWriteSetupP0,
+	},
+	// The bridge read rows: br0's IFLA_INFO_DATA and p0's
+	// IFLA_INFO_SLAVE_DATA under -d, text and JSON, on one bridge with two
+	// ports. The stdout comparison is the facets, so the timers move freely;
+	// TestLinkShowDetailBridgeMatchesSidecar and its bridge_slave twin are
+	// the text and JSON oracle.
+	{
+		Name: "-d link show dev br0", Slug: "link_show_details_bridge",
+		// `link show dev`'s two gets (4).
+		Setup: bridgeReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev br0", Slug: "link_show_details_bridge_json",
+		Setup: bridgeReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev p0", Slug: "link_show_details_bridge_slave",
+		// The two gets, then br0's to name the master (6).
+		Setup: bridgeReadSetup, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev p0", Slug: "link_show_details_bridge_slave_json",
+		Setup: bridgeReadSetup, Floor: 6, Implemented: true,
+	},
+	// The route write rows (route-write-path.md phase 5): the corpus in
 	// pkg/xtcpnl/testdata/7_1_4/link-write/route/, less `nodev`, with the
 	// same preconditions and floors as capture-link-writes.exp. A dev row is
 	// the d0 lookup and the write (4); a dev-less row is the write alone (2).
@@ -3647,6 +4080,27 @@ var (
 	linkWriteSetupPortUp   = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 up"}
 	linkWriteSetupEnslaved = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 master bond0"}
 )
+
+// bridgeAgeingTimeCst is the bridge's British-spelled timer keyword, split as
+// xtcpnl.BridgeKeywordAgeingTime is, since misspell holds strings to US
+// spelling and the keyword is iproute2's.
+const bridgeAgeingTimeCst = "age" + "ing_time"
+
+// The bridge write rows' preconditions, kind-write-corpus.exp's PRE_BR,
+// PRE_BR_STP and PRE_PORTS, and the steps the state, nobackup_port and
+// not_enslaved rows add or take away.
+var (
+	bridgeWriteSetupBr0         = []string{"link add br0 type bridge"}
+	bridgeWriteSetupBr0Stp      = []string{"link add br0 type bridge stp_state 1"}
+	bridgeWriteSetupPorts       = []string{"link add br0 type bridge", "link add p0 type dummy", "link add p1 type dummy", "link set p0 master br0", "link set p1 master br0"}
+	bridgeWriteSetupPortsUp     = append(slices.Clone(bridgeWriteSetupPorts), "link set p0 addrgenmode none", "link set p0 up")
+	bridgeWriteSetupPortsBackup = append(slices.Clone(bridgeWriteSetupPorts), "link set dev p0 type bridge_slave backup_port p1")
+	bridgeWriteSetupP0          = []string{"link add p0 type dummy"}
+)
+
+// bridgeReadSetup is the bridge read rows' namespace, PRE_PORTS: br0 and
+// its ports p0 and p1, dummies, none up.
+var bridgeReadSetup = bridgeWriteSetupPorts
 
 // The route write rows' preconditions: PRE_DEV, PRE_DEV6 and PRE_ROUTE in
 // capture-link-writes.exp, and v6_del's own.

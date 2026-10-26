@@ -22,9 +22,9 @@
 - KP5 is done (KP5-T01, KP5-T02, KP5-T03, KP5-T04; planned in DOC014): `pkg/xtcpnl/xtcpnl_hsr.go` decodes hsr into `LinkInfo.Hsr`, rendering all 10 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 20 rows that sent a request byte for byte. `xtcpnl_netkit.go` does the same for netkit into `LinkInfo.Netkit` (19 accepted rows, 27 requests), its `PEER_INFO` nest shared with `EncodeVethPeer` through `putPeerNest`. `xtcpnl_vrf.go` encodes vrf's 12 requests (the 8 accepted rows' dumps and the 3 enslaved vrf_slave rows' render through the existing `vrfTableAttr`), and `xtcpnl_vxcan.go` vxcan's 9 through `putPeerNest`; no vrf_slave request carries `INFO_SLAVE_DATA`. `xtcpnl_batadv.go` encodes batadv's 12 requests; batadv has no `fill_info`, and ifb, nlmon, vcan, team and team_slave send and dump no kind data at all, which `TestKindsWithoutData` holds for all 46 of their requests.
 - The KP tier is done. KG0 is planned (DOC015): KG0-T01 puts `inet` in goip's keyword chain, with `ip`'s exit statuses, and KG0-T02 gates its 11 matrix rows.
 - KG0 is done (KG0-T01, KG0-T02; planned in DOC015): goip builds `ip link set … inet …` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, and refuses the 7 `ip` refuses with `ip`'s texts and statuses. `parseLinkArgs`' `exit(-1)` refusals now exit 255 through `ErrLinkUsage`. The 11 `link_inet_*` matrix rows are gated, on a clean full run and a clean `--section link` run (V135, V136), the first rows gated with a section run. KG1 is planned (DOC016).
-- KG1 is in progress: KG1-T01, KG1-T02, KG1-T03 and KG1-T04 are done; goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets.
+- KG1 is done (KG1-T01, KG1-T02, KG1-T03, KG1-T04, KG1-T05; planned in DOC016): goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets. The 92 write rows and 4 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V154, V155).
 
-**Next action:** [KG1-T05](goip-link-kinds.md#kg1-t05-the-bridge-matrix-rows): the bridge matrix rows.
+**Next action:** plan [KG2](goip-link-kinds.md#kg2--goip-vlan-family), goip's VLAN family: break it into tasks with their tables.
 
 ## Contents
 
@@ -63,7 +63,7 @@
 | [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | KP4-T05 | done | V102–V116, DOC014 |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | KP5-T04 | done | V117–V128, DOC015 |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | KG0-T02 | done | V129–V139, DOC016 |
-| [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | in progress | V140– |
+| [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156 |
 | [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | | not started | |
 | [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | | not started | |
 | [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | | not started | |
@@ -122,7 +122,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG1-T02](goip-link-kinds.md#kg1-t02-the-bridge_slave-words) | the bridge_slave words | done | V143–V145 |
 | [x] | [KG1-T03](goip-link-kinds.md#kg1-t03-the-bridges--d-output) | the bridge's `-d` output | done | V146–V148 |
 | [x] | [KG1-T04](goip-link-kinds.md#kg1-t04-the-bridge-ports--d-output) | the bridge port's `-d` output | done | V149–V151 |
-| [ ] | [KG1-T05](goip-link-kinds.md#kg1-t05-the-bridge-matrix-rows) | the bridge matrix rows | not started | |
+| [x] | [KG1-T05](goip-link-kinds.md#kg1-t05-the-bridge-matrix-rows) | the bridge matrix rows | done | V152–V156 |
 | [ ] | [KG2-T01…](goip-link-kinds.md#kg2--goip-vlan-family) | goip VLAN family | not started | |
 | [ ] | [KG3-T01…](goip-link-kinds.md#kg3--goip-udp-overlays) | goip UDP overlays | not started | |
 | [ ] | [KG4-T01…](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip IP tunnels | not started | |
@@ -299,6 +299,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V149 | 2026-10-25 | KG1-T04 | `go test -count=1 -race ./internal/goip/...`, `go vet ./internal/goip/...` | `TestLinkShowDetailBridgeSlaveMatchesSidecar` (60 readbacks, each with its gets, and 6 rows), `TestBridgeSlaveDataRender` (9), the bridge's readbacks through `runKindShow` and the two mesh rows of `TestDetailRefusedForPerKindData`, now positive, pass; vet is clean | this commit |
 | V150 | 2026-10-25 | KG1-T04 | 8 mutants, each in a scratch worktree under a 6G scope, over `./internal/goip/...` | all killed: `backup_port` by index, the state's boundary, `group_fwd_mask_str` dropped, `mcast_fast_leave` with a JSON key, `addText` in the JSON, the `backup_port` get dropped, a mask name on the wrong bit, the unkeyed attributes printed | this commit |
 | V151 | 2026-10-25 | KG1-T04 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
+| V152 | 2026-10-25 | KG1-T05 | the 96 rows added to `gated_commands` and `TestAllowlistCommitted`'s list; `go vet`, `go test -count=1 -race ./internal/goipparity/ ./pkg/nlparity/` | all pass: `TestBridgeMatrixRows` (6 subtests, `positive: every row is gated` among them), `TestCompareWriteRow` over the 92 rows' own KC2 captures, `TestUngatedSurfaceIsNotVacuous` back to `addr show dynamic` alone, `TestAllowlistCommitted` | this commit |
+| V153 | 2026-10-25 | KG1-T05 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: a floor short by 2; a setup step dropped; a row dropped; an `ip`-refused row added; a read row's floor short by 2; a setup on an add; a row dropped from `gated_commands`; a row dropped from `TestAllowlistCommitted`'s list only | 8 of 8 killed: by the floor row; the setup row; the request-row row; the negative row; the read row; the setup row; the gated row, `TestUngatedSurfaceIsNotVacuous` and `TestAllowlistCommitted`'s earned row; `TestAllowlistCommitted`'s `nothing is gated that no measured run earned` row | scratch |
+| V154 | 2026-10-25 | KG1-T05 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section link`, the 96 rows ungated | `GOIP_PARITY_SECTION link (144 of 614 rows)`; `GOIP_PARITY_PASS` on all 144, the 96 among them; `OVERALL_PASS`, `HYGIENE_PASS`, `UNGATED_CLEAN`, `CONTROL_NOISY 4`, `DRIVER_PASS`, rc 0 | VM run |
+| V155 | 2026-10-25 | KG1-T05 | the same again, the second consecutive `--section link` run, on the same ungated rows | `GOIP_PARITY_SECTION link (144 of 614 rows)`; `GOIP_PARITY_PASS` on all 144, the 96 among them; `OVERALL_PASS`, `HYGIENE_PASS`, `UNGATED_CLEAN`, `CONTROL_NOISY 8`, `DRIVER_PASS`, rc 0 | VM run |
+| V156 | 2026-10-25 | KG1-T05 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; the misspell finding on the British timer keyword in `commands.go` was fixed before the first clean run by splitting it, as `xtcpnl.BridgeKeywordAgeingTime` is | this commit |
 
 ## Decision log
 
@@ -415,3 +420,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **`mcast_fast_leave` is a text-only call.** bridge_slave_print_opt prints `IFLA_BRPORT_FAST_LEAVE` twice, the second time with `print_string(PRINT_FP, …)`; `KindData.addText` records a call with no JSON key, which `MarshalJSON` skips, rather than a special case in the renderer.
 - **A bridge port with no slave data is `"info_slave_data":{}`.** print_linktype opens the object whenever the slave kind has a print_opt, before print_opt's `if (!tb) return;`, so goip's empty `KindData` marshals as `{}`, as the veth/bridge row of `TestLinkDetailJSONKeys` now expects.
 - **The mesh rows render now.** With both bridge print_opts in, `-d link show` and `-d addr show` of the mesh topology exit 0; the link row checks the status and the sidecar's tokens, not the whole text, since gc_timer, stp_mode and nlmon0's promiscuity differ from the 7.1 sidecar.
+- **Two bridge rows are respelled for the allowlist.** A command's `Name` is its allowlist key and its argv, so two corpus rows whose argv another row already has, `set_stp_mode_busy` and `set_not_enslaved`, are `link set dev br0 type bridge stp_mode user` and `link set p0 type bridge_slave cost 10`. `dev` is `iplink_parse`'s optional word, so each sends the same request as its corpus row, which `TestCompareWriteRow` holds.
+- **The bridge rows read the 7.3.0 kind corpus.** `corpusWriteRow` maps a `link_bridge_<x>` or `link_bridge_slave_<x>` row to `7_3_0/link-write/kinds/<kind>/<x>` (`tdKinds730`), trying the slave prefix first, since a bridge_slave slug has both.
+- **KG1 closes on section runs alone.** Its 96 rows were gated on two `--section link` runs; the full run the rule asks for comes before the next push, not before the gate.

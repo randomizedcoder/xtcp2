@@ -117,7 +117,9 @@ const (
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	// tdRtnl730 is the 7.3.0 rtnetlink corpus, KC1-T01's inet rows among it.
-	tdRtnl730        = "../../pkg/xtcpnl/testdata/7_3_0/link-write/rtnl"
+	tdRtnl730 = "../../pkg/xtcpnl/testdata/7_3_0/link-write/rtnl"
+	// tdKinds730 is the 7.3.0 link kind corpus, KC2's bridge rows among it.
+	tdKinds730       = "../../pkg/xtcpnl/testdata/7_3_0/link-write/kinds"
 	pcapGlobalHdrCst = 24
 	pcapRecordHdrCst = 16
 	// nlmonHdrCst is the cooked header LINKTYPE_NETLINK puts before each
@@ -305,6 +307,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	}
 	if slug, ok := strings.CutPrefix(c.Slug, inetSlugPrefixCst); ok {
 		dir = filepath.Join(tdRtnl730, "inet_"+slug)
+	}
+	if kind, slug, ok := bridgeRowKind(c.Slug); ok {
+		dir = filepath.Join(tdKinds730, kind, slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
