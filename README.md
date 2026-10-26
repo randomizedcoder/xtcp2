@@ -216,7 +216,7 @@ The main operator and integration tools under `cmd/` are:
 
 ## Future direction: from observation to action
 
-The longer-term direction is for xtcp2 to take network actions as well as observe. goip already constructs requests for a growing set of write operations, but **live kernel writes remain incomplete and disabled**: supported write commands serialize requests to `GOIP_WRITE_OUT` for validation and refuse to apply them. The [write-path and parity documentation](docs/netlink/README.md) tracks that work; the [network-control gRPC design](docs/design-network-control-grpc.md) describes proposed APIs, not an available service.
+The longer-term direction is for xtcp2 to take network actions as well as observe. goip constructs requests for a growing set of write operations, and the CLI's write commands serialize them to `GOIP_WRITE_OUT` for validation and refuse to apply them. The one live-write path is the opt-in [TCP route treatment controller](docs/tcp-controller.md): its actuator installs host routes in a private table through goip, with ownership and readback checks, and is disabled unless an operator enables it. The [write-path and parity documentation](docs/netlink/README.md) tracks the rest of that work; the [network-control gRPC design](docs/design-network-control-grpc.md) describes proposed APIs, not an available service.
 
 Future network control and true BGP-origin/next-hop ASN enrichment are separate developments. Neither is required to use today's collection, inspection, or operational alerting features.
 

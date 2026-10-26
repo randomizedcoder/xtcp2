@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 124
+	mainFlagsFieldCountCst = 126 // treatmentConfig (embedded agent) and treatmentAttribution (journal reader)
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -155,30 +155,32 @@ func populatedMainFlags() *mainFlags {
 	ms := func(v int) *time.Duration { d := time.Duration(v) * time.Millisecond; return &d }
 
 	return &mainFlags{
-		nltimeout:           u64(101),
-		pollFrequency:       ms(102),
-		pollTimeout:         ms(103),
-		maxLoops:            u64(104),
-		netlinkers:          u(105),
-		nlmsgSeq:            u(106),
-		packetSize:          u64(107),
-		packetSizeMply:      u(108),
-		writeFiles:          u(109),
-		capturePath:         s("capturePath-v"),
-		modulus:             u64(110),
-		marshal:             s("marshal-v"),
-		columns:             s("columns-v"),
-		envelopeFlushBytes:  u(111),
-		envelopeFlushRows:   u(112),
-		kafkaCompression:    s("kafkaCompression-v"),
-		s3Endpoint:          s("s3Endpoint-v"),
-		s3Bucket:            s("s3Bucket-v"),
-		s3Prefix:            s("s3Prefix-v"),
-		s3AccessKey:         s(fakeS3AccessSentinelCst),
-		s3SecretKey:         s(fakeS3SigningSentinelCst),
-		s3Region:            s("s3Region-v"),
-		s3SkipBucketProbe:   b(true),
-		s3ParquetFlushBytes: u(113),
+		treatmentConfig:      s("/etc/xtcp2/test-treatment-config.json"),
+		treatmentAttribution: s("/var/lib/xtcp2/test-treatment-routes"),
+		nltimeout:            u64(101),
+		pollFrequency:        ms(102),
+		pollTimeout:          ms(103),
+		maxLoops:             u64(104),
+		netlinkers:           u(105),
+		nlmsgSeq:             u(106),
+		packetSize:           u64(107),
+		packetSizeMply:       u(108),
+		writeFiles:           u(109),
+		capturePath:          s("capturePath-v"),
+		modulus:              u64(110),
+		marshal:              s("marshal-v"),
+		columns:              s("columns-v"),
+		envelopeFlushBytes:   u(111),
+		envelopeFlushRows:    u(112),
+		kafkaCompression:     s("kafkaCompression-v"),
+		s3Endpoint:           s("s3Endpoint-v"),
+		s3Bucket:             s("s3Bucket-v"),
+		s3Prefix:             s("s3Prefix-v"),
+		s3AccessKey:          s(fakeS3AccessSentinelCst),
+		s3SecretKey:          s(fakeS3SigningSentinelCst),
+		s3Region:             s("s3Region-v"),
+		s3SkipBucketProbe:    b(true),
+		s3ParquetFlushBytes:  u(113),
 
 		pollJitterPct:             u(114),
 		s3FlushInterval:           ms(115),

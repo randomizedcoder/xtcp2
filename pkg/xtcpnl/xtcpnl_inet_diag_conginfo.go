@@ -1,6 +1,7 @@
 package xtcpnl
 
 import (
+	"bytes"
 	"errors"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
@@ -80,6 +81,16 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 	if len(data) < CongInfoSizeCst {
 		return ErrCongInfoSmall
 	}
+
+	// Preserve the actual kernel name, including algorithms absent from our
+	// enum (for example Reno). Controller exposure is based on this field.
+	// Copy out of the reused netlink buffer and exclude the NUL terminator.
+	name := data
+	if end := bytes.IndexByte(name, 0); end >= 0 {
+		name = name[:end]
+	}
+	x.InetDiagCong = string(name)
+	x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED
 
 	// Match on the first 3 bytes — the kernel attribute is a null-terminated
 	// algorithm name like "cubic", "bbr", "dctcp", "vegas". Comparing data[0:4]

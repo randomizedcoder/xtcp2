@@ -47,6 +47,8 @@ var rowFromProtoSkip = map[string]bool{"EventDate": true}
 func sentinelFor(t *testing.T, typ reflect.Type, seq int) reflect.Value {
 	t.Helper()
 	switch typ.Kind() {
+	case reflect.Bool:
+		return reflect.ValueOf(true).Convert(typ)
 	case reflect.String:
 		return reflect.ValueOf(fmt.Sprintf("v%d", seq)).Convert(typ)
 	case reflect.Uint32, reflect.Uint64:
@@ -71,6 +73,8 @@ func sentinelFor(t *testing.T, typ reflect.Type, seq int) reflect.Value {
 func extremeFor(t *testing.T, typ reflect.Type, low bool) reflect.Value {
 	t.Helper()
 	switch typ.Kind() {
+	case reflect.Bool:
+		return reflect.ValueOf(!low).Convert(typ)
 	case reflect.String:
 		if low {
 			return reflect.ValueOf("").Convert(typ)

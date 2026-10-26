@@ -4,6 +4,10 @@ This guide is for a **data / analytics team** turning xtcp2's per-socket TCP tel
 
 Read [parquet-format.md](parquet-format.md) first for how to load the data and what the columns mean; this doc is the analysis companion.
 
+To turn those observations into reviewed canaries, see the
+[TCP treatment controller](tcp-controller.md), including destination scope,
+actual socket exposure, persistence, and emergency withdrawal.
+
 ## Table of contents
 
 - [The RTT-band mental model](#the-rtt-band-mental-model)

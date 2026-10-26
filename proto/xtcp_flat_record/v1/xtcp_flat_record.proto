@@ -88,7 +88,7 @@ message XtcpFlatRecord {
 		"class_id", "sock_opt", "c_group";
 
 	// ==== metadata (1-299) =====================================================
-	// Free: 3-9, 11-19, 22-29, 33-39, 44-49, 52-59, 63-99, 108-119, 125-199,
+	// Free: 3-9, 11-19, 33-39, 44-49, 52-59, 63-99, 108-119, 125-199,
 	// 208-219, 225-299. Uplink slots are fixed at two (100s, 200s); a third slot
 	// would take 250-274, NOT 300 (that is the enrichment block).
 
@@ -117,6 +117,17 @@ message XtcpFlatRecord {
 	// -location flag or LOCATION env. Constant for every record from one
 	// daemon instance.
 	string location                                 = 21;
+	// Controller provenance. Empty/zero means observation-only legacy producer.
+	string agent_id                                 = 22;
+	string host_boot_id                             = 23;
+	string collection_id                            = 24;
+	uint64 treatment_state_revision                 = 25;
+	string treatment_assignment_id                  = 26;
+	uint64 treatment_generation                     = 27;
+	int64 treatment_applied_timestamp_ns            = 28;
+	// True only when the observed socket algorithm matches a verified route
+	// assignment in this namespace. This does not prove initial-window exposure.
+	bool treatment_algorithm_exposed                = 29;
 
 	// ---- metadata: network namespace identity (30s) --------------------------
 	// network namespace — best-effort human name (bind-mount name, else a

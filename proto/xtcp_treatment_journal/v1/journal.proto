@@ -1,0 +1,122 @@
+//
+// xTCP - treatment journal
+//
+// The host-side intent journal of the route treatment agent: the desired
+// state last accepted from the controller, the local hold, and one record per
+// assignment with the exact kernel route bytes that were installed. It is a
+// FILE FORMAT, read and written only on the host by the agent, the watchdog
+// and the local treatmentctl commands, and never an RPC payload.
+//
+// It is a separate proto package from xtcp_treatment.v1 on purpose: the host
+// side (pkg/treatment/reconcile, the watchdog) must be able to read and write
+// the journal without linking the gRPC service stubs that share a Go package
+// with the RPC messages. The messages below therefore repeat the treatment
+// shape rather than importing it; pkg/treatment/reconcile converts them to
+// and from the domain types, and the domain validators run on every load.
+//
+// Values of the two enums mirror xtcp_treatment.v1 one-for-one and the domain
+// enums in pkg/treatment; reconcile's tests pin the correspondence.
+//
+// See docs/tcp-controller.md, "Persistence, restart and withdrawal".
+
+syntax = "proto3";
+
+package xtcp_treatment_journal.v1;
+
+option go_package = "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment_journal";
+
+import "google/protobuf/timestamp.proto";
+
+enum AssignmentMode {
+  ASSIGNMENT_MODE_UNSPECIFIED = 0;
+  ASSIGNMENT_MODE_TRIAL = 1;
+  ASSIGNMENT_MODE_STABLE = 2;
+  ASSIGNMENT_MODE_SUSPENDED = 3;
+  ASSIGNMENT_MODE_RETIRED = 4;
+}
+
+enum ApplyStatus {
+  APPLY_STATUS_UNSPECIFIED = 0;
+  APPLY_STATUS_PENDING = 1;
+  APPLY_STATUS_VERIFIED = 2;
+  APPLY_STATUS_REMOVED = 3;
+  APPLY_STATUS_EXPIRED = 4;
+  APPLY_STATUS_FAILED = 5;
+}
+
+// TCPSettings mirrors xtcp_treatment.v1.TCPSettings; presence is meaningful.
+message TCPSettings {
+  optional string congestion_control = 1;
+  bool congestion_lock = 2;
+  optional uint32 rto_min_ms = 3;
+  optional uint32 initial_congestion_window = 4;
+  optional uint32 initial_receive_window = 5;
+  optional bool quick_ack = 6;
+  optional bool ecn = 7;
+}
+
+message Treatment {
+  string id = 1;
+  uint64 revision = 2;
+  // Canonical /32 or /128 host prefix.
+  string destination = 3;
+  TCPSettings settings = 4;
+  bool ecn_fabric_verified = 5;
+}
+
+message Assignment {
+  string experiment_id = 1;
+  Treatment treatment = 2;
+  AssignmentMode mode = 3;
+  google.protobuf.Timestamp lease_expires_at = 4;
+  Treatment predecessor = 5;
+  uint64 generation = 6;
+}
+
+// Desired is the controller's last accepted snapshot for this agent. The
+// agent identity lives on the Journal header.
+message Desired {
+  uint64 revision = 1;
+  bool suspended = 2;
+  google.protobuf.Timestamp issued_at = 3;
+  repeated Assignment assignments = 4;
+}
+
+// Record is the agent's account of one assignment plus the kernel-local
+// facts (installed route bytes, installing boot) that never leave the host.
+message Record {
+  Assignment assignment = 1;
+  uint64 desired_revision = 2;
+  ApplyStatus status = 3;
+  google.protobuf.Timestamp received_at = 4;
+  google.protobuf.Timestamp attempted_at = 5;
+  google.protobuf.Timestamp applied_at = 6;
+  google.protobuf.Timestamp verified_at = 7;
+  google.protobuf.Timestamp removed_at = 8;
+  string error = 9;
+  // Locally planned canonical netlink route body, the only thing Remove will
+  // ever be asked to withdraw.
+  bytes installed_route = 10;
+  string installed_boot_id = 11;
+  bool expired_latched = 12;
+}
+
+// Journal is the atomic snapshot in <directory>/state.textproto. The header
+// identifies the writer so a journal can never be reconciled for another
+// agent and so a telemetry-only daemon can attribute records from it.
+message Journal {
+  string agent_id = 1;
+  string location = 2;
+  // Boot that last wrote the journal; per-record installed_boot_id says
+  // which boot installed each route.
+  string boot_id = 3;
+  Desired desired = 4;
+  bool locally_suspended = 5;
+  string suspension_reason = 6;
+  repeated Record records = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  // Per-process nonce of the agent that owns the journal. The agent writes
+  // it; the watchdog preserves it; a telemetry-only daemon stamps it into
+  // records as collection_id.
+  string collection_id = 9;
+}

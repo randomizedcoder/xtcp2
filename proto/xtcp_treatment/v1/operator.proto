@@ -1,0 +1,122 @@
+//
+// xTCP - treatment operator service
+//
+// The authenticated review surface. Every mutation carries a request_id;
+// repeating one with the same body replays the original response, repeating
+// it with a different body is refused. Reviews also fence on the experiment
+// revision the operator last saw.
+
+syntax = "proto3";
+
+package xtcp_treatment.v1;
+
+option go_package = "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment";
+
+import "buf/validate/validate.proto";
+import "xtcp_treatment/v1/agent.proto";
+import "xtcp_treatment/v1/treatment.proto";
+
+service OperatorService {
+  rpc Propose(ProposeRequest) returns (ProposeResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_OPERATOR;
+  }
+  rpc Analyze(AnalyzeRequest) returns (AnalyzeResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_OPERATOR;
+  }
+  rpc Review(ReviewRequest) returns (ReviewResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_OPERATOR;
+  }
+  rpc Control(ControlRequest) returns (ControlResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_OPERATOR;
+  }
+  rpc Inspect(InspectRequest) returns (InspectResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_OPERATOR;
+  }
+}
+
+message ProposeRequest {
+  option (buf.validate.message).cel = {
+    id: "propose.request_id_suffix"
+    message: "request_id must not end with .result (reserved for the paired response event)"
+    expression: "!this.request_id.endsWith('.result')"
+  };
+  Experiment experiment = 1 [(buf.validate.field).required = true];
+  string request_id = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+}
+
+message ProposeResponse {
+  Experiment experiment = 1;
+}
+
+message AnalyzeRequest {
+  string experiment_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  uint64 expected_revision = 2;
+}
+
+message AnalyzeResponse {
+  Evidence evidence = 1;
+  Outcome outcome = 2;
+}
+
+message ReviewRequest {
+  option (buf.validate.message).cel = {
+    id: "review.request_id_suffix"
+    message: "request_id must not end with .result (reserved for the paired response event)"
+    expression: "!this.request_id.endsWith('.result')"
+  };
+  string experiment_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  uint64 expected_revision = 2;
+  bool approve = 3;
+  string reason = 4 [(buf.validate.field).string = {min_len: 1, max_len: 4096}];
+  string request_id = 5 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  // Initial review uses baseline; subsequent reviews require fresh evidence.
+  Evidence evidence = 6;
+}
+
+message ReviewResponse {
+  Experiment experiment = 1;
+}
+
+enum ControlAction {
+  CONTROL_ACTION_UNSPECIFIED = 0;
+  CONTROL_ACTION_PAUSE = 1;
+  CONTROL_ACTION_SUSPEND = 2;
+  CONTROL_ACTION_RESUME = 3;
+  CONTROL_ACTION_ROLLBACK = 4;
+  CONTROL_ACTION_RETIRE = 5;
+}
+
+message ControlRequest {
+  option (buf.validate.message).cel = {
+    id: "control.request_id_suffix"
+    message: "request_id must not end with .result (reserved for the paired response event)"
+    expression: "!this.request_id.endsWith('.result')"
+  };
+  option (buf.validate.message).cel = {
+    id: "control.one_selector"
+    message: "exactly one of experiment_id, agent_id, location or fleet is required"
+    expression: "(this.fleet ? 1 : 0) + (this.experiment_id != '' ? 1 : 0) + (this.agent_id != '' ? 1 : 0) + (this.location != '' ? 1 : 0) == 1"
+  };
+  string experiment_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$", (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE];
+  string agent_id = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$", (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE];
+  string location = 3 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$", (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE];
+  bool fleet = 4;
+  ControlAction action = 5 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
+  string reason = 6 [(buf.validate.field).string = {min_len: 1, max_len: 4096}];
+  string request_id = 7 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+}
+
+message ControlResponse {
+  uint32 affected_agents = 1;
+}
+
+message InspectRequest {
+  string experiment_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$", (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE];
+  string agent_id = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$", (buf.validate.field).ignore = IGNORE_IF_ZERO_VALUE];
+}
+
+message InspectResponse {
+  repeated Experiment experiments = 1;
+  repeated DesiredState desired = 2;
+  repeated CheckInRequest observed = 3;
+}

@@ -90,6 +90,13 @@ let
     "nsTest"
     "register_schema"
     "xtcp2"
+    "xtcp2-controller"
+    "xtcp2-controllerctl"
+    # The standalone treatment agent pairs with slim xtcp2 flavors, which do
+    # not embed it (mkGoBinary's `treatment` knob); the watchdog is separate
+    # in both arrangements. See docs/tcp-controller.md, "Agent deployment".
+    "xtcp2-treatment-agent"
+    "xtcp2-treatmentctl"
     "xtcp2client"
     "xtcp2ctl"
     "xtcp2_kafka_client"

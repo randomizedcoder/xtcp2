@@ -70,6 +70,48 @@ in
       '';
     };
 
+    treatments = {
+      enable = lib.mkEnableOption "reviewed TCP route treatments and the independent expiry watchdog";
+      mode = lib.mkOption {
+        type = lib.types.enum [
+          "embedded"
+          "standalone"
+        ];
+        default = "embedded";
+        description = ''
+          How the treatment agent runs. `embedded` passes `-treatmentConfig`
+          to xtcp2, which must be a build with the `treatment` tag (the fat
+          `xtcp2` attribute; slim flavors refuse the flag at startup).
+          `standalone` runs `xtcp2-treatment-agent` as its own service from
+          `agentPackage` and passes `-treatmentAttribution=<journalDirectory>`
+          to xtcp2, which then only reads the journal to stamp provenance. The
+          watchdog service is independent in both modes.
+        '';
+      };
+      configFile = lib.mkOption {
+        type = lib.types.str;
+        default = "/etc/xtcp2/controller-agent.json";
+        description = "Runtime agent JSON file; keep private keys outside the Nix store.";
+      };
+      journalDirectory = lib.mkOption {
+        type = lib.types.str;
+        default = "/var/lib/xtcp2/routes";
+        description = ''
+          The agent's journal directory (`directory` in configFile). In
+          standalone mode xtcp2 reads `state.textproto` from here.
+        '';
+      };
+      agentPackage = lib.mkOption {
+        type = lib.types.nullOr lib.types.package;
+        default = null;
+        description = "Package providing bin/xtcp2-treatment-agent, required in standalone mode.";
+      };
+      watchdogPackage = lib.mkOption {
+        type = lib.types.package;
+        description = "Package providing bin/xtcp2-treatmentctl, required when treatments are enabled.";
+      };
+    };
+
     linkMonitor = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -170,6 +212,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = !(cfg.treatments.enable && cfg.treatments.mode == "standalone") || cfg.treatments.agentPackage != null;
+        message = "services.xtcp2.treatments.mode = \"standalone\" needs services.xtcp2.treatments.agentPackage";
+      }
+    ];
+
     systemd.services.xtcp2 = {
       description = "xtcp2 — TCP socket introspection via netlink";
       after = [ "network-online.target" ];
@@ -188,7 +237,16 @@ in
         # `extraArgs` (CLI flags) instead. configFile is kept in the option
         # surface for forward-compatibility — when the daemon learns to
         # parse a JSON config, flip this back to `-config ${cfg.configFile}`.
-        ExecStart = xtcp2Exec.mkExecStart cfg.package (linkMonitorArgs ++ cfg.extraArgs);
+        ExecStart = xtcp2Exec.mkExecStart cfg.package (
+          linkMonitorArgs
+          ++ lib.optionals (cfg.treatments.enable && cfg.treatments.mode == "embedded") [
+            "-treatmentConfig=${cfg.treatments.configFile}"
+          ]
+          ++ lib.optionals (cfg.treatments.enable && cfg.treatments.mode == "standalone") [
+            "-treatmentAttribution=${cfg.treatments.journalDirectory}"
+          ]
+          ++ cfg.extraArgs
+        );
         # `systemctl reload xtcp2` asks the link monitor to relearn the
         # expected up-link count, as SIGUSR1 does for go-link-monitor.
         ExecReload = "${pkgs.coreutils}/bin/kill -USR1 $MAINPID";
@@ -218,6 +276,69 @@ in
         # blocked syscalls) has headroom.
         TasksMax = 8192;
         LimitNPROC = 8192;
+      };
+    };
+
+    # Standalone agent: owns the journal and the kernel routes; xtcp2 only
+    # reads the journal. Restarting one does not restart the other, and the
+    # journal replay on agent start restores stable routes without a
+    # controller round trip.
+    systemd.services.xtcp2-treatment-agent = lib.mkIf (cfg.treatments.enable && cfg.treatments.mode == "standalone") {
+      description = "xtcp2 route treatment agent";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+      serviceConfig = {
+        Type = "simple";
+        User = cfg.user;
+        StateDirectory = "xtcp2";
+        StateDirectoryMode = "0750";
+        ExecStart = xtcp2Exec.escapeSystemdExecArgs [
+          "${cfg.treatments.agentPackage}/bin/xtcp2-treatment-agent"
+          "-config=${cfg.treatments.configFile}"
+        ];
+        # `systemctl reload` checks in and reconciles now, as SIGHUP does for
+        # the embedded agent.
+        ExecReload = "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
+        Restart = "always";
+        RestartSec = "2s";
+        AmbientCapabilities = [
+          "CAP_NET_ADMIN"
+          "CAP_SYS_PTRACE"
+        ];
+        CapabilityBoundingSet = [
+          "CAP_NET_ADMIN"
+          "CAP_SYS_PTRACE"
+        ];
+      };
+    };
+
+    # Deliberately independent of xtcp2.service: daemon crashes must not leave
+    # trial routes installed past their local lease deadline.
+    systemd.services.xtcp2-treatment-watchdog = lib.mkIf cfg.treatments.enable {
+      description = "xtcp2 route treatment lease watchdog";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "local-fs.target" ];
+      serviceConfig = {
+        Type = "simple";
+        User = cfg.user;
+        StateDirectory = "xtcp2";
+        StateDirectoryMode = "0750";
+        ExecStart = xtcp2Exec.escapeSystemdExecArgs [
+          "${cfg.treatments.watchdogPackage}/bin/xtcp2-treatmentctl"
+          "-mode=watchdog"
+          "-config=${cfg.treatments.configFile}"
+        ];
+        Restart = "always";
+        RestartSec = "2s";
+        AmbientCapabilities = [
+          "CAP_NET_ADMIN"
+          "CAP_SYS_PTRACE"
+        ];
+        CapabilityBoundingSet = [
+          "CAP_NET_ADMIN"
+          "CAP_SYS_PTRACE"
+        ];
       };
     };
   };

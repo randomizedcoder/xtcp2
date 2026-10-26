@@ -768,8 +768,16 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 
 		TimestampNs: r.TimestampNs,
 
-		Hostname: r.Hostname,
-		Location: r.Location,
+		Hostname:                    r.Hostname,
+		Location:                    r.Location,
+		AgentId:                     r.AgentId,
+		HostBootId:                  r.HostBootId,
+		CollectionId:                r.CollectionId,
+		TreatmentStateRevision:      r.TreatmentStateRevision,
+		TreatmentAssignmentId:       r.TreatmentAssignmentId,
+		TreatmentGeneration:         r.TreatmentGeneration,
+		TreatmentAppliedTimestampNs: r.TreatmentAppliedTimestampNs,
+		TreatmentAlgorithmExposed:   r.TreatmentAlgorithmExposed,
 
 		Netns:      r.Netns,
 		NetnsInode: r.NetnsInode,

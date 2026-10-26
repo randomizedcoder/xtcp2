@@ -1,0 +1,336 @@
+//
+// xTCP - treatment
+//
+// Shared message types for the TCP route treatment control plane: what a
+// treatment is, how it is assigned to an agent, what an agent reports back,
+// and how an experiment over a cohort of agents is described and evidenced.
+//
+// Wire contract only. The controller and the agent work on Go domain types
+// and convert at the gRPC boundary; nothing here is a storage schema.
+//
+// Validation: every client-controlled field carries a buf.validate rule that
+// mirrors the bound in pkg/treatment/validate.go, so a malformed request is
+// rejected before any handler runs. The Go validators remain authoritative
+// for contextual rules that need more than one message (duplicate assignment
+// IDs, overlapping destinations, cohort/baseline agreement).
+//
+// See docs/tcp-controller.md.
+
+syntax = "proto3";
+
+package xtcp_treatment.v1;
+
+option go_package = "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment";
+
+import "buf/validate/validate.proto";
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// Role is the certificate class an RPC requires. The server resolves the
+// caller's SPIFFE identity once per call and compares it with this option;
+// a method without a declaration is refused for everyone (fail closed).
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  // spiffe://xtcp/agent/<location>/<id>; may only speak for its own agent_id.
+  ROLE_AGENT = 1;
+  // spiffe://xtcp/operator/<id>; recorded as the audit actor.
+  ROLE_OPERATOR = 2;
+}
+
+extend google.protobuf.MethodOptions {
+  // Field number from the 50000-99999 range reserved for internal use;
+  // 51001 is xtcp_auth.v1.access.
+  Role role = 51002;
+}
+
+// Identifiers are bounded ASCII: a leading alphanumeric, then up to 127 of
+// [A-Za-z0-9_.-]. This is the same regexp as treatment.ValidID.
+
+enum AssignmentMode {
+  ASSIGNMENT_MODE_UNSPECIFIED = 0;
+  ASSIGNMENT_MODE_TRIAL = 1;
+  ASSIGNMENT_MODE_STABLE = 2;
+  ASSIGNMENT_MODE_SUSPENDED = 3;
+  ASSIGNMENT_MODE_RETIRED = 4;
+}
+
+enum ApplyStatus {
+  APPLY_STATUS_UNSPECIFIED = 0;
+  APPLY_STATUS_PENDING = 1;
+  APPLY_STATUS_VERIFIED = 2;
+  APPLY_STATUS_REMOVED = 3;
+  APPLY_STATUS_EXPIRED = 4;
+  APPLY_STATUS_FAILED = 5;
+}
+
+// Outcome is the result of evaluating one evidence window against a phase,
+// or the standing of a completed treatment under drift monitoring. Only
+// BENEFICIAL, SAFETY_ONLY and FINAL_SAFETY can advance a phase, and only
+// after an operator review; HARMFUL and EXPIRED withdraw automatically.
+enum Outcome {
+  OUTCOME_UNSPECIFIED = 0;
+  // Analysis of a proposal that has no phase yet.
+  OUTCOME_BASELINE = 1;
+  // Not every treated host has verified the assignment.
+  OUTCOME_AWAITING_APPLICATION = 2;
+  // Treated hosts have not yet carried enough exposed sockets.
+  OUTCOME_AWAITING_EXPOSURE = 3;
+  OUTCOME_INSUFFICIENT_DURATION = 4;
+  OUTCOME_INSUFFICIENT_DATA = 5;
+  OUTCOME_INSUFFICIENT_CONTROLS = 6;
+  OUTCOME_STALE = 7;
+  // No evidence source was available for this maintenance pass.
+  OUTCOME_UNAVAILABLE = 8;
+  OUTCOME_INCONCLUSIVE = 9;
+  // Cohort too small for a causal estimate; no regression observed.
+  OUTCOME_SAFETY_ONLY = 10;
+  // Final 100% phase: no controls remain; no regression observed.
+  OUTCOME_FINAL_SAFETY = 11;
+  OUTCOME_BENEFICIAL = 12;
+  OUTCOME_HARMFUL = 13;
+  OUTCOME_EXPIRED = 14;
+  // Completed treatment under drift monitoring.
+  OUTCOME_STABLE_OBSERVED = 15;
+  OUTCOME_STABLE_EVIDENCE_INCOMPLETE = 16;
+  OUTCOME_STABLE_REGRESSION_REVIEW_REQUIRED = 17;
+  // Every treated host has verified the assignment; the observation window
+  // is open and no evidence has been evaluated yet.
+  OUTCOME_OBSERVING = 18;
+}
+
+enum ExperimentStatus {
+  EXPERIMENT_STATUS_UNSPECIFIED = 0;
+  EXPERIMENT_STATUS_PROPOSED = 1;
+  EXPERIMENT_STATUS_RUNNING = 2;
+  EXPERIMENT_STATUS_PAUSED = 3;
+  EXPERIMENT_STATUS_SUSPENDED = 4;
+  EXPERIMENT_STATUS_COMPLETE = 5;
+  EXPERIMENT_STATUS_RETIRED = 6;
+  EXPERIMENT_STATUS_ROLLED_BACK = 7;
+}
+
+// TCPSettings are the per-route TCP parameters a treatment installs. Every
+// field is optional; at least one must be present.
+message TCPSettings {
+  option (buf.validate.message).cel = {
+    id: "tcp_settings.non_empty"
+    message: "a treatment must set at least one TCP parameter"
+    expression: "has(this.congestion_control) || has(this.rto_min_ms) || has(this.initial_congestion_window) || has(this.initial_receive_window) || has(this.quick_ack) || has(this.ecn)"
+  };
+  option (buf.validate.message).cel = {
+    id: "tcp_settings.lock_requires_algorithm"
+    message: "congestion_lock requires congestion_control"
+    expression: "!this.congestion_lock || has(this.congestion_control)"
+  };
+  // Kernel algorithm name (TCP_CA_NAME_MAX is 16 including NUL).
+  optional string congestion_control = 1 [(buf.validate.field).string = {
+    max_len: 15
+    pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$"
+  }];
+  bool congestion_lock = 2;
+  optional uint32 rto_min_ms = 3 [(buf.validate.field).uint32 = {gte: 1, lte: 120000}];
+  optional uint32 initial_congestion_window = 4 [(buf.validate.field).uint32 = {gte: 1, lte: 1024}];
+  optional uint32 initial_receive_window = 5 [(buf.validate.field).uint32 = {gte: 1, lte: 1024}];
+  optional bool quick_ack = 6;
+  optional bool ecn = 7;
+}
+
+message Treatment {
+  option (buf.validate.message).cel = {
+    id: "treatment.dctcp_requires_ecn"
+    message: "DCTCP requires independently verified ECN fabric and explicit ECN"
+    expression: "this.settings.congestion_control != 'dctcp' || (this.ecn_fabric_verified && this.settings.ecn)"
+  };
+  string id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  uint64 revision = 2 [(buf.validate.field).uint64.gt = 0];
+  // Canonical unicast host prefix (/32 or /128). Canonical form, unicast and
+  // not-loopback are checked by treatment.ValidateTreatment.
+  string destination = 3 [(buf.validate.field).string = {ip_prefix: true, max_len: 49}];
+  TCPSettings settings = 4 [(buf.validate.field).required = true];
+  bool ecn_fabric_verified = 5;
+}
+
+message Assignment {
+  option (buf.validate.message).cel = {
+    id: "assignment.trial_requires_lease"
+    message: "a trial assignment requires lease_expires_at"
+    expression: "this.mode != 1 || has(this.lease_expires_at)"
+  };
+  option (buf.validate.message).cel = {
+    id: "assignment.predecessor_destination"
+    message: "predecessor must cover the same destination"
+    expression: "!has(this.predecessor) || this.predecessor.destination == this.treatment.destination"
+  };
+  // Field 1 was a separate assignment id that always equalled experiment_id.
+  // An agent holds at most one assignment per experiment, so the experiment
+  // is the identity; journals and telemetry key on experiment_id.
+  reserved 1;
+  reserved "id";
+  string experiment_id = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  Treatment treatment = 3 [(buf.validate.field).required = true];
+  AssignmentMode mode = 4 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
+  google.protobuf.Timestamp lease_expires_at = 5;
+  // Previous approved stable treatment, restored on trial expiry/rollback.
+  Treatment predecessor = 6;
+  // Increment only on an explicitly approved reactivation, not lease renewal.
+  uint64 generation = 7 [(buf.validate.field).uint64.gt = 0];
+}
+
+// DesiredState is the complete revisioned snapshot an agent reconciles to.
+// Duplicate assignment IDs and overlapping destinations are rejected by
+// treatment.ValidateDesired.
+message DesiredState {
+  string agent_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  uint64 revision = 2 [(buf.validate.field).uint64.gt = 0];
+  bool suspended = 3;
+  repeated Assignment assignments = 4 [(buf.validate.field).repeated.max_items = 4096];
+  google.protobuf.Timestamp issued_at = 5 [(buf.validate.field).required = true];
+}
+
+message Capabilities {
+  string boot_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  string kernel_release = 2 [(buf.validate.field).string.max_len = 256];
+  repeated string congestion_algorithms = 3 [(buf.validate.field).repeated = {
+    max_items: 64
+    items: {string: {max_len: 15}}
+  }];
+  bool simple_host_routing = 4;
+  bool actuator_enabled = 5;
+  // Per-process nonce the agent writes into its journal header and the
+  // daemon stamps into every record as collection_id. Evidence counts only
+  // records whose (agent_id, host_boot_id, collection_id) an agent reported.
+  string collection_id = 6 [(buf.validate.field).string.pattern = "^[0-9a-f]{32}$"];
+}
+
+// ApplicationRecord is the agent's account of one assignment. Agents report
+// these on check-in with installed_route and installed_boot_id cleared.
+message ApplicationRecord {
+  Assignment assignment = 1 [(buf.validate.field).required = true];
+  uint64 desired_revision = 2;
+  ApplyStatus status = 3 [(buf.validate.field).enum.defined_only = true];
+  google.protobuf.Timestamp received_at = 4;
+  google.protobuf.Timestamp attempted_at = 5;
+  google.protobuf.Timestamp applied_at = 6;
+  google.protobuf.Timestamp verified_at = 7;
+  google.protobuf.Timestamp removed_at = 8;
+  string error = 9 [(buf.validate.field).string.max_len = 4096];
+  // Locally generated canonical netlink route body, never accepted from RPC.
+  bytes installed_route = 10 [(buf.validate.field).bytes.max_len = 4096];
+  string installed_boot_id = 11 [(buf.validate.field).string.max_len = 128];
+  bool expired_latched = 12;
+}
+
+// LocalState is the agent's journal snapshot. It is a file format for the
+// host-side journal and the local tooling, not an RPC payload.
+message LocalState {
+  DesiredState desired = 1;
+  bool locally_suspended = 2;
+  string suspension_reason = 3 [(buf.validate.field).string.max_len = 1024];
+  repeated ApplicationRecord records = 4 [(buf.validate.field).repeated.max_items = 8192];
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message HostEvidence {
+  option (buf.validate.message).cel = {
+    id: "host_evidence.exposed_within_sockets"
+    message: "exposed_sockets cannot exceed sockets"
+    expression: "this.exposed_sockets <= this.sockets"
+  };
+  string agent_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  uint64 sockets = 2;
+  uint64 bytes_acked = 3;
+  double goodput_bps = 4 [(buf.validate.field).double = {gte: 0, finite: true}];
+  double retransmission_ratio = 5 [(buf.validate.field).double = {gte: 0, finite: true}];
+  double rtt_p95_ms = 6 [(buf.validate.field).double = {gte: 0, finite: true}];
+  uint64 exposed_sockets = 7;
+  bool collection_healthy = 8;
+  // Sockets stamped with this agent_id whose boot and collection nonce
+  // match no session the agent reported. They are excluded from every other
+  // field and counted here so a reviewer can see them.
+  uint64 unbound_sockets = 9;
+}
+
+message Evidence {
+  option (buf.validate.message).cel = {
+    id: "evidence.interval"
+    message: "window_end must follow window_start and analyzed_at must not precede window_end"
+    expression: "this.window_end > this.window_start && this.analyzed_at >= this.window_end"
+  };
+  string id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  google.protobuf.Timestamp analyzed_at = 2 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp window_start = 3 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp window_end = 4 [(buf.validate.field).required = true];
+  string query_version = 5 [(buf.validate.field).string = {min_len: 1, max_len: 256}];
+  string enrichment_version = 6 [(buf.validate.field).string.max_len = 256];
+  repeated HostEvidence hosts = 7 [(buf.validate.field).repeated = {min_items: 1, max_items: 10000}];
+  // SHA-256 of the raw warehouse response bytes, as received, that this
+  // summary was decoded from. The response itself is not archived: the
+  // digest lets two controllers (or a later audit) confirm they decoded the
+  // same bytes, and reproducing it means re-running query_version over
+  // [window_start, window_end) against the same table. Archiving responses
+  // to object storage is a possible follow-up, not a current guarantee.
+  string artifact_sha256 = 8 [(buf.validate.field).string.pattern = "^[0-9a-f]{64}$"];
+}
+
+message ExperimentPolicy {
+  option (buf.validate.message).cel = {
+    id: "policy.observation_within_phase"
+    message: "minimum_observation cannot exceed maximum_phase"
+    expression: "this.minimum_observation <= this.maximum_phase"
+  };
+  google.protobuf.Duration minimum_observation = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration = {gt: {seconds: 0}, lte: {seconds: 604800}}
+  ];
+  google.protobuf.Duration maximum_phase = 2 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration = {gt: {seconds: 0}, lte: {seconds: 604800}}
+  ];
+  uint64 minimum_sockets_per_host = 3 [(buf.validate.field).uint64.gt = 0];
+  uint64 minimum_bytes_per_host = 4 [(buf.validate.field).uint64.gt = 0];
+  uint32 minimum_treated_hosts = 5 [(buf.validate.field).uint32 = {gte: 2, lte: 10000}];
+  double minimum_improvement = 6 [(buf.validate.field).double = {gte: 0, lte: 1, finite: true}];
+  double maximum_retransmission_increase = 7 [(buf.validate.field).double = {gte: 0, lte: 1, finite: true}];
+  double maximum_rtt_increase = 8 [(buf.validate.field).double = {gte: 0, lte: 1, finite: true}];
+  google.protobuf.Duration maximum_evidence_age = 9 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).duration = {gt: {seconds: 0}, lte: {seconds: 604800}}
+  ];
+}
+
+message Phase {
+  uint32 target_hosts = 1 [(buf.validate.field).uint32 = {gte: 1, lte: 10000}];
+  google.protobuf.Timestamp issued_at = 2;
+  google.protobuf.Timestamp observation_started_at = 3;
+  google.protobuf.Timestamp evaluated_at = 4;
+  Evidence evidence = 5;
+  Outcome outcome = 6 [(buf.validate.field).enum.defined_only = true];
+  string reviewer = 7 [(buf.validate.field).string.max_len = 128];
+  string reason = 8 [(buf.validate.field).string.max_len = 4096];
+}
+
+message Experiment {
+  string id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  string location = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  string hypothesis = 3 [(buf.validate.field).string = {min_len: 1, max_len: 8192}];
+  Treatment treatment = 4 [(buf.validate.field).required = true];
+  ExperimentPolicy policy = 5 [(buf.validate.field).required = true];
+  Evidence baseline = 6 [(buf.validate.field).required = true];
+  // Randomised host order; phases treat a growing prefix of it.
+  repeated string cohort_order = 7 [(buf.validate.field).repeated = {
+    min_items: 3
+    max_items: 10000
+    unique: true
+    items: {string: {pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"}}
+  }];
+  repeated Phase phases = 8 [(buf.validate.field).repeated.max_items = 64];
+  ExperimentStatus status = 9 [(buf.validate.field).enum.defined_only = true];
+  uint64 revision = 10;
+  google.protobuf.Timestamp proposed_at = 11;
+  Evidence latest_evidence = 12;
+  Outcome latest_outcome = 13 [(buf.validate.field).enum.defined_only = true];
+  // When the controller last changed this experiment. Terminal experiments
+  // suppress rediscovery of their destination for a day after this instant.
+  google.protobuf.Timestamp updated_at = 14;
+}

@@ -84,4 +84,17 @@ in
       "./cmd/xtcp2"
     ];
   };
+
+  # cmd/xtcp2 with the embedded treatment agent (`-tags treatment`): the
+  # default `go test ./cmd/xtcp2` compiles treatments_embedded.go out, so
+  # without this leg a regression in the tagged file is invisible until the
+  # fat Nix build. pkg/treatment itself is covered by test-tcp-controller-unit.
+  focused-xtcp-treatment = mkFocusedTest "xtcp-treatment" {
+    tags = "treatment";
+    ldflags = "-checklinkname=0";
+    paths = [
+      "./cmd/xtcp2"
+      "./cmd/xtcp2-treatment-agent"
+    ];
+  };
 }

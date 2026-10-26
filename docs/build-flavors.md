@@ -250,8 +250,12 @@ The absent ones are published as `0` deliberately: a binary built without the ta
 | `enrich.go`, `enrich_core.go` | (none) | always |
 | `enrich_asn.go` | `//go:build enrich_asn` | only with `-tags enrich_asn` |
 | `enrich_locality.go` | `//go:build enrich_locality` | only with `-tags enrich_locality` |
+| `cmd/xtcp2/treatments.go` (journal reader, `-treatmentAttribution`) | (none) | always |
+| `cmd/xtcp2/treatments_embedded.go` (embedded agent, `-treatmentConfig`) | `//go:build treatment` | only with `-tags treatment` |
 
 Each tagged file calls `RegisterDestination(scheme, factory)` / `RegisterEnricher(name, factory)` from its `init()`. With the tag off the file isn't compiled, so the registry simply lacks that entry — no `!tag` stub file is needed. Both registries panic on a duplicate registration, which can only mean two files claimed the same tag.
+
+The treatment agent follows the same shape one level up, in `cmd/xtcp2`: the untagged file registers nothing, so `-treatmentConfig` is refused with a message naming the tag and the standalone alternative, while `-treatmentAttribution` (read a standalone `xtcp2-treatment-agent`'s journal, stamp provenance) is always compiled. `mkGoBinary`'s `treatment` knob defaults to "on for the full destination set, off for the slim flavors", so `xtcp2` / `xtcp2-all` embed the agent and `xtcp2-min` & co. pair with the standalone binary. `pkg/treatment/boundaries_test.go` walks `cmd/xtcp2` both ways and asserts the untagged closure never reaches the agent, the TLS identity code or the RPC proto. See [tcp-controller.md](tcp-controller.md#agent-deployment).
 
 The rule that makes this work is that **no tagged package's type may appear on the `XTCP` struct**: `dest` is a `Destination` interface, and the two enrichers are `asnLookuper` / `localityEnricher` interfaces declared in untagged code. A single `*ipasn.Index`-typed field would re-link parquet-go into every flavor and silently undo the whole scheme.
 
@@ -278,6 +282,7 @@ The destination case is *unavailable* — the daemon has nowhere to send records
 ```sh
 go test -tags 'enrich_asn enrich_locality' ./pkg/xtcp/ ./cmd/xtcp2/
 go test -tags 'dest_s3parquet enrich_asn enrich_locality' ./pkg/xtcp/
+go test -tags treatment ./cmd/xtcp2/ ./cmd/xtcp2-treatment-agent/   # nix build .#test-focused-xtcp-treatment
 ```
 
 `nix flake check` does this for you via `nix/tests/go-test-flavors.nix`, which has one target per flavor plus an `all` target. The registry and hot-path tests (`enrich_core_test.go`, `enrich_seam_test.go`) are deliberately **untagged** and derive their expectations from `EnricherCompiledIn`, so they assert correct behaviour in every flavor — including the builds that lack the code.
@@ -285,9 +290,9 @@ go test -tags 'dest_s3parquet enrich_asn enrich_locality' ./pkg/xtcp/
 ## Building outside Nix
 
 ```bash
-# Full xtcp2 (every destination + every enricher):
+# Full xtcp2 (every destination + every enricher + the embedded treatment agent):
 CGO_ENABLED=0 go build \
-    -tags "netgo,osusergo,dest_kafka,dest_nats,dest_nsq,dest_valkey,dest_s3parquet,enrich_asn,enrich_locality" \
+    -tags "netgo,osusergo,dest_kafka,dest_nats,dest_nsq,dest_valkey,dest_s3parquet,enrich_asn,enrich_locality,treatment" \
     -ldflags "-s -w" -trimpath -o xtcp2 ./cmd/xtcp2
 
 # Unix-domain-socket flavor (stdlib only, no enrichers):

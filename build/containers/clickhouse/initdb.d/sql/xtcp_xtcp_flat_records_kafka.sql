@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
     -- https://clickhouse.com/docs/en/sql-reference/data-types/lowcardinality
     hostname                                                    LowCardinality(String),
     location                                                    LowCardinality(String),
+    agent_id                                                    String,
+    host_boot_id                                                String,
+    collection_id                                               String,
+    treatment_state_revision                                    UInt64,
+    treatment_assignment_id                                     String,
+    treatment_generation                                        UInt64,
+    treatment_applied_timestamp_ns                              Int64,
+    treatment_algorithm_exposed                                 Bool,
 
     -- ---- metadata: network namespace identity (30s) ------------------------
     netns                                                       String CODEC(ZSTD),
