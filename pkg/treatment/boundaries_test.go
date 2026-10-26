@@ -212,7 +212,7 @@ func TestTreatmentImportBoundaries(t *testing.T) {
 type anImport struct{ path, file string }
 
 // packageImports lists the non-test imports of one package under the given
-// build tags, honouring //go:build lines and _GOOS/_GOARCH suffixes the way
+// build tags, honoring //go:build lines and _GOOS/_GOARCH suffixes the way
 // the compiler would for the host platform, so a file such as
 // cmd/xtcp2/treatments_embedded.go (//go:build treatment) only counts when
 // the rule asks for that tag.

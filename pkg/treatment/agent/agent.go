@@ -192,9 +192,9 @@ func (a *Agent) Run(ctx context.Context) {
 				go func() { defer workers.Done(); a.watch(ctx) }()
 			}
 		}
-		jitter, _ := rand.Int(rand.Reader, big.NewInt(6000))
+		// Without entropy the check-in simply runs unjittered.
 		delay := 27 * time.Second
-		if jitter != nil {
+		if jitter, jerr := rand.Int(rand.Reader, big.NewInt(6000)); jerr == nil {
 			delay += time.Duration(jitter.Int64()) * time.Millisecond
 		}
 		timer := time.NewTimer(delay)

@@ -195,7 +195,8 @@ func TestJournalLockHolderDies(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command(os.Args[0], "-test.run=^TestJournalLockHolderHelper$")
+	// /proc/self/exe re-executes this test binary.
+	cmd := exec.Command("/proc/self/exe", "-test.run=^TestJournalLockHolderHelper$")
 	cmd.Env = append(os.Environ(), "XTCP_JOURNAL_HOLD_DIR="+dir)
 	out, err := cmd.StdoutPipe()
 	if err != nil {

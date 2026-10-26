@@ -1,7 +1,6 @@
 package postgres_test
 
 import (
-	"context"
 	"slices"
 	"testing"
 	"time"
@@ -54,7 +53,6 @@ func sampleReport() *treatment.AgentReport {
 // every check-in stamps the agents row, but the algorithm and record rows
 // are written only when the report content behind them changed.
 func TestPostgresObserveRewritesOnlyChangedReports(t *testing.T) {
-	ctx := context.Background()
 	for _, tc := range []struct {
 		name, description string
 		mutate            func(r *treatment.AgentReport)
@@ -77,6 +75,7 @@ func TestPostgresObserveRewritesOnlyChangedReports(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Log(tc.description)
 			s := pgtest.Open(t)
+			ctx := t.Context()
 			a := s.Repos().Agents
 			first := sampleReport()
 			if err := a.Enroll(ctx, "host-1", "dc1", &treatment.DesiredState{AgentID: "host-1", Revision: 1, IssuedAt: time.Unix(1700000000, 0)}); err != nil {

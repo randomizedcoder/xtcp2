@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sort"
 	"time"
@@ -48,8 +49,15 @@ func (s *Server) StatusHandler() http.Handler {
 			return
 		}
 		if r.URL.Path == "/status" {
+			b, merr := json.Marshal(values)
+			if merr != nil {
+				http.Error(w, "status encoding failed", http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(values)
+			if _, werr := w.Write(append(b, '\n')); werr != nil {
+				log.Printf("controller status: write: %v", werr)
+			}
 			return
 		}
 		keys := make([]string, 0, len(values))

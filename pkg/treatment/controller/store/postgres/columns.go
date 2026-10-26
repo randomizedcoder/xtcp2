@@ -82,7 +82,13 @@ func optBool(v sql.NullBool) *bool {
 
 // assignmentColumns are shared by assignments and the assignment half of
 // records: identity, mode, lease, treatment and predecessor.
-var assignmentColumns = append(append([]string{"agent_id", "experiment_id", "position", "mode", "generation", "lease_expires_at"}, prefixed("treatment_", treatmentColumns)...), prefixed("predecessor_", treatmentColumns)...)
+// agentIDColumnCst is the agent foreign-key column every child table shares.
+const agentIDColumnCst = "agent_id"
+
+// positionColumnCst orders the rows of every child list.
+const positionColumnCst = "position"
+
+var assignmentColumns = append(append([]string{agentIDColumnCst, "experiment_id", positionColumnCst, "mode", "generation", "lease_expires_at"}, prefixed("treatment_", treatmentColumns)...), prefixed("predecessor_", treatmentColumns)...)
 
 func assignmentArgs(agentID string, position int, a *treatment.Assignment) []any {
 	args := []any{agentID, a.ExperimentID, position, a.Mode.String(), int64(a.Generation), nullTime(a.LeaseExpiresAt)}

@@ -10,7 +10,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"strings"
 	"time"
 
@@ -40,8 +39,7 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 	db.SetMaxIdleConns(8)
 	db.SetConnMaxLifetime(30 * time.Minute)
 	if err = db.PingContext(ctx); err != nil {
-		db.Close()
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 	return &Store{db: db}, nil
 }
@@ -65,12 +63,12 @@ func (s *Store) Repos() store.Repos { return repos(&runner{db: s.db}) }
 
 // Tx runs fn in one transaction holding the mutation lock. Agent heartbeats
 // go through Repos and never take it.
-func (s *Store) Tx(ctx context.Context, fn func(store.Repos) error) error {
+func (s *Store) Tx(ctx context.Context, fn func(store.Repos) error) (err error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollback(tx, &err)
 	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", mutationLock); err != nil {
 		return err
 	}
@@ -84,14 +82,18 @@ func (s *Store) Tx(ctx context.Context, fn func(store.Repos) error) error {
 // it outlives any transaction and ends when fn returns or the connection
 // drops. Names hash into the same key space as mutationLock; the lock a
 // name maps to is stable across replicas because the hash is.
-func (s *Store) Lease(ctx context.Context, name string, fn func() error) (bool, error) {
+func (s *Store) Lease(ctx context.Context, name string, fn func() error) (held bool, err error) {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return false, err
 	}
-	defer conn.Close()
+	defer func() {
+		// A connection discarded after a failed unlock reports ErrConnDone.
+		if cerr := conn.Close(); cerr != nil && !errors.Is(cerr, sql.ErrConnDone) && err == nil {
+			err = cerr
+		}
+	}()
 	key := leaseKey(name)
-	var held bool
 	if err = conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", key).Scan(&held); err != nil {
 		return false, err
 	}
@@ -103,21 +105,39 @@ func (s *Store) Lease(ctx context.Context, name string, fn func() error) (bool, 
 		defer cancel()
 		if _, e := conn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock($1)", key); e != nil {
 			// A pooled connection must never carry the lock into its next
-			// use; discarding it releases the session lock server-side.
-			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+			// use; discarding it releases the session lock server-side, so
+			// the expected ErrBadConn is the success case here.
+			err = errors.Join(err, fmt.Errorf("lease %s unlock: %w", name, e))
+			if derr := conn.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(derr, driver.ErrBadConn) {
+				err = errors.Join(err, derr)
+			}
 		}
 	}()
 	return true, fn()
 }
 
 // leaseUnlockTimeoutCst bounds the unlock that runs after the caller's
-// context may already be cancelled.
+// context may already be canceled.
 const leaseUnlockTimeoutCst = 5 * time.Second
 
+// leaseKey is the 64-bit FNV-1a hash of name, so every replica maps a name
+// to the same advisory lock.
 func leaseKey(name string) int64 {
-	h := fnv.New64a()
-	h.Write([]byte(name))
-	return int64(h.Sum64())
+	h := uint64(14695981039346656037)
+	for i := 0; i < len(name); i++ {
+		h ^= uint64(name[i])
+		h *= 1099511628211
+	}
+	return int64(h)
+}
+
+// rollback ends a transaction that did not commit. After Commit it reports
+// ErrTxDone, which is expected; any other failure is kept when the
+// transaction's own result was success.
+func rollback(tx *sql.Tx, err *error) {
+	if rerr := tx.Rollback(); rerr != nil && !errors.Is(rerr, sql.ErrTxDone) && *err == nil {
+		*err = rerr
+	}
 }
 
 func repos(r *runner) store.Repos {
@@ -151,7 +171,7 @@ func (r *runner) locked() bool { return r.tx != nil }
 // atomic runs fn in the open transaction, or in a short private one when the
 // repository is bound to the pool, so multi-statement writes stay consistent
 // without the mutation lock.
-func (r *runner) atomic(ctx context.Context, fn func(querier) error) error {
+func (r *runner) atomic(ctx context.Context, fn func(querier) error) (err error) {
 	if r.tx != nil {
 		return fn(r.tx)
 	}
@@ -159,7 +179,7 @@ func (r *runner) atomic(ctx context.Context, fn func(querier) error) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollback(tx, &err)
 	if err = fn(tx); err != nil {
 		return err
 	}

@@ -13,7 +13,11 @@ func (a *Agent) watchRouting(ctx context.Context) {
 		log.Printf("treatment route watch unavailable: %v; periodic reconciliation remains enabled", e)
 		return
 	}
-	defer unix.Close(fd)
+	defer func() {
+		if cerr := unix.Close(fd); cerr != nil {
+			log.Printf("treatment route watch close: %v", cerr)
+		}
+	}()
 	groups := uint32(unix.RTMGRP_LINK | unix.RTMGRP_IPV4_IFADDR | unix.RTMGRP_IPV6_IFADDR | unix.RTMGRP_IPV4_ROUTE | unix.RTMGRP_IPV6_ROUTE | unix.RTMGRP_IPV4_RULE)
 	// RTNLGRP_IPV6_RULE is a group number; sockaddr_nl expects its bitmask.
 	groups |= 1 << (unix.RTNLGRP_IPV6_RULE - 1)

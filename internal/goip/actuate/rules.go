@@ -65,7 +65,10 @@ func clearDefaultSuppressors(r *xtcpnl.RuleInfo) {
 }
 
 func normalRule(r xtcpnl.RuleInfo) bool {
-	if !(r.Priority == 0 && r.Table == unix.RT_TABLE_LOCAL || r.Priority == 32766 && r.Table == unix.RT_TABLE_MAIN || r.Priority == 32767 && r.Table == unix.RT_TABLE_DEFAULT) {
+	baseline := r.Priority == 0 && r.Table == unix.RT_TABLE_LOCAL ||
+		r.Priority == 32766 && r.Table == unix.RT_TABLE_MAIN ||
+		r.Priority == 32767 && r.Table == unix.RT_TABLE_DEFAULT
+	if !baseline {
 		return false
 	}
 	if r.Action != unix.FR_ACT_TO_TBL {
@@ -94,8 +97,8 @@ func (b *Backend) checkRules(svc *service.Service, family uint8) error {
 	}
 	local, main := false, false
 	owned := 0
-	for _, v := range rs {
-		r := xtcpnl.RuleInfo(v)
+	for i := range rs {
+		r := xtcpnl.RuleInfo(rs[i])
 		if b.ownRule(r) {
 			owned++
 			continue
@@ -131,8 +134,9 @@ func (b *Backend) rules(ctx context.Context, enable bool) error {
 				return err
 			}
 			owned := 0
-			for _, r := range rs {
-				if b.ownRule(xtcpnl.RuleInfo(r)) {
+			for i := range rs {
+				r := xtcpnl.RuleInfo(rs[i])
+				if b.ownRule(r) {
 					owned++
 				} else if enable && (r.Priority == b.Priority || r.Table == b.Table) {
 					return errors.New("reserved routing rule collision")
@@ -169,8 +173,8 @@ func (b *Backend) rules(ctx context.Context, enable bool) error {
 				return err
 			}
 			owned = 0
-			for _, r := range rs {
-				if b.ownRule(xtcpnl.RuleInfo(r)) {
+			for i := range rs {
+				if b.ownRule(xtcpnl.RuleInfo(rs[i])) {
 					owned++
 				}
 			}

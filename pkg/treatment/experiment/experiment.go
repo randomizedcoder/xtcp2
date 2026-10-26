@@ -31,84 +31,119 @@ func Evaluate(e *treatment.Experiment, ev *treatment.Evidence, now time.Time) (E
 		return Evaluation{}, errors.New("experiment has no phase")
 	}
 	p := e.Policy
-	if phase.ObservationStartedAt.IsZero() {
-		return Evaluation{Outcome: treatment.OutcomeAwaitingExposure}, nil
-	}
-	if now.Sub(phase.IssuedAt) >= p.MaximumPhase {
-		return Evaluation{Outcome: treatment.OutcomeExpired}, nil
-	}
-	if ev.AnalyzedAt.After(now.Add(30*time.Second)) || now.Sub(ev.WindowEnd) > p.MaximumEvidenceAge {
-		return Evaluation{Outcome: treatment.OutcomeStale}, nil
-	}
-	if ev.WindowStart.Before(phase.ObservationStartedAt) || ev.WindowEnd.Sub(ev.WindowStart) < p.MinimumObservation {
-		return Evaluation{Outcome: treatment.OutcomeInsufficientDuration}, nil
+	if o, ok := windowOutcome(&p, phase, ev, now); ok {
+		return Evaluation{Outcome: o}, nil
 	}
 	if e.Baseline == nil {
 		return Evaluation{}, errors.New("experiment has no baseline")
 	}
-	base, current := hostIndex(e.Baseline.Hosts), hostIndex(ev.Hosts)
 	target := int(phase.TargetHosts)
 	if target < 1 || target > len(e.CohortOrder) {
 		return Evaluation{}, errors.New("invalid phase cohort size")
 	}
-	treated, control := make([]float64, 0, target), make([]float64, 0, len(e.CohortOrder)-target)
-	tr, cr := make([]float64, 0, target), make([]float64, 0, len(e.CohortOrder)-target)
-	tlat, clat := make([]float64, 0, target), make([]float64, 0, len(e.CohortOrder)-target)
-	for i, id := range e.CohortOrder {
-		h, b := current[id], base[id]
-		if h == nil || b == nil || !h.CollectionHealthy || !b.CollectionHealthy || h.Sockets < p.MinimumSocketsPerHost || h.BytesAcked < p.MinimumBytesPerHost || h.GoodputBps <= 0 || b.GoodputBps <= 0 || b.RttP95Ms <= 0 {
-			return Evaluation{Outcome: treatment.OutcomeInsufficientData}, nil
-		}
-		if i < target && h.ExposedSockets < p.MinimumSocketsPerHost {
-			return Evaluation{Outcome: treatment.OutcomeAwaitingExposure}, nil
-		}
-		x := math.Log(h.GoodputBps / b.GoodputBps)
-		if i < target {
-			treated = append(treated, x)
-			tr = append(tr, h.RetransmissionRatio-b.RetransmissionRatio)
-			tlat = append(tlat, math.Log1p((max(h.RttP95Ms, .001)-b.RttP95Ms)/b.RttP95Ms))
-		} else {
-			control = append(control, x)
-			cr = append(cr, h.RetransmissionRatio-b.RetransmissionRatio)
-			clat = append(clat, math.Log1p((max(h.RttP95Ms, .001)-b.RttP95Ms)/b.RttP95Ms))
-		}
+	treated, control, o := cohortSamples(e, ev, target)
+	if o != treatment.OutcomeUnspecified {
+		return Evaluation{Outcome: o}, nil
 	}
 	// Guardrails protect controls as well as treated traffic. A shared-link
 	// regression is harmful even if treated hosts outperform their peers.
-	if mean(tr) > p.MaximumRetransmissionIncrease || mean(cr) > p.MaximumRetransmissionIncrease || mean(tlat) > math.Log1p(p.MaximumRTTIncrease) || mean(clat) > math.Log1p(p.MaximumRTTIncrease) {
+	if treated.breaches(&p) || control.breaches(&p) {
 		return Evaluation{Outcome: treatment.OutcomeHarmful}, nil
 	}
+	return compare(&p, treated.goodput, control.goodput, len(e.CohortOrder)), nil
+}
+
+// windowOutcome reports the outcome when the phase or the evidence window
+// cannot support an evaluation yet: no exposure, expiry, stale evidence or
+// too short a window.
+func windowOutcome(p *treatment.Policy, phase *treatment.Phase, ev *treatment.Evidence, now time.Time) (treatment.Outcome, bool) {
+	switch {
+	case phase.ObservationStartedAt.IsZero():
+		return treatment.OutcomeAwaitingExposure, true
+	case now.Sub(phase.IssuedAt) >= p.MaximumPhase:
+		return treatment.OutcomeExpired, true
+	case ev.AnalyzedAt.After(now.Add(30*time.Second)) || now.Sub(ev.WindowEnd) > p.MaximumEvidenceAge:
+		return treatment.OutcomeStale, true
+	case ev.WindowStart.Before(phase.ObservationStartedAt) || ev.WindowEnd.Sub(ev.WindowStart) < p.MinimumObservation:
+		return treatment.OutcomeInsufficientDuration, true
+	}
+	return treatment.OutcomeUnspecified, false
+}
+
+// samples are one arm's per-host changes against the baseline: log goodput
+// ratio, retransmission ratio difference and log RTT p95 ratio.
+type samples struct{ goodput, retrans, latency []float64 }
+
+func newSamples(n int) samples {
+	return samples{make([]float64, 0, n), make([]float64, 0, n), make([]float64, 0, n)}
+}
+
+func (s *samples) add(h, b *treatment.HostEvidence) {
+	s.goodput = append(s.goodput, math.Log(h.GoodputBps/b.GoodputBps))
+	s.retrans = append(s.retrans, h.RetransmissionRatio-b.RetransmissionRatio)
+	s.latency = append(s.latency, math.Log1p((max(h.RttP95Ms, .001)-b.RttP95Ms)/b.RttP95Ms))
+}
+
+// breaches reports whether the arm's mean retransmission or RTT change
+// exceeds the policy's guardrail.
+func (s *samples) breaches(p *treatment.Policy) bool {
+	return mean(s.retrans) > p.MaximumRetransmissionIncrease || mean(s.latency) > math.Log1p(p.MaximumRTTIncrease)
+}
+
+// cohortSamples splits the cohort into the treated first target hosts and
+// the controls. A host without usable data, or a treated host not yet
+// exposed, stops the evaluation with that outcome.
+func cohortSamples(e *treatment.Experiment, ev *treatment.Evidence, target int) (treated, control samples, o treatment.Outcome) {
+	p := &e.Policy
+	base, current := hostIndex(e.Baseline.Hosts), hostIndex(ev.Hosts)
+	treated, control = newSamples(target), newSamples(len(e.CohortOrder)-target)
+	for i, id := range e.CohortOrder {
+		h, b := current[id], base[id]
+		if h == nil || b == nil || !h.CollectionHealthy || !b.CollectionHealthy || h.Sockets < p.MinimumSocketsPerHost || h.BytesAcked < p.MinimumBytesPerHost || h.GoodputBps <= 0 || b.GoodputBps <= 0 || b.RttP95Ms <= 0 {
+			return treated, control, treatment.OutcomeInsufficientData
+		}
+		if i >= target {
+			control.add(h, b)
+			continue
+		}
+		if h.ExposedSockets < p.MinimumSocketsPerHost {
+			return treated, control, treatment.OutcomeAwaitingExposure
+		}
+		treated.add(h, b)
+	}
+	return treated, control, treatment.OutcomeUnspecified
+}
+
+// compare turns the treated and control goodput changes into an outcome.
+// cohort is the full cohort size, used to budget the number of looks.
+func compare(p *treatment.Policy, treated, control []float64, cohort int) Evaluation {
 	effect := mean(treated) - mean(control)
-	if len(control) == 0 {
+	harmful := effect < -math.Log1p(p.MinimumImprovement)
+	switch {
+	case len(control) == 0 && harmful, len(treated) < int(p.MinimumTreatedHosts) && harmful:
+		return Evaluation{Outcome: treatment.OutcomeHarmful}
+	case len(control) == 0:
 		// Final 100% phase is a safety check; causal benefit was established
 		// before the last control cohort received the treatment.
-		if effect < -math.Log1p(p.MinimumImprovement) {
-			return Evaluation{Outcome: treatment.OutcomeHarmful}, nil
-		}
-		return Evaluation{Outcome: treatment.OutcomeFinalSafety, Improvement: math.Expm1(effect)}, nil
-	}
-	if len(treated) < int(p.MinimumTreatedHosts) {
-		if effect < -math.Log1p(p.MinimumImprovement) {
-			return Evaluation{Outcome: treatment.OutcomeHarmful}, nil
-		}
-		return Evaluation{Outcome: treatment.OutcomeSafetyOnly, Improvement: math.Expm1(effect)}, nil
-	}
-	if len(control) < 2 {
-		return Evaluation{Outcome: treatment.OutcomeInsufficientControls}, nil
+		return Evaluation{Outcome: treatment.OutcomeFinalSafety, Improvement: math.Expm1(effect)}
+	case len(treated) < int(p.MinimumTreatedHosts):
+		return Evaluation{Outcome: treatment.OutcomeSafetyOnly, Improvement: math.Expm1(effect)}
+	case len(control) < 2:
+		return Evaluation{Outcome: treatment.OutcomeInsufficientControls}
 	}
 	a, b := variance(treated)/float64(len(treated)), variance(control)/float64(len(control))
 	se := math.Sqrt(a + b)
 	lower := effect
 	if se > 0 {
 		df := (a + b) * (a + b) / (a*a/float64(len(treated)-1) + b*b/float64(len(control)-1))
-		looks := (math.Ceil(math.Log2(float64(len(e.CohortOrder)))) + 2) * math.Ceil(p.MaximumPhase.Minutes())
+		looks := (math.Ceil(math.Log2(float64(cohort))) + 2) * math.Ceil(p.MaximumPhase.Minutes())
 		lower -= studentQuantile(1-.05/looks, df) * se
 	}
 	out := Evaluation{Outcome: treatment.OutcomeInconclusive, Improvement: math.Expm1(effect), LowerBound: math.Expm1(lower)}
 	if lower > math.Log1p(p.MinimumImprovement) {
 		out.Outcome = treatment.OutcomeBeneficial
 	}
-	return out, nil
+	return out
 }
 
 func hostIndex(hosts []treatment.HostEvidence) map[string]*treatment.HostEvidence {

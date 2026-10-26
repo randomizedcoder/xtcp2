@@ -33,7 +33,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (err error) {
 	config := flag.String("config", "/etc/xtcp2/controller-agent.json", "agent configuration (shared with xtcp2-treatmentctl)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -51,7 +51,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer a.Close()
+	defer func() {
+		if cerr := a.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 	defer signal.Stop(hup)

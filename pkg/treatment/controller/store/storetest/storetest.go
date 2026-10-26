@@ -21,6 +21,18 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Fixture values shared by many rows.
+const (
+	locationCst      = "dc1"
+	host1Cst         = "host-1"
+	host2Cst         = "host-2"
+	destinationCst   = "192.0.2.1/32"
+	agentScopeCst    = "agent:h"
+	missingCst       = "missing"
+	fleetScopeCst    = "fleet"
+	locationScopeCst = "location:" + locationCst
+)
+
 // Opener returns a fresh, empty store for one test.
 type Opener func(t *testing.T) store.Store
 
@@ -88,29 +100,42 @@ func sameEvidence(t *testing.T, description string, got, want *treatment.Evidenc
 	}
 }
 
+// agentCase is one Agents contract row.
+type agentCase struct {
+	name, description string
+	run               func(t *testing.T, a store.Agents)
+}
+
 func agents(t *testing.T, open Opener) {
 	ctx := context.Background()
-	initial := &treatment.DesiredState{AgentID: "host-1", Revision: 1, Suspended: true, IssuedAt: now}
-	for _, tc := range []struct {
-		name, description string
-		run               func(t *testing.T, a store.Agents)
-	}{
+	initial := &treatment.DesiredState{AgentID: host1Cst, Revision: 1, Suspended: true, IssuedAt: now}
+	for _, tc := range slices.Concat(agentEnrollCases(ctx, initial), agentDesiredSinceCases(ctx, initial), agentLookupCases(ctx, initial)) {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			tc.run(t, open(t).Repos().Agents)
+		})
+	}
+}
+
+// agentEnrollCases covers enrollment, reports and the desired-state round trip.
+func agentEnrollCases(ctx context.Context, initial *treatment.DesiredState) []agentCase {
+	return []agentCase{
 		{"enroll-roundtrip", "positive: enrollment stores location and the initial desired state", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
-			got, err := a.Get(ctx, "host-1")
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			got, err := a.Get(ctx, host1Cst)
 			must(t, err)
-			if got.ID != "host-1" || got.Location != "dc1" || got.EnrolledAt.IsZero() || !got.LastSeen.IsZero() || got.Report.AgentID != "host-1" || got.Report.Location != "dc1" {
+			if got.ID != host1Cst || got.Location != locationCst || got.EnrolledAt.IsZero() || !got.LastSeen.IsZero() || got.Report.AgentID != host1Cst || got.Report.Location != locationCst {
 				t.Fatalf("expected an enrolled agent without a report, got %+v", got)
 			}
-			d, err := a.Desired(ctx, "host-1")
+			d, err := a.Desired(ctx, host1Cst)
 			must(t, err)
 			sameDesired(t, "expected the initial desired state", d, initial)
 		}},
 		{"observe-roundtrip", "positive: a report is stored with every capability and record column", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
-			r := report("host-1", "dc1")
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			r := report(host1Cst, locationCst)
 			must(t, a.Observe(ctx, r, now.Add(time.Minute)))
-			got, err := a.Get(ctx, "host-1")
+			got, err := a.Get(ctx, host1Cst)
 			must(t, err)
 			if !got.LastSeen.Equal(now.Add(time.Minute)) || !got.Seen(now.Add(2*time.Minute), 2*time.Minute) || got.Seen(now.Add(4*time.Minute), 2*time.Minute) {
 				t.Fatalf("expected last_seen %s, got %s", now.Add(time.Minute), got.LastSeen)
@@ -118,7 +143,7 @@ func agents(t *testing.T, open Opener) {
 			sameReport(t, "expected the observed report", &got.Report, r)
 		}},
 		{"desired-roundtrip", "positive: every assignment column, predecessor and lease survives", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
 			d := fixtures.Desired(now)
 			d.Revision = 7
 			pred := fixtures.Treatment()
@@ -126,45 +151,51 @@ func agents(t *testing.T, open Opener) {
 			pred.Settings = treatment.TCPSettings{CongestionControl: ptr("bbr"), CongestionLock: true, RTOMinMs: ptr(uint32(5)), InitialCongestionWindow: ptr(uint32(100)), InitialReceiveWindow: ptr(uint32(0)), QuickAck: ptr(false), ECN: ptr(true)}
 			d.Assignments = append(d.Assignments, treatment.Assignment{ExperimentID: "stable-1", Generation: 4, Mode: treatment.ModeStable, Treatment: treatment.Treatment{ID: "v6", Revision: 3, Destination: netip.MustParsePrefix("2001:db8::1/128"), Settings: pred.Settings, ECNFabricVerified: true}, Predecessor: &pred})
 			must(t, a.SaveDesired(ctx, d))
-			got, err := a.Desired(ctx, "host-1")
+			got, err := a.Desired(ctx, host1Cst)
 			must(t, err)
 			sameDesired(t, "expected the saved desired state", got, d)
 			revs, err := a.DesiredSince(ctx, time.Time{})
 			must(t, err)
-			if len(revs) != 1 || revs[0].AgentID != "host-1" || revs[0].Revision != 7 || revs[0].UpdatedAt.IsZero() {
+			if len(revs) != 1 || revs[0].AgentID != host1Cst || revs[0].Revision != 7 || revs[0].UpdatedAt.IsZero() {
 				t.Fatalf("expected a stamped revision 7 for host-1, got %+v", revs)
 			}
 		}},
+	}
+}
+
+// agentDesiredSinceCases covers the notification watermark query.
+func agentDesiredSinceCases(ctx context.Context, initial *treatment.DesiredState) []agentCase {
+	return []agentCase{
 		{"desired-since-all", "positive: a zero watermark returns every agent, enrolled or saved, ordered by stamp then ID", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-2", "dc1", &treatment.DesiredState{AgentID: "host-2", Revision: 1, IssuedAt: now}))
+			must(t, a.Enroll(ctx, host2Cst, locationCst, &treatment.DesiredState{AgentID: host2Cst, Revision: 1, IssuedAt: now}))
 			settle()
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
 			settle()
-			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "host-2", Revision: 2, IssuedAt: now}))
+			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: host2Cst, Revision: 2, IssuedAt: now}))
 			got, err := a.DesiredSince(ctx, time.Time{})
 			must(t, err)
-			if len(got) != 2 || got[0].AgentID != "host-1" || got[0].Revision != 1 || got[1].AgentID != "host-2" || got[1].Revision != 2 || !got[0].UpdatedAt.Before(got[1].UpdatedAt) {
+			if len(got) != 2 || got[0].AgentID != host1Cst || got[0].Revision != 1 || got[1].AgentID != host2Cst || got[1].Revision != 2 || !got[0].UpdatedAt.Before(got[1].UpdatedAt) {
 				t.Fatalf("expected host-1 rev 1 then host-2 rev 2 in stamp order, got %+v", got)
 			}
 		}},
 		{"desired-since-changed", "positive: a watermark after the older stamp returns only the agent saved since", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
-			must(t, a.Enroll(ctx, "host-2", "dc1", initial))
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			must(t, a.Enroll(ctx, host2Cst, locationCst, initial))
 			all, err := a.DesiredSince(ctx, time.Time{})
 			must(t, err)
 			newest := all[len(all)-1].UpdatedAt
 			settle()
-			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "host-1", Revision: 5, IssuedAt: now}))
+			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: host1Cst, Revision: 5, IssuedAt: now}))
 			got, err := a.DesiredSince(ctx, newest.Add(time.Microsecond))
 			must(t, err)
-			if len(got) != 1 || got[0].AgentID != "host-1" || got[0].Revision != 5 || !got[0].UpdatedAt.After(newest) {
+			if len(got) != 1 || got[0].AgentID != host1Cst || got[0].Revision != 5 || !got[0].UpdatedAt.After(newest) {
 				t.Fatalf("expected only host-1 at revision 5, got %+v", got)
 			}
 		}},
 		{"desired-since-equal", "boundary: a row stamped exactly at the watermark is included", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
 			settle()
-			must(t, a.Enroll(ctx, "host-2", "dc1", initial))
+			must(t, a.Enroll(ctx, host2Cst, locationCst, initial))
 			all, err := a.DesiredSince(ctx, time.Time{})
 			must(t, err)
 			got, err := a.DesiredSince(ctx, all[1].UpdatedAt)
@@ -174,7 +205,7 @@ func agents(t *testing.T, open Opener) {
 			}
 		}},
 		{"desired-since-none", "boundary: a watermark past the newest stamp returns nothing without error", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
 			all, err := a.DesiredSince(ctx, time.Time{})
 			must(t, err)
 			got, err := a.DesiredSince(ctx, all[0].UpdatedAt.Add(time.Microsecond))
@@ -184,31 +215,37 @@ func agents(t *testing.T, open Opener) {
 			}
 		}},
 		{"desired-since-stamp-is-store-clock", "corner: the stamp is the store's clock, not the desired state's issued_at", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
-			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "host-1", Revision: 2, IssuedAt: now.Add(-24 * time.Hour)}))
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			must(t, a.SaveDesired(ctx, &treatment.DesiredState{AgentID: host1Cst, Revision: 2, IssuedAt: now.Add(-24 * time.Hour)}))
 			got, err := a.DesiredSince(ctx, now)
 			must(t, err)
 			if len(got) != 1 || got[0].UpdatedAt.Before(now) {
 				t.Fatalf("expected a current stamp despite an old issued_at, got %+v", got)
 			}
 		}},
+	}
+}
+
+// agentLookupCases covers idempotence, identity fences, bounds and listing.
+func agentLookupCases(ctx context.Context, initial *treatment.DesiredState) []agentCase {
+	return []agentCase{
 		{"enroll-idempotent", "corner: a second enrollment never changes location or desired state", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
-			must(t, a.Enroll(ctx, "host-1", "dc2", &treatment.DesiredState{AgentID: "host-1", Revision: 9, IssuedAt: now}))
-			got, err := a.Get(ctx, "host-1")
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			must(t, a.Enroll(ctx, host1Cst, "dc2", &treatment.DesiredState{AgentID: host1Cst, Revision: 9, IssuedAt: now}))
+			got, err := a.Get(ctx, host1Cst)
 			must(t, err)
-			d, err := a.Desired(ctx, "host-1")
+			d, err := a.Desired(ctx, host1Cst)
 			must(t, err)
-			if got.Location != "dc1" || d.Revision != 1 || !d.Suspended {
+			if got.Location != locationCst || d.Revision != 1 || !d.Suspended {
 				t.Fatalf("expected the first enrollment to win, got %s revision %d", got.Location, d.Revision)
 			}
 		}},
 		{"observe-location-change", "negative: a host cannot move location by reporting a new one", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
-			if err := a.Observe(ctx, report("host-1", "dc2"), now); !errors.Is(err, store.ErrNotEnrolled) {
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			if err := a.Observe(ctx, report(host1Cst, "dc2"), now); !errors.Is(err, store.ErrNotEnrolled) {
 				t.Fatalf("expected ErrNotEnrolled, got %v", err)
 			}
-			got, err := a.Get(ctx, "host-1")
+			got, err := a.Get(ctx, host1Cst)
 			must(t, err)
 			if !got.LastSeen.IsZero() || len(got.Report.Records) != 0 {
 				t.Fatal("expected the rejected report to leave no trace")
@@ -224,26 +261,26 @@ func agents(t *testing.T, open Opener) {
 			if err := a.SaveDesired(ctx, &treatment.DesiredState{AgentID: "ghost", Revision: 1, IssuedAt: now}); !errors.Is(err, store.ErrNotEnrolled) {
 				t.Fatalf("expected ErrNotEnrolled from SaveDesired, got %v", err)
 			}
-			if err := a.Observe(ctx, report("ghost", "dc1"), now); !errors.Is(err, store.ErrNotEnrolled) {
+			if err := a.Observe(ctx, report("ghost", locationCst), now); !errors.Is(err, store.ErrNotEnrolled) {
 				t.Fatalf("expected ErrNotEnrolled from Observe, got %v", err)
 			}
 		}},
 		{"empty-desired", "boundary: a desired state with no assignments replaces a populated one", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", fixtures.Desired(now)))
-			empty := &treatment.DesiredState{AgentID: "host-1", Revision: 2, IssuedAt: now.Add(time.Minute)}
+			must(t, a.Enroll(ctx, host1Cst, locationCst, fixtures.Desired(now)))
+			empty := &treatment.DesiredState{AgentID: host1Cst, Revision: 2, IssuedAt: now.Add(time.Minute)}
 			must(t, a.SaveDesired(ctx, empty))
-			got, err := a.Desired(ctx, "host-1")
+			got, err := a.Desired(ctx, host1Cst)
 			must(t, err)
 			sameDesired(t, "expected no assignments", got, empty)
 		}},
 		{"max-assignments", "boundary: MaxAssignments assignments are stored in order", func(t *testing.T, a store.Agents) {
-			must(t, a.Enroll(ctx, "host-1", "dc1", initial))
-			d := &treatment.DesiredState{AgentID: "host-1", Revision: 2, IssuedAt: now}
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			d := &treatment.DesiredState{AgentID: host1Cst, Revision: 2, IssuedAt: now}
 			for i := range treatment.MaxAssignments {
 				d.Assignments = append(d.Assignments, treatment.Assignment{ExperimentID: fmt.Sprintf("exp-%05d", i), Generation: uint64(i), Mode: treatment.ModeTrial, LeaseExpiresAt: now.Add(time.Hour), Treatment: fixtures.Treatment()})
 			}
 			must(t, a.SaveDesired(ctx, d))
-			got, err := a.Desired(ctx, "host-1")
+			got, err := a.Desired(ctx, host1Cst)
 			must(t, err)
 			if len(got.Assignments) != treatment.MaxAssignments {
 				t.Fatalf("expected %d assignments, got %d", treatment.MaxAssignments, len(got.Assignments))
@@ -255,25 +292,20 @@ func agents(t *testing.T, open Opener) {
 			}
 		}},
 		{"list-by-location", "positive: List filters by location and orders by ID; empty location lists everyone", func(t *testing.T, a store.Agents) {
-			for _, h := range []struct{ id, loc string }{{"c", "dc2"}, {"a", "dc1"}, {"b", "dc1"}} {
+			for _, h := range []struct{ id, loc string }{{"c", "dc2"}, {"a", locationCst}, {"b", locationCst}} {
 				must(t, a.Enroll(ctx, h.id, h.loc, &treatment.DesiredState{AgentID: h.id, Revision: 1, IssuedAt: now}))
 			}
-			dc1, err := a.List(ctx, "dc1")
+			dc1, err := a.List(ctx, locationCst)
 			must(t, err)
 			all, err := a.List(ctx, "")
 			must(t, err)
 			none, err := a.List(ctx, "dc3")
 			must(t, err)
-			want := []store.AgentRef{{ID: "a", Location: "dc1"}, {ID: "b", Location: "dc1"}}
+			want := []store.AgentRef{{ID: "a", Location: locationCst}, {ID: "b", Location: locationCst}}
 			if !slices.Equal(dc1, want) || len(all) != 3 || all[2].ID != "c" || len(none) != 0 {
 				t.Fatalf("expected %v / 3 / 0, got %v / %d / %d", want, dc1, len(all), len(none))
 			}
 		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Log(tc.description)
-			tc.run(t, open(t).Repos().Agents)
-		})
 	}
 }
 
@@ -292,12 +324,25 @@ func populated() *treatment.Experiment {
 	return e
 }
 
+// repoCase is one Experiments contract row.
+type repoCase struct {
+	name, description string
+	run               func(t *testing.T, rp store.Repos)
+}
+
 func experiments(t *testing.T, open Opener) {
 	ctx := context.Background()
-	for _, tc := range []struct {
-		name, description string
-		run               func(t *testing.T, rp store.Repos)
-	}{
+	for _, tc := range slices.Concat(experimentRoundTripCases(ctx), experimentQueryCases(ctx)) {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Log(tc.description)
+			tc.run(t, open(t).Repos())
+		})
+	}
+}
+
+// experimentRoundTripCases covers what Save writes and Get reads back.
+func experimentRoundTripCases(ctx context.Context) []repoCase {
+	return []repoCase{
 		{"insert-relational", "positive: cohort, phases, baseline and evidence references reconstruct the experiment exactly", func(t *testing.T, rp store.Repos) {
 			e := populated()
 			must(t, rp.Experiments.Save(ctx, e))
@@ -340,14 +385,14 @@ func experiments(t *testing.T, open Opener) {
 			}
 		}},
 		{"no-evidence", "boundary: an experiment without baseline, latest evidence or phases round-trips", func(t *testing.T, rp store.Repos) {
-			e := &treatment.Experiment{ID: "bare", Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: treatment.StatusProposed, Revision: 1, ProposedAt: now, UpdatedAt: now}
+			e := &treatment.Experiment{ID: "bare", Location: locationCst, Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: treatment.StatusProposed, Revision: 1, ProposedAt: now, UpdatedAt: now}
 			must(t, rp.Experiments.Save(ctx, e))
 			got, err := rp.Experiments.Get(ctx, "bare")
 			must(t, err)
 			sameExperiment(t, "expected the bare experiment", got, e)
 		}},
 		{"max-cohort", "boundary: a cohort of MaxAgents positions is stored in order", func(t *testing.T, rp store.Repos) {
-			e := &treatment.Experiment{ID: "big", Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: treatment.StatusProposed, Revision: 1, ProposedAt: now, UpdatedAt: now}
+			e := &treatment.Experiment{ID: "big", Location: locationCst, Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: treatment.StatusProposed, Revision: 1, ProposedAt: now, UpdatedAt: now}
 			for i := range treatment.MaxAgents {
 				e.CohortOrder = append(e.CohortOrder, fmt.Sprintf("host-%05d", i))
 			}
@@ -358,7 +403,13 @@ func experiments(t *testing.T, open Opener) {
 				t.Fatalf("expected %d ordered cohort members, got %d", len(e.CohortOrder), len(got.CohortOrder))
 			}
 		}},
-		{"missing", "negative: an unknown experiment is ErrNotFound and does not exist", func(t *testing.T, rp store.Repos) {
+	}
+}
+
+// experimentQueryCases covers lookups, conflicts, listing and status filters.
+func experimentQueryCases(ctx context.Context) []repoCase {
+	return []repoCase{
+		{missingCst, "negative: an unknown experiment is ErrNotFound and does not exist", func(t *testing.T, rp store.Repos) {
 			if _, err := rp.Experiments.Get(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
 				t.Fatalf("expected ErrNotFound, got %v", err)
 			}
@@ -387,9 +438,9 @@ func experiments(t *testing.T, open Opener) {
 				t.Fatal("expected the conflicting save to leave no row")
 			}
 		}},
-		{"list-and-ids", "positive: List orders by ID and honours the limit; IDs filters by status", func(t *testing.T, rp store.Repos) {
+		{"list-and-ids", "positive: List orders by ID and honors the limit; IDs filters by status", func(t *testing.T, rp store.Repos) {
 			for i, s := range []treatment.Status{treatment.StatusRunning, treatment.StatusProposed, treatment.StatusRetired, treatment.StatusRunning} {
-				e := &treatment.Experiment{ID: fmt.Sprintf("e%d", 3-i), Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: s, Revision: 1, ProposedAt: now, UpdatedAt: now}
+				e := &treatment.Experiment{ID: fmt.Sprintf("e%d", 3-i), Location: locationCst, Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: s, Revision: 1, ProposedAt: now, UpdatedAt: now}
 				must(t, rp.Experiments.Save(ctx, e))
 			}
 			list, err := rp.Experiments.List(ctx, "", 3)
@@ -414,11 +465,6 @@ func experiments(t *testing.T, open Opener) {
 				t.Fatalf("expected [e0 e3] and nothing for no statuses, got %v %v", running, none)
 			}
 		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Log(tc.description)
-			tc.run(t, open(t).Repos())
-		})
 	}
 }
 
@@ -426,7 +472,7 @@ func experiments(t *testing.T, open Opener) {
 // destination or consume the location's single-experiment budget.
 func eligibility(t *testing.T, open Opener) {
 	ctx := context.Background()
-	dst := netip.MustParsePrefix("192.0.2.1/32")
+	dst := netip.MustParsePrefix(destinationCst)
 	for _, tc := range []struct {
 		name, description     string
 		status                treatment.Status
@@ -435,27 +481,27 @@ func eligibility(t *testing.T, open Opener) {
 		expectBlocked         bool
 		expectActive          bool
 	}{
-		{"proposed", "positive: pending review reserves the destination", treatment.StatusProposed, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
-		{"running", "positive: an active trial is not rediscovered", treatment.StatusRunning, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
-		{"paused", "positive: paused trials remain reserved", treatment.StatusPaused, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
-		{"suspended", "positive: temporary holds are not bypassed", treatment.StatusSuspended, 48 * time.Hour, "dc1", "192.0.2.1/32", true, true},
-		{"stable", "positive: completed stable treatments stay reserved and free the budget", treatment.StatusComplete, 48 * time.Hour, "dc1", "192.0.2.1/32", true, false},
-		{"recent-rollback", "negative: a recent withdrawal is in cooldown", treatment.StatusRolledBack, 23 * time.Hour, "dc1", "192.0.2.1/32", true, false},
-		{"recent-retirement", "negative: a recent retirement is in cooldown", treatment.StatusRetired, 23 * time.Hour, "dc1", "192.0.2.1/32", true, false},
-		{"cooldown-boundary", "boundary: cooldown ends at exactly 24 hours", treatment.StatusRolledBack, 24 * time.Hour, "dc1", "192.0.2.1/32", false, false},
-		{"old-retirement", "boundary: an old retirement does not reserve the destination", treatment.StatusRetired, 25 * time.Hour, "dc1", "192.0.2.1/32", false, false},
-		{"other-location", "corner: reservation is location specific", treatment.StatusRunning, time.Hour, "dc2", "192.0.2.1/32", false, false},
-		{"other-destination", "corner: another destination consumes the budget only", treatment.StatusRunning, time.Hour, "dc1", "192.0.2.2/32", false, true},
-		{"covering-prefix", "corner: a /24 experiment does not reserve a /32 inside it", treatment.StatusRunning, time.Hour, "dc1", "192.0.2.0/24", false, true},
+		{"proposed", "positive: pending review reserves the destination", treatment.StatusProposed, 48 * time.Hour, locationCst, destinationCst, true, true},
+		{"running", "positive: an active trial is not rediscovered", treatment.StatusRunning, 48 * time.Hour, locationCst, destinationCst, true, true},
+		{"paused", "positive: paused trials remain reserved", treatment.StatusPaused, 48 * time.Hour, locationCst, destinationCst, true, true},
+		{"suspended", "positive: temporary holds are not bypassed", treatment.StatusSuspended, 48 * time.Hour, locationCst, destinationCst, true, true},
+		{"stable", "positive: completed stable treatments stay reserved and free the budget", treatment.StatusComplete, 48 * time.Hour, locationCst, destinationCst, true, false},
+		{"recent-rollback", "negative: a recent withdrawal is in cooldown", treatment.StatusRolledBack, 23 * time.Hour, locationCst, destinationCst, true, false},
+		{"recent-retirement", "negative: a recent retirement is in cooldown", treatment.StatusRetired, 23 * time.Hour, locationCst, destinationCst, true, false},
+		{"cooldown-boundary", "boundary: cooldown ends at exactly 24 hours", treatment.StatusRolledBack, 24 * time.Hour, locationCst, destinationCst, false, false},
+		{"old-retirement", "boundary: an old retirement does not reserve the destination", treatment.StatusRetired, 25 * time.Hour, locationCst, destinationCst, false, false},
+		{"other-location", "corner: reservation is location specific", treatment.StatusRunning, time.Hour, "dc2", destinationCst, false, false},
+		{"other-destination", "corner: another destination consumes the budget only", treatment.StatusRunning, time.Hour, locationCst, "192.0.2.2/32", false, true},
+		{"covering-prefix", "corner: a /24 experiment does not reserve a /32 inside it", treatment.StatusRunning, time.Hour, locationCst, "192.0.2.0/24", false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rp := open(t).Repos()
 			tr := fixtures.Treatment()
 			tr.Destination = netip.MustParsePrefix(tc.destination)
 			must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: "prior", Location: tc.location, Hypothesis: "h", Treatment: tr, Policy: treatment.DefaultPolicy(), Status: tc.status, Revision: 1, ProposedAt: now.Add(-tc.age), UpdatedAt: now.Add(-tc.age)}))
-			blocked, err := rp.Experiments.DestinationBlocked(ctx, "dc1", dst, now.Add(-24*time.Hour))
+			blocked, err := rp.Experiments.DestinationBlocked(ctx, locationCst, dst, now.Add(-24*time.Hour))
 			must(t, err)
-			active, err := rp.Experiments.HasActive(ctx, "dc1")
+			active, err := rp.Experiments.HasActive(ctx, locationCst)
 			must(t, err)
 			if blocked != tc.expectBlocked || active != tc.expectActive {
 				t.Fatalf("%s: blocked=%t active=%t, expected %t/%t", tc.description, blocked, active, tc.expectBlocked, tc.expectActive)
@@ -467,10 +513,10 @@ func eligibility(t *testing.T, open Opener) {
 		rp := open(t).Repos()
 		tr := fixtures.Treatment()
 		tr.Destination = netip.MustParsePrefix("2001:db8::1/128")
-		must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: "v6", Location: "dc1", Hypothesis: "h", Treatment: tr, Policy: treatment.DefaultPolicy(), Status: treatment.StatusRunning, Revision: 1, ProposedAt: now, UpdatedAt: now}))
-		hit, err := rp.Experiments.DestinationBlocked(ctx, "dc1", tr.Destination, now)
+		must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: "v6", Location: locationCst, Hypothesis: "h", Treatment: tr, Policy: treatment.DefaultPolicy(), Status: treatment.StatusRunning, Revision: 1, ProposedAt: now, UpdatedAt: now}))
+		hit, err := rp.Experiments.DestinationBlocked(ctx, locationCst, tr.Destination, now)
 		must(t, err)
-		miss, err := rp.Experiments.DestinationBlocked(ctx, "dc1", netip.MustParsePrefix("2001:db8::2/128"), now)
+		miss, err := rp.Experiments.DestinationBlocked(ctx, locationCst, netip.MustParsePrefix("2001:db8::2/128"), now)
 		must(t, err)
 		if !hit || miss {
 			t.Fatalf("expected exact /128 match only, got hit=%t miss=%t", hit, miss)
@@ -481,7 +527,7 @@ func eligibility(t *testing.T, open Opener) {
 func evidence(t *testing.T, open Opener) {
 	ctx := context.Background()
 	base := func() *treatment.Evidence {
-		return &treatment.Evidence{ID: "ev-1", AnalyzedAt: now, WindowStart: now.Add(-time.Hour), WindowEnd: now, QueryVersion: "v1", EnrichmentVersion: "e1", ArtifactSHA256: strings.Repeat("b", 64), Hosts: []treatment.HostEvidence{{AgentID: "host-1", Sockets: 10, BytesAcked: 1 << 20, GoodputBps: 1e6, RetransmissionRatio: .001, RttP95Ms: 2.5, ExposedSockets: 9, CollectionHealthy: true}}}
+		return &treatment.Evidence{ID: "ev-1", AnalyzedAt: now, WindowStart: now.Add(-time.Hour), WindowEnd: now, QueryVersion: "v1", EnrichmentVersion: "e1", ArtifactSHA256: strings.Repeat("b", 64), Hosts: []treatment.HostEvidence{{AgentID: host1Cst, Sockets: 10, BytesAcked: 1 << 20, GoodputBps: 1e6, RetransmissionRatio: .001, RttP95Ms: 2.5, ExposedSockets: 9, CollectionHealthy: true}}}
 	}
 	for _, tc := range []struct {
 		name, description string
@@ -525,7 +571,7 @@ func evidence(t *testing.T, open Opener) {
 			must(t, v.Put(ctx, "exp", got))
 			must(t, v.Put(ctx, "exp", e))
 		}},
-		{"missing", "negative: unknown evidence is ErrNotFound", func(t *testing.T, v store.Evidence) {
+		{missingCst, "negative: unknown evidence is ErrNotFound", func(t *testing.T, v store.Evidence) {
 			if _, err := v.Get(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
 				t.Fatalf("expected ErrNotFound, got %v", err)
 			}
@@ -573,13 +619,13 @@ func holds(t *testing.T, open Opener) {
 		set, clear, ask   []string
 		expected          bool
 	}{
-		{"fleet", "positive: a fleet hold answers any scope list containing it", []string{"fleet"}, nil, []string{"fleet", "location:dc1", "agent:h"}, true},
-		{"narrower", "positive: an agent hold is seen when asked for that agent", []string{"agent:h"}, nil, []string{"fleet", "location:dc1", "agent:h"}, true},
-		{"cleared", "negative: a cleared hold no longer answers", []string{"fleet"}, []string{"fleet"}, []string{"fleet"}, false},
-		{"other-scope", "negative: holds on other scopes do not answer", []string{"location:dc2"}, nil, []string{"fleet", "location:dc1"}, false},
-		{"no-scopes", "boundary: asking for no scopes is never held", []string{"fleet"}, nil, nil, false},
-		{"clear-missing", "corner: clearing an absent scope is not an error and leaves others set", []string{"fleet"}, []string{"agent:ghost"}, []string{"fleet"}, true},
-		{"reset-reason", "corner: setting a held scope again keeps it held", []string{"fleet", "fleet"}, nil, []string{"fleet"}, true},
+		{fleetScopeCst, "positive: a fleet hold answers any scope list containing it", []string{fleetScopeCst}, nil, []string{fleetScopeCst, locationScopeCst, agentScopeCst}, true},
+		{"narrower", "positive: an agent hold is seen when asked for that agent", []string{agentScopeCst}, nil, []string{fleetScopeCst, locationScopeCst, agentScopeCst}, true},
+		{"cleared", "negative: a cleared hold no longer answers", []string{fleetScopeCst}, []string{fleetScopeCst}, []string{fleetScopeCst}, false},
+		{"other-scope", "negative: holds on other scopes do not answer", []string{"location:dc2"}, nil, []string{fleetScopeCst, locationScopeCst}, false},
+		{"no-scopes", "boundary: asking for no scopes is never held", []string{fleetScopeCst}, nil, nil, false},
+		{"clear-missing", "corner: clearing an absent scope is not an error and leaves others set", []string{fleetScopeCst}, []string{"agent:ghost"}, []string{fleetScopeCst}, true},
+		{"reset-reason", "corner: setting a held scope again keeps it held", []string{fleetScopeCst, fleetScopeCst}, nil, []string{fleetScopeCst}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Log(tc.description)
@@ -636,7 +682,7 @@ func audit(t *testing.T, open Opener) {
 				t.Fatalf("expected ErrNotFound for the empty request ID, got %v", err)
 			}
 		}},
-		{"missing", "negative: an unknown request ID is ErrNotFound", func(t *testing.T, a store.Audit) {
+		{missingCst, "negative: an unknown request ID is ErrNotFound", func(t *testing.T, a store.Audit) {
 			if _, err := a.Lookup(ctx, "ghost"); !errors.Is(err, store.ErrNotFound) {
 				t.Fatalf("expected ErrNotFound, got %v", err)
 			}
@@ -668,14 +714,14 @@ func tx(t *testing.T, open Opener) {
 		t.Log("positive: writes inside a successful Tx are visible afterwards")
 		s := open(t)
 		must(t, s.Tx(ctx, func(rp store.Repos) error {
-			if err := rp.Holds.Set(ctx, "fleet", "incident"); err != nil {
+			if err := rp.Holds.Set(ctx, fleetScopeCst, "incident"); err != nil {
 				return err
 			}
-			return rp.Agents.Enroll(ctx, "host-1", "dc1", fixtures.Desired(now))
+			return rp.Agents.Enroll(ctx, host1Cst, locationCst, fixtures.Desired(now))
 		}))
-		held, err := s.Repos().Holds.Held(ctx, "fleet")
+		held, err := s.Repos().Holds.Held(ctx, fleetScopeCst)
 		must(t, err)
-		if _, err := s.Repos().Agents.Get(ctx, "host-1"); err != nil || !held {
+		if _, err := s.Repos().Agents.Get(ctx, host1Cst); err != nil || !held {
 			t.Fatalf("expected committed hold and agent, got held=%t err=%v", held, err)
 		}
 	})
@@ -684,7 +730,7 @@ func tx(t *testing.T, open Opener) {
 		s := open(t)
 		boom := errors.New("boom")
 		err := s.Tx(ctx, func(rp store.Repos) error {
-			if err := rp.Holds.Set(ctx, "fleet", "incident"); err != nil {
+			if err := rp.Holds.Set(ctx, fleetScopeCst, "incident"); err != nil {
 				return err
 			}
 			if err := rp.Audit.Append(ctx, "x", "req-1", "k", []byte(`{}`)); err != nil {
@@ -695,7 +741,7 @@ func tx(t *testing.T, open Opener) {
 		if !errors.Is(err, boom) {
 			t.Fatalf("expected the callback error, got %v", err)
 		}
-		held, err := s.Repos().Holds.Held(ctx, "fleet")
+		held, err := s.Repos().Holds.Held(ctx, fleetScopeCst)
 		must(t, err)
 		n, err := s.Repos().Audit.Count(ctx)
 		must(t, err)
@@ -720,21 +766,21 @@ func tx(t *testing.T, open Opener) {
 			return nil
 		}))
 	})
-	t.Run("cancelled-context", func(t *testing.T) {
-		t.Log("boundary: a cancelled context fails the Tx and persists nothing")
+	t.Run("canceled-context", func(t *testing.T) {
+		t.Log("boundary: a canceled context fails the Tx and persists nothing")
 		s := open(t)
-		cancelled, cancel := context.WithCancel(ctx)
+		canceled, cancel := context.WithCancel(ctx)
 		cancel()
-		if err := s.Tx(cancelled, func(rp store.Repos) error { return rp.Holds.Set(ctx, "fleet", "x") }); err == nil {
-			t.Fatal("expected an error from a cancelled context")
+		if err := s.Tx(canceled, func(rp store.Repos) error { return rp.Holds.Set(ctx, fleetScopeCst, "x") }); err == nil {
+			t.Fatal("expected an error from a canceled context")
 		}
-		held, err := s.Repos().Holds.Held(ctx, "fleet")
+		held, err := s.Repos().Holds.Held(ctx, fleetScopeCst)
 		must(t, err)
 		if held {
-			t.Fatal("expected no hold after a cancelled transaction")
+			t.Fatal("expected no hold after a canceled transaction")
 		}
 	})
-	t.Run("serialises", func(t *testing.T) {
+	t.Run("serializes", func(t *testing.T) {
 		t.Log("corner: two concurrent Tx calls run one after the other, both commit, sequences stay monotonic")
 		s := open(t)
 		entered := make(chan struct{})
@@ -850,12 +896,12 @@ func lease(t *testing.T, open Opener) {
 			t.Fatal("expected lease a")
 		}
 	})
-	t.Run("cancelled-context", func(t *testing.T) {
-		t.Log("negative: a cancelled context fails before fn runs")
+	t.Run("canceled-context", func(t *testing.T) {
+		t.Log("negative: a canceled context fails before fn runs")
 		s := open(t)
-		cancelled, cancel := context.WithCancel(ctx)
+		canceled, cancel := context.WithCancel(ctx)
 		cancel()
-		held, err := s.Lease(cancelled, "housekeeping", func() error { t.Error("fn ran with a cancelled context"); return nil })
+		held, err := s.Lease(canceled, "housekeeping", func() error { t.Error("fn ran with a canceled context"); return nil })
 		if err == nil || held {
 			t.Fatalf("expected an error and held=false, got held=%t err=%v", held, err)
 		}
@@ -879,13 +925,13 @@ func metrics(t *testing.T, open Opener) {
 		t.Log("positive: gauges reflect agents, records, experiments and events")
 		s := open(t)
 		rp := s.Repos()
-		must(t, rp.Agents.Enroll(ctx, "host-1", "dc1", fixtures.Desired(now)))
-		must(t, rp.Agents.Observe(ctx, report("host-1", "dc1"), now.Add(-time.Minute)))
-		must(t, rp.Agents.Enroll(ctx, "host-2", "dc1", &treatment.DesiredState{AgentID: "host-2", Revision: 1, Suspended: true, IssuedAt: now}))
-		must(t, rp.Agents.Enroll(ctx, "host-3", "dc1", &treatment.DesiredState{AgentID: "host-3", Revision: 1, IssuedAt: now}))
-		must(t, rp.Agents.Observe(ctx, &treatment.AgentReport{AgentID: "host-3", Location: "dc1", Capabilities: treatment.Capabilities{BootID: "b"}, Records: []treatment.ApplicationRecord{{Assignment: fixtures.Desired(now).Assignments[0], Status: treatment.ApplyExpired, ExpiredLatched: true}}}, now.Add(-10*time.Minute)))
+		must(t, rp.Agents.Enroll(ctx, host1Cst, locationCst, fixtures.Desired(now)))
+		must(t, rp.Agents.Observe(ctx, report(host1Cst, locationCst), now.Add(-time.Minute)))
+		must(t, rp.Agents.Enroll(ctx, host2Cst, locationCst, &treatment.DesiredState{AgentID: host2Cst, Revision: 1, Suspended: true, IssuedAt: now}))
+		must(t, rp.Agents.Enroll(ctx, "host-3", locationCst, &treatment.DesiredState{AgentID: "host-3", Revision: 1, IssuedAt: now}))
+		must(t, rp.Agents.Observe(ctx, &treatment.AgentReport{AgentID: "host-3", Location: locationCst, Capabilities: treatment.Capabilities{BootID: "b"}, Records: []treatment.ApplicationRecord{{Assignment: fixtures.Desired(now).Assignments[0], Status: treatment.ApplyExpired, ExpiredLatched: true}}}, now.Add(-10*time.Minute)))
 		for id, st := range map[string]treatment.Status{"p": treatment.StatusProposed, "r": treatment.StatusRunning, "c": treatment.StatusComplete, "x": treatment.StatusRetired} {
-			must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: id, Location: "dc1", Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: st, Revision: 1, ProposedAt: now, UpdatedAt: now}))
+			must(t, rp.Experiments.Save(ctx, &treatment.Experiment{ID: id, Location: locationCst, Hypothesis: "h", Treatment: fixtures.Treatment(), Policy: treatment.DefaultPolicy(), Status: st, Revision: 1, ProposedAt: now, UpdatedAt: now}))
 		}
 		must(t, rp.Audit.Append(ctx, "x", "", "k", []byte(`{}`)))
 		got, err := rp.Metrics.Snapshot(ctx, now)

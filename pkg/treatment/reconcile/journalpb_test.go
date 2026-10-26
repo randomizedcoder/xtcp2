@@ -159,6 +159,6 @@ func TestUnmarshalTextLimits(t *testing.T) {
 		})
 	}
 	if _, err := MarshalText(nil); err == nil {
-		t.Fatal("nil state marshalled")
+		t.Fatal("nil state marshaled")
 	}
 }

@@ -20,7 +20,7 @@ func TestHousekeepLease(t *testing.T) {
 		name, description string
 		warehouse         *fakeWarehouse
 		heldElsewhere     bool
-		cancelled         bool
+		canceled          bool
 		wantHeld          bool
 		wantErr           string
 		wantQueries       int
@@ -29,14 +29,14 @@ func TestHousekeepLease(t *testing.T) {
 		{"held-elsewhere", "corner: while another replica holds the lease this one runs nothing and reports it", &fakeWarehouse{}, true, false, false, "", 0},
 		{"no-warehouse", "boundary: without a warehouse the pass is maintenance only", nil, false, false, true, "", 0},
 		{"discovery-fails", "negative: a failing pass still held the lease and names the failing stage", &fakeWarehouse{candidateErr: errors.New("warehouse offline")}, false, false, true, "candidate discovery: warehouse offline", 1},
-		{"cancelled", "negative: a cancelled context takes no lease and runs nothing", &fakeWarehouse{}, false, true, false, "context canceled", 0},
+		{"canceled", "negative: a canceled context takes no lease and runs nothing", &fakeWarehouse{}, false, true, false, "context canceled", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := memory.New()
 			s := &Server{Store: st, Now: func() time.Time { return now }}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			if tc.cancelled {
+			if tc.canceled {
 				cancel()
 			}
 			release := make(chan struct{})

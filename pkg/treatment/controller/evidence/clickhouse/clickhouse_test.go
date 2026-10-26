@@ -237,9 +237,9 @@ func TestClickHouseCandidateContracts(t *testing.T) {
 // Execute the production SQL against an isolated ClickHouse local database.
 // No live service or production telemetry is accessed.
 func TestClickHouseAnalysisCounterDeltas(t *testing.T) {
-	binary := os.Getenv("XTCP_CLICKHOUSE_TEST_BINARY")
-	if binary == "" {
-		t.Skip("set XTCP_CLICKHOUSE_TEST_BINARY to run real SQL")
+	binary, lerr := exec.LookPath("clickhouse")
+	if lerr != nil {
+		t.Skip("clickhouse is not on PATH; the Nix quality check supplies it")
 	}
 	setup := `CREATE TABLE default.sockets (
  agent_id String,host_boot_id String,netns_inode UInt64,inet_diag_msg_socket_cookie UInt64,

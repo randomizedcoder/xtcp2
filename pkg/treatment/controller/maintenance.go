@@ -59,127 +59,161 @@ func (s *Server) Maintain(ctx context.Context, source evidence.Source) error {
 	}
 	var failures []error
 	for _, id := range ids {
-		var snapshot *treatment.Experiment
-		e = s.Store.Tx(ctx, func(rp store.Repos) error {
-			n, e := rp.Experiments.Get(ctx, id)
-			if e != nil {
-				return e
-			}
-			if n.Status != treatment.StatusRunning && n.Status != treatment.StatusPaused && n.Status != treatment.StatusComplete {
-				return nil
-			}
-			if n.Status == treatment.StatusComplete {
-				if n.LatestEvidence != nil && s.now().Sub(n.LatestEvidence.AnalyzedAt) < time.Hour {
-					return nil
-				}
-			} else if e = s.startObservation(ctx, rp, n); e != nil {
-				return e
-			}
-			snapshot = n
-			return s.save(ctx, rp, n)
-		})
-		if e != nil {
-			failures = append(failures, e)
-			continue
-		}
-		if snapshot == nil || len(snapshot.Phases) == 0 {
-			continue
-		}
-		var ev *treatment.Evidence
-		if source != nil && snapshot.Status != treatment.StatusPaused {
-			input := snapshot
-			if snapshot.Status == treatment.StatusComplete {
-				input = s.driftInput(snapshot)
-			}
-			ev, e = source.Evidence(ctx, evidence.WindowFor(input, s.now()))
-			if e != nil {
-				failures = append(failures, fmt.Errorf("%s analysis: %w", id, e))
-			}
-		}
-		e = s.Store.Tx(ctx, func(rp store.Repos) error {
-			n, e := rp.Experiments.Get(ctx, id)
-			if e != nil {
-				return e
-			}
-			if n.Revision != snapshot.Revision {
-				return nil
-			}
-			phase := n.CurrentPhase()
-			now := s.now()
-			outcome := treatment.OutcomeUnavailable
-			if n.Status == treatment.StatusComplete {
-				if ev != nil {
-					if e = saveEvidence(ctx, rp, id, ev); e != nil {
-						return e
-					}
-					healthy, harmful := experiment.HealthyEvidence(n, ev, now)
-					n.LatestEvidence = ev
-					n.LatestOutcome = treatment.OutcomeStableObserved
-					if !healthy {
-						n.LatestOutcome = treatment.OutcomeStableEvidenceIncomplete
-					}
-					if harmful {
-						n.LatestOutcome = treatment.OutcomeStableRegressionReviewRequired
-						if e = audit(ctx, rp, "drift-monitor", "", "stable_regression", wire.Evidence(ev)); e != nil {
-							return e
-						}
-					}
-				}
-				return s.save(ctx, rp, n)
-			}
-			if now.Sub(phase.IssuedAt) >= n.Policy.MaximumPhase {
-				outcome = treatment.OutcomeExpired
-			} else if ev != nil {
-				if e = saveEvidence(ctx, rp, id, ev); e != nil {
-					return e
-				}
-				v, e := experiment.Evaluate(n, ev, now)
-				if e != nil {
-					return e
-				}
-				outcome = v.Outcome
-				// Keep analysis visible to reviewers without marking a phase as
-				// approved/evaluated. Only Review writes reviewer and outcome.
-				n.LatestEvidence = ev
-				if _, harmful := experiment.HealthyEvidence(n, ev, now); harmful {
-					outcome = treatment.OutcomeHarmful
-				}
-			}
-			n.LatestOutcome = outcome
-			if outcome.Withdraws() {
-				event := experiment.EventExpire
-				if outcome == treatment.OutcomeHarmful {
-					event = experiment.EventHarm
-				}
-				if n.Status, e = experiment.Transition(n.Status, event); e != nil {
-					return e
-				}
-				phase.Outcome = outcome
-				phase.EvaluatedAt = now
-				n.Revision++
-				if e = s.assign(ctx, rp, n, false); e != nil {
-					return e
-				}
-				if e = audit(ctx, rp, "safety-controller", "", "automatic_withdrawal", wire.Experiment(n)); e != nil {
-					return e
-				}
-			} else if ev != nil && n.Status == treatment.StatusRunning {
-				// Before the 30-minute decision window completes, fresh health
-				// evidence can renew the existing phase but cannot expand it.
-				healthy, _ := experiment.HealthyEvidence(n, ev, now)
-				if healthy && outcome.RenewsLease() {
-					if e = s.renew(ctx, rp, n, now); e != nil {
-						return e
-					}
-				}
-			}
-			return s.save(ctx, rp, n)
-		})
-		if e != nil {
+		if e = s.maintainOne(ctx, source, id); e != nil {
 			failures = append(failures, e)
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// maintainOne is one experiment's pass: start observation, query evidence
+// outside any transaction, then apply the result under the mutation lock if
+// nobody changed the experiment meanwhile.
+func (s *Server) maintainOne(ctx context.Context, source evidence.Source, id string) error {
+	snapshot, e := s.observe(ctx, id)
+	if e != nil || snapshot == nil || len(snapshot.Phases) == 0 {
+		return e
+	}
+	var errs []error
+	ev, e := s.fetchEvidence(ctx, source, snapshot)
+	if e != nil {
+		errs = append(errs, fmt.Errorf("%s analysis: %w", id, e))
+	}
+	e = s.Store.Tx(ctx, func(rp store.Repos) error {
+		n, e := rp.Experiments.Get(ctx, id)
+		if e != nil {
+			return e
+		}
+		if n.Revision != snapshot.Revision {
+			return nil
+		}
+		if n.Status == treatment.StatusComplete {
+			return s.driftPass(ctx, rp, n, ev)
+		}
+		return s.trialPass(ctx, rp, n, ev)
+	})
+	return errors.Join(append(errs, e)...)
+}
+
+// observe starts observation for a running or paused experiment and returns
+// the snapshot the evidence window is computed from, or nil when the
+// experiment needs no pass this tick.
+func (s *Server) observe(ctx context.Context, id string) (*treatment.Experiment, error) {
+	var snapshot *treatment.Experiment
+	e := s.Store.Tx(ctx, func(rp store.Repos) error {
+		n, e := rp.Experiments.Get(ctx, id)
+		if e != nil {
+			return e
+		}
+		if n.Status != treatment.StatusRunning && n.Status != treatment.StatusPaused && n.Status != treatment.StatusComplete {
+			return nil
+		}
+		if n.Status == treatment.StatusComplete {
+			if n.LatestEvidence != nil && s.now().Sub(n.LatestEvidence.AnalyzedAt) < time.Hour {
+				return nil
+			}
+		} else if e = s.startObservation(ctx, rp, n); e != nil {
+			return e
+		}
+		snapshot = n
+		return s.save(ctx, rp, n)
+	})
+	return snapshot, e
+}
+
+// fetchEvidence queries the warehouse for the experiment's current window.
+// Without a warehouse, or while the experiment is paused, there is none.
+func (s *Server) fetchEvidence(ctx context.Context, source evidence.Source, snapshot *treatment.Experiment) (*treatment.Evidence, error) {
+	if source == nil || snapshot.Status == treatment.StatusPaused {
+		return nil, nil
+	}
+	input := snapshot
+	if snapshot.Status == treatment.StatusComplete {
+		input = s.driftInput(snapshot)
+	}
+	return source.Evidence(ctx, evidence.WindowFor(input, s.now()))
+}
+
+// driftPass records drift evidence for a completed treatment and flags a
+// regression for review; it never withdraws on its own.
+func (s *Server) driftPass(ctx context.Context, rp store.Repos, n *treatment.Experiment, ev *treatment.Evidence) error {
+	if ev != nil {
+		if e := saveEvidence(ctx, rp, n.ID, ev); e != nil {
+			return e
+		}
+		healthy, harmful := experiment.HealthyEvidence(n, ev, s.now())
+		n.LatestEvidence = ev
+		n.LatestOutcome = treatment.OutcomeStableObserved
+		if !healthy {
+			n.LatestOutcome = treatment.OutcomeStableEvidenceIncomplete
+		}
+		if harmful {
+			n.LatestOutcome = treatment.OutcomeStableRegressionReviewRequired
+			if e := audit(ctx, rp, "drift-monitor", "", "stable_regression", wire.Evidence(ev)); e != nil {
+				return e
+			}
+		}
+	}
+	return s.save(ctx, rp, n)
+}
+
+// trialPass evaluates the current phase of a running or paused experiment:
+// it withdraws an expired or harmful trial and renews the leases of a healthy
+// one. Only Review writes the phase's reviewer and outcome.
+func (s *Server) trialPass(ctx context.Context, rp store.Repos, n *treatment.Experiment, ev *treatment.Evidence) error {
+	phase := n.CurrentPhase()
+	now := s.now()
+	outcome := treatment.OutcomeUnavailable
+	switch {
+	case now.Sub(phase.IssuedAt) >= n.Policy.MaximumPhase:
+		outcome = treatment.OutcomeExpired
+	case ev != nil:
+		if e := saveEvidence(ctx, rp, n.ID, ev); e != nil {
+			return e
+		}
+		v, e := experiment.Evaluate(n, ev, now)
+		if e != nil {
+			return e
+		}
+		outcome = v.Outcome
+		// Keep analysis visible to reviewers without marking a phase as
+		// approved/evaluated.
+		n.LatestEvidence = ev
+		if _, harmful := experiment.HealthyEvidence(n, ev, now); harmful {
+			outcome = treatment.OutcomeHarmful
+		}
+	}
+	n.LatestOutcome = outcome
+	switch {
+	case outcome.Withdraws():
+		event := experiment.EventExpire
+		if outcome == treatment.OutcomeHarmful {
+			event = experiment.EventHarm
+		}
+		var e error
+		if n.Status, e = experiment.Transition(n.Status, event); e != nil {
+			return e
+		}
+		phase.Outcome = outcome
+		phase.EvaluatedAt = now
+		n.Revision++
+		if e = s.assign(ctx, rp, n, false); e != nil {
+			return e
+		}
+		if e = audit(ctx, rp, "safety-controller", "", "automatic_withdrawal", wire.Experiment(n)); e != nil {
+			return e
+		}
+	case ev != nil && n.Status == treatment.StatusRunning:
+		// Before the 30-minute decision window completes, fresh health
+		// evidence can renew the existing phase but cannot expand it.
+		healthy, _ := experiment.HealthyEvidence(n, ev, now)
+		if healthy && outcome.RenewsLease() {
+			if e := s.renew(ctx, rp, n, now); e != nil {
+				return e
+			}
+		}
+	}
+	return s.save(ctx, rp, n)
 }
 
 func (s *Server) renew(ctx context.Context, rp store.Repos, n *treatment.Experiment, now time.Time) error {

@@ -15,7 +15,7 @@ import (
 
 type evidence struct{ *runner }
 
-var hostColumns = []string{"evidence_id", "position", "agent_id", "sockets", "bytes_acked", "goodput_bps", "retransmission_ratio", "rtt_p95_ms", "exposed_sockets", "collection_healthy"}
+var hostColumns = []string{"evidence_id", positionColumnCst, agentIDColumnCst, "sockets", "bytes_acked", "goodput_bps", "retransmission_ratio", "rtt_p95_ms", "exposed_sockets", "collection_healthy"}
 
 // digest is a content hash over the domain value so Put can detect reuse of
 // an evidence ID for different content without reloading every host row.
@@ -50,8 +50,7 @@ func getEvidence(ctx context.Context, q querier, id string) (*treatment.Evidence
 		var h treatment.HostEvidence
 		var sockets, bytes, exposed int64
 		if err = rows.Scan(&h.AgentID, &sockets, &bytes, &h.GoodputBps, &h.RetransmissionRatio, &h.RttP95Ms, &exposed, &h.CollectionHealthy); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		h.Sockets, h.BytesAcked, h.ExposedSockets = uint64(sockets), uint64(bytes), uint64(exposed)
 		e.Hosts = append(e.Hosts, h)

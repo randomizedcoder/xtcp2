@@ -63,13 +63,14 @@ func TestValidIDBoundaries(t *testing.T) {
 }
 
 func TestTreatmentValidation(t *testing.T) {
-	cases := []validationCase[*treatment.Treatment]{
+	fixed := []validationCase[*treatment.Treatment]{
 		{"valid", "the supported nearby profile is accepted", func(**treatment.Treatment) {}, ""},
 		{"nil", "missing treatments are rejected", func(p **treatment.Treatment) { *p = nil }, "requires"},
 		{"revision", "zero revision is invalid", func(p **treatment.Treatment) { (*p).Revision = 0 }, "requires"},
 		{"empty-settings", "a treatment with no parameter set is rejected", func(p **treatment.Treatment) { (*p).Settings = treatment.TCPSettings{} }, "empty"},
 		{"zero-destination", "the zero prefix is not a destination", func(p **treatment.Treatment) { (*p).Destination = netip.Prefix{} }, "canonical unicast"},
 	}
+	cases := append(make([]validationCase[*treatment.Treatment], 0, len(fixed)+10), fixed...)
 	for _, tc := range []struct {
 		destination string
 		valid       bool
@@ -92,7 +93,7 @@ func TestTCPSettingsValidation(t *testing.T) {
 		s        treatment.TCPSettings
 		verified bool
 	}
-	cases := []validationCase[input]{
+	fixed := []validationCase[input]{
 		{"cubic", "ordinary CUBIC is accepted", func(*input) {}, ""},
 		{"empty", "at least one explicit metric is required", func(p *input) { p.s = treatment.TCPSettings{} }, "empty"},
 		{"explicit-false", "false quickack is a real setting", func(p *input) { p.s = treatment.TCPSettings{QuickAck: ptr(false)} }, ""},
@@ -113,6 +114,7 @@ func TestTCPSettingsValidation(t *testing.T) {
 			p.verified = true
 		}, ""},
 	}
+	cases := append(make([]validationCase[input], 0, len(fixed)+3*4), fixed...)
 	for _, metric := range []string{"rto", "cwnd", "rwnd"} {
 		maximum := uint32(1024)
 		errorText := "initial window"
@@ -141,13 +143,14 @@ func TestTCPSettingsValidation(t *testing.T) {
 }
 
 func TestPolicyValidation(t *testing.T) {
-	cases := []validationCase[treatment.Policy]{
+	fixed := []validationCase[treatment.Policy]{
 		{"default", "production defaults are valid", func(*treatment.Policy) {}, ""},
 		{"zero", "the zero policy is rejected", func(p *treatment.Policy) { *p = treatment.Policy{} }, "duration"},
 		{"observation-after-phase", "observation cannot exceed phase", func(p *treatment.Policy) { p.MaximumPhase = time.Minute }, "sample bounds"},
 		{"zero-sockets", "sample count must be positive", func(p *treatment.Policy) { p.MinimumSocketsPerHost = 0 }, "sample bounds"},
 		{"zero-bytes", "byte count must be positive", func(p *treatment.Policy) { p.MinimumBytesPerHost = 0 }, "sample bounds"},
 	}
+	cases := append(make([]validationCase[treatment.Policy], 0, len(fixed)+4+3*4+3*7), fixed...)
 	for _, n := range []uint32{1, 2, treatment.MaxAgents, treatment.MaxAgents + 1} {
 		want := ""
 		if n < 2 || n > treatment.MaxAgents {
@@ -199,7 +202,7 @@ func TestPolicyValidation(t *testing.T) {
 
 func TestEvidenceValidation(t *testing.T) {
 	now := time.Unix(1700000000, 0)
-	cases := []validationCase[*treatment.Evidence]{
+	fixed := []validationCase[*treatment.Evidence]{
 		{"valid", "complete finite evidence is accepted", func(**treatment.Evidence) {}, ""},
 		{"nil", "evidence is required", func(p **treatment.Evidence) { *p = nil }, "interval"},
 		{"empty-window", "a zero length window is invalid", func(p **treatment.Evidence) { (*p).WindowStart = (*p).WindowEnd }, "interval"},
@@ -215,6 +218,7 @@ func TestEvidenceValidation(t *testing.T) {
 		{"duplicate-host", "hosts are independent units", func(p **treatment.Evidence) { (*p).Hosts[1] = (*p).Hosts[0] }, "host"},
 		{"overexposure", "exposed sockets cannot exceed total sockets", func(p **treatment.Evidence) { (*p).Hosts[0].ExposedSockets = 101 }, "host"},
 	}
+	cases := append(make([]validationCase[*treatment.Evidence], 0, len(fixed)+3*5+2), fixed...)
 	for _, field := range []string{"goodput", "loss", "rtt"} {
 		for _, v := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
 			want := ""
@@ -251,7 +255,7 @@ func TestEvidenceValidation(t *testing.T) {
 
 func TestDesiredValidation(t *testing.T) {
 	now := time.Unix(1700000000, 0)
-	cases := []validationCase[*treatment.DesiredState]{
+	fixed := []validationCase[*treatment.DesiredState]{
 		{"valid", "leased trials are accepted", func(**treatment.DesiredState) {}, ""},
 		{"nil", "desired header is required", func(p **treatment.DesiredState) { *p = nil }, "header"},
 		{"empty", "empty assignment set withdraws treatments", func(p **treatment.DesiredState) { (*p).Assignments = nil }, ""},
@@ -293,6 +297,7 @@ func TestDesiredValidation(t *testing.T) {
 			a.Predecessor = &pred
 		}, "differs"},
 	}
+	cases := append(make([]validationCase[*treatment.DesiredState], 0, len(fixed)+2), fixed...)
 	for _, n := range []int{treatment.MaxAssignments, treatment.MaxAssignments + 1} {
 		want := ""
 		if n > treatment.MaxAssignments {
@@ -335,7 +340,7 @@ func TestReportValidation(t *testing.T) {
 		d := fixtures.Desired(now)
 		return &treatment.AgentReport{AgentID: "host-1", Location: "dc1", Capabilities: treatment.Capabilities{BootID: "boot-1", KernelRelease: "6.12", CongestionAlgorithms: []string{"cubic", "bbr"}, SimpleHostRouting: true, ActuatorEnabled: true}, DesiredRevision: 1, Records: []treatment.ApplicationRecord{{Assignment: d.Assignments[0], DesiredRevision: 1, Status: treatment.ApplyVerified, AppliedAt: now}}}
 	}
-	cases := []validationCase[*treatment.AgentReport]{
+	fixed := []validationCase[*treatment.AgentReport]{
 		{"valid", "a verified report is accepted", func(**treatment.AgentReport) {}, ""},
 		{"nil", "a report is required", func(p **treatment.AgentReport) { *p = nil }, "agent report"},
 		{"no-records", "a fresh host reports nothing", func(p **treatment.AgentReport) { (*p).Records = nil }, ""},
@@ -350,6 +355,7 @@ func TestReportValidation(t *testing.T) {
 		{"unspecified-status", "an unacted assignment may be reported", func(p **treatment.AgentReport) { (*p).Records[0].Status = treatment.ApplyUnspecified }, ""},
 		{"bad-treatment", "records carry valid treatments", func(p **treatment.AgentReport) { (*p).Records[0].Assignment.Treatment.Revision = 0 }, "requires"},
 	}
+	cases := append(make([]validationCase[*treatment.AgentReport], 0, len(fixed)+2), fixed...)
 	for _, n := range []int{64, 65} {
 		want := ""
 		if n > 64 {

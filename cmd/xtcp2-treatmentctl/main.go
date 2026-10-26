@@ -81,7 +81,9 @@ func run() error {
 	s, e := h.Reconciler.Run(ctx, nil, reconcile.ModeFull)
 	if s != nil {
 		if b, err := reconcile.MarshalText(s); err == nil {
-			os.Stdout.Write(b)
+			if _, werr := os.Stdout.Write(b); werr != nil && e == nil {
+				e = werr
+			}
 		}
 	}
 	return e

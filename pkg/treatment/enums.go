@@ -7,6 +7,9 @@ import "fmt"
 // convert with a range-checked cast; wire's mirror tests pin that
 // correspondence. Names are the snake_case forms used in SQL, logs and docs.
 
+// unspecifiedNameCst names the zero value of every enumeration.
+const unspecifiedNameCst = "unspecified"
+
 // Status is an experiment's lifecycle state. Legal changes are the state
 // machine in package experiment.
 type Status uint8
@@ -23,7 +26,7 @@ const (
 	statusCount
 )
 
-var statusNames = [statusCount]string{"unspecified", "proposed", "running", "paused", "suspended", "complete", "retired", "rolled_back"}
+var statusNames = [statusCount]string{unspecifiedNameCst, "proposed", "running", "paused", "suspended", "complete", "retired", "rolled_back"}
 
 func (s Status) String() string { return enumName(uint8(s), statusNames[:], "status") }
 
@@ -69,7 +72,7 @@ const (
 	modeCount
 )
 
-var modeNames = [modeCount]string{"unspecified", "trial", "stable", "suspended", "retired"}
+var modeNames = [modeCount]string{unspecifiedNameCst, "trial", "stable", "suspended", "retired"}
 
 func (m AssignmentMode) String() string { return enumName(uint8(m), modeNames[:], "mode") }
 
@@ -98,7 +101,7 @@ const (
 	applyCount
 )
 
-var applyNames = [applyCount]string{"unspecified", "pending", "verified", "removed", "expired", "failed"}
+var applyNames = [applyCount]string{unspecifiedNameCst, "pending", "verified", "removed", "expired", "failed"}
 
 func (a ApplyStatus) String() string { return enumName(uint8(a), applyNames[:], "apply status") }
 
@@ -140,7 +143,7 @@ const (
 )
 
 var outcomeNames = [outcomeCount]string{
-	"unspecified",
+	unspecifiedNameCst,
 	"baseline",
 	"awaiting_application",
 	"awaiting_exposure",

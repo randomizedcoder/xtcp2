@@ -34,7 +34,7 @@ func TestDiscoveryScopeAndCooldown(t *testing.T) {
 			eachStore(t, func(t *testing.T, st store.Store) {
 				now := time.Now().UTC().Truncate(time.Microsecond)
 				s := testServer(st, &now)
-				var agents []string
+				agents := make([]string, 0, 8)
 				for i := range 8 {
 					id := fmt.Sprintf("host-%d", i)
 					enroll(t, s, id)
@@ -151,11 +151,12 @@ func TestConcurrentDiscoveryProposals(t *testing.T) {
 		close(results)
 		successes, suppressed := 0, 0
 		for err := range results {
-			if err == nil {
+			switch {
+			case err == nil:
 				successes++
-			} else if errors.Is(err, errDiscoverySuppressed) {
+			case errors.Is(err, errDiscoverySuppressed):
 				suppressed++
-			} else {
+			default:
 				t.Fatal(err)
 			}
 		}

@@ -90,7 +90,11 @@ func TestWatcherRefreshContracts(t *testing.T) {
 	}{
 		{"journal", "positive: a committed journal attributes records with the journal's agent and the daemon's location", func(t *testing.T, dir string) { writeJournal(t, dir, verifiedState(3)) }, "", "host-1", "trial-1", "", "dc1", "dc1"},
 		{"missing-file", "negative: no snapshot yet means identity is not invented", func(*testing.T, string) {}, "", "", "", "", "dc1", "dc1"},
-		{"missing-dir", "negative: a directory that does not exist yet is not an error", func(t *testing.T, dir string) { os.RemoveAll(dir) }, "", "", "", "", "dc1", "dc1"},
+		{"missing-dir", "negative: a directory that does not exist yet is not an error", func(t *testing.T, dir string) {
+			if err := os.RemoveAll(dir); err != nil {
+				t.Fatal(err)
+			}
+		}, "", "", "", "", "dc1", "dc1"},
 		{"corrupt", "negative: an invalid snapshot clears attribution and is logged", func(t *testing.T, dir string) {
 			if err := os.WriteFile(filepath.Join(dir, reconcile.SnapshotFile), []byte("nonsense {"), 0600); err != nil {
 				t.Fatal(err)

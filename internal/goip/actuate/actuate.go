@@ -64,8 +64,9 @@ type Backend struct {
 	ruleCache  map[uint8]error
 }
 
-// Cache one consistent read pass. Mutations invalidate their table before
-// readback; the next reconciliation refreshes all forwarding/rule state.
+// BeginReconcile caches one consistent read pass. Mutations invalidate their
+// table before readback; the next reconciliation refreshes all forwarding and
+// rule state.
 func (b *Backend) BeginReconcile() {
 	b.routeCache = map[uint64][][]byte{}
 	b.ruleCache = map[uint8]error{}
@@ -90,15 +91,19 @@ func (b *Backend) reserved() error {
 	return nil
 }
 
-func withSource(ctx context.Context, fn func(*goip.NetlinkSource, *service.Service) error) error {
-	if err := ctx.Err(); err != nil {
+func withSource(ctx context.Context, fn func(*goip.NetlinkSource, *service.Service) error) (err error) {
+	if err = ctx.Err(); err != nil {
 		return err
 	}
 	s, err := goip.OpenNetlinkTimeout(2 * time.Second)
 	if err != nil {
 		return err
 	}
-	defer s.Close()
+	defer func() {
+		if cerr := s.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 	seq := uint32(0)
 	svc := service.New(s, func() uint32 { seq++; return seq })
 	return fn(s, svc)

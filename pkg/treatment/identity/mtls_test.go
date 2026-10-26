@@ -112,14 +112,23 @@ func TestMTLSHandshakesAndRoleBoundaries(t *testing.T) {
 	pb.RegisterAgentControlServiceServer(server, authProbe{})
 	pb.RegisterOperatorServiceServer(server, authProbe{})
 	go server.Serve(listener)
-	t.Cleanup(func() { server.Stop(); listener.Close() })
+	t.Cleanup(func() {
+		server.Stop()
+		if e := listener.Close(); e != nil {
+			t.Error(e)
+		}
+	})
 	connect := func(config *tls.Config) *grpc.ClientConn {
 		t.Helper()
 		conn, e := grpc.NewClient("passthrough:///controller.test", grpc.WithTransportCredentials(credentials.NewTLS(config)), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }))
 		if e != nil {
 			t.Fatal(e)
 		}
-		t.Cleanup(func() { conn.Close() })
+		t.Cleanup(func() {
+			if e := conn.Close(); e != nil {
+				t.Error(e)
+			}
+		})
 		return conn
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

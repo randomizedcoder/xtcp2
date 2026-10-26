@@ -95,7 +95,7 @@ func TestEveryMethodAgainstEveryRole(t *testing.T) {
 }
 
 func TestGRPCOptionsCarryInterceptors(t *testing.T) {
-	// The options must at least construct a server; the interceptor behaviour
+	// The options must at least construct a server; the interceptor behavior
 	// itself is covered above and by the identity package's mTLS test.
 	s := grpc.NewServer(GRPCOptions()...)
 	defer s.Stop()

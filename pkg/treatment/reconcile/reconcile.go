@@ -1,3 +1,9 @@
+// Package reconcile owns the host-side half of the treatment contract: the
+// intent journal and the reconciler that drives a Backend from it. It is
+// shared by the in-daemon/standalone agent and by the independent watchdog;
+// it never speaks gRPC, never imports the RPC proto and never imports the
+// controller. The journal file format is its own proto package
+// (xtcp_treatment_journal.v1) converted to and from the domain types.
 package reconcile
 
 import (
@@ -9,13 +15,6 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 )
-
-// Package reconcile owns the host-side half of the treatment contract: the
-// intent journal and the reconciler that drives a Backend from it. It is
-// shared by the in-daemon/standalone agent and by the independent watchdog;
-// it never speaks gRPC, never imports the RPC proto and never imports the
-// controller. The journal file format is its own proto package
-// (xtcp_treatment_journal.v1) converted to and from the domain types.
 
 // Mode selects how much a reconciliation pass may do.
 type Mode uint8
@@ -88,7 +87,6 @@ func (r *Reconciler) Run(ctx context.Context, in *treatment.DesiredState, mode M
 	if mode != ModeFull && mode != ModeExpiryOnly {
 		return nil, fmt.Errorf("unknown reconcile mode %d", mode)
 	}
-	expiryOnly := mode == ModeExpiryOnly
 	var result *State
 	err := r.Journal.WithLock(ctx, func(s *State, save func() error) error {
 		defer func() { result = s.Clone() }()
@@ -98,168 +96,224 @@ func (r *Reconciler) Run(ctx context.Context, in *treatment.DesiredState, mode M
 			return errors.New("journal belongs to another agent")
 		}
 		if in != nil {
-			if expiryOnly {
-				return errors.New("watchdog cannot accept desired state")
-			}
-			if err := treatment.ValidateDesired(in); err != nil {
-				return err
-			}
-			if in.AgentID != r.AgentID {
-				return errors.New("desired state is for another agent")
-			}
-			if s.Desired != nil {
-				if in.Revision < s.Desired.Revision {
-					return errors.New("stale desired revision")
-				}
-				if in.Revision == s.Desired.Revision && !in.Equal(s.Desired) {
-					return errors.New("conflicting desired state at same revision")
-				}
-			}
-			for i := range in.Assignments {
-				a := &in.Assignments[i]
-				if v := s.Record(a.ExperimentID); v != nil && a.Generation < v.Assignment.Generation {
-					return errors.New("stale assignment generation")
-				}
-			}
-			s.Desired = in.Clone()
-			r.header(s, now)
-			if err := save(); err != nil {
+			if err := r.acceptDesired(s, in, mode, now, save); err != nil {
 				return err
 			}
 		}
 		if s.Desired == nil {
 			return nil
 		}
-		active := map[string]bool{}
-		var errs []error
-		// Disable first: an interrupted cleanup must not leave suspended routes
-		// effective. Removal remains per-route and ownership checked.
-		held := s.Held()
-		if held {
-			if err := r.Backend.Disable(ctx); err != nil {
-				errs = append(errs, err)
-			}
-		}
-		for i := range s.Desired.Assignments {
-			a := &s.Desired.Assignments[i]
-			if err := ctx.Err(); err != nil {
-				r.header(s, now)
-				return errors.Join(err, save())
-			}
-			active[a.ExperimentID] = true
-			v := s.Record(a.ExperimentID)
-			if v == nil {
-				s.Records = append(s.Records, Record{ApplicationRecord: treatment.ApplicationRecord{Assignment: a.Clone(), ReceivedAt: now, Status: treatment.ApplyPending}})
-				v = &s.Records[len(s.Records)-1]
-			}
-			if a.Generation < v.Assignment.Generation {
-				return errors.New("stale assignment generation")
-			}
-			if a.Generation > v.Assignment.Generation {
-				v.ExpiredLatched = false
-				v.ReceivedAt = now
-			}
-			v.Assignment = a.Clone()
-			v.DesiredRevision = s.Desired.Revision
-			if a.Mode == treatment.ModeTrial && !a.LeaseExpiresAt.After(now) {
-				v.ExpiredLatched = true
-			}
-			remove := held || a.Mode == treatment.ModeSuspended || a.Mode == treatment.ModeRetired || v.ExpiredLatched
-			if expiryOnly && !remove {
-				continue
-			}
-			var err error
-			if v.ExpiredLatched && !held && a.Mode == treatment.ModeTrial && a.Predecessor != nil {
-				err = r.install(ctx, v, a.Predecessor, save, now)
-				if err == nil {
-					v.Status = treatment.ApplyExpired
-				}
-			} else if remove {
-				v.AttemptedAt = now
-				if len(v.InstalledRoute) > 0 {
-					if err := save(); err != nil {
-						return err
-					}
-				}
-				if len(v.InstalledRoute) > 0 && v.InstalledBootID == r.BootID {
-					err = r.Backend.Remove(ctx, v.InstalledRoute)
-				}
-				if err == nil {
-					v.InstalledRoute = nil
-					v.RemovedAt = now
-					v.Status = treatment.ApplyRemoved
-					if v.ExpiredLatched {
-						v.Status = treatment.ApplyExpired
-					}
-				}
-			} else {
-				err = r.install(ctx, v, &a.Treatment, save, now)
-			}
-			if err != nil {
-				v.Status = treatment.ApplyFailed
-				v.Error = err.Error()
-				errs = append(errs, fmt.Errorf("%s: %w", a.ExperimentID, err))
-			} else {
-				v.Error = ""
-			}
-		}
-		// Entries absent from the committed snapshot are tombstones, never
-		// candidates for startup application.
-		for i := range s.Records {
-			v := &s.Records[i]
-			if active[v.Assignment.ExperimentID] || len(v.InstalledRoute) == 0 {
-				continue
-			}
-			if v.InstalledBootID == r.BootID {
-				if err := r.Backend.Remove(ctx, v.InstalledRoute); err != nil {
-					v.Error = err.Error()
-					v.Status = treatment.ApplyFailed
-					errs = append(errs, err)
-					continue
-				}
-			}
-			v.InstalledRoute = nil
-			v.Status = treatment.ApplyRemoved
-			v.RemovedAt = now
-		}
-		if len(errs) > 0 {
-			// A failed withdrawal must not leave an expired/unknown override
-			// selected. Isolate the whole owned table until a clean pass.
-			if err := r.Backend.Disable(ctx); err != nil {
-				errs = append(errs, err)
-			}
-			for i := range s.Records {
-				if v := &s.Records[i]; v.Status == treatment.ApplyVerified {
-					v.Status = treatment.ApplyFailed
-					v.Error = "owned route lookup disabled after reconciliation failure"
-				}
-			}
-		} else if !held && !expiryOnly {
-			hasRoutes := false
-			for i := range s.Records {
-				hasRoutes = hasRoutes || len(s.Records[i].InstalledRoute) > 0
-			}
-			if hasRoutes {
-				if err := r.Backend.Enable(ctx); err != nil {
-					errs = append(errs, err, r.Backend.Disable(ctx))
-					for i := range s.Records {
-						if v := &s.Records[i]; v.Status == treatment.ApplyVerified {
-							v.Status = treatment.ApplyFailed
-							v.Error = err.Error()
-						}
-					}
-				}
-			} else if err := r.Backend.Disable(ctx); err != nil {
-				errs = append(errs, err)
-			}
-		}
-		r.header(s, now)
-		if err := save(); err != nil {
-			return err
-		}
-		return errors.Join(errs...)
+		p := &pass{r: r, s: s, mode: mode, now: now, save: save, held: s.Held()}
+		return p.run(ctx)
 	})
 	return result, err
+}
+
+// acceptDesired validates in against the journal and persists it as the new
+// desired state before anything touches the kernel.
+func (r *Reconciler) acceptDesired(s *State, in *treatment.DesiredState, mode Mode, now time.Time, save func() error) error {
+	if mode == ModeExpiryOnly {
+		return errors.New("watchdog cannot accept desired state")
+	}
+	if err := treatment.ValidateDesired(in); err != nil {
+		return err
+	}
+	if in.AgentID != r.AgentID {
+		return errors.New("desired state is for another agent")
+	}
+	if s.Desired != nil {
+		if in.Revision < s.Desired.Revision {
+			return errors.New("stale desired revision")
+		}
+		if in.Revision == s.Desired.Revision && !in.Equal(s.Desired) {
+			return errors.New("conflicting desired state at same revision")
+		}
+	}
+	for i := range in.Assignments {
+		a := &in.Assignments[i]
+		if v := s.Record(a.ExperimentID); v != nil && a.Generation < v.Assignment.Generation {
+			return errors.New("stale assignment generation")
+		}
+	}
+	s.Desired = in.Clone()
+	r.header(s, now)
+	return save()
+}
+
+// pass is one reconciliation of the journal's desired state against the
+// kernel. Failures of individual assignments are recorded on their records
+// and collected in errs; only journal and ordering faults abort the pass.
+type pass struct {
+	r    *Reconciler
+	s    *State
+	mode Mode
+	now  time.Time
+	save func() error
+	held bool
+	errs []error
+}
+
+func (p *pass) run(ctx context.Context) error {
+	s := p.s
+	// Disable first: an interrupted cleanup must not leave suspended routes
+	// effective. Removal remains per-route and ownership checked.
+	if p.held {
+		if err := p.r.Backend.Disable(ctx); err != nil {
+			p.errs = append(p.errs, err)
+		}
+	}
+	active := map[string]bool{}
+	for i := range s.Desired.Assignments {
+		a := &s.Desired.Assignments[i]
+		if err := ctx.Err(); err != nil {
+			p.r.header(s, p.now)
+			return errors.Join(err, p.save())
+		}
+		active[a.ExperimentID] = true
+		if err := p.assignment(ctx, a); err != nil {
+			return err
+		}
+	}
+	p.tombstones(ctx, active)
+	p.settle(ctx)
+	p.r.header(s, p.now)
+	if err := p.save(); err != nil {
+		return err
+	}
+	return errors.Join(p.errs...)
+}
+
+// assignment brings one assignment's record and route in line with it.
+func (p *pass) assignment(ctx context.Context, a *treatment.Assignment) error {
+	s, now := p.s, p.now
+	v := s.Record(a.ExperimentID)
+	if v == nil {
+		s.Records = append(s.Records, Record{ApplicationRecord: treatment.ApplicationRecord{Assignment: a.Clone(), ReceivedAt: now, Status: treatment.ApplyPending}})
+		v = &s.Records[len(s.Records)-1]
+	}
+	if a.Generation < v.Assignment.Generation {
+		return errors.New("stale assignment generation")
+	}
+	if a.Generation > v.Assignment.Generation {
+		v.ExpiredLatched = false
+		v.ReceivedAt = now
+	}
+	v.Assignment = a.Clone()
+	v.DesiredRevision = s.Desired.Revision
+	if a.Mode == treatment.ModeTrial && !a.LeaseExpiresAt.After(now) {
+		v.ExpiredLatched = true
+	}
+	remove := p.held || a.Mode == treatment.ModeSuspended || a.Mode == treatment.ModeRetired || v.ExpiredLatched
+	if p.mode == ModeExpiryOnly && !remove {
+		return nil
+	}
+	var err error
+	switch {
+	case v.ExpiredLatched && !p.held && a.Mode == treatment.ModeTrial && a.Predecessor != nil:
+		if err = p.r.install(ctx, v, a.Predecessor, p.save, now); err == nil {
+			v.Status = treatment.ApplyExpired
+		}
+	case remove:
+		v.AttemptedAt = now
+		if len(v.InstalledRoute) > 0 {
+			if serr := p.save(); serr != nil {
+				return serr
+			}
+		}
+		err = p.withdraw(ctx, v)
+	default:
+		err = p.r.install(ctx, v, &a.Treatment, p.save, now)
+	}
+	if err != nil {
+		v.Status = treatment.ApplyFailed
+		v.Error = err.Error()
+		p.errs = append(p.errs, fmt.Errorf("%s: %w", a.ExperimentID, err))
+		return nil
+	}
+	v.Error = ""
+	return nil
+}
+
+// withdraw removes the record's route when this boot installed it and marks
+// the record removed, or expired when its lease ran out.
+func (p *pass) withdraw(ctx context.Context, v *Record) error {
+	if len(v.InstalledRoute) > 0 && v.InstalledBootID == p.r.BootID {
+		if err := p.r.Backend.Remove(ctx, v.InstalledRoute); err != nil {
+			return err
+		}
+	}
+	v.InstalledRoute = nil
+	v.RemovedAt = p.now
+	v.Status = treatment.ApplyRemoved
+	if v.ExpiredLatched {
+		v.Status = treatment.ApplyExpired
+	}
+	return nil
+}
+
+// tombstones withdraws routes whose assignments are absent from the desired
+// state. Such entries are never candidates for startup application.
+func (p *pass) tombstones(ctx context.Context, active map[string]bool) {
+	for i := range p.s.Records {
+		v := &p.s.Records[i]
+		if active[v.Assignment.ExperimentID] || len(v.InstalledRoute) == 0 {
+			continue
+		}
+		if v.InstalledBootID == p.r.BootID {
+			if err := p.r.Backend.Remove(ctx, v.InstalledRoute); err != nil {
+				v.Error = err.Error()
+				v.Status = treatment.ApplyFailed
+				p.errs = append(p.errs, err)
+				continue
+			}
+		}
+		v.InstalledRoute = nil
+		v.Status = treatment.ApplyRemoved
+		v.RemovedAt = p.now
+	}
+}
+
+// settle leaves the owned lookup rules consistent with the pass: disabled
+// after any failure, enabled only when a clean full pass left routes
+// installed, and disabled when nothing is installed.
+func (p *pass) settle(ctx context.Context) {
+	if len(p.errs) > 0 {
+		// A failed withdrawal must not leave an expired/unknown override
+		// selected. Isolate the whole owned table until a clean pass.
+		if err := p.r.Backend.Disable(ctx); err != nil {
+			p.errs = append(p.errs, err)
+		}
+		p.failVerified("owned route lookup disabled after reconciliation failure")
+		return
+	}
+	if p.held || p.mode == ModeExpiryOnly {
+		return
+	}
+	hasRoutes := false
+	for i := range p.s.Records {
+		hasRoutes = hasRoutes || len(p.s.Records[i].InstalledRoute) > 0
+	}
+	if !hasRoutes {
+		if err := p.r.Backend.Disable(ctx); err != nil {
+			p.errs = append(p.errs, err)
+		}
+		return
+	}
+	if err := p.r.Backend.Enable(ctx); err != nil {
+		p.errs = append(p.errs, err, p.r.Backend.Disable(ctx))
+		p.failVerified(err.Error())
+	}
+}
+
+// failVerified demotes every verified record after the owned rules were
+// disabled, so the report never claims a route the kernel cannot select.
+func (p *pass) failVerified(reason string) {
+	for i := range p.s.Records {
+		if v := &p.s.Records[i]; v.Status == treatment.ApplyVerified {
+			v.Status = treatment.ApplyFailed
+			v.Error = reason
+		}
+	}
 }
 
 func (r *Reconciler) install(ctx context.Context, v *Record, t *treatment.Treatment, save func() error, now time.Time) error {

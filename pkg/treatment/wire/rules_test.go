@@ -75,7 +75,7 @@ func TestProtoRulesMirrorValidators(t *testing.T) {
 		{"negative: evidence window inverted", experiment(func(e *pb.Experiment) {
 			e.Baseline.WindowStart, e.Baseline.WindowEnd = e.Baseline.WindowEnd, e.Baseline.WindowStart
 		}), "evidence.interval"},
-		{"negative: evidence analysed before its window closed", experiment(func(e *pb.Experiment) {
+		{"negative: evidence analyzed before its window closed", experiment(func(e *pb.Experiment) {
 			e.Baseline.AnalyzedAt = timestamppb.New(e.Baseline.WindowEnd.AsTime().Add(-time.Second))
 		}), "evidence.interval"},
 		{"negative: artifact digest of the wrong length", experiment(func(e *pb.Experiment) { e.Baseline.ArtifactSha256 = "abc" }), "string.pattern"},

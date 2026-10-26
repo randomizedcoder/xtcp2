@@ -126,8 +126,8 @@ func TestCertificateIdentityIsolation(t *testing.T) {
 
 func TestNotificationFanoutTenThousandAgents(t *testing.T) {
 	h := NewNotificationHub()
-	var channels []chan uint64
-	var cleanup []func()
+	channels := make([]chan uint64, 0, 10000)
+	cleanup := make([]func(), 0, 10000)
 	for i := range 10000 {
 		ch, done := h.subscribe(fmt.Sprint(i))
 		channels = append(channels, ch)

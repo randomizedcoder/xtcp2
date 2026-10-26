@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -64,9 +65,8 @@ func (x *experiments) get(ctx context.Context, q querier, id string) (*treatment
 	var status, outcome string
 	var proposed sql.NullTime
 	var updated time.Time
-	targets := []any{&e.Location, &e.Hypothesis}
-	targets = append(targets, tr.targets()...)
-	targets = append(targets, &minObs, &maxPhase, &maxAge, &minSockets, &minBytes, &minTreated, &e.Policy.MinimumImprovement, &e.Policy.MaximumRetransmissionIncrease, &e.Policy.MaximumRTTIncrease, &baseline, &status, &revision, &proposed, &latest, &outcome, &updated)
+	targets := slices.Concat([]any{&e.Location, &e.Hypothesis}, tr.targets(),
+		[]any{&minObs, &maxPhase, &maxAge, &minSockets, &minBytes, &minTreated, &e.Policy.MinimumImprovement, &e.Policy.MaximumRetransmissionIncrease, &e.Policy.MaximumRTTIncrease, &baseline, &status, &revision, &proposed, &latest, &outcome, &updated})
 	err := q.QueryRowContext(ctx, "SELECT "+selectList(experimentColumns[1:])+" FROM xtcp_treatment_experiments WHERE id=$1"+suffix, id).Scan(targets...)
 	if err != nil {
 		return nil, notFound(err)
@@ -106,57 +106,71 @@ func (x *experiments) get(ctx context.Context, q querier, id string) (*treatment
 	if e.LatestEvidence, err = load(latest); err != nil {
 		return nil, err
 	}
+	if e.CohortOrder, err = loadCohort(ctx, q, id); err != nil {
+		return nil, err
+	}
+	if e.Phases, err = loadPhases(ctx, q, id, load); err != nil {
+		return nil, err
+	}
+	return e, nil
+}
+
+// loadCohort reads the experiment's cohort in allocation order.
+func loadCohort(ctx context.Context, q querier, id string) ([]string, error) {
 	rows, err := q.QueryContext(ctx, "SELECT agent_id FROM xtcp_treatment_cohort WHERE experiment_id=$1 ORDER BY position", id)
 	if err != nil {
 		return nil, err
 	}
+	var cohort []string
 	for rows.Next() {
 		var a string
 		if err = rows.Scan(&a); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
-		e.CohortOrder = append(e.CohortOrder, a)
+		cohort = append(cohort, a)
 	}
 	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
 		return nil, err
 	}
-	rows, err = q.QueryContext(ctx, "SELECT target_hosts,issued_at,observation_started_at,evaluated_at,evidence_id,outcome,reviewer,reason FROM xtcp_treatment_phases WHERE experiment_id=$1 ORDER BY position", id)
+	return cohort, nil
+}
+
+// loadPhases reads the experiment's phases in order and resolves each
+// phase's evidence through load. Evidence is loaded after the rows are
+// closed so a transaction never has two result sets open.
+func loadPhases(ctx context.Context, q querier, id string, load func(sql.NullString) (*treatment.Evidence, error)) ([]treatment.Phase, error) {
+	rows, err := q.QueryContext(ctx, "SELECT target_hosts,issued_at,observation_started_at,evaluated_at,evidence_id,outcome,reviewer,reason FROM xtcp_treatment_phases WHERE experiment_id=$1 ORDER BY position", id)
 	if err != nil {
 		return nil, err
 	}
-	type phaseRow struct {
-		p  treatment.Phase
-		ev sql.NullString
-	}
-	var phases []phaseRow
+	var phases []treatment.Phase
+	var evidenceIDs []sql.NullString
 	for rows.Next() {
-		var r phaseRow
+		var p treatment.Phase
+		var ev sql.NullString
 		var target int64
 		var issued, started, evaluated sql.NullTime
 		var out string
-		if err = rows.Scan(&target, &issued, &started, &evaluated, &r.ev, &out, &r.p.Reviewer, &r.p.Reason); err != nil {
-			rows.Close()
-			return nil, err
+		if err = rows.Scan(&target, &issued, &started, &evaluated, &ev, &out, &p.Reviewer, &p.Reason); err != nil {
+			return nil, errors.Join(err, rows.Close())
 		}
-		r.p.TargetHosts = uint32(target)
-		r.p.IssuedAt, r.p.ObservationStartedAt, r.p.EvaluatedAt = fromNullTime(issued), fromNullTime(started), fromNullTime(evaluated)
-		if r.p.Outcome, err = treatment.ParseOutcome(out); err != nil {
-			rows.Close()
-			return nil, err
+		p.TargetHosts = uint32(target)
+		p.IssuedAt, p.ObservationStartedAt, p.EvaluatedAt = fromNullTime(issued), fromNullTime(started), fromNullTime(evaluated)
+		if p.Outcome, err = treatment.ParseOutcome(out); err != nil {
+			return nil, errors.Join(err, rows.Close())
 		}
-		phases = append(phases, r)
+		phases = append(phases, p)
+		evidenceIDs = append(evidenceIDs, ev)
 	}
 	if err = errors.Join(rows.Err(), rows.Close()); err != nil {
 		return nil, err
 	}
-	for _, r := range phases {
-		if r.p.Evidence, err = load(r.ev); err != nil {
+	for i := range phases {
+		if phases[i].Evidence, err = load(evidenceIDs[i]); err != nil {
 			return nil, err
 		}
-		e.Phases = append(e.Phases, r.p)
 	}
-	return e, nil
+	return phases, nil
 }
 
 // Save stores the evidence the experiment carries, upserts the row, writes
@@ -189,7 +203,7 @@ func (x *experiments) Save(ctx context.Context, e *treatment.Experiment) error {
 			for i, a := range e.CohortOrder {
 				rows[i] = []any{e.ID, i, a}
 			}
-			if err := batchInsert(ctx, q, "xtcp_treatment_cohort", []string{"experiment_id", "position", "agent_id"}, rows); err != nil {
+			if err := batchInsert(ctx, q, "xtcp_treatment_cohort", []string{"experiment_id", positionColumnCst, agentIDColumnCst}, rows); err != nil {
 				return err
 			}
 		}
@@ -216,8 +230,7 @@ func (x *experiments) List(ctx context.Context, id string, limit int) ([]*treatm
 	for rows.Next() {
 		var v string
 		if err = rows.Scan(&v); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		ids = append(ids, v)
 	}
@@ -256,8 +269,7 @@ func (x *experiments) IDs(ctx context.Context, statuses ...treatment.Status) ([]
 	for rows.Next() {
 		var id string
 		if err = rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		out = append(out, id)
 	}

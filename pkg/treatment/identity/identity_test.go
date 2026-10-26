@@ -101,8 +101,8 @@ func TestFromCertificate(t *testing.T) {
 		},
 		{
 			// url.Parse lowercases the scheme, and x509 parses SANs with it,
-			// so this is accepted. Recorded so the behaviour is deliberate.
-			description: "corner: upper-case scheme is normalised by the URL parser and accepted",
+			// so this is accepted. Recorded so the behavior is deliberate.
+			description: "corner: upper-case scheme is normalized by the URL parser and accepted",
 			uris:        []string{"SPIFFE://xtcp/agent/dc1/host-1"},
 			expected:    Identity{Role: RoleAgent, Location: "dc1", ID: "host-1"},
 		},

@@ -68,7 +68,7 @@ func failure(e error) error {
 		return status.Error(codes.NotFound, "not found")
 	}
 	if errors.Is(e, context.Canceled) {
-		return status.Error(codes.Canceled, "cancelled")
+		return status.Error(codes.Canceled, "canceled")
 	}
 	return status.Error(codes.FailedPrecondition, e.Error())
 }
@@ -599,87 +599,113 @@ func (s *Server) Control(ctx context.Context, r *pb.ControlRequest) (out *pb.Con
 		if yes, e := replay(ctx, rp, r.RequestId, "control", r, out); yes || e != nil {
 			return e
 		}
+		var e error
 		if r.ExperimentId != "" {
-			n, e := rp.Experiments.Get(ctx, r.ExperimentId)
-			if e != nil {
-				return e
-			}
-			if n.Status.Terminal() {
-				return errors.New("terminal experiment cannot be reactivated")
-			}
-			event, e := controlEvent(n, r.Action)
-			if e != nil {
-				return e
-			}
-			if n.Status, e = experiment.Transition(n.Status, event); e != nil {
-				return e
-			}
-			if event == experiment.EventResume {
-				p := n.CurrentPhase()
-				n.Phases = append(n.Phases, treatment.Phase{TargetHosts: p.TargetHosts, IssuedAt: s.now(), Reviewer: actor, Reason: r.Reason})
-			}
-			n.Revision++
-			if e = s.assign(ctx, rp, n, r.Action == pb.ControlAction_CONTROL_ACTION_RESUME); e != nil {
-				return e
-			}
-			if e = s.save(ctx, rp, n); e != nil {
-				return e
-			}
-			out.AffectedAgents = uint32(len(n.CohortOrder))
+			e = s.controlExperiment(ctx, rp, r, actor, out)
 		} else {
-			if r.Action != pb.ControlAction_CONTROL_ACTION_SUSPEND && r.Action != pb.ControlAction_CONTROL_ACTION_RESUME {
-				return errors.New("non-experiment controls support suspend/resume only")
-			}
-			scope := "fleet"
-			if r.AgentId != "" {
-				scope = "agent:" + r.AgentId
-			}
-			if r.Location != "" {
-				scope = "location:" + r.Location
-			}
-			var e error
-			if r.Action == pb.ControlAction_CONTROL_ACTION_SUSPEND {
-				e = rp.Holds.Set(ctx, scope, r.Reason)
-			} else {
-				e = rp.Holds.Clear(ctx, scope)
-			}
-			if e != nil {
-				return e
-			}
-			var hosts []store.AgentRef
-			if r.AgentId != "" {
-				a, e := rp.Agents.Get(ctx, r.AgentId)
-				if e != nil && !errors.Is(e, store.ErrNotFound) {
-					return e
-				}
-				if e == nil {
-					hosts = append(hosts, store.AgentRef{ID: a.ID, Location: a.Location})
-				}
-			} else if hosts, e = rp.Agents.List(ctx, r.Location); e != nil {
-				return e
-			}
-			for _, h := range hosts {
-				d, e := rp.Agents.Desired(ctx, h.ID)
-				if e != nil {
-					return e
-				}
-				if d.Suspended, e = rp.Holds.Held(ctx, holdScopes(h.Location, h.ID)...); e != nil {
-					return e
-				}
-				d.Revision++
-				d.IssuedAt = s.now()
-				if e = rp.Agents.SaveDesired(ctx, d); e != nil {
-					return e
-				}
-			}
-			out.AffectedAgents = uint32(len(hosts))
+			e = s.controlHolds(ctx, rp, r, out)
 		}
-		if e := audit(ctx, rp, actor, r.RequestId, "control", r); e != nil {
+		if e != nil {
+			return e
+		}
+		if e = audit(ctx, rp, actor, r.RequestId, "control", r); e != nil {
 			return e
 		}
 		return audit(ctx, rp, actor, r.RequestId+".result", "result", out)
 	})
 	return out, failure(err)
+}
+
+// controlExperiment applies an operator action to one experiment through
+// the state machine and reissues its assignments.
+func (s *Server) controlExperiment(ctx context.Context, rp store.Repos, r *pb.ControlRequest, actor string, out *pb.ControlResponse) error {
+	n, e := rp.Experiments.Get(ctx, r.ExperimentId)
+	if e != nil {
+		return e
+	}
+	if n.Status.Terminal() {
+		return errors.New("terminal experiment cannot be reactivated")
+	}
+	event, e := controlEvent(n, r.Action)
+	if e != nil {
+		return e
+	}
+	if n.Status, e = experiment.Transition(n.Status, event); e != nil {
+		return e
+	}
+	if event == experiment.EventResume {
+		p := n.CurrentPhase()
+		n.Phases = append(n.Phases, treatment.Phase{TargetHosts: p.TargetHosts, IssuedAt: s.now(), Reviewer: actor, Reason: r.Reason})
+	}
+	n.Revision++
+	if e = s.assign(ctx, rp, n, r.Action == pb.ControlAction_CONTROL_ACTION_RESUME); e != nil {
+		return e
+	}
+	if e = s.save(ctx, rp, n); e != nil {
+		return e
+	}
+	out.AffectedAgents = uint32(len(n.CohortOrder))
+	return nil
+}
+
+// controlHolds sets or clears a fleet, location or agent hold and reissues
+// the desired state of every agent the scope covers.
+func (s *Server) controlHolds(ctx context.Context, rp store.Repos, r *pb.ControlRequest, out *pb.ControlResponse) error {
+	if r.Action != pb.ControlAction_CONTROL_ACTION_SUSPEND && r.Action != pb.ControlAction_CONTROL_ACTION_RESUME {
+		return errors.New("non-experiment controls support suspend/resume only")
+	}
+	scope := "fleet"
+	if r.AgentId != "" {
+		scope = "agent:" + r.AgentId
+	}
+	if r.Location != "" {
+		scope = "location:" + r.Location
+	}
+	var e error
+	if r.Action == pb.ControlAction_CONTROL_ACTION_SUSPEND {
+		e = rp.Holds.Set(ctx, scope, r.Reason)
+	} else {
+		e = rp.Holds.Clear(ctx, scope)
+	}
+	if e != nil {
+		return e
+	}
+	hosts, e := s.holdTargets(ctx, rp, r)
+	if e != nil {
+		return e
+	}
+	for _, h := range hosts {
+		d, e := rp.Agents.Desired(ctx, h.ID)
+		if e != nil {
+			return e
+		}
+		if d.Suspended, e = rp.Holds.Held(ctx, holdScopes(h.Location, h.ID)...); e != nil {
+			return e
+		}
+		d.Revision++
+		d.IssuedAt = s.now()
+		if e = rp.Agents.SaveDesired(ctx, d); e != nil {
+			return e
+		}
+	}
+	out.AffectedAgents = uint32(len(hosts))
+	return nil
+}
+
+// holdTargets lists the agents a hold control covers. An unknown agent is
+// not an error: the hold still applies when it enrolls.
+func (s *Server) holdTargets(ctx context.Context, rp store.Repos, r *pb.ControlRequest) ([]store.AgentRef, error) {
+	if r.AgentId == "" {
+		return rp.Agents.List(ctx, r.Location)
+	}
+	a, e := rp.Agents.Get(ctx, r.AgentId)
+	if errors.Is(e, store.ErrNotFound) {
+		return nil, nil
+	}
+	if e != nil {
+		return nil, e
+	}
+	return []store.AgentRef{{ID: a.ID, Location: a.Location}}, nil
 }
 
 // controlEvent maps an operator action onto a state-machine event. Resume
@@ -704,6 +730,7 @@ func controlEvent(n *treatment.Experiment, action pb.ControlAction) (experiment.
 			return experiment.EventResumeStable, nil
 		}
 		return experiment.EventResume, nil
+	case pb.ControlAction_CONTROL_ACTION_UNSPECIFIED:
 	}
 	return 0, fmt.Errorf("unknown control action %s", action)
 }

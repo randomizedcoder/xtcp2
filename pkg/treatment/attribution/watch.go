@@ -132,6 +132,20 @@ func (w *Watcher) Refresh(force bool) error {
 	return nil
 }
 
+// refreshRetryCst bounds the poll interval while the journal is unreadable.
+const refreshRetryCst = 5 * time.Second
+
+// pollAfter is the wait before the next unprompted refresh: the configured
+// period, or sooner while the last refresh failed so a journal that becomes
+// readable again is noticed without waiting a full period. Refresh has
+// already logged the failure once.
+func (w *Watcher) pollAfter(lastErr error) time.Duration {
+	if lastErr != nil {
+		return min(w.cfg.Poll, refreshRetryCst)
+	}
+	return w.cfg.Poll
+}
+
 // note logs a load failure once per distinct message and a recovery once.
 func (w *Watcher) note(msg string) {
 	if msg == w.lastErr {
@@ -151,13 +165,17 @@ func (w *Watcher) Run(ctx interface {
 	Done() <-chan struct{}
 	Err() error
 }) {
-	_ = w.Refresh(true)
+	refreshed := w.Refresh(true)
 	fd, err := unix.InotifyInit1(unix.IN_CLOEXEC | unix.IN_NONBLOCK)
 	if err != nil {
 		w.cfg.Log("treatment attribution: inotify unavailable (%v); polling every %s", err, w.cfg.Poll)
 		fd = -1
 	} else {
-		defer unix.Close(fd)
+		defer func() {
+			if cerr := unix.Close(fd); cerr != nil {
+				w.cfg.Log("treatment attribution: inotify close: %v", cerr)
+			}
+		}()
 	}
 	watching := false
 	addWatch := func() {
@@ -169,7 +187,7 @@ func (w *Watcher) Run(ctx interface {
 	}
 	addWatch()
 	buf := make([]byte, 64<<10)
-	timer := time.NewTimer(w.cfg.Poll)
+	timer := time.NewTimer(w.pollAfter(refreshed))
 	defer timer.Stop()
 	events := make(chan bool, 1) // true: the snapshot changed; false: the directory itself went away
 	if fd >= 0 {
@@ -180,15 +198,15 @@ func (w *Watcher) Run(ctx interface {
 		case <-ctx.Done():
 			return
 		case <-w.wake:
-			_ = w.Refresh(true)
+			refreshed = w.Refresh(true)
 		case changed := <-events:
 			if !changed {
 				watching = false
 			}
-			_ = w.Refresh(true)
+			refreshed = w.Refresh(true)
 		case <-timer.C:
 			addWatch()
-			_ = w.Refresh(false)
+			refreshed = w.Refresh(false)
 		}
 		if !timer.Stop() {
 			select {
@@ -196,7 +214,7 @@ func (w *Watcher) Run(ctx interface {
 			default:
 			}
 		}
-		timer.Reset(w.cfg.Poll)
+		timer.Reset(w.pollAfter(refreshed))
 	}
 }
 

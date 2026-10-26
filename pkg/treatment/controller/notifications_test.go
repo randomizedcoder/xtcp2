@@ -58,7 +58,7 @@ func TestNotificationLifecycle(t *testing.T) {
 			h.publish("host", 4)
 			select {
 			case <-ch:
-				t.Fatal("cancelled subscription received an update")
+				t.Fatal("canceled subscription received an update")
 			default:
 			}
 		})

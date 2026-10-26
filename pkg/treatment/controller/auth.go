@@ -30,11 +30,18 @@ func RolePolicy() identity.Policy {
 			for j := 0; j < methods.Len(); j++ {
 				m := methods.Get(j)
 				name := fmt.Sprintf("/%s/%s", sd.FullName(), m.Name())
-				switch proto.GetExtension(m.Options(), pb.E_Role).(pb.Role) {
+				role, ok := proto.GetExtension(m.Options(), pb.E_Role).(pb.Role)
+				if !ok {
+					continue
+				}
+				switch role {
 				case pb.Role_ROLE_AGENT:
 					p[name] = identity.RoleAgent
 				case pb.Role_ROLE_OPERATOR:
 					p[name] = identity.RoleOperator
+				case pb.Role_ROLE_UNSPECIFIED:
+					// Left out of the policy, so the interceptors deny the method
+					// and the coverage test names it.
 				}
 			}
 		}

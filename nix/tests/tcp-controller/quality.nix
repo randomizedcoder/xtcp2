@@ -10,6 +10,7 @@ let
           versions.go
           pkgs.gcc
           pkgs.postgresql
+          pkgs.clickhouse # clickhouse_test.go finds it on PATH
         ];
       }
       ''
@@ -24,7 +25,6 @@ let
         pg_ctl -D "$TMPDIR/pg-data" -l "$out/postgres.log" \
           -o "-k $TMPDIR/pg-socket -h ''' -p 55439" -w start
         export XTCP_CONTROLLER_TEST_DSN="host=$TMPDIR/pg-socket port=55439 dbname=postgres sslmode=disable"
-        export XTCP_CLICKHOUSE_TEST_BINARY=${pkgs.clickhouse}/bin/clickhouse
         go test -ldflags=-checklinkname=0 ${
           if race then "-race -count=3" else "-count=1 -coverprofile=$out/coverage.out"
         } \

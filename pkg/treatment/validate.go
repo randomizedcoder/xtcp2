@@ -133,7 +133,7 @@ func ValidateEvidence(e *Evidence) error {
 		return errors.New("evidence provenance required")
 	}
 	for _, c := range e.ArtifactSHA256 {
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return errors.New("invalid evidence sha256")
 		}
 	}

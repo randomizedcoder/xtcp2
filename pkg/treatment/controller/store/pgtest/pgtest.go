@@ -7,6 +7,7 @@ package pgtest
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -37,25 +38,33 @@ func Open(t testing.TB) *postgres.Store {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
 	schema := fmt.Sprintf("xtcp_test_%d_%d", time.Now().UnixNano(), sequence.Add(1))
-	if _, err = admin.Exec("CREATE SCHEMA " + schema); err != nil {
-		admin.Close()
-		t.Fatal(err)
+	if _, err = admin.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatal(errors.Join(err, admin.Close()))
 	}
 	scoped, err := withSearchPath(dsn, schema)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal(errors.Join(err, admin.Close()))
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	s, err := postgres.Open(ctx, scoped)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal(errors.Join(err, admin.Close()))
 	}
 	t.Cleanup(func() {
-		s.Close()
-		_, _ = admin.Exec("DROP SCHEMA " + schema + " CASCADE")
-		admin.Close()
+		// The test's context is already canceled when cleanups run.
+		cctx, ccancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer ccancel()
+		if cerr := s.Close(); cerr != nil {
+			t.Error(cerr)
+		}
+		if _, derr := admin.ExecContext(cctx, "DROP SCHEMA "+schema+" CASCADE"); derr != nil {
+			t.Errorf("drop schema %s: %v", schema, derr)
+		}
+		if cerr := admin.Close(); cerr != nil {
+			t.Error(cerr)
+		}
 	})
 	if err = s.Migrate(ctx); err != nil {
 		t.Fatal(err)

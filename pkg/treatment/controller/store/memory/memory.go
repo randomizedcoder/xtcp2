@@ -1,5 +1,5 @@
 // Package memory implements the controller's store ports with maps. It is
-// for handler tests: it honours every sentinel error and rolls a failed Tx
+// for handler tests: it honors every sentinel error and rolls a failed Tx
 // back, but it has no durability and no concurrency beyond one mutex.
 package memory
 
@@ -472,6 +472,7 @@ func (r metricsRepo) Snapshot(_ context.Context, now time.Time) (map[string]floa
 				m["routes_failed"]++
 			case treatment.ApplyExpired:
 				m["routes_expired"]++
+			default:
 			}
 		}
 	}
@@ -483,6 +484,7 @@ func (r metricsRepo) Snapshot(_ context.Context, now time.Time) (map[string]floa
 			m["experiments_running"]++
 		case treatment.StatusComplete:
 			m["experiments_complete"]++
+		default:
 		}
 	}
 	return m, nil

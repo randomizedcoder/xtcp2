@@ -21,7 +21,11 @@ func TestTreatmentLiveNamespace(t *testing.T) {
 			t.Fatal(e)
 		}
 		defer original.Close()
-		cmd := exec.Command("unshare", "--user", "--map-root-user", "--net", os.Args[0], "-test.run=^TestTreatmentLiveNamespace$", "-test.v")
+		self, e := os.Executable()
+		if e != nil {
+			t.Fatal(e)
+		}
+		cmd := exec.Command("unshare", "--user", "--map-root-user", "--net", self, "-test.run=^TestTreatmentLiveNamespace$", "-test.v")
 		cmd.ExtraFiles = []*os.File{original}
 		cmd.Env = append(os.Environ(), "XTCP_TREATMENT_CHILD_NS=1")
 		out, e := cmd.CombinedOutput()

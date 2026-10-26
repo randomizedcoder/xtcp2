@@ -33,8 +33,9 @@ CGO_ENABLED=1 go test -race -ldflags=-checklinkname=0 -count=10 \
 go test -ldflags=-checklinkname=0 -run '^$' -bench . -benchmem ./pkg/treatment/...
 ```
 
-Without `XTCP_CONTROLLER_TEST_DSN` and `XTCP_CLICKHOUSE_TEST_BINARY`, direct Go
-commands skip the database tests. The Nix targets supply both automatically.
+Without `XTCP_CONTROLLER_TEST_DSN`, direct Go commands skip the PostgreSQL
+tests; without a `clickhouse` binary on `PATH` they skip the ClickHouse SQL
+test. The Nix targets supply both automatically.
 
 ## Coverage and test contracts
 

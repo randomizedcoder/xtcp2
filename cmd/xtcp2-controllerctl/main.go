@@ -40,7 +40,11 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	defer conn.Close()
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("close: %v", cerr)
+		}
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	client := pb.NewOperatorServiceClient(conn)

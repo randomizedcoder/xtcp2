@@ -15,8 +15,9 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 )
 
-// Templates only authorize candidate discovery. Every generated hypothesis and
-// every increase in exposure still requires an authenticated operator review.
+// DiscoveryTemplate authorizes candidate discovery for one location. Templates
+// only authorize discovery: every generated hypothesis and every increase in
+// exposure still requires an authenticated operator review.
 type DiscoveryTemplate struct {
 	ID                         string   `json:"id"`
 	Location                   string   `json:"location"`
@@ -92,7 +93,8 @@ func (s *Server) Discover(ctx context.Context, w evidence.Warehouse, templates [
 		return errors.New("candidate discovery requires a warehouse")
 	}
 	var failures []error
-	for _, t := range templates {
+	for i := range templates {
+		t := &templates[i]
 		if !treatment.ValidID(t.ID) || !treatment.ValidID(t.Location) || (t.CongestionControl != "cubic" && t.CongestionControl != "bbr") || t.MaximumRTTMs <= t.MinimumRTTMs || t.MinimumRTTMs < 0 || t.MinimumRetransmissionRatio < 0 || t.MinimumRetransmissionRatio > 1 {
 			return errors.New("invalid discovery template; initial discovery supports CUBIC/BBR only")
 		}

@@ -690,8 +690,8 @@ and IPv4/IPv6 netlink mutation in a disposable namespace:
 go test ./pkg/treatment/... ./internal/goip/...
 XTCP_CONTROLLER_TEST_DSN='host=... dbname=... user=... sslmode=...' \
   go test ./pkg/treatment/controller/... 
-XTCP_CLICKHOUSE_TEST_BINARY=/path/to/clickhouse \
-  go test ./pkg/treatment/controller -run ClickHouse
+PATH=/path/to/clickhouse/bin:$PATH \
+  go test ./pkg/treatment/controller/evidence/clickhouse -run ClickHouse
 XTCP_TREATMENT_LIVE_TEST=1 go test ./internal/goip/actuate -run '^TestTreatmentLiveNamespace$'
 ```
 

@@ -49,8 +49,7 @@ func (a *agents) Get(ctx context.Context, id string) (*store.Agent, error) {
 	for rows.Next() {
 		var name string
 		if err = rows.Scan(&name); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		out.Report.Capabilities.CongestionAlgorithms = append(out.Report.Capabilities.CongestionAlgorithms, name)
 	}
@@ -64,13 +63,11 @@ func (a *agents) Get(ctx context.Context, id string) (*store.Agent, error) {
 	for rows.Next() {
 		var r recordRow
 		if err = rows.Scan(r.targets()...); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		rec, err := r.value()
 		if err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		out.Report.Records = append(out.Report.Records, rec)
 	}
@@ -113,7 +110,7 @@ func (a *agents) Observe(ctx context.Context, report *treatment.AgentReport, see
 		for i, name := range c.CongestionAlgorithms {
 			algos[i] = []any{report.AgentID, i, name}
 		}
-		if err = batchInsert(ctx, q, "xtcp_treatment_agent_algorithms", []string{"agent_id", "position", "name"}, algos); err != nil {
+		if err = batchInsert(ctx, q, "xtcp_treatment_agent_algorithms", []string{agentIDColumnCst, positionColumnCst, "name"}, algos); err != nil {
 			return err
 		}
 		if _, err = q.ExecContext(ctx, "DELETE FROM xtcp_treatment_records WHERE agent_id=$1", report.AgentID); err != nil {
@@ -167,13 +164,11 @@ func (a *agents) Desired(ctx context.Context, id string) (*treatment.DesiredStat
 	for rows.Next() {
 		var r assignmentRow
 		if err = rows.Scan(r.targets()...); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		v, err := r.value()
 		if err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		d.Assignments = append(d.Assignments, v)
 	}
@@ -219,8 +214,7 @@ func (a *agents) List(ctx context.Context, location string) ([]store.AgentRef, e
 	for rows.Next() {
 		var r store.AgentRef
 		if err = rows.Scan(&r.ID, &r.Location); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		out = append(out, r)
 	}
@@ -238,8 +232,7 @@ func (a *agents) DesiredSince(ctx context.Context, since time.Time) ([]store.Des
 		var r store.DesiredRevision
 		var rev int64
 		if err = rows.Scan(&r.AgentID, &rev, &r.UpdatedAt); err != nil {
-			rows.Close()
-			return nil, err
+			return nil, errors.Join(err, rows.Close())
 		}
 		r.Revision = uint64(rev)
 		out = append(out, r)

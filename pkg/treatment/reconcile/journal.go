@@ -45,19 +45,27 @@ const pendingPrefix = ".pending-"
 // WithLock returns ErrJournalBusy wrapping ctx.Err() without having read or
 // written anything. `treatmentctl status` reads the snapshot without the lock
 // and never waits.
-func (j Journal) WithLock(ctx context.Context, fn func(*State, func() error) error) error {
-	if err := os.MkdirAll(j.Dir, 0700); err != nil {
+func (j Journal) WithLock(ctx context.Context, fn func(*State, func() error) error) (err error) {
+	if err = os.MkdirAll(j.Dir, 0700); err != nil {
 		return err
 	}
 	fd, err := unix.Open(filepath.Join(j.Dir, ".lock"), unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0600)
 	if err != nil {
 		return err
 	}
-	defer unix.Close(fd)
+	defer func() {
+		if cerr := unix.Close(fd); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 	if err = lock(ctx, fd); err != nil {
 		return err
 	}
-	defer unix.Flock(fd, unix.LOCK_UN)
+	defer func() {
+		if uerr := unix.Flock(fd, unix.LOCK_UN); uerr != nil && err == nil {
+			err = uerr
+		}
+	}()
 	if err = j.sweepPending(); err != nil {
 		return err
 	}
@@ -102,8 +110,8 @@ func (j Journal) WithLock(ctx context.Context, fn func(*State, func() error) err
 				return errors.Join(result, err)
 			}
 			name := "assignment-" + r.Assignment.ExperimentID + ".textproto"
-			old, _ := os.ReadFile(filepath.Join(j.Dir, name))
-			if bytes.Equal(old, b) {
+			old, rerr := os.ReadFile(filepath.Join(j.Dir, name))
+			if rerr == nil && bytes.Equal(old, b) {
 				continue
 			}
 			if err = atomicFile(j.Dir, name, b); err != nil {
@@ -165,20 +173,28 @@ func readLimited(f *os.File) ([]byte, error) {
 	return b, nil
 }
 
-func atomicFile(dir, name string, b []byte) error {
+// atomicFile writes b to a temporary file in dir, syncs it, renames it over
+// name and syncs the directory. On failure the temporary file is removed; a
+// crash before that point leaves one for sweepPending.
+func atomicFile(dir, name string, b []byte) (err error) {
 	f, err := os.CreateTemp(dir, pendingPrefix)
 	if err != nil {
 		return err
 	}
 	tmp := f.Name()
-	defer os.Remove(tmp)
+	defer func() {
+		if err == nil {
+			return
+		}
+		if rerr := os.Remove(tmp); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
+			err = errors.Join(err, rerr)
+		}
+	}()
 	if _, err = f.Write(b); err != nil {
-		f.Close()
-		return err
+		return errors.Join(err, f.Close())
 	}
 	if err = f.Sync(); err != nil {
-		f.Close()
-		return err
+		return errors.Join(err, f.Close())
 	}
 	if err = f.Close(); err != nil {
 		return err
@@ -190,6 +206,8 @@ func atomicFile(dir, name string, b []byte) error {
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	return d.Sync()
+	if err = d.Sync(); err != nil {
+		return errors.Join(err, d.Close())
+	}
+	return d.Close()
 }

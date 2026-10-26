@@ -59,7 +59,7 @@ func TestTreatmentRuleRequest(t *testing.T) {
 				IifName: "lo", HasIifName: true, IPProto: unix.IPPROTO_TCP, HasIPProto: true, Protocol: 192, HasProtocol: true},
 		},
 		{
-			description: "corner: a disabled backend still describes its rule, so readback can recognise leftovers before Enable",
+			description: "corner: a disabled backend still describes its rule, so readback can recognize leftovers before Enable",
 			backend:     Backend{Table: 10002, Priority: 30000, Protocol: 242},
 			family:      unix.AF_INET, wantType: unix.RTM_NEWRULE, wantFlags: addAck,
 			expected: owned(unix.AF_INET, unix.FR_ACT_TO_TBL, 10002),
@@ -121,7 +121,7 @@ func TestTreatmentRuleRequest(t *testing.T) {
 			// Ownership is decided against what the kernel reports, which is
 			// always the installed (add) form; a delete carries no action.
 			if !tc.del && !tc.backend.ownRule(got) {
-				t.Fatalf("%s: the backend does not recognise its own rule", tc.description)
+				t.Fatalf("%s: the backend does not recognize its own rule", tc.description)
 			}
 		})
 	}

@@ -87,8 +87,10 @@ func require(ok bool, format string, args ...any) {
 		panic(fmt.Sprintf(format, args...))
 	}
 }
-func command(name string, args ...string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+
+// command runs a fixture command bounded by ctx and 25 seconds.
+func command(ctx context.Context, name string, args ...string) string {
+	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
 	if err != nil {
@@ -101,18 +103,33 @@ func write(path string, data []byte) {
 	check(os.MkdirAll(filepath.Dir(path), 0700))
 	check(os.WriteFile(path, data, 0600))
 }
-func systemctl(args ...string) string { return command("systemctl", args...) }
-func agentReady() {
+
+// host runs a command on the controller side, which has no caller context:
+// each fixture step is bounded by command's own timeout.
+func host(name string, args ...string) string {
+	return command(context.Background(), name, args...)
+}
+func systemctl(ctx context.Context, args ...string) string { return command(ctx, "systemctl", args...) }
+func agentReady(ctx context.Context) {
 	probe := &http.Client{Timeout: time.Second}
 	eventually("local daemon ready", 15*time.Second, func() bool {
-		response := must(probe.Get("http://127.0.0.1:9088/readyz"))
-		defer response.Body.Close()
+		request := must(http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:9088/readyz", http.NoBody))
+		response := must(probe.Do(request))
+		closeBody(response)
 		return response.StatusCode == http.StatusOK
 	})
 }
-func routeTable() string {
+
+// closeBody discards a response body; a failed close only loses the
+// connection for reuse.
+func closeBody(response *http.Response) {
+	if err := response.Body.Close(); err != nil {
+		log.Printf("response body close: %v", err)
+	}
+}
+func routeTable(ctx context.Context) string {
 	// Before the first assignment the private table does not exist.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "ip", "-j", "route", "show", "table", "10002").CombinedOutput()
 	if err != nil && strings.Contains(string(out), "FIB table does not exist") {
@@ -121,16 +138,20 @@ func routeTable() string {
 	check(err)
 	return string(out)
 }
-func localSnapshot() snapshot {
-	s := snapshot{Routes: routeTable(), Main: command("ip", "-j", "route", "show", "table", "main"), DefaultCC: strings.TrimSpace(command("sysctl", "-n", "net.ipv4.tcp_congestion_control"))}
+func localSnapshot(ctx context.Context) snapshot {
+	s := snapshot{Routes: routeTable(ctx), Main: command(ctx, "ip", "-j", "route", "show", "table", "main"), DefaultCC: strings.TrimSpace(command(ctx, "sysctl", "-n", "net.ipv4.tcp_congestion_control"))}
 	b, err := os.ReadFile(statePath)
 	if err == nil {
 		s.State = string(b)
 	} else if !os.IsNotExist(err) {
 		panic(err)
 	}
-	b, _ = os.ReadFile("/var/lib/xtcp2/routes/assignment-netem-canary.textproto")
-	s.Projection = string(b)
+	b, err = os.ReadFile("/var/lib/xtcp2/routes/assignment-netem-canary.textproto")
+	if err == nil {
+		s.Projection = string(b)
+	} else if !os.IsNotExist(err) {
+		panic(err)
+	}
 	return s
 }
 func serveAgent(address string) {
@@ -141,6 +162,7 @@ func serveAgent(address string) {
 				http.Error(w, fmt.Sprint(p), 500)
 			}
 		}()
+		ctx := r.Context()
 		var a action
 		check(json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&a))
 		var result any = "ok"
@@ -152,53 +174,55 @@ func serveAgent(address string) {
 			write(pkiDir+"/agent.crt", a.Certificate)
 			write(pkiDir+"/agent.key", a.Key)
 			write("/var/lib/controller-test/load.env", []byte("TCP_TEST_DESTINATION=198.18.0.1\n"))
-			command("tc", "qdisc", "replace", "dev", "eth0", "root", "handle", "1:", "prio", "bands", "3", "priomap", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0")
-			command("tc", "qdisc", "add", "dev", "eth0", "parent", "1:2", "handle", "20:", "netem", "delay", "80ms")
-			command("tc", "qdisc", "add", "dev", "eth0", "parent", "1:3", "handle", "30:", "netem", "delay", "5ms")
-			command("tc", "filter", "add", "dev", "eth0", "parent", "1:", "protocol", "ip", "prio", "1", "u32", "match", "ip", "dst", "198.18.0.2/32", "flowid", "1:2")
-			command("tc", "filter", "add", "dev", "eth0", "parent", "1:", "protocol", "ip", "prio", "2", "u32", "match", "ip", "dst", "198.18.0.0/24", "flowid", "1:3")
-			systemctl(append([]string{"start", "load-near", "load-far"}, treatmentUnits()...)...)
+			command(ctx, "tc", "qdisc", "replace", "dev", "eth0", "root", "handle", "1:", "prio", "bands", "3", "priomap", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0")
+			command(ctx, "tc", "qdisc", "add", "dev", "eth0", "parent", "1:2", "handle", "20:", "netem", "delay", "80ms")
+			command(ctx, "tc", "qdisc", "add", "dev", "eth0", "parent", "1:3", "handle", "30:", "netem", "delay", "5ms")
+			command(ctx, "tc", "filter", "add", "dev", "eth0", "parent", "1:", "protocol", "ip", "prio", "1", "u32", "match", "ip", "dst", "198.18.0.2/32", "flowid", "1:2")
+			command(ctx, "tc", "filter", "add", "dev", "eth0", "parent", "1:", "protocol", "ip", "prio", "2", "u32", "match", "ip", "dst", "198.18.0.0/24", "flowid", "1:3")
+			systemctl(ctx, append([]string{"start", "load-near", "load-far"}, treatmentUnits()...)...)
 		case "status":
-			result = localSnapshot()
+			result = localSnapshot(ctx)
 		case "restart-agent":
-			systemctl("restart", agentProcess())
-			agentReady()
+			systemctl(ctx, "restart", agentProcess())
+			agentReady(ctx)
 		case "stop-agent":
-			systemctl("stop", agentProcess())
-			systemctl("is-active", "xtcp2-treatment-watchdog")
+			systemctl(ctx, "stop", agentProcess())
+			systemctl(ctx, "is-active", "xtcp2-treatment-watchdog")
 		case "start-agent":
-			systemctl("start", agentProcess())
-			agentReady()
+			systemctl(ctx, "start", agentProcess())
+			agentReady(ctx)
 		case "restart-load":
-			systemctl("restart", "load-near")
+			systemctl(ctx, "restart", "load-near")
 		case "destination":
 			require(validSoakDestination(a.Destination), "invalid fixture destination")
 			write("/var/lib/controller-test/load.env", []byte("TCP_TEST_DESTINATION="+a.Destination+"\n"))
-			systemctl("restart", "load-near")
+			systemctl(ctx, "restart", "load-near")
 		case "hup":
-			agentReady()
-			systemctl("kill", "-s", "HUP", agentProcess())
+			agentReady(ctx)
+			systemctl(ctx, "kill", "-s", "HUP", agentProcess())
 		case "suspend", "resume":
-			command("xtcp2-treatmentctl", "-mode="+a.Name, "-reason=integration-local-"+a.Name)
+			command(ctx, "xtcp2-treatmentctl", "-mode="+a.Name, "-reason=integration-local-"+a.Name)
 		case "delay":
 			require(a.Seconds == 5 || a.Seconds == 180, "invalid fixture delay")
-			command("tc", "qdisc", "change", "dev", "eth0", "parent", "1:3", "handle", "30:", "netem", "delay", fmt.Sprintf("%dms", a.Seconds))
+			command(ctx, "tc", "qdisc", "change", "dev", "eth0", "parent", "1:3", "handle", "30:", "netem", "delay", fmt.Sprintf("%dms", a.Seconds))
 		case "expire":
-			command("date", "-s", fmt.Sprintf("@%d", time.Now().Unix()+3700))
+			command(ctx, "date", "-s", fmt.Sprintf("@%d", time.Now().Unix()+3700))
 		case "restore-clock":
 			require(a.Seconds > 0, "invalid clock")
-			command("date", "-s", fmt.Sprintf("@%d", a.Seconds))
+			command(ctx, "date", "-s", fmt.Sprintf("@%d", a.Seconds))
 		case "healthy":
-			result = systemctl(append([]string{"is-active", "load-near", "load-far"}, treatmentUnits()...)...)
+			result = systemctl(ctx, append([]string{"is-active", "load-near", "load-far"}, treatmentUnits()...)...)
 		case "evidence":
-			s := localSnapshot()
-			args := []string{"-b", "--no-pager", "-n", "500", "-u", "controller-test-agent"}
-			for _, u := range treatmentUnits() {
+			s := localSnapshot(ctx)
+			units := treatmentUnits()
+			args := make([]string, 0, 6+2*len(units))
+			args = append(args, "-b", "--no-pager", "-n", "500", "-u", "controller-test-agent")
+			for _, u := range units {
 				args = append(args, "-u", u)
 			}
-			s.Journal = command("journalctl", args...)
-			s.Rules = command("ip", "-j", "rule")
-			s.Qdisc = command("tc", "-s", "qdisc", "show")
+			s.Journal = command(ctx, "journalctl", args...)
+			s.Rules = command(ctx, "ip", "-j", "rule")
+			s.Qdisc = command(ctx, "tc", "-s", "qdisc", "show")
 			result = s
 		default:
 			panic("unknown fixture action")
@@ -218,8 +242,10 @@ func remote(host string, a action, result any) {
 	}
 	require(index != 0, "unknown agent %q", host)
 	body := must(json.Marshal(a))
-	response := must(client.Post(fmt.Sprintf("http://192.168.1.%d:9009/action", index), "application/json", bytes.NewReader(body)))
-	defer response.Body.Close()
+	request := must(http.NewRequestWithContext(context.Background(), http.MethodPost, fmt.Sprintf("http://192.168.1.%d:9009/action", index), bytes.NewReader(body)))
+	request.Header.Set("Content-Type", "application/json")
+	response := must(client.Do(request))
+	defer closeBody(response)
 	data := must(io.ReadAll(io.LimitReader(response.Body, 2<<20)))
 	require(response.StatusCode == 200, "%s %s: %s", host, a.Name, data)
 	if result != nil {
@@ -258,7 +284,7 @@ func eventually(label string, timeout time.Duration, fn func() bool) {
 	}
 	panic(fmt.Sprintf("%s: timed out after %s (last error: %v)", label, timeout, last))
 }
-func sql(query string) string { return command("clickhouse-client", "--query", query) }
+func sql(query string) string { return host("clickhouse-client", "--query", query) }
 func count(query string) int  { return must(strconv.Atoi(strings.TrimSpace(sql(query)))) }
 func pass(stage string)       { fmt.Println("TCP_CONTROLLER_" + stage + "_PASS") }
 func rpcContext() (context.Context, context.CancelFunc) {
@@ -323,8 +349,8 @@ func evidence() {
 			return must(json.MarshalIndent(s, "", "  "))
 		})
 	}
-	attempt("controller.log", func() []byte { return []byte(command("journalctl", "-b", "--no-pager", "-n", "1500")) })
-	attempt("controller.sql", func() []byte { return []byte(command("pg_dump", "-h", "/run/postgresql", "-U", "root", "xtcp")) })
+	attempt("controller.log", func() []byte { return []byte(host("journalctl", "-b", "--no-pager", "-n", "1500")) })
+	attempt("controller.sql", func() []byte { return []byte(host("pg_dump", "-h", "/run/postgresql", "-U", "root", "xtcp")) })
 	attempt("telemetry.jsonl", func() []byte {
 		return []byte(sql("SELECT * FROM xtcp.xtcp_flat_records_v2 ORDER BY timestamp_ns DESC LIMIT 2000 FORMAT JSONEachRow"))
 	})
@@ -333,20 +359,26 @@ func runController(soak bool) {
 	defer evidence()
 	eventually("ClickHouse ready", 3*time.Minute, func() bool { return strings.TrimSpace(sql("SELECT 1")) == "1" })
 	sql("CREATE DATABASE xtcp")
-	cmd := exec.Command("clickhouse-client", "--multiquery")
+	schemaCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(schemaCtx, "clickhouse-client", "--multiquery")
 	cmd.Stdin = bytes.NewReader(read("/etc/xtcp-test/schema.sql"))
 	out, err := cmd.CombinedOutput()
 	require(err == nil, "schema: %v: %s", err, out)
 	sql("CREATE TABLE xtcp.ingest ENGINE=Null AS SELECT toInt64(0) AS timestamp_ns, * EXCEPT(timestamp_ns) FROM xtcp.xtcp_flat_records_v2 WHERE 0")
 	sql("CREATE MATERIALIZED VIEW xtcp.ingest_mv TO xtcp.xtcp_flat_records_v2 AS SELECT fromUnixTimestamp64Nano(timestamp_ns) AS timestamp_ns, * EXCEPT(timestamp_ns) FROM xtcp.ingest")
-	systemctl("start", "xtcp-controller")
+	host("systemctl", "start", "xtcp-controller")
 	for _, h := range hosts {
 		eventually(h+" fixture ready", 3*time.Minute, func() bool { act(h, "ready"); return true })
 		remote(h, action{Name: "setup", CA: read(pkiDir + "/ca.crt"), Certificate: read(pkiDir + "/" + h + ".crt"), Key: read(pkiDir + "/" + h + ".key")}, nil)
 	}
 	tls := must(identity.TLSConfig(pkiDir+"/operator.crt", pkiDir+"/operator.key", pkiDir+"/ca.crt", "controller", false))
 	conn := must(grpc.NewClient("127.0.0.1:9443", grpc.WithTransportCredentials(credentials.NewTLS(tls))))
-	defer conn.Close()
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("operator connection close: %v", cerr)
+		}
+	}()
 	op := pb.NewOperatorServiceClient(conn)
 	if soak {
 		runSoak(op)
@@ -384,7 +416,7 @@ func runController(soak bool) {
 	act(canary, "restart-agent")
 	eventually("journal replay", time.Minute, func() bool { s := status(canary); return hasRoute(canary) && s.State != "" && s.Projection != "" })
 	assertNearbyRoute(canary, "198.18.0.1")
-	systemctl("restart", "xtcp-controller")
+	host("systemctl", "restart", "xtcp-controller")
 	eventually("controller state survived restart", time.Minute, func() bool { return inspect(op, e.Id).Revision == e.Revision })
 	pass("PERSIST")
 	act(canary, "suspend")
@@ -434,7 +466,7 @@ func runController(soak bool) {
 	e = propose(op, "watchdog-outage")
 	victim := e.CohortOrder[0]
 	eventually("outage trial installed", time.Minute, func() bool { return hasRoute(victim) })
-	systemctl("stop", "xtcp-controller")
+	host("systemctl", "stop", "xtcp-controller")
 	act(victim, "stop-agent")
 	act(victim, "expire")
 	eventually("independent watchdog expires unchanged one-hour lease", 90*time.Second, func() bool {
@@ -444,7 +476,7 @@ func runController(soak bool) {
 	time.Sleep(5 * time.Second)
 	require(!hasRoute(victim), "restart resurrected expired trial")
 	remote(victim, action{Name: "restore-clock", Seconds: time.Now().Unix()}, nil)
-	systemctl("start", "xtcp-controller")
+	host("systemctl", "start", "xtcp-controller")
 	act(victim, "hup")
 	time.Sleep(5 * time.Second)
 	require(!hasRoute(victim), "reconnect resurrected expired generation")
