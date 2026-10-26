@@ -2797,7 +2797,7 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 
 **Code.**
 - **The keyword.** `link_write.go`'s `link` entry gets its own arm, `linkArmLink`. It stores the name in `linkParseState.link`, last one winning. `finish`'s create branch resolves the name through `st.resolve` before `IFLA_IFNAME` and appends `IFLA_LINK`, or returns `nodevErr` for a name that doesn't resolve. The set branch ignores it.
-- **The vlan words.** `internal/goip/link_vlan_args.go`: `parseVlanArgs(args []string) ([]xtcpnl.VlanSetting, error)`, `vlan_parse_opt`'s chain in its order, with `ll_proto_a2n` from `ll_proto.go`. The qos maps go through `parseQosMapping`, `parse_mapping`'s loop, which returns the index of the word that stopped it and the cut word for `invarg`. A `kindVlanCst` case in `kindData` calls `xtcpnl.EncodeVlanInfoData`.
+- **The vlan words.** `internal/goip/link_vlan_args.go`: `parseVlanArgs(args []string) ([]xtcpnl.VlanSetting, error)`, `vlan_parse_opt`'s chain in its order, with `ll_proto_a2n` from `ll_proto.go`. The qos maps go through `parseQosMapping`, `parse_mapping`'s loop, which returns the argv from the word that stopped it on, and names the word cut at its colon in `invarg`. The loop walks a shrinking sub-slice rather than indexing `args[i+1]`, which gosec's G602 flags. A `kindVlanCst` case in `kindData` calls `xtcpnl.EncodeVlanInfoData`.
 
 `TestLinkVlanWriteMatchesIp` replays `kinds/vlan/*` through `newLinkReplay` with `useLLMap720`. goip must send `ip`'s lookups and write `ip`'s request, byte for byte with seq and pid zeroed, and exit 0.
 
@@ -2827,6 +2827,7 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 | description | input | expected |
 |---|---|---|
 | positive: a lower device on an add | `add link d0 name x0 type dummy` | d0's get; `IFLA_LINK`, then `IFLA_IFNAME` x0 |
+| negative: a lower device that doesn't exist | `add link nosuch name x0 type dummy` | 1, `Cannot find device "nosuch"`; nosuch's get |
 | negative: no value | `add name x0 link` | 255, `Command line is not complete` |
 | boundary: the last `link` wins | `add link nosuch link d0 name x0 type dummy` | one get, d0's; `IFLA_LINK` d0 |
 | corner: a set drops it | `set d0 l x` | no get for x, no `IFLA_LINK`; d0's bare set (the old `negative: l is link, not a device` row, now positive) |
@@ -2843,7 +2844,7 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 - `link` resolved on a set (`set d0 l x`);
 - `nodev` as 255 (the missing-lower row);
 - the qos `invarg` naming the whole word (`add_qos_bad`);
-- the flags in argument order (`add_several`);
+- `on` read as off (the flag rows; the plan's "the flags in argument order" is the encoder's, which KP2 held);
 - `id` matched by `strcmp` (`add_abbrev`).
 
 **Done when:** the tables pass with `go test -count=1 -race ./internal/goip/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.

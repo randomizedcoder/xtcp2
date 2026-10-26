@@ -86,6 +86,7 @@ const (
 	linkArmType
 	linkArmAlias
 	linkArmInet
+	linkArmLink        // the lower device, resolved on a create
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -118,7 +119,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "down", arm: linkArmDown},
 	{keyword: "name", arm: linkArmName},
 	{keyword: "index", arm: linkArmUnsupported},
-	{keyword: "link", prefix: true, arm: linkArmUnsupported},
+	{keyword: "link", prefix: true, arm: linkArmLink},
 	{keyword: "address", prefix: true, arm: linkArmAddress},
 	{keyword: "broadcast", prefix: true, arm: linkArmUnsupported},
 	{keyword: "brd", arm: linkArmUnsupported},
@@ -262,6 +263,8 @@ type linkParseState struct {
 	out     linkParsed
 	name    string
 	dev     string
+	// link is the `link` argument, the last one given.
+	link    string
 	devSt   devState
 	mtu     int
 	qlen    int
@@ -405,6 +408,8 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 			return linkUsage(invargErr("Device does not exist\n", v))
 		}
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, uint32(idx))) //nolint:gosec // an ifindex
+	case linkArmLink:
+		st.link = v
 	case linkArmAlias:
 		if len(v) >= ifAliasSizeCst {
 			return linkUsage(invargErr("alias too long\n", v))
@@ -548,6 +553,18 @@ func (st *linkParseState) finish() error {
 	if !sameName {
 		return linkUsage(fmt.Errorf("%w: both \"name\" and \"dev\" cannot be used when creating devices", ErrInvalidArgument))
 	}
+	// The lower device, looked up as ll_name_to_index does; `link-netnsid`
+	// is not implemented, so it's never looked up in another namespace.
+	if st.link != "" {
+		idx, err := st.resolve(st.link)
+		if err != nil {
+			return err
+		}
+		if idx <= 0 {
+			return nodevErr(st.link)
+		}
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_LINK, uint32(idx)))
+	}
 	// `index N` is not implemented, so ifi_index stays 0.
 	if haveDev {
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrString(unix.IFLA_IFNAME, st.dev))
@@ -621,6 +638,12 @@ func kindData(errOut io.Writer, verb *linkWriteVerb, kind string, rest []string,
 			return nil, err
 		}
 		return xtcpnl.EncodeBridgeSlaveData(settings)
+	case kindVlanCst:
+		settings, err := parseVlanArgs(rest)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeVlanInfoData(settings)
 	case kindBondCst:
 		settings, err := parseBondArgs(rest, func(name string) (uint32, error) {
 			idx, err := resolve(name)
