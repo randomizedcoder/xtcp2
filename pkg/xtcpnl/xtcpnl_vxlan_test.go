@@ -461,6 +461,13 @@ func TestEncodeVxlanInfoData(t *testing.T) {
 			err:         ErrKindSettingRange,
 		},
 		{
+			description: "corner: a v4-mapped multicast address is a remote, as set_address_type reads it",
+			settings:    args("id 42 remote ::ffff:239.1.1.1"),
+			expected: slices.Concat(id42,
+				rtattr(unix.IFLA_VXLAN_GROUP6, netip.MustParseAddr("::ffff:239.1.1.1").AsSlice()),
+				u8(unix.IFLA_VXLAN_LEARNING, 1)),
+		},
+		{
 			description: "boundary: dstport 0 sends no PORT",
 			settings:    args("id 42 dstport 0"),
 			expected:    slices.Concat(id42, u8(unix.IFLA_VXLAN_LEARNING, 1)),
@@ -492,6 +499,26 @@ func TestEncodeVxlanInfoData(t *testing.T) {
 			settings:    args("external gpe"),
 			expected: slices.Concat(u8(unix.IFLA_VXLAN_COLLECT_METADATA, 1), rtattr(unix.IFLA_VXLAN_GPE, nil),
 				u8(unix.IFLA_VXLAN_LEARNING, 0), rtattr(unix.IFLA_VXLAN_PORT, []byte{0x12, 0xb6})),
+		},
+		{
+			description: "positive: ip -4's default group goes in the group's place",
+			settings:    append(args("id 42"), VxlanSetting{Option: VxlanOptionDefaultGroup, Value: unix.AF_INET}),
+			expected:    slices.Concat(id42, rtattr(unix.IFLA_VXLAN_GROUP, make([]byte, 4)), u8(unix.IFLA_VXLAN_LEARNING, 1)),
+		},
+		{
+			description: "positive: ip -6's is GROUP6",
+			settings:    append(args("id 42"), VxlanSetting{Option: VxlanOptionDefaultGroup, Value: unix.AF_INET6}),
+			expected:    slices.Concat(id42, rtattr(unix.IFLA_VXLAN_GROUP6, make([]byte, 16)), u8(unix.IFLA_VXLAN_LEARNING, 1)),
+		},
+		{
+			description: "negative: a default group's family that is neither",
+			settings:    []VxlanSetting{{Option: VxlanOptionDefaultGroup, Value: unix.AF_PACKET}},
+			err:         ErrKindSettingRange,
+		},
+		{
+			description: "corner: a local drops the default group",
+			settings:    append(args("id 42 local 0.0.0.0"), VxlanSetting{Option: VxlanOptionDefaultGroup, Value: unix.AF_INET}),
+			expected:    slices.Concat(id42, rtattr(unix.IFLA_VXLAN_LOCAL, make([]byte, 4)), u8(unix.IFLA_VXLAN_LEARNING, 1)),
 		},
 	}
 	words := vxlanCorpusWords()

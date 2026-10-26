@@ -334,7 +334,7 @@ func TestBuildLinkWrite(t *testing.T) {
 		{description: "negative: dummy has no options", verb: "set", args: []string{"d0", "type", "dummy", "foo"},
 			expected: invalid(`Garbage instead of arguments "foo ...".`, "d0")},
 		{description: "negative: options of a kind goip does not implement", verb: "add",
-			args: []string{"vx0", "type", "vxlan", "id", "1"}, expected: notImpl(`"vxlan"`)},
+			args: []string{"ib0", "type", "ipoib", "pkey", "0x8001"}, expected: notImpl(`"ipoib"`)},
 		{description: "positive: bond options", verb: "add",
 			args: []string{"bond0", "type", "bond", "mode", "802.3ad"},
 			expected: linkWriteExpected{write: withData(add(attrs(ifname("bond0")), ""), "bond",

@@ -238,14 +238,18 @@ const (
 	VxlanOptionReservedBits
 	VxlanOptionGBP
 	VxlanOptionGPE
+	// VxlanOptionDefaultGroup is ip -4 or -6's group when no address is
+	// given; Value is unix.AF_INET or AF_INET6.
+	VxlanOptionDefaultGroup
 )
 
 // VxlanSetting is one option word of `type vxlan`. Value is the id, the
 // lower's ifindex, the ttl (0 for auto), the tos (1 for inherit), the df,
 // the flow label, the aging time (0 for none), the limit (0 for unlimited),
-// srcport's low end, the dstport, the reserved bits, or 0 or 1 for
-// learning, external and VxlanOptionBool; High is srcport's high end; Attr
-// is VxlanOptionBool's IFLA_VXLAN_*; Addr is the group, remote or local.
+// srcport's low end, the dstport, the reserved bits, 0 or 1 for learning,
+// external and VxlanOptionBool, or the default group's family; High is
+// srcport's high end; Attr is VxlanOptionBool's IFLA_VXLAN_*; Addr is the
+// group, remote or local.
 type VxlanSetting struct {
 	Option VxlanOption
 	Value  uint64
@@ -268,17 +272,18 @@ type vxlanEnc struct {
 	dstport       uint64
 	portGiven     bool
 	gpe           bool
+	defaultFamily uint64
 }
 
 // EncodeVxlanInfoData encodes the inside of IFLA_INFO_DATA for kind "vxlan"
 // as vxlan_parse_opt does; set is an `ip link set`, which sends no
 // NLM_F_CREATE. The words' own attributes go in the order given; then
-// IFLA_VXLAN_ID if an id was given, the local, the group or remote,
+// IFLA_VXLAN_ID if an id was given, the local, the group or remote (or
+// VxlanOptionDefaultGroup's 0.0.0.0 or :: when neither was given),
 // IFLA_VXLAN_LEARNING (on an add always, 0 after external or nolearning; on
 // a set only after a learning word), and IFLA_VXLAN_PORT when nonzero, 4790
 // for gpe without a dstport. No settings encode to nothing: iplink_parse
-// calls no parse_opt when no option follows the kind. ip -4 and -6's
-// default group, sent when no address is given, is not modeled. It refuses
+// calls no parse_opt when no option follows the kind. It refuses
 // what vxlan_parse_opt refuses: ErrKindSettingConflict for group and
 // remote, a local of the other family, vnifilter without external, external
 // with an id, and a group without dev; ErrKindSettingMissing for no id on an
@@ -351,6 +356,12 @@ func (e *vxlanEnc) put(s VxlanSetting) error {
 	case VxlanOptionGPE:
 		e.gpe = true
 		return e.ab.PutBytes(unix.IFLA_VXLAN_GPE, nil)
+	case VxlanOptionDefaultGroup:
+		if s.Value != unix.AF_INET && s.Value != unix.AF_INET6 {
+			return ErrKindSettingRange
+		}
+		e.defaultFamily = s.Value
+		return nil
 	default:
 		return ErrKindSettingOption
 	}
@@ -361,7 +372,7 @@ func (e *vxlanEnc) put(s VxlanSetting) error {
 // local of the other family, is refused as get_addr refuses it.
 func (e *vxlanEnc) putAddr(s VxlanSetting) error {
 	a := s.Addr
-	if !a.IsValid() || a.IsMulticast() != (s.Option == VxlanOptionGroup) {
+	if !a.IsValid() || vxlanMulticast(a) != (s.Option == VxlanOptionGroup) {
 		return ErrKindSettingRange
 	}
 	other := e.local
@@ -374,6 +385,16 @@ func (e *vxlanEnc) putAddr(s VxlanSetting) error {
 	}
 	*dst = a
 	return nil
+}
+
+// vxlanMulticast is set_address_type's multicast test, IN_MULTICAST or
+// IN6_IS_ADDR_MULTICAST on the bytes: unlike netip's IsMulticast, a
+// v4-mapped 239.1.1.1 is not multicast.
+func vxlanMulticast(a netip.Addr) bool {
+	if a.Is4() {
+		return a.As4()[0]&0xf0 == 0xe0
+	}
+	return a.As16()[0] == 0xff
 }
 
 func (e *vxlanEnc) putSrcPort(s VxlanSetting) error {
@@ -403,7 +424,7 @@ func (e *vxlanEnc) putBool(s VxlanSetting) error {
 // attributes it holds back.
 func (e *vxlanEnc) finish(set bool) error {
 	switch {
-	case !e.metadata && e.vnifilter, e.metadata && e.hasID, e.remote.IsMulticast() && !e.hasLink:
+	case !e.metadata && e.vnifilter, e.metadata && e.hasID, vxlanMulticast(e.remote) && !e.hasLink:
 		return ErrKindSettingConflict
 	case !e.metadata && !e.vnifilter && !e.hasID && !set:
 		return ErrKindSettingMissing
@@ -419,6 +440,9 @@ func (e *vxlanEnc) finish(set bool) error {
 	if err := kindPutAddr(&e.ab, e.remote, unix.IFLA_VXLAN_GROUP, unix.IFLA_VXLAN_GROUP6); err != nil {
 		return err
 	}
+	if err := e.putDefaultGroup(); err != nil {
+		return err
+	}
 	if !set || e.learningGiven {
 		if err := kindPutU8(&e.ab, unix.IFLA_VXLAN_LEARNING, e.learning, 1); err != nil {
 			return err
@@ -432,4 +456,17 @@ func (e *vxlanEnc) finish(set bool) error {
 		return nil
 	}
 	return e.ab.PutBytes(unix.IFLA_VXLAN_PORT, kindBE(port, 2))
+}
+
+// putDefaultGroup is vxlan_parse_opt's !selected_family branch: ip -4 or -6
+// with no local, group or remote sends get_addr's "default", the family's
+// zero address, as the group.
+func (e *vxlanEnc) putDefaultGroup() error {
+	if e.defaultFamily == 0 || e.local.IsValid() || e.remote.IsValid() {
+		return nil
+	}
+	if e.defaultFamily == unix.AF_INET {
+		return kindPutAddr(&e.ab, netip.IPv4Unspecified(), unix.IFLA_VXLAN_GROUP, unix.IFLA_VXLAN_GROUP6)
+	}
+	return kindPutAddr(&e.ab, netip.IPv6Unspecified(), unix.IFLA_VXLAN_GROUP, unix.IFLA_VXLAN_GROUP6)
 }

@@ -67,6 +67,9 @@ func lookupLinkWriteVerb(arg string) *linkWriteVerb {
 
 func (v *linkWriteVerb) create() bool { return v.flags&unix.NLM_F_CREATE != 0 }
 
+// setOp is a kind parser's set_op: an RTM_NEWLINK without NLM_F_CREATE.
+func (v *linkWriteVerb) setOp() bool { return v.msgType == unix.RTM_NEWLINK && !v.create() }
+
 // linkResolver is ll_name_to_index: the ifindex for a name, 0 for none.
 type linkResolver func(name string) (int32, error)
 
@@ -228,6 +231,17 @@ func incompleteErr() error {
 
 func nodevErr(dev string) error {
 	return fmt.Errorf("%w: Cannot find device %q", ErrInvalidArgument, dev)
+}
+
+// nodevExitErr is a kind's exit(nodev(dev)): nodev's -1 as the status, 255.
+func nodevExitErr(dev string) error {
+	return linkUsage(nodevErr(dev))
+}
+
+// kindUnknownErr is a kind's parse_opt on a word it doesn't know, which it
+// prints before the usage and returns -1 from.
+func kindUnknownErr(kind, word string) error {
+	return fmt.Errorf("%w: %s: unknown command %q?", ErrInvalidArgument, kind, word)
 }
 
 // devState tracks iplink_parse's `dev` pointer against its `name` pointer,
@@ -613,7 +627,7 @@ func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []
 	if len(p.rest) == 0 {
 		return w, nil
 	}
-	w.Data, err = kindData(errOut, verb, p.kind, p.rest, resolve)
+	w.Data, err = kindData(errOut, verb, family, p.kind, p.rest, resolve)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
 	}
@@ -623,9 +637,17 @@ func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []
 
 // kindData is lu->parse_opt for the kinds goip implements, run only when
 // arguments follow the kind. errOut takes the warnings a parser prints and
-// goes on from.
-func kindData(errOut io.Writer, verb *linkWriteVerb, kind string, rest []string, resolve linkResolver) ([]byte, error) {
+// goes on from; family is preferred_family, ip's -4 or -6.
+func kindData(errOut io.Writer, verb *linkWriteVerb, family uint8, kind string, rest []string,
+	resolve linkResolver,
+) ([]byte, error) {
 	switch kind {
+	case kindVxlanCst:
+		settings, err := parseVxlanArgs(errOut, family, verb.setOp(), rest, resolve)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeVxlanInfoData(settings, verb.setOp())
 	case kindBridgeCst:
 		settings, err := parseBridgeArgs(errOut, rest)
 		if err != nil {

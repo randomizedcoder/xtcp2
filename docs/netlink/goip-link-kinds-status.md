@@ -24,8 +24,9 @@
 - KG0 is done (KG0-T01, KG0-T02; planned in DOC015): goip builds `ip link set … inet …` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, and refuses the 7 `ip` refuses with `ip`'s texts and statuses. `parseLinkArgs`' `exit(-1)` refusals now exit 255 through `ErrLinkUsage`. The 11 `link_inet_*` matrix rows are gated, on a clean full run and a clean `--section link` run (V135, V136), the first rows gated with a section run. KG1 is planned (DOC016).
 - KG1 is done (KG1-T01, KG1-T02, KG1-T03, KG1-T04, KG1-T05; planned in DOC016): goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets. The 92 write rows and 4 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V154, V155). KG2 is planned (DOC017).
 - KG2 is done (KG2-T01, KG2-T02, KG2-T03, KG2-T04, KG2-T05; planned in DOC017): goip takes `iplink_parse`'s `link` keyword, resolving the lower device before `IFLA_IFNAME` on a create, and builds `ip link add|set … type vlan|macvlan|macvtap …` byte for byte as `ip` does for KC3's 21 vlan, 25 macvlan and 5 macvtap rows that sent a request, lookups included, and refuses the 17 `ip` refuses with `ip`'s texts and statuses. KG2-T03 adds `type ipvlan|ipvtap …`: KC3's 14 ipvlan and 3 ipvtap rows that sent a request, and the 5 refusals. KG2-T04 renders `-d link show` of the five kinds as `ip` does for all 54 accepted rows, text and JSON, with `ip`'s gets. The 68 write rows and 10 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V169, V170). KG3 is planned (DOC018).
+- KG3 is in progress (KG3-T01): goip builds `ip link add|set … type vxlan …` byte for byte as `ip` does for KC4's 58 vxlan rows that sent a request, lookups included, prints `ip`'s dstport warning, refuses the 15 `ip` refuses with `ip`'s texts and statuses, and sends `ip -4`'s and `-6`'s default group.
 
-**Next action:** [KG3-T01](goip-link-kinds.md#kg3-t01-the-vxlan-words): the vxlan words.
+**Next action:** [KG3-T02](goip-link-kinds.md#kg3-t02-the-geneve-words): the geneve words.
 
 ## Contents
 
@@ -66,7 +67,7 @@
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | KG0-T02 | done | V129–V139, DOC016 |
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156, DOC017 |
 | [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | KG2-T05 | done | V157–V173, DOC018 |
-| [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | KG3-T01 | not started | |
+| [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | KG3-T02 | in progress | V174–V176 |
 | [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | | not started | |
 | [KG5](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip | the remaining kinds | | not started | |
 
@@ -129,7 +130,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG2-T03](goip-link-kinds.md#kg2-t03-the-ipvlan-and-ipvtap-words) | the ipvlan and ipvtap words | done | V163–V165 |
 | [x] | [KG2-T04](goip-link-kinds.md#kg2-t04-the-vlan-familys--d-output) | the VLAN family's `-d` output | done | V166–V168 |
 | [x] | [KG2-T05](goip-link-kinds.md#kg2-t05-the-vlan-family-matrix-rows) | the VLAN family matrix rows | done | V169–V173 |
-| [ ] | [KG3-T01](goip-link-kinds.md#kg3-t01-the-vxlan-words) | the vxlan words | not started | |
+| [x] | [KG3-T01](goip-link-kinds.md#kg3-t01-the-vxlan-words) | the vxlan words | done | V174–V176 |
 | [ ] | [KG3-T02](goip-link-kinds.md#kg3-t02-the-geneve-words) | the geneve words | not started | |
 | [ ] | [KG3-T03](goip-link-kinds.md#kg3-t03-the-bareudp-amt-and-gtp-words) | the bareudp, amt and gtp words | not started | |
 | [ ] | [KG3-T04](goip-link-kinds.md#kg3-t04-the-udp-overlays--d-output) | the UDP overlays' `-d` output | not started | |
@@ -332,6 +333,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V172 | 2026-10-25 | KG2-T05 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: a floor short by 2; a setup step dropped; a row dropped; an `ip`-refused row added; `add_on_busy_lower` back to its corpus spelling; a read row's floor short by 2; a row dropped from `gated_commands` | 7 of 7 killed: by the floor row; the setup row; the request-row and gated rows; the request-row, negative, floor and gated rows and `TestUngatedSurfaceIsNotVacuous`; the unique row; the read row; the gated row, `TestUngatedSurfaceIsNotVacuous` and `TestAllowlistCommitted`'s earned row | scratch |
 | V173 | 2026-10-25 | KG2-T05 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 | DOC018 | 2026-10-25 | KG2 close | KG3 broken into KG3-T01 (the vxlan words, `ip -4`/`-6`'s default group, a kind's `dev` at 255), KG3-T02 (the geneve words), KG3-T03 (the bareudp, amt and gtp words), KG3-T04 (the five `-d` renders and vxlan's `-d -d`) and KG3-T05 (the 138 matrix rows) with their tables. Argued from `iplink_vxlan.c`, `iplink_geneve.c`, `iplink_bareudp.c`, `iplink_amt.c`, `iplink_gtp.c`, `lib/utils.c`'s `get_addr` and `include/utils.h`'s address types at `v7.2.0`, from KC4's 177 rows (`ip.rc`, `ip.err`, `topology`, record counts, readbacks) and from KP3's codec. KG2-T05's checklist box ticked. doccheck | tasks one to one, no broken link or anchor | this commit |
+| V174 | 2026-10-25 | KG3-T01 | `go vet ./internal/goip/ ./pkg/xtcpnl/`, `go test -count=1 -race ./internal/goip/ ./pkg/xtcpnl/ ./internal/goipparity/` | all pass: `TestLinkVxlanWriteMatchesIp` (the 58 rows that sent a request, each against its own KC4 capture), `TestLinkVxlanWarning` (stderr against `ip.err`, 7 rows warn), `TestLinkVxlanRefusals` (the 15 `ip`-refused rows and 9 built), `TestVxlanCorpusArgv` (73 rows), `TestParseVxlanArgs` (13 rows), `TestParseVxlanArgsErrors` (5 rows), `TestEncodeVxlanInfoData`'s default-group rows; `TestBuildLinkWrite`'s not-implemented row moved to ipoib | this commit |
+| V175 | 2026-10-25 | KG3-T01 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `dev` sent after the loop; `nodev` as 1; the group/remote check after `NEXT_ARG`; `port` read as `dstport`; the warning dropped; `localbypass` by prefix; the default group sent with an address | 7 of 7 killed: by `add_group`, `add_group6`, `add_local6_link_local` and the `d` is dev row; `add_dev_missing` and the missing-dev error row; the value corner; the source-range row; 5 of the warning rows; `add_strcmp_abbrev`; the `-4` negative row and the encoder's local row | scratch |
+| V176 | 2026-10-25 | KG3-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; the first lint run found misspell (`ageing`, now built from `xtcpnl.VxlanKeywordAgeing`) and goconst (`label`, `remote`, `hoplimit`, now vxlan consts), fixed before the passing run | this commit |
 
 ## Decision log
 
@@ -471,3 +475,8 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **`-d -d` is not `-d` for vxlan.** `vxlan_print_opt` shows its bool options at their defaults when `show_details > 1`, the one such site at `v7.2.0`, so `options.go`'s note that no site tests the count was wrong once vxlan renders. KG3-T04 carries the count to the renderer, and a `-d -d link show dev vx0` read row gates it.
 - **amt's mode past relay prints `unknown`.** `ip` indexes past its two-name table. `amt_validate` refuses such a mode, so no device has one, and goip prints gtp's word for a role past its table.
 - **Two geneve rows are respelled.** `add_duplicate` and `add_after_external` share an argv, as do `set_local_same` and `set_local_new`, so `add_after_external` and `set_local_new` take `iplink_parse`'s optional `dev`, as KG1's and KG2's respellings did.
+- **vxlan's multicast test reads the bytes.** `set_address_type` tests `IN_MULTICAST` and `IN6_IS_ADDR_MULTICAST` on the address as given, so a v4-mapped `::ffff:239.1.1.1` is a unicast remote. netip's `IsMulticast` unmaps it, so the encoder's group and group-without-dev checks now use `vxlanMulticast`.
+- **An empty vxlan address is refused.** `any` or `all` after an address of the other family has a family and no bytes, and `ip` sends the attribute empty. A `VxlanSetting` can't hold that, so goip refuses it as not implemented; no capture has it.
+- **An `if<n>` dev past INT_MAX is nodev.** `ll_name_to_index` returns it negative and `ip` sends it; goip refuses it with `exit(nodev)`'s text.
+- **The not-implemented example is ipoib.** `TestBuildLinkWrite`'s row for a kind goip doesn't build was vxlan; ipoib is out of scope, so it holds the row from now on.
+- **`set_op` is an RTM_NEWLINK without NLM_F_CREATE,** as `ip` computes it, so a kind's checks see a `link delete … type vxlan` as an add.
