@@ -392,9 +392,10 @@ every reconcile pass. Standalone, xtcp2 watches the journal directory
 (inotify on the atomic rename of `state.textproto`, a 30 s poll as fallback,
 SIGHUP to re-read now) and rebuilds it from the snapshot; a missing or invalid
 snapshot clears attribution rather than stamping stale state. The embedded
-agent writes its certificate-bound location onto records; the standalone
-arrangement keeps the daemon's own `-location` and logs once if the journal
-disagrees.
+agent writes its certificate-bound location onto records. The standalone
+arrangement keeps the daemon's own `-location` when one is set and logs once
+if the journal disagrees; a daemon started without `-location`/`LOCATION`
+adopts the journal's location, since evidence queries filter by it.
 
 A build without the `treatment` tag rejects `-treatmentConfig` at startup with
 a message naming both remedies, the same way a slim build rejects an enricher

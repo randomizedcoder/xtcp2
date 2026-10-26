@@ -85,32 +85,39 @@ func TestWatcherRefreshContracts(t *testing.T) {
 		wantAgent         string
 		wantAssignment    string
 		wantLogged        string
+		daemonLocation    string
+		wantLocation      string
 	}{
-		{"journal", "positive: a committed journal attributes records with the journal's agent and the daemon's location", func(t *testing.T, dir string) { writeJournal(t, dir, verifiedState(3)) }, "", "host-1", "trial-1", ""},
-		{"missing-file", "negative: no snapshot yet means identity is not invented", func(*testing.T, string) {}, "", "", "", ""},
-		{"missing-dir", "negative: a directory that does not exist yet is not an error", func(t *testing.T, dir string) { os.RemoveAll(dir) }, "", "", "", ""},
+		{"journal", "positive: a committed journal attributes records with the journal's agent and the daemon's location", func(t *testing.T, dir string) { writeJournal(t, dir, verifiedState(3)) }, "", "host-1", "trial-1", "", "dc1", "dc1"},
+		{"missing-file", "negative: no snapshot yet means identity is not invented", func(*testing.T, string) {}, "", "", "", "", "dc1", "dc1"},
+		{"missing-dir", "negative: a directory that does not exist yet is not an error", func(t *testing.T, dir string) { os.RemoveAll(dir) }, "", "", "", "", "dc1", "dc1"},
 		{"corrupt", "negative: an invalid snapshot clears attribution and is logged", func(t *testing.T, dir string) {
 			if err := os.WriteFile(filepath.Join(dir, reconcile.SnapshotFile), []byte("nonsense {"), 0600); err != nil {
 				t.Fatal(err)
 			}
-		}, "invalid treatment journal", "", "", "not attributed"},
+		}, "invalid treatment journal", "", "", "not attributed", "dc1", "dc1"},
 		{"held", "boundary: a journal under a hold stamps identity but no treatment", func(t *testing.T, dir string) {
 			s := verifiedState(4)
 			s.LocallySuspended = true
 			writeJournal(t, dir, s)
-		}, "", "host-1", "", ""},
+		}, "", "host-1", "", "", "dc1", "dc1"},
 		{"location-mismatch", "corner: a journal from another location keeps the daemon's label and warns once", func(t *testing.T, dir string) {
 			s := verifiedState(5)
 			s.Location = "elsewhere"
 			writeJournal(t, dir, s)
-		}, "", "host-1", "trial-1", "differs from this daemon"},
+		}, "", "host-1", "trial-1", "differs from this daemon", "dc1", "dc1"},
+		{"adopt-location", "corner: a daemon without its own -location takes the journal's so evidence queries can find it", func(t *testing.T, dir string) {
+			s := verifiedState(6)
+			s.Location = "journal-dc"
+			writeJournal(t, dir, s)
+		}, "", "host-1", "trial-1", "records take the journal's", "", "journal-dc"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			tc.prepare(t, dir)
 			var sink logSink
 			var st Stamper
-			w, err := NewWatcher(WatchConfig{Dir: dir, Location: "dc1", NetnsInode: 7, Log: sink.printf}, &st)
+			w, err := NewWatcher(WatchConfig{Dir: dir, Location: tc.daemonLocation, NetnsInode: 7, Log: sink.printf}, &st)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -120,7 +127,7 @@ func TestWatcherRefreshContracts(t *testing.T) {
 			}
 			r := record()
 			st.Stamp(r)
-			if r.AgentId != tc.wantAgent || r.TreatmentAssignmentId != tc.wantAssignment || r.Location != "dc1" {
+			if r.AgentId != tc.wantAgent || r.TreatmentAssignmentId != tc.wantAssignment || r.Location != tc.wantLocation {
 				t.Fatalf("%s: agent=%q assignment=%q location=%q", tc.description, r.AgentId, r.TreatmentAssignmentId, r.Location)
 			}
 			if tc.wantAgent != "" && (r.HostBootId != "boot-1" || len(r.CollectionId) != 32) {

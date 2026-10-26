@@ -20,8 +20,10 @@ import (
 type WatchConfig struct {
 	// Dir is the journal directory (local.Config.Directory of the agent).
 	Dir string
-	// Location is this daemon's own telemetry label. The journal's location
-	// is never written onto records; a difference is logged once.
+	// Location is this daemon's own telemetry label. When it is set the
+	// journal's location is never written onto records and a difference is
+	// logged once. When it is empty (no -location/LOCATION) the journal's
+	// location is adopted so evidence queries can find the host.
 	Location string
 	// Poll bounds staleness when inotify is unavailable, the directory does
 	// not exist yet or an event was missed. Zero means 30s.
@@ -121,7 +123,12 @@ func (w *Watcher) Refresh(force bool) error {
 		w.warnedFor = s.Location
 		w.cfg.Log("treatment attribution: journal location %q differs from this daemon's -location %q; records keep %q", s.Location, w.cfg.Location, w.cfg.Location)
 	}
-	w.stamper.Publish(Build(s, Identity{AgentID: s.AgentID, Location: s.Location, BootID: s.BootID, CollectionID: w.collectionID, NetnsInode: w.cfg.NetnsInode}, false))
+	adoptLocation := w.cfg.Location == ""
+	if adoptLocation && s.Location != "" && w.warnedFor != s.Location {
+		w.warnedFor = s.Location
+		w.cfg.Log("treatment attribution: this daemon has no -location; records take the journal's %q", s.Location)
+	}
+	w.stamper.Publish(Build(s, Identity{AgentID: s.AgentID, Location: s.Location, BootID: s.BootID, CollectionID: w.collectionID, NetnsInode: w.cfg.NetnsInode}, adoptLocation))
 	return nil
 }
 

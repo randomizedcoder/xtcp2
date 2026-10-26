@@ -13,7 +13,7 @@ review being addressed. Items are listed in execution order.
 | 3 | explicit state machine; `Outcome` enum | done | 85b2cf59 |
 | 4 | repository ports, relational schema, pgx, domain types, `wire` | done | eae1d87d |
 | D1 | dual-mode agent, part 1: journal-specific proto, proto-free `reconcile`, `local`, `attribution`, watchdog off the agent | done | 6398338a |
-| D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | this commit |
+| D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | 87321a63, fix this commit |
 | 5 | evidence port (`CandidateSource`), ClickHouse as one adapter | next | |
 | 6 | auth as interceptor with per-RPC role option | pending | |
 | 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | pending | |
@@ -73,6 +73,12 @@ process.
 - The boundary walk now honours build tags (`go/build.Context.MatchFile`), so
   it asserts the untagged daemon never reaches the agent, identity or the
   RPC proto, and the tagged one does reach the agent but never the controller.
+- The first VM run of 87321a63 failed at the fresh six-host baseline with
+  `invalid evidence population`: in standalone mode the slim daemon had no
+  `-location`, so every record shipped `location=""` and the ClickHouse
+  analysis (which filters by location) saw no hosts. The watcher now adopts
+  the journal's location when the daemon has none and still keeps its own
+  when one is set (logged once either way).
 
 ## TODO
 
