@@ -22,6 +22,7 @@ const (
 var goipPackages = []string{
 	modulePath + "/cmd/goip",
 	modulePath + "/internal/goip",
+	modulePath + "/internal/goip/actuate",
 	modulePath + "/internal/goip/model",
 	modulePath + "/internal/goip/render",
 	modulePath + "/internal/goip/req",
@@ -160,6 +161,7 @@ func TestGoipImportSetIsHermetic(t *testing.T) {
 			modulePath + "/internal/goip/req":      "the pure request builders",
 			modulePath + "/internal/goip/service":  "shared request, decode, filter and ordering application layer",
 			modulePath + "/internal/goip/goiphttp": "the read-only /ip HTTP paths over goip.Show",
+			modulePath + "/internal/goip/actuate":  "the treatment route actuator, the one live-write consumer, on xtcpnl's typed builders",
 			modulePath + "/pkg/xtcpnl":             "the subject under test",
 			modulePath + "/pkg/nlparity":           "the tolerant walker, for ReplaySource",
 			modulePath + "/gen/go/xtcp_flat_record": "reached through pkg/xtcpnl's inet_diag decoders, which " +

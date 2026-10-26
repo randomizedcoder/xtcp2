@@ -15,9 +15,9 @@ review being addressed. Items are listed in execution order.
 | D1 | dual-mode agent, part 1: journal-specific proto, proto-free `reconcile`, `local`, `attribution`, watchdog off the agent | done | 6398338a |
 | D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | 87321a63, fix 20f3a35a |
 | 5 | evidence port (`Source`, `CandidateSource`, `Warehouse`), ClickHouse as one adapter | done | caba9bc4 |
-| 6 | auth as interceptor with per-RPC role option | done | this commit |
-| 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | next | |
-| 9 | identity/location startup check | pending | |
+| 6 | auth as interceptor with per-RPC role option | done | d7fefee4 |
+| 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | done | this commit |
+| 9 | identity/location startup check | next | |
 | 10 | blocking journal lock | pending | |
 | 11 | scale: notification watermark, heartbeat split, leader lease | pending | |
 | 12 | docs: threat model, naming, SIGHUP, philosophy sentence | pending | |
@@ -113,6 +113,28 @@ process.
   the mTLS bufconn test now runs through the interceptors and checks an
   undeclared method fails closed, and `TestEveryMethodAgainstEveryRole`
   tries every served method with each of three callers.
+
+## Item 7 notes
+
+- `xtcpnl.RuleWrite` (+ `RuleAttr*`, `EncodeFibRuleHdr`,
+  `BuildRuleWriteRequest`) is `RouteWrite`'s counterpart for `RTM_NEWRULE`/
+  `RTM_DELRULE`. `Table` is a u32: 1..255 goes in the header byte, above
+  that the header is `RT_TABLE_UNSPEC` and `FRA_TABLE` is written first,
+  which is also what the argv `table` keyword does at its position.
+- `internal/goip/actuate` holds the backend (`actuate.Backend`,
+  `RouteTreatment`, `TCPRouteSettings`), split into `actuate.go`, `rules.go`
+  and `routes.go`; `rule()` builds from fields and refuses out-of-range
+  table/priority/protocol before encoding. `NetlinkSource.ApplyRouteControl`
+  stays in `internal/goip/route_control.go` because it needs the socket's
+  unexported descriptor; it is the only live-write entry point.
+- Tests: `TestBuildRuleWriteRequest` (hand-written hex) and
+  `TestRuleWriteReadsBack` in `pkg/xtcpnl`; `TestRuleWriteTypedMatchesArgv`
+  in `internal/goip` compares typed and `parseRuleWriteArgs` bytes for the
+  treatment rule, v6, delete, table 255, /32, /128 and `not`;
+  `TestTreatmentRuleRequest` in `actuate` reads the owned rule back and
+  covers the refused ranges. The goip hermetic-import test pins the new
+  package in goip's closure; the Nix harness and docs point at
+  `./internal/goip/actuate`.
 
 ## TODO
 

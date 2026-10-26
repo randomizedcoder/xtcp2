@@ -115,11 +115,11 @@ func treatmentBoundaryRules() []boundaryRule {
 			expectAny:   []string{tp("pkg/treatment"), tp("gen/go/xtcp_treatment_journal")},
 		},
 		{
-			description: "positive: the local package builds the kernel-backed reconciler without TLS or the RPC proto",
+			description: "positive: the local package builds the kernel-backed reconciler on the goip actuator, without TLS or the RPC proto",
 			root:        tp("pkg/treatment/local"),
 			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/attribution"), tp("pkg/treatment/controller"), tp("pkg/treatment/experiment"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment")},
 			forbidden3p: []string{"database/sql", "google.golang.org/grpc/credentials"},
-			expectAny:   []string{tp("pkg/treatment/reconcile"), tp("internal/goip")},
+			expectAny:   []string{tp("pkg/treatment/reconcile"), tp("internal/goip/actuate"), tp("internal/goip")},
 		},
 		{
 			description: "positive: attribution reads journal snapshots and the flat record; never identity, goip, the agent or the RPC proto",

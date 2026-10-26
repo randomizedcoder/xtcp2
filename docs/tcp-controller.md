@@ -21,7 +21,7 @@ flowchart LR
   C -->|revision notification| D
   D -->|check-in and observed state| C
   D --> J[Atomic protobuf-text journal]
-  J --> R[goip route backend]
+  J --> R[goip actuator, internal/goip/actuate]
   R --> L[Owned Linux routes and TCP lookup rules]
   W[Independent local lease watchdog] --> J
 ```
@@ -38,6 +38,7 @@ a typed [protobuf contract](../proto/xtcp_treatment/v1/) (`xtcp_treatment.v1`: `
 | `pkg/treatment/identity` | agent, controller, tools | SPIFFE URI identity, mTLS configuration, gRPC peer resolution, `Policy` interceptors that resolve the caller once per call |
 | `pkg/treatment/reconcile` | agent, watchdog | intent journal (`State`, `Record`, the `xtcp_treatment_journal.v1` file format), reconciler, `Backend` interface, `Mode` (full or expiry-only); domain types only, no RPC proto, no gRPC |
 | `pkg/treatment/local` | agent, watchdog, `treatmentctl` | the shared `controller-agent.json` config and the goip-backed reconciler built from it; no TLS, no controller |
+| `internal/goip/actuate` | `local` | the route actuator: owned table, rule priority and protocol, baseline copy with TCP metrics, ownership and readback checks; requests come from `xtcpnl`'s typed `RouteWrite` and `RuleWrite` builders and reach the kernel only through `goip.NetlinkSource.ApplyRouteControl`, the one live-write path in goip |
 | `pkg/treatment/attribution` | `xtcp2`, agent | the exposure index built from a journal snapshot and the hot-path telemetry stamp; the same code serves the embedded agent and a telemetry-only daemon |
 | `pkg/treatment/experiment` | controller | evaluation statistics, cohort allocation, phase advancement, state machine; pure functions over domain types |
 | `pkg/treatment/agent` | `xtcp2`, agent binary | check-in loop, watch stream, capabilities, over `local` and `attribution`; a library with two front ends |
@@ -92,7 +93,10 @@ physical host's PID 1.
 The default reserved resources are table **10002**, rule priority **30000**, and
 route/rule protocol **242**. The actuator copies the baseline gateway, interface,
 preferred source and supported metrics into a destination override. TCP rules
-with `iif lo` select locally originated traffic. Unmatched traffic falls through
+with `iif lo` select locally originated traffic. The rule is built from fields
+with `xtcpnl.RuleWrite`, not from `ip rule` keywords; `TestRuleWriteTypedMatchesArgv`
+in `internal/goip` keeps it byte for byte what `ip rule add table 10002 priority
+30000 ipproto tcp iif lo protocol 242` sends. Unmatched traffic falls through
 to the normal tables. Main-table routes are never rewritten. These reserved
 resources must have one owner; every mutation checks ownership and readback,
 and refuses to overwrite or delete a changed/foreign route. Link, address, route
@@ -574,7 +578,7 @@ XTCP_CONTROLLER_TEST_DSN='host=... dbname=... user=... sslmode=...' \
   go test ./pkg/treatment/controller/... 
 XTCP_CLICKHOUSE_TEST_BINARY=/path/to/clickhouse \
   go test ./pkg/treatment/controller -run ClickHouse
-XTCP_TREATMENT_LIVE_TEST=1 go test ./internal/goip -run '^TestTreatmentLiveNamespace$'
+XTCP_TREATMENT_LIVE_TEST=1 go test ./internal/goip/actuate -run '^TestTreatmentLiveNamespace$'
 ```
 
 Every controller handler test runs twice, as `<Test>/memory` and

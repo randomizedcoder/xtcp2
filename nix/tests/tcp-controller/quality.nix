@@ -34,7 +34,7 @@ let
         grep -q -- '--- PASS: TestPostgresConcurrentReviewFencesReplicas' "$out/tests.log"
         grep -q -- '--- PASS: TestClickHouseAnalysisCounterDeltas' "$out/tests.log"
         go test -ldflags=-checklinkname=0 ${if race then "-race -count=3" else "-count=1"} \
-          -timeout 5m -v -run '^TestTreatment' ./internal/goip > "$out/routes.log" 2>&1 \
+          -timeout 5m -v -run '^TestTreatment' ./internal/goip/actuate > "$out/routes.log" 2>&1 \
           || { cat "$out/routes.log"; exit 1; }
         ${if race then "" else ''go tool cover -func "$out/coverage.out" > "$out/coverage.txt"''}
       '';
@@ -52,6 +52,6 @@ in
     go test -ldflags=-checklinkname=0 -run '^$' -bench . -benchmem -benchtime=1s -count=5 \
       ./pkg/treatment/... > "$out/benchmarks.txt" 2>&1 || { cat "$out/benchmarks.txt"; exit 1; }
     go test -ldflags=-checklinkname=0 -run '^$' -bench '^BenchmarkTreatment' -benchmem -benchtime=1s -count=5 \
-      ./internal/goip >> "$out/benchmarks.txt" 2>&1 || { cat "$out/benchmarks.txt"; exit 1; }
+      ./internal/goip/actuate >> "$out/benchmarks.txt" 2>&1 || { cat "$out/benchmarks.txt"; exit 1; }
   '';
 }

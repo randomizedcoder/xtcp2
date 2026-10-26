@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/randomizedcoder/xtcp2/internal/goip"
+	"github.com/randomizedcoder/xtcp2/internal/goip/actuate"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"golang.org/x/sys/unix"
@@ -65,7 +65,7 @@ func New(c Config, id *Identity) (*Host, error) {
 		}
 		id = &v
 	}
-	b := &routeBackend{TreatmentBackend: &goip.TreatmentBackend{Table: c.Table, Priority: c.RulePriority, Protocol: c.Protocol, Enabled: c.EnableApply}}
+	b := &routeBackend{Backend: &actuate.Backend{Table: c.Table, Priority: c.RulePriority, Protocol: c.Protocol, Enabled: c.EnableApply}}
 	for _, v := range c.ProtectedPrefixes {
 		p, err := netip.ParsePrefix(v)
 		if err != nil {
@@ -92,14 +92,14 @@ func (h *Host) SimpleHostRouting(ctx context.Context) bool { return h.backend.Ch
 // routeBackend adapts goip's treatment backend to the reconcile.Backend
 // contract: it validates the domain treatment and maps it onto goip's own
 // route type, so goip never imports the treatment packages.
-type routeBackend struct{ *goip.TreatmentBackend }
+type routeBackend struct{ *actuate.Backend }
 
 func (b *routeBackend) Plan(ctx context.Context, t *treatment.Treatment) ([]byte, error) {
 	if err := treatment.ValidateTreatment(t); err != nil {
 		return nil, err
 	}
 	s := t.Settings
-	return b.TreatmentBackend.Plan(ctx, &goip.RouteTreatment{Destination: t.Destination.String(), Settings: &goip.TCPRouteSettings{
+	return b.Backend.Plan(ctx, &actuate.RouteTreatment{Destination: t.Destination.String(), Settings: &actuate.TCPRouteSettings{
 		CongestionControl: s.CongestionControl, CongestionLock: s.CongestionLock, RtoMinMs: s.RTOMinMs,
 		InitialCongestionWindow: s.InitialCongestionWindow, InitialReceiveWindow: s.InitialReceiveWindow,
 		QuickAck: s.QuickAck, Ecn: s.ECN,

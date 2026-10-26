@@ -1,4 +1,4 @@
-package goip
+package actuate
 
 import (
 	"testing"
@@ -7,25 +7,25 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestTreatmentBackendBounds(t *testing.T) {
+func TestBackendBounds(t *testing.T) {
 	for _, tc := range []struct {
 		name, description string
-		change            func(*TreatmentBackend)
+		change            func(*Backend)
 		wantError         bool
 	}{
-		{"valid", "private routing resources are accepted", func(*TreatmentBackend) {}, false},
-		{"disabled", "mutation is opt-in", func(b *TreatmentBackend) { b.Enabled = false }, true},
-		{"table-low", "main and compatibility tables are excluded", func(b *TreatmentBackend) { b.Table = 255 }, true},
-		{"table-min", "first private table is accepted", func(b *TreatmentBackend) { b.Table = 256 }, false},
-		{"priority-zero", "local lookup priority is reserved", func(b *TreatmentBackend) { b.Priority = 0 }, true},
-		{"priority-min", "first nonlocal priority is valid", func(b *TreatmentBackend) { b.Priority = 1 }, false},
-		{"priority-max", "last priority before main is valid", func(b *TreatmentBackend) { b.Priority = 32765 }, false},
-		{"priority-main", "main table priority is reserved", func(b *TreatmentBackend) { b.Priority = 32766 }, true},
-		{"protocol-low", "well known protocol IDs are excluded", func(b *TreatmentBackend) { b.Protocol = 191 }, true},
-		{"protocol-min", "first private protocol is valid", func(b *TreatmentBackend) { b.Protocol = 192 }, false},
+		{"valid", "private routing resources are accepted", func(*Backend) {}, false},
+		{"disabled", "mutation is opt-in", func(b *Backend) { b.Enabled = false }, true},
+		{"table-low", "main and compatibility tables are excluded", func(b *Backend) { b.Table = 255 }, true},
+		{"table-min", "first private table is accepted", func(b *Backend) { b.Table = 256 }, false},
+		{"priority-zero", "local lookup priority is reserved", func(b *Backend) { b.Priority = 0 }, true},
+		{"priority-min", "first nonlocal priority is valid", func(b *Backend) { b.Priority = 1 }, false},
+		{"priority-max", "last priority before main is valid", func(b *Backend) { b.Priority = 32765 }, false},
+		{"priority-main", "main table priority is reserved", func(b *Backend) { b.Priority = 32766 }, true},
+		{"protocol-low", "well known protocol IDs are excluded", func(b *Backend) { b.Protocol = 191 }, true},
+		{"protocol-min", "first private protocol is valid", func(b *Backend) { b.Protocol = 192 }, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			b := &TreatmentBackend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
+			b := &Backend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
 			tc.change(b)
 			err := b.valid()
 			if (err != nil) != tc.wantError {
@@ -54,10 +54,10 @@ func TestTreatmentRejectsUnsupportedBaseline(t *testing.T) {
 		{"unknown-metrics", "unknown metrics cannot be discarded", func(r *xtcpnl.RouteInfo) { r.Metrics = &xtcpnl.RouteMetrics{Unknown: 1} }, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			b := &TreatmentBackend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
+			b := &Backend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
 			r := xtcpnl.RouteInfo{Family: unix.AF_INET, Type: unix.RTN_UNICAST, Oif: 4}
 			tc.change(&r)
-			_, err := b.planRoute(&RouteTreatment{Destination: "192.0.2.1/32", Settings: &TCPRouteSettings{QuickAck: routeTestPointer(true)}}, r)
+			_, err := b.planRoute(&RouteTreatment{Destination: "192.0.2.1/32", Settings: &TCPRouteSettings{QuickAck: ptr(true)}}, r)
 			if (err != nil) != tc.wantError {
 				t.Fatalf("%s: err=%v wantError=%t", tc.description, err, tc.wantError)
 			}
@@ -72,13 +72,13 @@ func TestTreatmentMetricBooleanOverrides(t *testing.T) {
 			name = "enable"
 		}
 		t.Run(name, func(t *testing.T) {
-			b := &TreatmentBackend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
+			b := &Backend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
 			m := &xtcpnl.RouteMetrics{Present: 1<<unix.RTAX_MTU | 1<<unix.RTAX_FEATURES | 1<<unix.RTAX_LOCK | 1<<unix.RTAX_QUICKACK}
 			m.Values[unix.RTAX_MTU] = 1400
 			m.Values[unix.RTAX_FEATURES] = 3
 			m.Values[unix.RTAX_LOCK] = 1<<unix.RTAX_MTU | 1<<unix.RTAX_CC_ALGO
 			m.Values[unix.RTAX_QUICKACK] = 1
-			raw, err := b.planRoute(&RouteTreatment{Destination: "2001:db8::1/128", Settings: &TCPRouteSettings{CongestionControl: routeTestPointer("cubic"), CongestionLock: enabled, QuickAck: &enabled, Ecn: &enabled}}, xtcpnl.RouteInfo{Family: unix.AF_INET6, Type: unix.RTN_UNICAST, Oif: 4, Metrics: m})
+			raw, err := b.planRoute(&RouteTreatment{Destination: "2001:db8::1/128", Settings: &TCPRouteSettings{CongestionControl: ptr("cubic"), CongestionLock: enabled, QuickAck: &enabled, Ecn: &enabled}}, xtcpnl.RouteInfo{Family: unix.AF_INET6, Type: unix.RTN_UNICAST, Oif: 4, Metrics: m})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -101,9 +101,9 @@ func TestTreatmentMetricBooleanOverrides(t *testing.T) {
 }
 
 func BenchmarkTreatmentPlanRoute(b *testing.B) {
-	backend := &TreatmentBackend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
+	backend := &Backend{Enabled: true, Table: 10002, Priority: 30000, Protocol: 242}
 	route := xtcpnl.RouteInfo{Family: unix.AF_INET, Type: unix.RTN_UNICAST, Oif: 4, Gateway: []byte{192, 0, 2, 254}}
-	treatment := &RouteTreatment{Destination: "198.51.100.1/32", Settings: &TCPRouteSettings{CongestionControl: routeTestPointer("cubic"), RtoMinMs: routeTestPointer(uint32(5)), InitialCongestionWindow: routeTestPointer(uint32(100)), InitialReceiveWindow: routeTestPointer(uint32(100)), QuickAck: routeTestPointer(true)}}
+	treatment := &RouteTreatment{Destination: "198.51.100.1/32", Settings: &TCPRouteSettings{CongestionControl: ptr("cubic"), RtoMinMs: ptr(uint32(5)), InitialCongestionWindow: ptr(uint32(100)), InitialReceiveWindow: ptr(uint32(100)), QuickAck: ptr(true)}}
 	b.ReportAllocs()
 	for b.Loop() {
 		if _, err := backend.planRoute(treatment, route); err != nil {

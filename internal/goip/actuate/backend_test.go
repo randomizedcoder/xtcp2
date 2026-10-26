@@ -1,4 +1,4 @@
-package goip
+package actuate
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func routeTestPointer[T any](v T) *T { return &v }
+func ptr[T any](v T) *T { return &v }
 
 func TestTreatmentRoutePreservesPathAndMetrics(t *testing.T) {
-	b := &TreatmentBackend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
+	b := &Backend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
 	r := xtcpnl.RouteInfo{Family: unix.AF_INET, Table: unix.RT_TABLE_MAIN, Type: unix.RTN_UNICAST, Oif: 4, Gateway: []byte{192, 0, 2, 254}, PrefSrc: []byte{192, 0, 2, 10}, Metrics: &xtcpnl.RouteMetrics{Present: 1 << unix.RTAX_MTU}}
 	r.Metrics.Values[unix.RTAX_MTU] = 1400
-	treatment := &RouteTreatment{Destination: "198.51.100.10/32", Settings: &TCPRouteSettings{CongestionControl: routeTestPointer("cubic"), RtoMinMs: routeTestPointer(uint32(5)), QuickAck: routeTestPointer(true), InitialCongestionWindow: routeTestPointer(uint32(100)), InitialReceiveWindow: routeTestPointer(uint32(100))}}
+	treatment := &RouteTreatment{Destination: "198.51.100.10/32", Settings: &TCPRouteSettings{CongestionControl: ptr("cubic"), RtoMinMs: ptr(uint32(5)), QuickAck: ptr(true), InitialCongestionWindow: ptr(uint32(100)), InitialReceiveWindow: ptr(uint32(100))}}
 	raw, e := b.planRoute(treatment, r)
 	if e != nil {
 		t.Fatal(e)
@@ -41,7 +41,7 @@ func TestTreatmentRoutePreservesPathAndMetrics(t *testing.T) {
 	}
 }
 func TestTreatmentRuleOwnershipIncludesSelectors(t *testing.T) {
-	b := &TreatmentBackend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
+	b := &Backend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
 	for _, family := range []uint8{unix.AF_INET, unix.AF_INET6} {
 		raw, e := b.rule(family, false)
 		if e != nil {
@@ -63,7 +63,7 @@ func TestTreatmentRuleOwnershipIncludesSelectors(t *testing.T) {
 	}
 }
 func TestTreatmentActuatorRequiresOptIn(t *testing.T) {
-	b := &TreatmentBackend{Table: 10002, Priority: 30000, Protocol: 242}
+	b := &Backend{Table: 10002, Priority: 30000, Protocol: 242}
 	if e := b.Disable(context.Background()); e == nil {
 		t.Fatal("disabled backend opened mutation path")
 	}
@@ -72,7 +72,7 @@ func TestTreatmentLiveReadOnly(t *testing.T) {
 	if os.Getenv("XTCP_TREATMENT_NETLINK_READ_TEST") != "1" {
 		t.Skip("optional read-only host topology check")
 	}
-	b := &TreatmentBackend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
+	b := &Backend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
 	if e := b.Check(context.Background()); e != nil {
 		t.Fatal(e)
 	}

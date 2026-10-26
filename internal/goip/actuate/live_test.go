@@ -1,4 +1,4 @@
-package goip
+package actuate
 
 import (
 	"context"
@@ -58,12 +58,12 @@ func TestTreatmentLiveNamespace(t *testing.T) {
 	ip("link", "set", "xtcp-test", "up")
 	ip("addr", "add", "192.0.2.10/24", "dev", "xtcp-test")
 	ip("-6", "addr", "add", "2001:db8::10/64", "dev", "xtcp-test", "nodad")
-	b := &TreatmentBackend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
+	b := &Backend{Table: 10002, Priority: 30000, Protocol: 242, Enabled: true}
 	ctx := context.Background()
 	for _, destination := range []string{"192.0.2.20/32", "2001:db8::20/128"} {
 		t.Run(destination, func(t *testing.T) {
 			b.BeginReconcile()
-			request := &RouteTreatment{Destination: destination, Settings: &TCPRouteSettings{CongestionControl: routeTestPointer("cubic"), RtoMinMs: routeTestPointer(uint32(10)), InitialCongestionWindow: routeTestPointer(uint32(12))}}
+			request := &RouteTreatment{Destination: destination, Settings: &TCPRouteSettings{CongestionControl: ptr("cubic"), RtoMinMs: ptr(uint32(10)), InitialCongestionWindow: ptr(uint32(12))}}
 			route, e := b.Plan(ctx, request)
 			if e != nil {
 				t.Fatal(e)
@@ -95,7 +95,7 @@ func TestTreatmentLiveNamespace(t *testing.T) {
 	// A colliding route with a foreign protocol must not be overwritten.
 	ip("route", "add", "192.0.2.20/32", "dev", "xtcp-test", "table", "10002", "proto", "static")
 	b.BeginReconcile()
-	route, e := b.Plan(ctx, &RouteTreatment{Destination: "192.0.2.20/32", Settings: &TCPRouteSettings{CongestionControl: routeTestPointer("cubic")}})
+	route, e := b.Plan(ctx, &RouteTreatment{Destination: "192.0.2.20/32", Settings: &TCPRouteSettings{CongestionControl: ptr("cubic")}})
 	if e != nil {
 		t.Fatal(e)
 	}

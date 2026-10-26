@@ -55,8 +55,12 @@ nix run .#microvm-x86_64-goip-parity      # the live tier; needs /dev/kvm, not r
 
 ## Two constraints worth knowing up front
 
-> **No live kernel writes today.** Inspection sends read requests; implemented
-> write verbs serialize dry-run requests for validation rather than applying them.
+> **One live kernel write path, opted in.** Inspection sends read requests;
+> the CLI's write verbs serialize dry-run requests for validation rather than
+> applying them. The single exception is the treatment route actuator in
+> [`internal/goip/actuate`](../../internal/goip/actuate), which installs
+> host routes in a private table behind an explicit `enable_apply` setting
+> ([tcp-controller.md](../tcp-controller.md#supported-routes-and-tcp-semantics)).
 
 The original expansion plan's read-only constraint was narrowed as dry-run
 write support landed. The first paths were `ip route` and `ip link` — see
@@ -72,7 +76,13 @@ since its G3-T03, `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`, and, since its G3-T04,
 `RTM_NEWADDRLABEL` and `RTM_DELADDRLABEL`, and, since its G3-T05,
 `RTM_SETNEIGHTBL` and `RTM_SETSTATS`, and, since its G3-T06,
 `RTM_NEWLINKPROP` and `RTM_DELLINKPROP`. Requests built there are written to a file for
-comparison and never sent; no automated path applies a write to a live kernel.
+comparison and never sent by the CLI. The one path that does send is
+`goip.NetlinkSource.ApplyRouteControl`, reached only by the treatment
+actuator: it admits acknowledged `RTM_NEWROUTE`/`RTM_DELROUTE`/`RTM_NEWRULE`/
+`RTM_DELRULE` requests built from `xtcpnl.RouteWrite` and `xtcpnl.RuleWrite`,
+never from argv, and the actuator checks ownership and reads back after
+every mutation.
+
 Both dry runs have since landed on that gate: `goip link
 add|set|change|replace|delete` and `goip route
 add|change|replace|prepend|append|test|delete` build `ip`'s request
@@ -86,7 +96,8 @@ now do too, and refuse with
 Supported families have expanded beyond those initial paths; the
 [coverage tracker](coverage-status.md) records current supported operations.
 Coverage of parsing and dry-run requests does not establish live mutation
-support. Future action-taking is described in the
+support; the actuator's two route forms and one rule are the whole of it.
+Broader action-taking is described in the
 [network-control gRPC design](../design-network-control-grpc.md), which is a
 proposal rather than an available service. Comparisons with libraries that
 configure the kernel must preserve that distinction.
