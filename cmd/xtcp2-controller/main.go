@@ -17,7 +17,6 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	chwarehouse "github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence/clickhouse"
@@ -105,7 +104,7 @@ func run() error {
 		return e
 	}
 	defer listener.Close()
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)), grpc.MaxRecvMsgSize(treatment.MaxStateBytes), grpc.MaxSendMsgSize(treatment.MaxStateBytes), grpc.MaxConcurrentStreams(8))
+	grpcServer := grpc.NewServer(append(controller.GRPCOptions(), grpc.Creds(credentials.NewTLS(tlsConfig)))...)
 	pb.RegisterAgentControlServiceServer(grpcServer, s)
 	pb.RegisterOperatorServiceServer(grpcServer, s)
 	var wg sync.WaitGroup

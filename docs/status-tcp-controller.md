@@ -13,10 +13,10 @@ review being addressed. Items are listed in execution order.
 | 3 | explicit state machine; `Outcome` enum | done | 85b2cf59 |
 | 4 | repository ports, relational schema, pgx, domain types, `wire` | done | eae1d87d |
 | D1 | dual-mode agent, part 1: journal-specific proto, proto-free `reconcile`, `local`, `attribution`, watchdog off the agent | done | 6398338a |
-| D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | 87321a63, fix this commit |
-| 5 | evidence port (`Source`, `CandidateSource`, `Warehouse`), ClickHouse as one adapter | done | this commit |
-| 6 | auth as interceptor with per-RPC role option | next | |
-| 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | pending | |
+| D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | 87321a63, fix 20f3a35a |
+| 5 | evidence port (`Source`, `CandidateSource`, `Warehouse`), ClickHouse as one adapter | done | caba9bc4 |
+| 6 | auth as interceptor with per-RPC role option | done | this commit |
+| 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | next | |
 | 9 | identity/location startup check | pending | |
 | 10 | blocking journal lock | pending | |
 | 11 | scale: notification watermark, heartbeat split, leader lease | pending | |
@@ -78,7 +78,8 @@ process.
   `-location`, so every record shipped `location=""` and the ClickHouse
   analysis (which filters by location) saw no hosts. The watcher now adopts
   the journal's location when the daemon has none and still keeps its own
-  when one is set (logged once either way).
+  when one is set (logged once either way). The rerun pinned to 20f3a35a
+  passed (seven sentinels).
 
 ## Item 5 notes
 
@@ -94,6 +95,24 @@ process.
   real-SQL `TestClickHouseAnalysisCounterDeltas` the Nix harness greps for.
 - `artifact_sha256` is documented as the digest of the unarchived response.
   Archiving responses to the S3 destination remains a possible follow-up.
+
+## Item 6 notes
+
+- `identity.Policy` (method -> role) with `UnaryInterceptor`/`StreamInterceptor`
+  and `Authorize`; identity resolved once per call and stored in the context
+  (`WithIdentity`/`FromContext`). `identity.Agent`/`Operator` prefer that
+  identity and fall back to the peer, so handler-level tests and direct calls
+  are unchanged. Agent unary requests are additionally checked generically:
+  `GetAgentId()` must be the caller and a non-empty `GetLocation()` must be
+  the certificate's.
+- `controller.RolePolicy()` derives the table from the proto option over
+  both service descriptors; `controller.GRPCOptions()` is what main passes
+  to `grpc.NewServer` (interceptors + message bounds). A method without a
+  role option is simply absent from the policy and refused for everyone.
+- Tests: identity interceptor tables (unary, stream, resolve precedence),
+  the mTLS bufconn test now runs through the interceptors and checks an
+  undeclared method fails closed, and `TestEveryMethodAgainstEveryRole`
+  tries every served method with each of three callers.
 
 ## TODO
 

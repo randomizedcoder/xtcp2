@@ -61,9 +61,9 @@ func FromCertificate(cert *x509.Certificate) (Identity, error) {
 	return found[0], nil
 }
 
-// FromPeer resolves the verified client certificate of the gRPC peer. It is
-// the only function here that reads the context; errors already carry gRPC
-// status codes so handlers and interceptors can return them unchanged.
+// FromPeer resolves the verified client certificate of the gRPC peer. Errors
+// already carry gRPC status codes so handlers and interceptors can return
+// them unchanged.
 func FromPeer(ctx context.Context) (Identity, error) {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
@@ -80,10 +80,11 @@ func FromPeer(ctx context.Context) (Identity, error) {
 	return id, nil
 }
 
-// Agent requires the peer to be the agent named by want. Agents may only
+// Agent requires the caller to be the agent named by want. Agents may only
 // speak for themselves; the controller passes the request's agent_id here.
+// It uses the identity an interceptor already resolved when there is one.
 func Agent(ctx context.Context, want string) (Identity, error) {
-	id, e := FromPeer(ctx)
+	id, e := resolve(ctx)
 	if e != nil {
 		return id, e
 	}
@@ -94,9 +95,10 @@ func Agent(ctx context.Context, want string) (Identity, error) {
 }
 
 // Operator requires an operator certificate and returns the operator ID,
-// which callers record as the audit actor.
+// which callers record as the audit actor. It uses the identity an
+// interceptor already resolved when there is one.
 func Operator(ctx context.Context) (string, error) {
-	id, e := FromPeer(ctx)
+	id, e := resolve(ctx)
 	if e != nil {
 		return "", e
 	}

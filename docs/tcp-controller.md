@@ -35,7 +35,7 @@ a typed [protobuf contract](../proto/xtcp_treatment/v1/) (`xtcp_treatment.v1`: `
 | --- | --- | --- |
 | `pkg/treatment` | everyone | the domain model (`Treatment`, `Experiment`, `Evidence`, `DesiredState`, enums), limits and validators; proto-free |
 | `pkg/treatment/wire` | gRPC boundary | domain ↔ generated proto conversion; `Parse*` fails closed on unknown enums and invalid timestamps |
-| `pkg/treatment/identity` | agent, controller, tools | SPIFFE URI identity, mTLS configuration, gRPC peer resolution |
+| `pkg/treatment/identity` | agent, controller, tools | SPIFFE URI identity, mTLS configuration, gRPC peer resolution, `Policy` interceptors that resolve the caller once per call |
 | `pkg/treatment/reconcile` | agent, watchdog | intent journal (`State`, `Record`, the `xtcp_treatment_journal.v1` file format), reconciler, `Backend` interface, `Mode` (full or expiry-only); domain types only, no RPC proto, no gRPC |
 | `pkg/treatment/local` | agent, watchdog, `treatmentctl` | the shared `controller-agent.json` config and the goip-backed reconciler built from it; no TLS, no controller |
 | `pkg/treatment/attribution` | `xtcp2`, agent | the exposure index built from a journal snapshot and the hot-path telemetry stamp; the same code serves the embedded agent and a telemetry-only daemon |
@@ -443,6 +443,19 @@ separate process in both arrangements and builds on `pkg/treatment/local` and
    certificates cannot invoke operator RPCs or fetch another agent's state.
    Use protected key files; restart processes to load rotated certificates.
    There is no online certificate revocation service in this release.
+
+   Authorization is declared, not hand-rolled. Every RPC in `agent.proto` and
+   `operator.proto` carries an `(xtcp_treatment.v1.role)` option; the
+   controller builds an `identity.Policy` from those options at startup and
+   installs unary and stream interceptors that resolve the peer certificate
+   once, refuse the wrong role, refuse any method without a declaration
+   (fail closed), and for agent RPCs refuse a request whose `agent_id` or
+   `location` is not the certificate's. Handlers read the resolved identity
+   from the context; the same `identity.Agent`/`identity.Operator` checks
+   remain in the handlers so a direct call behaves identically. A test in
+   `pkg/treatment/controller` tries every served method with an agent
+   certificate, an operator certificate and none, and fails if a method has
+   no declaration.
 5. Configure explicit protected prefixes for management, DNS, telemetry,
    controller dependencies and any infrastructure that must not be experimented
    on. The agent also protects controller addresses resolved at startup. DNS

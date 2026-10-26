@@ -25,18 +25,31 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
+// authProbe trusts the interceptor: it only reports what identity reached
+// the handler, so a wrong answer here is the interceptor's fault.
 type authProbe struct {
 	pb.UnimplementedAgentControlServiceServer
 	pb.UnimplementedOperatorServiceServer
 }
 
 func (authProbe) CheckIn(ctx context.Context, r *pb.CheckInRequest) (*pb.CheckInResponse, error) {
-	_, e := Agent(ctx, r.AgentId)
-	return &pb.CheckInResponse{}, e
+	id, ok := FromContext(ctx)
+	if !ok || id.Role != RoleAgent || id.ID != r.AgentId {
+		return nil, status.Error(codes.Internal, "interceptor did not resolve the agent")
+	}
+	return &pb.CheckInResponse{}, nil
 }
 func (authProbe) Inspect(ctx context.Context, _ *pb.InspectRequest) (*pb.InspectResponse, error) {
-	_, e := Operator(ctx)
-	return &pb.InspectResponse{}, e
+	id, ok := FromContext(ctx)
+	if !ok || id.Role != RoleOperator {
+		return nil, status.Error(codes.Internal, "interceptor did not resolve the operator")
+	}
+	return &pb.InspectResponse{}, nil
+}
+
+var probePolicy = Policy{
+	"/xtcp_treatment.v1.AgentControlService/CheckIn": RoleAgent,
+	"/xtcp_treatment.v1.OperatorService/Inspect":     RoleOperator,
 }
 
 func TestMTLSHandshakesAndRoleBoundaries(t *testing.T) {
@@ -95,7 +108,7 @@ func TestMTLSHandshakesAndRoleBoundaries(t *testing.T) {
 		return config
 	}
 	listener := bufconn.Listen(1 << 20)
-	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(issue("server", "", true))))
+	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(issue("server", "", true))), grpc.ChainUnaryInterceptor(probePolicy.UnaryInterceptor()), grpc.ChainStreamInterceptor(probePolicy.StreamInterceptor()))
 	pb.RegisterAgentControlServiceServer(server, authProbe{})
 	pb.RegisterOperatorServiceServer(server, authProbe{})
 	go server.Serve(listener)
@@ -125,6 +138,9 @@ func TestMTLSHandshakesAndRoleBoundaries(t *testing.T) {
 	operator := connect(issue("operator", "spiffe://xtcp/operator/alice", false))
 	if _, e = pb.NewOperatorServiceClient(operator).Inspect(ctx, &pb.InspectRequest{}); e != nil {
 		t.Fatal("authenticated operator", e)
+	}
+	if _, e = pb.NewOperatorServiceClient(operator).Propose(ctx, &pb.ProposeRequest{}); status.Code(e) != codes.PermissionDenied {
+		t.Fatal("undeclared method must fail closed", e)
 	}
 	for name, config := range map[string]*tls.Config{"missing_client_certificate": agentTLS.Clone(), "wrong_server_name": agentTLS.Clone(), "untrusted_server": agentTLS.Clone()} {
 		t.Run(name, func(t *testing.T) {
