@@ -644,6 +644,8 @@ func kindData(errOut io.Writer, verb *linkWriteVerb, kind string, rest []string,
 			return nil, err
 		}
 		return xtcpnl.EncodeVlanInfoData(settings)
+	case kindMacvlanCst, kindMacvtapCst:
+		return macvlanData(errOut, kind, rest)
 	case kindBondCst:
 		settings, err := parseBondArgs(rest, func(name string) (uint32, error) {
 			idx, err := resolve(name)

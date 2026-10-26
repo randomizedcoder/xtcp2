@@ -2852,7 +2852,8 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 #### KG2-T02 The macvlan and macvtap words
 
 **Code.** `internal/goip/link_macvlan_args.go`: `parseMacvlanArgs(errOut io.Writer, kind string, args []string) ([]xtcpnl.MacvlanSetting, error)`. It is `macvlan_parse_opt`'s chain, with the kind's name in the usage line and in the `nopromisc` text.
-- **The addresses.** `ll_addr_a2n`'s warnings go to `errOut`, so `cparse.go` gains `llAddrA2NPart`. It is `llAddrA2N` that also returns the part `ll_addr_a2n` printed, `""` when it failed silently on a length.
+- **The addresses.** `ll_addr_a2n`'s warnings go to `errOut`, so `cparse.go` gains `llAddrA2NPart(arg, maxLen) ([]byte, int, string)`: the bytes, `ll_addr_a2n`'s return (`maxLen+1` past the buffer, the rest unread; -1 for a refusal), and the part it printed, `""` when it failed silently on a length. `llAddrA2N` is now a wrapper over it.
+- **The word a set stops on.** `ll_addr_a2n` writes a NUL over the word's first `:` before it reads a part, so after `PREV_ARG` the chain re-reads the word cut there: `macaddr set <mac> mode:x source` is a mode. `llAddrCut` is that cut; an IPv4 address is left whole.
 - **The `nopromisc` refusal.** `xtcpnl.ErrMacvlanNopromisc` maps to `<kind>: nopromisc flag only valid in passthru mode`.
 - **The kind cases.** `kindMacvlanCst` and `kindMacvtapCst` cases in `kindData` call `xtcpnl.EncodeMacvlanInfoData`.
 
@@ -2878,6 +2879,7 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 | boundary: a cutoff past an s32 | `bclim 2147483648` | 1, `illegal value for "bclim": "2147483648"` |
 | corner: an address one part short | `mode source macaddr add 02:00:00:00:01` | 1, nothing on stderr |
 | corner: a bad part, not the whole word | `mode source macaddr add 02:zz:00:00:00:01` | 1, `"zz" is invalid lladdr` |
+| corner: a macaddr op with no address | `macaddr del` | 255, `Command line is not complete` |
 | corner: help is not goip's | `help` | 1, not implemented |
 
 `TestParseMacvlanArgs` checks the values no capture covers:
@@ -2885,7 +2887,9 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 - `n` is `nopromisc` and `nod` is `nodst`;
 - `macaddr set 02:00:00:00:00:01 mode source`: one address, then the mode, with `"mode" is invalid lladdr.` on stderr;
 - `macaddr set 02:00:00:00:00:01 bcqueuelen 10`: one address and the queue length, with nothing on stderr, since `bc` is hex;
-- `macaddr set` alone: an empty `MACADDR_DATA`.
+- `macaddr set` alone: an empty `MACADDR_DATA`;
+- `macaddr set 02:00:00:00:00:01 mode:x source`: the cut word is the mode, with `"mode" is invalid lladdr.` on stderr;
+- `macaddr set 02:00:00:00:00:01:07`: seven parts end the set silently, and the cut word, `02`, is an unknown option.
 
 `TestMacvlanCorpusArgv` checks the 34 and 6 corpus rows. `TestLLAddrA2NPart` checks `ll_addr_a2n`'s stderr:
 - a good address;
@@ -2893,14 +2897,17 @@ Five tasks. KG2-T01 adds `iplink_parse`'s `link` keyword, which every stacked ki
 - a part past 255 (named);
 - one part short (silent);
 - seven parts (silent);
+- a bad part past the sixth (silent, since it is never read);
+- an IPv4 address (four bytes);
 - an IPv4 address that won't parse (the whole word).
 
 **Mutation check:**
 - `bclim` by prefix (`add_bclim_abbrev`);
 - the `nopromisc` check inside the loop (`nopromisc mode passthru`);
-- the mode in argument order (`add_macaddr_add`);
+- `nodst` tried before `nopromisc` (`n` is `nopromisc`; the plan's "the mode in argument order" is the encoder's, which KP2 held);
 - the set loop's word consumed, not left (`macaddr set … mode source`);
-- the silent length failure warned (one part short);
+- the silent length failure warned (one part short), and in a set (`macaddr set … bcqueuelen 10`);
+- the stopping word left whole (`mode:x`);
 - the usage line naming macvlan for macvtap (macvtap's usage row).
 
 **Done when:** as KG2-T01.

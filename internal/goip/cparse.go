@@ -308,27 +308,53 @@ func getAddrIPv6(name string) (netip.Addr, bool) {
 // A part count above maxLen makes ll_addr_a2n return maxLen+1 and the caller
 // copy past its buffer; that is refused here rather than reproduced.
 func llAddrA2N(arg string, maxLen int) ([]byte, bool) {
+	b, n, _ := llAddrA2NPart(arg, maxLen)
+	return b, n > 0 && n <= maxLen
+}
+
+// llAddrA2NPart is ll_addr_a2n with what it returns and prints: the bytes,
+// its return (the byte count; maxLen+1 when there are more parts than
+// that, the rest unread; -1 for a refusal), and the word its `"%s" is
+// invalid lladdr.` names, which is the failing part, or the whole argument
+// for an IPv4 address. It is "" when nothing was printed: a success, or
+// an IPv4 address that doesn't fit maxLen.
+func llAddrA2NPart(arg string, maxLen int) ([]byte, int, string) {
 	if strings.IndexByte(arg, '.') >= 0 {
 		a, ok := getAddrIPv4(arg)
-		if !ok || maxLen < 4 {
-			return nil, false
+		if !ok {
+			return nil, -1, arg
+		}
+		if maxLen < 4 {
+			return nil, -1, ""
 		}
 		b := a.As4()
-		return b[:], true
+		return b[:], 4, ""
 	}
-	parts := strings.Split(arg, ":")
-	if len(parts) > maxLen {
-		return nil, false
-	}
-	out := make([]byte, 0, len(parts))
-	for _, p := range parts {
-		v, ok := scanHexInt(p)
+	out := make([]byte, 0, max(maxLen, 0))
+	for rest := arg; len(out) < maxLen; {
+		part, next, more := strings.Cut(rest, ":")
+		v, ok := scanHexInt(part)
 		if !ok || v < 0 || v > 255 {
-			return nil, false
+			return nil, -1, part
 		}
 		out = append(out, byte(v))
+		if !more {
+			return out, len(out), ""
+		}
+		rest = next
 	}
-	return out, true
+	return nil, maxLen + 1, ""
+}
+
+// llAddrCut is the word ll_addr_a2n leaves in argv: it writes a NUL over
+// the first ':' before reading the first part, so a caller that PREV_ARGs
+// re-reads the word cut there. An IPv4 address is left whole.
+func llAddrCut(arg string) string {
+	if strings.IndexByte(arg, '.') >= 0 {
+		return arg
+	}
+	w, _, _ := strings.Cut(arg, ":")
+	return w
 }
 
 // scanHexInt is sscanf(s, "%x", &int) == 1: strtoul base 16 over a prefix,
