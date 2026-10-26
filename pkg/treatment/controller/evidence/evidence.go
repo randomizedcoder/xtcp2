@@ -30,7 +30,8 @@ type Window struct {
 }
 
 // MaxSessions bounds Window.Sessions: several restarts per host over the
-// longest window.
+// longest window. The store caps each agent at eight, so a full population
+// stays within it however often any one host rotates its nonce.
 const MaxSessions = 8 * treatment.MaxAgents
 
 // Validate applies the bounds every adapter must enforce before querying.

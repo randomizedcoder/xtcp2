@@ -79,7 +79,8 @@ type Agents interface {
 	DesiredSince(ctx context.Context, since time.Time) ([]DesiredRevision, error)
 	// Sessions returns the (boot, collection) sessions of the named agents
 	// that overlap [from, to]: first seen no later than to and last seen no
-	// earlier than from. Observe records sessions and refreshes a known
+	// earlier than from, at most MaxSessionsPerAgent per agent (the most
+	// recently seen). Observe records sessions and refreshes a known
 	// session's LastSeen at most every SessionRefresh, so callers widen from
 	// by at least that much.
 	Sessions(ctx context.Context, ids []string, from, to time.Time) ([]treatment.Session, error)
@@ -91,6 +92,12 @@ type Agents interface {
 // SessionRefresh is how stale a session's LastSeen may become before a
 // check-in rewrites it.
 const SessionRefresh = 5 * time.Minute
+
+// MaxSessionsPerAgent caps the sessions one agent contributes to a window.
+// An agent that rotates its nonce on every check-in then loses binding for
+// its own older records instead of growing the window past
+// evidence.MaxSessions and failing evidence for its whole cohort.
+const MaxSessionsPerAgent = 8
 
 // DesiredRevision is one agent's desired revision and the store's stamp of
 // when it last changed.

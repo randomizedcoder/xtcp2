@@ -26,7 +26,7 @@ review being addressed. Items are listed in execution order.
 | F2 | follow-up: help smoke for the four treatment binaries and `zstd-probe` | done | 926c2c74 |
 | F3 | follow-up: reproducible index timings (`bench-tcp-controller-postgres-indexes`) | done | 30a21cdd |
 | F4 | follow-up: generated coverage table (`coverage-table.md` from the unit target) | done | 30a21cdd |
-| F5 | follow-up: evidence bound to `(agent_id, boot_id, collection_id)` sessions | done | this commit |
+| F5 | follow-up: evidence bound to `(agent_id, boot_id, collection_id)` sessions | done | 24f036c8 |
 
 Dual-mode agent (library + `cmd/xtcp2-treatment-agent` + `treatment` build tag
 in `cmd/xtcp2`, with an `attribution` journal reader for the untagged daemon)
@@ -265,7 +265,12 @@ process.
   `Capabilities.collection_id`, which is now required. `Agents.Observe`
   upserts the session and refreshes `last_seen` at most every five minutes;
   `Agents.Sessions` returns sessions overlapping a window and housekeeping
-  prunes those older than eight days. Every evidence window (analyze,
+  prunes those older than eight days. `Sessions` returns at most
+  `MaxSessionsPerAgent` (8) per agent, the most recently seen, so an enrolled
+  host that rotates its nonce on every check-in unbinds only its own older
+  records instead of pushing the window past `evidence.MaxSessions` and
+  failing evidence for its whole cohort (raised by the commit security
+  review, fixed in the follow-up commit). Every evidence window (analyze,
   maintenance, discovery baseline, and the VM driver's own baseline) carries
   the population's sessions widened by ten minutes; `analysis.sql`
   (`tcp-host-deltas-v2-bound`) measures only bound sockets and returns

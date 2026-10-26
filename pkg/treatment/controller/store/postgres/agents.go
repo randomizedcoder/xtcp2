@@ -254,8 +254,10 @@ func (a *agents) Sessions(ctx context.Context, ids []string, from, to time.Time)
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	rows, err := a.q().QueryContext(ctx, `SELECT agent_id,boot_id,collection_id,first_seen,last_seen FROM xtcp_treatment_agent_sessions
- WHERE agent_id = ANY($1) AND last_seen >= $2 AND first_seen <= $3 ORDER BY agent_id,first_seen,boot_id,collection_id`, ids, from, to)
+	rows, err := a.q().QueryContext(ctx, `SELECT agent_id,boot_id,collection_id,first_seen,last_seen FROM (
+ SELECT *, row_number() OVER (PARTITION BY agent_id ORDER BY last_seen DESC, first_seen DESC, boot_id, collection_id) AS recency
+ FROM xtcp_treatment_agent_sessions WHERE agent_id = ANY($1) AND last_seen >= $2 AND first_seen <= $3) AS s
+ WHERE recency <= $4 ORDER BY agent_id,first_seen,boot_id,collection_id`, ids, from, to, store.MaxSessionsPerAgent)
 	if err != nil {
 		return nil, err
 	}

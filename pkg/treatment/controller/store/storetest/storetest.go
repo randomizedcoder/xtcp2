@@ -188,6 +188,17 @@ func agentSessionCases(ctx context.Context, initial *treatment.DesiredState) []a
 			}
 			sessions(t, a, now.Add(-time.Hour), now.Add(2*time.Hour), "host-1/boot-1/2@3600..3600")
 		}},
+		{"session-cap", "boundary: an agent rotating its nonce contributes only its most recent sessions", func(t *testing.T, a store.Agents) {
+			must(t, a.Enroll(ctx, host1Cst, locationCst, initial))
+			for i := range store.MaxSessionsPerAgent + 3 {
+				observeSession(ctx, t, a, "boot-1", fmt.Sprintf("%032x", i+1), now.Add(time.Duration(i)*time.Minute))
+			}
+			got, err := a.Sessions(ctx, []string{host1Cst}, now.Add(-time.Hour), now.Add(time.Hour))
+			must(t, err)
+			if len(got) != store.MaxSessionsPerAgent || got[0].FirstSeen.Before(now.Add(3*time.Minute)) {
+				t.Fatalf("expected the %d most recent sessions, got %v", store.MaxSessionsPerAgent, sessionKeys(got))
+			}
+		}},
 		{"sessions-unenrolled", "negative: an unknown agent has no sessions and a report for it records none", func(t *testing.T, a store.Agents) {
 			r := report(host1Cst, locationCst)
 			if err := a.Observe(ctx, r, now); !errors.Is(err, store.ErrNotEnrolled) {

@@ -236,11 +236,17 @@ func (r agentsRepo) Sessions(_ context.Context, ids []string, from, to time.Time
 		if !ok {
 			continue
 		}
+		var overlap []treatment.Session
 		for _, s := range a.sessions {
 			if !s.LastSeen.Before(from) && !s.FirstSeen.After(to) {
-				out = append(out, s)
+				overlap = append(overlap, s)
 			}
 		}
+		// Keep the most recently seen, as the PostgreSQL window does.
+		slices.SortFunc(overlap, func(x, y treatment.Session) int {
+			return cmp.Or(y.LastSeen.Compare(x.LastSeen), y.FirstSeen.Compare(x.FirstSeen), cmp.Compare(x.BootID, y.BootID), cmp.Compare(x.CollectionID, y.CollectionID))
+		})
+		out = append(out, overlap[:min(len(overlap), store.MaxSessionsPerAgent)]...)
 	}
 	slices.SortFunc(out, func(x, y treatment.Session) int {
 		return cmp.Or(cmp.Compare(x.AgentID, y.AgentID), x.FirstSeen.Compare(y.FirstSeen), cmp.Compare(x.BootID, y.BootID), cmp.Compare(x.CollectionID, y.CollectionID))
