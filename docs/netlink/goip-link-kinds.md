@@ -3351,7 +3351,610 @@ Then the 138 rows go in `gated_commands`. A full run comes before the next push.
 
 ### KG4 — goip IP tunnels
 
-The goip-parity VM sets `fb_tunnels_only_for_init_net=2` before its first tunnel row, for KC0-T01's reason.
+Nine tasks:
+- KG4-T01 has the goip-parity driver set `fb_tunnels_only_for_init_net=2` before its first row.
+- KG4-T02 adds the set prefetch every tunnel parser but xfrm's shares, and the gre, gretap and erspan words.
+- KG4-T03 adds the ip6gre family's words, KG4-T04 ipip's and sit's, KG4-T05 ip6tnl's, and KG4-T06 vti's, vti6's and xfrm's.
+- KG4-T07 renders the six gre kinds' `-d` output, and KG4-T08 the other six's.
+- KG4-T09 adds the matrix rows and gates them, which closes KG4.
+
+The codec is KP4's (`pkg/xtcpnl/xtcpnl_gre.go`, `xtcpnl_gre6.go`, `xtcpnl_iptun.go`, `xtcpnl_ip6tnl.go`, `xtcpnl_vti.go`, `xtcpnl_xfrm_link.go`). It decodes into `LinkInfo` and encodes every row's `IFLA_INFO_DATA` in `ip`'s attribute order, from a `cur` the prefetch fills. So KG4 is the prefetch, the words, `ip`'s checks and texts, the renderers and the matrix.
+
+**The rows** (`pkg/xtcpnl/testdata/7_3_0/link-write/kinds/`, argv in `kind-write-corpus.exp`). A set row's topology also makes the device it sets, and the `dev d0` rows run on a dummy `d0`:
+
+| kind | rows | rc 0 | rc 2 (kernel) | rc 1 / 255 (`ip`, before the write) | requests |
+|---|---|---|---|---|---|
+| gre | 45 | 24 | 7 | 8 / 6 | 31 |
+| gretap | 11 | 6 | 4 | 1 / 0 | 10 |
+| erspan | 25 | 14 | 5 | 1 / 5 | 19 |
+| ip6gre | 36 | 21 | 5 | 5 / 5 | 26 |
+| ip6gretap | 9 | 6 | 3 | 0 / 0 | 9 |
+| ip6erspan | 19 | 9 | 6 | 1 / 3 | 15 |
+| ipip | 47 | 26 | 8 | 5 / 8 | 34 |
+| sit | 37 | 20 | 6 | 5 / 6 | 26 |
+| ip6tnl | 49 | 29 | 7 | 3 / 10 | 36 |
+| vti | 23 | 11 | 5 | 3 / 4 | 16 |
+| vti6 | 12 | 7 | 2 | 2 / 1 | 9 |
+| xfrm | 23 | 9 | 8 | 2 / 4 | 17 |
+
+**What `ip` does** (`ip/link_gre.c`, `link_gre6.c`, `link_iptnl.c`, `link_ip6tnl.c`, `link_vti.c`, `link_vti6.c`, `link_xfrm.c`, `ip/tunnel.c` and `lib/utils.c` at `v7.2.0`):
+- **The prefetch.** Every parser but xfrm's starts a set by reading the device back.
+  - **When:** with no `NLM_F_CREATE`, so on `set`, `change` and `delete` but not on `add` or `replace`. It runs only when a word follows the kind, since `iplink_modify` calls `parse_opt` only then. It comes after `iplink_parse`'s get of the device by name and before any word is read, so a set whose words `ip` refuses still costs it.
+  - **The request:** `RTM_GETLINK`, `NLM_F_REQUEST` alone, `ifi_family` the preferred family, the device's index, and no attribute. That is 32 bytes, which `xtcpnl.BuildGetLinkByIndexRequest(family, index, 0, seq)` builds; `Service.LinkByIndex`'s 40-byte get with `IFLA_EXT_MASK` is not it.
+  - **What it seeds:** the reply's `IFLA_INFO_DATA`, read by the parser's own attribute ids whatever the reply's kind. It fills the parser's variables, which the KP4 encoders take as `cur`.
+  - **When it fails:** `Failed to get existing tunnel info.`, exit 1, when there is no reply, no `IFLA_LINKINFO` or no `IFLA_INFO_DATA`, or when an endpoint attribute fails `get_addr_rta`. That means a length other than 4 or 16, or 4 or 16 against the parser's family.
+  - **Two `ip` bugs it carries:** gre's, gre6's and iptnl's prefetch sends a named encap port back byte-swapped, and vti's and vti6's keeps only the low byte of `LINK` (`rta_getattr_u8`). The encoders copy both.
+- **Keywords.** No tunnel parser has a `check_duparg`: a repeated word overwrites, and a flag word accumulates.
+  - **gre:** a word is `matches` through `ttl`/`tos`'s aliases, `strcmp` from `noencap` on; its erspan words are erspan's alone.
+  - **gre6:** the first 27 are `matches`, and its erspan words are every gre6 kind's.
+  - **iptnl and ip6tnl:** only `dev` and `dsfield` are `matches`.
+  - **vti:** all are `matches` but `fwmark`.
+  - **xfrm:** `dev` and `if_id` are `matches`, `external` is `strcmp`.
+  - The chain's order decides an abbreviation: `t` is ttl in every chain that has `tos`, and `d` is `dev` before `dsfield`.
+- **Keys** go through `tnl_parse_key`:
+  - A value with a `.` is `get_addr32`'s address, and a failure is `exit(1)` with `Error: an IP address is expected rather than "<v>"`, which has no period.
+  - Any other value is `get_unsigned` in base 0, and a failure is `exit(-1)`, 255, with `invalid value for "<key>": "<v>"; it should be an unsigned integer`, naming the canonical keyword (`i foo` names `ikey`).
+- **Addresses** go through `get_addr` with the kind's fixed family, whatever `-4` or `-6` says. A failure is `exit(1)` with `Error: <family> address is expected rather than "<v>".`
+  - `any`, `all`, `default` and the zero address are not sent, and they overwrite a seeded endpoint.
+  - A multicast address is sent: this is `is_addrtype_inet_not_unspec`, not vxlan's `is_addrtype_inet_not_multi`.
+- **`dev`** resolves in the loop through `ll_name_to_index`, and a name that doesn't resolve is `exit(nodev)`, 255.
+- **An unknown word**, `help` and `""` among them, prints the kind's usage to stderr and returns -1, exit 1. None of these parsers has a `help` word. The usage's first line pads the kind with `%-9s` in gre and gre6 (`Usage: ... gre      \t[ remote ADDR ]`), `%-6s` in iptnl and ip6tnl and `%-4s` in vti, then a tab. xfrm's is `Usage: ... xfrm dev [ PHYS_DEV ] [ if_id IF-ID ]`.
+- **After the loop:**
+  - gre fills a zero `ikey` or `okey` from a multicast remote and refuses a multicast remote with no local (`A broadcast tunnel requires a source address.`, 1). It does this before `external`, on the seeded endpoints.
+  - iptnl refuses a nonzero ttl with `nopmtudisc` (`ttl != 0 and nopmtudisc are incompatible`, 255, no `Error:`), also on the seeded values, before `external`.
+  - xfrm refuses `external` with an `if_id` or `dev` (1), then a missing `if_id` (`missarg`, 255).
+  - gre6, ip6tnl and vti check nothing.
+- **What is sent.** `external` sends `COLLECT_METADATA` alone (iptnl and ip6tnl put `PROTO` first). Otherwise every parser sends its full set from defaults, the seed and the words. Endpoints go only when not unspec, and `LINK` only when nonzero. xfrm sends each `IF_ID` in the loop, `LINK` after it, and nothing it wasn't given.
+- **Rendering.**
+  - **Endpoints:** `remote` and `local` always print through `tnl_print_endpoint`: `any` when absent or zero, and `unknown` for a wrong length or family.
+  - **Lower device:** `dev` prints when `LINK` is nonzero, through `ll_index_to_name`. The `@d0` lookup has already cached the name, so it costs no get.
+  - **Keys:** each prints dotted, under its `KEY` flag in gre and gre6 and when nonzero in vti.
+  - **ttl, tos and the other inherits:** the ttl is `ttl inherit` (`hoplimit inherit` in gre6 and ip6tnl) in text and 0 in JSON, whose key is always `ttl`. The tos is `tos inherit` in text and `"0x1"` in JSON. gre6 and ip6tnl print their inherit flags by name in text and as `ip6_tnl_f_*` bools in JSON.
+  - **Encap:** `tnl_print_encap` prints the encap words, `encap-csum6` included, which is not a word the parsers take.
+  - **xfrm:** prints `external` and stops, or `if_id`; never its `link`.
+
+**Exit statuses.** KG3's mapping holds:
+- `invarg`, `missarg`, `NEXT_ARG`, `exit(nodev)` and `tnl_parse_key`'s numeric failure wrap `ErrLinkUsage` (255).
+- The returned refusals (the usage line, the prefetch's failure, gre's broadcast check and xfrm's conflict) and `get_addr`'s and `get_addr32`'s `exit(1)` are `ErrInvalidArgument` (1).
+- goip prints a refusal's first line. An unknown word's first line is the usage line, as amt's bad mode was, so `help` prints it too: unlike KG3's kinds, these have no `help` word to refuse as not implemented.
+
+**goip makes `ip`'s checks itself,** as in KG3, and the seeded checks need `cur`, so gre's and iptnl's parsers take it. Five cases are not implemented:
+- sit's `6rd-reset`, on which `ip` 7.2.0 segfaults;
+- ip6tnl's `encaplimit` with a value that isn't a u8, on which `ip` sends an uninitialized byte;
+- sit's `6rd-prefix any` and `6rd-relay_prefix any`, which `ip` sends as an empty address that no `IptunSetting` holds;
+- a prefetch whose reply passes the endpoint checks but is outside the parser's kinds, which `ip` reads by the wrong ids.
+
+#### KG4-T01 No fallback tunnels in goip-parity
+
+**The gap.** `nltopo::late_setup` sets `net.core.fb_tunnels_only_for_init_net=2` and loads the late modules, but goip-parity calls it only at the first row that isn't `route`.
+- **In a section run:** in `--section link` no such row runs, so the sysctl is never set.
+- **In a full run:** it runs at `tcp_metrics`, after every link row.
+- **The effect:** the first row of each tunnel kind autoloads its module, and every namespace made after that holds the fallbacks: gre0, gretap0, erspan0, tunl0, sit0, ip6tnl0, ip6gre0, ip_vti0 and ip6_vti0.
+  - Ifindexes shift between legs on the loading row.
+  - The fallback is an any/any tunnel, so `vti/add_no_option` and the bare-tunnel setups get `-EEXIST`.
+
+**Code.**
+- `netlink-topology.exp`: `nltopo::no_fallback_tunnels subdir`, the sysctl step moved out of `late_setup`, which now calls it first. It returns its problems as `late_setup` does.
+- `goip-parity.exp` calls it after `nltopo::build_clean` and before `foreach row $table`, outside any section test. Its problems are reported at the end as `GOIP_PARITY_EARLY_SETUP_PROBLEMS`, beside `late_problems`, and are never fatal.
+- No current row loads a module that makes a fallback, and the sysctl acts only when a namespace is made, so no committed capture changes.
+
+ccheck rows in `nix/microvms/scripts/addr-topology-test.exp` (`checks.vm-lib-exp`):
+
+| description | input | expected |
+|---|---|---|
+| positive: the sysctl is set in the root namespace | `nltopo::no_fallback_tunnels early` | `{}`; `::trace` holds `xtcp2-nlcap sysctl - early net.core.fb_tunnels_only_for_init_net 2` |
+| negative: a refused sysctl is its one problem | `::refuse {fb_tunnels_only_for_init_net}` | `{sysctl net.core.fb_tunnels_only_for_init_net=2: REFUSED}` |
+| positive: late_setup still sets it before a module | the existing late_setup rows | unchanged, now through the proc |
+| corner: the driver sets it before the first row | `goip-parity.exp`'s text | the call comes before `foreach row $table`, outside any `if` on the section |
+| corner: the driver doesn't make it fatal | `goip-parity.exp`'s text | the result goes to a problems list; no `exit` |
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: the link section is unchanged | `goip-parity -- --timeout 12000 --section link` | the 360 rows `PASS`; no `GOIP_PARITY_EARLY_SETUP_PROBLEMS` |
+
+**Mutation check:**
+- the early call dropped (the before-the-first-row row);
+- the call moved inside the row loop after `late_setup` (the same row);
+- a refusal not reported (the negative row).
+
+**Done when:** the rows pass in vm-lib-exp; nix-fmt, statix and deadnix pass; the section run is clean.
+
+#### KG4-T02 The prefetch, and the gre, gretap and erspan words
+
+**Code.**
+- **The prefetch.** `internal/goip/link_tunnel_args.go`:
+  - `Service.LinkInfoDataByIndex(family uint8, index int32)` sends `BuildGetLinkByIndexRequest(family, index, 0, seq)` through `singleGet` and returns the reply's kind and its raw `IFLA_INFO_DATA`, with whether `IFLA_LINKINFO` and `IFLA_INFO_DATA` were there.
+  - `tunnelPrefetch(kinds, family, endpoint ids)` refuses each `get_failed` case with `Failed to get existing tunnel info.` (1), checking each endpoint attribute's raw length as `get_addr_rta` does. A reply whose kind is outside `kinds` is refused as not implemented once the endpoints pass.
+  - `kindData` takes a `kindEnv` (errOut, verb, family, the set's index, the resolver and the fetcher) in place of its loose parameters. A tunnel case prefetches when `!verb.create()`, before its words, so `delete` prefetches too.
+- **The shared words:**
+  - `tnlParseKey(name, v)`, with its two statuses;
+  - `tunnelUsageErr(line)`, the usage line at 1;
+  - the encap words and their invarg texts;
+  - `tunnelU8(v, text)` for the ttls, whose texts differ by file.
+
+  `kindTTL`, `kindLabel` and `kindAttrs`' duparg mask are not reused.
+- **The words.** `link_gre_args.go`: `parseGreArgs(kind string, cur *xtcpnl.GreInfo, args []string, resolve linkResolver) ([]xtcpnl.GreSetting, error)`, `gre_parse_opt`'s chain in its order. It holds the erspan words for erspan alone, and gre's multicast check runs on `cur` and the words. `kindGreCst`, `kindGretapCst` and `kindErspanCst` cases call `EncodeGreInfoData(settings, cur, kind == kindErspanCst)`.
+
+`TestLinkGreWriteMatchesIp` replays `kinds/{gre,gretap,erspan}/*` through `newLinkReplay` with `useLLMap720`. goip must send `ip`'s lookups, the prefetch among them, and write `ip`'s request, byte for byte with seq and pid zeroed, and exit 0:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 31, 10 and 19 rows | its lookups (d0's for `dev d0`; the device's get and the prefetch for a set with words), then its request |
+| positive: a set starts from the device | `gre/set_changeable` | gr0's get; the 32-byte prefetch, flags 0x1, family 0, no attribute; then `IKEY`/`OKEY` 5, flags 0xb000, `LOCAL` and `REMOTE` 10.0.0.2, `TOS` 0x10, `TTL` 32, `FWMARK` 7 |
+| positive: the lower after the prefetch | `gre/set_dev` | gr0's get, the prefetch, d0's get; the seeded `REMOTE` 10.0.0.1 and `LINK` 3 |
+| positive: erspan's version picks its fields | `erspan/add_index`, `add_ver2`, `add_ver0` | `VER` 1 and `INDEX` 123; `VER` 2, `DIR` 1, `HWID` 7; `VER` 0 alone |
+| negative: a request the kernel refuses is built anyway | the 16 rc 2 rows | their requests |
+| boundary: the top ttl and tos | `gre/add_ttl_max` (`hoplimit 255`), `gre/add_tos_max` (`tclass ff`) | `TTL` 0xff; `TOS` 0xff |
+| boundary: the top erspan index and hwid | `erspan/add_index_max`, `erspan/add_hwid_max` | `INDEX` 1048575; `HWID` 0x3f |
+| corner: no word, no data, no prefetch | `*/add_no_option`, `gre/set_no_option` | `IFLA_INFO_KIND` alone; the set has gr0's get and no prefetch |
+| corner: abbreviations | `gre/add_abbrev`, `gre/add_no_abbrev`, `erspan/add_dir_abbrev` | `t` ttl, `k` key, `s` seq, `c` csum; `no` is nokey; `e` is egress |
+| corner: external alone | `gre/add_external_encap`, `gre/set_on_external` | `COLLECT_METADATA` alone; on the set, after the prefetch |
+| corner: the multicast keys | `gre/add_multicast`, `gretap/add_multicast` | `IKEY` = `OKEY` = `ef 01 01 01`, flags 0x2000 |
+| corner: `any` drops the seeded remote | `gretap/set_remote_any` | no `REMOTE`, no `LOCAL` |
+| corner: `noignore-df` sends 0 | `gre/set_pmtudisc_ignore_df` | `PMTUDISC` 1, `IGNORE_DF` 0 over a seeded 1 |
+| corner: the encap words | `gre/add_encap_fou` | `ENCAP_TYPE` 1, `FLAGS` 6, `SPORT` 0, `DPORT` `15 b3` |
+| corner: another version's words are dropped | `erspan/add_dir_ver1` | `VER` 1; no `DIR`, `HWID` or `INDEX` |
+| corner: a gretap set on a gre | `gretap/set_on_gre` | kind gretap, seeded from gr0's gre data, `TTL` 5 |
+
+`TestLinkGreRefusals` checks the status, stderr's first line and the lookups, and that nothing is written:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | gre `add_unknown`, `add_strcmp_abbrev`, `add_encap_csum6_word`, `add_erspan_word`, `add_multicast_no_local`, `add_remote6`, `add_key_dotted_bad`, `set_not_a_tunnel`; gretap `add_erspan_word`; erspan `add_strcmp_abbrev` (1). gre `add_key_bad`, `add_ttl_over`, `add_tos_over`, `add_encap_bad`, `add_dev_missing`, `add_no_value`; erspan `add_index_zero`, `add_index_over`, `add_ver_over`, `add_dir_bad`, `add_no_value` (255) | the row's `ip.rc` and `ip.err` first line; nosuch's get for `add_dev_missing`; d0's get and the prefetch for `set_not_a_tunnel` |
+| negative: a local of the other family | `remote 10.0.0.1 local 2001:db8::1` | 1, `Error: inet address is expected rather than "2001:db8::1".` |
+| negative: dport has no auto | `encap-dport auto` | 255, `Error: argument "auto" is wrong: Invalid destination port.` |
+| boundary: a key past 32 bits | `key 4294967296` | 255, `invalid value for "key": "4294967296"; it should be an unsigned integer` |
+| boundary: a source port past a u16 | `encap-sport 65536` | 255, `Error: argument "65536" is wrong: Invalid source port.` |
+| corner: the key error names the keyword | `i foo` | 255, `invalid value for "ikey": "foo"; it should be an unsigned integer` |
+| corner: `ttl auto` is not a gre word | `ttl auto` | 255, `Error: argument "auto" is wrong: invalid TTL` |
+| corner: help is the usage | `help`, for each kind | 1, the kind's usage line, padded to 9 |
+| corner: the empty word | `""` | 1, the usage line |
+| corner: the multicast check comes before external | `remote 239.1.1.1 external` | 1, `A broadcast tunnel requires a source address.` |
+| corner: a seeded multicast remote needs a local | a built prefetch with `REMOTE` 239.1.1.1 and no `LOCAL`, `ttl 5` | 1, the broadcast text, after the prefetch |
+| corner: the prefetch's failure comes before the words | `link set d0 type gre bogus`, on a dummy | 1, `Failed to get existing tunnel info.`; d0's get and the prefetch |
+| corner: `noi` is noikey | `noignore` | 1, the usage line |
+
+`TestTunnelPrefetch` holds the shared step on built replies:
+
+| description | input | expected |
+|---|---|---|
+| positive: `-4` reaches the request | `-4 link set gr0 type gre ttl 5` | the prefetch's `ifi_family` 2 |
+| positive: delete prefetches | `link delete gr0 type gre ttl 5` | gr0's get, the prefetch, then the `RTM_DELLINK` |
+| negative: replace doesn't | `link replace gr0 type gre ttl 5` | no prefetch; a full set with no `REMOTE` |
+| negative: no `IFLA_LINKINFO` | a reply without one | 1, `Failed to get existing tunnel info.` |
+| boundary: an endpoint of 3 bytes | `LOCAL` 3 bytes | 1, the same text |
+| corner: a 16-byte remote on gre | `REMOTE` `::1` | 1, the same text |
+| corner: a kind outside the parser's | a `dummy` reply with `IFLA_INFO_DATA` and no attribute 6 or 7 | not implemented |
+| corner: a seeded port goes back swapped | a gre reply with `ENCAP_DPORT` `15 b3`, `ttl 5` | `ENCAP_DPORT` `b3 15` |
+
+`TestGreCorpusArgv` checks one argv per corpus row, 81 in all. `TestParseGreArgs` checks the values no capture covers:
+
+| description | input | expected |
+|---|---|---|
+| positive: the ttl and tos aliases | `hlim 5`; `ds 10`; `to 10` | `TTL` 5; `TOS` 0x10; `TOS` 0x10 |
+| positive: a named dsfield | `tos EF` | `TOS` 0xb8 |
+| positive: key spellings | `key 0x2a`; `key 052`; `key 1.2` | 42; 42; `01 02 00 00` |
+| boundary: the top key | `key 4294967295` | `ff ff ff ff` |
+| boundary: ttl 0 | `ttl 0` | `TTL` 0 |
+| corner: the last word wins | `ttl 5 ttl 6` | `TTL` 6 |
+| corner: one side of a key | `key 5 noikey` | `IKEY` 0 without `KEY`; `OKEY` 5 with it |
+| corner: the no-address words | `remote default`; `remote 0.0.0.0` | no `REMOTE` |
+| corner: get_addr's short form | `remote 10.1` | `REMOTE` 10.1.0.0 |
+| corner: a nonzero key stays | `remote 239.1.1.1 local 10.0.0.1 ikey 7` | `IKEY` 7, `OKEY` ef010101 |
+| corner: the udp6 checksum word | `encap fou encap-udp6-csum` | `ENCAP_FLAGS` 2 |
+
+**Mutation check:**
+- tos before ttl in the chain (`gre/add_abbrev`);
+- `external` by prefix (`gre/add_strcmp_abbrev`);
+- `encap-csum6` taken as a word (`gre/add_encap_csum6_word`);
+- the erspan words on gre (`gre/add_erspan_word`);
+- the prefetch skipped (`gre/set_dev`);
+- the prefetch on a set with no words (`gre/set_no_option`);
+- the prefetch keyed on `setOp()` (the delete row);
+- the prefetch with `IFLA_EXT_MASK` (`gre/set_changeable`);
+- the missing-`INFO_DATA` check skipped (`gre/set_not_a_tunnel`);
+- the endpoint length check skipped (the 16-byte row);
+- `dev`'s nodev as 1 (`gre/add_dev_missing`);
+- the numeric key's failure as 1 (`gre/add_key_bad`);
+- the dotted key's failure as 255 (`gre/add_key_dotted_bad`);
+- the multicast check after external (its corner row);
+- the usage line unpadded (`gretap/add_erspan_word`).
+
+**Done when:** the tables pass with `go test -count=1 -race ./internal/goip/... ./pkg/xtcpnl/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.
+
+#### KG4-T03 The ip6gre, ip6gretap and ip6erspan words
+
+**Code.** `internal/goip/link_gre6_args.go`: `parseGre6Args(args []string, resolve linkResolver) ([]xtcpnl.GreSetting, error)`, the gre6 chain in its order.
+- **Words that aren't gre's:** `tos`, `tclass` and `dsfield` are a hex u8 into the flow info's class (`invalid TClass`), never `GreOptionTOS`. `flowlabel` and `fl` are hex with `invalid Flowlabel`. `dscp` takes only `inherit`, and `fwmark` also takes `inherit`. Each `inherit` is its `IP6_TNL_F_*` flag. The other extra words are `encaplimit` and `[no]allow-localremote`.
+- **Words that aren't gre6's:** `pmtudisc`, `nopmtudisc`, `ignore-df` and `noignore-df` are not words here, and gre's multicast check is not made.
+- **Text:** the ttl's text is `invalid HLIM`.
+- **Prefetch:** it is KG4-T02's, with ip6gre, ip6gretap and ip6erspan as the parser's kinds and 16 bytes as the endpoint length.
+- Cases for the three kinds call `EncodeGre6InfoData(settings, cur)`.
+
+`TestLinkGre6WriteMatchesIp` replays `kinds/{ip6gre,ip6gretap,ip6erspan}/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 26, 9 and 15 rows | its lookups, then its request |
+| positive: the defaults | `ip6gre/add_default` | keys and flags 0, `REMOTE`, `TTL` 64, `ENCAP_LIMIT` 4, `FLOWINFO` 0, `FLAGS` 0, `FWMARK` 0, `ERSPAN_VER` 1, `ENCAP_FLAGS` 2 |
+| positive: dev in word order | `ip6gre/add_dev` | d0's get in the loop; `LINK` between `REMOTE` and `TTL` |
+| positive: the seed goes back | `ip6gre/set_changeable` | the prefetch; `FLAGS` 0x40000 kept; `LOCAL` 2001:db8::2; no seeded `::` |
+| negative: a request the kernel refuses is built anyway | the 14 rc 2 rows | their requests |
+| boundary: the tops | `ip6gre/add_tops` | `TTL` 255, `FLOWINFO` 0x0fffffff |
+| boundary: the widest index | `ip6erspan/add_index_max` | `ERSPAN_INDEX` 1048575 |
+| corner: no word, no data | `*/add_no_option`, `ip6gre/set_no_option` | `IFLA_INFO_KIND` alone; no prefetch |
+| corner: external drops every word | `ip6gre/add_external`, `set_external_ignored` | `COLLECT_METADATA` alone |
+| corner: the seeded port is swapped | `ip6gre/set_encap_sport_swap` | `ENCAP_SPORT` `34 12` |
+| corner: abbreviations | `ip6gre/add_abbrev` | `tc 20` is `FLOWINFO` 0x02000000; `h` hoplimit; `k` key |
+| corner: erspan words on ip6gre | `ip6gre/add_erspan_ver_zero` | `ERSPAN_VER` 0 |
+| corner: remote `::` is not sent | `ip6gretap/add_remote_any` | no `REMOTE` |
+| corner: a set changes the kind | `ip6gretap/set_kind_mismatch` | the ip6gretap reply seeds; kind ip6gre |
+| corner: the last word wins | `ip6gre/add_repeat` | `TTL` 20 |
+
+`TestLinkGre6Refusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | ip6gre `set_not_tunnel`, `add_remote_v4`, `add_key_dotted_bad`, `add_unknown`, `add_strcmp_abbrev`; ip6erspan `add_strcmp_abbrev` (1). ip6gre `add_hoplimit_over`, `add_flowlabel_over`, `add_key_bad`, `add_dev_missing`, `add_no_value`; ip6erspan `add_index_over`, `add_ver_three`, `add_dir_bad` (255) | the row's `ip.rc` and `ip.err` first line; its pcap's lookups |
+| negative: a set on an IPv4 gre | a gre reply with a 4-byte `REMOTE`, `hoplimit 5` | 1, `Failed to get existing tunnel info.` |
+| negative: dscp takes only inherit | `dscp 1` | 255, `Error: argument "1" is wrong: not inherit` |
+| boundary: tclass past a u8 in hex | `tclass 100` | 255, `Error: argument "100" is wrong: invalid TClass` |
+| boundary: encaplimit past a u8 | `encaplimit 256` | 255, `Error: argument "256" is wrong: invalid ELIM` |
+| corner: gre's words are not gre6's | `pmtudisc`; `ignore-df` | 1, the usage line |
+| corner: each kind's usage line | `bogus` on ip6gretap | 1, `Usage: ... ip6gretap\t[ remote ADDR ]` |
+| corner: help is the usage | `help` | 1, `Usage: ... ip6gre   \t[ remote ADDR ]` |
+
+`TestGre6CorpusArgv` checks the 64 corpus rows. `TestParseGre6Args`:
+
+| description | input | expected |
+|---|---|---|
+| positive: tos and dsfield are tclass | `tos 10`; `ds 10` | `FLOWINFO` 0x01000000 |
+| positive: noallow-localremote clears | `allow-localremote noallow-localremote` | `FLAGS` 0 |
+| positive: a multicast remote is sent, with no key fill | `remote ff05::1` | `REMOTE` ff05::1; keys 0 |
+| negative: `t` is ttl, not tclass | `t 5` | `TTL` 5, `FLOWINFO` 0 |
+| boundary: flowlabel is hex | `flowlabel 10` | `FLOWINFO` 0x00000010 |
+| boundary: hoplimit in octal | `hoplimit 010` | `TTL` 8 |
+| corner: a v4-mapped remote | `remote ::ffff:10.0.0.1` | a 16-byte `REMOTE` |
+| corner: tclass inherit clears the class | `tclass 20 tclass inherit` | `FLOWINFO` 0, `FLAGS` 0x2 |
+| corner: a number clears encaplimit none | `encaplimit none encaplimit 3` | `ENCAP_LIMIT` 3, `FLAGS` 0 |
+| corner: an index at version 2 is dropped | `erspan 5 erspan_ver 2` | `VER` 2, `DIR`, `HWID`; no `INDEX` |
+
+**Mutation check:**
+- tclass in base 0 (`ip6gre/add_abbrev`);
+- flowlabel in base 0 (the hex row);
+- `t` as tclass (its row);
+- `encaplimit` by prefix (`ip6gre/add_strcmp_abbrev`);
+- the erspan words held to ip6erspan (`ip6gre/add_erspan_ver_zero`);
+- `ERSPAN_VER` left out for ip6gre (`ip6gre/add_default`);
+- the 4-byte seeded remote accepted (the IPv4 gre row);
+- `remote ::` sent (`ip6gretap/add_remote_any`);
+- a duparg added (`ip6gre/add_repeat`).
+
+**Done when:** as KG4-T02.
+
+#### KG4-T04 The ipip and sit words
+
+**Code.** `internal/goip/link_iptnl_args.go`: `parseIptnlArgs(kind string, cur *xtcpnl.IptunInfo, args []string, resolve linkResolver) ([]xtcpnl.IptunSetting, error)`, `iptunnel_parse_opt`'s chain in its order.
+- **sit-only words:** `isatap` and `mode ip6ip`. The 6rd words are parsed on both kinds and sent on sit alone, so a bad prefix still exits 1 on ipip. `get_prefix` failures are `exit(1)`.
+- **The ttl check:** it runs on `cur` and the words, before `external`.
+- **Not implemented:** sit's `6rd-reset`, `6rd-prefix any` and `6rd-relay_prefix any`.
+- **Prefetch:** the kinds are ipip and sit, and the endpoints 4 bytes.
+- `kindIpipCst` and `kindSitCst` cases call `EncodeIptunInfoData(settings, cur, kind == kindSitCst)`.
+
+`TestLinkIptnlWriteMatchesIp` replays `kinds/{ipip,sit}/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 34 ipip and 26 sit rows | its lookups, then its request |
+| positive: what every add sends | `ipip/add_default` | `PROTO` 0, `REMOTE`, `PMTUDISC` 1, `TOS` 0, `TTL` 0, `LINK` 0, `FWMARK` 0, the four `ENCAP_*` at 0 |
+| positive: the lower after the prefetch | `ipip/set_dev` (`d d0`) | ip0's get, the prefetch, d0's get; `LINK` 3 |
+| negative: a request the kernel refuses is built anyway | the 8 and 6 rc 2 rows | their requests |
+| boundary: the top ttl and fwmark | `ipip/add_ttl`, `ipip/add_fwmark` | `TTL` 0xff; `FWMARK` 0xffffffff |
+| corner: no words, no prefetch | `ipip/set_no_option`, `sit/set_no_option` | ip0's or st0's get; `IFLA_INFO_KIND` alone |
+| corner: external | `ipip/add_external`, `sit/add_external` | `PROTO` 0, `COLLECT_METADATA` |
+| corner: sit's flags and 6rd | `sit/add_default`, `sit/add_6rd_prefix` | `FLAGS` `00 00` last; the four 6rd attributes after it |
+| corner: ipip drops the 6rd words | `ipip/add_6rd_ignored` | no 6rd attribute, no `FLAGS` |
+| corner: an alias and an abbreviation | `ipip/set_changeable` (`hlim`, `dsf`) | `TTL` 64, `TOS` 0x10 |
+| corner: the seeded encap | `ipip/set_encap` | the seeded `REMOTE`; `ENCAP_TYPE` 1, `DPORT` `15 b3` |
+
+`TestLinkIptnlRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | ipip `add_isatap`, `add_remote6`, `add_remote_abbrev`, `add_encap_csum6_word`, `add_noexternal` (1); `add_mode_ip6ip`, `add_ttl_over`, `add_ttl_nopmtudisc`, `set_nopmtudisc_ttl`, `add_tos_over`, `add_encap_bad`, `add_dev_missing`, `add_no_value` (255). sit `add_6rd_prefix_v4`, `add_6rd_relay_v6`, `add_6rd_prefix_overlen`, `add_isatap_abbrev`, `add_remote_bad` (1); `add_mode_ip6ip6`, `add_ttl_nopmtudisc`, `add_tos_bad`, `add_6rd_no_value`, `set_external_wildcard`, `set_remote_on_wildcard` (255) | the row's `ip.rc` and `ip.err` first line; its pcap's lookups (the get and the prefetch for the three sets) |
+| negative: ipip's prefetch of an IPv6 tunnel | a reply with a 16-byte `LOCAL`, `ttl 5` | 1, `Failed to get existing tunnel info.` |
+| boundary: ttl 0 with nopmtudisc | `remote 10.0.0.1 ttl 0 nopmtudisc` | accepted; `PMTUDISC` 0 |
+| corner: the check comes before external | `external ttl 5 nopmtudisc` | 255, `ttl != 0 and nopmtudisc are incompatible` |
+| corner: help is the usage | `help` on ipip | 1, `Usage: ... ipip  \t[ remote ADDR ]` |
+| corner: `6rd-reset` | sit `6rd-reset` | not implemented |
+| corner: `6rd-prefix any` | sit `6rd-prefix any` | not implemented |
+
+`TestIptnlCorpusArgv` checks the 84 corpus rows. `TestParseIptnlArgs`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a named tos | `tos AF11` | `TOS` 0x28 |
+| positive: a dotted relay mask | sit `6rd-relay_prefix 10.0.0.0/255.0.0.0` | relay length 8 |
+| negative: `ttl auto` | `ttl auto` | 255, `Error: argument "auto" is wrong: invalid TTL` |
+| boundary: a 6rd prefix with no length | sit `6rd-prefix 2001:db8::1` | `6RD_PREFIXLEN` 128 |
+| corner: `d` is dev, `ds` is dsfield | `d d0`; `ds 10` | d0's get, `LINK`; `TOS` 0x10 |
+| corner: a set on sit's wildcard that zeros the ttl | a reply with `TTL` 64, `PMTUDISC` 0; `ttl inherit` | accepted; `TTL` 0, `PMTUDISC` 0 |
+
+**Mutation check:**
+- the ttl check without the seed (`ipip/set_nopmtudisc_ttl`);
+- the ttl check after external (its corner row);
+- `remote` by prefix (`ipip/add_remote_abbrev`);
+- isatap on ipip (`ipip/add_isatap`);
+- `ip6ip` taken on ipip (`ipip/add_mode_ip6ip`);
+- 6rd sent on ipip (`ipip/add_6rd_ignored`);
+- `get_prefix`'s failure as 255 (`sit/add_6rd_prefix_v4`);
+- tos in decimal (`ipip/set_changeable`);
+- sit's `FLAGS` dropped (`sit/add_default`).
+
+**Done when:** as KG4-T02.
+
+#### KG4-T05 The ip6tnl words
+
+**Code.** `internal/goip/link_ip6tnl_args.go`: `parseIp6tnlArgs(args []string, resolve linkResolver) ([]xtcpnl.IptunSetting, error)`, `ip6tunnel_parse_opt`'s chain.
+- **Words:** its tclass is a hex u8 with no dsfield names, flowlabel is hex, and `dscp` takes only `inherit`. `fwmark inherit` zeros the mark. An `encaplimit` that isn't a u8 or `none` is not implemented.
+- **Prefetch:** the kind is ip6tnl, and the endpoints are 16 bytes. The encap is not seeded.
+- A `kindIp6tnlCst` case calls `EncodeIp6tnlInfoData(settings, cur)`.
+
+`TestLinkIp6tnlWriteMatchesIp` replays `kinds/ip6tnl/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 36 rows | its lookups, then its request |
+| positive: what every add sends | `add_default` | `PROTO` 0, `REMOTE`, `TTL` 64, `ENCAP_LIMIT` 4, `FLOWINFO` 0, `FLAGS` 0, `LINK`, `FWMARK`, `ENCAP_FLAGS` `02 00` |
+| negative: a request the kernel refuses is built anyway | the 7 rc 2 rows | their requests |
+| boundary: the tops | `add_hoplimit`, `add_tclass`, `add_flowlabel`, `add_fwmark` | `TTL` 0xff; `FLOWINFO` `0f f0 00 00`; `00 0f ff ff`; `FWMARK` 0xffffffff |
+| corner: tclass is hex, through dsfield | `add_dsfield_abbrev` (`dsf 10`) | `FLOWINFO` `01 00 00 00` |
+| corner: the flag words | `add_encaplimit_none`, `add_tclass_inherit`, `add_flowlabel_inherit`, `add_dscp_inherit`, `add_fwmark_inherit`, `add_allow_localremote` | `FLAGS` 0x1 (limit 4 still sent), 0x2, 0x4, 0x10, 0x20 (fwmark 0), 0x40 |
+| corner: the prefetch keeps the CAP bits | `set_changeable` | `FLAGS` 0x00040013, `FLOWINFO` 0x00012345, `TTL` 0x20 |
+| corner: the prefetch keeps the hop limit | `set_keeps_prefetch` | `TTL` 0x0a |
+| corner: noencap leaves the ports | `add_noencap` | type 0, flags 0x5, ports `03 e8` and `15 b3` |
+| corner: the last hop limit wins | `add_hoplimit_twice` | one `TTL` 20 |
+
+`TestLinkIp6tnlRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_remote_v4`, `add_encaplimit_abbrev`, `add_isatap` (1); `add_mode_ip6ip`, `add_hoplimit_over`, `add_tclass_over`, `add_flowlabel_over`, `add_dscp_bad`, `add_fwmark_bad`, `add_encap_abbrev`, `add_encap_sport_over`, `add_dev_missing`, `add_no_value` (255) | the row's `ip.rc` and `ip.err` first line; its pcap's lookups |
+| negative: iptnl's words | `pmtudisc`; `6rd-prefix ::/0` | 1, `Usage: ... ip6tnl\t[ remote ADDR ]` |
+| negative: no names for tclass | `tclass AF11` | 255, `Error: argument "AF11" is wrong: invalid TClass` |
+| boundary: `dsc` is neither | `dsc inherit` | 1, the usage line |
+| corner: a bad encaplimit | `encaplimit foo`; `encaplimit 256` | not implemented |
+| corner: a flowlabel that looks decimal is hex | `flowlabel 100000` | 255, `Error: argument "100000" is wrong: invalid Flowlabel` |
+
+`TestIp6tnlCorpusArgv` checks the 49 corpus rows. `TestParseIp6tnlArgs`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a set resets the encap | a reply with fou on 5555, `hoplimit 5` | `ENCAP_TYPE` 0, `ENCAP_FLAGS` `02 00`, ports 0 |
+| positive: a number after tclass inherit clears the flag | `tclass inherit tclass 20` | `FLOWINFO` `02 00 00 00`; no 0x2 |
+| boundary: encaplimit 0 | `encaplimit 0` | `ENCAP_LIMIT` 0; no 0x1 |
+| corner: `fwmark inherit` zeros a seeded mark | a reply with `FWMARK` 7; `fwmark inherit` | `FWMARK` 0, `FLAGS` 0x20 |
+| corner: noallow-localremote clears a seeded flag | a reply with `FLAGS` 0x40040 | `FLAGS` 0x40000 |
+| corner: `remote ::` and `remote any` | each | no `REMOTE` |
+
+**Mutation check:**
+- tclass shifted by 24 (`add_tclass`);
+- `encaplimit` by prefix (`add_encaplimit_abbrev`);
+- the encap seeded (the reset row);
+- the CAP bits masked (`set_changeable`);
+- the bad encaplimit sent as 0 (its row).
+
+**Done when:** as KG4-T02.
+
+#### KG4-T06 The vti, vti6 and xfrm words
+
+**Code.**
+- `internal/goip/link_vti_args.go`: `parseVtiArgs(v6 bool, args []string, resolve linkResolver) ([]xtcpnl.VtiSetting, error)`, one chain for both kinds. It has `tnlParseKey`, `routeGetAddr` with the kind's family and no `Unmap`, and the usage line padded to 4. It makes no after-loop check. The prefetch's kinds are vti and vti6, with endpoints of 4 or 16 bytes by kind.
+- `link_xfrm_args.go`: `parseXfrmArgs(args []string, resolve linkResolver) ([]xtcpnl.XfrmLinkSetting, error)`. Each `IF_ID` is added in the loop. After the loop come the conflict (1) and then `missargErr("IF_ID")` (255). xfrm has no prefetch.
+- `kindVtiCst`, `kindVti6Cst` and `kindXfrmCst` cases.
+
+`TestLinkVtiWriteMatchesIp` replays `kinds/{vti,vti6,xfrm}/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 16, 9 and 17 rows | its lookups, then its request |
+| positive: the always-sent three | `vti/add_default` | `IKEY` 0, `OKEY` 0, `LOCAL`, `REMOTE`, `FWMARK` 0; no `LINK` |
+| positive: the seed goes back | `vti/set_fwmark`, `vti6/set_fwmark` | the device's get, the prefetch, then `REMOTE` and `FWMARK` 5 |
+| positive: xfrm's set has no prefetch | `xfrm/set_if_id` | xf0's get, then `IF_ID` 2 alone |
+| negative: a request the kernel refuses is built anyway | the 5, 2 and 8 rc 2 rows | their requests |
+| boundary: the top key and if_id | `vti/add_key_max`, `xfrm/add_if_id_max` | `IKEY` = `OKEY` 0xffffffff; `IF_ID` 0xffffffff |
+| corner: `remote any` drops the seeded remote | `vti/set_remote_any`, `vti6/set_remote_any` | no `REMOTE` |
+| corner: dotted and numeric keys | `vti/add_ikey_okey` | `IKEY` 01020304, `OKEY` 00000010 |
+| corner: key, then ikey | `vti/add_key_last_wins` | `IKEY` 6, `OKEY` 5 |
+| corner: abbreviations | `vti/add_abbrev`, `xfrm/add_abbrev` | the six vti words; `IF_ID` 5 then `LINK` 3 |
+| corner: if_id in the loop, link after | `xfrm/add_dev`, `xfrm/add_if_id_twice` | `IF_ID` then `LINK`; two `IF_ID`s |
+| corner: no word, no data | `*/add_no_option`, `*/set_no_option` | no `IFLA_INFO_DATA`; no prefetch |
+| corner: external | `xfrm/add_external` | an empty `COLLECT_METADATA` alone |
+
+`TestLinkVtiRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | vti `add_fwmark_abbrev`, `add_remote_v6`, `set_on_dummy`; vti6 `add_fwmark_abbrev`, `add_remote_v4`; xfrm `add_external_abbrev`, `add_external_if_id` (1). vti `add_dev_missing`, `add_key_bad`, `add_key_over`, `add_no_value`; vti6 `add_no_value`; xfrm `add_if_id_over`, `add_if_id_zero`, `add_no_if_id`, `add_no_value` (255) | the row's `ip.rc` and `ip.err` first line; d0's get and the prefetch for `set_on_dummy`; d0's get for `add_no_if_id` |
+| negative: a bad dotted key | `remote 10.0.0.1 ikey 1.2.3.4.5` | 1, `Error: an IP address is expected rather than "1.2.3.4.5"` |
+| boundary: fwmark past a u32 | `fwmark 0x100000000` | 255, `Error: argument "0x100000000" is wrong: invalid fwmark` |
+| corner: help is the usage | `help` on vti; on xfrm | 1, `Usage: ... vti \t[ remote ADDR ]`; xfrm's line |
+| corner: vti6 on a vti device | a vti reply with a 4-byte `LOCAL`, `type vti6 fwmark 1` | 1, `Failed to get existing tunnel info.` |
+| corner: in-loop errors beat external's conflict | `external dev nosuch`; `external if_id 0` | 255, nodev; 255, invarg |
+
+`TestVtiCorpusArgv` checks the 58 corpus rows. `TestParseVtiArgs`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a multicast remote is sent | `remote 224.0.0.1` | `REMOTE` 224.0.0.1 |
+| positive: `if` is if_id | xfrm `if 5` | `IF_ID` 5 |
+| negative: the zero remote is not sent | `remote 0.0.0.0`; vti6 `remote ::` | no `REMOTE` |
+| boundary: a short address | `remote 10` | `REMOTE` 10.0.0.0 |
+| corner: a v4-mapped vti6 remote stays 16 bytes | vti6 `remote ::ffff:10.0.0.1` | a 16-byte `REMOTE` |
+| corner: the family is the kind's | `-6`, vti `remote 10.0.0.1` | a 4-byte `REMOTE` |
+| corner: the seeded link keeps its low byte | a reply with `LINK` 258 | `LINK` 2 |
+| corner: if_id before external is still refused | xfrm `if_id 1 external` | 1, `xfrmi: both 'external' and if_id/link cannot be specified` |
+
+**Mutation check:**
+- `fwmark` by prefix (`vti/add_fwmark_abbrev`);
+- `external` by prefix (`xfrm/add_external_abbrev`);
+- the prefetch dropped (`vti/set_fwmark`);
+- xfrm given a prefetch (`xfrm/set_if_id`);
+- `tnlParseKey`'s name from the typed word (`TestLinkGreRefusals`' `i foo` row, over the shared helper);
+- a multicast endpoint dropped (its row);
+- xfrm's missarg ahead of external (`xfrm/add_external`);
+- vti6's remote unmapped (the v4-mapped row).
+
+**Done when:** as KG4-T02.
+
+#### KG4-T07 The gre kinds' `-d` output
+
+**Code.**
+- `internal/goip/render/link_tunnel.go`: `tnlEndpoint`, `tnl_print_endpoint` over the raw attribute (`any`, `unknown` or the address), and `tnlEncap`, `tnl_print_encap`.
+- `link_gre.go`: `greData(*xtcpnl.GreInfo, names NameTab, v6 bool)`, gre's or gre6's print_opt by `v6`.
+- `render.kindData` and `renderableInfoData` get the six kinds.
+- **The endpoint's length:** `GreInfo` keeps a decoded address, so `tnlEndpoint` needs the attribute's length. The decoder records it, or the render reads the raw nest; the task picks one and records it.
+
+`TestLinkShowDetailGreMatchesSidecar` runs `ip [-d] [-j] link show dev <row's device>` for every accepted row of the six kinds, with `assertKindShowGets` holding the gets:
+
+| description | input | expected |
+|---|---|---|
+| positive: each accepted row's `-d` | the 44 gre-kind and 36 gre6-kind rc 0 rows | `ip_getlink_detail`, line for line; the capture's gets |
+| positive: each accepted row's `-d -j` | the 80 rows | `ip_getlink_detail_json`, entry for entry |
+| negative: no `-d` | `gre/add_default`, `link show` | `ip_getlink`; no `gre remote` |
+| corner: ttl and tos words | `gre/add_tos_inherit` | `ttl inherit tos inherit `; JSON `"ttl":0`, `"tos":"0x1"` |
+| corner: pmtudisc | `gre/add_no_option` | `nopmtudisc `; `"pmtudisc":false` |
+| corner: dotted keys under their flag | `gre/add_key_split`; `erspan/add_no_option` | `ikey 1.2.3.4 okey 0.0.0.5 `; `okey 0.0.0.0` and no ikey |
+| corner: the lower by name | `gre/add_dev`, `ip6gre/add_dev` | `dev d0 `; d0's one get |
+| corner: hwid 0 | `erspan/add_dir_abbrev` | `erspan_hwid 0 `; `"erspan_hwid":"0"` |
+| corner: the encap words | `gre/add_encap_fou` | `encap fou encap-sport auto encap-dport 5555 noencap-csum encap-csum6 encap-remcsum ` |
+| corner: external first | `gre/add_external` | `external remote any local any ttl inherit ` |
+| corner: gre6's hoplimit | `ip6gre/add_ttl_inherit` | `hoplimit inherit `; `"ttl":0` |
+| corner: gre6's flag words | `ip6gre/add_flags` | the five words; `ip6_tnl_f_*` bools; no `tclass`, `flowlabel` or `fwmark` key |
+| corner: encaplimit none | `ip6gre/add_encaplimit_none` | `encaplimit none `; no `encap_limit` |
+| corner: the CAP bits aren't printed | `ip6gre/set_changeable` | no flag word |
+
+`TestGreDataRender` (`internal/goip/render`, built data):
+
+| description | input | expected |
+|---|---|---|
+| positive: gue with a source port | `ENCAP_TYPE` 2, `SPORT` `04 d2` | `encap gue encap-sport 1234 ` |
+| negative: no attributes | empty, gre; empty, gre6 | `remote any local any ttl inherit `; `remote any local any hoplimit inherit ` |
+| negative: a key without its flag | `IKEY` 5, `IFLAGS` 0 | no `ikey` |
+| boundary: tos 2 | `TOS` 2 | `tos 0x2 ` |
+| corner: an unnamed encap type | `ENCAP_TYPE` 3 | `encap unknown `; `"type":null` |
+| corner: a wrong-length remote | a 16-byte `REMOTE` on gre; a 4-byte one on gre6 | `remote unknown ` |
+| corner: erspan_dir past egress | `DIR` 2 | `erspan_dir egress ` |
+| corner: mip6 is not gre6's | `FLAGS` 0x8 | nothing |
+
+**Mutation check:**
+- `ttl inherit` in JSON (`gre/add_tos_inherit`);
+- tos as a JSON number (`gre/add_tos_inherit`);
+- pmtudisc true in text (`gre/add_default`);
+- a key printed without its flag (the built row);
+- hwid 0 as `0x0` (`erspan/add_dir_abbrev`);
+- gre6's text key as `ttl` (`ip6gre/add_ttl_inherit`);
+- the CAP bits printed (`ip6gre/set_changeable`);
+- gre left out of `renderableInfoData` (every gre row).
+
+**Done when:** as KG4-T02.
+
+#### KG4-T08 The other tunnels' `-d` output
+
+**Code.** `internal/goip/render/link_iptun.go`: `iptunData(*xtcpnl.IptunInfo, names NameTab, kind string)`, iptnl's and ip6tnl's print_opts. `link_vti.go`: `vtiData(*xtcpnl.VtiInfo, names NameTab, v6 bool)` and `xfrmData(*xtcpnl.XfrmLinkInfo)`. All take KG4-T07's endpoint and encap helpers. `render.kindData` and `renderableInfoData` get the six kinds.
+
+`TestLinkShowDetailIptunMatchesSidecar` runs every accepted row of the six kinds:
+
+| description | input | expected |
+|---|---|---|
+| positive: each accepted row's `-d` | the 75 iptnl-kind and 27 vti-kind rc 0 rows | `ip_getlink_detail`, line for line; the capture's gets |
+| positive: each accepted row's `-d -j` | the 102 rows | `ip_getlink_detail_json`, entry for entry |
+| negative: no `-d` | `vti/add_default`, `link show` | `ip_getlink`; no `vti remote` |
+| corner: ttl inherit in text, 0 in JSON | `ipip/add_default` | `ttl inherit `; `"ttl":0` |
+| corner: pmtudisc always | `ipip/add_no_option` | `nopmtudisc `; `"pmtudisc":false` |
+| corner: ip6tnl's hoplimit key | `ip6tnl/add_default` | `hoplimit 64 `; `"ttl":64` |
+| corner: inherit hides the value | `ip6tnl/set_changeable` | no `encap_limit` or `tclass` key |
+| corner: the lower by name | `ipip/add_dev`, `vti/add_abbrev` | `dev d0 `; d0's one get |
+| corner: xfrm's link is never printed | `xfrm/add_dev` | no `dev` |
+| corner: endpoints always print | `vti/add_no_option` | `remote any local any `; both `"any"` |
+| corner: keys dotted on vti6 | `vti6/add_options` | `ikey 0.0.0.5 okey 0.0.0.5 fwmark 0x10 ` |
+| corner: external alone | `xfrm/add_external` | `external `; no `if_id` |
+
+`TestIptunDataRender` (built data):
+
+| description | input | expected |
+|---|---|---|
+| positive: 6rd with a relay | `6RD_PREFIX` 2001:db8::/32, relay 10.0.0.0/8 | `6rd-prefix 2001:db8::/32 6rd-relay_prefix 10.0.0.0/8 ` |
+| negative: no attributes | empty ipip; empty vti; empty xfrm | `remote any local any ttl inherit nopmtudisc `; `remote any local any `; `""` |
+| negative: a proto with no name | `PROTO` 47 | no proto word |
+| boundary: xfrm's if_id 0 | `IF_ID` 0 | `if_id 0 `; `"if_id":"0"` |
+| corner: 6rd's zero relay is hidden | relay 0.0.0.0/8 | no `6rd-relay_prefix` |
+| corner: a 16-byte remote on ipip | `REMOTE` `::1` | `remote unknown ` |
+| corner: mip6 on ip6tnl | `FLAGS` 0x8 | `mip6 ` |
+| corner: external hides if_id | `COLLECT_METADATA`, `IF_ID` 5 | `external ` |
+
+**Mutation check:**
+- endpoints hidden when absent (`vti/add_no_option`);
+- keys as numbers (`vti6/add_options`);
+- ip6tnl's JSON key as `hoplimit` (`ip6tnl/add_default`);
+- pmtudisc printed only when on (`ipip/add_no_option`);
+- xfrm's `link` printed (`xfrm/add_dev`);
+- external not stopping xfrm's print (the built row).
+
+**Done when:** as KG4-T02.
+
+#### KG4-T09 The IP tunnel matrix rows
+
+**Rows.** In `internal/goipparity/commands.go`, after the UDP overlay rows:
+- **Write rows**, slug `link_<kind>_<slug>`, one per corpus row that sent a request, 248 in all:
+  - 31 gre, 10 gretap and 19 erspan;
+  - 26 ip6gre, 9 ip6gretap and 15 ip6erspan;
+  - 34 ipip, 26 sit and 36 ip6tnl;
+  - 16 vti, 9 vti6 and 17 xfrm.
+
+  Argv is as the corpus ran it. `Floor` is the row's `ip.pcap` record count, which counts the prefetch (6 for a set with words, 8 for `gre/set_dev` and `ipip/set_dev`), and `Setup` is its `topology`. A rc 2 row's comment is its `ip.err`'s last line.
+- **Respellings:** three pairs share an argv, so one of each takes `iplink_parse`'s optional `dev`:
+  - `ip6gretap/add_beside_ip6gre` becomes `link add dev gt6 type ip6gretap remote 2001:db8::1`;
+  - `ip6tnl/set_collide` becomes `link set dev t6 type ip6tnl remote 2001:db8::2`;
+  - `xfrm/set_drop_dev` becomes `link set dev xf0 type xfrm if_id 2`.
+- `kindRowKinds` gets the twelve kinds.
+- **Read rows:** `-d link show dev <dev>` and `-d -j …`, 24 in all.
+  - Floor 4: gr0 and gt0 (`remote 10.0.0.1`), es0 (`remote 10.0.0.1 seq key 10`), g6 and gt6 (`remote 2001:db8::1`), es6 (`remote 2001:db8::1 key 10 seq`), ip0 and st0 (`remote 10.0.0.1`), and t6 (`remote 2001:db8::1`).
+  - Floor 6, on d0, for the `@d0` get: vt0 (`remote 10.0.0.1 local 10.0.0.2 ikey 1 okey 2 dev d0`), v6 (`remote 2001:db8::1 key 5 dev d0 fwmark 0x10`) and xf0 (`dev d0 if_id 1`).
+
+`TestIpTunnelMatrixRows` (`internal/goipparity/commands_tunnel_test.go`):
+
+| description | input | expected |
+|---|---|---|
+| positive: one write row per request row | the twelve kinds' slugs | the corpus's rows with `ip.rc` 0 or 2: 248 |
+| negative: no `ip`-refused row | the 88 rows with `ip.rc` 1 or 255 | absent |
+| boundary: each floor | `Floor` | the row's `ip.pcap` record count |
+| corner: a set's floor counts the prefetch | `gre/set_changeable`, `ipip/set_dev` | 6; 8 |
+| corner: each setup | `Setup` | the row's `topology`, step for step |
+| corner: each name is unique | the 248 `Name`s | no two alike; the three rows respelled |
+| positive: the 24 read rows | the read rows | not writes; floor 4, or 6 on d0; each device's setup |
+| positive: every row is gated | the 272 rows' names | each `IsGated` in the embedded allowlist |
+
+`TestCompareWriteRow`'s every-write-row case runs the 248 on their own corpus captures, and the 272 go in `TestAllowlistCommitted`'s earned list.
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: two consecutive clean section runs | `goip-parity -- --timeout 12000 --section link`, twice | the 272 rows `PASS` on both, and every gated `link` row still `PASS` |
+| corner: the kernel-refused rows compare on the request | the 66 rc 2 rows | `PASS` |
+| corner: no fallback device | `vti/add_no_option`, `vti6/add_no_option` | `PASS` at rc 0 on all three legs |
+
+Then the 272 rows go in `gated_commands`. A full run comes before the next push.
+
+**Mutation check:**
+- a set's floor as 4 (the prefetch row);
+- a setup step dropped (the setup row);
+- a row dropped (the request-row row);
+- an `ip`-refused row added (the negative row);
+- `xfrm/set_drop_dev` back to its corpus spelling (the unique row);
+- vt0's floor as 4 (the read row);
+- a row dropped from `gated_commands` (the gated row and `TestUngatedSurfaceIsNotVacuous`).
+
+**Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG4.
 
 ### KG5 — goip, the remaining kinds
 
