@@ -26,7 +26,7 @@
 - KG2 is done (KG2-T01, KG2-T02, KG2-T03, KG2-T04, KG2-T05; planned in DOC017): goip takes `iplink_parse`'s `link` keyword, resolving the lower device before `IFLA_IFNAME` on a create, and builds `ip link add|set … type vlan|macvlan|macvtap …` byte for byte as `ip` does for KC3's 21 vlan, 25 macvlan and 5 macvtap rows that sent a request, lookups included, and refuses the 17 `ip` refuses with `ip`'s texts and statuses. KG2-T03 adds `type ipvlan|ipvtap …`: KC3's 14 ipvlan and 3 ipvtap rows that sent a request, and the 5 refusals. KG2-T04 renders `-d link show` of the five kinds as `ip` does for all 54 accepted rows, text and JSON, with `ip`'s gets. The 68 write rows and 10 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V169, V170). KG3 is planned (DOC018).
 - KG3 is done (KG3-T01, KG3-T02, KG3-T03, KG3-T04, KG3-T05; planned in DOC018): goip builds `ip link add|set … type vxlan …` byte for byte as `ip` does for KC4's 58 vxlan rows that sent a request, lookups included, prints `ip`'s dstport warning, refuses the 15 `ip` refuses with `ip`'s texts and statuses, and sends `ip -4`'s and `-6`'s default group. KG3-T02 adds `type geneve …`: KC4's 35 geneve rows that sent a request, and the 14 refusals. KG3-T03 adds `type bareudp|amt|gtp …`: KC4's 10, 13 and 11 rows that sent a request, and the 21 refusals. KG3-T04 renders `-d link show` and `-d -j link show` of the five kinds as `ip`'s print_opts do, for all 86 accepted KC4 rows with `ip`'s gets, and vxlan's `-d -d`. The 127 write rows and 11 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V186, V187). KG4 is planned (DOC019).
 
-**Next action:** [KG4-T01](goip-link-kinds.md#kg4-t01-no-fallback-tunnels-in-goip-parity): no fallback tunnels in goip-parity.
+**Next action:** [KG4-T02](goip-link-kinds.md#kg4-t02-the-prefetch-and-the-gre-gretap-and-erspan-words): the prefetch, and the gre, gretap and erspan words.
 
 ## Contents
 
@@ -68,7 +68,7 @@
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156, DOC017 |
 | [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | KG2-T05 | done | V157–V173, DOC018 |
 | [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | KG3-T05 | done | V174–V190, DOC019 |
-| [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | KG4-T01 | not started | |
+| [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | KG4-T02 | in progress | V191–V194 |
 | [KG5](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip | the remaining kinds | | not started | |
 
 ## Task checklist
@@ -135,7 +135,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG3-T03](goip-link-kinds.md#kg3-t03-the-bareudp-amt-and-gtp-words) | the bareudp, amt and gtp words | done | V180–V182 |
 | [x] | [KG3-T04](goip-link-kinds.md#kg3-t04-the-udp-overlays--d-output) | the UDP overlays' `-d` output | done | V183–V185 |
 | [x] | [KG3-T05](goip-link-kinds.md#kg3-t05-the-udp-overlay-matrix-rows) | the UDP overlay matrix rows | done | V186–V190 |
-| [ ] | [KG4-T01](goip-link-kinds.md#kg4-t01-no-fallback-tunnels-in-goip-parity) | no fallback tunnels in goip-parity | not started | |
+| [x] | [KG4-T01](goip-link-kinds.md#kg4-t01-no-fallback-tunnels-in-goip-parity) | no fallback tunnels in goip-parity | done | V191–V194 |
 | [ ] | [KG4-T02](goip-link-kinds.md#kg4-t02-the-prefetch-and-the-gre-gretap-and-erspan-words) | the prefetch, and the gre, gretap and erspan words | not started | |
 | [ ] | [KG4-T03](goip-link-kinds.md#kg4-t03-the-ip6gre-ip6gretap-and-ip6erspan-words) | the ip6gre, ip6gretap and ip6erspan words | not started | |
 | [ ] | [KG4-T04](goip-link-kinds.md#kg4-t04-the-ipip-and-sit-words) | the ipip and sit words | not started | |
@@ -359,6 +359,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V189 | 2026-10-26 | KG3-T05 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: a floor short by 2; a setup step dropped; a row dropped; an `ip`-refused row added; `set_local_new` back to its corpus spelling; a0's floor as 4; a row dropped from `gated_commands` | 7 of 7 killed: by the floor row; the setup row; the request-row row and the gated-coverage tests; the request-row, negative and floor rows and `TestUngatedSurfaceIsNotVacuous`; `TestCommandTable`'s unique-name row and the gated-coverage tests; the read row; the gated row, `TestUngatedSurfaceIsNotVacuous` and `TestAllowlistCommitted`'s earned row | scratch |
 | V190 | 2026-10-26 | KG3-T05 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; the first lint run found misspell (`ageing`, vxlan's keyword, in three row names and their allowlist entries) and prealloc (the read rows' names), so the keyword is split as `vxlanAgeingCst`, as `bridgeAgeingTimeCst` is, and the names are preallocated | this commit |
 | DOC019 | 2026-10-26 | KG3 close | KG4 broken into KG4-T01 (goip-parity sets `fb_tunnels_only_for_init_net=2` before its first row), KG4-T02 (the set prefetch and the gre, gretap and erspan words), KG4-T03 (the ip6gre family's words), KG4-T04 (ipip's and sit's), KG4-T05 (ip6tnl's), KG4-T06 (vti's, vti6's and xfrm's), KG4-T07 and KG4-T08 (the twelve `-d` renders) and KG4-T09 (the 272 matrix rows) with their tables. Argued from `link_gre.c`, `link_gre6.c`, `link_iptnl.c`, `link_ip6tnl.c`, `link_vti.c`, `link_vti6.c`, `link_xfrm.c`, `ip/tunnel.c` and `lib/utils.c` at `v7.2.0`, from KC5's 336 rows (`ip.rc`, `ip.err`, `topology`, record counts, readbacks), from KP4's codec and from `goip-parity.exp`'s `late_setup` call | doccheck | tasks one to one, no broken link or anchor | this commit |
+| V191 | 2026-10-26 | KG4-T01 | `nix build .#checks.x86_64-linux.vm-lib-exp` | passes; `addr-topology-test.exp` 208 passed, 0 failed, with the four new rows: `no_fallback_tunnels` sets the sysctl in the root namespace, a refused sysctl is its one problem, goip-parity calls it once before the first row outside any section test, and reports `GOIP_PARITY_EARLY_SETUP_PROBLEMS` without failing | this commit |
+| V192 | 2026-10-26 | KG4-T01 | three mutants in scratch worktrees, each through vm-lib-exp | all three caught: the early call dropped (the two goip-parity corner rows fail), the call moved inside the row loop (the before-the-first-row row fails), and a refused sysctl returning no problem (both refused-sysctl rows fail) | this commit |
+| V193 | 2026-10-26 | KG4-T01 | `nix build .#checks.x86_64-linux.nix-fmt`, then `.#checks.x86_64-linux.statix`, then `.#checks.x86_64-linux.deadnix` | all three pass | this commit |
+| V194 | 2026-10-26 | KG4-T01 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section link` | 360 of 360 link rows `GOIP_PARITY_PASS`, no `GOIP_PARITY_EARLY_SETUP_PROBLEMS`; the sysctl set before the first row moves no fixture | this commit |
 
 ## Decision log
 

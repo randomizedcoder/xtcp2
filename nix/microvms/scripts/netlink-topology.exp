@@ -555,6 +555,22 @@ namespace eval nltopo {
     }
 
     ###########################################################################
+    # no_fallback_tunnels <subdir> - net.core.fb_tunnels_only_for_init_net=2
+    # in the root namespace, so a tunnel module loaded later creates its
+    # fallback devices (gre0, tunl0, ip_vti0, ...) in no namespace made after
+    # it. Returns the problems, an empty list on success. late_setup calls it
+    # first; goip-parity also calls it before its first row, because its
+    # tunnel rows load their modules themselves (goip-link-kinds.md, KG4-T01).
+    ###########################################################################
+    proc no_fallback_tunnels {subdir} {
+        lassign [vmlib::run_out "xtcp2-nlcap sysctl - $subdir net.core.fb_tunnels_only_for_init_net 2"] rc out
+        if {$rc != 0} {
+            return [list "sysctl net.core.fb_tunnels_only_for_init_net=2: [string trim $out]"]
+        }
+        return {}
+    }
+
+    ###########################################################################
     # late_setup <subdir> - the kernel state for rows that come after every
     # existing one. Returns the problems, an empty list on success.
     #
@@ -574,11 +590,7 @@ namespace eval nltopo {
         variable late_modules
         variable kinds
         variable FRESH_NS
-        set problems {}
-        lassign [vmlib::run_out "xtcp2-nlcap sysctl - $subdir net.core.fb_tunnels_only_for_init_net 2"] rc out
-        if {$rc != 0} {
-            lappend problems "sysctl net.core.fb_tunnels_only_for_init_net=2: [string trim $out]"
-        }
+        set problems [no_fallback_tunnels $subdir]
         lassign [vmlib::run_out "xtcp2-nlcap modules $subdir [join $late_modules { }]"] rc out
         vmlib::log [string trim $out]
         if {$rc != 0} {

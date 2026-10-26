@@ -55,6 +55,18 @@
 # nltopo::late_setup, which loads the modules and sets net.mptcp.enabled,
 # when it reaches the first of them.
 #
+# NO FALLBACK TUNNELS
+#
+# The link rows' tunnel kinds (gre, ipip, sit, ip6tnl, vti, ...) load their
+# modules themselves, on their first row, and a tunnel module gives every
+# namespace made after it an any/any fallback device unless
+# net.core.fb_tunnels_only_for_init_net is 2. late_setup sets it, but only at
+# the first genl row, after every link row, and never in a `--section link`
+# run. So the driver sets it before its first row, in every run, through
+# nltopo::no_fallback_tunnels (goip-link-kinds.md, KG4-T01). No row before
+# the tunnel rows loads such a module, and the sysctl acts only when a
+# namespace is made, so it changes no other row.
+#
 # NO `ip monitor`, DELIBERATELY
 #
 # The nlmon-capture flavor starts `ip -t monitor all` because its subject is
@@ -520,6 +532,10 @@ vmlib::log "=== topology ==="
 vmlib::must "xtcp2-nlcap ns-add $NS"
 nltopo::build_clean $NS $SUBDIR $DUMMY
 
+# Before the first row, whatever the section; see NO FALLBACK TUNNELS in the
+# header. Its problems are reported at the end, as late_setup's are.
+set early_problems [nltopo::no_fallback_tunnels early]
+
 # Resolved before the captures, not after: a write row's goip side names a
 # file in it for GOIP_WRITE_OUT.
 lassign [nlcap dir $SUBDIR] dir_rc capture_dir
@@ -643,6 +659,15 @@ if {[llength $refused] > 0} {
     }
     puts "  Any command whose parity depends on those objects is comparing a"
     puts "  smaller topology than intended. Not a failure by itself."
+}
+
+if {[llength $early_problems] > 0} {
+    puts "GOIP_PARITY_EARLY_SETUP_PROBLEMS [llength $early_problems]"
+    foreach p $early_problems {
+        puts "  $p"
+    }
+    puts "  A tunnel row's module may have given later namespaces fallback"
+    puts "  devices; a row that makes a bare tunnel can be refused above."
 }
 
 if {[llength $late_problems] > 0} {
