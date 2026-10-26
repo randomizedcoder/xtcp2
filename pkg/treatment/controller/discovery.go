@@ -1,20 +1,17 @@
 package controller
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/netip"
-	"strconv"
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 )
 
@@ -44,6 +41,30 @@ func (t DiscoveryTemplate) policy() treatment.Policy {
 	return p
 }
 
+// inScope applies the template's ASN and prefix allow-lists; an empty list
+// allows everything.
+func (t DiscoveryTemplate) inScope(c evidence.Candidate, prefixes []netip.Prefix) bool {
+	if len(t.ASNs) > 0 {
+		match := false
+		for _, a := range t.ASNs {
+			match = match || a == c.ASN
+		}
+		if !match {
+			return false
+		}
+	}
+	if len(prefixes) > 0 {
+		match := false
+		for _, p := range prefixes {
+			match = match || p.Contains(c.Destination.Addr())
+		}
+		if !match {
+			return false
+		}
+	}
+	return true
+}
+
 func (t DiscoveryTemplate) settings() treatment.TCPSettings {
 	cc := t.CongestionControl
 	return treatment.TCPSettings{
@@ -55,35 +76,20 @@ func (t DiscoveryTemplate) settings() treatment.TCPSettings {
 	}
 }
 
-const discoverySQL = `
-WITH sockets AS (
- SELECT agent_id,host_boot_id,netns_inode,inet_diag_msg_socket_cookie,
- any(hex(inet_diag_msg_socket_destination)) AS destination_hex,
- any(inet_diag_msg_family) AS family,
- argMax(enrich_socket_dest_asn,timestamp_ns) AS asn,
- min(tcp_info_min_rtt)/1000 AS min_rtt_ms,
- max(tcp_info_bytes_sent)-min(tcp_info_bytes_sent) AS sent,
- max(tcp_info_bytes_retrans)-min(tcp_info_bytes_retrans) AS retrans
- FROM {{TABLE}}
- WHERE timestamp_ns>=fromUnixTimestamp64Nano({start:Int64}) AND timestamp_ns<fromUnixTimestamp64Nano({end:Int64})
- AND location={location:String} AND agent_id!='' AND inet_diag_msg_state=1
- GROUP BY agent_id,host_boot_id,netns_inode,inet_diag_msg_socket_cookie
- HAVING countDistinct(timestamp_ns)>=3
-)
-SELECT destination_hex,family,any(asn) AS asn,groupUniqArray(10000)(agent_id) AS agents,
- quantileExact(0.5)(min_rtt_ms) AS rtt_ms,sum(retrans)/greatest(1,sum(sent)) AS retransmission_ratio
-FROM sockets GROUP BY destination_hex,family
-HAVING length(agents)>=6 AND rtt_ms>={minimum_rtt:Float64} AND rtt_ms<={maximum_rtt:Float64}
- AND retransmission_ratio>={minimum_retransmission:Float64}
-ORDER BY sum(sent) DESC LIMIT 10 FORMAT JSONEachRow`
-
-func (s *Server) Discover(ctx context.Context, c *ClickHouse, templates []DiscoveryTemplate) error {
+// Discover scans each template's location for candidate destinations, takes
+// a baseline for each and proposes a hypothesis. Proposals stay in
+// StatusProposed until an operator reviews them. Templates are validated
+// before the warehouse is touched; a busy location is skipped without a scan.
+func (s *Server) Discover(ctx context.Context, w evidence.Warehouse, templates []DiscoveryTemplate) error {
 	window := s.DiscoveryWindow
 	if window == 0 {
 		window = time.Hour
 	}
-	if window < time.Minute || window > 7*24*time.Hour {
+	if window < time.Minute || window > evidence.MaxWindow {
 		return errors.New("discovery window must be between one minute and seven days")
+	}
+	if w == nil {
+		return errors.New("candidate discovery requires a warehouse")
 	}
 	var failures []error
 	for _, t := range templates {
@@ -114,65 +120,20 @@ func (s *Server) Discover(ctx context.Context, c *ClickHouse, templates []Discov
 		if busy {
 			continue
 		}
-		end := s.now().Add(-20 * time.Second)
+		end := s.now().Add(-evidence.SettleDelay)
 		start := end.Add(-window)
-		params := map[string]string{"location": t.Location, "start": strconv.FormatInt(start.UnixNano(), 10), "end": strconv.FormatInt(end.UnixNano(), 10), "minimum_rtt": fmt.Sprint(t.MinimumRTTMs), "maximum_rtt": fmt.Sprint(t.MaximumRTTMs), "minimum_retransmission": fmt.Sprint(t.MinimumRetransmissionRatio)}
-		data, e := c.query(ctx, discoverySQL, params)
+		candidates, e := w.Candidates(ctx, evidence.CandidateQuery{Location: t.Location, Start: start, End: end, MinimumRTTMs: t.MinimumRTTMs, MaximumRTTMs: t.MaximumRTTMs, MinimumRetransmissionRatio: t.MinimumRetransmissionRatio})
 		if e != nil {
 			failures = append(failures, e)
 			continue
 		}
-		dec := json.NewDecoder(bytes.NewReader(data))
-		for {
-			var row struct {
-				DestinationHex string   `json:"destination_hex"`
-				Family         uint32   `json:"family"`
-				ASN            uint64   `json:"asn"`
-				Agents         []string `json:"agents"`
-				RTT            float64  `json:"rtt_ms"`
-				Retransmission float64  `json:"retransmission_ratio"`
-			}
-			if e = dec.Decode(&row); e == io.EOF {
-				break
-			}
-			if e != nil {
-				failures = append(failures, e)
-				break
-			}
-			if len(t.ASNs) > 0 {
-				match := false
-				for _, a := range t.ASNs {
-					match = match || a == row.ASN
-				}
-				if !match {
-					continue
-				}
-			}
-			raw, e := hex.DecodeString(row.DestinationHex)
-			if e != nil {
-				failures = append(failures, e)
+		for _, c := range candidates {
+			if !t.inScope(c, prefixes) {
 				continue
 			}
-			if row.Family == 2 && len(raw) >= 4 {
-				raw = raw[:4]
-			}
-			ip, ok := netip.AddrFromSlice(raw)
-			if !ok {
-				continue
-			}
-			if len(prefixes) > 0 {
-				match := false
-				for _, p := range prefixes {
-					match = match || p.Contains(ip)
-				}
-				if !match {
-					continue
-				}
-			}
-			destination := netip.PrefixFrom(ip, ip.BitLen())
 			// Completed or held treatments and recent rejected trials suppress
 			// repeat proposals. Cooldown is at least a day after terminal state.
-			exists, e := s.Store.Repos().Experiments.DestinationBlocked(ctx, t.Location, destination, s.now().Add(-24*time.Hour))
+			exists, e := s.Store.Repos().Experiments.DestinationBlocked(ctx, t.Location, c.Destination, s.now().Add(-24*time.Hour))
 			if e != nil {
 				failures = append(failures, e)
 				continue
@@ -180,14 +141,14 @@ func (s *Server) Discover(ctx context.Context, c *ClickHouse, templates []Discov
 			if exists {
 				continue
 			}
-			seed := sha256.Sum256([]byte(t.ID + "/" + destination.String() + "/" + s.now().UTC().Format("2006-01-02")))
+			seed := sha256.Sum256([]byte(t.ID + "/" + c.Destination.String() + "/" + s.now().UTC().Format("2006-01-02")))
 			id := "hyp-" + hex.EncodeToString(seed[:12])
-			baseline, e := c.Evidence(ctx, t.Location, destination, id, row.Agents, start, end)
+			baseline, e := w.Evidence(ctx, evidence.Window{Location: t.Location, Destination: c.Destination, ExperimentID: id, Agents: c.Agents, Start: start, End: end})
 			if e != nil {
 				failures = append(failures, e)
 				continue
 			}
-			n := &treatment.Experiment{ID: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, destination, row.ASN, row.RTT, row.Retransmission), Treatment: treatment.Treatment{ID: t.ID, Revision: 1, Destination: destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: row.Agents}
+			n := &treatment.Experiment{ID: id, Location: t.Location, Hypothesis: fmt.Sprintf("Template %s: test %s for %s (ASN %d), observed RTT %.3f ms and retransmission ratio %.6f; this is a hypothesis, not an efficacy claim", t.ID, t.CongestionControl, c.Destination, c.ASN, c.RTTMs, c.RetransmissionRatio), Treatment: treatment.Treatment{ID: t.ID, Revision: 1, Destination: c.Destination, Settings: t.settings()}, Policy: t.policy(), Baseline: baseline, CohortOrder: c.Agents}
 			if _, e = s.propose(ctx, &pb.ProposeRequest{Experiment: wire.Experiment(n), RequestId: id}, "candidate-discovery", true); e != nil {
 				if !errors.Is(e, errExperimentBudget) && !errors.Is(e, errDiscoverySuppressed) {
 					failures = append(failures, e)

@@ -6,6 +6,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
@@ -26,7 +27,7 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 		return nil, status.Error(codes.InvalidArgument, "invalid experiment ID")
 	}
 	if s.EvidenceSource == nil {
-		return nil, status.Error(codes.Unavailable, "ClickHouse analysis is disabled")
+		return nil, status.Error(codes.Unavailable, "evidence analysis is disabled: no warehouse configured")
 	}
 	var n *treatment.Experiment
 	e = s.Store.Tx(ctx, func(rp store.Repos) error {
@@ -50,7 +51,7 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 	if n.Status == treatment.StatusComplete {
 		input = s.driftInput(n)
 	}
-	ev, e := s.EvidenceSource.Analyze(ctx, input)
+	ev, e := s.EvidenceSource.Evidence(ctx, evidence.WindowFor(input, s.now()))
 	if e != nil {
 		return nil, failure(e)
 	}

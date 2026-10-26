@@ -19,6 +19,8 @@ import (
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
+	chwarehouse "github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence/clickhouse"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/postgres"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc"
@@ -76,11 +78,13 @@ func run() error {
 		}
 	}
 	s := &controller.Server{Store: db, Hub: controller.NewNotificationHub(), DiscoveryWindow: *discoveryWindow}
-	var analysis *controller.ClickHouse
-	var source controller.EvidenceSource
+	// The warehouse is one adapter behind two ports: evidence.Source for
+	// analysis and lease renewal, evidence.Warehouse for discovery.
+	var warehouse *chwarehouse.Client
+	var source evidence.Source
 	if *clickhouse != "" {
-		analysis = &controller.ClickHouse{URL: *clickhouse, Table: *table, Username: os.Getenv("XTCP_CLICKHOUSE_USER"), Password: os.Getenv("XTCP_CLICKHOUSE_PASSWORD")}
-		source = analysis
+		warehouse = &chwarehouse.Client{URL: *clickhouse, Table: *table, Username: os.Getenv("XTCP_CLICKHOUSE_USER"), Password: os.Getenv("XTCP_CLICKHOUSE_PASSWORD")}
+		source = warehouse
 	}
 	var templates []controller.DiscoveryTemplate
 	s.EvidenceSource = source
@@ -92,7 +96,7 @@ func run() error {
 		if e = json.Unmarshal(b, &templates); e != nil {
 			return e
 		}
-		if analysis == nil {
+		if warehouse == nil {
 			return fmt.Errorf("discovery requires ClickHouse")
 		}
 	}
@@ -116,8 +120,8 @@ func run() error {
 			if e := s.Maintain(ctx, source); e != nil {
 				log.Printf("controller maintenance: %v", e)
 			}
-			if analysis != nil && !time.Now().Before(nextDiscovery) {
-				if e := s.Discover(ctx, analysis, templates); e != nil {
+			if warehouse != nil && !time.Now().Before(nextDiscovery) {
+				if e := s.Discover(ctx, warehouse, templates); e != nil {
 					log.Printf("candidate discovery: %v", e)
 				}
 				// Keep the cadence independent of query duration; otherwise a

@@ -41,8 +41,10 @@ a typed [protobuf contract](../proto/xtcp_treatment/v1/) (`xtcp_treatment.v1`: `
 | `pkg/treatment/attribution` | `xtcp2`, agent | the exposure index built from a journal snapshot and the hot-path telemetry stamp; the same code serves the embedded agent and a telemetry-only daemon |
 | `pkg/treatment/experiment` | controller | evaluation statistics, cohort allocation, phase advancement, state machine; pure functions over domain types |
 | `pkg/treatment/agent` | `xtcp2`, agent binary | check-in loop, watch stream, capabilities, over `local` and `attribution`; a library with two front ends |
-| `pkg/treatment/controller` | `xtcp2-controller` | gRPC handlers, maintenance and discovery over the store ports; ClickHouse evidence |
+| `pkg/treatment/controller` | `xtcp2-controller` | gRPC handlers, maintenance and discovery over the store and evidence ports |
 | `pkg/treatment/controller/store` | controller | repository interfaces (`Agents`, `Experiments`, `Evidence`, `Holds`, `Audit`, `Metrics`) and `Store.Tx` |
+| `pkg/treatment/controller/evidence` | controller | warehouse ports: `Source` (measure a `Window`), `CandidateSource` (scan a location), `Warehouse` (both); `WindowFor` is the controller's window policy |
+| `pkg/treatment/controller/evidence/clickhouse` | `xtcp2-controller` | the one warehouse adapter: `analysis.sql` and `discovery.sql` over the ClickHouse HTTP interface, parameterized, 8 MiB response cap |
 | `pkg/treatment/controller/store/postgres` | `xtcp2-controller` | the only package with SQL: relational schema, pgx through `database/sql`, advisory-lock transactions |
 | `pkg/treatment/controller/store/memory` | handler tests | map-backed store that passes the same conformance suite (`store/storetest`) |
 
@@ -207,13 +209,24 @@ means every treated host has verified the assignment and the window is open.
 An assignment is identified by its `experiment_id`; one experiment never issues
 two concurrent assignments to the same host.
 
-[analysis.sql](../pkg/treatment/controller/analysis.sql) computes whole-window
+[analysis.sql](../pkg/treatment/controller/evidence/clickhouse/analysis.sql) computes whole-window
 counter deltas per boot, host, namespace and socket cookie, deduplicates poll
 timestamps, then aggregates per host. It rejects negative endpoint deltas and
 collection gaps over thirty seconds. Require normal collection at ten seconds
 or faster. This is not a complete exporter-health detector: lost short flows,
 resets followed by recovery within the window, and traffic missing altogether
 still require external collector-health monitoring.
+
+The controller never names ClickHouse. `Maintain` and `Analyze` take an
+`evidence.Source` and ask for `evidence.WindowFor(experiment, now)`; candidate
+discovery takes an `evidence.Warehouse`, asks for `Candidates` within the
+template's RTT and retransmission bounds, applies the template's ASN and prefix
+allow-lists, then takes a baseline `Evidence` for each candidate before
+proposing. `Evidence.artifact_sha256` is the digest of the raw response bytes
+the summary was decoded from; the response is not archived, so reproducing a
+measurement means re-running `query_version` over the same window. Handler
+tests use in-memory fakes of both ports; the adapter has its own contract
+tests plus a real-SQL test under `clickhouse local`.
 
 The host is the experimental unit. Evaluation compares each host's log goodput
 change with contemporaneous controls and uses a conservative Welch interval

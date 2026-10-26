@@ -9,12 +9,14 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/memory"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/pgtest"
@@ -118,10 +120,54 @@ func seedExperiment(t *testing.T, s store.Store, id, location, destination strin
 	}
 }
 
+// fixedEvidence is an evidence.Source that answers every window with one
+// prepared measurement.
 type fixedEvidence struct{ value *treatment.Evidence }
 
-func (f fixedEvidence) Analyze(context.Context, *treatment.Experiment) (*treatment.Evidence, error) {
+func (f fixedEvidence) Evidence(context.Context, evidence.Window) (*treatment.Evidence, error) {
 	return f.value, nil
+}
+
+// fakeWarehouse is an in-memory evidence.Warehouse for discovery tests. It
+// records the queries it saw so tests can assert on bounds, and it builds
+// baseline evidence for whatever population a window names.
+type fakeWarehouse struct {
+	candidates   []evidence.Candidate
+	candidateErr error
+	evidenceErr  error
+	queries      []evidence.CandidateQuery
+	windows      []evidence.Window
+	now          func() time.Time
+}
+
+func (f *fakeWarehouse) Candidates(_ context.Context, q evidence.CandidateQuery) ([]evidence.Candidate, error) {
+	f.queries = append(f.queries, q)
+	if f.candidateErr != nil {
+		return nil, f.candidateErr
+	}
+	if err := q.Validate(); err != nil {
+		return nil, err
+	}
+	return f.candidates, nil
+}
+
+func (f *fakeWarehouse) Evidence(_ context.Context, w evidence.Window) (*treatment.Evidence, error) {
+	f.windows = append(f.windows, w)
+	if f.evidenceErr != nil {
+		return nil, f.evidenceErr
+	}
+	if err := w.Validate(); err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	if f.now != nil {
+		now = f.now()
+	}
+	v := &treatment.Evidence{ID: "ev-" + strconv.FormatInt(now.UnixNano(), 10), AnalyzedAt: now, WindowStart: w.Start, WindowEnd: w.End, QueryVersion: "fake-v1", ArtifactSHA256: strings.Repeat("ab", 32)}
+	for _, id := range w.Agents {
+		v.Hosts = append(v.Hosts, treatment.HostEvidence{AgentID: id, Sockets: 100, BytesAcked: 1 << 25, GoodputBps: 1e8, RttP95Ms: 5, CollectionHealthy: true})
+	}
+	return v, nil
 }
 
 func parseEvidence(t *testing.T, p *pb.Evidence) *treatment.Evidence {
@@ -148,10 +194,6 @@ func acknowledgeFleet(t *testing.T, s *Server, n *pb.Experiment) {
 		}
 	}
 }
-
-type discoveryTransport func(*http.Request) (*http.Response, error)
-
-func (f discoveryTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func operatorHTTP(method, path, identity string) *http.Request {
 	r := httptest.NewRequest(method, path, nil)

@@ -14,8 +14,8 @@ review being addressed. Items are listed in execution order.
 | 4 | repository ports, relational schema, pgx, domain types, `wire` | done | eae1d87d |
 | D1 | dual-mode agent, part 1: journal-specific proto, proto-free `reconcile`, `local`, `attribution`, watchdog off the agent | done | 6398338a |
 | D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | 87321a63, fix this commit |
-| 5 | evidence port (`CandidateSource`), ClickHouse as one adapter | next | |
-| 6 | auth as interceptor with per-RPC role option | pending | |
+| 5 | evidence port (`Source`, `CandidateSource`, `Warehouse`), ClickHouse as one adapter | done | this commit |
+| 6 | auth as interceptor with per-RPC role option | next | |
 | 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | pending | |
 | 9 | identity/location startup check | pending | |
 | 10 | blocking journal lock | pending | |
@@ -79,6 +79,21 @@ process.
   analysis (which filters by location) saw no hosts. The watcher now adopts
   the journal's location when the daemon has none and still keeps its own
   when one is set (logged once either way).
+
+## Item 5 notes
+
+- `pkg/treatment/controller/evidence` holds the ports and the controller's
+  window policy (`WindowFor`, `SettleDelay`, `MaxWindow`); the controller
+  root no longer contains SQL text, an HTTP client or the word ClickHouse.
+- `evidence/clickhouse` is the adapter: `analysis.sql` moved there unchanged,
+  the discovery query became `discovery.sql`, both embedded. `Candidates`
+  returns an error (not a skipped row) when a destination does not decode,
+  because that means the table is not the schema the adapter was written for.
+- Handler tests use `fixedEvidence` and `fakeWarehouse`; the adapter keeps
+  the transport, evidence and (new) candidate contract tables plus the
+  real-SQL `TestClickHouseAnalysisCounterDeltas` the Nix harness greps for.
+- `artifact_sha256` is documented as the digest of the unarchived response.
+  Archiving responses to the S3 destination remains a possible follow-up.
 
 ## TODO
 

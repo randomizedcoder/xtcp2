@@ -3,16 +3,15 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"errors"
 	"math"
-	"net/http"
 	"net/netip"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/memory"
 	"google.golang.org/protobuf/proto"
 )
@@ -20,32 +19,66 @@ import (
 func TestDiscoveryWindow(t *testing.T) {
 	now := time.Unix(1800000000, 0)
 	for _, tc := range []struct {
-		name         string
-		window, want time.Duration
-		invalid      bool
+		name, description string
+		window, want      time.Duration
+		invalid           bool
 	}{
-		{"production-default", 0, time.Hour, false},
-		{"short-window", time.Minute, time.Minute, false},
-		{"maximum", 7 * 24 * time.Hour, 7 * 24 * time.Hour, false},
-		{"negative", -time.Second, 0, true},
-		{"too-short", 59 * time.Second, 0, true},
-		{"too-long", 7*24*time.Hour + time.Second, 0, true},
+		{"production-default", "positive: an unset window scans the last hour", 0, time.Hour, false},
+		{"short-window", "boundary: one minute is the shortest scan", time.Minute, time.Minute, false},
+		{"maximum", "boundary: seven days is the longest scan", 7 * 24 * time.Hour, 7 * 24 * time.Hour, false},
+		{"negative", "negative: a negative window never reaches the warehouse", -time.Second, 0, true},
+		{"too-short", "negative: under a minute is refused", 59 * time.Second, 0, true},
+		{"too-long", "negative: over seven days is refused", 7*24*time.Hour + time.Second, 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			called := false
-			ch := &ClickHouse{URL: "http://fixture.invalid", Table: "xtcp.rows", Client: &http.Client{Transport: discoveryTransport(func(r *http.Request) (*http.Response, error) {
-				called = true
-				params := r.URL.Query()
-				wantEnd := now.Add(-20 * time.Second)
-				if params.Get("param_start") != strconv.FormatInt(wantEnd.Add(-tc.want).UnixNano(), 10) || params.Get("param_end") != strconv.FormatInt(wantEnd.UnixNano(), 10) {
-					t.Fatalf("wrong discovery bounds: %s", r.URL.RawQuery)
-				}
-				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
-			})}}
+			w := &fakeWarehouse{now: func() time.Time { return now }}
 			s := &Server{Store: memory.New(), Now: func() time.Time { return now }, DiscoveryWindow: tc.window}
-			err := s.Discover(context.Background(), ch, []DiscoveryTemplate{{ID: "near", Location: "test-dc", CongestionControl: "cubic", MaximumRTTMs: 15}})
-			if (err != nil) != tc.invalid || called == tc.invalid {
-				t.Fatalf("err=%v query-called=%t invalid=%t", err, called, tc.invalid)
+			err := s.Discover(context.Background(), w, []DiscoveryTemplate{{ID: "near", Location: "test-dc", CongestionControl: "cubic", MaximumRTTMs: 15}})
+			if (err != nil) != tc.invalid || (len(w.queries) > 0) == tc.invalid {
+				t.Fatalf("%s: err=%v queries=%d invalid=%t", tc.description, err, len(w.queries), tc.invalid)
+			}
+			if tc.invalid {
+				return
+			}
+			wantEnd := now.Add(-evidence.SettleDelay)
+			q := w.queries[0]
+			if !q.End.Equal(wantEnd) || !q.Start.Equal(wantEnd.Add(-tc.want)) || q.Location != "test-dc" || q.MaximumRTTMs != 15 {
+				t.Fatalf("%s: wrong discovery bounds: %+v", tc.description, q)
+			}
+		})
+	}
+}
+
+func TestDiscoveryWarehouseFailures(t *testing.T) {
+	now := time.Unix(1800000000, 0)
+	candidate := evidence.Candidate{Destination: netip.MustParsePrefix("192.0.2.1/32"), ASN: 64512, Agents: []string{"a", "b", "c", "d", "e", "f"}, RTTMs: 5}
+	for _, tc := range []struct {
+		name, description string
+		warehouse         *fakeWarehouse
+		nilWarehouse      bool
+		wantErr           string
+		wantWindows       int
+	}{
+		{"candidates-fail", "negative: a failed scan is reported and takes no baseline", &fakeWarehouse{candidateErr: errors.New("warehouse offline")}, false, "warehouse offline", 0},
+		{"baseline-fails", "negative: a failed baseline is reported and proposes nothing", &fakeWarehouse{candidates: []evidence.Candidate{candidate}, evidenceErr: errors.New("baseline timeout")}, false, "baseline timeout", 1},
+		{"no-warehouse", "corner: discovery without a warehouse is a configuration error", nil, true, "requires a warehouse", 0},
+		{"no-candidates", "boundary: an empty scan is not an error", &fakeWarehouse{}, false, "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &Server{Store: memory.New(), Now: func() time.Time { return now }}
+			var w evidence.Warehouse
+			if !tc.nilWarehouse {
+				w = tc.warehouse
+			}
+			err := s.Discover(context.Background(), w, []DiscoveryTemplate{{ID: "near", Location: "test-dc", CongestionControl: "cubic", MaximumRTTMs: 15}})
+			if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
+				t.Fatalf("%s: err=%v want %q", tc.description, err, tc.wantErr)
+			}
+			if tc.warehouse != nil && len(tc.warehouse.windows) != tc.wantWindows {
+				t.Fatalf("%s: baseline windows=%d want %d", tc.description, len(tc.warehouse.windows), tc.wantWindows)
+			}
+			if n := len(experimentsOf(t, s.Store)); n != 0 {
+				t.Fatalf("%s: proposals=%d", tc.description, n)
 			}
 		})
 	}
@@ -67,14 +100,10 @@ func TestDiscoveryRTTPolicy(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			template := DiscoveryTemplate{ID: "near", Location: "test-dc", CongestionControl: "cubic", MaximumRTTMs: 15, MaximumRTTIncrease: tc.limit}
-			called := false
-			ch := &ClickHouse{URL: "http://fixture.invalid", Table: "xtcp.rows", Client: &http.Client{Transport: discoveryTransport(func(r *http.Request) (*http.Response, error) {
-				called = true
-				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
-			})}}
-			err := (&Server{Store: memory.New()}).Discover(context.Background(), ch, []DiscoveryTemplate{template})
-			if (err != nil) != tc.invalid || called == tc.invalid {
-				t.Fatalf("err=%v queried=%t", err, called)
+			w := &fakeWarehouse{}
+			err := (&Server{Store: memory.New()}).Discover(context.Background(), w, []DiscoveryTemplate{template})
+			if (err != nil) != tc.invalid || (len(w.queries) > 0) == tc.invalid {
+				t.Fatalf("err=%v queried=%d", err, len(w.queries))
 			}
 			if tc.invalid {
 				return
@@ -107,14 +136,10 @@ func TestDiscoveryRouteSettings(t *testing.T) {
 			if err := json.Unmarshal([]byte(`{"id":"near","location":"test-dc","congestion_control":"cubic","maximum_rtt_ms":15`+tc.fields+`}`), &template); err != nil {
 				t.Fatal(err)
 			}
-			called := false
-			ch := &ClickHouse{URL: "http://fixture.invalid", Table: "xtcp.rows", Client: &http.Client{Transport: discoveryTransport(func(r *http.Request) (*http.Response, error) {
-				called = true
-				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("")), Header: make(http.Header)}, nil
-			})}}
-			err := (&Server{Store: memory.New()}).Discover(context.Background(), ch, []DiscoveryTemplate{template})
-			if (err != nil) != tc.invalid || called == tc.invalid {
-				t.Fatalf("err=%v query-called=%t", err, called)
+			w := &fakeWarehouse{}
+			err := (&Server{Store: memory.New()}).Discover(context.Background(), w, []DiscoveryTemplate{template})
+			if (err != nil) != tc.invalid || (len(w.queries) > 0) == tc.invalid {
+				t.Fatalf("err=%v queried=%d", err, len(w.queries))
 			}
 			if tc.invalid {
 				return

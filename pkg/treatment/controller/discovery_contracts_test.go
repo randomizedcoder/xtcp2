@@ -2,18 +2,16 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
+	"net/netip"
 	"sync"
 	"testing"
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store/postgres"
 	"google.golang.org/protobuf/proto"
@@ -37,33 +35,12 @@ func TestDiscoveryScopeAndCooldown(t *testing.T) {
 				now := time.Now().UTC().Truncate(time.Microsecond)
 				s := testServer(st, &now)
 				var agents []string
-				var evidence strings.Builder
 				for i := range 8 {
 					id := fmt.Sprintf("host-%d", i)
 					enroll(t, s, id)
 					agents = append(agents, id)
-					raw, err := json.Marshal(hostRow{AgentID: id, Sockets: 100, BytesAcked: 1 << 25, GoodputBps: 1e8, RttP95Ms: 5, CollectionHealthy: true})
-					if err != nil {
-						t.Fatal(err)
-					}
-					evidence.Write(raw)
-					evidence.WriteByte('\n')
 				}
-				row, err := json.Marshal(map[string]any{"destination_hex": "C0000201000000000000000000000000", "family": 2, "asn": 64512, "agents": agents, "rtt_ms": 5, "retransmission_ratio": 0})
-				if err != nil {
-					t.Fatal(err)
-				}
-				c := &ClickHouse{URL: "http://fixture.invalid", Table: "db.rows", Now: s.Now, Client: &http.Client{Transport: discoveryTransport(func(r *http.Request) (*http.Response, error) {
-					q, err := io.ReadAll(r.Body)
-					if err != nil {
-						return nil, err
-					}
-					body := evidence.String()
-					if string(q) == strings.ReplaceAll(discoverySQL, "{{TABLE}}", "db.rows") {
-						body = string(row)
-					}
-					return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
-				})}}
+				c := &fakeWarehouse{now: s.Now, candidates: []evidence.Candidate{{Destination: netip.MustParsePrefix("192.0.2.1/32"), ASN: 64512, Agents: agents, RTTMs: 5}}}
 				templates := []DiscoveryTemplate{{ID: "nearby", Location: "dc1", CongestionControl: "cubic", MaximumRTTMs: 15, ASNs: tc.asns, Prefixes: tc.prefixes}}
 				for range 2 {
 					if err := s.Discover(context.Background(), c, templates); err != nil {
@@ -115,14 +92,10 @@ func TestDiscoverySkipsBusyLocation(t *testing.T) {
 		now := time.Now().UTC()
 		seedExperiment(t, st, "active", "dc1", "192.0.2.9/32", treatment.StatusRunning, now)
 		s := testServer(st, &now)
-		called := false
-		ch := &ClickHouse{URL: "http://fixture.invalid", Table: "db.rows", Client: &http.Client{Transport: discoveryTransport(func(*http.Request) (*http.Response, error) {
-			called = true
-			return nil, errors.New("warehouse must not be queried")
-		})}}
+		ch := &fakeWarehouse{candidateErr: errors.New("warehouse must not be queried")}
 		templates := []DiscoveryTemplate{{ID: "nearby", Location: "dc1", CongestionControl: "cubic", MaximumRTTMs: 15}}
-		if err := s.Discover(context.Background(), ch, templates); err != nil || called {
-			t.Fatalf("busy location queried warehouse: called=%t err=%v", called, err)
+		if err := s.Discover(context.Background(), ch, templates); err != nil || len(ch.queries) > 0 {
+			t.Fatalf("busy location queried warehouse: queries=%d err=%v", len(ch.queries), err)
 		}
 		pg, ok := st.(*postgres.Store)
 		if !ok {
@@ -131,8 +104,8 @@ func TestDiscoverySkipsBusyLocation(t *testing.T) {
 		if err := pg.Close(); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.Discover(context.Background(), ch, templates); err == nil || called {
-			t.Fatalf("database failure must stop discovery: called=%t err=%v", called, err)
+		if err := s.Discover(context.Background(), ch, templates); err == nil || len(ch.queries) > 0 {
+			t.Fatalf("database failure must stop discovery: queries=%d err=%v", len(ch.queries), err)
 		}
 	})
 }

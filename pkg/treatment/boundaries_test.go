@@ -25,8 +25,9 @@ import (
 //	pkg/treatment/attribution      ExposureIndex + telemetry stamping from a journal snapshot [daemon, agent]
 //	pkg/treatment/experiment       statistics + state machine, pure               [controller]
 //	pkg/treatment/agent            check-in loop + watch over local + attribution [daemon (treatment tag), agent binary]
-//	pkg/treatment/controller       gRPC handlers over store ports                 [controller binary only]
+//	pkg/treatment/controller       gRPC handlers over store and evidence ports    [controller binary only]
 //	pkg/treatment/controller/store ports; postgres/ and memory/ implement them    [controller]
+//	pkg/treatment/controller/evidence  warehouse ports; clickhouse/ implements them [controller]
 //
 // The daemon (cmd/xtcp2) must never reach the controller, a SQL driver or the
 // ClickHouse client: that was the regression that prompted this file.
@@ -158,6 +159,26 @@ func treatmentBoundaryRules() []boundaryRule {
 			root:        tp("pkg/treatment/controller"),
 			forbidden:   []string{tp("pkg/treatment/agent"), tp("internal/goip")},
 			expectAny:   []string{tp("pkg/treatment/identity")},
+		},
+		{
+			description: "negative: the controller depends on the evidence port, never on the ClickHouse adapter (main wires the adapter)",
+			root:        tp("pkg/treatment/controller"),
+			forbidden:   []string{tp("pkg/treatment/controller/evidence/clickhouse")},
+			expectAny:   []string{tp("pkg/treatment/controller/evidence")},
+		},
+		{
+			description: "boundary: the evidence port is a leaf over the contract: no controller, no store, no proto, no HTTP client",
+			root:        tp("pkg/treatment/controller/evidence"),
+			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/controller/store"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("pkg/treatment/experiment")},
+			forbidden3p: []string{"net/http", "database/sql"},
+			expectAny:   []string{tp("pkg/treatment")},
+		},
+		{
+			description: "corner: the ClickHouse adapter implements the port and knows nothing of the controller, store, wire types or proto",
+			root:        tp("pkg/treatment/controller/evidence/clickhouse"),
+			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/controller/store"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("pkg/treatment/experiment")},
+			forbidden3p: []string{"database/sql", "google.golang.org/grpc"},
+			expectAny:   []string{tp("pkg/treatment/controller/evidence")},
 		},
 	}
 }

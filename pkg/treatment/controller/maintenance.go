@@ -7,16 +7,11 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/wire"
 )
-
-// EvidenceSource must produce immutable per-host evidence for a frozen
-// population and treatment. Failure never authorizes lease renewal/promotion.
-type EvidenceSource interface {
-	Analyze(context.Context, *treatment.Experiment) (*treatment.Evidence, error)
-}
 
 // driftInput rewinds the current phase an hour so a completed treatment is
 // re-analyzed over a rolling window rather than since its review.
@@ -30,8 +25,9 @@ func (s *Server) driftInput(n *treatment.Experiment) *treatment.Experiment {
 
 // Maintain refreshes exposure, stores evidence, renews healthy leases, and
 // withdraws harmful/expired trials. It NEVER promotes a phase. A fresh human
-// review remains necessary for each increase in exposure.
-func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
+// review remains necessary for each increase in exposure. A nil source (no
+// warehouse configured) still expires and withdraws; it never renews.
+func (s *Server) Maintain(ctx context.Context, source evidence.Source) error {
 	ids, e := s.Store.Repos().Experiments.IDs(ctx, treatment.StatusRunning, treatment.StatusPaused, treatment.StatusComplete)
 	if e != nil {
 		return e
@@ -70,7 +66,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 			if snapshot.Status == treatment.StatusComplete {
 				input = s.driftInput(snapshot)
 			}
-			ev, e = source.Analyze(ctx, input)
+			ev, e = source.Evidence(ctx, evidence.WindowFor(input, s.now()))
 			if e != nil {
 				failures = append(failures, fmt.Errorf("%s analysis: %w", id, e))
 			}

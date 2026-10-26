@@ -16,6 +16,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/evidence"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller/store"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
@@ -34,9 +35,11 @@ const agentWindow = 2 * time.Minute
 type Server struct {
 	pb.UnimplementedAgentControlServiceServer
 	pb.UnimplementedOperatorServiceServer
-	Store          store.Store
-	Hub            *NotificationHub
-	EvidenceSource EvidenceSource
+	Store store.Store
+	Hub   *NotificationHub
+	// EvidenceSource measures experiments; nil disables Analyze and lease
+	// renewal. Candidate discovery takes its warehouse per call.
+	EvidenceSource evidence.Source
 	Now            func() time.Time
 	// Zero preserves the production one-hour candidate discovery window.
 	DiscoveryWindow time.Duration

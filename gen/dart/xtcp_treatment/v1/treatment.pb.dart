@@ -1217,7 +1217,12 @@ class Evidence extends $pb.GeneratedMessage {
   @$pb.TagNumber(7)
   $pb.PbList<HostEvidence> get hosts => $_getList(6);
 
-  /// SHA-256 of the complete analysis response this summary was derived from.
+  /// SHA-256 of the raw warehouse response bytes, as received, that this
+  /// summary was decoded from. The response itself is not archived: the
+  /// digest lets two controllers (or a later audit) confirm they decoded the
+  /// same bytes, and reproducing it means re-running query_version over
+  /// [window_start, window_end) against the same table. Archiving responses
+  /// to object storage is a possible follow-up, not a current guarantee.
   @$pb.TagNumber(8)
   $core.String get artifactSha256 => $_getSZ(7);
   @$pb.TagNumber(8)

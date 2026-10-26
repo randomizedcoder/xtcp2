@@ -1120,7 +1120,12 @@ type Evidence struct {
 	QueryVersion      string                 `protobuf:"bytes,5,opt,name=query_version,json=queryVersion,proto3" json:"query_version,omitempty"`
 	EnrichmentVersion string                 `protobuf:"bytes,6,opt,name=enrichment_version,json=enrichmentVersion,proto3" json:"enrichment_version,omitempty"`
 	Hosts             []*HostEvidence        `protobuf:"bytes,7,rep,name=hosts,proto3" json:"hosts,omitempty"`
-	// SHA-256 of the complete analysis response this summary was derived from.
+	// SHA-256 of the raw warehouse response bytes, as received, that this
+	// summary was decoded from. The response itself is not archived: the
+	// digest lets two controllers (or a later audit) confirm they decoded the
+	// same bytes, and reproducing it means re-running query_version over
+	// [window_start, window_end) against the same table. Archiving responses
+	// to object storage is a possible follow-up, not a current guarantee.
 	ArtifactSha256 string `protobuf:"bytes,8,opt,name=artifact_sha256,json=artifactSha256,proto3" json:"artifact_sha256,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
