@@ -63,27 +63,27 @@ target (`test-tcp-controller-race`) runs the same packages three times under
 
 | Package | Statements covered |
 | --- | ---: |
-| `pkg/treatment` | 54.7% |
-| `pkg/treatment/agent` | 61.9% |
+| `pkg/treatment` | 56.0% |
+| `pkg/treatment/agent` | 62.2% |
 | `pkg/treatment/attribution` | 88.1% |
-| `pkg/treatment/controller` | 74.0% |
+| `pkg/treatment/controller` | 74.4% |
 | `pkg/treatment/controller/evidence` | 100.0% |
-| `pkg/treatment/controller/evidence/clickhouse` | 93.5% |
-| `pkg/treatment/controller/store/memory` | 95.3% |
-| `pkg/treatment/controller/store/postgres` | 85.5% |
+| `pkg/treatment/controller/evidence/clickhouse` | 93.9% |
+| `pkg/treatment/controller/store/memory` | 95.9% |
+| `pkg/treatment/controller/store/postgres` | 85.0% |
 | `pkg/treatment/experiment` | 93.8% |
 | `pkg/treatment/identity` | 90.5% |
 | `pkg/treatment/local` | 70.5% |
-| `pkg/treatment/reconcile` | 87.0% |
+| `pkg/treatment/reconcile` | 87.2% |
 | `pkg/treatment/wire` | 86.2% |
-| `tools/tcp-controller-integration` | 4.1% |
+| `tools/tcp-controller-integration` | 4.0% |
 | `internal/goip/actuate` | 22.1% |
 
 `HealthyEvidence` and the treatment, TCP-settings, policy, evidence, proposal
 and report validators reach 100% statement coverage; `Evaluate` 94.7%,
-`ValidateDesired` 91.7%, socket stamping 100%, discovery 87.3%, the agent's
-`Run` 97.4%, the reconciler's `Run` 88.9% and the attribution watcher's `Run`
-87.9%. `pkg/treatment` reads lower than before the split because coverage is per
+`ValidateDesired` 91.7%, socket stamping 100%, discovery 89.4%, the agent's
+`Run` 97.4%, the reconciler's `Run` 85.0% and the attribution watcher's `Run`
+84.8%. `pkg/treatment` reads lower than before the split because coverage is per
 package (no `-coverpkg`): its enum, `Clone` and `Equal` methods are exercised
 by the `wire`, store and controller tests, which do not count toward it.
 Statement coverage is not branch coverage or a proof of correctness.
@@ -93,7 +93,7 @@ inspection, TLS client construction, reconnect/backoff timing, and all
 combinations of controller database failures. Kernel route mutation and network
 behavior remain the responsibility of the existing disposable-namespace and
 seven-guest VM tests. The integration harness itself has low unit coverage
-(4.1%); most of its code only executes inside those VMs. This audit did not rerun
+(4.0%); most of its code only executes inside those VMs. This audit did not rerun
 the 30-minute soak; the previous three-cycle soak passed before these changes.
 
 The new RTT boundary regression exposed floating-point cancellation: `5.5/5-1`

@@ -26,7 +26,7 @@ review being addressed. Items are listed in execution order.
 | F2 | follow-up: help smoke for the four treatment binaries and `zstd-probe` | done | 926c2c74 |
 | F3 | follow-up: reproducible index timings (`bench-tcp-controller-postgres-indexes`) | done | 30a21cdd |
 | F4 | follow-up: generated coverage table (`coverage-table.md` from the unit target) | done | 30a21cdd |
-| F5 | follow-up: evidence bound to `(agent_id, boot_id, collection_id)` sessions | done | 24f036c8 |
+| F5 | follow-up: evidence bound to `(agent_id, boot_id, collection_id)` sessions | done | c2bf7d2d, cap 12cc5f6c, lint 87261db8 |
 
 Dual-mode agent (library + `cmd/xtcp2-treatment-agent` + `treatment` build tag
 in `cmd/xtcp2`, with an `attribution` journal reader for the untagged daemon)
@@ -257,7 +257,7 @@ process.
 - F3: the index timings come from the Nix PostgreSQL 18.6 fixture: median
   22.27 ms without indexes, 0.023 ms with them, for an old destination's
   cooldown lookup. The fixture setup is shared with the unit and race targets.
-- F4: per-package coverage, no `-coverpkg`, so `pkg/treatment` reads 54.7%:
+- F4: per-package coverage, no `-coverpkg`, so `pkg/treatment` reads 56.0%:
   its enum, `Clone` and `Equal` methods are exercised from other packages.
 - F5: the agent owns a per-process nonce, writes it into the journal header
   on its first pass after starting (`Reconciler.CollectionID`; a reconciler
@@ -280,7 +280,9 @@ process.
   keeps its digest. Schema additions are `ADD COLUMN IF NOT EXISTS`. The VM
   test gains `TCP_CONTROLLER_BINDING_PASS`: the driver copies a cohort host's
   recent records under a fake boot and nonce and requires `Analyze` to count
-  them as unbound; the safety analysis that follows runs with them present.
+  them as unbound; the safety analysis that follows runs with them present. The run at 87261db8 passed all eight sentinels; in the
+  binding evidence the spoofed host kept its 32 bound sockets and reported 32
+  unbound, and the other five hosts reported none.
 - Proto regeneration: `regen-protos` now emits protoc-gen-go v1.36.12 and a
   newer protoc for C++, while the committed output for the other protos is
   older, so only the two treatment protos' generated files were committed and
