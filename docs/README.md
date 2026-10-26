@@ -1,6 +1,6 @@
 # xtcp2 documentation
 
-This is the documentation hub for **xtcp2**, a Linux network observability suite for TCP socket diagnostics, network-state inspection, Ethernet/RDMA port health, and enriched telemetry. If you just want the feature summary or to build and run it, start with the [top-level README](../README.md). This hub explains *how it works* and links to detailed feature documentation.
+This is the documentation hub for **xtcp2**, a Linux network observability suite for TCP socket diagnostics, network-state inspection, Ethernet/RDMA port health, and enriched telemetry. xtcp2 observes by default and changes nothing on the host; the one exception is the opt-in, human-reviewed [TCP route treatment controller](tcp-controller.md), which an operator has to deploy and enable and whose actuator only ever touches routes it owns. If you just want the feature summary or to build and run it, start with the [top-level README](../README.md). This hub explains *how it works* and links to detailed feature documentation.
 
 ## Table of contents
 
@@ -52,7 +52,7 @@ Combines `/proc/<pid>/ns/net` discovery with bind-mounted namespaces under `/run
 
 ### [Ethernet/RDMA statistics and link health](../cmd/go-link-monitor/README.md)
 
-`go-link-monitor` collects netdev, ethtool driver/PHY, RDMA, and host protocol statistics. It tracks a persisted up-link baseline, speed/duplex/width, flaps, errors, and collector health, exposing a sparse problem summary and detailed Prometheus category/interface paths. It is also [embedded in xtcp2 and enabled by default](design-linkmonitor-in-xtcp2.md). Optional read-only [goip HTTP paths](../cmd/go-link-monitor/IP-ARGV-PATHS-DESIGN.md) support remote inspection. Alerting systems consume the signals; the monitor does not perform remediation.
+`go-link-monitor` collects netdev, ethtool driver/PHY, RDMA, and host protocol statistics. It tracks a persisted up-link baseline, speed/duplex/width, flaps, errors, and collector health, exposing a sparse problem summary and detailed Prometheus category/interface paths. It is also [embedded in xtcp2 and enabled by default](design-linkmonitor-in-xtcp2.md). Optional read-only [goip HTTP paths](../cmd/go-link-monitor/IP-ARGV-PATHS-DESIGN.md) support remote inspection. Alerting systems consume the signals; the monitor does not perform remediation. The only xtcp2 component that changes host state is the opt-in [treatment controller](tcp-controller.md), and it does so only after operator review.
 
 ### [Metadata enrichment](design-metadata-enrichment.md)
 

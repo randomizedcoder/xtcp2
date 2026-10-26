@@ -16,11 +16,11 @@ review being addressed. Items are listed in execution order.
 | D2 | dual-mode agent, part 2: `-treatmentAttribution` journal watcher, `treatment` build tag, `cmd/xtcp2-treatment-agent`, Nix and module wiring | done | 87321a63, fix 20f3a35a |
 | 5 | evidence port (`Source`, `CandidateSource`, `Warehouse`), ClickHouse as one adapter | done | caba9bc4 |
 | 6 | auth as interceptor with per-RPC role option | done | d7fefee4 |
-| 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | done | this commit |
-| 9 | identity/location startup check | done | this commit |
+| 7 | typed `xtcpnl.RuleWrite`; backend to `internal/goip/actuate` | done | 3a2843b2 |
+| 9 | identity/location startup check | done | 9372e0bf |
 | 10 | blocking journal lock | done | 3478d9b3 |
-| 11 | scale: notification watermark, heartbeat split, leader lease | done | this commit |
-| 12 | docs: threat model, naming, SIGHUP, philosophy sentence | next | |
+| 11 | scale: notification watermark, heartbeat split, leader lease | done | 91ccde4a |
+| 12 | docs: threat model, naming, SIGHUP, philosophy sentence | done | this commit |
 
 Dual-mode agent (library + `cmd/xtcp2-treatment-agent` + `treatment` build tag
 in `cmd/xtcp2`, with an `attribution` journal reader for the untagged daemon)
@@ -209,7 +209,31 @@ process.
 - The schema is pre-release, so `report_digest` is added to the `CREATE
   TABLE` rather than through an `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
 
+## Item 12 notes
+
+- `docs/tcp-controller.md` gained "Trust boundaries and threat model"
+  (principal table, defence in depth on the route, the evidence boundary:
+  host-stamped agent ID and location over an unauthenticated telemetry
+  pipeline, what bounds it today, what is not done) and "Names and surfaces"
+  (`treatment` for the feature, `controller` for the server role, `route`
+  for the kernel object; why `xtcp2-treatmentctl` is not part of `xtcp2ctl`;
+  the three configuration surfaces). The naming decision is to keep the
+  current binary names; no renames.
+- SIGHUP: documented as "reconcile now" only, in both daemon modes and the
+  standalone agent; the daemon has no admin RPC yet, so the signal stays
+  until the network-control admin API exists. `xtcp2-treatmentctl
+  -mode=reconcile` is the controller-free full pass.
+- `docs/README.md`: the hub intro and the link-monitor paragraph now say that
+  xtcp2 observes by default and that the treatment controller is the one
+  opt-in, operator-reviewed component that changes host state.
+
 ## TODO
+
+- Evidence binding (threat model): the warehouse query filters by location
+  and cohort agent IDs but does not check the boot ID or collection nonce a
+  record carries against the values the agent reported at check-in. Pass the
+  cohort's `(agent_id, boot_id)` pairs into `analysis.sql` and drop rows that
+  do not match; the nonce needs a check-in field first.
 
 - The watchdog and `pkg/treatment/local` still link gRPC, through
   `pkg/xtcpnl` -> `gen/go/xtcp_flat_record`, whose Go package carries that

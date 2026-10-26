@@ -94,6 +94,78 @@ connection) that one replica holds for the pass; the others log that they are
 skipping. The lease is about cost, not correctness: every write is still fenced
 by the transaction-level mutation lock.
 
+## Trust boundaries and threat model
+
+The control plane has four kinds of principal. What each can do is decided by
+the certificate it presents or the host it runs on, never by a request field.
+
+| Principal | Credential | Can | Cannot |
+| --- | --- | --- | --- |
+| Operator | mTLS certificate with `spiffe://xtcp/operator/<id>` | propose, analyze, review, control, inspect; every action is audited under that ID | act as an agent; reuse a request ID with a different body |
+| Agent | mTLS certificate with `spiffe://xtcp/agent/<location>/<id>` | check in, fetch and watch its own desired state | speak for another agent, call an operator RPC, move to another location, or receive a route no operator reviewed |
+| Controller replica | PostgreSQL and ClickHouse credentials | everything above on the operators' behalf | nothing is withheld; replicas are peers and fully trusted |
+| Host root | the journal directory and the netlink socket | run the agent, the watchdog and `xtcp2-treatmentctl`; suspend locally | change another host; the actuator only touches its own table, rule priority and route protocol |
+
+The route itself is defended in depth: the controller cannot install anything
+without an operator review, the actuator refuses routes it does not own on
+readback, trials carry leases the watchdog enforces without the controller, and
+a local suspension or a withdrawn desired state removes routes without any
+network dependency.
+
+Evidence is the weakest boundary and the one to understand. Every telemetry
+record carries the agent ID, location, boot ID, collection nonce and exposure
+fields that the host itself stamped, and reaches ClickHouse through the
+existing telemetry pipeline (Kafka or NSQ, then ClickHouse), which carries no
+per-host authentication. The controller therefore trusts the warehouse to tell
+it which host produced a record. A compromised or misconfigured host can emit
+records that name another enrolled agent in its location and shift that host's
+measured goodput, retransmission ratio or RTT. It cannot make the controller
+issue a route (that needs an operator), but it can push a running trial into an
+automatic rollback by faking harm, or mask real harm on a host it impersonates.
+
+What limits that today: evidence queries filter by the experiment's location
+and the frozen cohort's agent IDs, so records naming hosts outside the cohort
+are never read; per-host sample minimums and the two-minute freshness window
+bound how little data can swing a verdict; every expansion and completion is a
+human review of typed evidence, and completed experiments only ever request
+review on drift; evidence rows are immutable once stored, keyed by ID and
+digest, and every decision is in the audit log with the operator's identity.
+What is not done: binding a telemetry record to the boot ID and collection
+nonce the same agent reported at check-in, which would let the warehouse
+query reject records a host did not plausibly produce. That is the next
+hardening step for this boundary and is tracked in the status document.
+
+Inside the controller, the advisory mutation lock and the housekeeping lease
+order work and bound cost; neither is an authorization mechanism. Request IDs
+make an operator's own retries idempotent; they are no defence against a
+principal holding an operator certificate, who is an operator.
+
+## Names and surfaces
+
+One feature name, `treatment`, is used for everything the host side and the
+contract share: the Go packages under `pkg/treatment`, the proto packages
+`xtcp_treatment.v1` and `xtcp_treatment_journal.v1`, the journal, the
+`treatment` build tag, the daemon flags `-treatmentConfig` and
+`-treatmentAttribution`, and the NixOS options under
+`services.xtcp2.treatments`. `controller` names the server role, so the server
+binary is `xtcp2-controller` and its operator client is `xtcp2-controllerctl`.
+`route` is reserved for the kernel object the actuator manages and appears in
+`internal/goip/actuate` and in prose, not in a binary or package name.
+
+`xtcp2-treatmentctl` stays separate from the daemon's `xtcp2ctl` on purpose:
+it works on the journal directory as root, has no network path and must keep
+working, as the watchdog, when the daemon and the controller are both down.
+Folding it into a daemon-side CLI would make the independent withdrawal path
+depend on the process it is meant to outlive.
+
+There are three configuration surfaces, one per audience. Operators configure
+`xtcp2-controller` with flags, a DSN file and an optional discovery-template
+JSON file, all read at start. Hosts share one `controller-agent.json` between
+the agent, the watchdog and `xtcp2-treatmentctl`, so all three agree on the
+journal directory and route table. Operator requests are the RPC messages
+themselves in protobuf text, which `xtcp2-controllerctl -file` sends without
+a schema of its own.
+
 ## Supported routes and TCP semantics
 
 The first actuator supports IPv4 `/32` and IPv6 `/128` destinations in the host
@@ -442,6 +514,19 @@ daemon's label and logs the disagreement once. No label is rewritten silently.
 `agent.New` likewise refuses a config whose `location`/`agent_id` differ from
 the certificate's URI SAN, naming both.
 
+SIGHUP means "reconcile now" on the host side, and nothing else. In `xtcp2`
+it wakes the embedded agent (check in, then reconcile) or the journal watcher
+(re-read the snapshot); it never rebaselines link state, which is SIGUSR1, and
+never reloads configuration or restarts collection. The standalone agent
+handles SIGHUP the same way. The daemon has no admin RPC surface today, so a
+signal is the only in-process nudge; the
+[network-control gRPC design](design-network-control-grpc.md) describes a
+future admin API, and when it lands "reconcile now" becomes a method there with
+SIGHUP kept as its signal equivalent. `xtcp2-treatmentctl -mode=reconcile`
+is different: it runs one full reconcile pass from the journal through the
+actuator in its own process, without the controller, and prints the resulting
+snapshot, which is the tool for a host whose agent is stopped.
+
 A build without the `treatment` tag rejects `-treatmentConfig` at startup with
 a message naming both remedies, the same way a slim build rejects an enricher
 it lacks: a missing build tag is a property of the artifact and must not
@@ -596,8 +681,9 @@ Nix unit/race/benchmark targets with isolated PostgreSQL and ClickHouse fixtures
 
 Tests cover durable intent/crash recovery, stale generations, predecessor expiry,
 local/broad holds, concurrent controller reviews, full human-reviewed rollout,
-early safety withdrawal, actual algorithm attribution, and 10k-host cohort and
-notification behavior. Optional tests exercise real PostgreSQL, ClickHouse SQL,
+early safety withdrawal, actual algorithm attribution, 10k-host cohort and
+notification behavior, the incremental notification watermark, the heartbeat
+split and the housekeeping lease. Optional tests exercise real PostgreSQL, ClickHouse SQL,
 and IPv4/IPv6 netlink mutation in a disposable namespace:
 
 ```sh
