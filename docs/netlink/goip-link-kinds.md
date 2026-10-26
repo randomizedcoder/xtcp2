@@ -3052,6 +3052,303 @@ Then the 78 rows go in `gated_commands`. A full run comes before the next push.
 
 ### KG3 — goip UDP overlays
 
+Five tasks. KG3-T01 adds the vxlan words, KG3-T02 the geneve words, and KG3-T03 the bareudp, amt and gtp words. KG3-T04 renders the five print_opts' `-d` and `-d -j` output, and vxlan's `-d -d`. KG3-T05 adds the matrix rows and gates them, which closes KG3. The codec is KP3's (`pkg/xtcpnl/xtcpnl_vxlan.go`, `xtcpnl_geneve.go`, `xtcpnl_bareudp.go`, `xtcpnl_amt.go`, `xtcpnl_gtp.go`), which decodes into `LinkInfo` and encodes every row's `IFLA_INFO_DATA` in `ip`'s attribute order. So KG3 is the words, the in-loop lookups, `ip`'s checks and texts, the renderer and the matrix.
+
+**The rows** (`pkg/xtcpnl/testdata/7_3_0/link-write/kinds/`, argv in `kind-write-corpus.exp`). vxlan's `dev d0` rows and every amt row run on a dummy `d0`, and a set row's topology also makes the device it sets:
+
+| kind | rows | rc 0 | rc 2 (kernel) | rc 1 / 255 (`ip`, before the write) | requests |
+|---|---|---|---|---|---|
+| vxlan | 73 | 46 | 12 | 8 / 7 | 58 |
+| geneve | 49 | 22 | 13 | 7 / 7 | 35 |
+| bareudp | 16 | 6 | 4 | 1 / 5 | 10 |
+| amt | 20 | 5 | 8 | 3 / 4 | 13 |
+| gtp | 19 | 7 | 4 | 3 / 5 | 11 |
+
+**What `ip` does** (`ip/iplink_vxlan.c`, `iplink_geneve.c`, `iplink_bareudp.c`, `iplink_amt.c`, `iplink_gtp.c` and `lib/utils.c` at `v7.2.0`):
+- **vxlan.** Its keywords are `matches`, except `localbypass`, `nolocalbypass`, `reserved_bits`, `vnifilter`, `novnifilter`, `mcroute` and `nomcroute`, which are `strcmp`. The chain's order decides each abbreviation: `d` is `dev`, `l` is `local`, `p` is `port` (the source range, not `dstport`), `n` is `nolearning`.
+  - Each value word is `check_duparg`ed on its attribute. `group` and `remote` share `IFLA_VXLAN_GROUP`, a learning word and its `no` form share one, and `reserved_bits` passes its value as the key, so a second one names the value twice.
+  - `group` and `remote` refuse the other before `NEXT_ARG`, so `remote` with no value after a group is the conflict (1), not an incomplete command.
+  - Addresses go through `get_addr` with the other address's family: a remote's for the local, the local's for a group or remote. A failure is `exit(1)`, `Error: <family> address is expected rather than "<word>".`. `any` parses as no family and fails the `is_addrtype_inet_not_multi` check (`invarg`), while `0.0.0.0` passes and is sent.
+  - `dev` resolves inside the loop through `ll_name_to_index`, which sends a get, and a name that doesn't resolve is `exit(nodev)`: 255, unlike `iplink_parse`'s `link` (1).
+  - After the loop, in this order: vnifilter without external, external with an id, no id on an add, a group without `dev` (each 1); then the four-line dstport warning on stderr for an add with neither `dstport` nor `gpe`. Then the held-back attributes, which `EncodeVxlanInfoData` already orders.
+  - With no address given, `ip -4` and `ip -6` send a default `IFLA_VXLAN_GROUP` 0.0.0.0 or `IFLA_VXLAN_GROUP6` `::`, after the local's place. The encoder doesn't model it (KP3's decision log).
+- **geneve.** Its keywords are `matches`, except 7.2.0's `local` and `innerprotoinherit` (`strcmp`); `l` is `label`, and `d` is `dsfield`, which is `tos`. Both addresses go through `get_addr` with no family, so a local of the remote's other family reaches the kernel. `ttl inherit` adds `IFLA_GENEVE_TTL_INHERIT` in the loop; everything else is held. After the loop: external with an id, then (without external) no id, then no remote on an add (each 1). ID always follows, then LABEL, TTL and TOS on an add or when given.
+- **bareudp.** Every keyword is `matches`; `multiproto` and `nomultiproto` share a duparg. After the loop, a missing `dstport`, then a missing `ethertype`, is `missarg` (255, `Error: argument "<word>" is required`).
+- **amt.** Every keyword is `strcmp`, and only `local` and `discovery` are dupargs, so a second `mode` is sent twice. A bad mode prints only the usage (1), whose first line is `Usage: ... amt`. `dev` resolves in the loop with `exit(nodev)`, as vxlan's. `local` reads its family from the discovery address, and an address is sent when `is_addrtype_inet`: `0.0.0.0` and multicast go out, and `any` is skipped.
+- **gtp.** `IFLA_GTP_CREATE_SOCKETS` goes first once any word follows the kind. Every keyword is `strcmp`, and any other word is skipped silently, so `rol ggsn` is two skipped words. `restart_count` is `get_u8` in base 10, so `0x1` is `invarg`. No role is returned (1). `PDP_HASHSIZE` 1024 is added when no `hsize` was given.
+- **Rendering.** vxlan prints its bool options through `print_bool_opt`, `no<key>` in text, using the JSON key (`noudp_csum`), shown only when the value isn't its default, or always at `-d -d`; JSON always has them. vxlan hides a zero v4 group or local; geneve prints its v4 local even at `0.0.0.0` and hides a multicast `remote6`. Both print `ttl auto` and `tos inherit` in text and the number in JSON, and `df unset` in JSON alone. vxlan's and amt's `dev` is `ll_index_to_name`, which sends a get. bareudp prints its ethertype through `ll_proto_n2a` (`[4660]` for an unnamed one), and gtp prints its role by name (`unknown` past sgsn). amt prints its mode from a two-name table, and reads past it for a mode above relay.
+
+**Exit statuses.** KG0's decision holds: `invarg`, `duparg`, `missarg`, `incomplete_command` and `NEXT_ARG` wrap `ErrLinkUsage` (255), and the returned refusals are `ErrInvalidArgument` (1). The two that are neither are `get_addr`'s `exit(1)` (1) and a kind's `dev` `exit(nodev)` (255), which is a new `nodevExitErr`. goip prints a refusal's first line and no usage. amt's bad mode is the exception, as macvlan's bad op was: its first line is the usage line, so goip prints that line.
+
+**goip makes `ip`'s checks itself.** The KP3 encoders refuse the same cases with three errors (`ErrKindSettingConflict`, `ErrKindSettingMissing`, `ErrKindSettingRange`), while `ip` has a text for each. So each parser runs `ip`'s after-loop checks in `ip`'s order and returns `ip`'s text, and the encoder's refusals are a backstop that no goip argv reaches.
+
+#### KG3-T01 The vxlan words
+
+**Code.**
+- **The words.** `internal/goip/link_vxlan_args.go`: `parseVxlanArgs(errOut io.Writer, family uint8, set bool, args []string, resolve linkResolver) ([]xtcpnl.VxlanSetting, error)`, `vxlan_parse_opt`'s chain in its order. It keeps the duparg mask, the two addresses' families for `get_addr` (`routeGetAddr`), and the in-loop checks. `dev` resolves through `resolve` as the word is read. The after-loop checks run in `ip`'s order and the warning goes to `errOut`. The loop walks a shrinking sub-slice, as `parseVlanArgs` does.
+- **The default group.** `xtcpnl.VxlanOptionDefaultGroup`, whose Value is `AF_INET` or `AF_INET6`. `EncodeVxlanInfoData` sends it in the group's place when no local, group or remote was given, and drops it otherwise. `parseVxlanArgs` appends it for `-4` or `-6`. `kindData` gains the `family` `buildLinkWrite` already has.
+- **The helpers.** `nodevExitErr` (255) next to `nodevErr`, and `kindUnknownErr(kind, word)` for `<kind>: unknown command "<word>"?`, which KG3-T02 and KG3-T03 share. A `kindVxlanCst` case in `kindData`.
+
+`TestLinkVxlanWriteMatchesIp` replays `kinds/vxlan/*` through `newLinkReplay` with `useLLMap720`. goip must send `ip`'s lookups and write `ip`'s request, byte for byte with seq and pid zeroed, and exit 0.
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 58 rows | its lookups (d0's for `dev d0`, vx0's for a set), then its request |
+| positive: the lower device in word order | `add_group` (`group 239.1.1.1 dev d0`) | d0's get; `IFLA_VXLAN_LINK` before the held-back `ID`, `GROUP`, `LEARNING` and `PORT` |
+| negative: a request the kernel refuses is built anyway | the 12 rc 2 rows | their requests |
+| boundary: the top id | `add_id_max` (`id 16777215`) | `IFLA_VXLAN_ID` 16777215 |
+| boundary: dstport 0 | `add_dstport_zero` | no `IFLA_VXLAN_PORT`, and no warning |
+| corner: no dstport | `add_default` | no `IFLA_VXLAN_PORT`; the four warning lines on stderr; exit 0 |
+| corner: an abbreviation | `add_vni_abbrev` (`v 42`), `add_no_abbrev` (`no`) | `IFLA_VXLAN_ID` 42; `IFLA_VXLAN_LEARNING` 0 |
+| corner: external | `add_external` | `COLLECT_METADATA` 1, no `ID`, `LEARNING` 0 |
+| corner: a set sends learning only when given | `set_changeable`, `set_dev` | `LEARNING` 0 after `nolearning`; none in `set_dev` |
+
+`TestLinkVxlanRefusals` checks the status and stderr's first line:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_external_and_id`, `add_group_and_remote`, `add_group_no_dev`, `add_no_id`, `add_remote_bad`, `add_strcmp_abbrev`, `add_unknown`, `add_vnifilter_no_external` (1); `add_dev_missing`, `add_id_over`, `add_learning_twice`, `add_no_value`, `add_remote_multicast`, `add_srcport_one`, `add_ttl_over` (255) | the row's `ip.rc` and `ip.err` first line; nosuch's get for `add_dev_missing`, no other lookup; no write |
+| negative: a local of the other family | `id 42 remote 10.0.0.1 local 2001:db8::1` | 1, `Error: inet address is expected rather than "2001:db8::1".` |
+| boundary: a flow label past 20 bits | `id 42 flowlabel 0x100000` | 255, `argument "0x100000" is wrong: invalid flowlabel` |
+| boundary: a dstport past a u16 | `id 42 dstport 65536` | 255, `argument "65536" is wrong: dst port` |
+| corner: the conflict comes before the value | `id 42 group 239.1.1.1 dev d0 remote` | 1, `vxlan: both group and remote cannot be specified` |
+| corner: remote twice | `id 42 remote 10.0.0.1 remote 10.0.0.2` | 255, `either "remote" is duplicate, or "10.0.0.2" is garbage` |
+| corner: reserved_bits' duplicate names its value | `id 42 reserved_bits 0 reserved_bits 1` | 255, `either "1" is duplicate, or "1" is garbage` |
+| corner: `any` is no address | `id 42 local any` | 255, `argument "any" is wrong: invalid local address` |
+| corner: a df word by prefix | `id 42 df se` | 255, `argument "se" is wrong: DF must be 'unset', 'set' or 'inherit'` |
+| corner: help is not goip's | `help` | 1, not implemented |
+
+`TestVxlanCorpusArgv` checks the argv table against the corpus: one argv per `kinds/vxlan/` row, 73 in all. `TestParseVxlanArgs` checks the values no capture covers:
+
+| description | input | expected |
+|---|---|---|
+| positive: `port` is the source range | `id 42 port 1000 2000` | `IFLA_VXLAN_PORT_RANGE` 1000–2000, no `IFLA_VXLAN_PORT` |
+| positive: gpe's port | `external gpe` | `IFLA_VXLAN_PORT` 4790, no warning |
+| negative: `-4` with an address sends no default | `-4`, `id 42 remote 10.0.0.1` | `GROUP` 10.0.0.1 only |
+| boundary: an empty range | `id 42 srcport 0 0` | no `PORT_RANGE` |
+| boundary: the zero address | `id 42 local 0.0.0.0` | `IFLA_VXLAN_LOCAL` 0.0.0.0 |
+| corner: `-4` with no address | `-4`, `id 42` | `GROUP` 0.0.0.0 after `ID`, before `LEARNING` |
+| corner: `-6` with no address | `-6`, `id 42` | `GROUP6` `::` |
+| corner: external then learning | `external learning`; `learning external` | `LEARNING` 1; `LEARNING` 0 |
+| corner: tos is hex | `id 42 tos 10` | `IFLA_VXLAN_TOS` 0x10 |
+| corner: `d` is dev | `id 42 d d0` | d0's get; `IFLA_VXLAN_LINK` |
+| corner: the zero words | `ttl auto`, `ageing none`, `maxaddress unlimited` | `TTL` 0, `AGEING` 0, `LIMIT` 0 |
+
+`TestEncodeVxlanInfoData` gains the default group's rows: sent in the group's place for each family, dropped after a local, and `ErrKindSettingRange` for a family that is neither.
+
+**Mutation check:**
+- `dev` sent after the loop (`add_group`);
+- `nodev` as 1 (`add_dev_missing`);
+- the group/remote check after `NEXT_ARG` (the value corner);
+- `port` read as `dstport` (the source-range row);
+- the warning dropped (`add_default`);
+- `localbypass` by prefix (`add_strcmp_abbrev`);
+- the default group sent with an address (the `-4` negative row).
+
+**Done when:** the tables pass with `go test -count=1 -race ./internal/goip/ ./pkg/xtcpnl/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.
+
+#### KG3-T02 The geneve words
+
+**Code.** `internal/goip/link_geneve_args.go`: `parseGeneveArgs(set bool, args []string) ([]xtcpnl.GeneveSetting, error)`, `geneve_parse_opt`'s chain, with the after-loop checks in `ip`'s order and `kindUnknownErr`. A `kindGeneveCst` case in `kindData`.
+
+`TestLinkGeneveWriteMatchesIp`, as KG3-T01's, over `kinds/geneve/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 35 rows | its lookups (gn0's for a set), then its request |
+| positive: what every add sends | `add_default` | `ID` 1, `REMOTE`, `LABEL` 0, `TTL` 0, `TOS` 0 |
+| positive: 7.2.0's local by family | `add_local`, `add_local6` | `IFLA_GENEVE_LOCAL`; `IFLA_GENEVE_LOCAL6` |
+| negative: a request the kernel refuses is built anyway | the 13 rc 2 rows | their requests |
+| boundary: the widest flow label | `add_flowlabel` (`0xfffff`) | `IFLA_GENEVE_LABEL` 0xfffff |
+| corner: external | `add_external` | `ID` 0, `LABEL`, `TTL`, `TOS`, then an empty `COLLECT_METADATA` |
+| corner: ttl inherit in the loop | `add_ttl_inherit` | `TTL_INHERIT` 1 before `ID`; `TTL` 0 after |
+| corner: the checksums last | `add_csum_cancel` | `UDP_CSUM` 1, then `UDP_ZERO_CSUM6_TX` 1, at the end |
+| corner: a set sends what it's given | `set_changeable` | `DF` in the loop; `ID`, `TTL`, `TOS`; no `LABEL` |
+| corner: abbreviations | `add_abbrev` (`i 1 r 10.0.0.1`) | `ID` 1, `REMOTE` |
+
+`TestLinkGeneveRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_external_and_id`, `add_local6_word`, `add_local_abbrev`, `add_no_id`, `add_no_remote`, `add_remote_bad`, `set_no_id` (1); `add_external_twice`, `add_flowlabel_over`, `add_id_over`, `add_local_multicast`, `add_no_value`, `add_remote_multicast`, `add_ttl_over` (255) | the row's `ip.rc` and `ip.err` first line; gn0's get for `set_no_id`; no write |
+| boundary: a dstport past a u16 | `id 1 remote 10.0.0.1 dstport 65536` | 255, `argument "65536" is wrong: dstport` |
+| corner: a df word that isn't one | `id 1 remote 10.0.0.1 df yes` | 255, `argument "yes" is wrong: DF must be 'unset', 'set' or 'inherit'` |
+| corner: local twice | `id 1 remote 10.0.0.1 local 10.0.0.2 local 10.0.0.3` | 255, `either "local" is duplicate, or "10.0.0.3" is garbage` |
+| corner: external's check comes first | `id 1 external` | 1, `geneve: both 'external' and vni cannot be specified` |
+| corner: help is not goip's | `help` | 1, not implemented |
+
+`TestGeneveCorpusArgv` checks the 49 corpus rows. `TestParseGeneveArgs`:
+
+| description | input | expected |
+|---|---|---|
+| positive: `l` is label | `id 1 remote 10.0.0.1 l 5` | `LABEL` 5 |
+| positive: noudpcsum | `id 1 remote 10.0.0.1 noudpcsum` | `UDP_CSUM` 0 |
+| corner: `d` is dsfield | `id 1 remote 10.0.0.1 d 1` | `TOS` 1 |
+| negative: a set without an id | set, `ttl 5` | 1, `geneve: missing virtual network identifier` |
+| boundary: the zero local | `id 1 remote 10.0.0.1 local 0.0.0.0` | `LOCAL` 0.0.0.0 |
+| corner: external on a set | set, `external` | `ID` 0, `COLLECT_METADATA`; no `LABEL`, `TTL` or `TOS` |
+| corner: tos inherit | `id 1 remote 10.0.0.1 tos inherit` | `TOS` 1 |
+
+**Mutation check:**
+- `local` by prefix (`add_local_abbrev`);
+- `local6` taken as a keyword (`add_local6_word`);
+- a remote required on a set (`set_changeable`);
+- `d` read as `df` (the `d` is dsfield row);
+- the missing-id check skipped on a set (`set_no_id`).
+
+**Done when:** as KG3-T01.
+
+#### KG3-T03 The bareudp, amt and gtp words
+
+**Code.**
+- `internal/goip/link_bareudp_args.go`: `parseBareudpArgs(args []string) ([]xtcpnl.BareudpSetting, error)`, with `ll_proto_a2n` and a `missargErr` (255).
+- `link_amt_args.go`: `parseAmtArgs(args []string, resolve linkResolver) ([]xtcpnl.AmtSetting, error)`. Its `dev` uses `nodevExitErr`, and its bad mode returns the usage's first line. An address that `is_addrtype_inet` rejects (`any`) sends no setting.
+- `link_gtp_args.go`: `parseGtpArgs(args []string) ([]xtcpnl.GtpSetting, error)`, which skips any word it doesn't know.
+- `kindBareudpCst`, `kindAmtCst` and `kindGtpCst` cases in `kindData`.
+
+`TestLinkSmallOverlayWriteMatchesIp`, over `kinds/bareudp/*`, `kinds/amt/*` and `kinds/gtp/*`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 10, 13 and 11 rows | its lookups, then its request |
+| positive: bareudp's after-loop order | `bareudp/add_abbrev` (`d 6635 e ip s 1 m`) | `PORT`, `ETHERTYPE`, `SRCPORT_MIN`, `MULTIPROTO_MODE` |
+| positive: amt's word order | `amt/add_ports` | each attribute in argument order; d0's get at `dev` |
+| negative: a request the kernel refuses is built anyway | the 4, 8 and 4 rc 2 rows | their requests |
+| boundary: the largest hash | `gtp/add_hsize_max` (`131071`) | `PDP_HASHSIZE` 131071 |
+| boundary: an ethertype by number | `bareudp/add_ethertype_number` (`0x1234`) | `ETHERTYPE` 0x1234 |
+| corner: a repeated mode | `amt/add_mode_twice` | two `IFLA_AMT_MODE`s, gateway then relay |
+| corner: gtp skips a word | `gtp/add_unknown_skipped` | `CREATE_SOCKETS`, `ROLE`, `PDP_HASHSIZE` 1024 |
+| corner: no word, no data | `add_no_option` of each | no `IFLA_INFO_DATA` |
+| corner: gtp's set is its add | `gtp/set_same` | g0's get; the add's data |
+
+`TestLinkSmallOverlayRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | bareudp `add_unknown` (1); `add_dstport_twice`, `add_ethertype_bad`, `add_no_dstport`, `add_no_ethertype`, `add_no_value` (255). amt `add_abbrev`, `add_local_bad`, `add_mode_bad` (1); `add_dev_missing`, `add_local_twice`, `add_no_value`, `add_port_over` (255). gtp `add_abbrev`, `add_no_role`, `set_no_role` (1); `add_hsize_over`, `add_no_value`, `add_restart_count_hex`, `add_role_bad`, `add_role_twice` (255) | the row's `ip.rc` and `ip.err` first line; the lookups its `ip.pcap` holds; no write |
+| negative: bareudp with neither required word | `type bareudp srcportmin 1` | 255, `argument "dstport" is required` |
+| boundary: a restart count past a u8 | `role ggsn restart_count 256` | 255, `argument "256" is wrong: invalid restart_count` |
+| corner: amt's local takes the discovery's family | `discovery 10.0.0.2 local 2001:db8::1` | 1, `Error: inet address is expected rather than "2001:db8::1".` |
+| corner: amt's unknown word | `type amt foo` | 1, `amt: unknown command "foo"?` |
+| corner: multiproto's two forms are one word | `dstport 1 ethertype ip m n` | 255, `either "n" is duplicate, or "n" is garbage` |
+| corner: help is not goip's | `help` for each kind | 1, not implemented |
+
+`TestBareudpCorpusArgv`, `TestAmtCorpusArgv` and `TestGtpCorpusArgv` check the 16, 20 and 19 corpus rows. `TestParseSmallOverlayArgs`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a named ethertype by number | bareudp `dstport 1 ethertype 0x0800` | `ETHERTYPE` 0x0800, as `ethertype ip` sends |
+| positive: a skipped word before the role | gtp `foo role ggsn` | `ROLE` ggsn |
+| negative: amt's `any` | `mode relay dev d0 local any` | no `LOCAL_IP`; accepted |
+| boundary: amt's zero local | `local 0.0.0.0` | `LOCAL_IP` 0.0.0.0 |
+| corner: gtp's restart count is decimal | `role ggsn restart_count 010` | `RESTART_COUNT` 10 |
+| corner: gtp's hsize isn't | `role ggsn hsize 0x10` | `PDP_HASHSIZE` 16 |
+| corner: amt sends a multicast discovery | `discovery 224.0.0.1` | `DISCOVERY_IP` 224.0.0.1 |
+
+**Mutation check:**
+- bareudp's two `missarg`s swapped (the neither-word row);
+- amt's `mode` by prefix (`amt/add_abbrev`);
+- amt's bad mode as an unknown command (`amt/add_mode_bad`);
+- gtp refusing an unknown word (`gtp/add_unknown_skipped`);
+- gtp's restart count in base 0 (`gtp/add_restart_count_hex`);
+- amt sending `any` (its row).
+
+**Done when:** as KG3-T01.
+
+#### KG3-T04 The UDP overlays' `-d` output
+
+**Code.**
+- `internal/goip/render/link_vxlan.go`, `link_geneve.go`, `link_bareudp.go`, `link_amt.go` and `link_gtp.go`: `<kind>Data(*xtcpnl.<Kind>Info) *KindData`, each print_opt in its order.
+- **`-d -d`.** vxlan's bool options print at their defaults when `show_details > 1`, the only such site at `v7.2.0`. So the link render options carry the detail count instead of a bool, and `options.go`'s comment that no site tests the count is corrected.
+- **amt's mode past relay.** `ip` indexes past its table; goip prints `unknown`, as gtp does for a role. `amt_validate` refuses such a mode, so no device carries one.
+- `render.kindData` gets the five kinds' cases, and `renderableInfoData` gets the five kinds.
+
+`TestLinkShowDetailUdpOverlayMatchesSidecar` runs `ip [-d] [-j] link show dev <row's device>` through `runKindShow` for every accepted row of the five kinds, with `assertKindShowGets` holding the gets: the device's, and d0's for vxlan's and amt's `dev`.
+
+| description | input | expected |
+|---|---|---|
+| positive: each accepted row's `-d` | the 86 rc 0 rows | `ip_getlink_detail`, line for line; the capture's gets |
+| positive: each accepted row's `-d -j` | the 86 rc 0 rows | `ip_getlink_detail_json`, entry for entry; the capture's gets |
+| negative: a vxlan without `-d` | `vxlan/add_dstport`, `link show` | `ip_getlink`; no `vxlan id` |
+| boundary: an unnamed ethertype | `bareudp/add_ethertype_number` | `ethertype [4660] ` |
+| corner: a bool at its default is hidden in text | `vxlan/add_proxy` | `proxy ` alone; JSON has the 12 the kernel reports |
+| corner: the bool's text uses the JSON key | `vxlan/add_noudpcsum` | `noudp_csum ` |
+| corner: a bool the kernel doesn't report | `vxlan/add_mcroute` | no `mcroute` in text or JSON |
+| corner: ttl and tos words | `vxlan/add_tos_inherit` | `tos inherit ttl auto `; JSON `"tos":"0x1"`, `"ttl":0` |
+| corner: the lower by name | `vxlan/add_group`, `amt/add_relay` | `dev d0 `; d0's get |
+| corner: geneve's csum words | `geneve/add_remote6` | `noudp6zerocsumtx noudp6zerocsumrx ` |
+
+`TestUdpOverlayDataRender` (`internal/goip/render`) holds what no readback reaches:
+
+| description | input | expected |
+|---|---|---|
+| positive: vxlan at `-d -d` | every bool at its default | each printed, `noexternal ` first |
+| negative: a short vxlan id | a 2-byte `IFLA_VXLAN_ID` | no `id` |
+| negative: no attributes | each kind's empty data | `""`; `{}` |
+| boundary: amt's mode past relay | mode 2 | `unknown ` |
+| boundary: gtp's role past sgsn | role 2 | `role unknown ` |
+| corner: vxlan hides a zero group | `GROUP` 0.0.0.0 | no `group` or `remote` |
+| corner: geneve shows a zero local | `LOCAL` 0.0.0.0 | `local 0.0.0.0 ` |
+| corner: geneve hides a multicast remote6 | `REMOTE6` ff05::1 | no `remote` |
+| corner: vxlan's zero ageing | `AGEING` 0 | `ageing none `; `"ageing":0` |
+| corner: vxlan's zero limit | `LIMIT` 0 | no `maxaddr` |
+| corner: df unset | `DF` 0 | nothing in text; `"df":"unset"` |
+
+**Mutation check:**
+- `-d -d` read as `-d` (the `-d -d` row);
+- the bool's text from the keyword, not the JSON key (`add_noudpcsum`);
+- a default bool printed (`add_proxy`);
+- geneve's zero local hidden (its render row);
+- `tos inherit` in JSON (`add_tos_inherit`);
+- vxlan left out of `renderableInfoData` (every vxlan row);
+- amt's `dev` by index (`amt/add_relay`).
+
+**Done when:** as KG3-T01.
+
+#### KG3-T05 The UDP overlay matrix rows
+
+**Rows.** In `internal/goipparity/commands.go`, after the VLAN family rows:
+- **Write rows**, slug `link_<kind>_<slug>`, one per corpus row that sent a request: 58 vxlan, 35 geneve, 10 bareudp, 13 amt and 11 gtp, 127 in all.
+  - Argv is as the corpus ran it. `Floor` is the row's `ip.pcap` record count, and `Setup` is its `topology`.
+  - Two geneve pairs share an argv, so one of each is respelled with `iplink_parse`'s optional `dev`. `add_after_external` becomes `link add dev gn1 type geneve id 1 remote 10.0.0.1`, and `set_local_new` becomes `link set dev gn0 type geneve id 1 local 10.0.0.2`.
+  - `kindRowKinds` gets the five kinds.
+- **Read rows**: `-d link show dev <dev>` and `-d -j link show dev <dev>` for vx0, gn0, b0, a0 and g0, and `-d -d link show dev vx0`, 11 in all.
+  - Each runs on its kind's corpus device: vx0 `id 42 dstport 4789`, gn0 `id 1 remote 10.0.0.1`, b0 `dstport 6635 ethertype ip`, a0 on d0 with `mode relay dev d0 local 10.0.0.1`, and g0 `role ggsn`.
+  - The floor is 4, and 6 for a0, whose `dev` costs a get.
+
+`TestUdpOverlayMatrixRows` (`internal/goipparity/commands_udp_test.go`):
+
+| description | input | expected |
+|---|---|---|
+| positive: one write row per request row | the five kinds' slugs | the corpus's rows with `ip.rc` 0 or 2: 58, 35, 10, 13, 11 |
+| negative: no `ip`-refused row | the 50 rows with `ip.rc` 1 or 255 | absent |
+| boundary: each floor | `Floor` | the row's `ip.pcap` record count |
+| corner: each setup | `Setup` | the row's `topology` file, step for step |
+| corner: each name is unique | the 127 `Name`s | no two alike; the two geneve rows respelled |
+| positive: the 11 read rows | the read rows | not writes; floor 4, or 6 for a0; each kind's setup |
+| positive: every row is gated | the 138 rows' names | each `IsGated` in the embedded allowlist |
+
+`TestCompareWriteRow`'s every-write-row case runs the 127 on their own corpus captures. `TestAllowlistCommitted` and `TestUngatedSurfaceIsNotVacuous` hold the 138 gated, so the 138 go in `TestAllowlistCommitted`'s earned list too.
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: two consecutive clean section runs | `goip-parity -- --timeout 12000 --section link`, twice | the 138 rows `PASS` on both, and every gated `link` row still `PASS` |
+| corner: the kernel-refused rows compare on the request | the 41 rc 2 rows | `PASS` |
+| corner: `-d -d` | `-d -d link show dev vx0` | `PASS`, its every-bool text on both sides |
+
+Then the 138 rows go in `gated_commands`. A full run comes before the next push.
+
+**Mutation check:**
+- a floor short by 2 (the floor row);
+- a setup step dropped (the setup row);
+- a row dropped (the request-row row);
+- an `ip`-refused row added (the negative row);
+- `set_local_new` back to its corpus spelling (the unique row);
+- a0's floor as 4 (the read row);
+- a row dropped from `gated_commands` (the gated row and `TestUngatedSurfaceIsNotVacuous`).
+
+**Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG3.
+
 ### KG4 — goip IP tunnels
 
 The goip-parity VM sets `fb_tunnels_only_for_init_net=2` before its first tunnel row, for KC0-T01's reason.
