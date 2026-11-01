@@ -105,7 +105,7 @@ var families = map[string]func() []*space{
 	"nexthop": func() []*space { return []*space{nh4Space(), nh6Space(), nhGroupSpace()} },
 	"addr":    func() []*space { return []*space{addr4Space(), addr6Space()} },
 	"neigh":   func() []*space { return []*space{neigh4Space(), neigh6Space()} },
-	"link":    func() []*space { return []*space{linkSetSpace()} },
+	"link":    func() []*space { return []*space{linkSetSpace(), linkAddSpace()} },
 }
 
 func runMatrix(args []string, stdout, stderr io.Writer) int {

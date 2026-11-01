@@ -46,7 +46,7 @@ func TestBuildLinkSet(t *testing.T) {
 }
 
 func TestMatrixLinkRows(t *testing.T) {
-	rows, err := matrixRows(families["link"](), matrixOpts{Seed: 1, Random: 40})
+	rows, err := matrixRows([]*space{linkSetSpace()}, matrixOpts{Seed: 1, Random: 40})
 	if err != nil {
 		t.Fatal(err)
 	}

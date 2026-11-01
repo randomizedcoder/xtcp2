@@ -43,7 +43,7 @@ const wsO5Golden = "testdata/ws-differential.txt"
 // matrix's, then those mined from the fib selftests, then the address,
 // neighbor and link matrices'.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
-	"addr4", "addr6", "neigh4", "neigh6", "linkset"}
+	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not

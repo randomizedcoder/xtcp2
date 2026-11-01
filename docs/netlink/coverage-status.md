@@ -1955,7 +1955,97 @@ now spells out 255 characters itself.
 are larger than W3a's and W3b's because every readback dumps both links
 with `-d`, and 1 in 5 rows carries the 255-character alias.
 
-Next is W3d, `ip link add` kind by kind.
+##### W3d: `ip link add`
+
+The second space in `link.rows.jsonl`, `linkadd`
+(`tools/nlcapgen/matrix_linkadd.go`). The `linkset` rows come first and
+keep their ids, so W3c's captures are unchanged. Each row runs in a fresh
+namespace holding `d0`, a dummy that is up, as the lower device a vlan or
+macvlan names, and adds `n0`. The readback shows `n0` alone.
+
+| axis | values (boundary values in bold) |
+|---|---|
+| name | `n0`, `dev n0`, `name n0` |
+| up | absent, up |
+| mtu | absent, 1400, **1500**, 9000 |
+| txqlen | absent, 100, **0** |
+| address | absent, a MAC |
+| queues | absent, `numtxqueues 4`, `numrxqueues 4`, both |
+| kind | dummy; ifb; veth (`peer name p0`, and with the peer's mtu); vlan (`id 10`, **`id 4094`**, `protocol 802.1ad`); macvlan (`mode bridge`, `private`, `passthru`); bridge (and `stp_state 1`) |
+
+111 rows: 10 positive, 8 boundary, 74 corner and 19 negative. Three were
+wrong on the first run:
+
+- **A bare name of 16 characters is refused by the kernel.** A bare name is
+  iplink_parse's `dev`, which `check_altifname` allows up to ALTIFNAMSIZ,
+  so ip sends it and `ifla_policy` refuses `IFLA_IFNAME` (ERANGE). The
+  `name` keyword goes through `check_ifname`, which refuses it in ip
+  (W3c).
+- **`vlan id 65536` is refused after a lookup.** `vlan_parse_opt` runs after
+  iplink_parse has looked `d0` up, so ip exits 255 with an acknowledged
+  `RTM_GETLINK`.
+- **An unknown kind is ENOTSUP.** The kernel returns EOPNOTSUPP ("Unknown
+  device type"), which Linux numbers the same as ENOTSUP, and that is the
+  name `unix.ErrnoName` gives it.
+
+The rest held:
+
+- **A vlan's or macvlan's MTU may not pass its lower device's** (1500 on
+  `d0`, EINVAL). A veth, bridge, dummy or ifb takes 9000.
+- **VLAN id 4095 is ERANGE**, and 4094 is the largest taken.
+- **A vlan with no lower device is EINVAL.**
+- **Adding `n0` twice is EEXIST** (three `dup-*` rows).
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_link_test.go`):
+
+- **O3** checks the top-level attributes by bytes, with `IFLA_LINK` as
+  `d0`'s index, plus the `IFLA_LINKINFO` nest byte for byte:
+  `IFLA_INFO_KIND` with its NUL, then the kind's `IFLA_INFO_DATA`. The
+  model covers:
+  - a veth peer: a zeroed `ifinfomsg`, with the peer's `IFLA_MTU` before
+    its `IFLA_IFNAME`, as the peer's iplink_parse adds them;
+  - a vlan protocol in network order before a host-order id;
+  - a macvlan mode as a u32;
+  - a bridge option.
+
+  It also checks `NLM_F_CREATE|NLM_F_EXCL` and index 0. O3 checked 109
+  requests.
+- **O4** finds `n0` in the dump (92 rows) and checks its kind, up, lower
+  device, MTU, txqueuelen, queue counts and address. It also checks the
+  decoded kind data: a vlan's id and protocol (802.1Q when none is named),
+  a macvlan's mode and a bridge's STP state.
+- **Two findings from O4:**
+  - `ip link show dev n0` first resolves the name, and iproute2 7.2.0
+    asks with `RTEXT_FILTER_NAME_ONLY`, so the first reply about `n0`
+    holds its name alone. The full reply comes second, and O4 takes the
+    last.
+  - A passthru macvlan takes its lower device's address whatever was
+    asked (`eth_hw_addr_inherit`, `drivers/net/macvlan.c:1552`), so its
+    address isn't compared.
+- **O5:** goip sends the same request as ip on 43 rows, across all six
+  kinds. The other 68 stop at `numtxqueues` (47) or `numrxqueues` (21),
+  which goip hasn't implemented. Every lookup difference is the known
+  `IFLA_EXT_MASK`.
+- **Determinism:** a second run of all 111 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestLinkAddJudge`, `TestBuildLinkAdd`, `TestDeriveLinkAddDup`
+and `TestMatrixLinkAddRows` cover the generator. `TestLinkAddInfoData`,
+`TestLinkAddRequestProblem` and `TestLinkAddDumpProblem` cover the
+oracles.
+
+**Mutation:** 23 of 23 mutants killed, each by a relevant test. Two
+mutants were rewritten before they counted, neither a survivor:
+
+- "queue counts unchecked in the dump" first panicked on rows with no
+  queue count. It now drops the check, and `TestLinkAddDumpProblem` gained
+  a tx-queue row to kill it;
+- "a passthru address compared" first didn't build.
+
+**Size:** the rows add 321 KB of file bytes to `ws/`, 16.0 MB in all,
+against the 20 MB budget.
+
+Next is W4, the coverage report.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

@@ -1,0 +1,38 @@
+{
+ "axes": {
+  "kind": "ifb",
+  "name": "n0",
+  "numtxqueues": "4",
+  "txqlen": "0"
+ },
+ "cmd": "ip link add dev n0 txqueuelen 0 numtxqueues 4 type ifb",
+ "desc": "corner: name=dev up=absent mtu=absent txqlen=0 address=absent queues=tx kind=ifb",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkadd/pw-014",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

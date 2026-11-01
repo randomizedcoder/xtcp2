@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "kind": "veth",
+  "mtu": "9000",
+  "name": "n0",
+  "numrxqueues": "3",
+  "numtxqueues": "2",
+  "peer": "p0",
+  "peer_mtu": "1400",
+  "txqlen": "100"
+ },
+ "cmd": "ip link add name n0 mtu 9000 txqueuelen 100 numtxqueues 2 numrxqueues 3 type veth peer name p0 mtu 1400",
+ "desc": "corner: name=name up=absent mtu=9000 txqlen=100 address=absent queues=both kind=veth-mtu",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkadd/rn1-008",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "address": "02:00:00:00:01:01",
+  "kind": "vlan",
+  "link": "d0",
+  "name": "n0",
+  "up": "1",
+  "vlan_id": "10"
+ },
+ "cmd": "ip link add n0 up address 02:00:00:00:01:01 link d0 type vlan id 10",
+ "desc": "positive: name=bare up=up mtu=absent txqlen=absent address=mac queues=absent kind=vlan",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkadd/pw-017",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
