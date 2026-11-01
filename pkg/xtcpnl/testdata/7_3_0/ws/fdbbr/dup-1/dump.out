@@ -1,0 +1,6 @@
+1a:88:b8:f6:09:2a vlan 10 master br0 permanent
+1a:88:b8:f6:09:2a vlan 1 master br0 permanent
+1a:88:b8:f6:09:2a master br0 permanent
+02:00:00:00:00:01 self permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

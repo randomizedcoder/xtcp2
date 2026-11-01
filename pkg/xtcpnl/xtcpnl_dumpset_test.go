@@ -1284,8 +1284,8 @@ func TestDumpSetNeigh(t *testing.T) {
 			filename:    tdDumpGetNeigh_7_1_4,
 			sidecar:     "ip_neigh_n",
 			check: func(t *testing.T, ns []NeighInfo) {
-				for i, ni := range ns {
-					if ni.State == 0 {
+				for i := range ns {
+					if ns[i].State == 0 {
 						t.Errorf("neigh[%d] has ndm_state 0; the kernel is not expected to dump one", i)
 					}
 				}
@@ -1329,7 +1329,8 @@ func TestDumpSetNeigh(t *testing.T) {
 						"or there is nothing the state filter is dropping", len(ns), sidecarLines)
 				}
 				hidden := 0
-				for _, ni := range ns {
+				for i := range ns {
+					ni := &ns[i]
 					if ni.State&unix.NUD_NOARP == 0 {
 						continue
 					}
@@ -1408,9 +1409,9 @@ func neighByDstDev(t *testing.T, ns []NeighInfo, dst string, ifindex int32) Neig
 	t.Helper()
 
 	var found []NeighInfo
-	for _, ni := range ns {
-		if ipText(ni.Dst) == dst && ni.Ifindex == ifindex {
-			found = append(found, ni)
+	for i := range ns {
+		if ipText(ns[i].Dst) == dst && ns[i].Ifindex == ifindex {
+			found = append(found, ns[i])
 		}
 	}
 	switch len(found) {
@@ -1429,9 +1430,9 @@ func neighByDst(t *testing.T, ns []NeighInfo, dst string) NeighInfo {
 	t.Helper()
 
 	var found []NeighInfo
-	for _, ni := range ns {
-		if ipText(ni.Dst) == dst {
-			found = append(found, ni)
+	for i := range ns {
+		if ipText(ns[i].Dst) == dst {
+			found = append(found, ns[i])
 		}
 	}
 	switch len(found) {
@@ -1439,8 +1440,8 @@ func neighByDst(t *testing.T, ns []NeighInfo, dst string) NeighInfo {
 		return found[0]
 	case 0:
 		var have []string
-		for _, ni := range ns {
-			have = append(have, ipText(ni.Dst))
+		for i := range ns {
+			have = append(have, ipText(ns[i].Dst))
 		}
 		t.Fatalf("no neighbor with dst %s in the dump; it holds %v", dst, have)
 	default:

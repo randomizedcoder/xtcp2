@@ -248,10 +248,19 @@ func loadPolicies(linux fs.FS) ([]covPolicy, error) {
 }
 
 // covTally counts, per family, the requests seen and each top-level
-// attribute type they sent.
+// attribute type they sent, and the requests no policy judges.
 type covTally struct {
 	requests map[string]int
 	sent     map[string]map[int]int
+	unjudged int
+}
+
+// covUnjudged is whether no policy judges a request: a bridge fdb add or
+// delete, which rtnl_fdb_add and rtnl_fdb_del parse with a NULL policy
+// (net/core/rtnetlink.c:4822 and 4936), whatever nda_policy accepts. A
+// bridge fdb get is judged by nda_policy (valid_fdb_get_strict).
+func covUnjudged(typ uint16, body []byte) bool {
+	return len(body) > 0 && body[0] == unix.AF_BRIDGE && (typ == unix.RTM_NEWNEIGH || typ == unix.RTM_DELNEIGH)
 }
 
 func newCovTally() *covTally {
@@ -261,6 +270,10 @@ func newCovTally() *covTally {
 // add counts one message, if it is a request some family judges.
 func (t *covTally) add(m nlparity.Msg) {
 	if !m.IsRequest() || m.Proto != unix.NETLINK_ROUTE {
+		return
+	}
+	if covUnjudged(m.Hdr.Type, m.Body) {
+		t.unjudged++
 		return
 	}
 	for i := range covFamilies {
@@ -347,6 +360,7 @@ func writeCoverage(w io.Writer, header []string, pols []covPolicy, t *covTally) 
 		fmt.Fprintf(&body, "%s never sent: %s\n", key, joinOrNone(never))
 		fmt.Fprintf(&body, "%s sent outside the policy: %s\n", key, joinOrNone(extra))
 	}
+	fmt.Fprintf(&b, "# bridge fdb writes, which no policy judges: %d requests\n", t.unjudged)
 	b.WriteString(body.String())
 	_, err := io.WriteString(w, b.String())
 	return err

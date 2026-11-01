@@ -1,0 +1,5 @@
+3e:b3:61:d3:fe:78 vlan 10 master br0 permanent
+3e:b3:61:d3:fe:78 vlan 1 master br0 permanent
+3e:b3:61:d3:fe:78 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

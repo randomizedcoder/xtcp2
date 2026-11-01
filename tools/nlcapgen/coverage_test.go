@@ -135,6 +135,9 @@ func TestCovTally(t *testing.T) {
 		{"positive: an IPv6 one counts for route6", covMsg(unix.RTM_DELROUTE, req, unix.AF_INET6, 12, unix.RTA_GATEWAY), "route6:1:5"},
 		{"corner: a nested flag is masked off", covMsg(unix.RTM_NEWROUTE, req, unix.AF_INET, 12, unix.RTA_METRICS|unix.NLA_F_NESTED), "route4:1:8"},
 		{"positive: a neighbor of any family", covMsg(unix.RTM_NEWNEIGH, req, unix.AF_INET6, 12, unix.NDA_DST), "neigh:1:1"},
+		{"negative: a bridge fdb add is judged by no policy", covMsg(unix.RTM_NEWNEIGH, req, unix.AF_BRIDGE, 12, unix.NDA_VLAN), ":0:/1"},
+		{"negative: nor is a bridge fdb delete", covMsg(unix.RTM_DELNEIGH, req, unix.AF_BRIDGE, 12, unix.NDA_LLADDR), ":0:/1"},
+		{"corner: a bridge fdb get is judged by the neighbor policy", covMsg(unix.RTM_GETNEIGH, req, unix.AF_BRIDGE, 12, unix.NDA_VLAN), "neigh:1:5"},
 		{"negative: a reply is not a request", covMsg(unix.RTM_NEWROUTE, 0, unix.AF_INET, 12, unix.RTA_DST), ":0:"},
 		{"positive: a route get is judged by the same policy", covMsg(unix.RTM_GETROUTE, req, unix.AF_INET, 12, unix.RTA_IIF), "route4:1:3"},
 		{"negative: a rule dump is no family's", covMsg(unix.RTM_GETRULE, req, unix.AF_INET, 12, unix.FRA_TABLE), ":0:"},
@@ -163,6 +166,9 @@ func TestCovTally(t *testing.T) {
 				}
 			}
 			got := fam + ":" + strconv.Itoa(tl.requests[fam]) + ":" + strings.Join(attrs, ",")
+			if tl.unjudged > 0 {
+				got += "/" + strconv.Itoa(tl.unjudged)
+			}
 			if got != tc.expected {
 				t.Errorf("got %q, want %q", got, tc.expected)
 			}
@@ -176,6 +182,7 @@ func TestWriteCoverage(t *testing.T) {
 		enum:  map[int]string{1: "RTA_DST", 4: "RTA_OIF", 5: "RTA_GATEWAY", 18: "RTA_VIA"}}
 	tl := newCovTally()
 	tl.add(covMsg(unix.RTM_NEWROUTE, unix.NLM_F_REQUEST, unix.AF_INET, 12, unix.RTA_DST, 18, 99))
+	tl.add(covMsg(unix.RTM_NEWNEIGH, unix.NLM_F_REQUEST, unix.AF_BRIDGE, 12, unix.NDA_VLAN))
 	var b strings.Builder
 	if err := writeCoverage(&b, []string{"h"}, []covPolicy{pol}, tl); err != nil {
 		t.Fatal(err)
@@ -189,6 +196,7 @@ func TestWriteCoverage(t *testing.T) {
 		{"positive: the never-sent list, in number order", "route4 never sent: RTA_OIF RTA_GATEWAY\n"},
 		{"corner: an attribute outside the policy by name, or by number when unnamed", "route4 sent outside the policy: RTA_VIA 99\n"},
 		{"positive: the header", "# h\n"},
+		{"corner: a bridge fdb write is counted apart", "# bridge fdb writes, which no policy judges: 1 requests\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {

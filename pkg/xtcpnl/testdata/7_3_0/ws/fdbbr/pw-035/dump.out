@@ -1,0 +1,5 @@
+06:79:bc:c0:34:9a vlan 10 master br0 permanent
+06:79:bc:c0:34:9a vlan 1 master br0 permanent
+06:79:bc:c0:34:9a master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

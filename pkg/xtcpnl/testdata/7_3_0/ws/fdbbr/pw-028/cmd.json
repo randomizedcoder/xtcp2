@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "dev": "d0",
+  "lladdr": "00:00:00:00:00:00",
+  "norefresh": "1",
+  "ntf": "16",
+  "state": "192",
+  "target": "2",
+  "verb": "add",
+  "vlan": "4094"
+ },
+ "cmd": "bridge fdb add 00:00:00:00:00:00 dev d0 permanent extern_learn vlan 4094 norefresh",
+ "desc": "negative: verb=add mac=zero dev=port target=absent state=permanent flags=extern_learn vlan=4094 ext=norefresh: self on a dummy with a VLAN (vlans aren't supported yet for dev_uc|mc_add())",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "fdbbr/pw-028",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

@@ -2308,6 +2308,124 @@ survived the first pass, and each now has a row:
 
 **Size:** the rows add 644 KB to `ws/`, 16.9 MB of 64 MB in all.
 
+##### W5a: `bridge fdb`
+
+W4's report counted no `AF_BRIDGE` neighbor writes: `ip neigh` never
+sends `NDA_VLAN`, `NDA_PORT`, `NDA_VNI`, `NDA_IFINDEX`, `NDA_SRC_VNI`,
+`NDA_NH_ID` or `NDA_FDB_EXT_ATTRS`, and `bridge fdb` sends all of them.
+`nlcapgen matrix -family fdb -seed 1 -random 40` writes
+`nix/microvms/workbench/fdb.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_fdb.go`:
+
+| space | devices | axes (boundary values in bold) |
+|---|---|---|
+| fdbbr | a VLAN-filtering bridge `br0` with a dummy port `d0`, VLAN 10 on both | verb: add, append, replace, del; MAC: unicast, unicast after `to`, multicast, zero; dev: port or bridge; `self`, `master`, both or neither; state: none, permanent, static, dynamic, local, temp; sticky, extern_learn, use, router; vlan: none, 1, 10, **4094**, 65535; `activity_notify`, `norefresh`, `activity_notify inactive`, `inactive` alone |
+| fdbvx | a VXLAN `vx0` (VNI 100, port 4789, nolearning) over `d1`, with nexthops 1 (fdb), 10 (an fdb group of 1) and 2 (not fdb) | remote: `dst` v4 or v6, `nhid` 10, 1, 2 or 99, none; port: none, 4790, **0**, **65535**, `0x12b6`; vni: none, 200, **0**, **16777215**; src_vni: none, 100, 300; `via d1`; state |
+
+199 rows (fdbbr 99, fdbvx 100): 3 positive, 6 boundary, 34 corner and
+156 negative. A del's pre step is its own add, when that add would be
+accepted. Derived rows add a duplicate add (EEXIST), a delete of
+something absent (ENOENT) and the two `twice-*` rows below.
+
+**bridge, unlike ip:**
+
+- **It exits 255 on a kernel refusal**, since `fdb_modify` returns -1.
+- **Every command dumps links first** (`ll_init_map`, `bridge/fdb.c:948`),
+  so a refused argument is `ack-then-fail`, never zero messages. An
+  unknown `dev` or `via` is the kernel's ENODEV to `ll_link_get`.
+- **`fdb_modify`'s defaults:**
+  - with neither `self` nor `master` it sets `NTF_SELF`;
+  - the state starts at `NUD_NOARP`, so no keyword means permanent (192),
+    `static` is 66 and `dynamic` is 2;
+  - `vlan` is `atoi` into a short and is sent only if not negative, so
+    `vlan 65535` sends nothing and `vlan ten` sends VLAN 0;
+  - `port 0` isn't sent;
+  - `nhid` is checked against `dst`, `port` and `vni` only, so `via` with
+    `nhid` reaches the kernel (EINVAL).
+
+**The kernel:** `rtnl_fdb_add` and `rtnl_fdb_del` parse with a NULL
+policy (`net/core/rtnetlink.c:4822` and `4936`). They refuse VLAN 0 and
+4095 (EINVAL). With neither path taken the answer is EOPNOTSUPP, which
+Go names ENOTSUP, as the rows do. The paths are:
+
+- `master` on a bridge port, which is `br_fdb_add`. It refuses (EINVAL)
+  the zero MAC, a VLAN the port lacks, `use` or a non-permanent entry
+  towards the bridge, sticky with permanent, and `inactive` without
+  `activity_notify`;
+- `self` on the dummy, which is `ndo_dflt_fdb_add`. It takes only
+  permanent entries and no VLAN;
+- the VXLAN's `vxlan_fdb_add`. It refuses (EINVAL):
+  - no `dst` and no `nhid`;
+  - `nhid` with anything else;
+  - a dynamic `nhid`;
+  - an `nhid` that is missing, not fdb or not a group.
+
+  An IPv6 `dst` on the IPv4 VXLAN is EAFNOSUPPORT, and a replace of a
+  multicast or zero MAC is EOPNOTSUPP.
+
+**A kernel quirk** (recorded here only):
+
+- `vxlan_fdb_alloc` keys an entry by its `src_vni`, but on a VXLAN
+  without `external` (`VXLAN_F_COLLECT_METADATA`), `vxlan_find_mac_rcu`
+  always looks up under the device's own VNI
+  (`drivers/net/vxlan/vxlan_core.c`).
+- So an entry added with a foreign `src_vni 300` can't be found:
+  - its delete is ENOENT (the del rows with `src_vni 300` expect that);
+  - a second identical replace finds nothing, inserts the same key
+    again, and the hash refuses it with EEXIST (`fdbvx/twice-other`). The
+    same pair under the device's own VNI succeeds (`fdbvx/twice-own`);
+  - the dump still lists the entry, without its `src_vni`.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_fdb_test.go`):
+
+- **ParseNeigh** now decodes `NDA_PORT` (big-endian), `NDA_VNI`,
+  `NDA_SRC_VNI`, `NDA_IFINDEX`, `NDA_NH_ID` and `NDA_FDB_EXT_ATTRS`'s
+  `NFEA_ACTIVITY_NOTIFY` and `NFEA_DONT_REFRESH`. A short attribute is
+  skipped, and so is a nest that overruns. A repeated attribute's last
+  copy wins.
+- **O3:**
+  - the request has `AF_BRIDGE`, the looked-up index, the state and
+    flags;
+  - its attributes are in `fdb_modify`'s order, at their widths;
+  - the decoded values equal the axes.
+
+  An `ack-then-fail` row must send no fdb request. O3 checked 190
+  requests.
+- **O4:** after an accepted add, the device's dump has the entry
+  (MAC, VLAN and, on vx0, the dst, nhid, port, VNI and via); after a
+  del, it is gone. A port of 4789 or VNI of 100 is the device's own,
+  which the dump leaves out. O4 checked 43 round trips.
+- **O5 doesn't apply:** goip implements `ip`, not `bridge`.
+- **Coverage:** no policy judges these writes, so `nlcapgen coverage`
+  counts them on a line of their own (190 requests) rather than as
+  neigh, which stays at 4/13. The `NDA_*` attributes above are sent
+  only by these writes.
+- **Determinism:** a second run of all 199 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:**
+
+- The generator: `TestFdbBrJudge`, `TestFdbVxJudge`, `TestBuildFdb`,
+  `TestFdbVxTwice`, `TestDeriveFdbDupGone`, `TestMatrixFdbRows`, and new
+  `TestCovTally` and `TestWriteCoverage` rows.
+- The oracles: `TestFdbWantFromAxes`, `TestFdbRequestProblem`,
+  `TestFdbDumpHas`, `TestFdbAckFailProblem`, `TestFdbRoundTripProblem`,
+  and seven new `TestParseNeigh` rows.
+
+**Mutation:** 29 of 29 mutants killed, each by a relevant test. Three
+survived the first pass:
+
+- **ParseNeigh kept the first `NFEA_ACTIVITY_NOTIFY`**, where
+  `nla_parse` and `parse_rtattr` keep the last. It now keeps the last,
+  and a row repeats the attribute.
+- **No hand-built row broke two oracle checks:** the `ack-then-fail`
+  check, and O4's presence check. Each is now a function with its own
+  table (`TestFdbAckFailProblem`, `TestFdbRoundTripProblem`).
+
+Two mutants that didn't compile were rewritten and rerun.
+
+**Size:** the rows add 563 KB to `ws/`, 17 MB of 64 MB in all.
+
 ### Captures an outside consumer needs: BIRD's netlink parser
 
 Counted from the tree on 2026-10-31. The BIRD routing daemon's kernel protocol

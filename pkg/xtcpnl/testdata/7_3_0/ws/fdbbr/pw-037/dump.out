@@ -1,0 +1,5 @@
+92:7f:10:97:9e:4e vlan 10 master br0 permanent
+92:7f:10:97:9e:4e vlan 1 master br0 permanent
+92:7f:10:97:9e:4e master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent
