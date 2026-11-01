@@ -2110,6 +2110,76 @@ dropping the walk's alignment to four bytes changed nothing.
 
 Next is W4b: rows for the keywords in the table's fourth column.
 
+##### W4b: `ip route get`, for the route attributes no write sends
+
+Four of route4's seven gaps and five of route6's seven are lookup
+attributes. `nlcapgen matrix -family routeget -seed 1 -random 40` writes
+`nix/microvms/workbench/routeget.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_routeget.go`. Each row runs `routeSetup`'s namespace
+plus a default route per family, so every destination resolves. There is
+no readback: the answer is in ip's own capture.
+
+| axis | values (boundary values in bold) |
+|---|---|
+| dst | connected, via the default route, **/32** or **/128**, `to` |
+| from | absent, d0's address |
+| dev | absent, `oif d0`, `dev d0` |
+| mark | absent, 0x10, **0** (ip sends no `RTA_MARK`), **4294967295** |
+| uid | absent, 1000, **0** |
+| ipproto | absent, tcp, udp, the family's ICMP |
+| ports | absent, sport, dport, both, **dport 65535** |
+| tos (v4) / flowlabel (v6) | absent, 0x10 or `dsfield 0x08` / 0x12345, **0xfffff** |
+| flags | absent, fibmatch, notify (v4) |
+
+161 rows (routeget4 81, routeget6 80): 7 positive, 42 boundary, 101 corner
+and 11 negative. The first run's 55 failures were two kernel rules the
+spaces hadn't modeled:
+
+- **Only TCP, UDP and the family's own ICMP are taken.**
+  `rtm_getroute_parse_ip_proto` (`net/ipv4/netlink.c`) refuses anything
+  else with EOPNOTSUPP ("Unsupported ip proto"), including ICMP in an IPv6
+  lookup and ICMPv6 in an IPv4 one. These are now bad values.
+- **An IPv6 lookup takes `RTM_F_FIB_MATCH` alone.**
+  `inet6_rtm_valid_getroute_req` refuses `notify` (EINVAL, "Invalid flags
+  for get route request"). That is the strict check, so ip enables strict
+  checking for gets. A device ip can't resolve is refused in its
+  `RTM_GETLINK` (ENODEV), before any lookup is sent.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_routeget_test.go`):
+
+- **O3** rebuilds the lookup: the `rtmsg`, with dst and src lengths at
+  full width, `RTM_F_LOOKUP_TABLE` on IPv4, plus fibmatch and notify. Then
+  every attribute's bytes. The ports and flow label are network order
+  (`get_be16`/`get_be32`), the mark and uid host order, `RTA_MARK` absent
+  for mark 0, and `RTA_OIF` as d0's index. `x/sys/unix` has no
+  `RTA_FLOWLABEL`, so the test names it as `RtaNhID + 1`. O3 checked 154
+  lookups.
+- **O4** holds the kernel's answer (150 rows). It must leave through
+  `d0`. Without fibmatch it is the destination at full length; with it,
+  the FIB entry that matched, which is shorter and holds the destination,
+  or the default route with no `RTA_DST`.
+- **O5 doesn't apply:** a lookup isn't a write.
+- **Coverage:** route4 rises from 12/19 to 16/19 and route6 from 12/19 to
+  17/19. What remains is `RTA_FLOW` (realms) and `RTA_ENCAP`/`_TYPE`,
+  which belong in the route write spaces. Adding values there regenerates
+  every route row, so it is left for its own step.
+- **Determinism:** a second run of all 161 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestBuildRouteGet` and `TestMatrixRouteGetRows` cover the
+generator. `TestRouteGetWantFromAxes`, `TestRouteGetRequestProblem`,
+`TestRouteGetReplyProblem` and `TestPrefixHolds` cover the oracles.
+
+**Mutation:** 17 of 17 mutants killed, each by a relevant test. Two
+survived the first pass:
+
+- the setup test compared the setup with the constant that built it, so
+  dropping the default routes went unseen. It now names them;
+- no prefix test cut through a byte where the byte and the bits disagree.
+  `TestPrefixHolds` now has a /20 holding 192.0.31.9.
+
+**Size:** the rows add 267 KB of file bytes to `ws/`, 16.2 MB in all.
+
 ### Captures an outside consumer needs: BIRD's netlink parser
 
 Counted from the tree on 2026-10-31. The BIRD routing daemon's kernel protocol
