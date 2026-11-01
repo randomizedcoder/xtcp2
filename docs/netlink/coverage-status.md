@@ -2045,7 +2045,70 @@ mutants were rewritten before they counted, neither a survivor:
 **Size:** the rows add 321 KB of file bytes to `ws/`, 16.0 MB in all,
 against the 20 MB budget.
 
-Next is W4, the coverage report.
+#### Netlink coverage report (W4)
+
+`nlcapgen coverage -linux DIR -ws DIR -out FILE` (`tools/nlcapgen/coverage.go`)
+writes [`ws-coverage.txt`](ws-coverage.txt). For each message family the
+rows write, it lists which attributes of the kernel's policy table some
+request in the workbench corpus sent. That is every row's `ip.pcap`: 4106
+captures. The never-sent list is the to-do list for the next axis values.
+
+- **The policy** is the set of designators in the `nla_policy` table, read
+  from the Linux tree: `rtm_ipv4_policy`, `rtm_ipv6_policy`,
+  `fib_rule_policy`, `rtm_nh_policy_new`, `ifa_ipv4_policy`,
+  `ifa_ipv6_policy`, `nda_policy` and `ifla_policy`. The UNSPEC entry
+  holds only `strict_start_type`, so it isn't counted.
+- **Attribute numbers** come from the uapi enum: its place in the enum, or
+  an explicit value.
+- **The requests counted** are every type whose kernel handler parses with
+  that table. The route, address, link and neighbor tables also judge
+  their family's gets and dumps (`inet_rtm_getroute`, the address dump
+  checks, `rtnl_getlink`, the neighbor get and dump checks). The rule and
+  new-nexthop tables judge only writes.
+- Route and address requests are split by family, so an `AF_UNSPEC`
+  address dump counts for neither.
+
+| family | sent / policy | requests | never sent, though ip has a keyword for it | never sent, and no iproute2 code sends it |
+|---|---|---|---|---|
+| route4 | 12 / 19 | 494 | `RTA_FLOW` (realms), `RTA_ENCAP`/`_TYPE` (encap), `RTA_UID`, `RTA_IP_PROTO`, `RTA_SPORT`, `RTA_DPORT` (route get) | — |
+| route6 | 12 / 19 | 461 | `RTA_ENCAP`/`_TYPE`, `RTA_UID`, `RTA_IP_PROTO`, `RTA_SPORT`, `RTA_DPORT`, `RTA_FLOWLABEL` (route get) | — |
+| rule | 23 / 23 | 464 | — | — |
+| nexthop | 11 / 12 | 494 | `NHA_DST_PORT`, which iproute2 7.2.0 predates (W2d) | — |
+| addr4, addr6 | 8 / 9, 6 / 7 | 110, 103 | — | `IFA_TARGET_NETNSID` |
+| neigh | 4 / 13 | 262 | `NDA_IFINDEX`, `NDA_MASTER` (neigh dump filters); `NDA_VLAN`, `NDA_PORT`, `NDA_VNI`, `NDA_NH_ID`, `NDA_FDB_EXT_ATTRS` (`bridge fdb`, W5) | `NDA_CACHEINFO`, `NDA_PROBES` |
+| link | 19 / 56 | 2548 | `IFLA_MASTER`, `IFLA_AF_SPEC` (addrgenmode), `IFLA_NET_NS_FD`, `IFLA_CARRIER`, `IFLA_LINK_NETNSID`, `IFLA_PROTO_DOWN` and `_REASON`, `IFLA_XDP`, `IFLA_TARGET_NETNSID`, `IFLA_NEW_IFINDEX`, `IFLA_PROP_LIST`/`IFLA_ALT_IFNAME` (altname), `IFLA_PARENT_DEV_NAME`, `IFLA_VFINFO_LIST` | 23, mostly ones the kernel only reports (`IFLA_PROMISCUITY`, the carrier counters, `IFLA_MIN_MTU`/`MAX_MTU`, `IFLA_PERM_ADDRESS`, `IFLA_TSO_MAX_*`, …), plus `IFLA_MAP`, `IFLA_WEIGHT`, `IFLA_NET_NS_PID`, `IFLA_VF_PORTS`, `IFLA_PORT_SELF` and `IFLA_PACING_OFFLOAD`, which the kernel takes and iproute2 7.2.0 has no keyword for |
+
+Whether ip has a keyword was checked by searching iproute2's `ip/`, `lib/`
+and `bridge/` for each name where an attribute is added. A plain
+line-by-line search for `addattr…(…NAME` missed four that are added over
+two lines or through a helper: `RTA_ENCAP` (via `rta_nest`),
+`IFLA_PROP_LIST`, `IFLA_PROTO_DOWN_REASON` and `IFLA_VFINFO_LIST`.
+
+**What the report showed besides the gaps** ("sent outside the policy",
+each checked against the kernel source):
+
+- **`rtm_ipv4_policy` has no `RTA_VIA`**, and `rtm_ipv6_policy` no `RTA_DST`
+  or `RTA_SRC`. The kernel reads them without policy validation
+  (`fib_gw_from_via`; `rtm_to_fib6_config` copies the prefixes itself).
+- **`fib_rule_policy` has no `FRA_DST` or `FRA_SRC`.** Each family's
+  `configure` hook checks them.
+- **ip sends `IFA_LABEL` and `IFA_BROADCAST` on IPv6**, which
+  `ifa_ipv6_policy` doesn't name and the kernel ignores (W3a).
+- **IPv6 requests carry `RTA_CACHEINFO`.** These are `ip -6 route flush`'s
+  deletes, which echo back the dumped routes' attributes, cache info
+  included (18 mined fib rows).
+
+**Tests:** `TestUapiEnum`, `TestPolicyNames`, `TestFindPolicy`,
+`TestLoadPolicies`, `TestCovTally` and `TestWriteCoverage`, on fixture
+trees and hand-built messages, since the Linux tree isn't available to the
+hermetic tests.
+
+**Mutation:** 16 of 16 mutants killed, each by a relevant test. One
+survived the first pass: every test attribute was 8 bytes long, so
+dropping the walk's alignment to four bytes changed nothing.
+`TestCovTally` now has an odd-length attribute followed by another.
+
+Next is W4b: rows for the keywords in the table's fourth column.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 
