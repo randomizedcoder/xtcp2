@@ -104,12 +104,13 @@ var families = map[string]func() []*space{
 	"rule":    func() []*space { return []*space{rule4Space(), rule6Space()} },
 	"nexthop": func() []*space { return []*space{nh4Space(), nh6Space(), nhGroupSpace()} },
 	"addr":    func() []*space { return []*space{addr4Space(), addr6Space()} },
+	"neigh":   func() []*space { return []*space{neigh4Space(), neigh6Space()} },
 }
 
 func runMatrix(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr")
+	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh")
 	seed := fs.Uint64("seed", 1, "the random rows' seed, recorded in their ids")
 	random := fs.Int("random", 0, "random rows per space")
 	out := fs.String("out", "", "rows file to write")
@@ -118,7 +119,7 @@ func runMatrix(args []string, stdout, stderr io.Writer) int {
 	}
 	spaces, ok := families[*family]
 	if !ok || *out == "" || *random < 0 {
-		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr) and -out are required, -random must be >= 0")
+		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh) and -out are required, -random must be >= 0")
 		return 2
 	}
 	rows, err := matrixRows(spaces(), matrixOpts{Seed: *seed, Random: *random})

@@ -40,9 +40,10 @@ const wsCorpusDir = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 const wsO5Golden = "testdata/ws-differential.txt"
 
 // wsO5Spaces are the row directories O5 reads, in report order: the
-// matrix's, then those mined from the fib selftests, then the address
-// matrix's.
-var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule", "addr4", "addr6"}
+// matrix's, then those mined from the fib selftests, then the address and
+// neighbor matrices'.
+var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
+	"addr4", "addr6", "neigh4", "neigh6"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -105,10 +106,11 @@ func wsO5Applies(args []string) bool {
 
 // wsO5Runners runs one object's args, as runRouteCtx does for route.
 var wsO5Runners = map[string]func(*runCtx, []string) (int, string, string){
-	"route":   runRouteCtx,
-	"rule":    runRuleCtx,
-	"nexthop": runNexthopCtx,
-	"address": runAddrWith,
+	"route":    runRouteCtx,
+	"rule":     runRuleCtx,
+	"nexthop":  runNexthopCtx,
+	"address":  runAddrWith,
+	"neighbor": runNeighCtx,
 }
 
 // wsO5HdrLen is each write's family header, the attributes following it.
@@ -122,6 +124,8 @@ func wsO5HdrLen(msgType uint16) int {
 		return xtcpnl.NhMsgSizeCst
 	case unix.RTM_NEWADDR, unix.RTM_DELADDR:
 		return xtcpnl.IfAddrmsgSizeCst
+	case unix.RTM_NEWNEIGH, unix.RTM_DELNEIGH:
+		return xtcpnl.NdMsgSizeCst
 	default:
 		return -1
 	}
@@ -176,6 +180,8 @@ func TestWsO5HdrLen(t *testing.T) {
 		{"positive: a nexthop's nhmsg", unix.RTM_NEWNEXTHOP, xtcpnl.NhMsgSizeCst},
 		{"positive: an address's ifaddrmsg", unix.RTM_NEWADDR, xtcpnl.IfAddrmsgSizeCst},
 		{"positive: a deleted address's ifaddrmsg", unix.RTM_DELADDR, xtcpnl.IfAddrmsgSizeCst},
+		{"positive: a neighbor's ndmsg", unix.RTM_NEWNEIGH, xtcpnl.NdMsgSizeCst},
+		{"positive: a deleted neighbor's ndmsg", unix.RTM_DELNEIGH, xtcpnl.NdMsgSizeCst},
 		{"negative: a type O5 does not compare", unix.RTM_NEWLINK, -1},
 		{"boundary: type 0", 0, -1},
 	}
@@ -251,14 +257,15 @@ func wsO5WriteDiff(ip, goip []byte) string {
 	return strings.Join(parts, "; ")
 }
 
-// wsO5Lookups compares goip's lookups with ip's: the RTM_GETLINK requests
-// ip sent before anything else. It returns "" when they match, and
-// otherwise how they differ; a difference only in IFLA_EXT_MASK says which
-// masks, since iproute2 7.2.0 added RTEXT_FILTER_NAME_ONLY to ll_link_get
-// (lib/ll_map.c:276) after goip modeled 7.1's.
-func wsO5Lookups(ipLook, gets [][]byte) string {
+// wsO5Lookups compares goip's RTM_GETLINK requests of one kind (noun:
+// "lookup" or "dump") with those ip sent before anything else. It returns
+// "" when they match, and otherwise how they differ; a difference only in
+// IFLA_EXT_MASK says which masks, since iproute2 7.2.0 added
+// RTEXT_FILTER_NAME_ONLY to ll_link_get and ll_init_map's dump
+// (lib/ll_map.c:276 and :397, commit de91e928) after goip modeled 7.1's.
+func wsO5Lookups(noun string, ipLook, gets [][]byte) string {
 	if len(ipLook) != len(gets) {
-		return fmt.Sprintf("goip sent %d lookups, ip %d", len(gets), len(ipLook))
+		return fmt.Sprintf("goip sent %d %ss, ip %d", len(gets), noun, len(ipLook))
 	}
 	masks := map[string]bool{}
 	for i := range gets {
@@ -271,11 +278,23 @@ func wsO5Lookups(ipLook, gets [][]byte) string {
 		delete(ia, unix.IFLA_EXT_MASK)
 		delete(ga, unix.IFLA_EXT_MASK)
 		if !bytes.Equal(ih, gh) || len(im) != 4 || len(gm) != 4 || !maps.EqualFunc(ia, ga, bytes.Equal) {
-			return fmt.Sprintf("lookup %d differs", i+1)
+			return fmt.Sprintf("%s %d differs", noun, i+1)
 		}
-		masks[fmt.Sprintf("IFLA_EXT_MASK %#x, goip %#x", binary.LittleEndian.Uint32(im), binary.LittleEndian.Uint32(gm))] = true
+		masks[fmt.Sprintf("%s IFLA_EXT_MASK %#x, goip %#x", noun, binary.LittleEndian.Uint32(im), binary.LittleEndian.Uint32(gm))] = true
 	}
 	return strings.Join(slices.Sorted(maps.Keys(masks)), "; ")
+}
+
+// wsO5MaskOnly reports whether every part of a lookups note is a
+// difference in IFLA_EXT_MASK alone, which the report counts in its header
+// rather than listing row by row.
+func wsO5MaskOnly(lookups string) bool {
+	for part := range strings.SplitSeq(lookups, "; ") {
+		if _, rest, ok := strings.Cut(part, " "); !ok || !strings.HasPrefix(rest, "IFLA_EXT_MASK ") {
+			return false
+		}
+	}
+	return lookups != ""
 }
 
 // wsO5LinkAttrs is an RTM_GETLINK's ifinfomsg and attributes.
@@ -315,15 +334,20 @@ func wsO5Compare(ipWrites, writes [][]byte, goipErr string) (outcome, detail str
 	return o5Same, ""
 }
 
-// wsO5Split splits ip's requests into its leading RTM_GETLINK lookups and
-// the rest.
-func wsO5Split(ipReqs [][]byte) (look, rest [][]byte) {
+// wsO5Split splits ip's requests into its leading RTM_GETLINK requests,
+// lookups and dumps apart (ll_init_map dumps every link, as ip neigh does
+// before its lookup), and the rest.
+func wsO5Split(ipReqs [][]byte) (look, dumps, rest [][]byte) {
 	n := 0
-	for n < len(ipReqs) && len(ipReqs[n]) >= xtcpnl.NlMsgHdrSizeCst &&
-		binary.LittleEndian.Uint16(ipReqs[n][4:6]) == unix.RTM_GETLINK {
-		n++
+	for ; n < len(ipReqs) && len(ipReqs[n]) >= xtcpnl.NlMsgHdrSizeCst &&
+		binary.LittleEndian.Uint16(ipReqs[n][4:6]) == unix.RTM_GETLINK; n++ {
+		if binary.LittleEndian.Uint16(ipReqs[n][6:8])&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
+			dumps = append(dumps, ipReqs[n])
+		} else {
+			look = append(look, ipReqs[n])
+		}
 	}
-	return ipReqs[:n], ipReqs[n:]
+	return look, dumps, ipReqs[n:]
 }
 
 // wsO5Row runs one row through goip and classifies it.
@@ -353,15 +377,15 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 	if rc != 0 {
 		goipErr = strings.TrimSpace(strings.TrimPrefix(strings.SplitN(stderr, "\n", 2)[0], "goip: "))
 	}
-	look, ipWrites := wsO5Split(ipReqs)
+	look, dumps, ipWrites := wsO5Split(ipReqs)
 	for i := range ipWrites {
 		var z bool
 		ipWrites[i], z = wsO5ZeroMetricsPad(ipWrites[i])
 		pad = pad || z
 	}
-	lookups = wsO5Lookups(look, src.gets)
-	if len(src.dumpReqs) != 0 {
-		lookups = strings.TrimPrefix(lookups+fmt.Sprintf("; goip sent %d dumps", len(src.dumpReqs)), "; ")
+	lookups = wsO5Lookups("lookup", look, src.gets)
+	if d := wsO5Lookups("dump", dumps, src.dumpReqs); d != "" {
+		lookups = strings.TrimPrefix(lookups+"; "+d, "; ")
 	}
 	outcome, detail = wsO5Compare(ipWrites, writes, goipErr)
 	if outcome == o5Refuses {
@@ -417,7 +441,7 @@ func TestWsGoipDifferential(t *testing.T) {
 			if outcome != o5Same {
 				report = append(report, fmt.Sprintf("%s %s rc=%d %s | %s", row.ID, outcome, row.Result.RC, detail, row.Cmd))
 			}
-			if lookups != "" && !strings.HasPrefix(lookups, "IFLA_EXT_MASK") {
+			if lookups != "" && !wsO5MaskOnly(lookups) {
 				report = append(report, fmt.Sprintf("%s lookups rc=%d %s | %s", row.ID, row.Result.RC, lookups, row.Cmd))
 			}
 		}
@@ -579,53 +603,90 @@ func TestWsO5Lookups(t *testing.T) {
 	get := func(hdr []byte, attrs ...[]byte) []byte { return o5Msg(unix.RTM_GETLINK, 1, hdr, attrs...) }
 	ip := get(ifi(0), name, mask(0x09, 0x01))
 	goip := get(ifi(0), name, mask(0x09, 0))
+	dump := o5Msg(unix.RTM_GETLINK, unix.NLM_F_REQUEST|unix.NLM_F_DUMP, ifi(0), mask(0x01, 0))
 	tests := []struct {
 		description string
+		noun        string
 		ipLook      [][]byte
 		gets        [][]byte
 		expected    string
 	}{
-		{"positive: the same lookup", [][]byte{goip}, [][]byte{goip}, ""},
-		{"positive: only the 7.2.0 ext mask differs", [][]byte{ip, ip}, [][]byte{goip, goip},
-			"IFLA_EXT_MASK 0x109, goip 0x9"},
-		{"negative: goip skips a lookup", [][]byte{ip}, nil, "goip sent 0 lookups, ip 1"},
-		{"negative: another name", [][]byte{ip}, [][]byte{get(ifi(0), fraOf(unix.IFLA_IFNAME, 'd', '1', 0), mask(0x09, 0))},
+		{"positive: the same lookup", "lookup", [][]byte{goip}, [][]byte{goip}, ""},
+		{"positive: only the 7.2.0 ext mask differs", "lookup", [][]byte{ip, ip}, [][]byte{goip, goip},
+			"lookup IFLA_EXT_MASK 0x109, goip 0x9"},
+		{"negative: goip skips a lookup", "lookup", [][]byte{ip}, nil, "goip sent 0 lookups, ip 1"},
+		{"negative: another name", "lookup", [][]byte{ip}, [][]byte{get(ifi(0), fraOf(unix.IFLA_IFNAME, 'd', '1', 0), mask(0x09, 0))},
 			"lookup 1 differs"},
-		{"negative: another ifinfomsg", [][]byte{goip, ip}, [][]byte{goip, get(ifi(2), name, mask(0x09, 0))},
+		{"negative: another ifinfomsg", "lookup", [][]byte{goip, ip}, [][]byte{goip, get(ifi(2), name, mask(0x09, 0))},
 			"lookup 2 differs"},
-		{"corner: an ext mask only goip sends", [][]byte{get(ifi(0), name)}, [][]byte{goip}, "lookup 1 differs"},
-		{"boundary: no lookups on either side", nil, nil, ""},
+		{"corner: an ext mask only goip sends", "lookup", [][]byte{get(ifi(0), name)}, [][]byte{goip}, "lookup 1 differs"},
+		{"boundary: no lookups on either side", "lookup", nil, nil, ""},
+		{"positive: the same link dump", "dump", [][]byte{dump}, [][]byte{dump}, ""},
+		{"negative: goip skips ip's link dump", "dump", [][]byte{dump}, nil, "goip sent 0 dumps, ip 1"},
+		{"positive: only the 7.2.0 ext mask of the dump differs", "dump",
+			[][]byte{o5Msg(unix.RTM_GETLINK, unix.NLM_F_REQUEST|unix.NLM_F_DUMP, ifi(0), mask(0x09, 0x01))}, [][]byte{dump},
+			"dump IFLA_EXT_MASK 0x109, goip 0x1"},
+		{"negative: goip dumps where ip did not", "dump", nil, [][]byte{dump}, "goip sent 1 dumps, ip 0"},
 	}
 	for i := range tests {
 		tc := &tests[i]
 		t.Run(tc.description, func(t *testing.T) {
-			if got := wsO5Lookups(tc.ipLook, tc.gets); got != tc.expected {
+			if got := wsO5Lookups(tc.noun, tc.ipLook, tc.gets); got != tc.expected {
 				t.Fatalf("got %q, want %q", got, tc.expected)
 			}
 		})
 	}
 }
 
-// TestWsO5Split splits ip's requests at its first one that is not a lookup.
-func TestWsO5Split(t *testing.T) {
-	get := o5Msg(unix.RTM_GETLINK, 1, make([]byte, unix.SizeofIfInfomsg))
-	add := o5Msg(unix.RTM_NEWROUTE, 0x605, make([]byte, xtcpnl.RtMsgSizeCst))
+func TestWsO5MaskOnly(t *testing.T) {
 	tests := []struct {
 		description string
-		reqs        [][]byte
-		expected    [2]int // lookups, the rest
+		lookups     string
+		expected    bool
 	}{
-		{"positive: two lookups, then the write", [][]byte{get, get, add}, [2]int{2, 1}},
-		{"boundary: no lookups", [][]byte{add}, [2]int{0, 1}},
-		{"boundary: no requests", nil, [2]int{0, 0}},
-		{"corner: a lookup after the write stays with it", [][]byte{add, get}, [2]int{0, 2}},
-		{"corner: a request shorter than a netlink header ends the lookups", [][]byte{get, {1, 2}}, [2]int{1, 1}},
+		{"positive: a lookup's mask", "lookup IFLA_EXT_MASK 0x109, goip 0x9", true},
+		{"positive: a dump's mask", "dump IFLA_EXT_MASK 0x109, goip 0x1", true},
+		{"positive: both", "lookup IFLA_EXT_MASK 0x109, goip 0x9; dump IFLA_EXT_MASK 0x109, goip 0x1", true},
+		{"negative: a lookup that differs otherwise", "lookup 1 differs", false},
+		{"negative: a mask and a count", "lookup IFLA_EXT_MASK 0x109, goip 0x9; goip sent 0 dumps, ip 1", false},
+		{"boundary: no note", "", false},
+		{"corner: the mask without its noun", "IFLA_EXT_MASK 0x109, goip 0x9", false},
 	}
 	for i := range tests {
 		tc := &tests[i]
 		t.Run(tc.description, func(t *testing.T) {
-			look, rest := wsO5Split(tc.reqs)
-			if got := [2]int{len(look), len(rest)}; got != tc.expected {
+			if got := wsO5MaskOnly(tc.lookups); got != tc.expected {
+				t.Fatalf("got %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestWsO5Split splits ip's requests at its first one that is not a
+// lookup or a link dump.
+func TestWsO5Split(t *testing.T) {
+	get := o5Msg(unix.RTM_GETLINK, 1, make([]byte, unix.SizeofIfInfomsg))
+	dump := o5Msg(unix.RTM_GETLINK, unix.NLM_F_REQUEST|unix.NLM_F_DUMP, make([]byte, unix.SizeofIfInfomsg))
+	add := o5Msg(unix.RTM_NEWROUTE, 0x605, make([]byte, xtcpnl.RtMsgSizeCst))
+	tests := []struct {
+		description string
+		reqs        [][]byte
+		expected    [3]int // lookups, dumps, the rest
+	}{
+		{"positive: two lookups, then the write", [][]byte{get, get, add}, [3]int{2, 0, 1}},
+		{"positive: ip neigh's link dump, then its lookup, then the write", [][]byte{dump, get, add}, [3]int{1, 1, 1}},
+		{"boundary: no lookups", [][]byte{add}, [3]int{0, 0, 1}},
+		{"boundary: no requests", nil, [3]int{0, 0, 0}},
+		{"corner: a lookup after the write stays with it", [][]byte{add, get}, [3]int{0, 0, 2}},
+		{"corner: a request shorter than a netlink header ends the lookups", [][]byte{get, {1, 2}}, [3]int{1, 0, 1}},
+		{"corner: NLM_F_ROOT alone is not a dump", [][]byte{o5Msg(unix.RTM_GETLINK, unix.NLM_F_REQUEST|unix.NLM_F_ROOT, make([]byte, unix.SizeofIfInfomsg)), add},
+			[3]int{1, 0, 1}},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			look, dumps, rest := wsO5Split(tc.reqs)
+			if got := [3]int{len(look), len(dumps), len(rest)}; got != tc.expected {
 				t.Fatalf("got %v, want %v", got, tc.expected)
 			}
 		})

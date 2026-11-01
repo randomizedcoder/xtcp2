@@ -1774,7 +1774,106 @@ pass left four survivors, each fixed by adding a test:
 
 **Size:** the rows add 771 KB of file bytes to `ws/`, 14.2 MB in all.
 
-Next is W3b, `ip neigh`.
+##### W3b: `ip neigh`
+
+`nlcapgen matrix -family neigh -seed 1 -random 40` writes
+`nix/microvms/workbench/neigh.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_neigh.go`. Each row runs in a fresh namespace
+holding a veth pair, `d0` and `d1`, both up, with 192.0.2.10/24 and
+2001:db8:1::10/64 on `d0`. A dummy device won't do here, since it is NOARP
+and resolves nothing. A `change` or `del` first adds the entry it works
+on, and a proxy row reads back `ip neigh show proxy`, since the plain dump
+leaves proxy entries out.
+
+| space | axes | rows | corner | negative |
+|---|---|---|---|---|
+| neigh4 | verb, dst (incl. broadcast, multicast, proxy), lladdr, nud, flags, protocol | 138 | 87 | 51 |
+| neigh6 | the same, with a link-local destination in place of broadcast | 137 | 82 | 55 |
+
+No row is plain `positive:`. The all-plain row (`add 192.0.2.1 dev d0`)
+has no link-layer address, so it is a judged negative, and every other row
+takes at least one corner value.
+
+**What the kernel does** (`net/core/neighbour.c` `neigh_add` and
+`__neigh_update`, each a row or a judged negative). All 275 rows passed
+on the first run.
+
+- **A new entry in a valid state needs a link-layer address**, or the
+  kernel refuses it with EINVAL ("No link layer address given"). That
+  includes the default state, NUD_PERMANENT, so `ip neigh add 192.0.2.1
+  dev d0` fails.
+- **Not for a multicast or broadcast destination.** `arp_constructor` and
+  `ndisc_constructor` start such an entry NUD_NOARP, which is valid, so
+  the kernel keeps the address it already has.
+- **`none`, `incomplete` and `failed` need no address.** They aren't
+  NUD_VALID, so `__neigh_update` stores the state and returns.
+- **`use` and `managed` return before that check.** `managed` also sets
+  the state to NUD_NONE, and it wins over a `nud` before it on the line.
+- **`extern_valid` needs a valid state** on a new entry (EINVAL, "Cannot
+  create externally validated neighbor with an invalid state").
+- **A proxy entry refuses `managed` and `extern_valid`** ("Invalid NTF_*
+  flag combination") and takes anything else. Added twice, it is found
+  rather than refused, so the duplicate-add negatives skip proxy rows.
+- **`change` of an absent entry is ENOENT.** change sends NLM_F_REPLACE
+  without NLM_F_CREATE. `Derive` writes three such rows (`chgone-*`).
+- **`router` is stored only with a valid state.** `__neigh_update` leaves
+  for an invalid state, `use` or `managed` before it updates
+  `NTF_ROUTER` (`net/core/neighbour.c:1460`), while `extern_learn` is set
+  earlier, by `neigh_update_flags`. O4 first expected the router flag on
+  8 such rows.
+
+**A parser gap closed.** `ParseNeigh` skipped `NDA_PROTOCOL`, which ip sends
+for `protocol` and the kernel dumps back. `NeighInfo` now has `Protocol`
+and `HasProtocol`, with table rows and `NdaProtocol` pinned at 12 next to
+`NdaFlagsExt`.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_neigh_test.go`):
+
+- **O3** rebuilds the `NeighInfo` the request should parse to: the state
+  (NUD_PERMANENT unless named), `NTF_PROXY`, `NDA_FLAGS_EXT` only when an
+  extended flag is set, and `NDA_PROTOCOL` only when named. The index must
+  be `d0`'s, found by name in the link dump ip reads first (`ll_init_map`),
+  where `lo` comes first. O3 checked 262 requests.
+- **O4** finds the entry in the dump after each accepted write (169 rows).
+  It checks the flags asked for, the extended flags and the protocol, plus
+  the state and link-layer address for a permanent or noarp entry, unless
+  `use` or `managed` handed the entry to the kernel to resolve. A
+  reachable entry may have gone stale by the readback, so other states
+  aren't compared.
+- **O5:** goip sends the same request as ip on all 275 rows (neigh4 138,
+  neigh6 137). ip neigh dumps every link before its write, and O5 used to
+  count that dump as a lookup goip skipped. `wsO5Split` now sets ip's
+  leading `NLM_F_DUMP` link requests apart and compares them with goip's
+  dumps byte for byte. They differ only in `IFLA_EXT_MASK`: 0x109 from ip,
+  0x1 from goip. iproute2 7.2.0's de91e928 added
+  `RTEXT_FILTER_SKIP_STATS | RTEXT_FILTER_NAME_ONLY` to `ll_init_map`'s
+  dump as well as to `ll_link_get`, and goip models 7.1. The report's mask
+  notes now say whether they come from a lookup or a dump.
+- **Determinism:** a second run of all 275 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestNeighJudge` (17 rows), `TestBuildNeigh`, `TestNeighCanDup`,
+`TestDeriveNeighChangeGone` and `TestMatrixNeighRows` cover the generator.
+`TestNeighWantFromAxes`, `TestNeighRequestProblem` and
+`TestNeighDumpMatches` cover the oracles. `TestWsO5Split`, `TestWsO5Lookups`
+and `TestWsO5MaskOnly` cover O5's dump handling.
+
+**Mutation:** 33 of 33 mutants killed, each by a relevant test. The first
+pass ran 35 and left three survivors:
+
+- the derive test didn't check that a proxy change was skipped, since
+  its proxy and plain sources had the same command. It now checks the
+  derived row's axes;
+- `managed` setting the state to NUD_NONE in the judge was dead code.
+  `flags` is one axis, so `managed` never meets `extern_valid`, and it was
+  removed;
+- judging a change's setup add as an add was equivalent to judging the
+  change itself, since the judge refuses one exactly when it refuses the
+  other. The line was removed. Neither removal changed the rows.
+
+**Size:** the rows add 707 KB of file bytes to `ws/`, 14.9 MB in all.
+
+Next is W3c, `ip link`.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

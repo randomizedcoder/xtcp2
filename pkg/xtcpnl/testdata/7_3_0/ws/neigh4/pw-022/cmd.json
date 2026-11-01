@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "dst": "192.0.2.50",
+  "family": "4",
+  "protocol": "99",
+  "proxy": "1",
+  "state": "8",
+  "verb": "del"
+ },
+ "cmd": "ip -4 neigh del proxy 192.0.2.50 lladdr null nud delay proto 99 dev d0",
+ "desc": "corner: verb=del dst=proxy lladdr=null nud=delay flags=absent proto=abbrev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "neigh4/pw-022",
+ "pre": [
+  "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 neigh add proxy 192.0.2.50 lladdr null nud delay proto 99 dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 neigh show proxy dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 neigh add proxy 192.0.2.50 lladdr null nud delay proto 99 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

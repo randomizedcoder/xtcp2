@@ -325,6 +325,34 @@ func TestParseNeigh(t *testing.T) {
 			},
 		},
 		{
+			description: "positive: NDA_PROTOCOL lands in Protocol with its presence bit",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_PERMANENT, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 2)),
+				rtattr(NdaProtocol, []byte{unix.RTPROT_STATIC}),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_PERMANENT,
+				Dst: v4b(10, 0, 0, 2), Protocol: unix.RTPROT_STATIC, HasProtocol: true,
+			},
+		},
+		{
+			description: "boundary: NDA_PROTOCOL 0 is present and zero, not absent",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaProtocol, []byte{0}),
+			),
+			want: NeighInfo{Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_PERMANENT, HasProtocol: true},
+		},
+		{
+			description: "corner: a zero-length NDA_PROTOCOL leaves the presence bit false",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaProtocol, nil),
+			),
+			want: NeighInfo{Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_PERMANENT},
+		},
+		{
 			description: "positive: AF_BRIDGE FDB entry with NDA_MASTER and NDA_VLAN",
 			body: concat(
 				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, unix.NTF_MASTER, 0),
@@ -855,6 +883,11 @@ func TestNdaFlagsExtValue(t *testing.T) {
 		{
 			description: "corner: the skipped middle of the tail is NDA_PROTOCOL then NDA_NH_ID",
 			got:         NdaFlagsExt - 3,
+			want:        ndaProtocol,
+		},
+		{
+			description: "positive: NdaProtocol is NDA_PROTOCOL, one past NDA_SRC_VNI",
+			got:         NdaProtocol,
 			want:        ndaProtocol,
 		},
 		{

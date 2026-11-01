@@ -65,6 +65,10 @@ const (
 // Reference: https://github.com/torvalds/linux/blob/master/include/uapi/linux/neighbour.h
 const NdaFlagsExt uint16 = 15
 
+// NdaProtocol is NDA_PROTOCOL, the entry's originator (an RTPROT_* byte),
+// 12 by the same count as NdaFlagsExt.
+const NdaProtocol uint16 = 12
+
 // NTF_EXT_* are the NDA_FLAGS_EXT bits. They share no numbering with the
 // ndm_flags NTF_* constants — both sets start at bit 0 — so the two must never
 // be tested against the same word. That is the whole reason NeighInfo keeps
@@ -191,6 +195,12 @@ type NeighInfo struct {
 	HasMaster bool   // NDA_MASTER present
 	Vlan      uint16 // NDA_VLAN
 	HasVlan   bool   // NDA_VLAN present
+
+	// Protocol is NDA_PROTOCOL, the RTPROT_* that made the entry. It has a
+	// presence bit because print_neigh prints the token whenever the
+	// attribute exists, and ip sends it only when `protocol` is given.
+	Protocol    uint8 // NDA_PROTOCOL
+	HasProtocol bool  // NDA_PROTOCOL present
 }
 
 // nudStateNames maps each single NUD_* bit to its kernel name. ndm_state is a
@@ -297,6 +307,10 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 			if len(val) >= 2 {
 				ni.Vlan = binary.LittleEndian.Uint16(val[0:2])
 				ni.HasVlan = true
+			}
+		case NdaProtocol:
+			if len(val) >= 1 {
+				ni.Protocol, ni.HasProtocol = val[0], true
 			}
 		case NdaFlagsExt:
 			// The length guard is this package's convention for a u32
