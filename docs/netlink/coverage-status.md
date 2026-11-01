@@ -184,11 +184,14 @@ object**. They are **replay-grounded, not yet live-grounded**:
 `TestVrfShowMatchesCapturedSidecars` diffs `goip` byte-for-byte (text) and
 structurally (`-j`) against the committed `ip_vrf`/`ip_vrf_json` sidecars in all
 three topologies — base carries `goipvrf` (table 100), mesh and tunnel are the
-empty "No VRF has been configured" form (`[]` in JSON). `vrf show NAME` (the
-`ipvrf_get_table` single-lookup path), the family selectors `-4`/`-6` (they change
-the dump family to a minimal `inet6_dump_ifinfo` whose replies carry no
-`IFLA_LINKINFO`) and the `identify`/`pids`/`exec` subcommands (not read-only
-netlink queries) are refused with a rationale. **Both rows are now gated**:
+empty "No VRF has been configured" form (`[]` in JSON). `vrf show NAME` is
+implemented since VS2 ([vrf-show-name.md](vrf-show-name.md)):
+`ipvrf_get_table`'s single lookup, the same request `nexthop show vrf NAME`
+sends, answered with `NAME table`, `Invalid VRF` rc 1, or `default 254` on
+ENODEV. The family selectors `-4`/`-6` (they change the dump family to a
+minimal `inet6_dump_ifinfo` whose replies carry no `IFLA_LINKINFO`) and the
+`identify`/`pids`/`exec` subcommands (not read-only netlink queries) are
+refused with a rationale. **Both rows are now gated**:
 [runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
 measured them the pristine way — `control: nl=0 stdout=0`, nothing suppressed,
 `txns: ip=1 goip=1` on both — the single filtered dump and no side transaction,

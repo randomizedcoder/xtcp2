@@ -2,8 +2,10 @@ package goip
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
@@ -310,10 +312,10 @@ func TestRunVrfArgs(t *testing.T) {
 			wantStdoutPrefix: "Name",
 		},
 		{
-			description:      "negative: `vrf show NAME` is the table-lookup path, refused",
+			description:      "negative: `vrf show red` is a lookup the dump cannot answer, Invalid VRF",
 			args:             []string{"vrf", "show", "red"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "Invalid VRF",
 		},
 		{
 			description:      "negative: `-6 vrf show` changes the dump shape, refused",
@@ -340,10 +342,16 @@ func TestRunVrfArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			description:      "corner: a trailing token after show is refused",
+			description:      "corner: two names after show are the usage block, exit 255",
 			args:             []string{"vrf", "show", "foo", "bar"},
-			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantCode:         ExitMinusOne,
+			wantStderrSubstr: "Usage:\tip vrf show [NAME]",
+		},
+		{
+			description:      "corner: `vrf help` is the usage block, exit 255",
+			args:             []string{"vrf", "help"},
+			wantCode:         ExitMinusOne,
+			wantStderrSubstr: "Usage:\tip vrf show [NAME]",
 		},
 	}
 
@@ -360,6 +368,288 @@ func TestRunVrfArgs(t *testing.T) {
 			}
 			if tt.wantStderrSubstr != "" && !bytes.Contains(stderr.Bytes(), []byte(tt.wantStderrSubstr)) {
 				t.Errorf("stderr = %q, want it to contain %q", stderr.String(), tt.wantStderrSubstr)
+			}
+		})
+	}
+}
+
+// vrfNameLink is one row of vrfNameSource's guest: the kind and table the
+// device's reply carries.
+type vrfNameLink struct {
+	kind  string
+	table uint32
+}
+
+// vrfNameSource answers the by-name vrf get the way the guest does
+// (ipvrf_get_table's half, ip/iplink_vrf.c:102-166): the named device's
+// reply — IFLA_IFNAME, IFLA_LINKINFO with the kind and, for a vrf,
+// IFLA_INFO_DATA's table — or the kernel's ENODEV for a name it does not
+// hold. talks and dumps keep every request, so a row can assert that the
+// NAME form sends exactly one get and no dump.
+type vrfNameSource struct {
+	Source
+	links map[string]vrfNameLink
+	talks [][]byte
+	dumps [][]byte
+}
+
+func (v *vrfNameSource) Dump(request []byte, msgType uint16) ([][]byte, error) {
+	v.dumps = append(v.dumps, append([]byte(nil), request...))
+	return v.Source.Dump(request, msgType)
+}
+
+func (v *vrfNameSource) Talk(request []byte, _ uint16) ([]byte, error) {
+	v.talks = append(v.talks, append([]byte(nil), request...))
+	body := request[unix.NLMSG_HDRLEN:]
+	var name string
+	for a := body[xtcpnl.IfInfomsgSizeCst:]; len(a) >= 4; {
+		l := int(binary.LittleEndian.Uint16(a[0:2]))
+		if l < 4 || l > len(a) {
+			break
+		}
+		if binary.LittleEndian.Uint16(a[2:4]) == unix.IFLA_IFNAME {
+			name = strings.TrimRight(string(a[4:l]), "\x00")
+		}
+		a = a[min((l+3)&^3, len(a)):]
+	}
+	link, ok := v.links[name]
+	if !ok {
+		return nil, unix.ENODEV
+	}
+	// The index is cosmetic here — the identity check is by name — but 4 is
+	// goipvrf's real one in the captures, so the rows read like them.
+	attrs := goipRtattr(unix.IFLA_IFNAME, append([]byte(name), 0))
+	info := goipRtattr(unix.IFLA_INFO_KIND, append([]byte(link.kind), 0))
+	if link.kind == vrfKindCst {
+		t := make([]byte, 4)
+		binary.LittleEndian.PutUint32(t, link.table)
+		info = append(info, goipRtattr(unix.IFLA_INFO_DATA, goipRtattr(xtcpnl.IflaVrfTable, t))...)
+	}
+	attrs = append(attrs, goipRtattr(unix.IFLA_LINKINFO, info)...)
+	reply := make([]byte, xtcpnl.IfInfomsgSizeCst+len(attrs))
+	copy(reply[xtcpnl.IfInfomsgSizeCst:], attrs)
+	binary.LittleEndian.PutUint32(reply[4:8], 4)
+	return reply, nil
+}
+
+// TestVrfShowName runs ipvrf_show's NAME branch (VS2,
+// docs/netlink/vrf-show-name.md) at the object level over a Talk source: the
+// `NAME table` line, the Invalid VRF line and rc 1, the usage block and rc
+// 255, and the family refusal — each against what the branch's one request
+// and zero dumps leave on the wire.
+//
+// The stdout rows are byte exact because `ip`'s NAME branch is a single
+// printf, and the -j row pins decision 4: the branch returns before
+// new_json_obj, so the flag changes nothing.
+//
+// go test ./internal/goip/ -run TestVrfShowName$
+func TestVrfShowName(t *testing.T) {
+	tests := []struct {
+		description string
+		expected    string
+		args        []string
+		links       map[string]vrfNameLink
+		json        bool
+		family      uint8
+		wantStdout  string
+		wantStderr  string // the object's own stderr line; empty for a refusal
+		wantErrSub  string // a substring of the returned error; empty wants none
+		wantExit    int
+		wantTalks   int
+		wantDumps   int
+	}{
+		{
+			description: "positive: vrf show goipvrf",
+			expected:    "stdout goipvrf 100\n, rc 0, one get and no dump",
+			args:        []string{"show", "goipvrf"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			wantStdout:  "goipvrf 100\n",
+			wantExit:    ExitOK,
+			wantTalks:   1,
+		},
+		{
+			description: "positive: vrf list goipvrf, the verb synonym",
+			expected:    "the same line",
+			args:        []string{"list", "goipvrf"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			wantStdout:  "goipvrf 100\n",
+			wantExit:    ExitOK,
+			wantTalks:   1,
+		},
+		{
+			// -j must not change this form: the C branch returns before
+			// new_json_obj is ever called (ip/ipvrf.c:591-601), so the plain
+			// line is what stdout holds (decision 4).
+			description: "positive: -j vrf show goipvrf prints the same plain line",
+			expected:    "the NAME branch precedes new_json_obj",
+			args:        []string{"show", "goipvrf"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			json:        true,
+			wantStdout:  "goipvrf 100\n",
+			wantExit:    ExitOK,
+			wantTalks:   1,
+		},
+		{
+			description: "negative: vrf show nosuch",
+			expected:    "stdout empty, Invalid VRF on stderr, rc 1",
+			args:        []string{"show", "nosuch"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			wantStderr:  "Invalid VRF\n",
+			wantErrSub:  "vrf invalid",
+			wantExit:    ExitUsage,
+			wantTalks:   1,
+		},
+		{
+			// The kernel answers the get; the device is not a vrf, so the reply
+			// carries no table and the branch is the Invalid VRF one.
+			description: "negative: vrf show of an existing non-VRF device",
+			expected:    "Invalid VRF\n, rc 1",
+			args:        []string{"show", "goip0"},
+			links:       map[string]vrfNameLink{"goip0": {kind: "dummy"}},
+			wantStderr:  "Invalid VRF\n",
+			wantErrSub:  "vrf invalid",
+			wantExit:    ExitUsage,
+			wantTalks:   1,
+		},
+		{
+			// ipvrf_get_table's special case (iplink_vrf.c:136-142): ENODEV
+			// with the name exactly "default" resolves main, 254, and nothing
+			// else is sent — rtnl_rttable_a2n reads a file, not the socket.
+			description: "positive: vrf show default",
+			expected:    "stdout default 254\n, rc 0, no second request",
+			args:        []string{"show", "default"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			wantStdout:  "default 254\n",
+			wantExit:    ExitOK,
+			wantTalks:   1,
+		},
+		{
+			// The special case is ENODEV-only: a device literally named default
+			// answers the get like any other name and its own table wins.
+			description: "boundary: a vrf literally named default, table 100",
+			expected:    "default 100\n; the special case is ENODEV-only",
+			args:        []string{"show", "default"},
+			links:       map[string]vrfNameLink{"default": {kind: "vrf", table: 100}},
+			wantStdout:  "default 100\n",
+			wantExit:    ExitOK,
+			wantTalks:   1,
+		},
+		{
+			// ipvrf_get_table never validates the name; the kernel answers
+			// ENODEV for one dev_valid_name rejects, so the builder's refusal
+			// takes the ENODEV arm — Invalid VRF, rc 1 — not a build error
+			// (decision 6), and nothing is sent.
+			description: "boundary: a 16-character name",
+			expected:    "Invalid VRF\n, rc 1 — not a build error (decision 6)",
+			args:        []string{"show", "aaaaaaaaaaaaaaaa"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			wantStderr:  "Invalid VRF\n",
+			wantErrSub:  "vrf invalid",
+			wantExit:    ExitUsage,
+		},
+		{
+			description: "corner: vrf show a b",
+			expected:    "the usage block on stderr, rc 255",
+			args:        []string{"show", "a", "b"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			wantErrSub:  "Usage:\tip vrf show [NAME]",
+			wantExit:    ExitMinusOne,
+		},
+		{
+			description: "corner: vrf help",
+			expected:    "the usage block, rc 255",
+			args:        []string{"help"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			wantErrSub:  "Usage:\tip vrf show [NAME]",
+			wantExit:    ExitMinusOne,
+		},
+		{
+			// The family changes only the request's ifi_family byte on this
+			// form, but no capture grounds those bytes, so the form stays refused
+			// (decision 8) and nothing is sent.
+			description: "corner: -4 vrf show goipvrf",
+			expected:    "refused, rc 1, nothing sent",
+			args:        []string{"show", "goipvrf"},
+			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			family:      unix.AF_INET,
+			wantErrSub:  "vrf show NAME with -4/-6",
+			wantExit:    ExitUsage,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("expected: %s", tc.expected)
+			f := &vrfNameSource{Source: openReplay(t, vrfPcapBase), links: tc.links}
+			var stdout, stderr bytes.Buffer
+			c := newRunCtx(&bytes.Buffer{}, &stdout, &stderr)
+			c.src, c.json, c.family = f, tc.json, tc.family
+			err := runVrf(c, tc.args)
+			if code := ioamExit(err); code != tc.wantExit {
+				t.Fatalf("exit %d (%v), want %d", code, err, tc.wantExit)
+			}
+			if len(f.talks) != tc.wantTalks {
+				t.Errorf("Talk calls = %d, want %d", len(f.talks), tc.wantTalks)
+			}
+			if len(f.dumps) != tc.wantDumps {
+				t.Errorf("Dump calls = %d, want %d", len(f.dumps), tc.wantDumps)
+			}
+			if tc.wantErrSub != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrSub) {
+					t.Fatalf("err = %v, want one containing %q", err, tc.wantErrSub)
+				}
+			} else if err != nil {
+				t.Fatalf("runVrf(%q): %v", tc.args, err)
+			}
+			if stdout.String() != tc.wantStdout {
+				t.Errorf("stdout = %q, want %q", stdout.String(), tc.wantStdout)
+			}
+			if stderr.String() != tc.wantStderr {
+				t.Errorf("stderr = %q, want %q", stderr.String(), tc.wantStderr)
+			}
+		})
+	}
+}
+
+// TestVrfShowNameReplay runs the NAME form over the committed captures
+// through GOIP_REPLAY, whose source has no Talk: VrfTableByName's dump
+// fallback answers instead, the one replay path `vrf show NAME` takes. The
+// dump capture's link list holds goipvrf (table 100); the nexthop capture
+// holds the recorded answer to the very get the form sends.
+//
+// go test ./internal/goip/ -run TestVrfShowNameReplay
+func TestVrfShowNameReplay(t *testing.T) {
+	tests := []struct {
+		description string
+		expected    string
+		pcap        string
+		args        []string
+		wantStdout  string
+	}{
+		{
+			description: "positive: the replay over netlink_route_getvrf.pcap",
+			expected:    "goipvrf 100\n through the dump fallback",
+			pcap:        vrfPcapBase,
+			args:        []string{"vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
+		{
+			description: "positive: the replay over netlink_route_getnexthop_vrf.pcap",
+			expected:    "the same, from the one recorded answer",
+			pcap:        corpus730Dir + "netlink_route_getnexthop_vrf.pcap",
+			args:        []string{"vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("expected: %s", tc.expected)
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
+			}
+			if stdout.String() != tc.wantStdout {
+				t.Errorf("stdout = %q, want %q", stdout.String(), tc.wantStdout)
 			}
 		})
 	}

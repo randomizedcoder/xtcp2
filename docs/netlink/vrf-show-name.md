@@ -2,8 +2,8 @@
 
 ## Status
 
-**Last updated:** 2026-10-31. VS0 and VS1 have landed (VS001, VS002);
-VS2–VS4 are open. This document is the plan and its own status.
+**Last updated:** 2026-10-31. VS0 through VS2 have landed (VS001–VS003);
+VS3–VS4 are open. This document is the plan and its own status.
 
 `ip vrf show` (the dump form) and `-j vrf show` are gated matrix rows.
 `ip vrf show NAME` is the one refused-but-pure-netlink path left on the
@@ -38,7 +38,7 @@ task, split a status document the way the address plan did
 |---|---|---|---|---|
 | [x] | [VS0-T01](#vs0--pin-the-reuse) | pin the request and reply the accessor reuses | done | VS001 |
 | [x] | [VS1-T01](#vs1--the-service-accessor) | `Service.VrfTableByName` | done | VS002 |
-| [ ] | [VS2-T01](#vs2--the-object) | `goip vrf show NAME` | not started | — |
+| [x] | [VS2-T01](#vs2--the-object) | `goip vrf show NAME` | done | VS003 |
 | [ ] | [VS3-T01](#vs3--the-capture-rows-and-the-sidecar-replay-test) | capture rows and the sidecar replay test | not started | — |
 | [ ] | [VS4-T01](#vs4--the-matrix-rows-and-gating) | matrix rows and gating | not started | — |
 
@@ -413,6 +413,7 @@ Not repeated in each "Done when":
 |---|---|---|---|---|---|
 | VS001 | 2026-10-31 | VS0-T01 | `go test ./internal/goip/ -count=1` and `go vet ./internal/goip/` on the host: green, `TestVrfShowNameRequestIsNameIsVrf` 8/8 rows (`request_7_1_4`, `request_7_3_0`, `answer_decodes`, `reply_no_linkinfo`, `name_15_chars`, `name_16_chars`, `name_slash`, `name_space` — both corpora's `netlink_route_getnexthop_vrf.pcap`). `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`: green. Mutation check in a scratch worktree, removed after: `BuildGetLinkByNameRequest`'s ext-mask condition widened to `extMask != 0 \|\| true` (`pkg/xtcpnl/xtcpnl_rtnetlink_requests.go:268`) failed exactly the byte-compare rows `request_7_3_0` and `name_15_chars`, and was reverted. No VM runs; the task changes tests only. | Passed: 8/8 rows; the gates green; the mutant caught | `internal/goip/obj_vrf_test.go`, the two corpora it walks |
 | VS002 | 2026-10-31 | VS1-T01 | `go test ./internal/goip/... -count=1` and `go vet ./internal/goip/...`: green, `TestVrfTableByName` 9/9 rows. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`, and the nix-fmt, statix and deadnix checks: green. Mutation check in a scratch worktree, removed after: `VrfTableByName`'s `errors.As(err, &miss)` widened to `&& false`, dropping the fallback's ENODEV normalization, failed exactly the row `negative: the fallback finds no matching link` (`goip: link "nosuchvrf" not found` no longer wrapping `no such device`), and was reverted. No VM runs; no `.exp` change. | Passed: 9/9 rows; the gates green; the mutant caught | `Service.VrfTableByName` and `linkNotFoundError` in `internal/goip/service/service.go`; `TestVrfTableByName` in `internal/goip/service/service_test.go` |
+| VS003 | 2026-10-31 | VS2-T01 | `go test ./internal/goip/... -count=1` and `go vet ./internal/goip/...`: green, `TestVrfShowName` 11/11 rows and `TestVrfShowNameReplay` 2/2 rows over `netlink_route_getvrf.pcap` and `netlink_route_getnexthop_vrf.pcap`. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`: green — after the comprehensive tier flagged the new `"default"` literal (fixed as `vrfDefaultNameCst`, the third package-wide occurrence would have tripped goconst) and the `vrfNameSource` reply slice (prealloc, built by copy instead of append). Mutation check in a scratch worktree, removed after, re-run against the post-lint-fix state: the stdout format `"%s %d\\n"` changed to `"%-16s %5d\\n"` (`obj_vrf.go`) failed exactly the seven stdout rows — five in `TestVrfShowName` (`goipvrf`, the verb synonym, `-j`, `default`, the boundary `default` table 100) and both `TestVrfShowNameReplay` rows — and no stderr or exit-code row, and was reverted. coverage-status's "deliberately not in scope" vrf bullet amended in this commit. No VM runs; no `.exp` change. | Passed: 13/13 rows; the gates green; the mutant caught | `ErrVrfUsage`/`ErrVrfInvalid`, `parseVrfShowArgs`, `vrfShowName` in `internal/goip/obj_vrf.go`; `exitCodeOf` in `internal/goip/goip.go`; the two tests in `internal/goip/obj_vrf_test.go` |
 
 ## Out of scope
 
