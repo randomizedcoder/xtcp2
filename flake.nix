@@ -57,6 +57,11 @@
 #       Bond / LACP readback fixtures from a bond with a real LACP partner
 #       (two namespaces, two veth pairs), in three negotiation states. Writes
 #       pkg/xtcpnl/testdata/<kernel>/link-write/. Needs /dev/kvm, not root.
+#       The full set takes hours; --only <sections> runs some of them.
+#   nix run    .#microvm-x86_64-link-write-capture-<section>
+#       One section of the above (lacp, addr, write, rtnl, genl, xfrm, kinds,
+#       brmpls; nix/microvms/scripts/link-write-sections.exp), writing only
+#       that section's directories.
 #   nix run    .#microvm-x86_64-lacp-pair-capture
 #       The same readback on virtio-net ports, with the LACP partner in a
 #       second microVM across two point-to-point dgram links (Tier 2).

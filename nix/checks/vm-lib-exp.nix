@@ -70,6 +70,17 @@
 # the link kind rows (docs/netlink/goip-link-kinds.md): slugs, one row per
 # option, floors, readbacks and statuses.
 #
+# scripts/brmpls-write-corpus-test.exp does the same for
+# brmpls-write-corpus.exp, the bridge FDB, bridge VLAN and MPLS rows BIRD's
+# parser needs (docs/netlink/coverage-status.md): slugs, statuses, floors,
+# readbacks, the bridge and wait-learned pre steps and the event rows'
+# monitor lines.
+#
+# scripts/link-write-sections-test.exp tests link-write-sections.exp, the
+# section names the link-write runner's --only takes, and that
+# capture-link-writes.exp refuses a bad section list before it connects to a
+# console, so a typo can't boot a VM that captures nothing.
+#
 {
   pkgs,
   src,
@@ -88,6 +99,7 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       socat
       nlcap
       nlcap.xfrmmon
+      nlcap.brmon
       nlcap.espinudp
       nlcap.ra
       nlcap.tcp
@@ -157,6 +169,10 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/xfrm-write-corpus-test.exp > xfrm.log 2>&1 || xrc=$?
     krc=0
     expect nix/microvms/scripts/kind-write-corpus-test.exp > kind.log 2>&1 || krc=$?
+    brc=0
+    expect nix/microvms/scripts/brmpls-write-corpus-test.exp > brmpls.log 2>&1 || brc=$?
+    src_rc=0
+    expect nix/microvms/scripts/link-write-sections-test.exp > sections.log 2>&1 || src_rc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -249,5 +265,27 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log xfrm.log kind.log > $out
+    grep -E '^(PASS|FAIL|===)' brmpls.log || true
+
+    if [ "$brc" -ne 0 ] || ! grep -q 'BRMPLSCORPUS_TEST_PASS' brmpls.log; then
+      echo "" >&2
+      echo "vm-lib-exp: brmpls-write-corpus.exp regressed (expect exited $brc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat brmpls.log >&2
+      exit 1
+    fi
+
+    grep -E '^(PASS|FAIL|===)' sections.log || true
+
+    if [ "$src_rc" -ne 0 ] || ! grep -q 'LWSECTIONS_TEST_PASS' sections.log; then
+      echo "" >&2
+      echo "vm-lib-exp: link-write-sections.exp regressed (expect exited $src_rc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat sections.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log xfrm.log kind.log brmpls.log sections.log > $out
   ''

@@ -1399,6 +1399,17 @@ in
       program = "${runner}/bin/xtcp2-rdma-capture-x86_64";
     }
   ) microvms.rdmaCapture.x86_64.kernels
+  # One section of the link-write capture: microvm-x86_64-link-write-capture-
+  # brmpls and so on, the runner above with `--only <section>`
+  # (scripts/link-write-sections.exp). Writes only that section's
+  # directories.
+  // lib.mapAttrs' (
+    section: app:
+    lib.nameValuePair "microvm-x86_64-link-write-capture-${section}" {
+      type = "app";
+      program = "${app}/bin/xtcp2-link-write-capture-${section}-x86_64";
+    }
+  ) microvms.linkWriteCapture.x86_64.sections
   # s3parquet-stress with an investigation variant (see
   # docs/investigations/envelope-post-flush-drop.md): -nl1/-nl4/-nl8 set
   # NETLINKERS, -iouring adds -ioUring, -cpuload adds stress-ng contention,

@@ -1,0 +1,449 @@
+#!/usr/bin/env expect
+###############################################################################
+# brmpls-write-corpus-test.exp - table-driven test for brmpls-write-corpus.exp,
+# with no microVM and no console
+#
+# Usage: brmpls-write-corpus-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix after kind-write-corpus-test.exp. The
+# corpus is data plus procs (pre_step, wait_learned_cmd, brmon, rc_problem);
+# pre_step is driven through a recorder that replaces vmlib::run_out, so no
+# shell is needed.
+#
+# The slugs, statuses and readback names are written out again below as
+# literals rather than read from the corpus, so a row dropped or changed
+# there has to disagree with something that was not edited with it.
+#
+# What this does NOT cover: what the guest runs or what the kernel answers.
+# TestBrMplsCorpusComplete and the parser tests pin that in the committed
+# fixtures (pkg/xtcpnl/testdata/<kernel>/link-write/brmpls/).
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/vm-lib.exp
+source $here/netlink-topology.exp
+source $here/addr-topology.exp
+source $here/addr-corpus.exp
+source $here/rtnl-write-corpus.exp
+source $here/brmpls-write-corpus.exp
+
+vmlib::init
+
+set pass 0
+set fail 0
+
+###############################################################################
+# The recorder, as in addr-corpus-test.exp.
+###############################################################################
+set ::calls {}
+set ::refuse ""
+proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    lappend ::calls $cmd
+    if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
+        return [list 1 "REFUSED"]
+    }
+    return [list 0 "ok"]
+}
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+set R $brmplscorpus::rows
+
+proc slugs {rows} {
+    set out {}
+    foreach r $rows {
+        lappend out [lindex $r 0]
+    }
+    return $out
+}
+
+proc field {slug i} {
+    return [lindex [lsearch -exact -index 0 -inline $::R $slug] $i]
+}
+
+# readback_names <slug> - the names of a row's readbacks, in order.
+proc readback_names {slug} {
+    set out {}
+    foreach rb [field $slug 4] {
+        lappend out [lindex $rb 0]
+    }
+    return $out
+}
+
+###############################################################################
+# 1. the rows
+###############################################################################
+set design_rows {
+    fdb_show fdb_add_static fdb_add_vlan fdb_add_existing fdb_replace fdb_del
+    fdb_del_missing fdb_event
+    vlan_show vlan_add vlan_add_range vlan_add_pvid vlan_add_self
+    vlan_add_reserved vlan_del vlan_del_range vlan_set_state vlan_event
+    mpls_route_add_swap mpls_route_add_pop mpls_route_add_multipath
+    mpls_route_add_via6 mpls_route_add_existing mpls_route_add_reserved
+    mpls_route_add_over_limit mpls_route_show mpls_route_get mpls_route_del
+    mpls_route_del_missing mpls_route_del_over_limit
+    route_encap_mpls route_encap_mpls_ttl route6_encap_mpls
+    route_multipath_encap_mpls route_encap_show mpls_event
+}
+
+proc bad_arity {} {
+    set out {}
+    foreach r $::R {
+        if {[llength $r] != 6} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+proc dup_slugs {} {
+    set seen {}
+    set out {}
+    foreach s [slugs $::R] {
+        if {$s in $seen} {
+            lappend out $s
+        }
+        lappend seen $s
+    }
+    return $out
+}
+
+check rows_in_order "positive: the rows are the design's, in its order" \
+    {slugs $::R} [join $design_rows " "]
+check rows_count "boundary: 36 rows" {llength $::R} 36
+check rows_arity "negative: every row is {slug floor pre command readbacks rc}" \
+    {bad_arity} {}
+check rows_unique "negative: no slug names two rows" {dup_slugs} {}
+check subdir "positive: the rows land under brmpls/" \
+    {set brmplscorpus::SUBDIR} brmpls
+check modules "positive: the MPLS router and its lwtunnel encap load, and nothing else" \
+    {set brmplscorpus::MODULES} {mpls_router mpls_iptunnel}
+
+###############################################################################
+# 2. expected statuses
+###############################################################################
+
+# refused_rows - {slug rc} for every row whose status is meant to be non-zero.
+proc refused_rows {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] != 0} {
+            lappend out [list [lindex $r 0] [lindex $r 5]]
+        }
+    }
+    return $out
+}
+
+# bad_rc - the rows whose status is not 0, 2 or 255.
+proc bad_rc {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] ni {0 2 255}} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# tool_mismatch - rows refused with the other tool's status: 255 is
+# bridge's (do_cmd's unnegated -1), 2 is ip's.
+proc tool_mismatch {} {
+    set out {}
+    foreach r $::R {
+        set tool [lindex [lindex $r 3] 0]
+        set rc [lindex $r 5]
+        if {($rc == 255 && $tool ne "bridge") || ($rc == 2 && $tool ne "ip")} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+set refused_design {
+    {fdb_add_existing 255} {fdb_del_missing 255} {vlan_add_reserved 255}
+    {mpls_route_add_existing 2} {mpls_route_add_reserved 2}
+    {mpls_route_add_over_limit 2} {mpls_route_del_over_limit 2}
+}
+check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
+    {refused_rows} [list {*}$refused_design]
+check rc_values "negative: every status is 0, 2 or 255" {bad_rc} {}
+check rc_tool "corner: 255 rows run bridge and 2 rows run ip" {tool_mismatch} {}
+check del_missing_ok "corner: deleting a missing label in range is accepted (0)" \
+    {field mpls_route_del_missing 5} 0
+
+###############################################################################
+# 3. floors, commands and readbacks
+###############################################################################
+
+# low_floors - rows under 2, or under 4 when the command names a device
+# (the tool's own RTM_GETLINK comes first).
+proc low_floors {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor _pre command
+        set min 2
+        if {[regexp {(^| )dev } $command] && ![string match xtcp2-nl-* $command]} {
+            set min 4
+        }
+        if {$floor < $min} {
+            lappend out $slug
+        }
+    }
+    return $out
+}
+
+# quoted - rows whose command, pre step or readback holds a single quote,
+# which write_row's and capio's own quoting would break on.
+proc quoted {} {
+    set out {}
+    foreach r $::R {
+        if {[string first ' [join [lrange $r 2 4]]] >= 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# bad_readbacks - readbacks that are not {name floor command} with a safe
+# name and a floor of at least 2.
+proc bad_readbacks {} {
+    set out {}
+    foreach r $::R {
+        foreach rb [lindex $r 4] {
+            if {[llength $rb] != 3 || ![regexp {^[a-z0-9_]+$} [lindex $rb 0]]
+                || [lindex $rb 1] < 2} {
+                lappend out [lindex $r 0]
+            }
+        }
+    }
+    return $out
+}
+
+check floors "negative: no floor under its write's requests and answers" {low_floors} {}
+check no_single_quotes "negative: no row holds a single quote" {quoted} {}
+check readbacks_shape "negative: every readback is {safe-name floor>=2 command}" \
+    {bad_readbacks} {}
+check event_floors "boundary: the three event rows' floor is 8" \
+    {list [field fdb_event 1] [field vlan_event 1] [field mpls_event 1]} {8 8 8}
+
+foreach {name description slug expected} {
+    rb_fdb_show      "positive: fdb_show also reads every bridge's FDB"           fdb_show {getneigh_bridge_all}
+    rb_fdb_add       "positive: an FDB write reads the port's entries back"      fdb_add_static {getneigh_bridge}
+    rb_fdb_existing  "negative: a refused FDB add has nothing to read back"      fdb_add_existing {}
+    rb_vlan_show     "positive: vlan_show reads the old, compressed and global dumps" vlan_show {getlink_brvlan getlink_brvlan_compressed getvlan_global}
+    rb_vlan_add      "positive: a VLAN write reads back through RTM_GETVLAN"     vlan_add {getvlan}
+    rb_vlan_self     "corner: a VLAN on the bridge itself reads the global dump" vlan_add_self {getvlan_global}
+    rb_vlan_reserved "negative: a refused VLAN add has nothing to read back"     vlan_add_reserved {}
+    rb_mpls_add      "positive: an MPLS route write reads back the label table"  mpls_route_add_swap {getroute_mpls}
+    rb_mpls_show     "boundary: the dump row is its own readback"                mpls_route_show {}
+    rb_encap_v4      "positive: an encap route reads back d0's IPv4 routes"      route_encap_mpls {getroute}
+    rb_encap_v6      "positive: an IPv6 encap route reads back d0's IPv6 routes" route6_encap_mpls {getroute6}
+    rb_events        "corner: an event row has no readback"                      mpls_event {}
+} {
+    check $name $description [list readback_names $slug] $expected
+}
+
+foreach {name description slug expected} {
+    cmd_swap       "positive: BIRD's swap, a two-label stack via inet"  mpls_route_add_swap
+        {ip -f mpls route add 100 as 200/300 via inet 192.0.2.10 dev d0}
+    cmd_encap      "positive: BIRD's encap, a two-label push"           route_encap_mpls
+        {ip route add 198.18.20.0/24 encap mpls 100/200 via 192.0.2.10 dev d0}
+    cmd_mp_encap   "positive: a per-nexthop encap inside RTA_MULTIPATH" route_multipath_encap_mpls
+        {ip route add 198.18.21.0/24 nexthop encap mpls 101 via 192.0.2.10 dev d0 nexthop encap mpls 102 via 192.0.2.11 dev d0}
+    cmd_reserved   "boundary: label 3 (implicit null) is reserved"      mpls_route_add_reserved
+        {ip -f mpls route add 3 via inet 192.0.2.10 dev d0}
+    cmd_over_limit "boundary: label 2000 is past platform_labels 1000"  mpls_route_add_over_limit
+        {ip -f mpls route add 2000 via inet 192.0.2.10 dev d0}
+    cmd_vid_4095   "boundary: VID 4095 is reserved"                     vlan_add_reserved
+        {bridge vlan add vid 4095 dev v0}
+    cmd_fdb_vlan   "positive: an FDB entry in VLAN 10"                  fdb_add_vlan
+        {bridge fdb add 02:00:00:00:00:22 dev v0 master static vlan 10}
+} {
+    check $name $description [list field $slug 3] $expected
+}
+
+###############################################################################
+# 4. preconditions
+###############################################################################
+proc pre_index {pre prefix} {
+    return [lsearch -glob $pre "$prefix*"]
+}
+
+check mpls_sysctls "positive: the label table is sized and d0 takes labeled input" \
+    {lsearch -all -inline -glob $brmplscorpus::PRE_MPLS {sysctl *}} \
+    {{sysctl net.mpls.platform_labels 1000} {sysctl net.mpls.conf.d0.input 1}}
+check mpls_input_after_add "boundary: d0's input sysctl follows its creation" \
+    {expr {[pre_index $brmplscorpus::PRE_MPLS {link add d0 }]
+        < [pre_index $brmplscorpus::PRE_MPLS {sysctl net.mpls.conf.d0.input}]}} 1
+check mpls_labels_first "corner: platform_labels comes before any route needs it" \
+    {lindex $brmplscorpus::PRE_MPLS 0} {sysctl net.mpls.platform_labels 1000}
+check br_filters "positive: br0 filters VLANs" \
+    {lindex $brmplscorpus::PRE_BR 0} {link add br0 type bridge vlan_filtering 1}
+check br_quiet "corner: br0, v0 and v0p make no link-local address before up" \
+    {llength [lsearch -all -glob $brmplscorpus::PRE_BR {link set * addrgenmode none}]} 3
+check br_fixed_mac "corner: v0p's MAC is the learned entry's, fixed" \
+    {lsearch -inline -glob $brmplscorpus::PRE_BR {link set v0p address *}} \
+    {link set v0p address 02:00:00:00:00:12}
+check learn_last "positive: the FDB dump row waits for the learned entry last" \
+    {lindex $brmplscorpus::PRE_FDB_ALL end} {wait-learned v0 02:00:00:00:00:12}
+
+###############################################################################
+# 5. pre_step dispatch
+###############################################################################
+proc step_run {step} {
+    set ::calls {}
+    nltopo::reset
+    set rc [brmplscorpus::pre_step lacpa brmpls/x $step]
+    return [list $rc $::calls]
+}
+
+set ::refuse ""
+check ip_step "positive: an ip step goes to nltopo::topo" \
+    {step_run {link add d0 type dummy}} \
+    {1 {{xtcp2-nlcap topo lacpa brmpls/x link add d0 type dummy}}}
+check sysctl_step "positive: a sysctl step goes to addrtopo::sysctl" \
+    {step_run {sysctl net.mpls.platform_labels 1000}} \
+    {1 {{xtcp2-nlcap sysctl lacpa brmpls/x net.mpls.platform_labels 1000}}}
+check bridge_step "positive: a bridge step runs bridge -n <ns>" \
+    {step_run {bridge vlan add vid 10 dev v0}} \
+    {1 {{bridge -n lacpa vlan add vid 10 dev v0}}}
+check wait_step "positive: a wait-learned step runs the poll, with a 30 s timeout" \
+    {step_run {wait-learned v0 02:00:00:00:00:12}} \
+    [list 1 [list [brmplscorpus::wait_learned_cmd lacpa v0 02:00:00:00:00:12]]]
+
+set ::refuse {^bridge }
+check bridge_refused "negative: a refused bridge step returns 0 and is a refusal" \
+    {list [lindex [step_run {bridge fdb add 02:00:00:00:00:21 dev v0 master static}] 0] \
+          [nltopo::refused_steps]} \
+    {0 {{bridge -n lacpa fdb add 02:00:00:00:00:21 dev v0 master static}}}
+set ::refuse {^timeout 20 ip netns exec }
+check wait_refused "negative: an entry never learned returns 0 and is a refusal" \
+    {list [lindex [step_run {wait-learned v0 02:00:00:00:00:12}] 0] \
+          [llength [nltopo::refused_steps]]} \
+    {0 1}
+set ::refuse {^xtcp2-nlcap sysctl }
+check sysctl_refused "negative: a refused sysctl returns 0 and is not an ip refusal" \
+    {list [lindex [step_run {sysctl net.mpls.platform_labels 1000}] 0] \
+          [nltopo::refused_steps]} \
+    {0 {}}
+set ::refuse ""
+
+check wait_short "boundary: {wait-learned DEV} is an error" \
+    {step_run {wait-learned v0}} ERROR
+check wait_long "boundary: {wait-learned DEV MAC extra} is an error" \
+    {step_run {wait-learned v0 02:00:00:00:00:12 x}} ERROR
+check wait_short_sends_nothing "boundary: and a malformed wait sends nothing" \
+    {set ::calls {}; catch {brmplscorpus::pre_step lacpa brmpls/x {wait-learned v0}}; set ::calls} {}
+check bridge_as_argument "corner: only the first word dispatches" \
+    {step_run {link add bridge type dummy}} \
+    {1 {{xtcp2-nlcap topo lacpa brmpls/x link add bridge type dummy}}}
+
+# Every pre step of every row, through the recorder: the number that raised
+# and the number that were refused.
+proc run_all_pre {} {
+    set raised 0
+    set refused 0
+    foreach r $::R {
+        foreach step [lindex $r 2] {
+            if {[catch {brmplscorpus::pre_step lacpa brmpls/[lindex $r 0] $step} ok]} {
+                incr raised
+            } elseif {!$ok} {
+                incr refused
+            }
+        }
+    }
+    return [list $raised $refused]
+}
+nltopo::reset
+check pre_steps_dispatch "positive: every pre step of every row is well-formed and accepted" \
+    {run_all_pre} {0 0}
+
+###############################################################################
+# 6. wait_learned_cmd, brmon and the event rows
+###############################################################################
+check wait_cmd "positive: the poll greps the device's entries for the MAC, in the namespace, under timeout" \
+    {brmplscorpus::wait_learned_cmd ns1 v0 02:00:00:00:00:12} \
+    {timeout 20 ip netns exec ns1 sh -c 'i=0; while [ $i -lt 100 ]; do bridge fdb show dev v0 | grep -q "^02:00:00:00:00:12 " && exit 0; i=$((i+1)); sleep 0.1; done; exit 1'}
+check wait_cmd_bounded "boundary: the poll's own timeout ends before pre_step's 30 s" \
+    {regexp {^timeout (\d+) } [brmplscorpus::wait_learned_cmd ns1 v0 m] _ secs; expr {$secs < 30}} 1
+
+# The lines below are what `bridge fdb show dev v0` printed for the learned
+# entry and for br0's own, in a namespace built as PRE_FDB_ALL builds it.
+# With a dev filter, bridge leaves `dev v0` out.
+foreach {name description line expected} {
+    learned  "positive: the learned entry's line matches"            {02:00:00:00:00:12 vlan 1 master br0 } 1
+    other    "negative: another MAC's line does not match"           {02:00:00:00:00:21 master br0 static} 0
+    longer   "corner: a MAC with the wanted one as a prefix does not" {02:00:00:00:00:123 vlan 1 master br0} 0
+    unfilter "corner: the unfiltered form, with dev, matches too"    {02:00:00:00:00:12 dev v0 vlan 1 master br0} 1
+} {
+    check learned_re_$name $description \
+        [list regexp [brmplscorpus::learned_re 02:00:00:00:00:12] $line] $expected
+}
+check wait_cmd_quotes "corner: the poll has exactly one pair of single quotes" \
+    {regexp -all ' [brmplscorpus::wait_learned_cmd ns1 v0 m]} 2
+
+check brmon_line "positive: brmon's line names the v0 canary, the groups, trigger and EREs" \
+    {brmplscorpus::brmon vlan {bridge vlan add vid 10 dev v0} {{^v0 +10( |$)}}} \
+    {xtcp2-nl-brmon v0 "monitor vlan" "bridge vlan add vid 10 dev v0" "^v0 +10( |$)"}
+check brmon_no_until "boundary: with no EREs, the line ends at the trigger" \
+    {brmplscorpus::brmon vlan x {}} {xtcp2-nl-brmon v0 "monitor vlan" "x"}
+check vlan_event_cmd "positive: vlan_event runs brmon on vlan" \
+    {lrange [field vlan_event 3] 0 2} {xtcp2-nl-brmon v0 {monitor vlan}}
+check fdb_event_cmd "positive: fdb_event runs ip monitor all with the c0 canary" \
+    {lrange [field fdb_event 3] 0 2} {xtcp2-nl-ipmon c0 {monitor all}}
+check mpls_event_cmd "positive: mpls_event runs ip monitor route (with the maddress canary)" \
+    {lrange [field mpls_event 3] 0 2} {xtcp2-nl-ipmon c0 {monitor route maddress}}
+check ipmon_canary_pre "corner: both ipmon rows build c0 first" \
+    {list [lindex [field fdb_event 2] 0] [lindex [field mpls_event 2] 0]} \
+    {{link add c0 type dummy} {link add c0 type dummy}}
+check fdb_until_unanchored "corner: monitor all prefixes a group banner, so no FDB ERE is anchored" \
+    {lsearch -all -glob $brmplscorpus::FDB_UNTIL {^*}} {}
+check until_counts "positive: 3 FDB, 3 VLAN and 4 MPLS EREs" \
+    {list [llength $brmplscorpus::FDB_UNTIL] [llength $brmplscorpus::VLAN_UNTIL] \
+          [llength $brmplscorpus::MPLS_UNTIL]} {3 3 4}
+check no_double_quotes "negative: no trigger or ERE holds a double quote" \
+    {string first "\"" [join [list $brmplscorpus::FDB_TRIGGER $brmplscorpus::VLAN_TRIGGER \
+        $brmplscorpus::MPLS_TRIGGER $brmplscorpus::FDB_UNTIL $brmplscorpus::VLAN_UNTIL \
+        $brmplscorpus::MPLS_UNTIL]]} -1
+
+###############################################################################
+# 7. rc_problem
+###############################################################################
+foreach {name description want got expected} {
+    rc_ok          "positive: the expected status is no problem"     0   0      {}
+    rc_ok_trimmed  "corner: a trailing newline is trimmed"           255 "255\n" {}
+    rc_wrong       "negative: another status names brmpls/<slug>"    0   2      {brmpls/x/ip.rc is 2, want 0}
+    rc_unreadable  "boundary: an unreadable ip.rc names brmpls/<slug>" 2 ""     {brmpls/x/ip.rc unreadable, want 2}
+} {
+    check $name $description [list brmplscorpus::rc_problem x $want [subst -nocommands $got]] $expected
+}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== brmpls-write-corpus.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "BRMPLSCORPUS_TEST_FAIL"
+    exit 1
+}
+puts "BRMPLSCORPUS_TEST_PASS"
+exit 0

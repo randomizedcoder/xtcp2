@@ -1358,7 +1358,7 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # One store directory for all eleven .exp files, for the dump runner's
+      # One store directory for all thirteen .exp files, for the dump runner's
       # reason: the driver sources its siblings relative to itself.
       # netlink-topology.exp is here for nltopo::topo, which the LACP
       # topology builds through so its refusals land in the same list;
@@ -1366,7 +1366,10 @@ rec {
       # rows (docs/netlink/addr-write-path.md); rtnl-write-corpus.exp,
       # genl-write-corpus.exp and xfrm-write-corpus.exp are the C1, C2 and
       # C3 rows (docs/netlink/goip-parity-gaps.md); kind-write-corpus.exp is
-      # the link kinds' (docs/netlink/goip-link-kinds.md).
+      # the link kinds' (docs/netlink/goip-link-kinds.md);
+      # brmpls-write-corpus.exp is the bridge FDB, bridge VLAN and MPLS rows
+      # (docs/netlink/coverage-status.md); link-write-sections.exp is what
+      # --only picks from.
       captureScripts =
         pkgs.runCommand "xtcp2-link-write-capture-scripts"
           {
@@ -1380,6 +1383,8 @@ rec {
             genlCorpus = ./scripts/genl-write-corpus.exp;
             xfrmCorpus = ./scripts/xfrm-write-corpus.exp;
             kindCorpus = ./scripts/kind-write-corpus.exp;
+            brmplsCorpus = ./scripts/brmpls-write-corpus.exp;
+            sections = ./scripts/link-write-sections.exp;
             driver = ./scripts/capture-link-writes.exp;
           }
           ''
@@ -1394,6 +1399,8 @@ rec {
             cp $genlCorpus $out/genl-write-corpus.exp
             cp $xfrmCorpus $out/xfrm-write-corpus.exp
             cp $kindCorpus $out/kind-write-corpus.exp
+            cp $brmplsCorpus $out/brmpls-write-corpus.exp
+            cp $sections $out/link-write-sections.exp
             cp $driver $out/capture-link-writes.exp
             chmod +x $out/capture-link-writes.exp
           '';
@@ -1418,14 +1425,17 @@ rec {
         # lacp_no_partner and again in lacp_converged.
         TIMEOUT_SEC=1800
         OUT_DIR=""
+        ONLY=all
         while [ $# -gt 0 ]; do
           case "$1" in
             --timeout)     TIMEOUT_SEC="$2"; shift 2 ;;
             --timeout=*)   TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
             --out)         OUT_DIR="$2"; shift 2 ;;
             --out=*)       OUT_DIR="''${1#--out=}"; shift ;;
+            --only)        ONLY="$2"; shift 2 ;;
+            --only=*)      ONLY="''${1#--only=}"; shift ;;
             -h|--help)
-              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>] [--only <sections>]"
               echo "  Boots the link-write-capture microvm and drives it over the"
               echo "  serial console with expect: builds an 802.3ad bond in netns"
               echo "  lacpa with a real LACP partner bond in netns lacpb, and"
@@ -1434,6 +1444,11 @@ rec {
               echo "  states: lacp_no_partner, lacp_converged, lacp_partner_down."
               echo "  Then the link, route and address write rows, and the address"
               echo "  readback states (addr-show/, addr/, addr-flush/, addr-save/)."
+              echo ""
+              echo "  --only runs some sections, comma-separated: lacp, addr, write,"
+              echo "  rtnl, genl, xfrm, kinds, brmpls (scripts/link-write-sections.exp)."
+              echo "  The default, all, is every one; the full set takes hours on a"
+              echo "  loaded host. Only the picked sections' directories are written."
               echo ""
               echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/link-write,"
               echo "  with the kernel derived from the guest's own uname sidecar."
@@ -1457,6 +1472,7 @@ rec {
         echo "================================================"
         echo " xtcp2 microvm link-write-capture — arch=${arch}"
         echo " timeout: $TIMEOUT_SEC s"
+        echo " sections: $ONLY"
         echo " transcript: $LOG"
         echo "================================================"
 
@@ -1487,7 +1503,7 @@ rec {
         rc=0
         timeout "$TIMEOUT_SEC" \
           expect ${captureScripts}/capture-link-writes.exp \
-            "$SERIAL_PORT" "$BLOB" 2>&1 \
+            "$SERIAL_PORT" "$BLOB" "$ONLY" 2>&1 \
           | tee "$LOG" || rc=$?
 
         if [ "$rc" -eq 124 ]; then
@@ -1522,8 +1538,13 @@ rec {
         # base topology transcript proves the bond was built. No pcap is
         # required here, unlike the dump runner: a run whose first LACP state
         # timed out legitimately has none, and the driver's exit status is
-        # what reports that.
-        for required in ip_version uname topology; do
+        # what reports that. The topology transcript is the lacp section's,
+        # so a run without that section isn't asked for it.
+        REQUIRED="ip_version uname"
+        case ",$ONLY," in
+          *,all,*|*,lacp,*) REQUIRED="$REQUIRED topology" ;;
+        esac
+        for required in $REQUIRED; do
           if [ ! -s "$STAGE/$required" ]; then
             echo "FATAL: extracted blob has no $required"
             echo "       staged files:"
@@ -1567,7 +1588,11 @@ rec {
           exit "$rc"
         fi
 
-        echo "PASS: bond / LACP readback, link, route and address capture complete"
+        if [ "$ONLY" = all ]; then
+          echo "PASS: bond / LACP readback, link, route and address capture complete"
+        else
+          echo "PASS: link-write capture complete for: $ONLY"
+        fi
         exit 0
       '';
     };

@@ -9,9 +9,9 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-xfrmmon`,
-# `xtcp2-nl-espinudp`, `xtcp2-nl-ra`, `xtcp2-nl-tcp`, `xtcp2-nl-ioam` and
-# `xtcp2-nl-mptcp`, below, on its own PATH)
+# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-brmon`,
+# `xtcp2-nl-xfrmmon`, `xtcp2-nl-espinudp`, `xtcp2-nl-ra`, `xtcp2-nl-tcp`,
+# `xtcp2-nl-ioam` and `xtcp2-nl-mptcp`, below, on its own PATH)
 # and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
@@ -378,6 +378,99 @@ let
         for re in "$@"; do
           if ! wait_match "$re" 100; then
             echo "xtcp2-nl-xfrmmon: no match for $re" >&2
+            rc=1
+          fi
+        done
+      fi
+
+      kill -TERM "$mpid" 2>/dev/null || true
+      wait "$mpid" 2>/dev/null || true
+      cat "$out"
+      exit "$rc"
+    '';
+  };
+
+  # xtcp2-nl-brmon <canary-dev> <bridge-args> <trigger> <until-ERE>...
+  #
+  # `bridge <bridge-args>` (a `monitor fdb vlan` or `monitor vlan`) in the
+  # background while <trigger> runs, for the bridge VLAN event rows
+  # (scripts/brmpls-write-corpus.exp; the BIRD captures in
+  # docs/netlink/coverage-status.md). `ip monitor` never joins
+  # RTNLGRP_BRVLAN, so an RTM_NEWVLAN or RTM_DELVLAN notification has no
+  # subscriber, and no packet, without this.
+  #
+  # Ready means subscribed. RTNLGRP_BRVLAN is group 33, past the 32 bits
+  # /proc/net/netlink shows, and `bridge monitor` joins it with a
+  # setsockopt after the bind that joins the rest (bridge/monitor.c), so a
+  # canary VLAN, vid 4000 on <canary-dev>, is added until the monitor prints
+  # it and deleted and added again if it does not within a second. Seeing
+  # it proves both joins. <bridge-args> must therefore name vlan (or all).
+  #
+  # Then <trigger> runs with `sh -c`, and the monitor is stopped with
+  # SIGTERM once its output matches every <until-ERE>, each within 10 s.
+  # stdout is the monitor's output; a monitor that never prints the canary,
+  # a failed trigger or a timeout is reported on stderr and exits 1; a usage
+  # error exits 2. NLCAP_BRIDGE names the bridge binary, for the hermetic
+  # check's stand-in.
+  brmon = pkgs.writeShellApplication {
+    name = "xtcp2-nl-brmon";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnugrep
+      iproute2
+    ];
+    text = ''
+      usage="usage: xtcp2-nl-brmon <canary-dev> <bridge-args> <trigger> <until-ERE>..."
+      [ $# -ge 4 ] || {
+        echo "$usage" >&2
+        exit 2
+      }
+      canary_dev=$1
+      case "$canary_dev" in
+        "" | *[!a-zA-Z0-9_.-]*)
+          echo "$usage" >&2
+          exit 2
+          ;;
+      esac
+      read -ra br_args <<<"$2"
+      trigger=$3
+      shift 3
+      bridge=''${NLCAP_BRIDGE:-bridge}
+
+      out=$(mktemp)
+      trap 'rm -f "$out"' EXIT
+      "$bridge" "''${br_args[@]}" >"$out" 2>/dev/null &
+      mpid=$!
+
+      # wait_match <ERE> <tenths>: poll the monitor's output.
+      wait_match() {
+        local i
+        for ((i = 0; i < $2 * 2; i++)); do
+          grep -Eq -- "$1" "$out" && return 0
+          sleep 0.05
+        done
+        return 1
+      }
+
+      ready=0
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        "$bridge" vlan add vid 4000 dev "$canary_dev" >/dev/null 2>&1 || true
+        if wait_match "^$canary_dev +4000( |$)" 10; then
+          ready=1
+          break
+        fi
+        "$bridge" vlan del vid 4000 dev "$canary_dev" >/dev/null 2>&1 || true
+      done
+
+      rc=0
+      if [ "$ready" -ne 1 ]; then
+        echo "xtcp2-nl-brmon: the monitor never printed the canary" >&2
+        rc=1
+      else
+        sh -c "$trigger" || rc=1
+        for re in "$@"; do
+          if ! wait_match "$re" 100; then
+            echo "xtcp2-nl-brmon: no match for $re" >&2
             rc=1
           fi
         done
@@ -924,11 +1017,12 @@ let
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
-  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-xfrmmon's,
-  # xtcp2-nl-espinudp's, xtcp2-nl-ra's, xtcp2-nl-tcp's, xtcp2-nl-ioam's and
-  # xtcp2-nl-mptcp's hermetic rows.
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-brmon's,
+  # xtcp2-nl-xfrmmon's, xtcp2-nl-espinudp's, xtcp2-nl-ra's, xtcp2-nl-tcp's,
+  # xtcp2-nl-ioam's and xtcp2-nl-mptcp's hermetic rows.
   passthru = {
     inherit
+      brmon
       xfrmmon
       espinudp
       ra
@@ -940,6 +1034,7 @@ pkgs.writeShellApplication {
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
+    brmon
     xfrmmon
     espinudp
     ra

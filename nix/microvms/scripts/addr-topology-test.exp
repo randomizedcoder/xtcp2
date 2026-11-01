@@ -898,6 +898,52 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# xtcp2-nl-brmon (the BIRD captures, docs/netlink/coverage-status.md). The
+# sandbox has no bridge, so NLCAP_BRIDGE names a stand-in: `monitor` follows
+# a state file, as `bridge monitor` follows the kernel's notifications, and
+# `vlan add vid V dev D` appends "D V" to it, which is how `bridge monitor
+# vlan` prints an added VLAN. FAKE_BR_SILENT makes `vlan add` print nothing,
+# a monitor that never subscribed. Each row has its own state file.
+set fakebr [file normalize fake_bridge]
+set f [open $fakebr w]
+puts $f "#![lindex [auto_execok bash] 0]"
+puts $f {case "$1" in
+  monitor) touch "$FAKE_BR_STATE"; exec tail -n +1 -f "$FAKE_BR_STATE" ;;
+  vlan)
+    if [ "$2" = add ] && [ -z "${FAKE_BR_SILENT:-}" ]; then
+      printf '%s %s\n' "$6" "$4" >>"$FAKE_BR_STATE"
+    fi
+    exit 0 ;;
+esac
+exit 1}
+close $f
+file attributes $fakebr -permissions 0755
+proc brmon_env {n} {
+    return "NLCAP_BRIDGE=$::fakebr FAKE_BR_STATE=[file normalize br_state_$n]"
+}
+foreach {description cmd want_rc want_re} [list \
+    "positive: the canary is seen, the trigger runs and its VLAN appears" \
+        "[brmon_env 1] xtcp2-nl-brmon v0 \"monitor vlan\" \"$fakebr vlan add vid 10 dev v0\" \"^v0 +10( |\$)\"" 0 {(?n)^v0 10$} \
+    "positive: the output holds the canary line too" \
+        "[brmon_env 2] xtcp2-nl-brmon v0 \"monitor vlan\" true \"^v0 +4000\"" 0 {(?n)^v0 4000$} \
+    "negative: three arguments is a usage error" \
+        "[brmon_env 3] xtcp2-nl-brmon v0 \"monitor vlan\" true" 2 {^usage: xtcp2-nl-brmon <canary-dev>} \
+    "negative: an empty canary device is a usage error" \
+        "[brmon_env 4] xtcp2-nl-brmon \"\" \"monitor vlan\" true x" 2 {^usage: xtcp2-nl-brmon} \
+    "corner: a canary device with a shell metacharacter is a usage error" \
+        "[brmon_env 5] xtcp2-nl-brmon \"v0;x\" \"monitor vlan\" true x" 2 {^usage: xtcp2-nl-brmon} \
+    "negative: a monitor that never prints the canary is rc 1" \
+        "FAKE_BR_SILENT=1 [brmon_env 6] xtcp2-nl-brmon v0 \"monitor vlan\" true x" 1 {the monitor never printed the canary} \
+    "negative: a trigger that fails is rc 1" \
+        "[brmon_env 7] xtcp2-nl-brmon v0 \"monitor vlan\" false \"^v0 +4000\"" 1 {(?n)^v0 4000$} \
+    "boundary: an until-ERE that never matches times out as rc 1, naming it" \
+        "[brmon_env 8] xtcp2-nl-brmon v0 \"monitor vlan\" true \"^v0 +11( |\$)\"" 1 {no match for \^v0 \+11} \
+    "corner: every until-ERE must match, not just the first" \
+        "[brmon_env 9] xtcp2-nl-brmon v0 \"monitor vlan\" \"$fakebr vlan add vid 10 dev v0\" \"^v0 +10( |\$)\" \"^v0 +12( |\$)\"" 1 {no match for \^v0 \+12} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # xtcp2-nl-espinudp (C3-T02). Its send needs the guest's addresses and
 # ESPINUDP, so the sandbox checks the packet through `-`, which prints it,
 # and the argument errors; a send from an address the sandbox does not have
