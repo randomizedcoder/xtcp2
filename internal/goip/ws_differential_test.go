@@ -40,15 +40,15 @@ const wsCorpusDir = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 const wsO5Golden = "testdata/ws-differential.txt"
 
 // wsO5Spaces are the row directories O5 reads, in report order: the
-// matrix's, then those mined from the fib selftests, then the address and
-// neighbor matrices'.
+// matrix's, then those mined from the fib selftests, then the address,
+// neighbor and link matrices'.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
-	"addr4", "addr6", "neigh4", "neigh6"}
+	"addr4", "addr6", "neigh4", "neigh6", "linkset"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
 // a write, so O5 does not apply to it; such rows are counted.
-var wsO5Verbs = []string{"add", "change", "replace", "prepend", "append", "del", "delete"}
+var wsO5Verbs = []string{"add", "change", "replace", "prepend", "append", "del", "delete", "set"}
 
 // The outcomes, as the report spells them.
 const (
@@ -111,6 +111,24 @@ var wsO5Runners = map[string]func(*runCtx, []string) (int, string, string){
 	"nexthop":  runNexthopCtx,
 	"address":  runAddrWith,
 	"neighbor": runNeighCtx,
+	objLinkCst: runLinkCtx,
+}
+
+// runLinkCtx runs `ip link` args on c, as runRuleCtx runs `ip rule`.
+func runLinkCtx(c *runCtx, args []string) (int, string, string) {
+	var out, errOut bytes.Buffer
+	if c.out == nil {
+		c.out = &out
+	}
+	c.errOut = &errOut
+	if c.lltab == nil {
+		c.lltab = NewLLTab()
+	}
+	if err := runLink(c, args); err != nil {
+		errOut.WriteString("goip: " + err.Error() + "\n")
+		return exitCodeOf(err), out.String(), errOut.String()
+	}
+	return ExitOK, out.String(), errOut.String()
 }
 
 // wsO5HdrLen is each write's family header, the attributes following it.
@@ -126,6 +144,8 @@ func wsO5HdrLen(msgType uint16) int {
 		return xtcpnl.IfAddrmsgSizeCst
 	case unix.RTM_NEWNEIGH, unix.RTM_DELNEIGH:
 		return xtcpnl.NdMsgSizeCst
+	case unix.RTM_NEWLINK, unix.RTM_DELLINK:
+		return xtcpnl.IfInfomsgSizeCst
 	default:
 		return -1
 	}
@@ -182,7 +202,8 @@ func TestWsO5HdrLen(t *testing.T) {
 		{"positive: a deleted address's ifaddrmsg", unix.RTM_DELADDR, xtcpnl.IfAddrmsgSizeCst},
 		{"positive: a neighbor's ndmsg", unix.RTM_NEWNEIGH, xtcpnl.NdMsgSizeCst},
 		{"positive: a deleted neighbor's ndmsg", unix.RTM_DELNEIGH, xtcpnl.NdMsgSizeCst},
-		{"negative: a type O5 does not compare", unix.RTM_NEWLINK, -1},
+		{"positive: a link's ifinfomsg", unix.RTM_NEWLINK, xtcpnl.IfInfomsgSizeCst},
+		{"negative: a type O5 does not compare", unix.RTM_GETLINK, -1},
 		{"boundary: type 0", 0, -1},
 	}
 	for _, tc := range cases {
@@ -746,6 +767,7 @@ func TestWsO5Applies(t *testing.T) {
 		{"positive: add", []string{"add", "10.0.0.0/24"}, true},
 		{"positive: delete spelled in full", []string{"delete", "id", "1"}, true},
 		{"positive: del", []string{"del", "id", "1"}, true},
+		{"positive: a link set", []string{"set", "dev", "d0", "up"}, true},
 		{"negative: a get is a lookup", []string{"get", "10.0.0.1"}, false},
 		{"negative: a flush is a dump", []string{"flush", "table", "main"}, false},
 		{"negative: a show", []string{"show"}, false},

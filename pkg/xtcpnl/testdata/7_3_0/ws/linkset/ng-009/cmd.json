@@ -1,0 +1,36 @@
+{
+ "axes": {
+  "gro_max_size": "524281"
+ },
+ "cmd": "ip link set dev d0 gro_max_size 524281",
+ "desc": "negative: updown=absent mtu=absent txqlen=absent group=absent alias=absent address=absent flag=absent gso=gro_size_over mode=absent name=absent: gro_max_size past GRO_MAX_SIZE (too big gro_max_size)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkset/ng-009",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

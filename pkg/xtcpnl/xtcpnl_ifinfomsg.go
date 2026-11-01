@@ -280,6 +280,11 @@ type LinkInfo struct {
 	Qdisc       string // IFLA_QDISC
 	Kind        string // IFLA_LINKINFO -> IFLA_INFO_KIND
 
+	// IfAlias is IFLA_IFALIAS, `ip link set alias`'s text and ip's
+	// "alias %s" line. The kernel dumps it NUL-terminated and only when
+	// set (rtnl_fill_ifinfo); iproute2 sends it without the NUL.
+	IfAlias string
+
 	// SlaveKind is IFLA_LINKINFO -> IFLA_INFO_SLAVE_KIND: what this link is to
 	// its master, rather than what it is in itself. print_linktype emits it as
 	// a second continuation line under -d (ip/ipaddress.c:250-258), so a
@@ -768,6 +773,8 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		li.PermAddress = CopyBytes(val)
 	case uint16(unix.IFLA_QDISC):
 		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_IFALIAS):
+		li.IfAlias = string(bytes.TrimRight(val, "\x00"))
 	case uint16(unix.IFLA_LINKINFO):
 		li.HasLinkInfo = true
 		setLinkInfoNest(li, val)

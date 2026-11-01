@@ -1873,7 +1873,89 @@ pass ran 35 and left three survivors:
 
 **Size:** the rows add 707 KB of file bytes to `ws/`, 14.9 MB in all.
 
-Next is W3c, `ip link`.
+##### W3c: `ip link set`
+
+`nlcapgen matrix -family link -seed 1 -random 40` writes
+`nix/microvms/workbench/link.rows.jsonl` from one space, `linkset`, in
+`tools/nlcapgen/matrix_link.go`. Each row runs in a fresh namespace
+holding one dummy device, `d0`, down, and runs `ip link set dev d0 …`. The
+readback dumps every link (`ip -d link show`), so a rename is still found.
+`ip link add`, kind by kind, is W3d.
+
+| axis | values (boundary values in bold) |
+|---|---|
+| updown | absent, up, down |
+| mtu | absent, 1400, **0**, **65535** |
+| txqlen | absent, 500, **0**, **32767** (`qlen`), `txq 100` |
+| group | absent, 5, `default`, **2147483647** |
+| alias | absent, `hello`, **255 characters** |
+| address | absent, a MAC, `addr` abbreviated, `broadcast` |
+| flag | absent, multicast on and off, promisc, allmulticast, arp off, dynamic, trailers off |
+| gso | absent, gso_max_size, gso_max_segs (**65535**), gro_max_size (**524280**), gso_ipv4_max_size, gro_ipv4_max_size |
+| mode | absent, `mode dormant`, `mode default`, `state dormant` |
+| name | absent, `name d9` |
+
+130 rows: 8 positive, 7 boundary, 105 corner and 10 negative. All 130
+passed on their first run, so every prediction about a dummy device held:
+
+- **A dummy has no MTU limits.** It sets `min_mtu` and `max_mtu` to 0
+  (`drivers/net/dummy.c:126`), so `mtu 0` and `mtu 65535` are taken.
+  `mtu -1` passes `get_integer` and the kernel refuses it as negative
+  (EINVAL, "mtu less than device minimum").
+- **`txqueuelen 32768` is ERANGE.** `ifla_policy` bounds `IFLA_TXQLEN` at
+  S16_MAX (`txqlen_range`), before `netif_change_tx_queue_len`'s own check.
+- **`gro_max_size 524281` is EINVAL** (past `GRO_MAX_SIZE`, 8 × 65535, in
+  `validate_linkmsg`). `gso_max_segs 65536` never reaches the kernel:
+  iplink_parse refuses it against `GSO_MAX_SEGS`.
+- **A multicast MAC is EADDRNOTAVAIL** (`eth_mac_addr`). A 2-byte address
+  is refused by iproute2 after it has looked d0's address length up
+  (`nl_get_ll_addr_len`), so it exits 1 with an acknowledged lookup.
+- **An alias of 256 characters is refused by iproute2** (`alias too long`,
+  IFALIASZ), and a name of 16 by `check_ifname`.
+
+**A parser gap closed.** `ParseNewLink` skipped `IFLA_IFALIAS`, ip's
+`alias` line. `LinkInfo` now has `IfAlias`. The kernel dumps it
+NUL-terminated and iproute2 sends it without the NUL; both decode alike.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_link_test.go`):
+
+- **O3** rebuilds every attribute's bytes from the axes and compares them,
+  in any order, with none missing, extra or repeated. It also checks the
+  `ifinfomsg`: AF_UNSPEC, d0's index, and `ifi_flags`/`ifi_change` from
+  up, down and the on/off flag (`arp off` and `trailers off` set
+  `IFF_NOARP` and `IFF_NOTRAILERS`). No `NLM_F_CREATE`. O3 checked 124
+  requests.
+- **O4** finds `d0` by index in the dump after each accepted write (120
+  rows), and checks its name, the flags under the change mask, MTU,
+  txqueuelen, group, the GSO and GRO limits, link mode, address,
+  broadcast and alias. The operational state isn't compared: a down
+  device's stays down whatever `state` asked for.
+- **O5:** `set` is now one of O5's write verbs, run through goip's `link`
+  object. goip sends the same request as ip on only 8 of the 130 rows.
+  The other 122 stop at a keyword goip recognizes but hasn't implemented,
+  counted by the first one each row reaches: `group` 61, `gso_max_segs`
+  16, `gro_max_size` 15, `gro_ipv4_max_size` 7, `gso_ipv4_max_size` 6,
+  `broadcast` 6, `gso_max_size` 5, `mode` 3, `state` 1, and the
+  address-length lookup 2. That is goip's to-do list for `ip link set`.
+  Implementing it is outside W3.
+- **Determinism:** a second run of all 130 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestBuildLinkSet` and `TestMatrixLinkRows` cover the
+generator. `TestLinkSetWantFromAxes`, `TestLinkSetRequestProblem` and
+`TestLinkDumpProblem` cover the oracles, and three `TestParseNewLink` rows
+cover `IfAlias`.
+
+**Mutation:** 25 of 25 mutants killed, each by a relevant test. One
+survived the first pass: the longest-alias test compared the command with
+the constant that built it, so shortening the constant changed both. It
+now spells out 255 characters itself.
+
+**Size:** the rows add 737 KB of file bytes to `ws/`, 15.6 MB in all. They
+are larger than W3a's and W3b's because every readback dumps both links
+with `-d`, and 1 in 5 rows carries the 255-character alias.
+
+Next is W3d, `ip link add` kind by kind.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 
