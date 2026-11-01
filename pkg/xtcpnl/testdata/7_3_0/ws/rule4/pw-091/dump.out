@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from all iif d0 dport 0x50/0xfff0 lookup local suppress_prefixlength 24 dscp 63
+32766:	from all lookup main
+32767:	from all lookup default

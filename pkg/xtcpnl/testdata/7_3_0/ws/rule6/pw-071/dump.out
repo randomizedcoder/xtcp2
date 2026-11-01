@@ -1,0 +1,3 @@
+0:	from all lookup local
+300:	from all tos 0x08 sport 80 lookup local suppress_ifgroup default flowlabel 0x12345
+32766:	from all lookup main

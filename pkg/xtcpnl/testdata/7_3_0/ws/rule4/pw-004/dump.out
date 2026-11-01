@@ -1,0 +1,4 @@
+0:	from all lookup local
+32766:	from all lookup main
+32767:	from all lookup default
+4294967295:	from all to 203.0.113.0/24 fwmark 0xffffffff iif d0 oif nosuch [detached] uidrange 0-4294967294 ipproto ipproto-255 sport 1 dport 1 lookup 256 suppress_ifgroup 5 realms 10 dscp 0x20/0x30

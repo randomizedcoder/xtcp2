@@ -1,0 +1,38 @@
+{
+ "axes": {
+  "family": "4",
+  "id": "0",
+  "verb": "del"
+ },
+ "cmd": "ip -4 nexthop del id 0",
+ "desc": "negative: verb=del id=0 kind=via-dev protocol=proto: a delete without an id (Nexthop id is missing, or Invalid nexthop id)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "nh4/pw-012",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip nexthop show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

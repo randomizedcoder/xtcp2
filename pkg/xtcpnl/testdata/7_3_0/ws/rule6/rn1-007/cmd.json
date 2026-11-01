@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "family": "6",
+  "fwmark": "0",
+  "ipproto": "17",
+  "oif": "nosuch",
+  "priority": "200",
+  "protocol": "2",
+  "sport": "65534-65534",
+  "src": "::",
+  "src_len": "0",
+  "table": "256",
+  "tos": "8",
+  "uidrange": "1000-2000",
+  "verb": "del"
+ },
+ "cmd": "ip -6 rule del from ::/0 order 200 fwmark 0 oif nosuch dsfield 0x08 ipproto udp sport 65534 dport 0x50/0xfff0 uidrange 1000-2000 protocol kernel table 256",
+ "desc": "corner: verb=del not=absent from=0 to=absent pref=order fwmark=0 iif=absent oif=nosuch ds=dsfield ipproto=udp sport=65534 dport=mask uidrange=1000 suppress=absent protocol=kernel extra=absent action=256",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/rn1-007",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add from ::/0 order 200 fwmark 0 oif nosuch dsfield 0x08 ipproto udp sport 65534 dport 0x50/0xfff0 uidrange 1000-2000 protocol kernel table 256"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add from ::/0 order 200 fwmark 0 oif nosuch dsfield 0x08 ipproto udp sport 65534 dport 0x50/0xfff0 uidrange 1000-2000 protocol kernel table 256",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

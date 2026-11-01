@@ -1038,7 +1038,7 @@ is `ip -t monitor all label` (`:1757`).
 
 | Phase / family | Kernel module | Subscriber | Guest tooling | Ready? |
 |---|---|---|---|---|
-| 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes**; `ip route` also in the workbench (`ws/route4/`, `ws/route6/`, 343 generated rows); see [the grammar matrix](#grammar-matrix-w2) |
+| 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes**; `ip route`, `ip rule` and `ip nexthop` also in the workbench (`ws/route4/`, `ws/route6/`, `ws/rule4/`, `ws/rule6/`, `ws/nh4/`, `ws/nh6/`, `ws/nhgrp/`; 343 + 406 + 280 generated rows); see [the grammar matrix](#grammar-matrix-w2) |
 | 3 bridge / VLAN | `bridge` ✅, loaded by the link-write capture | `ip monitor all` ✅ (FDB); `bridge monitor vlan` under `xtcp2-nl-brmon` ✅ (VLAN) | `bridge` (in `iproute2`) ✅ | **yes**, in the link-write capture (`link-write/brmpls/`), not this flavor; see [the BIRD plan](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test) |
 | link-write 0–3 bond / LACP, Tier 1 | `bonding` — **add**, with `options bonding max_bonds=0` (module load creates `bond0` in `init_net`, `drivers/net/bonding/bond_main.c:6629-6630`) | n/a (dump-only readback) | `iproute2` ✅; a **partner** bond in a second netns over veth — **add** | no |
 | link-write 8 bond / LACP, Tier 2 | `bonding` — **add** | n/a | a second microVM and two point-to-point virtio-net links with `speed=10000,duplex=full` — **add**; never a bridge (`BR_GROUPFWD_RESTRICTED` drops LACPDUs) | no |
@@ -1252,8 +1252,8 @@ equivalent (it removed a type mask the attribute walker already applies).
 W2 is three commits, each verified on its own:
 
 - **W2a:** the generator and `ip route` for IPv4 and IPv6, with O3 and O4.
-  This section covers it.
-- **W2b:** `ip rule` and `ip nexthop`.
+  This section covers it first.
+- **W2b:** `ip rule` and `ip nexthop`, in [its own part below](#w2b-ip-rule-and-ip-nexthop).
 - **W2c:** rows mined from the fib selftests, and O5 (the goip
   differential).
 
@@ -1372,8 +1372,110 @@ generator were killed, each by a failing test.
   `nlcap-ws up` takes 21 s. The corpus is 1.0 MB of file bytes in 2401
   files.
 
-Next are W2b (`ip rule`, `ip nexthop`) and W2c (the selftest miner and
-O5), then W3's `ip addr`/`neigh`/`link` matrix.
+##### W2b: `ip rule` and `ip nexthop`
+
+The same generator, with two more families:
+
+```sh
+go run ./tools/nlcapgen matrix -family rule -seed 1 -random 40 \
+  -out nix/microvms/workbench/rule.rows.jsonl
+go run ./tools/nlcapgen matrix -family nexthop -seed 1 -random 40 \
+  -out nix/microvms/workbench/nexthop.rows.jsonl
+```
+
+- **`matrix_rule.go`:** rule4 and rule6, 17 axes each: verb, `not`,
+  from, to, pref, fwmark, iif, oif, the DS field (tos, dsfield or dscp
+  with its mask), ipproto, sport, dport, uidrange, suppress, protocol,
+  an extra (tun_id, realms or, for IPv6, flowlabel) and the action
+  (lookup, goto, nop, the reject types, l3mdev).
+- **`matrix_nexthop.go`:** nh4 and nh6 (verb, id, kind, protocol), and
+  nhgrp (verb, fam, id, members, type, fdb, hw_stats, protocol). A group
+  row first adds its members, ids 21 to 32, so the id axis (1 and 100)
+  never takes one of theirs.
+- **Judges.** `ruleJudge` refuses a bare `ip rule add` or `del` (iproute2,
+  rc 1) and a goto at or below its own preference ("Backward goto not
+  supported"). `nhJudge` refuses a replace or delete without an id.
+- **Repeats and deletes.** `deriveDupGone` (shared with route) adds a
+  repeated add (EEXIST) and a delete of something never added (ENOENT).
+  It only repeats a row that names a preference or an id: without one,
+  the kernel picks a new preference or id, so the second add makes a
+  second object instead of failing.
+- **Rows.**
+
+  | family | rows | accepted | negative |
+  |---|---|---|---|
+  | rule (rule4 203, rule6 203) | 406 | 351 (14 positive, 78 boundary, 259 corner) | 55 |
+  | nexthop (nh4 80, nh6 80, nhgrp 120) | 280 | 178 (34 positive, 97 boundary, 47 corner) | 102 |
+
+  | outcome | rule | nexthop |
+  |---|---|---|
+  | EINVAL | 21 | 71 |
+  | ENOENT | 6 | 9 |
+  | EEXIST | 6 | 9 |
+  | ERANGE | 2 | |
+  | ENODEV (rc 255, from `RTM_GETLINK`) | | 2 |
+  | refused by iproute2 before anything is sent (rc 255 or 1) | 20 | 7 |
+  | iproute2 exits after one acknowledged `RTM_GETLINK` | | 4 |
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_rule_test.go`,
+`xtcpnl_ws_nexthop_test.go`):
+
+| # | test | holds |
+|---|---|---|
+| O3 | `TestWsRuleCorpus` | the verb's flags; the `fib_rule_hdr` (family, prefix lengths, tos, action and the table rule: under 256 in the header, otherwise `FRA_TABLE` u32); the exact set of `FRA_*` attributes, each width (an interface name with its NUL, a zero-width `FRA_SRC` for `from all`) and value |
+| O4 | `TestWsRuleCorpus` | the `ip rule show` dump has the rule, with the same selectors, preference, action, table and ranges; after a delete it is gone |
+| O3 | `TestWsNexthopCorpus` | the verb's flags; the `nhmsg` (family, protocol, onlink); the attribute set and widths; `NHA_GROUP` as weight − 1 split over `weight` and `weight_high`; `NHA_GROUP_TYPE`; the `NHA_RES_GROUP` nest and what it holds |
+| O4 | `TestWsNexthopCorpus` | the dump has the nexthop by id, with its family, protocol, gateway, device, blackhole, fdb, members and weights (only when the dump fills in `weight_high` or no weight passes 256) and the resilient values named; after a delete the id is gone |
+
+O3 checks 386 rule and 267 nexthop requests; O4 checks 351 and 178 round
+trips. Unit tables: `TestRuleWantFromAxes`, `TestRuleRequestProblem`,
+`TestRuleDumpMatches`, `TestNhWantFromAxes`, `TestNhWantForCmd`,
+`TestNhRequestProblem`, `TestNhDumpMatches`, and in the generator
+`TestRuleJudge`, `TestBuildRule`, `TestNhJudge`, `TestBuildNexthop` and
+`TestMatrixFibRows`, `TestFibPredicates` and `TestNhMembers`. 26 of 26
+mutants of the oracles, the judges, the builders and the generator were
+killed, each by a failing test. The last two tables were added for three
+that first survived: a repeat predicate that always holds, a negative base
+of any kind, and members back at id 1.
+
+**What the rule and nexthop rows showed** (kernel 7.3.0, iproute2 7.2.0):
+
+- **iproute2 7.2.0 can't send a nexthop `dst_port`.** `NHA_DST_PORT`
+  (18) is parsed only from iproute2 commit ad2b2d95 on, after 7.2.0. So
+  `dev d0 dst_port 4789` is ack-then-fail: one `RTM_GETLINK` for `d0`,
+  then rc 255. It is a negative row until the flake moves past it.
+- **`type resilient` sends an empty `NHA_RES_GROUP` when anything
+  follows it.** `parse_nh_group_type_res` opens the nest whenever there
+  is a next argument, even one that isn't a resilient option (`type
+  resilient fdb`). When `type resilient` ends the line, no nest is sent.
+  O3 models both.
+- **A new resilient group needs `buckets`.** Without them the kernel
+  refuses it with EINVAL ("Number of buckets not specified for nexthop
+  group insertion", `net/ipv4/nexthop.c:2692`).
+- **A nexthop on an unknown device fails in the kernel, not in ip.**
+  `ll_name_to_index` asks with an `RTM_GETLINK`, the kernel answers
+  ENODEV, and ip exits 255 ("Device does not exist") without sending the
+  `RTM_NEWNEXTHOP`.
+- **iproute2 takes weight 65536, the kernel doesn't.** `nhgrp_set_weight`
+  stores 65535 across `weight` and `weight_high`; the kernel refuses it
+  with EINVAL. 65535 is the largest it accepts.
+- **A DSCP of 64 is ERANGE.** iproute2 sends `FRA_DSCP` 64 as given, and
+  `fib_rule_policy`'s `NLA_POLICY_MAX` refuses it ("Error parsing msg")
+  with ERANGE, not EINVAL.
+- **A rule port range must end below 65535.** `sport 65535` passes
+  iproute2 and the kernel refuses it ("Invalid sport range"); 65534 is
+  accepted. An IPv4 `tos 0xb8` (past `IPTOS_TOS_MASK`) is EINVAL too.
+- **`from all` sends a zero-length `FRA_SRC`.** The first O3 model sent
+  the family's width of zeros, which is what `from 0.0.0.0/0` sends.
+- **A repeated rule without a preference isn't EEXIST.**
+  `fib_default_rule_pref` gives the second add a new preference, so it
+  succeeds as a second rule.
+- **Determinism.** Both rows files ran twice, the second on a fresh
+  boot, and wscmp found every row with the same status, rc and message
+  types. The two families' corpus is 1.5 MB in 4802 files.
+
+Next is W2c (the selftest miner and O5), then W3's
+`ip addr`/`neigh`/`link` matrix.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

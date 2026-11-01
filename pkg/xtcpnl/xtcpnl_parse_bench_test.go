@@ -811,7 +811,7 @@ func TestParseBenchAllocs(t *testing.T) {
 		name        string
 		expected    string
 	}{
-		{description: "corner: ParseRule allocates nothing on any pick", name: "ParseRule", expected: "0/32: smallest 0, typical 0, largest 0"},
+		{description: "corner: ParseRule allocates nothing on its bare picks, and four times on the largest, a workbench rule whose from, to, iif and oif it copies", name: "ParseRule", expected: "0/32: smallest 0, typical 0, largest 4"},
 		{description: "corner: ParseNewStats allocates nothing on its header-only picks, and once on the largest", name: "ParseNewStats", expected: "0/92: smallest 0, typical 0, largest 1"},
 		{description: "corner: ParseNlMsgErr allocates nothing on its capped picks, and once on the largest, whose extended-ack TLVs it decodes", name: "ParseNlMsgErr", expected: "0/2: smallest 0, typical 0, largest 1"},
 		{description: "corner: ParseNsid allocates nothing on any pick", name: "ParseNsid", expected: "0/88: smallest 0, typical 0, largest 0"},

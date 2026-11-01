@@ -1,0 +1,3 @@
+0:	from all lookup local
+32766:	from all lookup main
+4294967295:	from all fwmark 0xffffffff ipproto ipv6-icmp tun_id 7 prohibit dscp EF

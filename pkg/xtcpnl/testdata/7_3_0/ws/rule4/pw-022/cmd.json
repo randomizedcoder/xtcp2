@@ -1,0 +1,53 @@
+{
+ "axes": {
+  "action": "3",
+  "dport": "1-65534",
+  "dst": "203.0.113.0",
+  "dst_len": "24",
+  "family": "4",
+  "flow": "10",
+  "fwmark": "16",
+  "iif": "nosuch",
+  "oif": "nosuch",
+  "priority": "200",
+  "protocol": "255",
+  "sport": "80-80",
+  "sport_mask": "65520",
+  "src": "198.51.100.0",
+  "src_len": "24",
+  "sup_group": "5",
+  "tos": "8",
+  "uidrange": "1000-2000",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add from 198.51.100.0/24 to 203.0.113.0/24 order 200 fwmark 0x10 iif nosuch oif nosuch dsfield 0x08 sport 0x50/0xfff0 dport 1-65534 uidrange 1000-2000 suppress_ifgroup 5 protocol 255 realms 10 nop",
+ "desc": "corner: verb=add not=absent from=24 to=24 pref=order fwmark=16 iif=nosuch oif=nosuch ds=dsfield ipproto=absent sport=mask dport=full uidrange=1000 suppress=group protocol=255 extra=realms action=nop",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-022",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

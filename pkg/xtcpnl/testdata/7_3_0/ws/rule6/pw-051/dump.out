@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from all to 2001:db8:3::/64 uidrange 0-0 ipproto ipv6-icmp sport 80 dport 1000-2000 lookup 4294967295 suppress_prefixlength 24
+32766:	from all lookup main

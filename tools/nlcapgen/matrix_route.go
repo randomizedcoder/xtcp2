@@ -438,7 +438,12 @@ func buildRoute(fam string, axes []axis, vals []value, addV verdict) row {
 // deriveRoute adds, from the first positive rows that fit: a repeated add
 // (EEXIST, since add sets NLM_F_EXCL) and a delete of a route never added
 // (ESRCH).
-func deriveRoute(name string, pos []row) []row {
+func deriveRoute(name string, pos []row) []row { return deriveDupGone(name, pos, "ESRCH", nil) }
+
+// deriveDupGone adds up to three repeated adds (EEXIST) from the positive
+// adds canDup allows (nil allows all), and up to three deletes, each of
+// something never added, failing with goneErrno.
+func deriveDupGone(name string, pos []row, goneErrno string, canDup func(*row) bool) []row {
 	const each = 3
 	var out []row
 	var dup, gone int
@@ -448,7 +453,7 @@ func deriveRoute(name string, pos []row) []row {
 			continue
 		}
 		switch {
-		case p.Axes["verb"] == "add" && dup < each:
+		case p.Axes["verb"] == "add" && dup < each && (canDup == nil || canDup(p)):
 			dup++
 			r := *p
 			r.Pre = append(append([]preStep{}, p.Pre...), preStep{Cmd: p.Cmd})
@@ -461,8 +466,8 @@ func deriveRoute(name string, pos []row) []row {
 			r := *p
 			r.Pre = append([]preStep{}, p.Pre[:len(p.Pre)-1]...)
 			r.ID = name + "/gone-" + string(rune('0'+gone))
-			r.Desc = "negative: " + strings.TrimPrefix(dropPrefix(p.Desc), " ") + ": deleted but never added (ESRCH)"
-			r.Expect = expect{RC: intp(2), Errno: "ESRCH", RefusedBy: "kernel"}
+			r.Desc = "negative: " + strings.TrimPrefix(dropPrefix(p.Desc), " ") + ": deleted but never added (" + goneErrno + ")"
+			r.Expect = expect{RC: intp(2), Errno: goneErrno, RefusedBy: "kernel"}
 			out = append(out, r)
 		}
 	}

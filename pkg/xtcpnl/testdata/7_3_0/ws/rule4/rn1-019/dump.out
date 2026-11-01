@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	not from all to 203.0.113.9 fwmark 0xffffffff iif lo oif nosuch [detached] lookup [l3mdev-table] uidrange 1000-2000 ipproto tcp sport 80 dport 1000-2000 proto static
+32766:	from all lookup main
+32767:	from all lookup default

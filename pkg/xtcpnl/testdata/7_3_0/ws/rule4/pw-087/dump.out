@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	from all tos 0x08 lookup [l3mdev-table] ipproto ipproto-255 sport 0x50/0xfff0 dport 65534
+32766:	from all lookup main
+32767:	from all lookup default

@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	from all sport 65534 dport 65534 lookup 4294967295 suppress_ifgroup default dscp EF
+32766:	from all lookup main
+32767:	from all lookup default

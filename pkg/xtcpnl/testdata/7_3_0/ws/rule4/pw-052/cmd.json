@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "dport": "1-1",
+  "family": "4",
+  "fwmark": "16",
+  "ipproto": "6",
+  "priority": "0",
+  "protocol": "2",
+  "sport": "65534-65534",
+  "table": "0",
+  "tos": "16",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add pref 0 fwmark 0x10 tos 0x10 ipproto tcp sport 65534 dport 1 protocol kernel table 0",
+ "desc": "corner: verb=add not=absent from=absent to=absent pref=0 fwmark=16 iif=absent oif=absent ds=tos ipproto=tcp sport=65534 dport=1 uidrange=absent suppress=absent protocol=kernel extra=absent action=table-0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-052",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

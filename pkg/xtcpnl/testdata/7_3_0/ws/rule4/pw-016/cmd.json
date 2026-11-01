@@ -1,0 +1,52 @@
+{
+ "axes": {
+  "dport": "1000-2000",
+  "dscp": "46",
+  "family": "4",
+  "flow": "10",
+  "priority": "4294967295",
+  "protocol": "4",
+  "sport": "1-1",
+  "src": "198.51.100.0",
+  "src_len": "24",
+  "sup_group": "0",
+  "table": "254",
+  "uidrange": "0-4294967294",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del from 198.51.100.0/24 pref 4294967295 dscp 46/0x3f sport 1 dport 1000-2000 uidrange 0-4294967294 sup_group default protocol static realms 10 lookup main",
+ "desc": "corner: verb=del not=absent from=24 to=absent pref=max fwmark=absent iif=absent oif=absent ds=dscp-fullmask ipproto=absent sport=1 dport=range uidrange=max suppress=group-default protocol=static extra=realms action=main",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-016",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add from 198.51.100.0/24 pref 4294967295 dscp 46/0x3f sport 1 dport 1000-2000 uidrange 0-4294967294 sup_group default protocol static realms 10 lookup main"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add from 198.51.100.0/24 pref 4294967295 dscp 46/0x3f sport 1 dport 1000-2000 uidrange 0-4294967294 sup_group default protocol static realms 10 lookup main",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

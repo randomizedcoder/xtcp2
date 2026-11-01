@@ -1,0 +1,46 @@
+{
+ "axes": {
+  "dscp": "63",
+  "family": "6",
+  "iif": "lo",
+  "ipproto": "58",
+  "l3mdev": "1",
+  "priority": "4294967295",
+  "protocol": "2",
+  "sport": "1000-2000",
+  "src": "::",
+  "src_len": "0",
+  "sup_group": "0",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from ::/0 pref 4294967295 iif lo dscp 63 ipproto ipv6-icmp sport 1000-2000 sup_group default protocol kernel l3mdev",
+ "desc": "corner: verb=add not=absent from=0 to=absent pref=max fwmark=absent iif=lo oif=absent ds=dscp-63 ipproto=icmp sport=range dport=absent uidrange=absent suppress=group-default protocol=kernel extra=absent action=l3mdev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-038",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

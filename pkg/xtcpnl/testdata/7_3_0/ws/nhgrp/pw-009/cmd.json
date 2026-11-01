@@ -1,0 +1,46 @@
+{
+ "axes": {
+  "id": "100",
+  "verb": "del"
+ },
+ "cmd": "ip nexthop del id 100",
+ "desc": "positive: verb=del fam=absent id=100 members=two type=res-all fdb=absent hw_stats=on protocol=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "nhgrp/pw-009",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip nexthop add id 21 via 192.0.2.1 dev d0 && ip nexthop add id 22 via 192.0.2.2 dev d0 && ip nexthop add id 23 dev d0 && ip -6 nexthop add id 26 via 2001:db8:1::1 dev d0 && ip nexthop add id 29 blackhole && ip nexthop add id 31 via 192.0.2.1 fdb && ip nexthop add id 32 via 192.0.2.2 fdb",
+  "ip nexthop add id 100 group 21/22 type resilient buckets 8 idle_timer 10 unbalanced_timer 20 hw_stats on"
+ ],
+ "readback": [
+  {
+   "cmd": "ip nexthop show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 21 via 192.0.2.1 dev d0 && ip nexthop add id 22 via 192.0.2.2 dev d0 && ip nexthop add id 23 dev d0 && ip -6 nexthop add id 26 via 2001:db8:1::1 dev d0 && ip nexthop add id 29 blackhole && ip nexthop add id 31 via 192.0.2.1 fdb && ip nexthop add id 32 via 192.0.2.2 fdb",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 100 group 21/22 type resilient buckets 8 idle_timer 10 unbalanced_timer 20 hw_stats on",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

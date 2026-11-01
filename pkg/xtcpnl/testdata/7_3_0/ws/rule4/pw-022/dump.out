@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from 198.51.100.0/24 to 203.0.113.0/24 tos 0x08 fwmark 0x10 iif nosuch [detached] oif nosuch [detached] uidrange 1000-2000 sport 0x50/0xfff0 dport 1-65534 realms 10 nop proto 255
+32766:	from all lookup main
+32767:	from all lookup default

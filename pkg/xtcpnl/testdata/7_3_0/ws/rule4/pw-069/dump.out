@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from 198.51.100.7 fwmark 0x10/0xff iif lo lookup [l3mdev-table] uidrange 0-0 ipproto tcp dport 80 proto 255
+32766:	from all lookup main
+32767:	from all lookup default

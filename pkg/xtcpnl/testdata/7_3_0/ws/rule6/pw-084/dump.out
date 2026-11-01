@@ -1,0 +1,3 @@
+0:	from all lookup local
+300:	from all tos 0x08 fwmark 0xffffffff sport 1 dport 1000-2000 lookup main suppress_ifgroup default
+32766:	from all lookup main

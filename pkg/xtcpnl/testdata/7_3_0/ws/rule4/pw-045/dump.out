@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	from 198.51.100.7 fwmark 0x10/0xff ipproto tcp sport 1 nop proto 255 dscp 4
+32766:	from all lookup main
+32767:	from all lookup default

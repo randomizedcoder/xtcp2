@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from 198.51.100.7 to 203.0.113.9 tos 0x10 ipproto tcp sport 1 dport 0x50/0xfff0 lookup local suppress_prefixlength 0 realms 10
+32766:	from all lookup main
+32767:	from all lookup default

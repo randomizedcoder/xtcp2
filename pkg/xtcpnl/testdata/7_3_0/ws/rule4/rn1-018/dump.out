@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all to 203.0.113.0/24 tos 0x08 fwmark 0x10 iif d0 oif nosuch [detached] uidrange 0-4294967294 ipproto ipproto-255 sport 1000-2000 dport 1 lookup main suppress_ifgroup default realms 10 proto 255
+32766:	from all lookup main
+32767:	from all lookup default

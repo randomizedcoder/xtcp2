@@ -1,0 +1,3 @@
+0:	from all lookup local
+32766:	from all lookup main
+4294967295:	from all to 2001:db8:3::/64 fwmark 0x10 iif nosuch [detached] oif nosuch [detached] uidrange 0-0 ipproto ipproto-255 dport 80 unreachable dscp 4 flowlabel 0x12345
