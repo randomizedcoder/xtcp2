@@ -1049,7 +1049,7 @@ is `ip -t monitor all label` (`:1757`).
 | link-write 0–3 bond / LACP, Tier 1 | `bonding` — **add**, with `options bonding max_bonds=0` (module load creates `bond0` in `init_net`, `drivers/net/bonding/bond_main.c:6629-6630`) | n/a (dump-only readback) | `iproute2` ✅; a **partner** bond in a second netns over veth — **add** | no |
 | link-write 8 bond / LACP, Tier 2 | `bonding` — **add** | n/a | a second microVM and two point-to-point virtio-net links with `speed=10000,duplex=full` — **add**; never a bridge (`BR_GROUPFWD_RESTRICTED` drops LACPDUs) | no |
 | 4 tc telemetry | every `sch_*`, `cls_*` and `act_*` module, loaded per rows file by the workbench's batch runner ✅ | n/a (dump-only) | `tc` (in `iproute2`) ✅ | **yes**, in the workbench (`ws/tdc/`, 1310 rows from tdc), not this flavor; see [tc from tdc](#tc-from-tdc-w1) |
-| 5 genetlink: ethtool | kernel config — **verify** | n/a (dump-only) | `ethtool` — **add** | no |
+| 5 genetlink: ethtool | `netdevsim`, loaded per rows file by the workbench's batch runner ✅ | n/a (dump-only) | `ethtool` 7.1 in the workbench ✅ | **yes**, in the workbench (`ws/ethring/`, `ws/ethchan/`, `ws/ethpause/`, `ws/ethfec/`, `ws/ethcoal/`, `ws/ethshow/`; 244 generated rows), not this flavor; see [W5d](#w5d-ethtool) |
 | 5 genetlink: devlink, netdev | kernel config — **verify** | n/a (dump-only) | `devlink` (in `iproute2`) ✅ | no |
 | 6 xfrm | `xfrm_user` and the ESP modules, loaded late by the link-write capture ([C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber)) ✅ | `ip xfrm monitor` under `xtcp2-nl-xfrmmon` ([C3-T02](goip-parity-gaps.md#c3-t02-xfrm-policy-and-monitor)) ✅ | `iproute2` ✅ | **yes**, in the link-write capture (`link-write/xfrm/`), not this flavor |
 | 6 conntrack | `nf_conntrack_netlink` — **add** | `conntrack -E` — **add** | `conntrack-tools` — **add** | no |
@@ -2747,6 +2747,137 @@ survived the first pass:
   `TestTallyCorpusSockDiag` does.
 
 **Size:** the rows add 1.5 MB to `ws/`, 18 MB of 64 MB in all.
+
+##### W5d: `ethtool`
+
+`ethtool` 7.1 talks to the kernel's `ethtool` generic netlink family. It is
+the first workbench client on `NETLINK_GENERIC`. Every row loads
+`netdevsim` and makes a fresh device, `eth0`, in its own namespace (the
+pre step `ethSetup`; the device id is 900 plus the namespace's number, so
+parallel rows never share one). Rows capture with `--proto generic`.
+
+`nlcapgen matrix -family ethtool -seed 1 -random 20` writes
+`nix/microvms/workbench/ethtool.rows.jsonl` from six spaces in
+`tools/nlcapgen/matrix_ethtool.go`:
+
+| space | command | axes (boundary values in bold) |
+|---|---|---|
+| `ethring` | `-G` (RINGS_SET 16) | each absent or: rx 1, 1024, **4096** (netdevsim's max); tx 1, 256, **4096**; rx-mini **0**, **4096**; rx-jumbo 100; tcp-data-split on, off, auto; hds-thresh **0**, **1024** |
+| `ethchan` | `-L` (CHANNELS_SET 18) | combined 1, 2, **4** (the device's queues); rx, tx, other **0** |
+| `ethpause` | `-A` (PAUSE_SET 22) | autoneg off; rx, tx on/off |
+| `ethfec` | `--set-fec` (FEC_SET 30) | off, auto, rs, baser, llrs, and the corners two modes, auto plus a mode, off plus a mode, mixed case |
+| `ethcoal` | `-C` (COALESCE_SET 20) | adaptive-rx/tx, the usecs and frames (plain, irq, low, high), pkt-rate-low/high, sample-interval, cqe-mode-rx/tx, tx-aggr-*, rx-cqe-* |
+| `ethshow` | `-g -l -a -c --show-fec -T -k` (their GETs) | none, `--json`, `-I`; `eth0` or `lo` |
+
+244 rows: 73 positive, 37 boundary, 81 corner and 53 negative. The
+negatives are out-of-range values (`4097`, 2^32, 2^32+1, `-1`), a
+repeated argument, a missing value, parameters netdevsim doesn't support,
+`nosuch0` (ENODEV) and `lo` (EOPNOTSUPP). Each row that sets something
+reads it back with the matching show command. `ethShowJSON` adds a
+`--json` row of `eth0` for each JSON command the pairwise rows missed.
+
+**`ethtool`'s side** (`ethtool-7.1/`):
+
+- Every command looks the family up (`CTRL_CMD_GETFAMILY`). A show
+  command also dumps the GET operation's policy (`CTRL_CMD_GETPOLICY`,
+  `netlink/netlink.c:259`) to learn which header flags it takes. `-I`
+  sets `ETHTOOL_FLAG_STATS` only when that policy allows it
+  (`netlink.c:289`): PAUSE_GET, FEC_GET and TSINFO_GET. On `-g`, `-l` and
+  `-c` the flag is silently dropped. These are the corpus's first
+  `CTRL_CMD_GETPOLICY` captures, so `TestNetlinkUniverse` no longer
+  excludes it.
+- `--set-fec encoding off` sends the link mode name `None`
+  (`netlink/fec.c:356`). Any other word is upper-cased, so `none`
+  becomes `NONE`, which names no link mode. The kernel answers
+  EOPNOTSUPP, "bit name not found" (`net/ethtool/bitset.c:415`).
+- `--json` with `-T` is refused before any request (`ethtool.c:6743`).
+
+**`ethtool` bugs** (recorded here only):
+
+- **A bare `hds-thresh` reads past argv.** Its parser entry has
+  `min_argc = 0` (`netlink/rings.c:205`); every other ring parameter
+  has 1. `ethtool -G eth0 hds-thresh` hands the u32 parser a NULL and
+  prints `invalid value '(null)' for parameter 'hds-thresh'`. It still
+  exits 1 before sending anything (the `ethring/ng-017` row).
+- **Four coalescing JSON keys differ from their parameters.** The
+  printer names `rx-frames-low` `rx-frame-low` (`netlink/coalesce.c:72`),
+  and likewise `tx-frame-low`, `rx-frame-high` and `tx-frame-high`
+  (`:76`, `:81`, `:85`). So `ethtool --json -c` output can't be fed back
+  as `-C` arguments by name. The JSON oracle's key table follows the
+  printer.
+
+**The kernel and netdevsim:**
+
+- `tcp-data-split auto` is stored as UNKNOWN, which netdevsim reports as
+  ENABLED (`drivers/net/netdevsim/ethtool.c:77-78`). The row reads back
+  on (`rt.tcp-data-split=2`).
+- A channel count of 0 for a type whose max is 0 is left out of the
+  reply (`net/ethtool/channels.c:64-83`). The rows expect it absent.
+- netdevsim's `set_coalesce` copies only `struct ethtool_coalesce`
+  (`netdevsim/ethtool.c:56-63`). Every `kernel_ethtool_coalesce` field
+  (cqe-mode-rx/tx, tx-aggr-*, rx-cqe-*) is accepted and reads back 0.
+  Those rows carry `rt.<arg>=0`.
+- `autoneg on` for pause is EINVAL (`netdevsim/ethtool.c:37`), so
+  ethtool exits 76.
+- `lo` has no ring, channel, pause, coalescing or FEC operation, so
+  each of those GETs is EOPNOTSUPP. `-T` and `-k` work on it.
+
+**Oracles:**
+
+- **The parser** (`pkg/xtcpnl/xtcpnl_ethtool.go`): `ParseEthtool` now
+  decodes coalescing (`EthtoolCoalesce`, every u32 and u8 attribute;
+  the two profile nests stay raw).
+- **O3** (`pkg/xtcpnl/xtcpnl_ws_ethtool_test.go`): the one SET request
+  carries the row's device in its header and exactly the attributes its
+  facts name, each with its value. For FEC, the mode names (as a
+  no-mask bitset) and auto. A show row's GET has the command, the
+  device, and the STATS flag exactly when `-I` asks and the policy
+  allows. A refusal before sending (`ack-then-fail`) sends no SET.
+- **O4:** the readback's GET reply holds each attribute set, as set or
+  as its `rt.` fact, and leaves out the `absent` ones. For FEC, the
+  configured link-mode bits, auto and the active mode.
+- **JSON:** each `--json` key of rings, channels, pause and coalescing
+  names a reply attribute, and its value equals the reply's.
+- O3 checked 231 requests, O4 170 round trips and 47 JSON values.
+- **O5 doesn't apply:** goip has no ethtool.
+- **Coverage:** `nlcapgen coverage` now reads generic netlink. It names
+  the family ids from each capture's `CTRL_CMD_NEWFAMILY` replies and
+  holds each SET to its kernel policy (`ethnl_*_set_policy`). Rings
+  12/12, channels 5/5, coalescing 30/32, pause 4/5, FEC 3/3. Never sent:
+  `RX_PROFILE` and `TX_PROFILE` (ethtool 7.1 has no parameter for them)
+  and pause `STATS_SRC` (`NLA_REJECT` in a SET). The YNL-generated
+  header's `X_MAX = (__X_CNT - 1)` entries now evaluate.
+- **Determinism:** a second run of all 244 rows, on the same workbench
+  boot, matched on every row.
+
+**Tests:**
+
+- The parser: `TestEthtoolCoalesce`.
+- The generator: `TestEthBuild`, `TestEthShowJudge`, `TestEthShowJSON`,
+  `TestMatrixEthtoolRows`, `TestCovGenlIDs`, `TestCovAddGenl`,
+  `TestTallyCorpusGenl`, four new `TestUapiEnum` rows and two new
+  `TestCheckRows` rows (a readback's protocol).
+- The oracles: `TestEthWantFromAxes`, `TestEthRequestProblem`,
+  `TestEthRoundTripProblem`, `TestEthFecProblems`, `TestEthBitIndexes`,
+  `TestEthShowProblem`, `TestEthJSONProblem`, `TestEthJSONValue` and
+  `TestEthGenlID`.
+- The new captures moved two benchmarks' picks. `ParseGenericNetlinkFamily`
+  now picks only NEWFAMILY replies (the smallest nlctrl message became a
+  policy dump). `ParseEthtool` picks only the replies and notifications
+  it classifies (the largest became a reply it doesn't decode).
+
+**Mutation:** 45 of 45 mutants killed, each by a relevant test. One
+survived the first pass:
+
+- **`covGenlIDs` would have taken a family id from a request.** Nothing
+  sent a request carrying `CTRL_CMD_NEWFAMILY`'s command.
+  `TestCovGenlIDs` now has that row.
+
+Two mutants didn't compile the first time and were rewritten. While
+writing the driver, one more gap turned up before the run: nothing
+checked a readback's protocol, so `TestCheckRows` gained its two rows.
+
+**Size:** the rows add 1.1 MB to `ws/`, 20 MB of 64 MB in all.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

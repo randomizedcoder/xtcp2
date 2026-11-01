@@ -350,6 +350,10 @@ func TestCheckRows(t *testing.T) {
 			r.Expect.Match = &match{Readback: "verify", Pattern: "x"}
 		})}, "which the row lacks"},
 		{"negative: a bad module name", []row{with(func(r *row) { r.Modules = []string{"sch fq"} })}, "bad module"},
+		{"positive: a generic netlink readback", []row{with(func(r *row) { r.Readback = []readback{{Name: "v", Cmd: "x", Proto: "generic"}} })}, ""},
+		{"negative: a readback on a protocol the workbench lacks", []row{with(func(r *row) {
+			r.Readback = []readback{{Name: "v", Cmd: "x", Proto: "nosuch"}}
+		})}, "readback v: proto"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

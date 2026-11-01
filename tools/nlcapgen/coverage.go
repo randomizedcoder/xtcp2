@@ -73,7 +73,47 @@ var covFamilies = []covFamily{
 		[]uint16{unix.RTM_NEWMDB, unix.RTM_DELMDB}, unix.AF_BRIDGE, mdbHdrSize, mdbaSetEntryAttrs},
 }
 
+// covGenlFamily is a generic netlink family's set policy. Genl is the
+// family's name, which each capture's CTRL_CMD_NEWFAMILY reply numbers, and
+// Cmd the one command whose requests the policy judges. A genl request's
+// attributes follow its genlmsghdr.
+type covGenlFamily struct {
+	covFamily
+	Genl string
+	Cmd  uint8
+}
+
+// covGenlFamilies are ethtool's set policies (net/ethtool/*.c), which
+// ethnl_default_set_doit parses each *_SET with.
+var covGenlFamilies = []covGenlFamily{
+	{covFamily{Key: "ethtool-rings", Prefix: "ETHTOOL_A_RINGS_", Dir: "net/ethtool", Policy: "ethnl_rings_set_policy"}, "ethtool", 16},
+	{covFamily{Key: "ethtool-channels", Prefix: "ETHTOOL_A_CHANNELS_", Dir: "net/ethtool", Policy: "ethnl_channels_set_policy"}, "ethtool", 18},
+	{covFamily{Key: "ethtool-coalesce", Prefix: "ETHTOOL_A_COALESCE_", Dir: "net/ethtool", Policy: "ethnl_coalesce_set_policy"}, "ethtool", 20},
+	{covFamily{Key: "ethtool-pause", Prefix: "ETHTOOL_A_PAUSE_", Dir: "net/ethtool", Policy: "ethnl_pause_set_policy"}, "ethtool", 22},
+	{covFamily{Key: "ethtool-fec", Prefix: "ETHTOOL_A_FEC_", Dir: "net/ethtool", Policy: "ethnl_fec_set_policy"}, "ethtool", 30},
+}
+
+// covAllFamilies is every family whose policy the report judges.
+func covAllFamilies() []covFamily {
+	out := slices.Clone(covFamilies)
+	for i := range covGenlFamilies {
+		out = append(out, covGenlFamilies[i].covFamily)
+	}
+	return out
+}
+
 const (
+	// covGenlHdrSize is struct genlmsghdr: the command, the version and two
+	// reserved bytes.
+	covGenlHdrSize = 4
+	// covGenlCtrl is GENL_ID_CTRL, the family that numbers the others, and
+	// covCtrlNewFamily, covCtrlFamilyID and covCtrlFamilyName its
+	// CTRL_CMD_NEWFAMILY reply's command and attributes
+	// (include/uapi/linux/genetlink.h).
+	covGenlCtrl       = 0x10
+	covCtrlNewFamily  = 1
+	covCtrlFamilyID   = 1
+	covCtrlFamilyName = 2
 	// mdbHdrSize is struct br_port_msg: a u8 and a u32, padded.
 	mdbHdrSize = 8
 	// mdbaSetEntryAttrs is MDBA_SET_ENTRY_ATTRS.
@@ -93,8 +133,10 @@ func stripC(src string) string {
 }
 
 // uapiEnum numbers the enum whose first entry is prefix+"UNSPEC", as C
-// does: each entry one past the last, unless given a number or an earlier
-// entry's name. Entries starting "__" (the MAX sentinels) are left out.
+// does: each entry one past the last, unless given a number, an earlier
+// entry's name, or an earlier entry plus or minus a number, as the YNL
+// generated headers' MAX = (__CNT - 1). Entries starting "__" (the MAX
+// sentinels) are left out.
 func uapiEnum(src, prefix string) (map[string]int, error) {
 	src = stripC(src)
 	anchor := regexp.MustCompile(`\{\s*` + regexp.QuoteMeta(prefix) + `UNSPEC\b`)
@@ -107,6 +149,7 @@ func uapiEnum(src, prefix string) (map[string]int, error) {
 		return nil, fmt.Errorf("enum %sUNSPEC is not closed", prefix)
 	}
 	out := map[string]int{}
+	seen := map[string]int{} // out and the "__" entries
 	next := 0
 	for _, entry := range strings.Split(src[loc[0]+1:loc[0]+end], ",") {
 		name, val, hasVal := strings.Cut(strings.TrimSpace(entry), "=")
@@ -117,7 +160,7 @@ func uapiEnum(src, prefix string) (map[string]int, error) {
 		if hasVal {
 			if n, err := strconv.ParseInt(val, 0, 32); err == nil {
 				next = int(n)
-			} else if n, ok := out[val]; ok {
+			} else if n, ok := uapiEnumRef(seen, val); ok {
 				next = n
 			} else {
 				return nil, fmt.Errorf("enum %s: %s = %q is neither a number nor an earlier entry", prefix, name, val)
@@ -126,9 +169,33 @@ func uapiEnum(src, prefix string) (map[string]int, error) {
 		if !strings.HasPrefix(name, "__") {
 			out[name] = next
 		}
+		seen[name] = next
 		next++
 	}
 	return out, nil
+}
+
+var enumRefRE = regexp.MustCompile(`^\(?\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:([+-])\s*([0-9]+))?\s*\)?$`)
+
+// uapiEnumRef evaluates an entry's value that names an earlier entry, with
+// an optional + or - a number and optional parentheses.
+func uapiEnumRef(seen map[string]int, val string) (int, bool) {
+	m := enumRefRE.FindStringSubmatch(val)
+	if m == nil {
+		return 0, false
+	}
+	n, ok := seen[m[1]]
+	if !ok || m[2] == "" {
+		return n, ok
+	}
+	d, err := strconv.Atoi(m[3])
+	if err != nil {
+		return 0, false
+	}
+	if m[2] == "-" {
+		d = -d
+	}
+	return n + d, true
 }
 
 // policyNames returns the designators of `struct nla_policy name[...] = {`
@@ -236,9 +303,10 @@ type covPolicy struct {
 
 // loadPolicies reads each family's policy and enum from a Linux tree.
 func loadPolicies(linux fs.FS) ([]covPolicy, error) {
-	out := make([]covPolicy, 0, len(covFamilies))
-	for i := range covFamilies {
-		fam := &covFamilies[i]
+	fams := covAllFamilies()
+	out := make([]covPolicy, 0, len(fams))
+	for i := range fams {
+		fam := &fams[i]
 		enum, hdr, err := findEnum(linux, uapiDir, fam.Prefix)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", fam.Key, err)
@@ -343,12 +411,60 @@ func (t *covTally) add(m nlparity.Msg) {
 				continue
 			}
 		}
-		t.requests[fam.Key]++
-		if t.sent[fam.Key] == nil {
-			t.sent[fam.Key] = map[int]int{}
-		}
-		covWalk(attrs, func(typ int, _ []byte) { t.sent[fam.Key][typ]++ })
+		t.count(fam.Key, attrs)
 	}
+}
+
+// count tallies one request of family key and its top-level attributes.
+func (t *covTally) count(key string, attrs []byte) {
+	t.requests[key]++
+	if t.sent[key] == nil {
+		t.sent[key] = map[int]int{}
+	}
+	covWalk(attrs, func(typ int, _ []byte) { t.sent[key][typ]++ })
+}
+
+// addGenl counts one generic netlink message, if it is a request some
+// genl family's policy judges; ids names the capture's family ids.
+func (t *covTally) addGenl(m nlparity.Msg, ids map[uint16]string) {
+	if !m.IsRequest() || m.Proto != unix.NETLINK_GENERIC || len(m.Body) < covGenlHdrSize {
+		return
+	}
+	name, ok := ids[m.Hdr.Type]
+	if !ok {
+		return
+	}
+	for i := range covGenlFamilies {
+		g := &covGenlFamilies[i]
+		if g.Genl == name && m.Body[0] == g.Cmd {
+			t.count(g.Key, m.Body[covGenlHdrSize:])
+		}
+	}
+}
+
+// covGenlIDs names the generic netlink family ids that msgs'
+// CTRL_CMD_NEWFAMILY replies give out.
+func covGenlIDs(msgs []nlparity.Msg) map[uint16]string {
+	ids := map[uint16]string{}
+	for _, m := range msgs {
+		if m.IsRequest() || m.Hdr.Type != covGenlCtrl || len(m.Body) < covGenlHdrSize || m.Body[0] != covCtrlNewFamily {
+			continue
+		}
+		var id uint16
+		var name string
+		covWalk(m.Body[covGenlHdrSize:], func(typ int, val []byte) {
+			switch {
+			case typ == covCtrlFamilyID && len(val) == 2:
+				id = binary.LittleEndian.Uint16(val)
+			case typ == covCtrlFamilyName:
+				name = strings.TrimRight(string(val), "\x00")
+			}
+		})
+		if id != 0 && name != "" {
+			ids[id] = name
+		}
+	}
+	return ids
 }
 
 // covWalk calls fn with each attribute's type, its flags masked off, and
@@ -395,7 +511,15 @@ func tallyCorpus(root fs.FS) (*covTally, int, error) {
 		if err != nil {
 			return fmt.Errorf("%s: %w", p, err)
 		}
+		gc, err := nlparity.ParseCapture(b, unix.NETLINK_GENERIC)
+		if err != nil {
+			return fmt.Errorf("%s: %w", p, err)
+		}
 		files++
+		ids := covGenlIDs(gc.Msgs())
+		for _, m := range gc.Msgs() {
+			t.addGenl(m, ids)
+		}
 		for _, m := range c.Msgs() {
 			t.add(m)
 		}

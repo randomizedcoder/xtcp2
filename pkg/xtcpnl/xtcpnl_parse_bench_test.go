@@ -356,8 +356,8 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseNlMsgErr", kind: rtnl(unix.NLMSG_ERROR), parse: func(h NlMsgHdr, b []byte) (err error) { resultNlErr, err = ParseNlMsgErr(h.Flags, b); return err }},
 	{name: "ParseRtnetlinkEvent", kind: rtnl(unix.RTM_DELLINK), parse: func(h NlMsgHdr, b []byte) (err error) { resultEvent, err = ParseRtnetlinkEvent(h.Type, b); return err }},
 	{name: "ParseGenericNetlink", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultGenl, err = ParseGenericNetlink(b); return err }},
-	{name: "ParseGenericNetlinkFamily", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultFamily, err = ParseGenericNetlinkFamily(b); return err }},
-	{name: "ParseEthtool", kind: genl("ethtool"), parse: func(h NlMsgHdr, b []byte) (err error) { resultEthtool, err = ParseEthtool(b, h.Flags); return err }},
+	{name: "ParseGenericNetlinkFamily", kind: genlCmds("nlctrl", unix.CTRL_CMD_NEWFAMILY), parse: func(_ NlMsgHdr, b []byte) (err error) { resultFamily, err = ParseGenericNetlinkFamily(b); return err }},
+	{name: "ParseEthtool", kind: genlCmds("ethtool", ethtoolBenchCmds...), parse: func(h NlMsgHdr, b []byte) (err error) { resultEthtool, err = ParseEthtool(b, h.Flags); return err }},
 	{name: "ParseNsid", kind: rtnl(unix.RTM_NEWNSID), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNsid, err = ParseNsid(b); return err }},
 	{name: "ParseNexthopBucket", kind: rtnl(unix.RTM_NEWNEXTHOPBUCKET), parse: func(_ NlMsgHdr, b []byte) (err error) { resultBucket, err = ParseNexthopBucket(b); return err }},
 	{name: "ParseLinkProp", kind: rtnlRequest(unix.RTM_NEWLINKPROP), parse: func(_ NlMsgHdr, b []byte) (err error) { resultProp, err = ParseLinkProp(b); return err }},
@@ -463,8 +463,15 @@ func BenchmarkParseGenericNetlink(b *testing.B) { benchParse(b, "ParseGenericNet
 func BenchmarkParseGenericNetlinkFamily(b *testing.B) { benchParse(b, "ParseGenericNetlinkFamily") }
 
 // BenchmarkParseEthtool decodes the smallest, a typical and the largest
-// ethtool message the kernel sent in the corpus.
+// ethtool message the kernel sent in the corpus, of the commands
+// ParseEthtool classifies.
 func BenchmarkParseEthtool(b *testing.B) { benchParse(b, "ParseEthtool") }
+
+// ethtoolBenchCmds are the kernel's ethtool commands ParseEthtool
+// classifies: each *_GET_REPLY and *_NTF of classifyEthtoolCommand. The
+// workbench rows also capture replies it doesn't, such as FEATURES and
+// TSINFO.
+var ethtoolBenchCmds = []uint8{2, 3, 4, 5, 6, 16, 17, 18, 19, 20, 21, 22, 23, 30, 31}
 
 // BenchmarkParseNsid decodes the smallest, a typical and the largest
 // RTM_NEWNSID the corpus holds (P1-T01).
@@ -716,7 +723,7 @@ func TestParseBenchCases(t *testing.T) {
 			expected: "ParseNewLink=0/16 ParseNewRoute=0/24 ParseNewAddr=0/20 ParseNeigh=0/28 ParseRule=0/32 ParseNewNexthop=0/104" +
 				" ParseNewAddrLabel=0/72 ParseNewNeighTbl=0/64 ParseNewNetconf=0/80 ParseNewStats=0/92" +
 				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
-				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
+				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl/cmd1 ParseEthtool=16/ethtool/cmd2,3,4,5,6,16,17,18,19,20,21,22,23,30,31" +
 				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
 				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1" +
 				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events ParseFOU=16/fou ParseILA=16/ila ParseL2TP=16/l2tp ParseMacsec=16/macsec" +

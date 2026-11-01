@@ -32,6 +32,12 @@ func TestUapiEnum(t *testing.T) {
 		{"corner: a longer prefix's enum is not taken", "enum {\n\tX_SUB_UNSPEC,\n\tX_SUB_A,\n};\nenum {\n\tX_UNSPEC,\n\tX_A,\n};", "X_", "X_A=1 X_SUB_A=", []string{"X_A", "X_SUB_A"}},
 		{"negative: no such enum", "enum {\n\tY_UNSPEC,\n};", "X_", "no enum starting X_UNSPEC", nil},
 		{"negative: a value that is neither", "enum {\n\tX_UNSPEC,\n\tX_A = Y_B,\n};", "X_", "neither a number", nil},
+		{"positive: the YNL MAX, a sentinel less one", "enum {\n\tX_UNSPEC,\n\tX_A,\n\n\t__X_CNT,\n\tX_MAX = (__X_CNT - 1)\n};", "X_",
+			"X_A=1 X_MAX=1 __X_CNT=", []string{"X_A", "X_MAX", "__X_CNT"}},
+		{"corner: an earlier entry plus a number, unparenthesized", "enum {\n\tX_UNSPEC,\n\tX_A = X_UNSPEC + 5,\n\tX_B,\n};", "X_",
+			"X_A=5 X_B=6", []string{"X_A", "X_B"}},
+		{"negative: a later entry less one", "enum {\n\tX_UNSPEC,\n\tX_A = (X_B - 1),\n\tX_B,\n};", "X_", "neither a number", nil},
+		{"negative: a product", "enum {\n\tX_UNSPEC,\n\tX_A = X_UNSPEC * 2,\n};", "X_", "neither a number", nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
@@ -267,6 +273,152 @@ func TestTallyCorpusSockDiag(t *testing.T) {
 	}
 }
 
+// covAttr is one netlink attribute, padded to 4 bytes.
+func covAttr(typ uint16, val []byte) []byte {
+	b := binary.LittleEndian.AppendUint16(nil, uint16(4+len(val)))
+	b = binary.LittleEndian.AppendUint16(b, typ)
+	b = append(b, val...)
+	for len(b)%4 != 0 {
+		b = append(b, 0)
+	}
+	return b
+}
+
+// covGenlMsg is a generic netlink message of family id typ and command cmd.
+func covGenlMsg(typ, flags uint16, cmd uint8, attrs ...[]byte) nlparity.Msg {
+	body := []byte{cmd, 1, 0, 0}
+	for _, a := range attrs {
+		body = append(body, a...)
+	}
+	return nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: typ, Flags: flags}, Body: body, Proto: unix.NETLINK_GENERIC}
+}
+
+// covNewFamily is a CTRL_CMD_NEWFAMILY reply giving name the id id.
+func covNewFamily(id uint16, name string) nlparity.Msg {
+	return covGenlMsg(covGenlCtrl, 0, covCtrlNewFamily,
+		covAttr(covCtrlFamilyName, append([]byte(name), 0)),
+		covAttr(covCtrlFamilyID, binary.LittleEndian.AppendUint16(nil, id)))
+}
+
+func TestCovGenlIDs(t *testing.T) {
+	req := uint16(unix.NLM_F_REQUEST)
+	cases := []struct {
+		description string
+		msgs        []nlparity.Msg
+		expected    map[uint16]string
+	}{
+		{"positive: a NEWFAMILY reply names its id", []nlparity.Msg{covNewFamily(0x15, "ethtool")}, map[uint16]string{0x15: "ethtool"}},
+		{"positive: two replies, two names", []nlparity.Msg{covNewFamily(0x15, "ethtool"), covNewFamily(0x16, "devlink")},
+			map[uint16]string{0x15: "ethtool", 0x16: "devlink"}},
+		{"negative: a GETFAMILY request names nothing", []nlparity.Msg{covGenlMsg(covGenlCtrl, req, 3,
+			covAttr(covCtrlFamilyName, []byte("ethtool\x00")), covAttr(covCtrlFamilyID, []byte{0x15, 0}))}, map[uint16]string{}},
+		{"negative: a request carrying NEWFAMILY's command", []nlparity.Msg{func() nlparity.Msg {
+			m := covNewFamily(0x15, "ethtool")
+			m.Hdr.Flags = req
+			return m
+		}()}, map[uint16]string{}},
+		{"negative: a reply of another family is not CTRL's", []nlparity.Msg{func() nlparity.Msg {
+			m := covNewFamily(0x15, "ethtool")
+			m.Hdr.Type = 0x15
+			return m
+		}()}, map[uint16]string{}},
+		{"negative: a CTRL reply of another command", []nlparity.Msg{covGenlMsg(covGenlCtrl, 0, 2,
+			covAttr(covCtrlFamilyName, []byte("ethtool\x00")), covAttr(covCtrlFamilyID, []byte{0x15, 0}))}, map[uint16]string{}},
+		{"boundary: a reply without a name", []nlparity.Msg{covGenlMsg(covGenlCtrl, 0, covCtrlNewFamily,
+			covAttr(covCtrlFamilyID, []byte{0x15, 0}))}, map[uint16]string{}},
+		{"boundary: a body shorter than genlmsghdr", []nlparity.Msg{{Hdr: xtcpnl.NlMsgHdr{Type: covGenlCtrl}, Body: []byte{1, 1},
+			Proto: unix.NETLINK_GENERIC}}, map[uint16]string{}},
+		{"corner: an id of the wrong width is ignored", []nlparity.Msg{covGenlMsg(covGenlCtrl, 0, covCtrlNewFamily,
+			covAttr(covCtrlFamilyName, []byte("ethtool\x00")), covAttr(covCtrlFamilyID, []byte{0x15, 0, 0, 0}))}, map[uint16]string{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := covGenlIDs(tc.msgs); !maps.Equal(got, tc.expected) {
+				t.Errorf("got %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestCovAddGenl(t *testing.T) {
+	req := uint16(unix.NLM_F_REQUEST)
+	ids := map[uint16]string{0x15: "ethtool", 0x16: "devlink"}
+	rx := covAttr(6, []byte{1, 0, 0, 0})
+	tx := covAttr(9, []byte{1, 0, 0, 0})
+	cases := []struct {
+		description string
+		msg         nlparity.Msg
+		expected    string // key requests:attr types
+	}{
+		{"positive: RINGS_SET counts under ethtool-rings", covGenlMsg(0x15, req, 16, rx, tx), "ethtool-rings 1:6,9"},
+		{"positive: COALESCE_SET counts under ethtool-coalesce", covGenlMsg(0x15, req, 20, rx), "ethtool-coalesce 1:6"},
+		{"negative: a reply is not a request", covGenlMsg(0x15, 0, 16, rx), ""},
+		{"negative: a family id the capture never named", covGenlMsg(0x17, req, 16, rx), ""},
+		{"negative: another genl family's command 16", covGenlMsg(0x16, req, 16, rx), ""},
+		{"negative: a get no policy judges", covGenlMsg(0x15, req, 15, rx), ""},
+		{"negative: rtnetlink with an ethtool-looking type", func() nlparity.Msg {
+			m := covGenlMsg(0x15, req, 16, rx)
+			m.Proto = unix.NETLINK_ROUTE
+			return m
+		}(), ""},
+		{"boundary: a body shorter than genlmsghdr", nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: 0x15, Flags: req}, Body: []byte{16, 1, 0},
+			Proto: unix.NETLINK_GENERIC}, ""},
+		{"boundary: a set with no attributes still counts", covGenlMsg(0x15, req, 18), "ethtool-channels 1:"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			tl := newCovTally()
+			tl.addGenl(tc.msg, ids)
+			keys := slices.Sorted(maps.Keys(tl.requests))
+			got := make([]string, 0, len(keys))
+			for _, key := range keys {
+				types := make([]string, 0, len(tl.sent[key]))
+				for _, typ := range slices.Sorted(maps.Keys(tl.sent[key])) {
+					types = append(types, strconv.Itoa(typ))
+				}
+				got = append(got, key+" "+strconv.Itoa(tl.requests[key])+":"+strings.Join(types, ","))
+			}
+			if s := strings.Join(got, ";"); s != tc.expected {
+				t.Errorf("got %q, want %q", s, tc.expected)
+			}
+		})
+	}
+}
+
+// TestTallyCorpusGenl reads real ws rows: an ethtool -G row's RINGS_SET
+// reaches addGenl through the capture's CTRL reply, a route row's
+// requests do not.
+func TestTallyCorpusGenl(t *testing.T) {
+	ws := "../../pkg/xtcpnl/testdata/7_3_0/ws/"
+	cases := []struct {
+		description string
+		row         string
+		expected    string // ethtool-rings requests:attr types
+	}{
+		{"positive: ethtool -G with six arguments and the header", "ethring/ec-002", "1:1,6,7,8,9,11,17"},
+		{"negative: a route row sends no generic netlink", "route4/bd-001", "0:"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			b, err := os.ReadFile(ws + tc.row + "/ip.pcap")
+			if err != nil {
+				t.Fatal(err)
+			}
+			tl, files, err := tallyCorpus(fstest.MapFS{"r/ip.pcap": {Data: b}})
+			if err != nil || files != 1 {
+				t.Fatalf("files %d, err %v", files, err)
+			}
+			types := make([]string, 0, len(tl.sent["ethtool-rings"]))
+			for _, typ := range slices.Sorted(maps.Keys(tl.sent["ethtool-rings"])) {
+				types = append(types, strconv.Itoa(typ))
+			}
+			if got := strconv.Itoa(tl.requests["ethtool-rings"]) + ":" + strings.Join(types, ","); got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestWriteCoverage(t *testing.T) {
 	pol := covPolicy{fam: covFamily{Key: "route4", Policy: "rtm_ipv4_policy", Dir: "net/ipv4"},
 		names: map[int]string{1: "RTA_DST", 4: "RTA_OIF", 5: "RTA_GATEWAY"},
@@ -308,8 +460,9 @@ func TestWriteCoverage(t *testing.T) {
 
 func TestLoadPolicies(t *testing.T) {
 	fsys := fstest.MapFS{}
-	for i := range covFamilies {
-		fam := &covFamilies[i]
+	fams := covAllFamilies()
+	for i := range fams {
+		fam := &fams[i]
 		hdr := "enum {\n\t" + fam.Prefix + "UNSPEC,\n\t" + fam.Prefix + "A,\n\t" + fam.Prefix + "B,\n};\n"
 		fsys[uapiDir+"/"+strings.ToLower(strings.TrimSuffix(fam.Prefix, "_"))+".h"] = &fstest.MapFile{Data: []byte(hdr)}
 		pol := "static const struct nla_policy " + fam.Policy + "[] = {\n\t[" + fam.Prefix + "B] = { .type = NLA_U8 },\n};\n"
@@ -319,7 +472,7 @@ func TestLoadPolicies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pols) != len(covFamilies) || pols[0].names[2] != covFamilies[0].Prefix+"B" || len(pols[0].names) != 1 {
+	if len(pols) != len(fams) || pols[0].names[2] != covFamilies[0].Prefix+"B" || len(pols[0].names) != 1 {
 		t.Errorf("got %+v", pols[0])
 	}
 	bad := fstest.MapFS{}

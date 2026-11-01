@@ -56,6 +56,8 @@ func (p preStep) MarshalJSON() ([]byte, error) {
 type readback struct {
 	Name string `json:"name"`
 	Cmd  string `json:"cmd"`
+	// Proto is the protocol the readback is captured on, as row.Proto.
+	Proto string `json:"proto,omitempty"`
 }
 
 // expect is what the run must show; see wsExpect in
@@ -63,6 +65,7 @@ type readback struct {
 type expect struct {
 	RC        *int   `json:"rc,omitempty"`
 	Errno     string `json:"errno,omitempty"`
+	Extack    string `json:"extack,omitempty"`
 	RefusedBy string `json:"refused_by,omitempty"`
 	Match     *match `json:"match,omitempty"`
 }
@@ -107,14 +110,15 @@ func (r row) validate() error {
 		if !nameRE.MatchString(rb.Name) || rb.Name == "ip" || seen[rb.Name] {
 			return fmt.Errorf("%s: bad or repeated readback name %q", r.ID, rb.Name)
 		}
+		if !validProto(rb.Proto) {
+			return fmt.Errorf("%s: readback %s: proto %q", r.ID, rb.Name, rb.Proto)
+		}
 		seen[rb.Name] = true
 	}
 	if m := r.Expect.Match; m != nil && !seen[m.Readback] {
 		return fmt.Errorf("%s: match reads readback %q, which the row lacks", r.ID, m.Readback)
 	}
-	switch r.Proto {
-	case "", "route", "generic", "xfrm", "sock_diag":
-	default:
+	if !validProto(r.Proto) {
 		return fmt.Errorf("%s: proto %q", r.ID, r.Proto)
 	}
 	for _, m := range r.Modules {
@@ -123,6 +127,15 @@ func (r row) validate() error {
 		}
 	}
 	return nil
+}
+
+// validProto is a protocol the workbench captures; "" is route.
+func validProto(p string) bool {
+	switch p {
+	case "", "route", "generic", "xfrm", "sock_diag":
+		return true
+	}
+	return false
 }
 
 func hasDescPrefix(desc string) bool {
