@@ -1,0 +1,3 @@
+3: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    inet 192.0.2.1 peer 198.51.100.0/24 metric 5 brd 198.51.100.0 scope link noprefixroute d0:1
+       valid_lft forever preferred_lft forever

@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "brd": "192.0.2.127",
+  "family": "4",
+  "label": "d0:1",
+  "local": "127.0.0.2",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "prefixlen": "8",
+  "proto": "99",
+  "scope": "0",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 address replace 127.0.0.2/8 peer 198.51.100.1/32 bro 192.0.2.127 label d0:1 scope global nodad proto 99 dev d0",
+ "desc": "corner: verb=replace local=loopback peer=32 brd=abbrev label=alias scope=global metric=absent lft=absent flags=nodad proto=99",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-015",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

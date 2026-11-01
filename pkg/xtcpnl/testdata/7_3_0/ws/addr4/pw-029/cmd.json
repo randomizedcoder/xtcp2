@@ -1,0 +1,52 @@
+{
+ "axes": {
+  "family": "4",
+  "flags": "512",
+  "label": "d0:1",
+  "local": "192.0.2.0",
+  "metric": "4294967295",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "preferred": "50",
+  "prefixlen": "31",
+  "proto": "255",
+  "scope": "0",
+  "valid": "100",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 192.0.2.0/31 peer 198.51.100.1/32 label d0:1 scope global metric 4294967295 valid_lft 100 preferred_lft 50 noprefixroute proto 255 dev d0",
+ "desc": "corner: verb=del local=31 peer=32 brd=absent label=alias scope=global metric=max lft=finite flags=noprefixroute proto=255",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-029",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 192.0.2.0/31 peer 198.51.100.1/32 label d0:1 scope global metric 4294967295 valid_lft 100 preferred_lft 50 noprefixroute proto 255 dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 192.0.2.0/31 peer 198.51.100.1/32 label d0:1 scope global metric 4294967295 valid_lft 100 preferred_lft 50 noprefixroute proto 255 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,51 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "local": "2001:db8:1::1",
+  "metric": "5",
+  "peer": "2001:db8:9::",
+  "peer_len": "64",
+  "preferred": "50",
+  "prefixlen": "64",
+  "proto": "0",
+  "scope": "253",
+  "valid": "100",
+  "verb": "change"
+ },
+ "cmd": "ip -6 address change 2001:db8:1::1/64 peer 2001:db8:9::/64 broadcast 2001:db8:1::ff scope link priority 5 valid_lft 100 preferred_lft 50 proto unspec dev d0",
+ "desc": "corner: verb=change local=64 peer=64 brd=addr label=absent scope=link metric=priority lft=finite flags=absent proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-014",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -6 address add 2001:db8:1::1/64 peer 2001:db8:9::/64 broadcast 2001:db8:1::ff scope link priority 5 valid_lft 100 preferred_lft 50 proto unspec dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 peer 2001:db8:9::/64 broadcast 2001:db8:1::ff scope link priority 5 valid_lft 100 preferred_lft 50 proto unspec dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

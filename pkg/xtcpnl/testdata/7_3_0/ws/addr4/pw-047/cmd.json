@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "family": "4",
+  "local": "192.0.2.1",
+  "metric": "4294967295",
+  "preferred": "0",
+  "prefixlen": "24",
+  "proto": "0",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.1/24 scope link metric 4294967295 preferred_lft 0 nodad proto unspec dev d0",
+ "desc": "corner: verb=add local=24 peer=absent brd=absent label=absent scope=link metric=max lft=deprecated flags=nodad proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-047",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

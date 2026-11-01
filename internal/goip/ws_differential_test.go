@@ -40,8 +40,9 @@ const wsCorpusDir = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 const wsO5Golden = "testdata/ws-differential.txt"
 
 // wsO5Spaces are the row directories O5 reads, in report order: the
-// matrix's, then those mined from the fib selftests.
-var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule"}
+// matrix's, then those mined from the fib selftests, then the address
+// matrix's.
+var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule", "addr4", "addr6"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -107,6 +108,7 @@ var wsO5Runners = map[string]func(*runCtx, []string) (int, string, string){
 	"route":   runRouteCtx,
 	"rule":    runRuleCtx,
 	"nexthop": runNexthopCtx,
+	"address": runAddrWith,
 }
 
 // wsO5HdrLen is each write's family header, the attributes following it.
@@ -118,6 +120,8 @@ func wsO5HdrLen(msgType uint16) int {
 		return xtcpnl.FibRuleHdrSizeCst
 	case unix.RTM_NEWNEXTHOP, unix.RTM_DELNEXTHOP:
 		return xtcpnl.NhMsgSizeCst
+	case unix.RTM_NEWADDR, unix.RTM_DELADDR:
+		return xtcpnl.IfAddrmsgSizeCst
 	default:
 		return -1
 	}
@@ -159,6 +163,29 @@ func wsO5ZeroMetricsPad(msg []byte) ([]byte, bool) {
 		off += (l + 3) &^ 3
 	}
 	return out, zeroed
+}
+
+func TestWsO5HdrLen(t *testing.T) {
+	cases := []struct {
+		description string
+		typ         uint16
+		expected    int
+	}{
+		{"positive: a route's rtmsg", unix.RTM_NEWROUTE, xtcpnl.RtMsgSizeCst},
+		{"positive: a rule's fib_rule_hdr", unix.RTM_DELRULE, xtcpnl.FibRuleHdrSizeCst},
+		{"positive: a nexthop's nhmsg", unix.RTM_NEWNEXTHOP, xtcpnl.NhMsgSizeCst},
+		{"positive: an address's ifaddrmsg", unix.RTM_NEWADDR, xtcpnl.IfAddrmsgSizeCst},
+		{"positive: a deleted address's ifaddrmsg", unix.RTM_DELADDR, xtcpnl.IfAddrmsgSizeCst},
+		{"negative: a type O5 does not compare", unix.RTM_NEWLINK, -1},
+		{"boundary: type 0", 0, -1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := wsO5HdrLen(tc.typ); got != tc.expected {
+				t.Errorf("got %d, want %d", got, tc.expected)
+			}
+		})
+	}
 }
 
 // wsO5Attrs is a write's top-level attribute values by type.

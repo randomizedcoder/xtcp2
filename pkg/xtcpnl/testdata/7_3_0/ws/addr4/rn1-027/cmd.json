@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "brd": "192.0.2.127",
+  "family": "4",
+  "label": "d0:1",
+  "local": "192.0.2.1",
+  "metric": "4294967295",
+  "prefixlen": "32",
+  "proto": "255",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.1/32 bro 192.0.2.127 label d0:1 metric 4294967295 nodad proto 255 dev d0",
+ "desc": "corner: verb=add local=32 peer=absent brd=abbrev label=alias scope=absent metric=max lft=absent flags=nodad proto=255",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-027",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

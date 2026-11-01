@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "6",
+  "local": "::",
+  "prefixlen": "64",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add ::/64 nodad optimistic dev d0",
+ "desc": "negative: verb=add local=any peer=absent brd=absent label=absent scope=absent metric=absent lft=absent flags=nodad-optimistic proto=absent: the unspecified address, or a multicast one without autojoin (ipv6_add_addr)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/pw-062",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

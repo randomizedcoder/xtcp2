@@ -1677,11 +1677,104 @@ as "not a write".
   - `logTest`'s check for a step after a skipped write was dead code (such
     a step never becomes the one `log_test` reads), so it was removed.
 - **Size:** the rows file is 2.2 MB, because each row repeats its group's
-  steps as pre steps (up to 124). The recorded rows add 6.4 MB to `ws/`,
-  6.6 MB in all, under the 20 MB budget. A run of 985 rows takes about
-  nine minutes at `-j 8`.
+  steps as pre steps (up to 124). The recorded rows add 6.6 MB of file
+  bytes to `ws/`, which then holds 13.4 MB, under the 20 MB budget. A run
+  of 985 rows takes about nine minutes at `-j 8`.
 
-Next is W3's `ip addr`/`neigh`/`link` matrix.
+#### Grammar matrix for addresses, neighbors and links (W3)
+
+W3 applies W2's method to `ip address`, `ip neigh` and `ip link`, one
+commit each: W3a addresses, W3b neighbors, W3c links.
+
+##### W3a: `ip address`
+
+`nlcapgen matrix -family addr -seed 1 -random 40` writes
+`nix/microvms/workbench/addr.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_addr.go`. Each row runs in a fresh namespace
+holding one dummy device, `d0`, up with no address, so the address under
+test is the only one on it. A `change` or `del` first adds the address it
+works on.
+
+| space | axes | rows | positive | boundary | corner | negative |
+|---|---|---|---|---|---|---|
+| addr4 | verb, local, peer, brd, label, scope, metric, lft, flags, proto | 132 | 1 | 12 | 87 | 32 |
+| addr6 | the same; brd, label and scope have only the values IPv6 ignores | 128 | 1 | 10 | 56 | 61 |
+
+Nearly every row takes at least one unusual spelling (`priority` for
+`metric`, `bro` for `broadcast`, `local` before the address), which makes
+it `corner:`.
+
+**What the kernel and iproute2 do** (each is a row, or a judged
+negative):
+
+- **ip exits 1, not 255, when `ipaddr_modify` returns -1.** `do_cmd`
+  negates the return value (`ip/ip.c:131`), so the checks after the device
+  lookup (`autojoin needs multicast address`, `valid_lft is zero`,
+  `preferred_lft is greater than valid_lft`) exit 1, as does IPv6's
+  `brd +`. Only `invarg()` exits 255.
+- **IPv4 `autojoin` with a peer is EINVAL.** `ip_mc_autojoin_config` joins
+  `ifa_address`, which a peer replaces, and `__ip_mc_join_group` refuses a
+  unicast group (`net/ipv4/igmp.c:2363`). A plain exclusion keeps the
+  pair out of positive rows; `Derive` writes the negative, since every
+  negative base row is unicast.
+- **Adding `0.0.0.0` succeeds and stores nothing.** `inet_rtm_newaddr`
+  returns 0 for a zero `IFA_LOCAL` (`net/ipv4/devinet.c:961`). O4 checks
+  that the dump doesn't hold it, and a delete of it is EADDRNOTAVAIL.
+- **IPv6 refuses a multicast address without `autojoin`, and the
+  unspecified one** (`ipv6_add_addr`, EADDRNOTAVAIL). `mngtmpaddr` needs a
+  prefix length of 64, and it is the peer's length that counts when there
+  is one (EINVAL, checked first).
+- **`nodad optimistic` is not refused while optimistic DAD is off.** The
+  kernel clears `IFA_F_OPTIMISTIC` before it checks the pair.
+- **IPv6 ignores `label`, `scope` and `broadcast`.** iproute2 sends them;
+  O4 compares them for IPv4 only. IPv6-only flags on an IPv4 address draw
+  a warning and aren't sent.
+- **An IPv4 delete without a prefix length is a wildcard deletion.**
+  ipaddr_modify leaves `IFA_ADDRESS` out, and the kernel matches on the
+  local address alone.
+
+The first run's 41 failures were all predictions of the first two kinds
+(rc 255 where ip exits 1, and `autojoin` with a peer). There were no
+command or capture bugs.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_addr_test.go`):
+
+- **O3** rebuilds the `AddrInfo` the request should parse to from the
+  row's axes, and checks the attribute set, each width and the header's
+  `ifa_flags`. The model covers: `brd +`/`-` computed from the peer or the
+  local address (none past /30, none on a delete), the wildcard deletion,
+  `default_scope`'s host scope for 127/8, and flags past 0xff moving to
+  `IFA_FLAGS` with the header 0. The index must be the one the kernel gave
+  `d0` in its answer to ip's lookup. O3 checked 213 requests.
+- **O4** looks for the address in `ip address show dev d0`'s dump after
+  each accepted write (167 rows): its addresses, prefix length, metric,
+  protocol and flags, plus the label, scope and broadcast address for
+  IPv4. After a delete, or a zero address, the dump must not hold it.
+- **O5:** goip sends the same request as ip on all 260 rows (addr4 132,
+  addr6 128). The only lookup difference is the known `IFLA_EXT_MASK`.
+- **Determinism:** a second run of all 260 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestAddrJudge` (16 rows), `TestBuildAddr`, `TestSpaceAssign`,
+`TestAddrCanDup`, `TestAddr4Exclusions` and `TestMatrixAddrRows` cover the
+generator. `TestAddrComputedBroadcast`, `TestAddrWantFromAxes`,
+`TestAddrRequestProblem` and `TestAddrDumpMatches` cover the oracles, and
+`TestWsO5HdrLen` covers O5's header lengths.
+
+**Mutation:** 27 of 27 mutants killed, each by a relevant test. The first
+pass left four survivors, each fixed by adding a test:
+
+- `addrCanDup` and the `autojoin`-with-a-peer negative weren't reached by
+  any row check, so each got a direct test;
+- an exclusion swapped for another wasn't visible in the rows, since no
+  positive row happened to take the pair. `TestAddr4Exclusions` now checks
+  the compiled space;
+- O5's header length for addresses was used only to describe a
+  difference, and no row differs. `TestWsO5HdrLen` checks it directly.
+
+**Size:** the rows add 771 KB of file bytes to `ws/`, 14.2 MB in all.
+
+Next is W3b, `ip neigh`.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

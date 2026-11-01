@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "brd": "-",
+  "family": "4",
+  "local": "239.1.1.1",
+  "metric": "4294967295",
+  "peer": "198.51.100.0",
+  "peer_len": "24",
+  "preferred": "50",
+  "prefixlen": "32",
+  "scope": "253",
+  "valid": "100",
+  "verb": "change"
+ },
+ "cmd": "ip -4 address change 239.1.1.1/32 remote 198.51.100.0/24 brd - scope link metric 4294967295 valid_lft 100 preferred_lft 50 nodad dev d0",
+ "desc": "corner: verb=change local=mcast peer=remote brd=minus label=absent scope=link metric=max lft=finite flags=nodad proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-016",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 239.1.1.1/32 remote 198.51.100.0/24 brd - scope link metric 4294967295 valid_lft 100 preferred_lft 50 nodad dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 239.1.1.1/32 remote 198.51.100.0/24 brd - scope link metric 4294967295 valid_lft 100 preferred_lft 50 nodad dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

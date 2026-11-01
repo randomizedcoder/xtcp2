@@ -544,6 +544,21 @@ func pickOf(axes []axis, vals []value) map[string]string {
 	return p
 }
 
+// assign returns the values names picks by axis, and each other axis's
+// first value.
+func (sp *space) assign(names map[string]string) []value {
+	vals := make([]value, len(sp.Axes))
+	for i := range sp.Axes {
+		vals[i] = sp.Axes[i].Values[0]
+		for _, val := range sp.Axes[i].Values {
+			if val.Name == names[sp.Axes[i].Name] {
+				vals[i] = val
+			}
+		}
+	}
+	return vals
+}
+
 // withPair returns a copy of the first positive row that, with pair k
 // forced in, breaks no exclusion but k itself and that Judge passes, so
 // the pair's refusal is the only one the row can meet.

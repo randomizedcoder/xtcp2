@@ -1,0 +1,3 @@
+3: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    inet6 fe80::1 peer 2001:db8:9::/64 scope link dynamic noprefixroute 
+       valid_lft 59sec preferred_lft 59sec

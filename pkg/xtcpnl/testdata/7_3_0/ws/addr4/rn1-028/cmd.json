@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "brd": "192.0.2.127",
+  "family": "4",
+  "flags": "1024",
+  "label": "d0:1",
+  "local": "127.0.0.2",
+  "metric": "7",
+  "preferred": "60",
+  "prefixlen": "8",
+  "scope": "253",
+  "valid": "60",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 127.0.0.2/8 bro 192.0.2.127 label d0:1 scope link preference 7 valid_lft 60 preferred_lft 60 autojoin dev d0",
+ "desc": "negative: verb=add local=loopback peer=absent brd=abbrev label=alias scope=link metric=preference lft=equal flags=autojoin proto=absent: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr4/rn1-028",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}
