@@ -1212,7 +1212,7 @@ nix run .#nlcap-ws -- batch nix/microvms/workbench/tdc.rows.jsonl -j 8
 | O3 | `TestWsTcCorpus` | a `tc qdisc`/`class`/`filter` add, change, replace or delete sends what its command line says: kind, handle, parent, prio, protocol, chain and shared blocks. `tcWantFromCmd` reads the line as `tc_qdisc_modify`, `tc_class_modify` and `tc_filter_modify` do, with `get_qdisc_handle`, `get_tc_classid` and `ll_proto_a2n` |
 | O4 | `TestWsTcCorpus` | a qdisc the kernel accepted is in the verify dump: same device and kind, and the same parent and handle where the request named them |
 | O7 | `FuzzParseTcMsg`, `FuzzParseTcAction` | seeded with up to 400 distinct corpus messages each: no panic, and the byte fields a parse returns are copies |
-| — | `TestWsSizeBudget` | each kernel's `ws/` stays under 20 MB of file bytes |
+| — | `TestWsSizeBudget` | each kernel's `ws/` stays under 64 MB of file bytes (20 MB until W4b) |
 
 O3 reads 546 requests and O4 checks 254 round trips. Commands outside the
 model (pipelines, quoted arguments, `tc -b`, actions, chains) are counted
@@ -2179,6 +2179,12 @@ survived the first pass:
   `TestPrefixHolds` now has a /20 holding 192.0.31.9.
 
 **Size:** the rows add 267 KB of file bytes to `ws/`, 16.2 MB in all.
+
+**Budget raised to 64 MB (2026-11-01):** at 16.2 MB of 20 MB, the corpus
+had room for about one more W3-sized family, and W5 adds five. The budget
+in `TestWsSizeBudget` is now 64 MB per kernel version. Each version has its
+own `ws/`, so W7's replays don't count against it. Packing a family into
+one pcapng stays the fallback if a version nears the new limit.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

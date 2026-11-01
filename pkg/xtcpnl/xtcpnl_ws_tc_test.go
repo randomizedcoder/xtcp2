@@ -652,7 +652,7 @@ func wsDirBytes(t *testing.T, root string) int64 {
 
 // wsBudgetBytes is Part 4's size budget: what one kernel version's ws/
 // may hold, in file bytes (what git stores), not disk blocks.
-const wsBudgetBytes = 20 << 20
+const wsBudgetBytes = 64 << 20
 
 // TestWsSizeBudget holds each kernel version's workbench corpus to the
 // budget, so a rows file that grows past it is noticed when it is captured.
