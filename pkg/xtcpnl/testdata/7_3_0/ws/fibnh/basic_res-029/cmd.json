@@ -1,0 +1,536 @@
+{
+ "cmd": "ip nexthop add id 2 dev veth3",
+ "desc": "corner: a step (fib_nexthops.sh basic_res) does not check: ip nexthop add id 2 dev veth3",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibnh/basic_res-029",
+ "modules": [
+  "veth"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv4.fib_multipath_use_neigh=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv4.conf.default.ignore_routes_with_linkdown=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.keep_addr_on_down=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.default.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.default.ignore_routes_with_linkdown=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.accept_dad=0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.default.accept_dad=0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip li add veth1 type veth peer name veth2",
+  "ip li set veth1 up",
+  "ip addr add 172.16.1.1/24 dev veth1",
+  "ip -6 addr add 2001:db8:91::1/64 dev veth1 nodad",
+  "ip li add veth3 type veth peer name veth4",
+  "ip li set veth3 up",
+  "ip addr add 172.16.2.1/24 dev veth3",
+  "ip -6 addr add 2001:db8:92::1/64 dev veth3 nodad",
+  "ip li set veth2 up",
+  "ip li set veth4 up",
+  [
+   "ip nexthop help",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 1 dev veth1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 101 group 1 type resilient buckets 8",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop get id 101",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 102 group 1 type resilient buckets 4 idle_timer 100 unbalanced_timer 5",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop get id 102",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 103 group 1 type resilient buckets 0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop replace id 101 group 1 type resilient buckets 8 idle_timer 240 unbalanced_timer 80",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop replace id 101 group 1 type resilient idle_timer 512",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop replace id 101 group 1 type resilient unbalanced_timer 256",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop replace id 101 group 1 type resilient",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop replace id 101 group 1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop replace id 101 group 1 type mpath",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop replace id 101 group 1 type resilient buckets 1024",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop flush",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 1 dev veth1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 2 dev veth3",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 101 group 1/2 type resilient buckets 4",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 201 group 1/2",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket list id 111",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket list id 201",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket list dev bla",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket list groups",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket list fdb",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket get id 101 index 999",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket get id 201 index 0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop bucket get id 999 index 0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop flush",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip nexthop add id 1 dev veth1",
+   [
+    1,
+    2,
+    255
+   ]
+  ]
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.fib_multipath_use_neigh=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.conf.default.ignore_routes_with_linkdown=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.keep_addr_on_down=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.default.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.default.ignore_routes_with_linkdown=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.accept_dad=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.default.accept_dad=0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add veth1 type veth peer name veth2",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 172.16.1.1/24 dev veth1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 addr add 2001:db8:91::1/64 dev veth1 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add veth3 type veth peer name veth4",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth3 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 172.16.2.1/24 dev veth3",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 addr add 2001:db8:92::1/64 dev veth3 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth2 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth4 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop help",
+    "rc": 255
+   },
+   {
+    "cmd": "ip nexthop add id 1 dev veth1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 101 group 1 type resilient buckets 8",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop get id 101",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 102 group 1 type resilient buckets 4 idle_timer 100 unbalanced_timer 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop get id 102",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 103 group 1 type resilient buckets 0",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop replace id 101 group 1 type resilient buckets 8 idle_timer 240 unbalanced_timer 80",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop replace id 101 group 1 type resilient idle_timer 512",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop replace id 101 group 1 type resilient unbalanced_timer 256",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop replace id 101 group 1 type resilient",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop replace id 101 group 1",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop replace id 101 group 1 type mpath",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop replace id 101 group 1 type resilient buckets 1024",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop flush",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 1 dev veth1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 2 dev veth3",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 101 group 1/2 type resilient buckets 4",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 201 group 1/2",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop bucket list id 111",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop bucket list id 201",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop bucket list dev bla",
+    "rc": 255
+   },
+   {
+    "cmd": "ip nexthop bucket list groups",
+    "rc": 255
+   },
+   {
+    "cmd": "ip nexthop bucket list fdb",
+    "rc": 255
+   },
+   {
+    "cmd": "ip nexthop bucket get id 101 index 999",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop bucket get id 201 index 0",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop bucket get id 999 index 0",
+    "rc": 2
+   },
+   {
+    "cmd": "ip nexthop flush",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 1 dev veth1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_nexthops.sh:2622 basic_res",
+  "unchecked": "it follows line 2595, which the miner skipped"
+ }
+}

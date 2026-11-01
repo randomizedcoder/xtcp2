@@ -39,8 +39,14 @@ const wsCorpusDir = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 // wsO5Golden lists every row whose outcome is not "same".
 const wsO5Golden = "testdata/ws-differential.txt"
 
-// wsO5Spaces are the row directories O5 reads, in report order.
-var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp"}
+// wsO5Spaces are the row directories O5 reads, in report order: the
+// matrix's, then those mined from the fib selftests.
+var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule"}
+
+// wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
+// full. A mined row's get, show, flush or bucket is a dump or a lookup, not
+// a write, so O5 does not apply to it; such rows are counted.
+var wsO5Verbs = []string{"add", "change", "replace", "prepend", "append", "del", "delete"}
 
 // The outcomes, as the report spells them.
 const (
@@ -60,8 +66,9 @@ type wsRowFile struct {
 	} `json:"result"`
 }
 
-// wsO5Argv splits a row's command into goip's family, object and args.
-// The rows are generated without quoting, so a split on spaces is exact.
+// wsO5Argv splits a row's command into goip's family, object and args,
+// the object as goip resolves an abbreviation of it. The rows are written
+// without quoting, so a split on spaces is exact.
 func wsO5Argv(cmd string) (family uint8, object string, args []string, err error) {
 	f := strings.Fields(cmd)
 	if len(f) < 2 || f[0] != "ip" {
@@ -82,7 +89,17 @@ func wsO5Argv(cmd string) (family uint8, object string, args []string, err error
 	if len(f) == 0 {
 		return 0, "", nil, fmt.Errorf("no object in %q", cmd)
 	}
-	return family, f[0], f[1:], nil
+	i := objectIndex(f[0])
+	if i < 0 {
+		return 0, "", nil, fmt.Errorf("unknown object %s in %q", f[0], cmd)
+	}
+	return family, objects[i].name, f[1:], nil
+}
+
+// wsO5Applies says whether O5 compares a row's args: a write verb, spelled
+// in full as the mined rows and the matrix's spell them.
+func wsO5Applies(args []string) bool {
+	return len(args) > 0 && slices.Contains(wsO5Verbs, args[0])
 }
 
 // wsO5Runners runs one object's args, as runRouteCtx does for route.
@@ -104,6 +121,44 @@ func wsO5HdrLen(msgType uint16) int {
 	default:
 		return -1
 	}
+}
+
+// wsO5ZeroMetricsPad is a route write with the alignment padding after each
+// RTA_METRICS sub-attribute zeroed, and whether any of it wasn't zero.
+// iproute2 builds the metrics in an uninitialized stack buffer (mxbuf,
+// ip/iproute.c:1172), and rta_addattr_l doesn't clear the padding
+// (lib/libnetlink.c:1500-1505), so a congctl name of a length not a
+// multiple of 4 is followed by stack bytes. goip writes zeros.
+func wsO5ZeroMetricsPad(msg []byte) ([]byte, bool) {
+	if len(msg) < xtcpnl.NlMsgHdrSizeCst+xtcpnl.RtMsgSizeCst {
+		return msg, false
+	}
+	if t := binary.LittleEndian.Uint16(msg[4:6]); t != unix.RTM_NEWROUTE && t != unix.RTM_DELROUTE {
+		return msg, false
+	}
+	out := slices.Clone(msg)
+	zeroed := false
+	for off := xtcpnl.NlMsgHdrSizeCst + xtcpnl.RtMsgSizeCst; off+4 <= len(out); {
+		l := int(binary.LittleEndian.Uint16(out[off:]))
+		if l < 4 || off+l > len(out) {
+			break
+		}
+		if binary.LittleEndian.Uint16(out[off+2:]) == unix.RTA_METRICS {
+			for sub := off + 4; sub+4 <= off+l; {
+				sl := int(binary.LittleEndian.Uint16(out[sub:]))
+				if sl < 4 || sub+sl > off+l {
+					break
+				}
+				for i := sub + sl; i < min(sub+(sl+3)&^3, off+l); i++ {
+					zeroed = zeroed || out[i] != 0
+					out[i] = 0
+				}
+				sub += (sl + 3) &^ 3
+			}
+		}
+		off += (l + 3) &^ 3
+	}
+	return out, zeroed
 }
 
 // wsO5Attrs is a write's top-level attribute values by type.
@@ -245,7 +300,7 @@ func wsO5Split(ipReqs [][]byte) (look, rest [][]byte) {
 }
 
 // wsO5Row runs one row through goip and classifies it.
-func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups string) {
+func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups string, pad bool) {
 	t.Helper()
 	family, object, args, err := wsO5Argv(row.Cmd)
 	if err != nil {
@@ -272,6 +327,11 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		goipErr = strings.TrimSpace(strings.TrimPrefix(strings.SplitN(stderr, "\n", 2)[0], "goip: "))
 	}
 	look, ipWrites := wsO5Split(ipReqs)
+	for i := range ipWrites {
+		var z bool
+		ipWrites[i], z = wsO5ZeroMetricsPad(ipWrites[i])
+		pad = pad || z
+	}
 	lookups = wsO5Lookups(look, src.gets)
 	if len(src.dumpReqs) != 0 {
 		lookups = strings.TrimPrefix(lookups+fmt.Sprintf("; goip sent %d dumps", len(src.dumpReqs)), "; ")
@@ -282,7 +342,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		// reached the device whose lookup ip sent.
 		lookups = ""
 	}
-	return outcome, detail, lookups
+	return outcome, detail, lookups, pad
 }
 
 // TestWsGoipDifferential is O5 over every route, rule and nexthop row the
@@ -294,6 +354,7 @@ func TestWsGoipDifferential(t *testing.T) {
 	var report []string
 	counts := map[string]map[string]int{}
 	lookupNotes := map[string]int{}
+	padRows := 0
 	for _, sp := range wsO5Spaces {
 		ents, err := os.ReadDir(filepath.Join(wsCorpusDir, sp))
 		if err != nil {
@@ -313,7 +374,14 @@ func TestWsGoipDifferential(t *testing.T) {
 			if row.Result.Status != "OK" {
 				t.Fatalf("%s: status %s, which O1 already fails", row.ID, row.Result.Status)
 			}
-			outcome, detail, lookups := wsO5Row(t, dir, row)
+			if _, _, args, err := wsO5Argv(row.Cmd); err == nil && !wsO5Applies(args) {
+				counts[sp]["n/a"]++
+				continue
+			}
+			outcome, detail, lookups, pad := wsO5Row(t, dir, row)
+			if pad {
+				padRows++
+			}
 			counts[sp][outcome]++
 			if lookups != "" {
 				counts[sp]["lookups"]++
@@ -333,9 +401,10 @@ func TestWsGoipDifferential(t *testing.T) {
 	head := make([]string, 0, len(wsO5Spaces)+len(lookupNotes)+len(report))
 	for _, sp := range wsO5Spaces {
 		c := counts[sp]
-		head = append(head, fmt.Sprintf("# %s: %d same, %d refuses, %d sends, %d differs; lookups differ in %d",
-			sp, c[o5Same], c[o5Refuses], c[o5Sends], c[o5Differs], c["lookups"]))
+		head = append(head, fmt.Sprintf("# %s: %d same, %d refuses, %d sends, %d differs; lookups differ in %d; not a write %d",
+			sp, c[o5Same], c[o5Refuses], c[o5Sends], c[o5Differs], c["lookups"], c["n/a"]))
 	}
+	head = append(head, fmt.Sprintf("# metrics padding: %d rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing", padRows))
 	for _, n := range slices.Sorted(maps.Keys(lookupNotes)) {
 		head = append(head, fmt.Sprintf("# lookups: %d rows: %s", lookupNotes[n], n))
 	}
@@ -537,6 +606,74 @@ func TestWsO5Split(t *testing.T) {
 }
 
 // TestWsO5Argv splits a row's command for goip.
+func TestWsO5ZeroMetricsPad(t *testing.T) {
+	// route is an RTM_NEWROUTE with an rtmsg and the attributes after it.
+	route := func(attrs ...byte) []byte {
+		m := make([]byte, xtcpnl.NlMsgHdrSizeCst+xtcpnl.RtMsgSizeCst, 64)
+		binary.LittleEndian.PutUint16(m[4:6], unix.RTM_NEWROUTE)
+		return append(m, attrs...)
+	}
+	// metrics nests RTAX_CC_ALGO "foo" and its pad byte p, then RTAX_LOCK.
+	metrics := func(p byte) []byte {
+		return []byte{20, 0, 8, 0, 7, 0, 16, 0, 'f', 'o', 'o', p, 8, 0, 1, 0, 0, 0, 1, 0}
+	}
+	other := route(metrics(0xc4)...)
+	binary.LittleEndian.PutUint16(other[4:6], unix.RTM_NEWRULE)
+	tests := []struct {
+		description string
+		msg         []byte
+		want        []byte
+		wantZeroed  bool
+	}{
+		{"positive: a stack byte after congctl foo is zeroed", route(metrics(0xc4)...), route(metrics(0)...), true},
+		{"positive: a zero pad is left and not reported", route(metrics(0)...), route(metrics(0)...), false},
+		{"negative: padding outside RTA_METRICS is left", route(8, 0, 15, 0, 1, 2, 3, 0xff), route(8, 0, 15, 0, 1, 2, 3, 0xff), false},
+		{"negative: a rule write is left", other, other, false},
+		{"corner: metrics after another attribute", route(append([]byte{8, 0, 1, 0, 10, 0, 0, 0}, metrics(0xe9)...)...),
+			route(append([]byte{8, 0, 1, 0, 10, 0, 0, 0}, metrics(0)...)...), true},
+		{"corner: a sub-attribute longer than its nest stops the walk", route(8, 0, 8, 0, 9, 0, 16, 0), route(8, 0, 8, 0, 9, 0, 16, 0), false},
+		{"boundary: shorter than an rtmsg", []byte{1, 2, 3}, []byte{1, 2, 3}, false},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			in := slices.Clone(tc.msg)
+			got, zeroed := wsO5ZeroMetricsPad(tc.msg)
+			if !bytes.Equal(got, tc.want) || zeroed != tc.wantZeroed {
+				t.Fatalf("got % x %v, want % x %v", got, zeroed, tc.want, tc.wantZeroed)
+			}
+			if !bytes.Equal(tc.msg, in) {
+				t.Fatal("the input was modified")
+			}
+		})
+	}
+}
+
+func TestWsO5Applies(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		expected    bool
+	}{
+		{"positive: add", []string{"add", "10.0.0.0/24"}, true},
+		{"positive: delete spelled in full", []string{"delete", "id", "1"}, true},
+		{"positive: del", []string{"del", "id", "1"}, true},
+		{"negative: a get is a lookup", []string{"get", "10.0.0.1"}, false},
+		{"negative: a flush is a dump", []string{"flush", "table", "main"}, false},
+		{"negative: a show", []string{"show"}, false},
+		{"corner: an abbreviated add is not compared", []string{"a", "10.0.0.0/24"}, false},
+		{"boundary: no verb", nil, false},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			if got := wsO5Applies(tc.args); got != tc.expected {
+				t.Fatalf("got %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestWsO5Argv(t *testing.T) {
 	tests := []struct {
 		description string
@@ -551,6 +688,10 @@ func TestWsO5Argv(t *testing.T) {
 		{"negative: an option goip's rows do not use", "ip -j route", `option -j in "ip -j route"`},
 		{"negative: a family and no object", "ip -4", `no object in "ip -4"`},
 		{"corner: a bare ip", "ip", `not an ip command: "ip"`},
+		{"positive: ro is route", "ip ro add 10.0.0.0/24 dev lo", "0 route [add 10.0.0.0/24 dev lo]"},
+		{"positive: nex is nexthop", "ip nex del id 1", "0 nexthop [del id 1]"},
+		{"positive: ru is rule", "ip -6 ru add pref 5", "10 rule [add pref 5]"},
+		{"negative: an object ip does not have", "ip zz add", `unknown object zz in "ip zz add"`},
 	}
 	for i := range tests {
 		tc := &tests[i]

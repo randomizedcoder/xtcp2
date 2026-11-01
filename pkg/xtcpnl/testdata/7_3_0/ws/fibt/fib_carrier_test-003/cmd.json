@@ -1,0 +1,103 @@
+{
+ "cmd": "ip route get fibmatch 198.51.100.1",
+ "desc": "corner: a step (fib_tests.sh fib_carrier_test) does not check: ip route get fibmatch 198.51.100.1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibt/fib_carrier_test-003",
+ "modules": [
+  "dummy"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 198.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  "ip link set dev dummy0 carrier on",
+  [
+   "ip route get fibmatch 198.51.100.1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip -6 route get fibmatch 2001:db8:1::1",
+   [
+    1,
+    2,
+    255
+   ]
+  ]
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 198.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 carrier on",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get fibmatch 198.51.100.1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route get fibmatch 2001:db8:1::1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_tests.sh:300 fib_carrier_local_test",
+  "unchecked": "the selftest checks its output with grep, not its rc"
+ }
+}

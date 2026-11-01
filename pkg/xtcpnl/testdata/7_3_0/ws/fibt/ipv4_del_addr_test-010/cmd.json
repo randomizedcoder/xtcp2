@@ -1,0 +1,219 @@
+{
+ "cmd": "ip ro ls",
+ "desc": "corner: a step (fib_tests.sh ipv4_del_addr_test) does not check: ip ro ls",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibt/ipv4_del_addr_test-010",
+ "modules": [
+  "dummy",
+  "vrf"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 198.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  "ip li add dummy1 type dummy",
+  "ip li set dummy1 up",
+  "ip li add dummy2 type dummy",
+  "ip li set dummy2 up",
+  "ip li add red type vrf table 1111",
+  "ip li set red up",
+  "ip ro add vrf red unreachable default",
+  "ip li set dummy2 vrf red",
+  "ip addr add dev dummy1 172.16.104.1/24",
+  "ip addr add dev dummy1 172.16.104.11/24",
+  "ip addr add dev dummy1 172.16.104.12/24",
+  "ip addr add dev dummy1 172.16.104.13/24",
+  "ip addr add dev dummy2 172.16.104.1/24",
+  "ip addr add dev dummy2 172.16.104.11/24",
+  "ip addr add dev dummy2 172.16.104.12/24",
+  "ip route add 172.16.105.0/24 via 172.16.104.2 src 172.16.104.11",
+  "ip route add 172.16.106.0/24 dev lo src 172.16.104.12",
+  "ip route add table 0 172.16.107.0/24 via 172.16.104.2 src 172.16.104.13",
+  "ip route add vrf red 172.16.105.0/24 via 172.16.104.2 src 172.16.104.11",
+  "ip route add vrf red 172.16.106.0/24 dev lo src 172.16.104.12",
+  "ip addr del dev dummy2 172.16.104.11/24",
+  [
+   "ip ro ls vrf red",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro ls",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip addr add dev dummy2 172.16.104.11/24",
+  "ip route add vrf red 172.16.105.0/24 via 172.16.104.2 src 172.16.104.11",
+  "ip addr del dev dummy1 172.16.104.11/24"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 198.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy1 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy2 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set dummy2 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add red type vrf table 1111",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set red up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add vrf red unreachable default",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set dummy2 vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 172.16.104.1/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 172.16.104.11/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 172.16.104.12/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 172.16.104.13/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy2 172.16.104.1/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy2 172.16.104.11/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy2 172.16.104.12/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 172.16.105.0/24 via 172.16.104.2 src 172.16.104.11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 172.16.106.0/24 dev lo src 172.16.104.12",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add table 0 172.16.107.0/24 via 172.16.104.2 src 172.16.104.13",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add vrf red 172.16.105.0/24 via 172.16.104.2 src 172.16.104.11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add vrf red 172.16.106.0/24 dev lo src 172.16.104.12",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy2 172.16.104.11/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro ls vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro ls",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy2 172.16.104.11/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add vrf red 172.16.105.0/24 via 172.16.104.2 src 172.16.104.11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy1 172.16.104.11/24",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_tests.sh:2188 ipv4_del_addr_test",
+  "unchecked": "the selftest checks its output with grep, not its rc"
+ }
+}

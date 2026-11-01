@@ -1556,8 +1556,132 @@ one both fail the test until the file is regenerated with `-update-ws-o5`.
     table test. That test found that a reordered or repeated line passed,
     and the helper now reports it.
 
-Next is W2d (the selftest miner, with O5 over its rows), then W3's
-`ip addr`/`neigh`/`link` matrix.
+##### W2d: rows mined from the fib selftests
+
+`nlcapgen kselftest` (`tools/nlcapgen/kselftest.go`) reads
+`fib_tests.sh`, `fib_nexthops.sh` and `fib_rule_tests.sh` from
+`tools/testing/selftests/net` in `~/Downloads/linux` (6b4b543fa187). It
+writes `nix/microvms/workbench/fib.rows.jsonl` and lists every line it
+skips, with the reason, in `fib.skipped.jsonl`.
+
+The miner is a static walker, not a shell:
+
+- **Groups:** each test the script's main loop runs (`$TESTS` or
+  `$ALL_TESTS`, through its `case` arms) is one group, with the script's
+  per-test prelude (`setup`) walked first.
+- **What it follows:** top-level and `local` assignments, `$1`–`${9}` in
+  inlined functions, `for` over a literal list or `$(seq [A] B)`, an
+  `if`'s then branch, `set -e`/`set +e`, `run_cmd "…"` and
+  `log_test $? N "msg"`.
+- **What it skips, and says so:** command substitutions, compound
+  commands, unresolved variables, other namespaces, `ip netns` (the
+  workbench gives every row its own), `else` branches, a then branch that
+  returns (a failure check), and a then branch whose condition reads an
+  earlier rc (`if [ $rc -eq 0 ]`).
+- **Rows:** each route, rule or nexthop command becomes a row. Its pre
+  steps are lib.sh's `rp_filter` sysctls, then every step of its group
+  before it. A step the selftest doesn't require to succeed is a
+  tolerated pre step.
+- **rc:** `log_test $? N` after the command gives the row rc N
+  (positive: for 0, negative: otherwise); `set -e` gives rc 0. Anything
+  else is a corner: row with no rc, which the corpus test still holds to
+  "an iproute2 or kernel refusal, never ack-then-fail".
+- **Namespaces:** `-netns` naming the test's own namespace is dropped.
+  `ip link … netns X` keeps the device here, and a later
+  `ip -netns X link set D up|down` for that device is kept too, since
+  some tests check what a peer's link state does to a nexthop.
+
+| space | rows | positive | negative | corner |
+|---|---|---|---|---|
+| fibt | 373 | 129 | 32 | 212 |
+| fibnh | 452 | 71 | 62 | 319 |
+| fibrule | 160 | 4 | 0 | 156 |
+
+Of the corner rows, 148 are commands whose output the selftest reads
+(`ip route get … | grep`), 188 follow a write the miner skipped, and 10
+use `dst_port`. 296 lines are skipped: 87 in other namespaces, 81 under a
+test of an earlier rc, 47 `ip netns`, 24 compound commands, 22 unresolved
+variables, and 35 others.
+
+**What recording showed (two fresh runs, 985 of 985 OK, the same message
+types and rcs in both):**
+
+- **The first run had 367 rows fail,** every one a miner bug. Each now has
+  a test row:
+  - `for i in 10 20 … 70;` with `do` on the next line kept the `;`
+    (`dummy_70;`);
+  - `$(seq 6)` (one argument) wasn't expanded, so `dummy4` never existed;
+  - `${1}` didn't expand, so `create_ns $me`'s sysctls were skipped as
+    another namespace. Among them is `keep_addr_on_down=1`, without which
+    `ip link set veth1 down` drops `2001:db8:91::1` for good, and the next
+    `nexthop … via 2001:db8:91::2` fails with "No route to host";
+  - `$NS_EXEC sysctl …` wasn't recognised as ip at all;
+  - `cmd 2>/dev/null || true` under `set -e` was taken as required;
+  - `if [ $rc -eq 0 ]; then ip rule del …` was walked after an add the
+    selftest expects to fail (276 rows).
+- **A step after a skipped write loses its rc.** `fib_rule_tests.sh`
+  deletes its rules by `pref $pref`, where `$pref` comes from
+  `$(ip rule show … | cut)`. The miner can't know it, so the rule stays,
+  and what the selftest states about later steps no longer holds. Those
+  188 rows are corner: rows, marked "follows line N, which the miner
+  skipped".
+- **The selftests are newer than the workbench's iproute2.** iproute2
+  7.2.0 predates `nexthop … dst_port` (ad2b2d95, after 7.2.0), so ip
+  refuses it before sending (rc 255) where the selftest expects the
+  kernel's rc 2. `ksNewer` lists such keywords with the commit; their rows
+  state no rc, and their pre steps are tolerated.
+
+**O5 over the mined rows.** O5 compares only write verbs (add, change,
+replace, prepend, append, del, delete), and resolves abbreviated objects
+(`ro`, `nex`) as goip does. Get, show, flush and bucket rows are counted
+as "not a write".
+
+| space | same | refuses | sends | differs | lookups differ | not a write |
+|---|---|---|---|---|---|---|
+| fibt | 127 | 103 | 0 | 0 | 44 | 143 |
+| fibnh | 316 | 86 | 0 | 0 | 151 | 50 |
+| fibrule | 72 | 0 | 0 | 0 | 4 | 88 |
+
+- **goip's writes match ip's on every mined row goip implements.** Every
+  lookup difference is the known `IFLA_EXT_MASK`.
+- **ip sends a byte of stack after a `congctl` name.** `ip route add …
+  congctl lock foo` first showed as 2 "differs" rows, differing in one
+  byte of `RTA_METRICS`: the pad after `RTAX_CC_ALGO "foo"` was 0xc4 and
+  0xe9 from ip, and 0 from goip. iproute2 builds the metrics in an
+  uninitialized `char mxbuf[256]` (`ip/iproute.c:1172`), and
+  `rta_addattr_l` doesn't clear the alignment padding
+  (`lib/libnetlink.c:1500-1505`). The kernel ignores padding, so nothing
+  breaks, but the byte changes from run to run. O5 now zeroes the padding
+  of `RTA_METRICS` sub-attributes before comparing, and counts the rows
+  where it wasn't zero (4).
+- **What goip refuses in the mined rows:** route `nhid` (73), multipath
+  `nexthop` (57), `expires` (25), `vrf` (15) and `dsfield` (5); nexthop
+  `dst_port` (10) and `encap` (4).
+- **Tests:** `TestMineScript` (43 rows), `TestMineScriptRowFields`,
+  `TestMineScriptPrelude`, `TestKsGroups`, `TestShLines`, `TestShWords`,
+  `TestIPObject` and `TestMineKselftests` cover the miner on small
+  scripts. `TestWsO5Applies`, the new `TestWsO5Argv` rows and
+  `TestWsO5ZeroMetricsPad` cover O5's side. `TestParseNexthopBucketCorpus`
+  now decodes 9 `RTM_GETNEXTHOPBUCKET` requests, up from 2: the mined rows
+  add three gets and four dumps.
+- **The miner leaves out iproute2's British-spelled alias for `neighbor`,**
+  which lint and the kernel-citation audit reject outside kernel paths. No
+  prefix of `neighbor` reaches it, and no mined selftest types it, so the
+  rows don't change.
+- **Mutation:** 29 of 29 miner mutants and 5 of 5 O5 mutants killed, each
+  by a relevant test. The first pass left four survivors, each fixed by
+  adding a test or removing dead code:
+  - a pipe reader that stays required, and a module taken from any word
+    rather than the one after `type`, each needed a test row;
+  - skip deduplication across groups needed `TestMineScriptPrelude`;
+  - `logTest`'s check for a step after a skipped write was dead code (such
+    a step never becomes the one `log_test` reads), so it was removed.
+- **Size:** the rows file is 2.2 MB, because each row repeats its group's
+  steps as pre steps (up to 124). The recorded rows add 6.4 MB to `ws/`,
+  6.6 MB in all, under the 20 MB budget. A run of 985 rows takes about
+  nine minutes at `-j 8`.
+
+Next is W3's `ip addr`/`neigh`/`link` matrix.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

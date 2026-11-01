@@ -1,0 +1,90 @@
+{
+ "cmd": "ip -4 rule del dsfield 0x04 table 101",
+ "desc": "corner: a step (fib_rule_tests.sh fib_rule4_connect_test) does not check: ip -4 rule del dsfield 0x04 table 101",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibrule/fib_rule4_connect_test-004",
+ "modules": [
+  "dummy",
+  "veth"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 192.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  "ip link add name veth0 type veth peer name veth1",
+  "ip link set dev veth0 up",
+  "ip link set veth1 up",
+  "ip address add 192.0.2.10 peer 192.0.2.11/32 dev veth0",
+  "ip address add 2001:db8::10 peer 2001:db8::11/128 dev veth0 nodad",
+  "ip route add table 101 198.51.100.11/32 via 192.0.2.11",
+  "ip route add table 101 2001:db8::1:11/128 via 2001:db8::11",
+  "ip -4 rule add dsfield 0x04 table 101"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 192.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add name veth0 type veth peer name veth1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev veth0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set veth1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 192.0.2.10 peer 192.0.2.11/32 dev veth0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 2001:db8::10 peer 2001:db8::11/128 dev veth0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add table 101 198.51.100.11/32 via 192.0.2.11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add table 101 2001:db8::1:11/128 via 2001:db8::11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add dsfield 0x04 table 101",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_rule_tests.sh:696 fib_rule4_connect_test"
+ }
+}

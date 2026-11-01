@@ -78,6 +78,8 @@ type source struct {
 	Tdc       string `json:"tdc,omitempty"`
 	ID        string `json:"id,omitempty"`
 	Unchecked string `json:"unchecked,omitempty"`
+	// Selftest is a mined row's script line and function (kselftest.go).
+	Selftest string `json:"selftest,omitempty"`
 }
 
 var (
@@ -170,7 +172,7 @@ type skip struct {
 	Reason string `json:"reason"`
 }
 
-func writeSkips(w io.Writer, header []string, skips []skip) error {
+func writeSkips[T any](w io.Writer, header []string, skips []T) error {
 	var b bytes.Buffer
 	for _, h := range header {
 		b.WriteString("# " + h + "\n")
