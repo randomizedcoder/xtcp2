@@ -40,7 +40,7 @@ usage: xtcp2-nlcap-ws <command> [args]
       --desc 'positive: ...'   (default "positive: ad-hoc")
       --pre '<cmd>'            a step before the capture window (repeatable)
       --readback name='<cmd>'  a captured readback after it (repeatable)
-      --proto route|generic|xfrm   --floor N   --expect-rc N
+      --proto route|generic|xfrm|sock_diag   --floor N   --expect-rc N
       --modules m1,m2          --serial
       --out DIR                --helper PATH   (as for batch)
   batch <rows.jsonl> [-j N] [--only id,id] [--out DIR] [--helper PATH]

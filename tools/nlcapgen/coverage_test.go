@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"maps"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -189,6 +190,83 @@ func TestCovTally(t *testing.T) {
 	}
 }
 
+// covDiagMsg is an inet SOCK_DIAG_BY_FAMILY request with bytecode bc.
+func covDiagMsg(flags uint16, family uint8, bc ...byte) nlparity.Msg {
+	body := make([]byte, covInetDiagReqSize)
+	body[0] = family
+	if bc != nil {
+		body = binary.LittleEndian.AppendUint16(body, uint16(4+len(bc)))
+		body = binary.LittleEndian.AppendUint16(body, 1)
+		body = append(body, bc...)
+	}
+	return nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: covSockDiagByFamily, Flags: flags}, Body: body, Proto: unix.NETLINK_SOCK_DIAG}
+}
+
+func TestCovAddDiag(t *testing.T) {
+	req := uint16(unix.NLM_F_REQUEST)
+	sportGe := []byte{2, 8, 12, 0, 0, 0, 22, 0}
+	auto := []byte{6, 4, 8, 0}
+	cases := []struct {
+		description string
+		msg         nlparity.Msg
+		expected    string // requests:op codes
+	}{
+		{"positive: a dump with no bytecode counts the request", covDiagMsg(req, unix.AF_INET), "1:"},
+		{"positive: each op once, walked by yes", covDiagMsg(req, unix.AF_INET6, append(append([]byte{}, sportGe...), auto...)...), "1:2,6"},
+		{"negative: a reply is not a request", covDiagMsg(0, unix.AF_INET, auto...), "0:"},
+		{"negative: a unix diag request is not inet", covDiagMsg(req, unix.AF_UNIX, auto...), "0:"},
+		{"boundary: a body shorter than inet_diag_req_v2", nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: covSockDiagByFamily, Flags: req}, Body: []byte{unix.AF_INET}}, "0:"},
+		{"corner: a yes under 4 ends the walk", covDiagMsg(req, unix.AF_INET, 6, 4, 8, 0, 7, 0, 8, 0), "1:6"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			tl := newCovTally()
+			tl.addDiag(tc.msg)
+			ops := make([]string, 0, len(tl.diagOps))
+			for _, code := range slices.Sorted(maps.Keys(tl.diagOps)) {
+				ops = append(ops, strconv.Itoa(code))
+			}
+			if got := strconv.Itoa(tl.diag) + ":" + strings.Join(ops, ","); got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestTallyCorpusSockDiag reads real ws rows: an ss row's sock_diag
+// requests reach addDiag, a route row's do not.
+func TestTallyCorpusSockDiag(t *testing.T) {
+	ws := "../../pkg/xtcpnl/testdata/7_3_0/ws/"
+	cases := []struct {
+		description string
+		row         string
+		expected    string // diag requests:op codes
+	}{
+		{"positive: ss -u -4 sport = :22 is one request, one S_COND", "ss/ec-002", "1:7"},
+		{"positive: ss -t -4 not sport = :22 adds the JMP", "ss/pw-054", "1:1,7"},
+		{"negative: a route row sends no sock_diag", "route4/bd-001", "0:"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			b, err := os.ReadFile(ws + tc.row + "/ip.pcap")
+			if err != nil {
+				t.Fatal(err)
+			}
+			tl, files, err := tallyCorpus(fstest.MapFS{"r/ip.pcap": {Data: b}})
+			if err != nil || files != 1 {
+				t.Fatalf("files %d, err %v", files, err)
+			}
+			ops := make([]string, 0, len(tl.diagOps))
+			for _, code := range slices.Sorted(maps.Keys(tl.diagOps)) {
+				ops = append(ops, strconv.Itoa(code))
+			}
+			if got := strconv.Itoa(tl.diag) + ":" + strings.Join(ops, ","); got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestWriteCoverage(t *testing.T) {
 	pol := covPolicy{fam: covFamily{Key: "route4", Policy: "rtm_ipv4_policy", Dir: "net/ipv4"},
 		names: map[int]string{1: "RTA_DST", 4: "RTA_OIF", 5: "RTA_GATEWAY"},
@@ -196,6 +274,7 @@ func TestWriteCoverage(t *testing.T) {
 	tl := newCovTally()
 	tl.add(covMsg(unix.RTM_NEWROUTE, unix.NLM_F_REQUEST, unix.AF_INET, 12, unix.RTA_DST, 18, 99))
 	tl.add(covMsg(unix.RTM_NEWNEIGH, unix.NLM_F_REQUEST, unix.AF_BRIDGE, 12, unix.NDA_VLAN))
+	tl.addDiag(covDiagMsg(unix.NLM_F_REQUEST, unix.AF_INET, 6, 4, 8, 0))
 	var b strings.Builder
 	if err := writeCoverage(&b, []string{"h"}, []covPolicy{pol}, tl); err != nil {
 		t.Fatal(err)
@@ -210,6 +289,8 @@ func TestWriteCoverage(t *testing.T) {
 		{"corner: an attribute outside the policy by name, or by number when unnamed", "route4 sent outside the policy: RTA_VIA 99\n"},
 		{"positive: the header", "# h\n"},
 		{"corner: a bridge fdb write is counted apart", "# bridge fdb writes, which no policy judges: 1 requests\n"},
+		{"positive: the inet_diag ops' share", "# inet_diag dumps, which inet_diag_bc_audit judges: 1/14 bytecode ops (1 requests)\n"},
+		{"positive: the ops never sent, in code order", "inet_diag bytecode ops never sent: NOP JMP S_GE S_LE D_GE D_LE S_COND"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {

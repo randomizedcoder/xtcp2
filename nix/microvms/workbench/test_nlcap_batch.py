@@ -193,6 +193,26 @@ class TestRun(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(
             e.out, "t/full", "link.out")))
 
+    def test_proto_reaches_the_helper(self):
+        cases = [
+            ("positive: a sock_diag row's write and readback name it",
+             row(proto="sock_diag", readback=[
+                 {"name": "dump", "cmd": "ss -t", "proto": "sock_diag"}]),
+             ["write --proto sock_diag", "capio --proto sock_diag"]),
+            ("boundary: no proto is route", row(readback=[
+                {"name": "link", "cmd": "ip -j link"}]),
+             ["write --proto route", "capio --proto route"]),
+        ]
+        for desc, r, want in cases:
+            with self.subTest(desc):
+                e = Env(self, [r])
+                rc, out = e.run()
+                self.assertEqual(rc, 0, out)
+                with open(e.log) as f:
+                    got = [" ".join(ln.split()[:3]) for ln in f.read().splitlines()
+                           if ln.split()[0] in ("write", "capio")]
+                self.assertEqual(got, want)
+
     def test_only(self):
         e = Env(self, [row(id="t/a"), row(id="t/b")])
         rc, out = e.run("--only", "t/b")

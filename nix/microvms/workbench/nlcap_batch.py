@@ -45,7 +45,7 @@ import sys
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.+-]*(/[a-z0-9][a-z0-9_.+-]*)*$")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 PREFIXES = ("positive:", "negative:", "boundary:", "corner:")
-PROTOS = ("route", "generic", "xfrm")
+PROTOS = ("route", "generic", "xfrm", "sock_diag")
 KNOWN = {"id", "desc", "cmd", "pre", "readback", "proto", "floor",
          "modules", "serial", "expect", "axes", "source"}
 

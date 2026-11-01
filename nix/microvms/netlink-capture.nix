@@ -1113,9 +1113,12 @@ pkgs.writeShellApplication {
     # netlink_<name>_<what>.pcap, and capture() holds a row to that.
     #
     # The numbers are include/uapi/linux/netlink.h's: NETLINK_ROUTE 0,
-    # NETLINK_XFRM 6, NETLINK_GENERIC 16. All three pass netlink_filter_tap()
-    # (net/netlink/af_netlink.c), so nlmon sees them. None is 4, so the
-    # sentinel is dropped from every fixture whatever its protocol.
+    # NETLINK_XFRM 6, NETLINK_GENERIC 16, and NETLINK_SOCK_DIAG 4 for the ss
+    # rows. All four pass netlink_filter_tap() (net/netlink/af_netlink.c), so
+    # nlmon sees them. The `ss -x` sentinel is itself NETLINK_SOCK_DIAG, so a
+    # sock_diag row closes its window on `ip link show dev lo` instead: one
+    # NETLINK_ROUTE dump, tapped and countable alike, which the row's filter
+    # drops. Either way the sentinel never shares the row's protocol.
     PROTO=0
     PROTO_NAME=route
 
@@ -1133,7 +1136,12 @@ pkgs.writeShellApplication {
         route) PROTO=0 ;;
         xfrm) PROTO=6 ;;
         generic) PROTO=16 ;;
-        *) die "unknown netlink protocol '$1'; want route, generic or xfrm" ;;
+        sock_diag)
+          PROTO=4
+          SENTINEL_CMD='ip link show dev lo'
+          SENTINEL_FILTER='ether[14:2]==0'
+          ;;
+        *) die "unknown netlink protocol '$1'; want route, generic, xfrm or sock_diag" ;;
       esac
       PROTO_NAME=$1
     }
@@ -2414,7 +2422,7 @@ pkgs.writeShellApplication {
     # which runs it on a hand-built savefile of mixed protocols with no
     # capture running. Writes <out.pcap> and prints how many records it kept.
     cmd_filter() {
-      [ $# -eq 2 ] || die "usage: filter [--proto route|generic|xfrm] <in.pcap> <out.pcap>"
+      [ $# -eq 2 ] || die "usage: filter [--proto route|generic|xfrm|sock_diag] <in.pcap> <out.pcap>"
       nl_filter "$1" "$2"
       pkt_count "$2"
     }
@@ -2436,7 +2444,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm|sock_diag] ..."
     fi
 
     sub=$1
@@ -2449,7 +2457,7 @@ pkgs.writeShellApplication {
         cap | capio | write | filter) ;;
         *) die "--proto applies to cap, capio, write and filter, not $sub" ;;
       esac
-      [ $# -ge 2 ] || die "--proto needs a value: route, generic or xfrm"
+      [ $# -ge 2 ] || die "--proto needs a value: route, generic, xfrm or sock_diag"
       set_proto "$2"
       shift 2
     fi

@@ -271,6 +271,40 @@ type covTally struct {
 	requests map[string]int
 	sent     map[string]map[int]int
 	unjudged int
+	// diag counts the inet SOCK_DIAG_BY_FAMILY requests and the bytecode
+	// ops they sent, which no nla policy judges: inet_diag_bc_audit does.
+	diag    int
+	diagOps map[int]int
+}
+
+// covDiagOps names enum inet_diag_bc_op's codes
+// (include/uapi/linux/inet_diag.h:85).
+var covDiagOps = []string{"NOP", "JMP", "S_GE", "S_LE", "D_GE", "D_LE", "AUTO", "S_COND", "D_COND",
+	"DEV_COND", "MARK_COND", "S_EQ", "D_EQ", "CGROUP_COND"}
+
+// covSockDiagByFamily is SOCK_DIAG_BY_FAMILY, and covInetDiagReqSize
+// struct inet_diag_req_v2.
+const (
+	covSockDiagByFamily = 20
+	covInetDiagReqSize  = 56
+)
+
+// addDiag counts one sock_diag message, if it is an inet request: its ops
+// are walked by their yes offsets, which is how ss lays them out.
+func (t *covTally) addDiag(m nlparity.Msg) {
+	if !m.IsRequest() || m.Hdr.Type != covSockDiagByFamily || len(m.Body) < covInetDiagReqSize ||
+		(m.Body[0] != unix.AF_INET && m.Body[0] != unix.AF_INET6) {
+		return
+	}
+	t.diag++
+	covWalk(m.Body[covInetDiagReqSize:], func(typ int, bc []byte) {
+		if typ != 1 { // INET_DIAG_REQ_BYTECODE
+			return
+		}
+		for off := 0; off+4 <= len(bc) && bc[off+1] >= 4; off += int(bc[off+1]) {
+			t.diagOps[int(bc[off])]++
+		}
+	})
 }
 
 // covUnjudged is whether no policy judges a request: a bridge fdb add or
@@ -282,7 +316,7 @@ func covUnjudged(typ uint16, body []byte) bool {
 }
 
 func newCovTally() *covTally {
-	return &covTally{requests: map[string]int{}, sent: map[string]map[int]int{}}
+	return &covTally{requests: map[string]int{}, sent: map[string]map[int]int{}, diagOps: map[int]int{}}
 }
 
 // add counts one message, if it is a request some family judges.
@@ -357,9 +391,16 @@ func tallyCorpus(root fs.FS) (*covTally, int, error) {
 		if err != nil {
 			return fmt.Errorf("%s: %w", p, err)
 		}
+		dc, err := nlparity.ParseCapture(b, unix.NETLINK_SOCK_DIAG)
+		if err != nil {
+			return fmt.Errorf("%s: %w", p, err)
+		}
 		files++
 		for _, m := range c.Msgs() {
 			t.add(m)
+		}
+		for _, m := range dc.Msgs() {
+			t.addDiag(m)
 		}
 		return nil
 	})
@@ -402,6 +443,17 @@ func writeCoverage(w io.Writer, header []string, pols []covPolicy, t *covTally) 
 		fmt.Fprintf(&body, "%s sent outside the policy: %s\n", key, joinOrNone(extra))
 	}
 	fmt.Fprintf(&b, "# bridge fdb writes, which no policy judges: %d requests\n", t.unjudged)
+	var opsSent, opsNever []string
+	for code, name := range covDiagOps {
+		if t.diagOps[code] > 0 {
+			opsSent = append(opsSent, name)
+		} else {
+			opsNever = append(opsNever, name)
+		}
+	}
+	fmt.Fprintf(&b, "# inet_diag dumps, which inet_diag_bc_audit judges: %d/%d bytecode ops (%d requests)\n",
+		len(opsSent), len(covDiagOps), t.diag)
+	fmt.Fprintf(&body, "inet_diag bytecode ops never sent: %s\n", joinOrNone(opsNever))
 	b.WriteString(body.String())
 	_, err := io.WriteString(w, b.String())
 	return err

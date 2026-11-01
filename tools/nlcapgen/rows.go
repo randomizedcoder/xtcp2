@@ -19,8 +19,11 @@ type row struct {
 	Pre      []preStep  `json:"pre,omitempty"`
 	Readback []readback `json:"readback,omitempty"`
 	Modules  []string   `json:"modules,omitempty"`
-	Serial   bool       `json:"serial,omitempty"`
-	Expect   expect     `json:"expect"`
+	// Proto is the netlink protocol the command is captured on; "" is
+	// NETLINK_ROUTE.
+	Proto  string `json:"proto,omitempty"`
+	Serial bool   `json:"serial,omitempty"`
+	Expect expect `json:"expect"`
 	// Axes is what a generated row's values mean (matrix.go's facts), for
 	// the corpus test's model of the request to read.
 	Axes   map[string]string `json:"axes,omitempty"`
@@ -108,6 +111,11 @@ func (r row) validate() error {
 	}
 	if m := r.Expect.Match; m != nil && !seen[m.Readback] {
 		return fmt.Errorf("%s: match reads readback %q, which the row lacks", r.ID, m.Readback)
+	}
+	switch r.Proto {
+	case "", "route", "generic", "xfrm", "sock_diag":
+	default:
+		return fmt.Errorf("%s: proto %q", r.ID, r.Proto)
 	}
 	for _, m := range r.Modules {
 		if !nameRE.MatchString(m) {

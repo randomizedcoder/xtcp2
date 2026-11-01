@@ -684,6 +684,12 @@ each — `xtcpnl_inet_diag_tcpinfo.go`, `_bbrinfo`, `_dctcpinfo`, `_vegasinfo`,
 The bytecode opcodes are a filter language the daemon does not use — it dumps
 and filters in Go — so their absence is a scope boundary, not a gap.
 
+Since W5c the request side is decoded too, for the workbench's `ss` rows.
+`xtcpnl_inet_diag_bc.go` names the bytecode opcodes and the `INET_DIAG_REQ_*`
+attributes. It parses a request, its bytecode and its protocol attribute, and
+it ports the kernel's audit and run (see "W5c: `ss`"). The 17 absences above
+are counted from before W5c.
+
 The same caveat as above applies to the word *referenced*: this is an
 enum-level diff, and the per-field proof for the biggest of these structs is a
 different mechanism entirely — the layout oracle in
@@ -2571,6 +2577,176 @@ rerun):
   row for each.
 
 **Size:** the rows add 561 KB to `ws/`, 18 MB of 64 MB in all.
+
+##### W5c: `ss`
+
+`ss` is iproute2's one sock_diag client. It reads each inet table with
+`SOCK_DIAG_BY_FAMILY` on `NETLINK_SOCK_DIAG`. Its filter (`sport ge :1024`,
+`src 127.0.0.0/8`, `autobound` and so on) is compiled to bytecode that the
+kernel audits and runs per socket. No earlier row captured this protocol.
+The workbench now captures it: `xtcp2-nlcap` takes `--proto sock_diag`,
+whose stop sentinel is `ip link show dev lo` (filtered to protocol 0),
+because the default `ss -x` sentinel is itself sock_diag.
+
+`nlcapgen matrix -family ss -seed 1 -random 40` writes
+`nix/microvms/workbench/ss.rows.jsonl` from one space in
+`tools/nlcapgen/matrix_ss.go`:
+
+| axis | values (boundary values in bold) |
+|---|---|
+| proto | `-t`, `-u`, `-w`, `-M` (MPTCP), `-S` (SCTP) |
+| family | both, `-4`, `-6` |
+| ext | none, `-m`, `-i`, `--tos`, `-mi` |
+| state | default, `-a`, `-l`, `state established`, `exclude time-wait`, `state connected`, two `state` words, **`-B`** |
+| filter | none; each port operator in word and symbol form, with **`:0`**, **`:65535`**, `:65536` and `:-1`; IPv4 and IPv6 hosts and prefixes, **`/0`**, with and without a port; or, and, not, implicit and, parentheses; `autobound`; `fwmark` with and without a mask; `cgroup`; `dev lo`; `src localhost` |
+
+383 rows: 59 positive, 38 boundary, 268 corner and 18 negative. Every row's
+namespace holds the same sockets, opened by a pre step (`ssHolder`):
+- TCP listeners on 127.0.0.1:22, [::1]:80, 127.0.0.1:8080, [::]:443
+  (dual-stack) and 127.0.0.1:9000 (`SO_MARK` 0x10);
+- two established pairs, one of them v4-mapped through the dual-stack
+  listener;
+- UDP sockets on 127.0.0.1:53 and [::1]:5353, plus a connected one;
+- a raw ICMP socket.
+
+The namespace's port range is one port wide, so both autobound connects
+take 45000. A forked child holds the sockets for 10 s.
+
+**ss's side** (`misc/ss.c`):
+
+- `inet_show_netlink` sends one dump per family, AF_INET then AF_INET6
+  (only one with `-4` or `-6`).
+- `sockdiag_send` writes `idiag_states` in host order.
+  - The collector's own requests store a byte-swapped constant
+    (`pkg/xtcp/init.go`) that they write big-endian. That is why
+    `DeserializeInetDiagReqV2` reads the field big-endian;
+    `ParseInetDiagRequest` reads it the kernel's way.
+  - With no state option, the mask is the tables' defaults ORed
+    together: SS_CONN for tcp, mptcp and sctp, but only SS_ESTABLISHED
+    for udp and raw (`ss.c:276`, `280`). `-4` and `-6` OR in SS_CONN too
+    (`filter_af_set`).
+- `-m`, `-i` and `--tos` set ext bits 0x41, 0x0e and 0x30.
+- MPTCP's protocol, 262, is stored truncated in the u8 (6) and sent
+  again in `INET_DIAG_REQ_PROTOCOL`.
+- `-4` and `-6` also set the family addresses are parsed in, so an
+  address of the other family is refused (rc 1).
+- `dev` compiles to nothing (`ss.c:2059`). Any `and` or `or` holding it
+  sends no bytecode, and ss filters the replies itself.
+- A `cgroup` term makes ss probe kernel support first
+  (`ssfilter_check.c`): AF_INET, TCP, no states, `CGROUP_COND` 0.
+
+**iproute2 bugs** (recorded here only; the rows assert they are still
+there through a `bug` fact):
+
+- **`src localhost` tests only the first address.**
+  `ssfilter_bytecompile` builds every address of a name from the first
+  one (`a->addr`, not `b->addr`, `ss.c:1945`). The request carries two
+  `S_COND`s for 127.0.0.1, and `[::1]:80` is never listed. With `-4` or
+  `-6` the name resolves to one address, and the rows expect no bug.
+- **`sport ge :65536` passes every socket.** A port comparison's operand
+  is the u16 `no` field (`ss.c:1987`), so 65536 wraps to 0.
+  `sport = :65536` is a hostcond with an int port, which correctly
+  matches nothing.
+- **`sport = :-1` passes every socket.** `get_long` takes -1, which a
+  hostcond reads as any port.
+- **Bytecode padding leaks heap.** The bytecode buffer is `malloc`ed and
+  never cleared, so a hostcond's 2 padding bytes carry heap contents into
+  the request (seen as `87 e2`). The oracles never compare them.
+- **The cgroup probe runs for every `cgroup` term.**
+  `ssfilter_is_supported` caches the result in a copy of the table entry,
+  so `cgroup A or cgroup A` sends two probes (the `cgroup2` rows).
+- **`cgroup /` doesn't name the cgroup2 root.** `get_cgroup2_id` tries
+  the path as given first (`lib/fs.c:145`). In the guest `/` has no file
+  handle, so ss refuses it; on a host whose root has one, it would take
+  that id. The rows use `cgroup /sys/fs/cgroup`. `ip netns exec` mounts a
+  fresh sysfs without cgroup2, so a cgroup row mounts it first, in the
+  exec's private mount namespace.
+- **A prefix outside the brackets is refused.** `[2001:db8::]/32` reads
+  `/32` as the port (rc 1, the `v6slash` row); the prefix goes inside,
+  `[2001:db8::/32]`.
+
+**The kernel** (`net/ipv4/inet_diag.c` unless noted):
+
+- `inet_diag_bc_audit` (`:728`) checks:
+  - each op's yes and no: at least its length, at most 4 past the end,
+    a multiple of 4;
+  - every jump target is an op boundary (`valid_cc`);
+  - a hostcond's family and prefix length;
+  - `MARK_COND` needs CAP_NET_ADMIN (EPERM).
+
+  Every bytecode ss sent passes it.
+- `inet_diag_bc_run` (`:465`) matches an AF_INET condition against a
+  v4-mapped AF_INET6 socket, so `src 127.0.0.1` lists the mapped
+  `[::ffff:127.0.0.1]:443`.
+- An accepted socket keeps its listener's userlocks minus
+  `SOCK_BINDPORT_LOCK` (`net/core/sock.c:2570`), so `autobound` lists
+  both ends of an established pair.
+- `raw_diag`'s dump ignores `idiag_states`; ss drops the states it didn't
+  ask for itself (`ss.c:4330`).
+- `INET_DIAG_MARK` is sent only to a CAP_NET_ADMIN reader (`:128`).
+
+**Oracles:**
+
+- **`pkg/xtcpnl/xtcpnl_inet_diag_bc.go`:**
+  - `ParseInetDiagRequest` decodes the request;
+  - `InetDiagBcAudit` and `InetDiagBcRun` port the kernel's audit and
+    run.
+- **O3a** (`pkg/xtcpnl/xtcpnl_ws_ss_test.go`): each request matches the
+  row's facts. It checks the family order, the protocol (and its u8),
+  the protocol attribute, the states, the ext bits, and whether there is
+  bytecode. Any bytecode must pass the audit. Cgroup probes come first
+  and must match the probe's shape.
+- **O3b:** the bytecode is run over 143 probe sockets:
+  - the holder's sockets;
+  - a grid of ports, addresses, v4-mapped addresses, locks, marks,
+    devices and cgroups.
+
+  Each verdict must equal the filter the user meant: the row's `pred`
+  fact, a prefix notation the test evaluates on its own. On a `bug` row
+  they must disagree somewhere.
+
+  O3a and O3b checked 639 requests.
+- **O4:** each reply lists a holder socket in a requested state that
+  passes the filter, with its mark. Every holder socket that passes
+  is listed. The filter is the pred, or on a bug row the bytecode as
+  sent; on a row with no bytecode it is no filter. O4 checked 607 round
+  trips. The 32 cgroup requests are skipped, because the holder's cgroup
+  id is unknown to the model.
+- **O5 doesn't apply:** goip has no sock_diag.
+- **Coverage:** inet_diag requests have no nla policy, so `nlcapgen
+  coverage` counts their bytecode ops on a line of their own: 10 of 14
+  (667 requests). ss never sends `NOP`, `DEV_COND`, `S_EQ` or `D_EQ`:
+  `dev` compiles to nothing, and `sport = :N` is a hostcond, not an
+  `S_EQ`.
+- **Determinism:** a second run of all 383 rows, on the same workbench
+  boot, matched on every row.
+
+**Tests:**
+
+- The parser: `TestParseInetDiagRequest`, `TestInetDiagBcAudit`,
+  `TestInetDiagBcRun` and `TestBitstringMatch`.
+- The generator: `TestBuildSs`, `TestSsFamilyExcl`,
+  `TestRowValidateProto`, `TestMatrixSsRows`, `TestCovAddDiag`,
+  `TestTallyCorpusSockDiag`, and two new `TestWriteCoverage` rows.
+- The oracles: `TestSsParsePred`, `TestSsPredPasses`,
+  `TestSsWantFromAxes`, `TestSsRequestProblem`,
+  `TestSsCgroupProbeProblem`, `TestSsRoundTripProblem`,
+  `TestSsExchangeProblems` and `TestWsSsExchanges`.
+
+**Mutation:** 47 of 47 mutants killed, each by a relevant test. Six
+survived the first pass:
+
+- **A PROTOCOL attribute longer than 4 bytes wasn't tested.**
+  `TestParseInetDiagRequest` now has an 8-byte row.
+- **Four oracle paths were exercised only by the corpus:** the family
+  order, an O3b disagreement, a bug that is gone, and the cgroup probe's
+  shape. A clean corpus never trips them. They moved into
+  `ssExchangeProblems`, and `TestSsExchangeProblems` holds hand-built
+  rows that break each one.
+- **Nothing read a real sock_diag capture through the coverage tally.**
+  `TestTallyCorpusSockDiag` does.
+
+**Size:** the rows add 1.5 MB to `ws/`, 18 MB of 64 MB in all.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 
