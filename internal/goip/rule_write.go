@@ -261,7 +261,7 @@ func (w *ruleWrite) protocol(args []string, i int) (int, error) {
 	if err != nil {
 		return i, err
 	}
-	p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint32)
+	p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint8)
 	if !ok {
 		return i, invargErr(`"protocol" value is invalid`+"\n", args[i])
 	}

@@ -249,6 +249,8 @@ func TestParseNeighWriteArgs(t *testing.T) {
 			expected: result{errs: `Error: duplicate "lladdr": "2" is the second value`}},
 		{description: "negative: an unknown protocol", args: "192.0.2.2 dev d0 protocol bogus",
 			expected: result{errs: `"protocol" value is invalid`}},
+		{description: "negative: a protocol past 255", args: "192.0.2.2 dev d0 protocol 256",
+			expected: result{errs: `"protocol" value is invalid`}},
 		{description: "negative: -6 with an IPv4 address", family: unix.AF_INET6, args: "192.0.2.2 dev d0",
 			expected: result{errs: "address is expected"}},
 		{description: "boundary: nud with no value", args: "192.0.2.2 dev d0 nud",

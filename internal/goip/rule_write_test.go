@@ -203,6 +203,8 @@ func TestParseRuleWriteArgs(t *testing.T) {
 		{"negative: del with no arguments", 0, unix.RTM_DELRULE, "", result{err: ErrInvalidArgument}},
 		{"negative: a preference past 32 bits", 0, unix.RTM_NEWRULE, "add pref 4294967296", result{err: ErrInvalidArgument}},
 		{"negative: a tos past 255", 0, unix.RTM_NEWRULE, "add tos 0x100", result{err: ErrInvalidArgument}},
+		{"negative: a protocol past 255, which rtnl_rtprot_a2n refuses", 0, unix.RTM_NEWRULE, "add protocol 256",
+			result{err: ErrInvalidArgument}},
 		{"negative: a negative suppress_prefixlength", 0, unix.RTM_NEWRULE, "add suppress_prefixlength -1",
 			result{err: ErrInvalidArgument}},
 		{"negative: a uidrange with one number", 0, unix.RTM_NEWRULE, "add uidrange 1000", result{err: ErrInvalidArgument}},

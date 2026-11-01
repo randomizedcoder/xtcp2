@@ -1249,13 +1249,14 @@ equivalent (it removed a type mask the attribute walker already applies).
 
 #### Grammar matrix (W2)
 
-W2 is three commits, each verified on its own:
+W2 is four commits, each verified on its own:
 
 - **W2a:** the generator and `ip route` for IPv4 and IPv6, with O3 and O4.
   This section covers it first.
 - **W2b:** `ip rule` and `ip nexthop`, in [its own part below](#w2b-ip-rule-and-ip-nexthop).
-- **W2c:** rows mined from the fib selftests, and O5 (the goip
-  differential).
+- **W2c:** O5, the goip differential over W2a's and W2b's rows, in
+  [its own part below](#w2c-o5-the-goip-differential).
+- **W2d:** rows mined from the fib selftests, with O5 applied to them.
 
 `nlcapgen matrix` (`tools/nlcapgen/matrix.go`) builds rows from a table of
 axes for each command. Each axis lists values, marked boundary or corner
@@ -1474,7 +1475,88 @@ of any kind, and members back at id 1.
   boot, and wscmp found every row with the same status, rc and message
   types. The two families' corpus is 1.5 MB in 4802 files.
 
-Next is W2c (the selftest miner and O5), then W3's
+##### W2c: O5, the goip differential
+
+`TestWsGoipDifferential` (`internal/goip/ws_differential_test.go`) runs
+every route, rule and nexthop row through goip offline, against the row's
+own `ip.pcap`:
+
+- goip's `RTM_GETLINK` lookups are answered from the capture, so `d0`
+  resolves to the ifindex the kernel gave ip;
+- goip's write goes to `GOIP_WRITE_OUT` and is never sent;
+- ip's requests are split into its leading `RTM_GETLINK` lookups and the
+  rest. The lookups and the write are compared separately, so a lookup
+  difference can't hide whether the write matches.
+
+Each row's write gets one outcome:
+
+| outcome | means |
+|---|---|
+| same | the same write byte for byte (seq and pid zeroed), or both refuse at a check goip implements |
+| refuses | goip refuses a command ip sent, or goip and ip both refuse but goip's reason is "not implemented" |
+| sends | goip writes a request ip refused to send |
+| differs | both write, and the writes differ; the report names the nlmsg flags, the family header or the attribute types |
+
+Every row whose outcome isn't "same", and every row whose lookups differ
+other than in the known way, is listed in
+`internal/goip/testdata/ws-differential.txt`. A new divergence and a fixed
+one both fail the test until the file is regenerated with `-update-ws-o5`.
+
+| space | same | refuses | sends | differs | lookups differ |
+|---|---|---|---|---|---|
+| route4 | 132 | 58 | 0 | 0 | 88 |
+| route6 | 55 | 98 | 0 | 0 | 37 |
+| rule4 | 173 | 30 | 0 | 0 | 0 |
+| rule6 | 203 | 0 | 0 | 0 | 0 |
+| nh4 | 78 | 2 | 0 | 0 | 38 |
+| nh6 | 78 | 2 | 0 | 0 | 36 |
+| nhgrp | 81 | 39 | 0 | 0 | 0 |
+
+**What O5 showed:**
+
+- **goip's writes match ip's on every row goip implements.** No row
+  differs.
+- **goip took a `protocol` past 255, and ip doesn't.** `rtnl_rtprot_a2n`
+  refuses a number over 255 (`lib/rt_names.c:293`, in every iproute2
+  release since well before 7.1). goip's rule, nexthop and neigh parsers
+  allowed a u32 and sent its low byte, so `protocol 256` was a write where
+  ip sends nothing (4 "sends" rows). They now refuse it. The nexthop test
+  that expected `protocol 0x1ff` to send 0xff now expects 255 to be the
+  largest it takes, and 256 to be refused.
+- **All 199 lookup differences are `IFLA_EXT_MASK`.** iproute2 7.2.0's
+  `ll_link_get` adds `RTEXT_FILTER_NAME_ONLY` (1<<8, `lib/ll_map.c:276`),
+  so ip asks with 0x109 where goip, which models 7.1, asks with 0x9. goip
+  stays on 7.1 until its parity target moves; the report counts these rows
+  in its header and doesn't list them one by one.
+- **What goip refuses:**
+  - route: 156 rows on keywords goip hasn't implemented (`pref` 68, `nhid`
+    49, `nexthop` 29, `expires` 10);
+  - nexthop: 43 rows on `hw_stats` (41) and `dst_port` (2), which no
+    capture showed before;
+  - rule: 30 rows on `realms`. iproute2 reads realm names from
+    `rt_realms`, and goip reads no config files.
+- **Both refusing isn't always agreement.** goip doesn't implement
+  multipath `nexthop`. On `nexthop via … dev d0 weight 257`, ip resolves
+  `d0` and then refuses the weight, while goip stops at `nexthop`. O5 first
+  counted these 3 rows as "same". A goip "not implemented" now makes the
+  row "refuses", whatever ip did.
+- **Tests:** `TestWsO5Compare`, `TestWsO5Lookups`, `TestWsO5Split`,
+  `TestWsO5Argv` and `TestWsO5GoldenDiff` are table tests on hand-built
+  inputs. They cover the
+  branches the corpus doesn't reach yet: every "differs" detail, a lookup
+  that differs in more than its mask, and a lookup after the write.
+- **Mutation:** 20 of 20 mutants killed, each by a relevant test (outcome
+  classification, the lookup split and comparison, the diff detail, the
+  golden comparison, `-6` parsing, and the three protocol limits). Two
+  needed a second try:
+  - "a rule's header length is wrong" first used `RtMsgSizeCst`, which is
+    equivalent, since `rtmsg` and `fib_rule_hdr` are both 12 bytes;
+  - "the golden file isn't compared" first survived, because a correct
+    report matches it. The comparison is now `wsO5GoldenDiff`, with its own
+    table test. That test found that a reordered or repeated line passed,
+    and the helper now reports it.
+
+Next is W2d (the selftest miner, with O5 over its rows), then W3's
 `ip addr`/`neigh`/`link` matrix.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
