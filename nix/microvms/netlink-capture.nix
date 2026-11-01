@@ -22,6 +22,25 @@
 # the parity captures come off the topology the decoder fixtures came off.
 # Two capture mechanisms would be two answers to "what was on the wire".
 #
+# KEEP MOVING FORWARD: UPDATE flake.lock, RECAPTURE ON NEW VERSIONS
+#
+# Keep updating flake.lock, and keep moving the guest's Linux kernel and
+# iproute2 forward. The captures will come from different versions over
+# time, and that is fine: pkg/xtcpnl/testdata/ is already split by kernel
+# version (4_19_319 ... 7_3_0), and a new version gets its own directory
+# rather than replacing an old one. What matters is not one fixed version.
+# It is that every pcap holds the exact netlink messages a real kernel and a
+# real `ip` exchanged, so a parser test can check every byte of them.
+#
+# These captures are the base the stronger tests are built on. Each one
+# backs table-driven unit tests: positive, negative, boundary and corner
+# rows, each with a description and its expected outcome. Real bytes catch
+# what hand-built ones miss. Testing against them has already found one
+# iproute2 bug (`ip` reads the u16 IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE
+# as a u8; docs/netlink/upstream/iproute2-bond-partner-state-width.md), and
+# careful tests over newer captures may well find another. So treat a
+# version bump as a chance to recapture and retest, not as a chore.
+#
 # WHY THE SPLIT IS THIS WAY ROUND
 #
 # The existing nlmon-capture flavor puts the whole capture sequence in a
