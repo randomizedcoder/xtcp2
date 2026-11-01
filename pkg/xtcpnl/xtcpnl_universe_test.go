@@ -156,7 +156,6 @@ var netlinkUniverse = []universeType{
 // each with its reason. An exclusion is stale once a pcap holds the type.
 var universeExclusions = map[string]string{
 	"RTM_GETMDB":           "bridge only: lib/libnetlink.c:446's rtnl_mdbdump_req is called only from bridge/mdb.c",
-	"RTM_GETVLAN":          "bridge only: lib/libnetlink.c:463's rtnl_brvlandump_req is called only from bridge/vlan.c",
 	"RTM_GETTUNNEL":        "bridge only: lib/libnetlink.c:1575's rtnl_tunneldump_req is called only from bridge/vni.c",
 	"RTM_DELNEXTHOPBUCKET": "unprovokable: the kernel neither handles nor sends it; ip/ipmonitor.c only names it to print",
 	"CTRL_CMD_GETPOLICY":   "devlink only: lib/mnl_utils.c:367's mnlu_gen_cmd_dump_policy is called only from devlink/devlink.c",
@@ -406,9 +405,9 @@ func TestNetlinkUniverseShape(t *testing.T) {
 			expected: "route=47 generic=46 xfrm=22",
 		},
 		{
-			description: "positive: six exclusions, three of them bridge's",
+			description: "positive: five exclusions, two of them bridge's (RTM_GETVLAN is captured by the brmpls rows)",
 			got:         strings.Join(slices.Sorted(maps.Keys(universeExclusions)), " "),
-			expected:    "CTRL_CMD_GETPOLICY RTM_DELNEXTHOPBUCKET RTM_GETMDB RTM_GETTUNNEL RTM_GETVLAN XFRM_MSG_REPORT",
+			expected:    "CTRL_CMD_GETPOLICY RTM_DELNEXTHOPBUCKET RTM_GETMDB RTM_GETTUNNEL XFRM_MSG_REPORT",
 		},
 	}
 	for _, tt := range tests {

@@ -972,6 +972,8 @@ recollection.
 - [Baseline, measured 2026-09-25](#baseline-measured-2026-09-25)
 - [Phase status](#phase-status)
 - [Capture readiness](#capture-readiness)
+  - [Captures an outside consumer needs: BIRD's netlink parser](#captures-an-outside-consumer-needs-birds-netlink-parser)
+    - [Plan: B1–B3, the captures, their parsers and the completeness test](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test)
 - [What has landed](#what-has-landed)
 - [Phase exit criteria](#phase-exit-criteria)
 - [Phase 0](#phase-0)
@@ -1034,7 +1036,7 @@ is `ip -t monitor all label` (`:1757`).
 | Phase / family | Kernel module | Subscriber | Guest tooling | Ready? |
 |---|---|---|---|---|
 | 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes** |
-| 3 bridge / VLAN | `bridge` — **add** | `ip monitor all` ✅ | `bridge vlan` (in `iproute2`) ✅ | no |
+| 3 bridge / VLAN | `bridge` ✅, loaded by the link-write capture | `ip monitor all` ✅ (FDB); `bridge monitor vlan` under `xtcp2-nl-brmon` ✅ (VLAN) | `bridge` (in `iproute2`) ✅ | **yes**, in the link-write capture (`link-write/brmpls/`), not this flavor; see [the BIRD plan](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test) |
 | link-write 0–3 bond / LACP, Tier 1 | `bonding` — **add**, with `options bonding max_bonds=0` (module load creates `bond0` in `init_net`, `drivers/net/bonding/bond_main.c:6629-6630`) | n/a (dump-only readback) | `iproute2` ✅; a **partner** bond in a second netns over veth — **add** | no |
 | link-write 8 bond / LACP, Tier 2 | `bonding` — **add** | n/a | a second microVM and two point-to-point virtio-net links with `speed=10000,duplex=full` — **add**; never a bridge (`BR_GROUPFWD_RESTRICTED` drops LACPDUs) | no |
 | 4 tc telemetry | `sch_netem` or `sch_htb` — **add** | n/a (dump-only) | `tc` (in `iproute2`) ✅ | no |
@@ -1072,6 +1074,188 @@ extension](#item-7s-capture-extension--the-fixture-gaps-and-pinning-the-parity-t
 and the header of `nix/capture-netlink-fixtures.nix`. The rows above still apply
 to the *notification* families, which need a subscriber and a module in the
 guest.
+
+### Captures an outside consumer needs: BIRD's netlink parser
+
+Counted from the tree on 2026-10-31. The BIRD routing daemon's kernel protocol
+(`sysdep/linux/netlink.c` in [BIRD](https://gitlab.nic.cz/labs/bird)) is
+being unit-tested and fuzzed with messages taken from these captures, so that
+its parser sees real kernel output rather than hand-built bytes. Across every
+`.pcap` under `pkg/xtcpnl/testdata/`, de-duplicated by message bytes, there
+are 504 `RTM_NEWROUTE`, 46 `RTM_DELROUTE`, 86,585 `RTM_NEWADDR` and 10,210
+`RTM_NEWLINK` (40 link kinds), and 17 routes carry `RTA_MULTIPATH` (10
+`AF_INET`, 6 `AF_INET6`, 1 `RTNL_FAMILY_IPMR`). Seven kernel refusals of a
+route request, and 153 refusals carrying extack TLVs, cover BIRD's error-reply
+path. Three things BIRD parses are in **no** capture:
+
+| Missing | What BIRD parses | Capture needed | Guest needs |
+|---|---|---|---|
+| bridge FDB entries | `RTM_NEWNEIGH`/`RTM_DELNEIGH` with `ndm_family = AF_BRIDGE` (`nl_parse_fdb`); all 414 neighbour messages in the tree are `AF_INET`/`AF_INET6` | `bridge fdb show` on a bridge with static and learned entries, and `bridge fdb add`/`del` under `ip monitor all` | the `bridge` module, the same gap as the **3 bridge / VLAN** row above |
+| bridge VLANs | `RTM_NEWVLAN`/`RTM_DELVLAN` (`nl_parse_vlan`); none in the tree | `bridge vlan show` and `bridge vlan add`/`del` on a `vlan_filtering 1` bridge | as above |
+| MPLS routes | `rtm_family = AF_MPLS` routes, `RTA_NEWDST` label stacks, and `RTA_ENCAP` with `LWTUNNEL_ENCAP_MPLS` on IP routes, single path and inside `RTA_MULTIPATH`; the tree has no `AF_MPLS` route and no `RTA_ENCAP` at all | `ip -f mpls route show`, `ip -f mpls route add 100 as 200/300 via inet 192.0.2.10 dev X`, `ip route add 198.18.20.0/24 encap mpls 100/200 via 192.0.2.10 dev X`, and a multipath route with a per-nexthop `encap mpls` | `mpls_router` and `mpls_iptunnel` modules, `net.mpls.platform_labels` above the labels used, and `net.mpls.conf.<dev>.input=1` |
+
+Routes BIRD installed itself (`rtm_protocol = RTPROT_BIRD`, 12) need no new
+capture: the BIRD test rewrites that byte in a captured route.
+
+#### Plan: B1–B3, the captures, their parsers and the completeness test
+
+The work order is the usual one: captures, then parsers with table tests and
+benchmarks, then a test that every capture is there.
+
+**B1, captures.** `nix/microvms/scripts/brmpls-write-corpus.exp` holds 36 rows,
+run by the link-write capture (`nix run .#microvm-x86_64-link-write-capture`,
+or these rows alone with `nix run .#microvm-x86_64-link-write-capture-brmpls`)
+into `link-write/brmpls/<slug>/`. They run last, after
+`xtcp2-nlcap modules brmpls mpls_router mpls_iptunnel`: `mpls_router` gives
+every device an `AF_MPLS` netconf and stats entry, which no earlier row may
+see. Each row rebuilds its namespace:
+
+- **FDB** (8 rows): `br0` with `vlan_filtering 1`, the veth port `v0`, and
+  `v0`'s peer `v0p` outside the bridge with a fixed MAC. The learned entry
+  comes from `v0p`'s DAD neighbor solicitation, and a `wait-learned` pre
+  step polls `bridge fdb show dev v0` for it, under `timeout 20`. With a
+  `dev` filter, `bridge` leaves `dev v0` out of its lines, so the poll
+  matches the MAC alone. Rows: show (static, VLAN and learned
+  entries), add static, add in a VLAN, add existing, replace, del, del
+  missing, and an `ip monitor all` event row.
+- **VLAN** (10 rows): show (RTM_GETVLAN's dump, plus the old `RTM_GETLINK`
+  `RTEXT_FILTER_BRVLAN` dump, its compressed form, and `vlan global`), add,
+  add a range, add the PVID untagged, add on the bridge itself (`self`), add
+  the reserved VID 4095, del, del a range, `set ... state`, and an event
+  row. `ip monitor` never joins `RTNLGRP_BRVLAN`, so the event row runs
+  `bridge monitor vlan` under the new `xtcp2-nl-brmon` helper
+  (`nix/microvms/netlink-capture.nix`), whose canary is a VLAN it adds
+  until the monitor prints it.
+- **MPLS** (18 rows): `platform_labels 1000` and `d0` with
+  `net.mpls.conf.d0.input 1`. `AF_MPLS` swap (`100 as 200/300`), pop,
+  multipath, a `via inet6`; refusals for an existing label, the reserved
+  label 3 and label 2000 (past the table); show, get, del, del missing
+  (accepted), del past the table. Then `encap mpls` on IPv4 and IPv6 routes,
+  with `ttl`, inside `RTA_MULTIPATH`, a show of all three, and an
+  `ip monitor route` event row.
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the design's, in order | `brmplscorpus::rows` | the 36 slugs, written out again as literals |
+| negative: every row has six fields and a unique slug | the rows | no malformed or duplicate slug |
+| positive: exactly the refusal rows expect a non-zero status | the rows | 3 `bridge` rows rc 255; 4 `ip` rows rc 2 |
+| corner: a refused `bridge` write exits 255, not 2 | `tool_mismatch` | none (`bridge`'s `do_cmd` returns -1 unnegated) |
+| corner: deleting a missing label in range is accepted | `mpls_route_del_missing` | rc 0 |
+| negative: no floor below the write's own requests | every row | ≥2, ≥4 when the command names `dev` |
+| negative: nothing holds a single quote | commands, pre steps and readbacks | none |
+| positive: a `bridge` pre step runs `bridge -n <ns>` | `{bridge vlan add vid 10 dev v0}` | one call, rc 1 |
+| negative: a refused `bridge` pre step is a refusal | the recorder refuses `^bridge` | 0, and it is in `nltopo::refused` |
+| boundary: a `wait-learned` with the wrong arity | 1 or 3 arguments | an error, nothing sent |
+| positive: MPLS sysctls in order | `PRE_MPLS` | `platform_labels` first; `conf.d0.input` after `d0` exists |
+| corner: `ip monitor all` prefixes a group banner | `FDB_UNTIL` | no ERE anchored with `^` |
+| positive: `rc_problem` names `brmpls/` | `x 0 2` | `brmpls/x/ip.rc is 2, want 0` |
+
+`xtcp2-nl-brmon`'s rows are in `addr-topology-test.exp`, against a stand-in
+`bridge` (`NLCAP_BRIDGE`):
+
+| description | input | expected |
+|---|---|---|
+| positive: canary seen, trigger run, line matched | `v0 "monitor vlan" "<add vid 10>" "^v0 +10( \|$)"` | rc 0, `v0 10` printed |
+| negative: three arguments | no ERE | rc 2, usage |
+| negative: an empty canary device | `""` | rc 2, usage |
+| corner: a shell metacharacter in the canary device | `v0;x` | rc 2, usage |
+| negative: the monitor never prints the canary | a silent `bridge` | rc 1, `never printed the canary` |
+| negative: the trigger fails | `false` | rc 1, the monitor's output still printed |
+| boundary: an ERE that never matches | `^v0 +11` | rc 1, `no match for ^v0 +11` |
+| corner: every ERE must match, not just the first | `^v0 +10`, `^v0 +12` | rc 1, naming the second |
+
+**B2, parsers** (`pkg/xtcpnl`), each with a table test whose positive rows
+come from the B1 pcaps and whose negative, boundary and corner rows are
+hand-built, and a `parseBenchCases` row:
+
+- `ParseNeigh` gains `NDA_MASTER` and `NDA_VLAN`, with presence bits, as
+  `nl_parse_fdb` reads them.
+- `ParseBrVlan` (new, `xtcpnl_brvlan.go`): the `br_vlan_msg` header and
+  `BRIDGE_VLANDB_ENTRY` (`_INFO` flags and VID, `_RANGE`, `_STATE`) and
+  `BRIDGE_VLANDB_GLOBAL_OPTIONS` (`_ID`, `_RANGE`).
+- MPLS (new, `xtcpnl_mpls.go`): label stacks (20-bit label, TC, BoS, TTL),
+  `RTA_NEWDST`, `RTA_ENCAP_TYPE`, and `RTA_ENCAP` with `MPLS_IPTUNNEL_DST`
+  and `MPLS_IPTUNNEL_TTL`, on a route and inside each `RTA_MULTIPATH`
+  nexthop.
+
+| description | input | expected |
+|---|---|---|
+| positive: a static FDB entry | `fdb_add_static`'s answer | `AF_BRIDGE`, the MAC, `NDA_MASTER` = br0's index, `NUD_NOARP` |
+| positive: an FDB entry in a VLAN | `fdb_add_vlan` | `NDA_VLAN` 10 |
+| positive: a learned FDB entry | `fdb_show` | the learned MAC, `NUD_REACHABLE`, VLAN 1 |
+| boundary: `NDA_VLAN` of one byte | hand-built | `HasVlan` false, not an error (a short `NDA_PROBES` is treated the same way) |
+| corner: a repeated `NDA_MASTER` | hand-built | the first wins |
+| positive: one VLAN | `vlan_add`'s `RTM_NEWVLAN` | VID 10, flags 0 |
+| positive: a range | `vlan_add_range` | VID 20, range 30, untagged |
+| positive: PVID untagged | `vlan_add_pvid` | PVID and untagged flags |
+| positive: the port STP state | `vlan_set_state` | state `BR_STATE_BLOCKING` |
+| boundary: a `br_vlan_msg` shorter than its 8 bytes | hand-built | an error |
+| negative: `_INFO` shorter than `bridge_vlan_info` | hand-built | an error |
+| positive: a two-label swap | `mpls_route_add_swap` | dst 100; `RTA_NEWDST` 200, 300 with BoS on the last |
+| positive: a multipath `AF_MPLS` route | `mpls_route_add_multipath` | two nexthops, labels 201 and 202 |
+| positive: a two-label push | `route_encap_mpls` | encap type MPLS; labels 100, 200 |
+| positive: the encap TTL | `route_encap_mpls_ttl` | TTL 64 |
+| positive: a per-nexthop encap | `route_multipath_encap_mpls` | 101 on the first nexthop, 102 on the second |
+| boundary: a label stack not a multiple of 4 bytes | hand-built | an error |
+| corner: a stack without BoS on its last label | hand-built | an error |
+| corner: an `RTA_ENCAP` of an unknown encap type | hand-built | kept raw, not an error |
+
+**B3, completeness.** `TestBrMplsCorpusComplete`: every row of B1 has its
+`ip.pcap`, `ip.rc` and readback pcaps under
+`testdata/<kernel>/link-write/brmpls/`, and every positive B2 row names a
+pcap that exists.
+
+| description | input | expected |
+|---|---|---|
+| positive: every row has its files | the 36 slugs | `ip.pcap`, `ip.rc`, each readback |
+| negative: a row whose capture is missing | a slug with no directory | the test names it |
+| corner: the rows' statuses are the corpus's | each `ip.rc` | 0, 2 or 255 as in B1 |
+
+#### Delivered: B1–B3 (2026-10-31)
+
+- **Captures.** `pkg/xtcpnl/testdata/7_3_0/link-write/brmpls/`, 36 rows, from
+  the brmpls section alone. The full link-write run took hours on a loaded
+  host and timed out twice before it reached these rows, last of all. So
+  the runner now takes `--only <sections>`
+  (`nix/microvms/scripts/link-write-sections.exp`: lacp, addr, write, rtnl,
+  genl, xfrm, kinds, brmpls), and each section has its own app,
+  `microvm-x86_64-link-write-capture-<section>`. A section run writes the
+  same bytes as a full run would: every row rebuilds its namespace, and
+  late setup runs whenever a section after it is picked.
+  `link-write-sections-test.exp` (34 rows, in `checks.vm-lib-exp`) pins the
+  names, their order, and the driver refusing a bad list before it boots
+  anything.
+- **The first section run found a dead poll.** `wait-learned` grepped for
+  `^<mac> dev v0 `, a form `bridge fdb show dev v0` never prints, and its
+  loop could outlast `pre_step`'s 30 s and still be running when the next
+  row's command was typed. The pattern is now `learned_re`, tested against
+  the line a real `bridge` printed, and the loop is under `timeout 20`.
+- **Parsers.** `ParseNeigh`'s `NDA_MASTER` and `NDA_VLAN`, `ParseBrVlan`,
+  and the MPLS label, `RTA_NEWDST` and `RTA_ENCAP` decoding, as planned, with
+  hand-built tables (`TestParseNeigh`, `TestParseBrVlan`,
+  `xtcpnl_mpls_test.go`) and three `parseBenchCases` rows run against the
+  brmpls corpus.
+- **Corpus tests** (`xtcpnl_brmpls_corpus_test.go`):
+  - `TestBrMplsCorpusComplete`: B3's rows, plus a corner row that the
+    corpus has no directory the table does not name.
+  - `TestBrMplsCorpusWrites`: each row's write, decoded with the parsers
+    under test, and the kernel's answer (26 rows).
+  - `TestBrMplsCorpusReplies`: the dumps, readbacks and event rows'
+    notifications, decoded in the kernel's order (17 rows).
+- **What the bytes showed, against the plan's table:**
+  - `bridge vlan add` and `del` still use the old API: an `RTM_SETLINK` or
+    `RTM_DELLINK` with `IFLA_AF_SPEC`. Only `bridge vlan set` sends
+    `RTM_NEWVLAN`, with `BRIDGE_VLAN_INFO_ONLY_OPTS` (64). So B2's
+    `RTM_NEWVLAN` rows are checked against each row's `getvlan` readback,
+    and the VLAN event row's notifications, not its write.
+  - `bridge vlan show dev v0` dumps every port and filters in userspace
+    (`bridge/vlan.c`, `filter_index`), so every readback holds br0's entry
+    too.
+  - Deleting a missing label in range is acked; label 3 is refused by
+    `nla_get_labels`'s implicit-null check, not by the reserved-range check.
+  - `RTM_GETVLAN` was one of `TestNetlinkUniverse`'s exclusions ("bridge
+    only"). The test flagged the exclusion as stale once the corpus held
+    it, and it is removed: five exclusions remain.
 
 ## What has landed
 

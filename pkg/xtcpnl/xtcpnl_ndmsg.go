@@ -181,6 +181,16 @@ type NeighInfo struct {
 	// different outputs for two different wire states.
 	Probes    uint32 // NDA_PROBES
 	HasProbes bool   // NDA_PROBES present
+
+	// Master and Vlan are an AF_BRIDGE (FDB) entry's NDA_MASTER, the
+	// bridge's ifindex, and NDA_VLAN, the VID the entry is in. Both carry
+	// presence bits: an entry with no VLAN is not one in VLAN 0, and BIRD's
+	// nl_parse_fdb keys on whether each attribute exists. As with NDA_PROBES,
+	// a short attribute leaves its presence bit false.
+	Master    uint32 // NDA_MASTER
+	HasMaster bool   // NDA_MASTER present
+	Vlan      uint16 // NDA_VLAN
+	HasVlan   bool   // NDA_VLAN present
 }
 
 // nudStateNames maps each single NUD_* bit to its kernel name. ndm_state is a
@@ -277,6 +287,16 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 			if len(val) >= 4 {
 				ni.Probes = binary.LittleEndian.Uint32(val[0:4])
 				ni.HasProbes = true
+			}
+		case uint16(unix.NDA_MASTER):
+			if len(val) >= 4 {
+				ni.Master = binary.LittleEndian.Uint32(val[0:4])
+				ni.HasMaster = true
+			}
+		case uint16(unix.NDA_VLAN):
+			if len(val) >= 2 {
+				ni.Vlan = binary.LittleEndian.Uint16(val[0:2])
+				ni.HasVlan = true
 			}
 		case NdaFlagsExt:
 			// The length guard is this package's convention for a u32

@@ -1,0 +1,5 @@
+port              vlan-id  
+v0                1 PVID Egress Untagged
+                    state forwarding mcast_router 1 neigh_suppress off neigh_forward_grat off 
+                  10
+                    state blocking mcast_router 1 neigh_suppress off neigh_forward_grat off 

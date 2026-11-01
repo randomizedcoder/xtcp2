@@ -311,17 +311,71 @@ func TestParseNeigh(t *testing.T) {
 		{
 			// NDA_PROBES used to be in this row as a second unknown type. It
 			// is decoded now, so keeping it here would have asserted the
-			// opposite of the rows further down. NDA_VLAN is still unread.
+			// opposite of the rows further down. NDA_VLAN was here too until
+			// the FDB fields; NDA_PORT is still unread.
 			description: "corner: unknown NDA attribute types are skipped, known ones still extracted",
 			body: concat(
 				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
-				rtattr(unix.NDA_VLAN, []byte{0x64, 0x00}),
+				rtattr(unix.NDA_PORT, []byte{0x12, 0xb5}),
 				rtattr(unix.NDA_DST, v4b(10, 0, 0, 2)),
 			),
 			want: NeighInfo{
 				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
 				Dst: v4b(10, 0, 0, 2),
 			},
+		},
+		{
+			description: "positive: AF_BRIDGE FDB entry with NDA_MASTER and NDA_VLAN",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, unix.NTF_MASTER, 0),
+				rtattr(unix.NDA_LLADDR, macb(0x02, 0, 0, 0, 0, 0x10)),
+				rtattr(unix.NDA_MASTER, le32(3)),
+				rtattr(unix.NDA_VLAN, le16(100)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP, Flags: unix.NTF_MASTER,
+				LLAddr: macb(0x02, 0, 0, 0, 0, 0x10),
+				Master: 3, HasMaster: true, Vlan: 100, HasVlan: true,
+			},
+		},
+		{
+			description: "boundary: NDA_VLAN 0 is present and zero, not absent",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, le16(0)),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP, HasVlan: true},
+		},
+		{
+			description: "boundary: a one-byte NDA_VLAN and a three-byte NDA_MASTER leave both presence bits false",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, []byte{0x64}),
+				rtattr(unix.NDA_MASTER, []byte{3, 0, 0}),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP},
+		},
+		{
+			description: "corner: a duplicate NDA_VLAN and NDA_MASTER keep the first values",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, le16(100)),
+				rtattr(unix.NDA_MASTER, le32(3)),
+				rtattr(unix.NDA_VLAN, le16(200)),
+				rtattr(unix.NDA_MASTER, le32(9)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP,
+				Master: 3, HasMaster: true, Vlan: 100, HasVlan: true,
+			},
+		},
+		{
+			description: "corner: VID 4095 decodes as-is; ParseNeigh does not range-check the VID",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, le16(4095)),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP, Vlan: 4095, HasVlan: true},
 		},
 		{
 			description: "corner: nested-flagged NDA_DST is still matched (NLA_F_NESTED masked off)",
