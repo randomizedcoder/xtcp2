@@ -1,0 +1,63 @@
+{
+ "cmd": "tc filter add dev v0p1 ingress protocol ip pref 6 handle 901: u32 divisor 1",
+ "desc": "positive: u32 manual table add/del does not leak its idr entry (re-adding the same handle succeeds)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)fh 901: ht divisor 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/u32/a6e8",
+ "modules": [
+  "cls_u32"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 ingress protocol ip pref 1 u32 divisor 16",
+  "tc filter add dev v0p1 ingress protocol ip pref 5 handle 901: u32 divisor 1",
+  "tc filter del dev v0p1 ingress protocol ip pref 5 handle 901: u32"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -d filter show dev v0p1 ingress",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 ingress protocol ip pref 1 u32 divisor 16",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 ingress protocol ip pref 5 handle 901: u32 divisor 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter del dev v0p1 ingress protocol ip pref 5 handle 901: u32",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a6e8",
+  "tdc": "filters/u32.json"
+ }
+}

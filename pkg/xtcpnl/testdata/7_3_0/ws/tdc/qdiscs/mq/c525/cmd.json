@@ -1,0 +1,60 @@
+{
+ "cmd": "tc qdisc add dev eth0 root handle 1: mq",
+ "desc": "negative: Add duplicate mq Qdisc",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 4,
+   "pattern": "(?sm)qdisc [a-zA-Z0-9_]+ 0: parent 1:[1-4]",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/qdiscs/mq/c525",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+  "tc qdisc add dev eth0 root handle 1: mq"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev eth0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev eth0 root handle 1: mq",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "c525",
+  "tdc": "qdiscs/mq.json"
+ }
+}

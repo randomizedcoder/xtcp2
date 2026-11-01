@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbedit queue_mapping 3 drop index 271",
+ "desc": "positive: Add skbedit action with control drop",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: skbedit queue_mapping 3 drop.*index 271 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbedit/cc53",
+ "modules": [
+  "act_skbedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action skbedit index 271",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "cc53",
+  "tdc": "actions/skbedit.json"
+ }
+}

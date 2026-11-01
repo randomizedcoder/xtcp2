@@ -1,0 +1,49 @@
+{
+ "cmd": "tc qdisc add dev dummy1 parent 1:1 handle 2:1 teql0",
+ "desc": "negative: Try to add teql as a child qdisc",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 2
+ },
+ "id": "tdc/qdiscs/teql/124e",
+ "modules": [
+  "sch_teql"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 root handle 1: qfq",
+  "tc class add dev dummy1 parent 1: classid 1:1 qfq weight 15 maxpkt 16384"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s -j qdisc ls dev dummy1 parent 1:1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: qfq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1: classid 1:1 qfq weight 15 maxpkt 16384",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "124e",
+  "tdc": "qdiscs/teql.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

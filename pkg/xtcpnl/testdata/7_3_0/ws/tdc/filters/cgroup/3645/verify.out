@@ -1,0 +1,10 @@
+filter protocol ip pref 1 cgroup chain 0 
+filter protocol ip pref 1 cgroup chain 0 handle 0x1 
+  cmp(u8 at 0 layer 0 mask 0xff eq 3)
+  AND cmp(u16 at 8 layer 0 mask 0xff gt 7)
+  OR NOT cmp(u32 at 4 layer 1 mask 0xa0a0 lt 3)
+
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

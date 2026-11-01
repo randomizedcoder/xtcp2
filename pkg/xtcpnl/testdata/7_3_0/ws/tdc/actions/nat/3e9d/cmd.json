@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action nat ingress 1.18.1.1 1.18.2.2 index 4294967295555",
+ "desc": "negative: Add nat action on ingress with invalid index value",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+:  nat ingress 1.18.1.1/32 1.18.2.2 pass.*index 4294967295555 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/nat/3e9d",
+ "modules": [
+  "act_nat"
+ ],
+ "pre": [
+  [
+   "tc actions flush action nat",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action nat index 4294967295555",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action nat",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3e9d",
+  "tdc": "actions/nat.json"
+ }
+}

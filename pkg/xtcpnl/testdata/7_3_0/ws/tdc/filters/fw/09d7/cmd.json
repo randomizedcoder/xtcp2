@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: protocol ip prio 3 handle 8 fw action ok",
+ "desc": "negative: Add fw filters protocol 802_3 and ip with conflicting priorities",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)filter parent ffff: protocol ip pref 3 fw.*handle 0x8",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/filters/fw/09d7",
+ "modules": [
+  "cls_fw"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 parent ffff: protocol 802_3 prio 3 handle 7 fw action ok"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev v0p1 parent ffff: handle 8 prio 3 protocol ip fw",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: protocol 802_3 prio 3 handle 7 fw action ok",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "09d7",
+  "tdc": "filters/fw.json"
+ }
+}

@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action drop index 30",
+ "desc": "positive: Add valid drop action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: gact action drop.*index 30 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/8a7a",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8a7a",
+  "tdc": "actions/gact.json"
+ }
+}

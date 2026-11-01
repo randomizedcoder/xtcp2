@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbedit ptype otherhost",
+ "desc": "positive: Add skbedit action with ptype otherhost",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: skbedit  ptype otherhost",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbedit/d1a3",
+ "modules": [
+  "act_skbedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action skbedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d1a3",
+  "tdc": "actions/skbedit.json"
+ }
+}

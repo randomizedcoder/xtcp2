@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action tunnel_key src_ip 10.10.10.1 dst_ip 20.20.20.2 id 1",
+ "desc": "negative: Add tunnel_key action with no set/unset command specified",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: tunnel_key.*src_ip 10.10.10.1.*dst_ip 20.20.20.2.*key_id 1",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/tunnel_key/a07e",
+ "modules": [
+  "act_tunnel_key"
+ ],
+ "pre": [
+  [
+   "tc actions flush action tunnel_key",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action tunnel_key index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action tunnel_key",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a07e",
+  "tdc": "actions/tunnel_key.json"
+ }
+}

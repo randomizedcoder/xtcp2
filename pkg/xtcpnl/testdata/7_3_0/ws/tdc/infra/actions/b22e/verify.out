@@ -1,0 +1,6 @@
+filter parent ffff: protocol ip pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1: ife encode action pass type 0XED3E 
+	allow mark 
+	 index 1 ref 2 bind 1
+

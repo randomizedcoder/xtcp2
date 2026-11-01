@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions replace action mpls push label 30 tc 2 ttl 125 pipe index 1 cookie aa11bb22cc33",
+ "desc": "positive: Replace existing mpls push action with new label, tc, ttl and cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: mpls.*push.*protocol.*mpls_uc.*label.*30 tc 2 ttl 125 pipe.*index 1.*cookie aa11bb22cc33",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mpls/95a9",
+ "modules": [
+  "act_mpls"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mpls",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action mpls push label 20 tc 3 ttl 128 index 1 cookie aa11bb22cc33dd44ee55ff66aa11b1b2"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action mpls index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mpls",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action mpls push label 20 tc 3 ttl 128 index 1 cookie aa11bb22cc33dd44ee55ff66aa11b1b2",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "95a9",
+  "tdc": "actions/mpls.json"
+ }
+}

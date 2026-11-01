@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbmod set dmac 11:22:33:44:55:66 index 5",
+ "desc": "positive: Add skbmod action to set destination mac",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: skbmod pipe set dmac 11:22:33:44:55:66\\s+index 5",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbmod/7d50",
+ "modules": [
+  "act_skbmod"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbmod",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action skbmod",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbmod",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7d50",
+  "tdc": "actions/skbmod.json"
+ }
+}

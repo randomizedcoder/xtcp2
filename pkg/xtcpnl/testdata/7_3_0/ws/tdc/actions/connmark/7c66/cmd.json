@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action connmark drop index 100",
+ "desc": "positive: Add valid connmark action with control drop",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: connmark zone 0 drop.*index 100 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/connmark/7c66",
+ "modules": [
+  "act_connmark"
+ ],
+ "pre": [
+  [
+   "tc actions flush action connmark",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action connmark index 100",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action connmark",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7c66",
+  "tdc": "actions/connmark.json"
+ }
+}

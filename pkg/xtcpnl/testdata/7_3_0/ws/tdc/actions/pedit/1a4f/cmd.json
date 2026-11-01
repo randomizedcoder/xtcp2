@@ -1,0 +1,49 @@
+{
+ "cmd": "tc filter add dev v0p1 ingress protocol ip pref 2 flower ip_proto tcp dst_port 2222 action drop index 1",
+ "desc": "positive: Pedit udp dport should not mangle TCP packet dport",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/1a4f",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 clsact",
+  "tc filter add dev v0p1 ingress protocol ip pref 1 matchall action pedit ex munge udp dport set 18053 continue"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j -s actions get action gact index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 ingress protocol ip pref 1 matchall action pedit ex munge udp dport set 18053 continue",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "1a4f",
+  "tdc": "actions/pedit.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

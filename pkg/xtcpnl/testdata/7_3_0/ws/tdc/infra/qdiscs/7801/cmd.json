@@ -1,0 +1,41 @@
+{
+ "cmd": "tc qdisc add dev dummy1 parent a:fff2 sfq limit 4",
+ "desc": "negative: Try to add fq qdisc as a child of an inexistent hfsc class",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 2
+ },
+ "id": "tdc/infra/qdiscs/7801",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 root handle a: hfsc"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j qdisc ls dev dummy1 handle b:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle a: hfsc",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7801",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

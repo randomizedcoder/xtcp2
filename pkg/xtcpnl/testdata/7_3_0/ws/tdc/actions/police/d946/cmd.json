@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action police rate 3mbit burst 250k conform-exceed pass/pipe index 5",
+ "desc": "positive: Add police actions with conform-exceed control pass/pipe",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*:  police 0x5 rate 3Mbit burst 250Kb mtu 2Kb action pass/pipe",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/police/d946",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action police",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d946",
+  "tdc": "actions/police.json"
+ }
+}

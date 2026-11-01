@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action skbedit index 9009",
+ "desc": "positive: Delete skbedit action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*:  skbedit mark 42",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbedit/38f3",
+ "modules": [
+  "act_skbedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbedit",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action skbedit mark 42 index 9009"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action skbedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbedit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbedit mark 42 index 9009",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "38f3",
+  "tdc": "actions/skbedit.json"
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action skbmod index 909",
+ "desc": "positive: Delete an skbmod action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: skbmod pipe set etype 0x1111\\s+index 909",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbmod/e93a",
+ "modules": [
+  "act_skbmod"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbmod",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action skbmod set etype 0x1111 index 909"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action skbmod",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbmod",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbmod set etype 0x1111 index 909",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "e93a",
+  "tdc": "actions/skbmod.json"
+ }
+}

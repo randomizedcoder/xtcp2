@@ -1,0 +1,43 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root choke limit 1000 bandwidth 10000 ecn",
+ "desc": "positive: Create CHOKE with ecn setting",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc choke 1: root refcnt [0-9]+ limit 1000p min 83p max 250p ecn",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/choke/234a",
+ "modules": [
+  "sch_choke"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "234a",
+  "tdc": "qdiscs/choke.json"
+ }
+}

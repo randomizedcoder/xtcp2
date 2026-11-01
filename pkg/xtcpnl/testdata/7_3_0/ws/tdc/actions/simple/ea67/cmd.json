@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions delete action simple index 1",
+ "desc": "positive: Delete simple action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: Simple <Blinkenlights>.*index 1 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/simple/ea67",
+ "modules": [
+  "act_simple"
+ ],
+ "pre": [
+  [
+   "tc actions flush action simple",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action simple sdata \"Blinkenlights\" index 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action simple",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action simple",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action simple sdata \"Blinkenlights\" index 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ea67",
+  "tdc": "actions/simple.json"
+ }
+}

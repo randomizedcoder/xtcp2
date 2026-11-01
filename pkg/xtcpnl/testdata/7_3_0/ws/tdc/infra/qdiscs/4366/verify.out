@@ -1,0 +1,7 @@
+qdisc qfq 1: root refcnt 2 
+ Sent 106 bytes 1 pkt (dropped 2, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc netem 3: parent 1:1 limit 1000 seed 13541265239386139050
+ Sent 106 bytes 1 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  delayed 0 dropped 0 corrupted 0 duplicated 0 reordered 0 ecn_marked 0

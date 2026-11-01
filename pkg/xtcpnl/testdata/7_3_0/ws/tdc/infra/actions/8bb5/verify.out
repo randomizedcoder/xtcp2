@@ -1,0 +1,5 @@
+filter parent ffff: protocol ip pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1: ctinfo zone 0 pipe
+	 index 10 ref 1 bind 1
+

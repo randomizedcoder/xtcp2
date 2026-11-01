@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action sample rate 1024 group 4 trunc 1024 index 10",
+ "desc": "positive: Add valid sample action with trunc argument",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: sample rate 1/1024 group 4 trunc_size 1024 pipe.*index 10 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/sample/8f2e",
+ "modules": [
+  "act_sample"
+ ],
+ "pre": [
+  [
+   "tc actions flush action sample",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action sample index 10",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action sample",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8f2e",
+  "tdc": "actions/sample.json"
+ }
+}

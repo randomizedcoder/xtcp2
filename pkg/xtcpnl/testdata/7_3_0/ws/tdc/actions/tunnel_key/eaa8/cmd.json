@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action tunnel_key set src_ip 192.168.100.1 dst_ip 192.168.800.1 id 10 index 11",
+ "desc": "negative: Add tunnel_key set action with invalid dst_ip parameter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: tunnel_key set.*src_ip 192.168.100.1.*dst_ip 192.168.800.1.*key_id 10.*index 11 ref",
+   "readback": "verify"
+  },
+  "rc": 1
+ },
+ "id": "tdc/actions/tunnel_key/eaa8",
+ "modules": [
+  "act_tunnel_key"
+ ],
+ "pre": [
+  [
+   "tc actions flush action tunnel_key",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action tunnel_key index 11",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action tunnel_key",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ },
+ "source": {
+  "id": "eaa8",
+  "tdc": "actions/tunnel_key.json"
+ }
+}

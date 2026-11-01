@@ -1,0 +1,3 @@
+filter protocol ip pref 1 flow chain 0 
+filter protocol ip pref 1 flow chain 0 handle 0x1 map keys rxhash addend 0xff baseclass ffff:1 
+filter protocol ip pref 1 flow chain 0 handle 0x2 map keys rxhash and 0xffffff00 or 0x000000ff baseclass ffff:1 

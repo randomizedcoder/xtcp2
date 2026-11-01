@@ -1,0 +1,8 @@
+Illegal mask (>0xFFFF)
+... >>u32(u16 0x7788 0xffffffff at 12)<< ...
+... u32(u16 0x7788 0xffffffff at >>12<<)...
+Usage: u32(ALIGN VALUE MASK at [ nexthdr+ ] OFFSET)
+where: ALIGN  := { u8 | u16 | u32 }
+
+Example: u32(u16 0x1122 0xffff at nexthdr+4)
+Illegal "ematch"

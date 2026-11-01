@@ -1,0 +1,3 @@
+filter protocol all pref 99 u32 chain 0 
+filter protocol all pref 99 u32 chain 0 fh 42: ht divisor 256 
+filter protocol all pref 99 u32 chain 0 fh 800: ht divisor 1 

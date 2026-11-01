@@ -1,0 +1,110 @@
+{
+ "cmd": "tc qdisc add dev dummy1 parent 7:1 handle 8: htb default 1",
+ "desc": "positive: Create qdisc hierarchy at maximum depth",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc htb 8: parent 7:1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/depth/ad43",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 root handle 1: htb default 1",
+  "tc class add dev dummy1 parent 1: classid 1:1 htb rate 10mbit",
+  "tc qdisc add dev dummy1 parent 1:1 handle 2: htb default 1",
+  "tc class add dev dummy1 parent 2: classid 2:1 htb rate 10mbit",
+  "tc qdisc add dev dummy1 parent 2:1 handle 3: htb default 1",
+  "tc class add dev dummy1 parent 3: classid 3:1 htb rate 10mbit",
+  "tc qdisc add dev dummy1 parent 3:1 handle 4: htb default 1",
+  "tc class add dev dummy1 parent 4: classid 4:1 htb rate 10mbit",
+  "tc qdisc add dev dummy1 parent 4:1 handle 5: htb default 1",
+  "tc class add dev dummy1 parent 5: classid 5:1 htb rate 10mbit",
+  "tc qdisc add dev dummy1 parent 5:1 handle 6: htb default 1",
+  "tc class add dev dummy1 parent 6: classid 6:1 htb rate 10mbit",
+  "tc qdisc add dev dummy1 parent 6:1 handle 7: htb default 1",
+  "tc class add dev dummy1 parent 7: classid 7:1 htb rate 10mbit"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1: classid 1:1 htb rate 10mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1:1 handle 2: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 2: classid 2:1 htb rate 10mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 2:1 handle 3: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 3: classid 3:1 htb rate 10mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 3:1 handle 4: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 4: classid 4:1 htb rate 10mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 4:1 handle 5: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 5: classid 5:1 htb rate 10mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 5:1 handle 6: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 6: classid 6:1 htb rate 10mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 6:1 handle 7: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 7: classid 7:1 htb rate 10mbit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ad43",
+  "tdc": "qdiscs/depth.json"
+ }
+}

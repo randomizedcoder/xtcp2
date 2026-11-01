@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter add dev dummy1 ingress prio 1 protocol ip u32 match u8 0 0 at 0",
+ "desc": "negative: Add u32 filter when node ID pool is exhausted (4096th filter rejected)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 4095,
+   "pattern": "(?sm)fh 800::",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/filters/u32/70fd",
+ "modules": [
+  "cls_u32"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 clsact",
+  "bash -c 'for i in {1..4095}; do echo filter add dev dummy1 ingress prio 1 protocol ip u32 match u8 0 0 at 0; done | tc -b -'"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -d filter show dev dummy1 ingress",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "bash -c 'for i in {1..4095}; do echo filter add dev dummy1 ingress prio 1 protocol ip u32 match u8 0 0 at 0; done | tc -b -'",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "70fd",
+  "tdc": "filters/u32.json"
+ }
+}

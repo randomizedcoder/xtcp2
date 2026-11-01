@@ -1,0 +1,48 @@
+{
+ "cmd": "tc class change dev dummy1 classid 1:1 ets quantum 1500",
+ "desc": "positive: Change ETS band quantum",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc ets 1: root .*quanta 1500 2000 3000 priomap ",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/ets/28c6",
+ "modules": [
+  "sch_ets"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 handle 1: root ets quanta 1000 2000 3000"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root ets quanta 1000 2000 3000",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "28c6",
+  "tdc": "qdiscs/ets.json"
+ }
+}

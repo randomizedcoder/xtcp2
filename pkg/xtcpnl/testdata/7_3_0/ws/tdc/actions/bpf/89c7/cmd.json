@@ -1,0 +1,50 @@
+{
+ "cmd": "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2054,6 0 0 262144,6 0 0 0' index 4294967296 cookie 123456",
+ "desc": "negative: Add cBPF action with invalid index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' default-action pipe.*cookie 123456",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/bpf/89c7",
+ "modules": [
+  "act_bpf"
+ ],
+ "pre": [
+  [
+   "tc actions flush action bpf",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc action ls action bpf",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action bpf",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "89c7",
+  "tdc": "actions/bpf.json"
+ }
+}

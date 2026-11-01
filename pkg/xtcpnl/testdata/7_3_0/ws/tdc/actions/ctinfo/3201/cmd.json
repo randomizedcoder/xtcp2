@@ -1,0 +1,54 @@
+{
+ "cmd": "tc action add action ctinfo cpmark 0x02000000 drop index 101",
+ "desc": "negative: Add ctinfo action with duplicate index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ctinfo zone 20 pass.*index 101",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/ctinfo/3201",
+ "modules": [
+  "act_ctinfo"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ctinfo",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc action add action ctinfo zone 20 pass index 101"
+ ],
+ "readback": [
+  {
+   "cmd": "tc action get action ctinfo index 101",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ctinfo",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action ctinfo zone 20 pass index 101",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3201",
+  "tdc": "actions/ctinfo.json"
+ }
+}

@@ -1,0 +1,43 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root hhf quantum 9000",
+ "desc": "positive: Create HHF with quantum setting",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc hhf 1: root refcnt [0-9]+.*quantum 9000b hh_limit 2048 reset_timeout 40ms admit_bytes 128Kb evict_timeout 1s non_hh_weight 2",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/hhf/3491",
+ "modules": [
+  "sch_hhf"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3491",
+  "tdc": "qdiscs/hhf.json"
+ }
+}

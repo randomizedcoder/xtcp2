@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action vlan push protocol ABCD",
+ "desc": "negative: Add vlan push action with invalid protocol type",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: vlan.*push",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/vlan/57fc",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action vlan",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "57fc",
+  "tdc": "actions/vlan.json"
+ }
+}

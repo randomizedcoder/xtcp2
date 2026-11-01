@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit munge ip ttl clear munge ip ttl set 0x1",
+ "desc": "positive: Add pedit action with LAYERED_OP ip ttl clear/set",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm) 8: val 00000000 mask 00ffffff.* 8: val 01000000 mask 00ffffff",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/31ae",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "31ae",
+  "tdc": "actions/pedit.json"
+ }
+}

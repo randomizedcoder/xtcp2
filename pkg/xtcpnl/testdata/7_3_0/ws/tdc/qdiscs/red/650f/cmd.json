@@ -1,0 +1,43 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root red ecn adaptive limit 1M avpkt 1500 min 100K max 300K",
+ "desc": "positive: Create RED with flags ECN, adaptive",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc red 1: root .* limit 1Mb min 100Kb max 300Kb ecn adaptive $",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/red/650f",
+ "modules": [
+  "sch_red"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "650f",
+  "tdc": "qdiscs/red.json"
+ }
+}

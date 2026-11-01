@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action police rate 2mbit burst 200k linklayer atm index 8",
+ "desc": "positive: Add police action with atm linklayer type",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*:  police 0x8 rate 2Mbit burst 200Kb mtu 2Kb action reclassify overhead 0b linklayer atm",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/police/3dda",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions show action police",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3dda",
+  "tdc": "actions/police.json"
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions delete action police index 12",
+ "desc": "positive: Delete police action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*:  police 0xc rate 5Mb burst 2Mb",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/police/336e",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action police rate 5mbit burst 2m index 12"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action police",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 5mbit burst 2m index 12",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "336e",
+  "tdc": "actions/police.json"
+ }
+}

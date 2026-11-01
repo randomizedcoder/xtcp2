@@ -1,0 +1,74 @@
+{
+ "cmd": "tc actions ls action skbmod",
+ "desc": "positive: Get a single skbmod action from a list",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: skbmod pipe set etype 0x31",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbmod/9aa8",
+ "modules": [
+  "act_skbmod"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbmod",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action skbmod set etype 0x0001",
+  "tc actions add action skbmod set etype 0x0011",
+  "tc actions add action skbmod set etype 0x0021",
+  "tc actions add action skbmod set etype 0x0031",
+  "tc actions add action skbmod set etype 0x0041"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action skbmod index 4",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbmod",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbmod set etype 0x0001",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbmod set etype 0x0011",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbmod set etype 0x0021",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbmod set etype 0x0031",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbmod set etype 0x0041",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "9aa8",
+  "tdc": "actions/skbmod.json"
+ }
+}

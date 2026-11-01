@@ -1,0 +1,21 @@
+total acts 4
+
+	action order 0: skbedit  ptype otherhost pipe
+	 index 1 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: skbedit  ptype broadcast pipe
+	 index 2 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: skbedit  mark 59 pipe
+	 index 3 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3: skbedit  mark 409 pipe
+	 index 4 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled

@@ -1,0 +1,43 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root gred setup vqs 10 default 1",
+ "desc": "positive: Show GRED class",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)class gred 1:",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/gred/8309",
+ "modules": [
+  "sch_gred"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "tc class show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8309",
+  "tdc": "qdiscs/gred.json"
+ }
+}

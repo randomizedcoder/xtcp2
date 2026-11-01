@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbmod set smac 00:44:55:44:55",
+ "desc": "negative: Add skbmod action with invalid mac",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: skbmod pipe set smac 00:44:55:44:55",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/skbmod/1724",
+ "modules": [
+  "act_skbmod"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbmod",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action skbmod",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbmod",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "1724",
+  "tdc": "actions/skbmod.json"
+ }
+}

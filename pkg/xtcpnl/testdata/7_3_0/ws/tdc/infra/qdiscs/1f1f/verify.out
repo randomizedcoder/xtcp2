@@ -1,0 +1,1 @@
+[{"class":"ets","handle":"1:1","root":true,"leaf":"0x2","quantum":1500,"stats":{"bytes":196,"packets":2,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0}},{"class":"ets","handle":"1:2","root":true,"quantum":1514,"stats":{"bytes":140,"packets":2,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0}}]

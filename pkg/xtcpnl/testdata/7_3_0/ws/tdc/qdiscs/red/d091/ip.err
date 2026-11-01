@@ -1,0 +1,2 @@
+RED: set bandwidth to 10Mbit
+Error: sch_red: nodrop mode is only meaningful with ECN.

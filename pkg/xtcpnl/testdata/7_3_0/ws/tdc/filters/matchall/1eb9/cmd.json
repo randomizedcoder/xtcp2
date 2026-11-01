@@ -1,0 +1,68 @@
+{
+ "cmd": "tc filter del dev dummy1 parent ffff: protocol all handle 0x2 prio 2 matchall",
+ "desc": "positive: Delete single ingress matchall filter out of multiple",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^filter protocol all pref 2 matchall.*handle 0x2 flowid 1:2.*gact action pass",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/matchall/1eb9",
+ "modules": [
+  "cls_matchall"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress",
+  "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol all matchall classid 1:2 action pass",
+  "tc filter add dev dummy1 parent ffff: handle 0x2 prio 2 protocol all matchall classid 1:3 action pass",
+  "tc filter add dev dummy1 parent ffff: handle 0x3 prio 3 protocol all matchall classid 1:4 action pass",
+  "tc filter add dev dummy1 parent ffff: handle 0x4 prio 4 protocol all matchall classid 1:5 action pass"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev dummy1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol all matchall classid 1:2 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent ffff: handle 0x2 prio 2 protocol all matchall classid 1:3 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent ffff: handle 0x3 prio 3 protocol all matchall classid 1:4 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent ffff: handle 0x4 prio 4 protocol all matchall classid 1:5 action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "1eb9",
+  "tdc": "filters/matchall.json"
+ }
+}

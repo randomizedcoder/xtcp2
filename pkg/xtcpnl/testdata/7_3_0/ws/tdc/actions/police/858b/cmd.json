@@ -1,0 +1,89 @@
+{
+ "cmd": "tc actions list action police",
+ "desc": "positive: List police actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 8,
+   "pattern": "(?sm)action order [0-9]*:  police 0x[1-8] rate [1-8]Mbit burst [1-8]00Kb",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/police/858b",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action police rate 1mbit burst 100k index 1",
+  "tc actions add action police rate 2mbit burst 200k index 2",
+  "tc actions add action police rate 3mbit burst 300k index 3",
+  "tc actions add action police rate 4mbit burst 400k index 4",
+  "tc actions add action police rate 5mbit burst 500k index 5",
+  "tc actions add action police rate 6mbit burst 600k index 6",
+  "tc actions add action police rate 7mbit burst 700k index 7",
+  "tc actions add action police rate 8mbit burst 800k index 8"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action police",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 1mbit burst 100k index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 2mbit burst 200k index 2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 3mbit burst 300k index 3",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 4mbit burst 400k index 4",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 5mbit burst 500k index 5",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 6mbit burst 600k index 6",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 7mbit burst 700k index 7",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 8mbit burst 800k index 8",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "858b",
+  "tdc": "actions/police.json"
+ }
+}

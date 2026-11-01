@@ -1,0 +1,7 @@
+filter parent ffff: protocol all pref 2 fw chain 0 handle 0x1 
+
+	action order 1: gact action pipe
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+	cookie aa11bb22cc33dd44ee55ff66aa11b1b2
+

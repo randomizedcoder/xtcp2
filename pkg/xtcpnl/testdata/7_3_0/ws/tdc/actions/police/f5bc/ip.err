@@ -1,0 +1,4 @@
+'rate' and 'pkts_rate' are not allowed in same action.
+bad action parsing
+parse_action: bad value (11:police)!
+Illegal "action"

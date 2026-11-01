@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 slot distribution 1ms 100us seed 4292022255098579257

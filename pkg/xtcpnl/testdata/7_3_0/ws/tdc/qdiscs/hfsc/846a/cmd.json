@@ -1,0 +1,48 @@
+{
+ "cmd": "tc class add dev dummy1 parent 1: classid 1:1 hfsc sc umax 1540 dmax 5ms rate 10000 ul rate 10000",
+ "desc": "positive: Create HFSC with class sc umax and dmax setting",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)class hfsc 1:1 parent 1: sc m1 2464Kbit d 5ms m2 10Kbit ul m1 0bit d 0us m2 10Kbit",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/hfsc/846a",
+ "modules": [
+  "sch_hfsc"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 handle 1: root hfsc default 11"
+ ],
+ "readback": [
+  {
+   "cmd": "tc class show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root hfsc default 11",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "846a",
+  "tdc": "qdiscs/hfsc.json"
+ }
+}

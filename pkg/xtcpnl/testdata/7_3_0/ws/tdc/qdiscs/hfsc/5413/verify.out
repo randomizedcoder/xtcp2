@@ -1,0 +1,2 @@
+class hfsc 1: root 
+class hfsc 1:1 parent 1: rt m1 0bit d 0us m2 20Kbit ls m1 0bit d 0us m2 10Kbit 

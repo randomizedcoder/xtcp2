@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action vlan push id 4 priority 7 reclassify index 1",
+ "desc": "positive: Add vlan push action with maximum 3-bit IEEE 802.1p priority",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: vlan.*push id 4.*protocol 802.1Q.*priority 7.*reclassify.*index 1 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/vlan/fe40",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action vlan index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "fe40",
+  "tdc": "actions/vlan.json"
+ }
+}

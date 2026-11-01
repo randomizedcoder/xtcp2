@@ -1,0 +1,10 @@
+Bad action type foobar
+Usage: ... gact <ACTION> [RAND] [INDEX]
+Where: 	ACTION := reclassify | drop | continue | pass | pipe |
+       	          goto chain <CHAIN_INDEX> | jump <JUMP_COUNT>
+	RAND := random <RANDTYPE> <ACTION> <VAL>
+	RANDTYPE := netrand | determ
+	VAL : = value not exceeding 10000
+	JUMP_COUNT := Absolute jump from start of action list
+	INDEX := index value used
+

@@ -1,0 +1,6 @@
+total acts 1
+
+	action order 0: sample rate 1/20000 group 72 reclassify
+	 index 100 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled

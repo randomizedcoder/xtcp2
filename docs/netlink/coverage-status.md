@@ -973,6 +973,7 @@ recollection.
 - [Phase status](#phase-status)
 - [Capture readiness](#capture-readiness)
   - [Workbench and generated rows](#workbench-and-generated-rows)
+    - [tc from tdc (W1)](#tc-from-tdc-w1)
   - [Captures an outside consumer needs: BIRD's netlink parser](#captures-an-outside-consumer-needs-birds-netlink-parser)
     - [Plan: B1–B3, the captures, their parsers and the completeness test](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test)
 - [What has landed](#what-has-landed)
@@ -1040,7 +1041,7 @@ is `ip -t monitor all label` (`:1757`).
 | 3 bridge / VLAN | `bridge` ✅, loaded by the link-write capture | `ip monitor all` ✅ (FDB); `bridge monitor vlan` under `xtcp2-nl-brmon` ✅ (VLAN) | `bridge` (in `iproute2`) ✅ | **yes**, in the link-write capture (`link-write/brmpls/`), not this flavor; see [the BIRD plan](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test) |
 | link-write 0–3 bond / LACP, Tier 1 | `bonding` — **add**, with `options bonding max_bonds=0` (module load creates `bond0` in `init_net`, `drivers/net/bonding/bond_main.c:6629-6630`) | n/a (dump-only readback) | `iproute2` ✅; a **partner** bond in a second netns over veth — **add** | no |
 | link-write 8 bond / LACP, Tier 2 | `bonding` — **add** | n/a | a second microVM and two point-to-point virtio-net links with `speed=10000,duplex=full` — **add**; never a bridge (`BR_GROUPFWD_RESTRICTED` drops LACPDUs) | no |
-| 4 tc telemetry | `sch_netem` or `sch_htb` — **add** | n/a (dump-only) | `tc` (in `iproute2`) ✅ | no |
+| 4 tc telemetry | every `sch_*`, `cls_*` and `act_*` module, loaded per rows file by the workbench's batch runner ✅ | n/a (dump-only) | `tc` (in `iproute2`) ✅ | **yes**, in the workbench (`ws/tdc/`, 1310 rows from tdc), not this flavor; see [tc from tdc](#tc-from-tdc-w1) |
 | 5 genetlink: ethtool | kernel config — **verify** | n/a (dump-only) | `ethtool` — **add** | no |
 | 5 genetlink: devlink, netdev | kernel config — **verify** | n/a (dump-only) | `devlink` (in `iproute2`) ✅ | no |
 | 6 xfrm | `xfrm_user` and the ESP modules, loaded late by the link-write capture ([C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber)) ✅ | `ip xfrm monitor` under `xtcp2-nl-xfrmmon` ([C3-T02](goip-parity-gaps.md#c3-t02-xfrm-policy-and-monitor)) ✅ | `iproute2` ✅ | **yes**, in the link-write capture (`link-write/xfrm/`), not this flavor |
@@ -1131,6 +1132,7 @@ dumps captured after the command), `proto`, `floor`, `modules`, `serial`,
 | `sent` | how many requests the command sent |
 | `errno`, `extack` | the kernel's `NLMSG_ERROR` and its extack message |
 | `refused_by` | `none`, `kernel`, `iproute2` (rc ≠ 0 and **zero** requests sent) or `ack-then-fail` |
+| `match` | `{readback, pattern, count}`: the RE2 pattern matches `count` times in the readback's stdout (tdc's verify check) |
 
 Each run writes `cmd.json` beside the pcaps: the row, the guest's kernel and
 iproute2 versions, and the result. `pkg/xtcpnl/xtcpnl_ws_corpus_test.go` turns
@@ -1155,10 +1157,98 @@ first written down were wrong, and the oracle caught each one:
   `net/ipv6/route.c`). `TestWsSelftestTableMax` pins both.
 
 The two fresh-boot replays of the selftest batch matched row for row: the
-same status, rc and packet count. The next step is the generated rows in
-the plan's W1–W7: tc from the 1334 tdc cases, then a pairwise and boundary
-grammar matrix for `ip route`/`rule`/`nexthop`/`addr`/`neigh`/`link`, with
-negative rows made by mutation.
+same status, rc and packet count.
+
+#### tc from tdc (W1)
+
+tdc (`tools/testing/selftests/tc-testing`) is the kernel's own tc suite:
+1334 cases, each a setup list, one command under test with its expected exit
+status, and a verify command whose output must match a pattern a given
+number of times. `nlcapgen tdc` (`tools/nlcapgen`) converts them into
+`nix/microvms/workbench/tdc.rows.jsonl`:
+
+```sh
+go run ./tools/nlcapgen tdc -src ~/Downloads/linux/tools/testing/selftests/tc-testing/tc-tests \
+  -out nix/microvms/workbench/tdc.rows.jsonl -skipped nix/microvms/workbench/tdc.skipped.jsonl \
+  -rev "$(git -C ~/Downloads/linux rev-parse --short=12 HEAD)"
+nix run .#nlcap-ws -- batch nix/microvms/workbench/tdc.rows.jsonl -j 8
+```
+
+- **The mapping.** `$TC`, `$IP` and tdc's device names keep their names
+  (`DEV0`/`DEV1` → the veth pair `v0p0`/`v0p1`, `DUMMY` → `dummy1`, `IFB` →
+  `ifbtdc0`), so the many patterns that name a device still match. The setup
+  becomes `pre`; the verify command becomes the `verify` readback, with
+  `matchPattern`/`matchCount` as `expect.match`; the teardown is dropped,
+  since the namespace is. A row loads its file's module (`sch_`, `cls_` or
+  `act_` plus the file name).
+- **Devices only for nsPlugin cases.** tdc makes the veth, dummy and ifb only
+  for a case that requires `nsPlugin` (1303 of 1334). The other 31 make their
+  own devices (`teql.json` adds `$DUMMY` itself), and tdc runs them alone, so
+  their rows get no devices and are `serial`. A `$ETH` case uses netdevsim,
+  whose device ids are global: it runs `serial`, after removing the device an
+  earlier row left behind.
+- **Patterns keep tdc's flags.** tdc compiles every pattern with
+  `re.DOTALL | re.MULTILINE` (`tdc.py`, verify), so the converter writes
+  `(?sm)` in front of each. Without it, 150 rows failed: their `.*` must
+  cross lines. A pattern RE2 cannot compile, a `matchJSON` check and a
+  pattern that counts scapy traffic are left unchecked, each with its reason
+  in `source.unchecked` (63 `matchJSON`, 17 scapy).
+- **24 cases have no row**, each with its reason in `tdc.skipped.jsonl`: 12
+  run tdc's helper scripts (`./tdc_*`, `./scripts/*`), 4 need a compiled eBPF
+  object, 4 a second physical device, 2 use gact's `random`, which needs
+  `CONFIG_GACT_PROB` (the workbench kernel has it off, so one case failed and
+  the other passed for the wrong reason). One's command under test is
+  `/bin/true` (it tests its setup, which the capture does not see). One,
+  `filters/u32/1234`, sends 4096 requests in one `tc -b` burst, and nlmon
+  dropped 3337 of 4858 datagrams even with the row alone.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_tc_test.go`), on top of
+`TestWsCorpusRows`:
+
+| # | test | holds |
+|---|---|---|
+| O6 | `TestWsTcCorpus` | every tc message in every capture parses (`ParseTcMsg`, `ParseTcAction`, `xtcpnl_tcmsg.go`) and carries no attribute past `TCA_MAX`, `TCA_ROOT_MAX` or `TCA_ACT_MAX` |
+| O3 | `TestWsTcCorpus` | a `tc qdisc`/`class`/`filter` add, change, replace or delete sends what its command line says: kind, handle, parent, prio, protocol, chain and shared blocks. `tcWantFromCmd` reads the line as `tc_qdisc_modify`, `tc_class_modify` and `tc_filter_modify` do, with `get_qdisc_handle`, `get_tc_classid` and `ll_proto_a2n` |
+| O4 | `TestWsTcCorpus` | a qdisc the kernel accepted is in the verify dump: same device and kind, and the same parent and handle where the request named them |
+| O7 | `FuzzParseTcMsg`, `FuzzParseTcAction` | seeded with up to 400 distinct corpus messages each: no panic, and the byte fields a parse returns are copies |
+| — | `TestWsSizeBudget` | each kernel's `ws/` stays under 20 MB of file bytes |
+
+O3 reads 546 requests and O4 checks 254 round trips. Commands outside the
+model (pipelines, quoted arguments, `tc -b`, actions, chains) are counted
+out rather than guessed at. Each oracle and the model have hand-built rows
+that must fail; 17 of 18 mutants of them were killed, and the survivor was
+equivalent (it removed a type mask the attribute walker already applies).
+
+**What the tdc rows showed:**
+
+- **Action dumps are numbered from 0.** `ParseTcAction` first refused nests
+  outside 1–32, which is how tc numbers a request. The kernel's dump
+  numbers from 0, and past 32 when the dump sets
+  `TCA_ACT_FLAG_LARGE_DUMP_ON` (`tcf_dump_walker`,
+  `net/sched/act_api.c`). A flush's reply is one nest 0 holding
+  `TCA_ACT_KIND` and `TCA_FCNT`, whose value 7 reads as `TCA_ACT_FLAGS`
+  (`tcf_del_walker`). The parser now refuses no order: 233 dumps failed O6
+  until it did.
+- **tc looks the device up before refusing an argument.** For a bad ematch
+  or an out-of-range index, tc exits 1 or 255 after one acknowledged
+  `RTM_GETLINK` and no tc request: "ack-then-fail" by the W0 rule. A row
+  that expects that rc has said it knew, so `wsRowProblem` accepts it then
+  (61 tdc rows), and still refuses it with any other rc.
+- **`actions/batch-delete/8135` predates its fix.** It tests f67b3ed1308d
+  ("net/sched: act_api: reject duplicate actions in a batch", 7.4 merge
+  window). On 7.3.0 the delete still fails (rc 255), but the first action is
+  already gone, so tdc's pattern (the action survives) cannot match. The row
+  stays, so its capture records 7.3's behavior; its pattern is unchecked,
+  with that reason.
+- **Determinism.** Three batches, the last two on fresh boots, gave every
+  row the same status, rc, message types and request count (dumps of shared
+  state are compared as type sets). A batch of 1310 rows takes ~12 minutes at
+  `-j 8`. The corpus is 4.1 MB of file bytes in ~9,200 files (34 MB of disk
+  blocks, which is not what git stores).
+
+The next step is the plan's W2–W7: a pairwise and boundary grammar matrix
+for `ip route`/`rule`/`nexthop`/`addr`/`neigh`/`link`, with negative rows
+made by mutation.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

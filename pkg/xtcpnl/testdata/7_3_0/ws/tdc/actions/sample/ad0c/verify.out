@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1: sample rate 1/16000 group 4 trunc_size 4294967295 pipe
+	 index 10 ref 1 bind 0
+	not_in_hw

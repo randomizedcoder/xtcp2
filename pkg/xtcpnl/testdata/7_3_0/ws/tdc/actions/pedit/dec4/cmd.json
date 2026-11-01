@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge eth type set 0xabcdef",
+ "desc": "negative: Add pedit action with LAYERED_OP eth set type (INVALID)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+:  pedit action pass keys 1.*key #0  at eth+12: val ",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/pedit/dec4",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "dec4",
+  "tdc": "actions/pedit.json"
+ }
+}

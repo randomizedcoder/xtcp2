@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action gact index 1",
+ "desc": "positive: Delete pass action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: gact action pass.*index 1 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/63ec",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action pass index 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action pass index 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "63ec",
+  "tdc": "actions/gact.json"
+ }
+}

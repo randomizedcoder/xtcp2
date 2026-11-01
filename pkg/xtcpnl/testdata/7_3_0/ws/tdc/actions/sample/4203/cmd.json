@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action sample rate 100 index 10",
+ "desc": "negative: Add invalid sample action without mandatory argument group",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: sample rate 1/100.*index 10 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/sample/4203",
+ "modules": [
+  "act_sample"
+ ],
+ "pre": [
+  [
+   "tc actions flush action sample",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action sample index 10",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action sample",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4203",
+  "tdc": "actions/sample.json"
+ }
+}

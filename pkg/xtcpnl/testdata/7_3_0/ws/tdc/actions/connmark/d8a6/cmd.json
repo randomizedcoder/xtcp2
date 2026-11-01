@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action connmark jump 10 index 17",
+ "desc": "positive: Add valid connmark action with control jump",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: connmark zone 0 jump 10.*index 17 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/connmark/d8a6",
+ "modules": [
+  "act_connmark"
+ ],
+ "pre": [
+  [
+   "tc actions flush action connmark",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action connmark",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action connmark",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d8a6",
+  "tdc": "actions/connmark.json"
+ }
+}

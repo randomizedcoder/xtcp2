@@ -1,0 +1,6 @@
+filter protocol ip pref 2 route chain 0 
+filter protocol ip pref 2 route chain 0 fh 0xffff000a flowid 1:20 to 10 
+	action order 1: gact action reclassify
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

@@ -1,0 +1,54 @@
+{
+ "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action skbedit index \\$i \\\"; args=\"\\$args\\$cmd\"; done && tc actions del \\$args\"",
+ "desc": "positive: Delete batch of 32 skbedit actions with all parameters",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^[ \t]+index [0-9]+ ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbedit/706d",
+ "modules": [
+  "act_skbedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbedit",
+   [
+    1,
+    255
+   ]
+  ],
+  "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action skbedit queue_mapping 2 priority 10 mark 7/0xaabbccdd ptype host inheritdsfield index \\$i \\\"; args=\\\"\\$args\\$cmd\\\"; done && tc actions add \\$args\""
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action skbedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbedit",
+    "rc": 0
+   },
+   {
+    "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action skbedit queue_mapping 2 priority 10 mark 7/0xaabbccdd ptype host inheritdsfield index \\$i \\\"; args=\\\"\\$args\\$cmd\\\"; done && tc actions add \\$args\"",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "706d",
+  "tdc": "actions/skbedit.json"
+ }
+}

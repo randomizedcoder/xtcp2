@@ -1,0 +1,2 @@
+filter protocol ip pref 100 route chain 0 
+filter protocol ip pref 100 route chain 0 fh 0x0001000a flowid 1:10 to 10 from 1 

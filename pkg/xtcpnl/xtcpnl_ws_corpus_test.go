@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -57,14 +58,37 @@ type wsRbSpec struct {
 // acknowledged), "kernel" (the kernel answered with an error), "iproute2"
 // (a non-zero rc with no request sent) or "ack-then-fail" (a non-zero rc
 // although every request was acknowledged), which is never accepted unless
-// a row names it, because it means a tool reported a failure the kernel did
-// not.
+// a row names it, or expects that non-zero rc: it means a tool reported a
+// failure the kernel did not, which is a finding unless the row knew. tc
+// does it whenever it refuses an argument after looking its device up,
+// since the lookup is an acknowledged request (tdc's negative cases).
 type wsExpect struct {
-	RC        *int   `json:"rc"`
-	Errno     string `json:"errno"`
-	Extack    string `json:"extack"`
-	Sent      *int   `json:"sent"`
-	RefusedBy string `json:"refused_by"`
+	RC        *int     `json:"rc"`
+	Errno     string   `json:"errno"`
+	Extack    string   `json:"extack"`
+	Sent      *int     `json:"sent"`
+	RefusedBy string   `json:"refused_by"`
+	Match     *wsMatch `json:"match"`
+}
+
+// wsMatch is tdc's verify check: Pattern matches Count times in the
+// readback's stdout (non-overlapping, as Python's re.findall counts).
+type wsMatch struct {
+	Readback string `json:"readback"`
+	Pattern  string `json:"pattern"`
+	Count    int    `json:"count"`
+}
+
+// wsMatchProblem holds a readback's stdout to its row's match.
+func wsMatchProblem(m wsMatch, out string) error {
+	re, err := regexp.Compile(m.Pattern)
+	if err != nil {
+		return fmt.Errorf("match pattern: %w", err)
+	}
+	if n := len(re.FindAllStringIndex(out, -1)); n != m.Count {
+		return fmt.Errorf("%q matches %d times in %s.out, want %d", m.Pattern, n, m.Readback, m.Count)
+	}
+	return nil
 }
 
 // wsObserved is what a row's ip.pcap and ip.rc show.
@@ -112,7 +136,8 @@ func wsRowProblem(exp wsExpect, obs wsObserved) error {
 	if exp.RefusedBy != "" && exp.RefusedBy != got {
 		errs = append(errs, fmt.Errorf("refused by %s, want %s", got, exp.RefusedBy))
 	}
-	if got == wsRefusedAckFail && exp.RefusedBy != wsRefusedAckFail {
+	expectedFail := exp.RC != nil && *exp.RC == obs.rc
+	if got == wsRefusedAckFail && exp.RefusedBy != wsRefusedAckFail && !expectedFail {
 		errs = append(errs, fmt.Errorf("rc %d although every one of %d requests was acknowledged", obs.rc, obs.requests))
 	}
 	if exp.Errno != "" {
@@ -161,7 +186,7 @@ func wsObserve(t *testing.T, msgs []capturedNlMsg, rc int) wsObserved {
 }
 
 // wsRows returns every workbench row directory under testdata, by path.
-func wsRows(t *testing.T) []string {
+func wsRows(t testing.TB) []string {
 	t.Helper()
 	var dirs []string
 	roots, err := filepath.Glob(filepath.Join("testdata", "*", "ws"))
@@ -252,6 +277,15 @@ func TestWsCorpusRows(t *testing.T) {
 					t.Error(err)
 				}
 			}
+			if m := row.Expect.Match; m != nil {
+				out, err := os.ReadFile(filepath.Join(dir, m.Readback+".out"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := wsMatchProblem(*m, string(out)); err != nil {
+					t.Error(err)
+				}
+			}
 		})
 	}
 }
@@ -286,10 +320,47 @@ func TestWsRowProblem(t *testing.T) {
 		{"boundary: nothing expected, a clean ack", wsExpect{}, wsObserved{rc: 0, requests: 1}, ""},
 		{"boundary: nothing expected, nothing sent, rc 0", wsExpect{}, wsObserved{rc: 0}, ""},
 		{"corner: ack-then-fail, named by the row", wsExpect{RefusedBy: wsRefusedAckFail}, wsObserved{rc: 1, requests: 1}, ""},
+		{"corner: ack-then-fail with the rc the row expects (a lookup, then a refused argument)", wsExpect{RC: &one},
+			wsObserved{rc: 1, requests: 1}, ""},
+		{"negative: ack-then-fail with another non-zero rc", wsExpect{RC: &two},
+			wsObserved{rc: 1, requests: 1}, "rc 1 although every one of 1 requests was acknowledged"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
 			err := wsRowProblem(tc.exp, tc.obs)
+			switch {
+			case tc.expected == "" && err != nil:
+				t.Fatalf("unexpected problem: %v", err)
+			case tc.expected != "" && err == nil:
+				t.Fatalf("no problem, want %q", tc.expected)
+			case tc.expected != "" && !strings.Contains(err.Error(), tc.expected):
+				t.Fatalf("problem %q, want it to contain %q", err, tc.expected)
+			}
+		})
+	}
+}
+
+// TestWsMatchProblem holds the match oracle to hand-built output.
+func TestWsMatchProblem(t *testing.T) {
+	out := "qdisc fq 1: root refcnt 2 limit 10000p\nqdisc fq 2: parent 1:1 limit 10000p\n"
+	cases := []struct {
+		description string
+		m           wsMatch
+		expected    string // "" for no problem, else a substring of it
+	}{
+		{"positive: the count matches", wsMatch{Readback: "verify", Pattern: "qdisc fq [0-9]+:", Count: 2}, ""},
+		{"negative: one match too few", wsMatch{Readback: "verify", Pattern: "root refcnt", Count: 2}, "matches 1 times in verify.out, want 2"},
+		{"boundary: count 0, absent", wsMatch{Readback: "verify", Pattern: "htb", Count: 0}, ""},
+		{"negative: count 0, present", wsMatch{Readback: "verify", Pattern: "limit", Count: 0}, "matches 2 times"},
+		{"corner: matches do not overlap", wsMatch{Readback: "verify", Pattern: "0+", Count: 2}, ""},
+		{"negative: a pattern that does not compile", wsMatch{Readback: "verify", Pattern: "(", Count: 0}, "match pattern"},
+		{"corner: (?s) lets .* cross lines, as tdc's re.DOTALL does", wsMatch{Readback: "verify", Pattern: "(?sm)root.*parent", Count: 1}, ""},
+		{"negative: without (?s), .* stops at the line's end", wsMatch{Readback: "verify", Pattern: "root.*parent", Count: 1}, "matches 0 times"},
+		{"corner: (?m) anchors ^ at each line, as re.MULTILINE does", wsMatch{Readback: "verify", Pattern: "(?sm)^qdisc", Count: 2}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			err := wsMatchProblem(tc.m, out)
 			switch {
 			case tc.expected == "" && err != nil:
 				t.Fatalf("unexpected problem: %v", err)

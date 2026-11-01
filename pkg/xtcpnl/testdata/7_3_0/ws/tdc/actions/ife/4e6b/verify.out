@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"ife","mode":"decode","control_action":{"type":"pipe"},"type":"0","mark":"allow","tcindex":"allow","prio":"allow","index":10,"ref":1,"bind":1,"installed":0,"last_used":0,"stats":{"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0},"not_in_hw":true}]}]
