@@ -2,8 +2,14 @@ package goip
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // The RTM_GETLINK captures behind `ip vrf show`. Each pcap is a single filtered
@@ -119,6 +125,150 @@ func TestVrfSidecarsAreDistinct(t *testing.T) {
 	}
 	if !bytes.Contains(empty, []byte("No VRF has been configured")) {
 		t.Errorf("mesh sidecar is not the empty form: %q", empty)
+	}
+}
+
+// TestVrfShowNameRequestIsNameIsVrf pins the reuse `vrf show NAME` is built
+// on (docs/netlink/vrf-show-name.md, VS0): ipvrf_get_table's request
+// (ip/iplink_vrf.c:102-133) is byte-identical to name_is_vrf's (:170-222),
+// which goip already builds as req.VrfCheckByName and which both corpora
+// recorded as the first RTM_GETLINK request of
+// netlink_route_getnexthop_vrf.pcap — 44 bytes, NLM_F_REQUEST alone, one
+// IFLA_IFNAME and nothing else. The identity turns from a comment
+// (obj_nexthop.go) into an assertion, so the NAME form inherits a request
+// already on the wire.
+//
+// The reply half is pinned from the same pcaps: the answer to that get
+// decodes to the goipvrf row the object will print, and the 7_3_0 corpus
+// also holds a reply with no IFLA_LINKINFO at all — the 7.3 kernel's
+// NAME_ONLY answer to the masked ll_link_get recorded beside it — which
+// must decode to kind "" rather than error, the not-a-vrf arm VS1's
+// accessor takes. No hand bytes anywhere: every row is a capture or the
+// builder.
+//
+// go test ./internal/goip/ -run TestVrfShowNameRequestIsNameIsVrf
+func TestVrfShowNameRequestIsNameIsVrf(t *testing.T) {
+	const vrfGetPcap = "netlink_route_getnexthop_vrf.pcap"
+	tests := []struct {
+		name, category, description, expected string
+		ifName                                string   // a builder row's name; "" for a capture row
+		dirs                                  []string // the corpora a capture row walks
+		wantGet                               bool     // a capture row: byte-compare the recorded vrf get
+		wantLen                               int      // the built or recorded request's length
+		decodeNth                             int      // a capture row: decode the reply after this nth GETLINK request
+		wantName, wantKind                    string
+		wantTable                             uint32
+		wantTablePresent                      bool
+		wantErr                               bool // a builder row refused the name
+	}{
+		{name: "request_7_1_4", category: "positive",
+			description: "the 7_1_4 recorded get, ip 7.1.0 on kernel 7.1",
+			expected:    "byte-identical to req.VrfCheckByName: 44 bytes, NLM_F_REQUEST alone, no dump flag, no IFLA_EXT_MASK",
+			dirs:        []string{vrfDir}, wantGet: true, wantLen: 44},
+		{name: "request_7_3_0", category: "positive",
+			description: "the 7_3_0 recorded get, ip 7.2.0 on kernel 7.3, the corpus `vrf show goipvrf` will replay",
+			expected:    "byte-identical; name_is_vrf never carried an ext mask, so neither corpus moves",
+			dirs:        []string{corpus730Dir}, wantGet: true, wantLen: 44},
+		{name: "answer_decodes", category: "positive",
+			description: "the answer to that get, in both corpora",
+			expected:    "ParseNewLink gives name goipvrf, kind vrf, table 100",
+			dirs:        []string{vrfDir, corpus730Dir}, decodeNth: 1,
+			wantName: "goipvrf", wantKind: "vrf", wantTable: 100, wantTablePresent: true},
+		{name: "reply_no_linkinfo", category: "corner",
+			description: "the 7_3_0 NAME_ONLY reply to the masked ll_link_get recorded beside it, no IFLA_LINKINFO",
+			expected:    "decodes kind \"\" and no table, not a parse error; the not-a-vrf arm, not a crash",
+			dirs:        []string{corpus730Dir}, decodeNth: 2,
+			wantName: "goipvrf", wantKind: ""},
+		{name: "name_15_chars", category: "boundary",
+			description: "a 15-character name, the longest that fits IFNAMSIZ",
+			expected:    "builds a 52-byte request",
+			ifName:      "aaaaaaaaaaaaaaa", wantLen: 52},
+		{name: "name_16_chars", category: "boundary",
+			description: "a 16-character name does not fit IFNAMSIZ",
+			expected:    "ErrBadIfName, and no request to compare",
+			ifName:      "aaaaaaaaaaaaaaaa", wantErr: true},
+		{name: "name_slash", category: "negative",
+			description: "a name containing /",
+			expected:    "ErrBadIfName — the object, not the builder, owns the Invalid VRF mapping (VS2)",
+			ifName:      "go/ip", wantErr: true},
+		{name: "name_space", category: "negative",
+			description: "a name containing a space",
+			expected:    "ErrBadIfName — the object, not the builder, owns the Invalid VRF mapping (VS2)",
+			ifName:      "go ip", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			if tc.ifName != "" {
+				msg, err := req.VrfCheckByName(unix.AF_UNSPEC, tc.ifName, 1)
+				switch {
+				case tc.wantErr:
+					if !errors.Is(err, xtcpnl.ErrBadIfName) {
+						t.Fatalf("VrfCheckByName(%q) err = %v, want ErrBadIfName", tc.ifName, err)
+					}
+					return
+				case err != nil:
+					t.Fatalf("VrfCheckByName(%q): %v", tc.ifName, err)
+				}
+				if len(msg) != tc.wantLen {
+					t.Errorf("built %d bytes, want %d", len(msg), tc.wantLen)
+				}
+				return
+			}
+			for _, dir := range tc.dirs {
+				capt, err := nlparity.ParseRouteCaptureFile(dir + vrfGetPcap)
+				if err != nil {
+					t.Fatal(err)
+				}
+				msgs := capt.Msgs()
+				// The pcap holds three RTM_GETLINK requests: the vrf get first,
+				// then the masked ll_link_get (52 bytes, its ext-mask attr), then
+				// the by-index side get for goipv. Selection is by position in
+				// that list, not by message index, so a capture that grew a get
+				// ahead of them would fail loudly rather than silently compare
+				// the wrong request.
+				var gets []int
+				for i, m := range msgs {
+					if m.IsRequest() && m.Hdr.Type == unix.RTM_GETLINK {
+						gets = append(gets, i)
+					}
+				}
+				if tc.wantGet && len(gets) < 1 || tc.decodeNth > len(gets) {
+					t.Fatalf("%s: %d RTM_GETLINK requests; the test needs 1 (get) or %d (decode)", dir, len(gets), tc.decodeNth)
+				}
+				if tc.wantGet {
+					captured := capturedRequest(msgs[gets[0]])
+					if len(captured) != tc.wantLen {
+						t.Errorf("%s: recorded get is %d bytes, want %d", dir, len(captured), tc.wantLen)
+					}
+					built, err := req.VrfCheckByName(unix.AF_UNSPEC, "goipvrf", 1)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := zeroSeqPidCopy(built); !bytes.Equal(got, captured) {
+						t.Errorf("%s: vrf get differs\n got %x\nwant %x", dir, got, captured)
+					}
+				}
+				if tc.decodeNth != 0 {
+					// rtnl_talk is synchronous: the reply is the datagram that
+					// follows its request.
+					m := msgs[gets[tc.decodeNth-1]+1]
+					if m.IsRequest() || m.Hdr.Type != unix.RTM_NEWLINK {
+						t.Fatalf("%s: the datagram after GETLINK request %d is not a link reply", dir, tc.decodeNth)
+					}
+					li, err := xtcpnl.ParseNewLink(m.Body)
+					if err != nil {
+						t.Fatalf("%s: ParseNewLink: %v", dir, err)
+					}
+					if li.Name != tc.wantName || li.Kind != tc.wantKind ||
+						li.VrfTable.Present != tc.wantTablePresent || li.VrfTable.Value != tc.wantTable {
+						t.Errorf("%s: reply = %q/%q/table %d (present %t), want %q/%q/table %d (present %t)",
+							dir, li.Name, li.Kind, li.VrfTable.Value, li.VrfTable.Present,
+							tc.wantName, tc.wantKind, tc.wantTable, tc.wantTablePresent)
+					}
+				}
+			}
+		})
 	}
 }
 

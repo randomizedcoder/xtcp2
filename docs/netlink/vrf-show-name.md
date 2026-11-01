@@ -2,7 +2,8 @@
 
 ## Status
 
-**Last updated:** 2026-10-24. Nothing has landed; this document is the plan.
+**Last updated:** 2026-10-31. VS0 has landed (VS001); VS1–VS4 are
+open. This document is the plan and its own status.
 
 `ip vrf show` (the dump form) and `-j vrf show` are gated matrix rows.
 `ip vrf show NAME` is the one refused-but-pure-netlink path left on the
@@ -35,7 +36,7 @@ task, split a status document the way the address plan did
 
 | Done | Task | Work | State | Evidence |
 |---|---|---|---|---|
-| [ ] | [VS0-T01](#vs0--pin-the-reuse) | pin the request and reply the accessor reuses | not started | — |
+| [x] | [VS0-T01](#vs0--pin-the-reuse) | pin the request and reply the accessor reuses | done | VS001 |
 | [ ] | [VS1-T01](#vs1--the-service-accessor) | `Service.VrfTableByName` | not started | — |
 | [ ] | [VS2-T01](#vs2--the-object) | `goip vrf show NAME` | not started | — |
 | [ ] | [VS3-T01](#vs3--the-capture-rows-and-the-sidecar-replay-test) | capture rows and the sidecar replay test | not started | — |
@@ -405,6 +406,12 @@ Not repeated in each "Done when":
 | Conventions | review | US spelling; no reflection; positive fixtures are real captures, hand bytes only in malformed-input rows; iproute2 and kernel claims cite `file:line` |
 | Test shape | review | table-driven; every row has a `description` starting `positive:`/`negative:`/`boundary:`/`corner:` and an `expected` |
 | Mutation check | a scratch worktree | each planted mutant is caught by a named test |
+
+## Verification ledger
+
+| Evidence ID | Date | Tasks / scope | Command or check and environment | Result | Evidence location |
+|---|---|---|---|---|---|
+| VS001 | 2026-10-31 | VS0-T01 | `go test ./internal/goip/ -count=1` and `go vet ./internal/goip/` on the host: green, `TestVrfShowNameRequestIsNameIsVrf` 8/8 rows (`request_7_1_4`, `request_7_3_0`, `answer_decodes`, `reply_no_linkinfo`, `name_15_chars`, `name_16_chars`, `name_slash`, `name_space` — both corpora's `netlink_route_getnexthop_vrf.pcap`). `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`: green. Mutation check in a scratch worktree, removed after: `BuildGetLinkByNameRequest`'s ext-mask condition widened to `extMask != 0 \|\| true` (`pkg/xtcpnl/xtcpnl_rtnetlink_requests.go:268`) failed exactly the byte-compare rows `request_7_3_0` and `name_15_chars`, and was reverted. No VM runs; the task changes tests only. | Passed: 8/8 rows; the gates green; the mutant caught | `internal/goip/obj_vrf_test.go`, the two corpora it walks |
 
 ## Out of scope
 
