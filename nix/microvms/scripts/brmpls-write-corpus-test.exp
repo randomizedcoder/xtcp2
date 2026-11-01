@@ -245,21 +245,63 @@ check event_floors "boundary: the three event rows' floor is 8" \
     {list [field fdb_event 1] [field vlan_event 1] [field mpls_event 1]} {8 8 8}
 
 foreach {name description slug expected} {
-    rb_fdb_show      "positive: fdb_show also reads every bridge's FDB"           fdb_show {getneigh_bridge_all}
+    rb_fdb_show      "positive: fdb_show also reads every bridge's FDB, then the links and addresses" fdb_show {getneigh_bridge_all getlink getaddr}
     rb_fdb_add       "positive: an FDB write reads the port's entries back"      fdb_add_static {getneigh_bridge}
     rb_fdb_existing  "negative: a refused FDB add has nothing to read back"      fdb_add_existing {}
-    rb_vlan_show     "positive: vlan_show reads the old, compressed and global dumps" vlan_show {getlink_brvlan getlink_brvlan_compressed getvlan_global}
+    rb_vlan_show     "positive: vlan_show reads the old, compressed and global dumps" vlan_show {getlink_brvlan getlink_brvlan_compressed getvlan_global getlink getaddr}
     rb_vlan_add      "positive: a VLAN write reads back through RTM_GETVLAN"     vlan_add {getvlan}
     rb_vlan_self     "corner: a VLAN on the bridge itself reads the global dump" vlan_add_self {getvlan_global}
     rb_vlan_reserved "negative: a refused VLAN add has nothing to read back"     vlan_add_reserved {}
     rb_mpls_add      "positive: an MPLS route write reads back the label table"  mpls_route_add_swap {getroute_mpls}
-    rb_mpls_show     "boundary: the dump row is its own readback"                mpls_route_show {}
+    rb_mpls_show     "boundary: the dump row reads back only the links and addresses" mpls_route_show {getlink getaddr}
+    rb_mpls_via6     "positive: an IPv6-via MPLS route reads the label table, links and addresses" mpls_route_add_via6 {getroute_mpls getlink getaddr}
+    rb_encap_show    "positive: route_encap_show reads d0's IPv6 routes, links and addresses" route_encap_show {getroute6 getlink getaddr}
+    rb_fdb_event     "corner: an event row reads back only the links and addresses" fdb_event {getlink getaddr}
+    rb_vlan_event    "corner: vlan_event reads back the links and addresses"     vlan_event {getlink getaddr}
     rb_encap_v4      "positive: an encap route reads back d0's IPv4 routes"      route_encap_mpls {getroute}
     rb_encap_v6      "positive: an IPv6 encap route reads back d0's IPv6 routes" route6_encap_mpls {getroute6}
-    rb_events        "corner: an event row has no readback"                      mpls_event {}
+    rb_events        "corner: mpls_event reads back the links and addresses"     mpls_event {getlink getaddr}
+    rb_mpls_swap     "negative: a row BIRD does not read has no link readback"   mpls_route_add_swap {getroute_mpls}
 } {
     check $name $description [list readback_names $slug] $expected
 }
+
+# with_readback <name> - the slugs of the rows that read back <name>.
+proc with_readback {name} {
+    set out {}
+    foreach r $::R {
+        foreach rb [lindex $r 4] {
+            if {[lindex $rb 0] eq $name} {
+                lappend out [lindex $r 0]
+            }
+        }
+    }
+    return $out
+}
+
+# readback_cmd <slug> <name> - the command of a row's readback <name>.
+proc readback_cmd {slug name} {
+    foreach rb [field $slug 4] {
+        if {[lindex $rb 0] eq $name} {
+            return [lindex $rb 2]
+        }
+    }
+    error "no readback $name in $slug"
+}
+
+set bird_rows {fdb_show fdb_event vlan_show vlan_event mpls_route_add_via6 mpls_route_show route_encap_show mpls_event}
+check bird_getlink "positive: the rows BIRD reads, and only they, read back every link" \
+    {with_readback getlink} $bird_rows
+check bird_getaddr "positive: the rows BIRD reads, and only they, read back every address" \
+    {with_readback getaddr} $bird_rows
+check getlink_cmd "positive: the link readback is a detailed dump with no dev filter" \
+    {readback_cmd mpls_event getlink} {ip -d link show}
+check getaddr_cmd "positive: the address readback is a dump with no dev filter" \
+    {readback_cmd fdb_show getaddr} {ip addr show}
+check ns_rb_last "corner: the link and address readbacks come after the row's own" \
+    {lrange [readback_names vlan_show] end-1 end} {getlink getaddr}
+check readback_missing "negative: a readback a row lacks is an error" \
+    {readback_cmd fdb_add_static getlink} ERROR
 
 foreach {name description slug expected} {
     cmd_swap       "positive: BIRD's swap, a two-label stack via inet"  mpls_route_add_swap

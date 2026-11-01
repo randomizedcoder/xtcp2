@@ -1,6 +1,9 @@
 package xtcpnl
 
 import (
+	"encoding/binary"
+	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,10 +19,10 @@ import (
 // The bridge FDB, bridge VLAN and MPLS captures BIRD's netlink parser needs
 // (testdata/7_3_0/link-write/brmpls/, scripts/brmpls-write-corpus.exp;
 // docs/netlink/coverage-status.md, B1). Each row's namespace is built fresh,
-// so its ifindexes are the same on every capture: lo 1, then the row's
-// devices in the order its pre steps make them (br0 3, v0p 4, v0 5 in the
-// bridge rows; c0, the event rows' canary, comes first and moves br0 to 4
-// and v0 to 6).
+// so its ifindexes are the same on every capture: lo 1, nlmon0 (the capture
+// device) 2, then the row's devices in the order its pre steps make them
+// (br0 3, v0p 4, v0 5 in the bridge rows; c0, the event rows' canary, comes
+// first and moves br0 to 4 and v0 to 6, and d0 to 4 in mpls_event).
 
 // brMplsSummary renders one message as the few fields a row is about, with
 // the parsers under test: a neighbor's port, MAC, VLAN and master; a VLAN
@@ -156,7 +159,7 @@ func TestBrMplsCorpusComplete(t *testing.T) {
 		readbacks   []string
 	}{
 		{description: "positive: the FDB dump, with every kind of entry", slug: "fdb_show", rc: "0",
-			readbacks: []string{"getneigh_bridge_all"}},
+			readbacks: []string{"getneigh_bridge_all", "getlink", "getaddr"}},
 		{description: "positive: a static FDB entry", slug: "fdb_add_static", rc: "0",
 			readbacks: []string{"getneigh_bridge"}},
 		{description: "positive: a static FDB entry in a VLAN", slug: "fdb_add_vlan", rc: "0",
@@ -167,9 +170,10 @@ func TestBrMplsCorpusComplete(t *testing.T) {
 		{description: "positive: an FDB delete", slug: "fdb_del", rc: "0",
 			readbacks: []string{"getneigh_bridge"}},
 		{description: "negative: deleting a missing FDB entry", slug: "fdb_del_missing", rc: "255"},
-		{description: "positive: the FDB events, learned entry included", slug: "fdb_event", rc: "0"},
+		{description: "positive: the FDB events, learned entry included", slug: "fdb_event", rc: "0",
+			readbacks: []string{"getlink", "getaddr"}},
 		{description: "positive: the VLAN dumps, old and new API and global", slug: "vlan_show", rc: "0",
-			readbacks: []string{"getlink_brvlan", "getlink_brvlan_compressed", "getvlan_global"}},
+			readbacks: []string{"getlink_brvlan", "getlink_brvlan_compressed", "getvlan_global", "getlink", "getaddr"}},
 		{description: "positive: a port VID", slug: "vlan_add", rc: "0", readbacks: []string{"getvlan"}},
 		{description: "positive: a VID range", slug: "vlan_add_range", rc: "0", readbacks: []string{"getvlan"}},
 		{description: "positive: the PVID moved", slug: "vlan_add_pvid", rc: "0", readbacks: []string{"getvlan"}},
@@ -179,17 +183,18 @@ func TestBrMplsCorpusComplete(t *testing.T) {
 		{description: "positive: a VID deleted", slug: "vlan_del", rc: "0", readbacks: []string{"getvlan"}},
 		{description: "positive: a VID range deleted", slug: "vlan_del_range", rc: "0", readbacks: []string{"getvlan"}},
 		{description: "positive: a VID's STP state set", slug: "vlan_set_state", rc: "0", readbacks: []string{"getvlan"}},
-		{description: "positive: the VLAN events", slug: "vlan_event", rc: "0"},
+		{description: "positive: the VLAN events", slug: "vlan_event", rc: "0", readbacks: []string{"getlink", "getaddr"}},
 		{description: "positive: an MPLS swap", slug: "mpls_route_add_swap", rc: "0", readbacks: []string{"getroute_mpls"}},
 		{description: "positive: an MPLS pop", slug: "mpls_route_add_pop", rc: "0", readbacks: []string{"getroute_mpls"}},
 		{description: "positive: an MPLS multipath route", slug: "mpls_route_add_multipath", rc: "0",
 			readbacks: []string{"getroute_mpls"}},
 		{description: "positive: an MPLS route via IPv6", slug: "mpls_route_add_via6", rc: "0",
-			readbacks: []string{"getroute_mpls"}},
+			readbacks: []string{"getroute_mpls", "getlink", "getaddr"}},
 		{description: "negative: an MPLS label that exists", slug: "mpls_route_add_existing", rc: "2"},
 		{description: "boundary: a reserved label", slug: "mpls_route_add_reserved", rc: "2"},
 		{description: "boundary: a label past platform_labels", slug: "mpls_route_add_over_limit", rc: "2"},
-		{description: "positive: the MPLS route dump", slug: "mpls_route_show", rc: "0"},
+		{description: "positive: the MPLS route dump", slug: "mpls_route_show", rc: "0",
+			readbacks: []string{"getlink", "getaddr"}},
 		{description: "positive: an MPLS route get", slug: "mpls_route_get", rc: "0"},
 		{description: "positive: an MPLS route deleted", slug: "mpls_route_del", rc: "0",
 			readbacks: []string{"getroute_mpls"}},
@@ -204,8 +209,9 @@ func TestBrMplsCorpusComplete(t *testing.T) {
 		{description: "positive: a multipath route, an MPLS encap per nexthop", slug: "route_multipath_encap_mpls", rc: "0",
 			readbacks: []string{"getroute"}},
 		{description: "positive: the encap routes dumped", slug: "route_encap_show", rc: "0",
-			readbacks: []string{"getroute6"}},
-		{description: "positive: the MPLS route events", slug: "mpls_event", rc: "0"},
+			readbacks: []string{"getroute6", "getlink", "getaddr"}},
+		{description: "positive: the MPLS route events", slug: "mpls_event", rc: "0",
+			readbacks: []string{"getlink", "getaddr"}},
 	}
 	slugs := make([]string, 0, len(tests))
 	for _, tc := range tests {
@@ -487,4 +493,375 @@ func TestBrMplsCorpusReplies(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The rows BIRD reads, which read back every link and address of their
+// namespace (coverage-status.md, B4).
+var brMplsBirdRows = []string{
+	"fdb_show", "fdb_event", "vlan_show", "vlan_event",
+	"mpls_route_add_via6", "mpls_route_show", "route_encap_show", "mpls_event",
+}
+
+// brMplsAnswers returns the answers of one type in a row's pcap: messages
+// the kernel sent that are not requests.
+func brMplsAnswers(t *testing.T, path string, typ uint16) []capturedNlMsg {
+	t.Helper()
+	var out []capturedNlMsg
+	for _, m := range pcapNlMsgs(t, path) {
+		if m.h.Type == typ && m.h.Flags&unix.NLM_F_REQUEST == 0 {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// fullLinkProblem is what BIRD's nl_parse_link refuses in a link readback:
+// a link without IFLA_MTU ("KIF: Malformed message received"), or one
+// other than lo without IFLA_LINKINFO, which is where BIRD finds a bridge
+// and its VLAN filtering. nil if every link would be taken; an error naming
+// the row and the link otherwise, or if there is no link at all.
+func fullLinkProblem(slug string, msgs []capturedNlMsg) error {
+	if len(msgs) == 0 {
+		return fmt.Errorf("%s: no RTM_NEWLINK", slug)
+	}
+	for _, m := range msgs {
+		li, err := ParseNewLink(m.body)
+		if err != nil {
+			return fmt.Errorf("%s: %w", slug, err)
+		}
+		if !li.HasMTU {
+			return fmt.Errorf("%s: link %s (index %d) has no IFLA_MTU", slug, li.Name, li.Index)
+		}
+		if li.Type != unix.ARPHRD_LOOPBACK && !li.HasLinkInfo {
+			return fmt.Errorf("%s: link %s (index %d) has no IFLA_LINKINFO", slug, li.Name, li.Index)
+		}
+	}
+	return nil
+}
+
+// linkSummary renders a link dump as "<index> <name> <kind>" per link, the
+// slave kind after a slash.
+func linkSummary(t *testing.T, msgs []capturedNlMsg) []string {
+	t.Helper()
+	out := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		li, err := ParseNewLink(m.body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := strconv.Itoa(int(li.Index)) + " " + li.Name
+		if li.Kind != "" {
+			s += " " + li.Kind
+		}
+		if li.SlaveKind != "" {
+			s += "/" + li.SlaveKind
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// addrSummary renders an address dump as "<index> <address>/<prefix>", for
+// the addresses on index, or on every index when index is 0.
+func addrSummary(t *testing.T, msgs []capturedNlMsg, index uint32) []string {
+	t.Helper()
+	var out []string
+	for _, m := range msgs {
+		a, err := ParseNewAddr(m.body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if index != 0 && a.Index != index {
+			continue
+		}
+		out = append(out, strconv.Itoa(int(a.Index))+" "+net.IP(a.Address).String()+"/"+strconv.Itoa(int(a.Prefixlen)))
+	}
+	return out
+}
+
+// TestBrMplsCorpusLinkReadbacks checks the link readbacks of the rows BIRD
+// reads are full dumps, every link whole, in the indexes the rows' other
+// messages use.
+func TestBrMplsCorpusLinkReadbacks(t *testing.T) {
+	const (
+		mplsLinks   = "1 lo,2 nlmon0 nlmon,3 d0 dummy"
+		bridgeLinks = "1 lo,2 nlmon0 nlmon,3 br0 bridge,4 v0p veth,5 v0 veth/bridge"
+	)
+	tests := []struct {
+		description string
+		slug        string
+		expected    string
+	}{
+		{description: "positive: fdb_show's links, br0 and its port", slug: "fdb_show", expected: bridgeLinks},
+		{description: "corner: fdb_event's canary moves the bridge up an index", slug: "fdb_event",
+			expected: "1 lo,2 nlmon0 nlmon,3 c0 dummy,4 br0 bridge,5 v0p veth,6 v0 veth/bridge"},
+		{description: "positive: vlan_show's links", slug: "vlan_show", expected: bridgeLinks},
+		{description: "positive: vlan_event's links, after its trigger", slug: "vlan_event", expected: bridgeLinks},
+		{description: "positive: mpls_route_add_via6's links", slug: "mpls_route_add_via6", expected: mplsLinks},
+		{description: "positive: mpls_route_show's links", slug: "mpls_route_show", expected: mplsLinks},
+		{description: "positive: route_encap_show's links", slug: "route_encap_show", expected: mplsLinks},
+		{description: "corner: mpls_event's canary is 3, so d0 is 4", slug: "mpls_event",
+			expected: "1 lo,2 nlmon0 nlmon,3 c0 dummy,4 d0 dummy"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			msgs := brMplsAnswers(t, tdBrMpls_7_3_0+"/"+tc.slug+"/netlink_route_getlink.pcap", unix.RTM_NEWLINK)
+			if err := fullLinkProblem(tc.slug, msgs); err != nil {
+				t.Error(err)
+			}
+			if got := strings.Join(linkSummary(t, msgs), ","); got != tc.expected {
+				t.Errorf("links %q, want %q", got, tc.expected)
+			}
+		})
+	}
+	t.Run("boundary: every row BIRD reads is in the table", func(t *testing.T) {
+		got := make([]string, 0, len(tests))
+		for _, tc := range tests {
+			got = append(got, tc.slug)
+		}
+		if !slices.Equal(got, brMplsBirdRows) {
+			t.Errorf("rows %v, want %v", got, brMplsBirdRows)
+		}
+	})
+}
+
+// TestBrMplsCorpusFullLinkProblem checks fullLinkProblem against the
+// captures: a readback is taken, and the name lookup each row's `ip` makes
+// for its dev is not.
+func TestBrMplsCorpusFullLinkProblem(t *testing.T) {
+	tests := []struct {
+		description string
+		slug        string
+		file        string
+		built       []capturedNlMsg
+		expected    string
+	}{
+		{description: "positive: a link readback is taken", slug: "mpls_route_show",
+			file: "netlink_route_getlink.pcap", expected: ""},
+		{description: "positive: a bridge row's readback is taken, the veth peer included", slug: "fdb_event",
+			file: "netlink_route_getlink.pcap", expected: ""},
+		{description: "negative: the name lookup for dev d0 is 40 bytes, IFLA_IFNAME alone",
+			slug: "mpls_route_add_via6", file: "ip.pcap",
+			expected: "mpls_route_add_via6: link d0 (index 3) has no IFLA_MTU"},
+		{description: "negative: bridge's name map is a link dump of names alone, lo first", slug: "vlan_add",
+			file: "ip.pcap", expected: "vlan_add: link lo (index 1) has no IFLA_MTU"},
+		{description: "boundary: no link at all is refused, not taken", slug: "mpls_route_show",
+			file: "", expected: "mpls_route_show: no RTM_NEWLINK"},
+		{description: "negative: a link with an MTU but no IFLA_LINKINFO", slug: "built",
+			built:    []capturedNlMsg{builtLink(4, unix.ARPHRD_ETHER, "d0", false)},
+			expected: "built: link d0 (index 4) has no IFLA_LINKINFO"},
+		{description: "corner: lo needs no IFLA_LINKINFO", slug: "built",
+			built: []capturedNlMsg{builtLink(1, unix.ARPHRD_LOOPBACK, "lo", false)}, expected: ""},
+		{description: "positive: a link with both is taken", slug: "built",
+			built: []capturedNlMsg{builtLink(4, unix.ARPHRD_ETHER, "d0", true)}, expected: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			msgs := tc.built
+			if tc.file != "" {
+				msgs = brMplsAnswers(t, tdBrMpls_7_3_0+"/"+tc.slug+"/"+tc.file, unix.RTM_NEWLINK)
+			}
+			got := ""
+			if err := fullLinkProblem(tc.slug, msgs); err != nil {
+				got = err.Error()
+			}
+			if got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestBrMplsCorpusBridgeForBird checks what BIRD learns about br0 from the
+// link readbacks and the VLAN dump: that it filters VLANs, and which VLAN
+// entries name it as their master (nl_parse_vlan skips the others).
+func TestBrMplsCorpusBridgeForBird(t *testing.T) {
+	tests := []struct {
+		description string
+		slug        string
+		file        string
+		expected    string
+	}{
+		{description: "positive: vlan_show's br0 filters VLANs", slug: "vlan_show",
+			file: "netlink_route_getlink.pcap", expected: "br0 bridge vlan_filtering 1"},
+		{description: "positive: fdb_show's br0 filters VLANs", slug: "fdb_show",
+			file: "netlink_route_getlink.pcap", expected: "br0 bridge vlan_filtering 1"},
+		{description: "corner: fdb_event's br0, at index 4", slug: "fdb_event",
+			file: "netlink_route_getlink.pcap", expected: "br0 bridge vlan_filtering 1"},
+		{description: "negative: an MPLS row has no bridge", slug: "mpls_event",
+			file: "netlink_route_getlink.pcap", expected: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var got []string
+			for _, m := range brMplsAnswers(t, tdBrMpls_7_3_0+"/"+tc.slug+"/"+tc.file, unix.RTM_NEWLINK) {
+				li, err := ParseNewLink(m.body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if li.Kind != "bridge" {
+					continue
+				}
+				if li.Bridge == nil {
+					t.Fatalf("%s: bridge %s has no IFLA_INFO_DATA", tc.slug, li.Name)
+				}
+				v := li.Bridge.Value(unix.IFLA_BR_VLAN_FILTERING)
+				if !v.Present {
+					t.Fatalf("%s: bridge %s has no IFLA_BR_VLAN_FILTERING", tc.slug, li.Name)
+				}
+				got = append(got, li.Name+" bridge vlan_filtering "+strconv.FormatUint(v.U, 10))
+			}
+			if s := strings.Join(got, ","); s != tc.expected {
+				t.Errorf("got %q, want %q", s, tc.expected)
+			}
+		})
+	}
+	// br0's own entry names br0 as its master too, so nl_parse_vlan, which
+	// skips an entry without IFLA_MASTER, takes both.
+	t.Run("corner: in the old VLAN dump BIRD reads, br0 and v0 both name br0 as master", func(t *testing.T) {
+		var got []string
+		for _, m := range brMplsAnswers(t, tdBrMpls_7_3_0+"/vlan_show/netlink_route_getlink_brvlan.pcap", unix.RTM_NEWLINK) {
+			if m.body[0] != unix.AF_BRIDGE {
+				continue
+			}
+			li, err := ParseNewLink(m.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, strconv.Itoa(int(li.Index))+" master "+strconv.Itoa(int(li.Master)))
+		}
+		if s := strings.Join(got, ","); s != "3 master 3,5 master 3" {
+			t.Errorf("got %q, want %q", s, "3 master 3,5 master 3")
+		}
+	})
+}
+
+// TestBrMplsCorpusAddrReadbacks checks the address readbacks: d0 has the
+// addresses its topology gave it, the connected subnets BIRD's neigh_find
+// needs for each nexthop, and a namespace whose devices have none still
+// answers with lo's.
+func TestBrMplsCorpusAddrReadbacks(t *testing.T) {
+	const (
+		lo4 = "1 127.0.0.1/8"
+		lo6 = "1 ::1/128"
+	)
+	d0At3 := []string{"3 192.0.2.1/24", "3 2001:db8::1/64"}
+	tests := []struct {
+		description string
+		slug        string
+		index       uint32
+		expected    []string
+	}{
+		{description: "positive: mpls_route_add_via6's d0", slug: "mpls_route_add_via6", index: 3, expected: d0At3},
+		{description: "positive: mpls_route_show's d0", slug: "mpls_route_show", index: 3, expected: d0At3},
+		{description: "positive: route_encap_show's d0", slug: "route_encap_show", index: 3, expected: d0At3},
+		{description: "corner: mpls_event's d0 is index 4", slug: "mpls_event", index: 4,
+			expected: []string{"4 192.0.2.1/24", "4 2001:db8::1/64"}},
+		{description: "positive: an MPLS row's whole dump, lo then d0", slug: "mpls_route_show", index: 0,
+			expected: []string{lo4, "3 192.0.2.1/24", lo6, "3 2001:db8::1/64"}},
+		{description: "boundary: vlan_show's devices have no address, so only lo's are dumped", slug: "vlan_show",
+			index: 0, expected: []string{lo4, lo6}},
+		{description: "boundary: vlan_event's likewise", slug: "vlan_event", index: 0, expected: []string{lo4, lo6}},
+		{description: "positive: fdb_event's v0p has the address that taught the bridge its MAC", slug: "fdb_event",
+			index: 5, expected: []string{"5 fe80::12/64"}},
+		{description: "negative: an index with no link has no address", slug: "mpls_event", index: 5,
+			expected: nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			msgs := brMplsAnswers(t, tdBrMpls_7_3_0+"/"+tc.slug+"/netlink_route_getaddr.pcap", unix.RTM_NEWADDR)
+			if got := addrSummary(t, msgs, tc.index); !slices.Equal(got, tc.expected) {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestBrMplsCorpusEventIndexes checks the event rows' notifications use the
+// indexes their link readbacks give: every route in mpls_event leaves by d0.
+// The canary's multicast route, on c0, is not one of the row's.
+func TestBrMplsCorpusEventIndexes(t *testing.T) {
+	tests := []struct {
+		description string
+		slug        string
+		link        string
+		expected    string
+	}{
+		{description: "corner: mpls_event's routes leave by d0, index 4", slug: "mpls_event", link: "d0",
+			expected: "4 4 4 4"},
+		{description: "positive: mpls_route_show's routes leave by d0, index 3", slug: "mpls_route_show", link: "d0",
+			expected: "3 3 3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			dir := tdBrMpls_7_3_0 + "/" + tc.slug
+			var index int32
+			for _, m := range brMplsAnswers(t, dir+"/netlink_route_getlink.pcap", unix.RTM_NEWLINK) {
+				li, err := ParseNewLink(m.body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if li.Name == tc.link {
+					index = li.Index
+				}
+			}
+			var oifs []string
+			for _, m := range pcapNlMsgs(t, dir+"/ip.pcap") {
+				if m.h.Flags&unix.NLM_F_REQUEST != 0 || (m.h.Type != unix.RTM_NEWROUTE && m.h.Type != unix.RTM_DELROUTE) {
+					continue
+				}
+				r, err := ParseNewRoute(m.body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if r.Family != unix.AF_MPLS && net.IP(r.Dst).IsMulticast() {
+					continue
+				}
+				oifs = append(oifs, strconv.FormatInt(routeOif(r), 10))
+			}
+			if got := strings.Join(oifs, " "); got != tc.expected {
+				t.Errorf("oifs %q, want %q", got, tc.expected)
+			}
+			if want := strconv.Itoa(int(index)); !strings.HasPrefix(tc.expected, want+" ") {
+				t.Errorf("%s is index %s in the readback, not the routes' %s", tc.link, want, tc.expected)
+			}
+		})
+	}
+}
+
+// routeOif is a route's RTA_OIF, or its first nexthop's for a multipath
+// route.
+func routeOif(r RouteInfo) int64 {
+	if r.Oif == 0 && len(r.Multipath) > 0 {
+		return int64(r.Multipath[0].Ifindex)
+	}
+	return int64(r.Oif)
+}
+
+// builtLink is an RTM_NEWLINK for index: ifinfomsg, IFLA_IFNAME, IFLA_MTU
+// 1500, and, with kind, IFLA_LINKINFO holding IFLA_INFO_KIND "dummy".
+func builtLink(index uint32, typ uint16, name string, kind bool) capturedNlMsg {
+	attr := func(typ uint16, val []byte) []byte {
+		n := 4 + len(val)
+		if n > math.MaxUint16 {
+			panic("builtLink: attribute too long")
+		}
+		b := make([]byte, 4, n+3)
+		binary.LittleEndian.PutUint16(b[0:2], uint16(n))
+		binary.LittleEndian.PutUint16(b[2:4], typ)
+		b = append(b, val...)
+		for len(b)%4 != 0 {
+			b = append(b, 0)
+		}
+		return b
+	}
+	body := make([]byte, IfInfomsgSizeCst)
+	binary.LittleEndian.PutUint16(body[2:4], typ)
+	binary.LittleEndian.PutUint32(body[4:8], index)
+	body = append(body, attr(unix.IFLA_IFNAME, append([]byte(name), 0))...)
+	body = append(body, attr(unix.IFLA_MTU, binary.LittleEndian.AppendUint32(nil, 1500))...)
+	if kind {
+		body = append(body, attr(unix.IFLA_LINKINFO, attr(unix.IFLA_INFO_KIND, []byte("dummy")))...)
+	}
+	return capturedNlMsg{h: NlMsgHdr{Type: unix.RTM_NEWLINK}, body: body}
 }

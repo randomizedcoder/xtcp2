@@ -1,8 +1,8 @@
 02:00:00:00:00:21 vlan 10 master br0 static
 02:00:00:00:00:21 vlan 1 master br0 static
 02:00:00:00:00:21 master br0 static
-ea:56:ce:af:8d:04 vlan 10 master br0 permanent
-ea:56:ce:af:8d:04 vlan 1 master br0 permanent
-ea:56:ce:af:8d:04 master br0 permanent
+0e:b3:d4:de:1d:a3 vlan 10 master br0 permanent
+0e:b3:d4:de:1d:a3 vlan 1 master br0 permanent
+0e:b3:d4:de:1d:a3 master br0 permanent
 33:33:00:00:00:01 self permanent
 01:00:5e:00:00:01 self permanent

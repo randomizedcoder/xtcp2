@@ -144,6 +144,21 @@ namespace eval brmplscorpus {
     variable ROUTE6_RB {{getroute6 4 {ip -6 route show dev d0}}}
 
     ###########################################################################
+    # Each namespace's links and addresses, for BIRD (coverage-status.md, B4).
+    #
+    # Every RTM_NEWLINK `ip` or `bridge` gets back for a `dev X` is a name
+    # lookup: 40 bytes, IFLA_IFNAME alone. BIRD needs a full link (IFLA_MTU,
+    # IFLA_LINKINFO) before it takes a route, FDB entry or VLAN on it, and a
+    # connected subnet before it takes a gateway. These two are dumps with no
+    # dev filter, so every link and address comes back whole. The rows BIRD
+    # reads append both, after the command: an event row's links are still up
+    # when its monitor exits.
+    ###########################################################################
+    variable LINK_RB {{getlink 2 {ip -d link show}}}
+    variable ADDR_RB {{getaddr 2 {ip addr show}}}
+    variable NS_RB [concat $LINK_RB $ADDR_RB]
+
+    ###########################################################################
     # The event rows' triggers and what each monitor prints for them.
     ###########################################################################
     variable FDB_TRIGGER [join [list \
@@ -190,7 +205,7 @@ namespace eval brmplscorpus {
 
     variable rows [list \
         [list fdb_show 4 $PRE_FDB_ALL "bridge fdb show br br0" \
-            {{getneigh_bridge_all 2 {bridge fdb show}}} 0] \
+            [concat {{getneigh_bridge_all 2 {bridge fdb show}}} $NS_RB] 0] \
         [list fdb_add_static 4 $PRE_BR "bridge fdb add $STATIC_MAC dev v0 master static" $FDB_RB 0] \
         [list fdb_add_vlan 4 $PRE_BR "bridge fdb add $VLAN_MAC dev v0 master static vlan 10" $FDB_RB 0] \
         [list fdb_add_existing 4 $PRE_FDB_STATIC "bridge fdb add $STATIC_MAC dev v0 master static" {} 255] \
@@ -198,11 +213,11 @@ namespace eval brmplscorpus {
         [list fdb_del 4 $PRE_FDB_STATIC "bridge fdb del $STATIC_MAC dev v0 master" $FDB_RB 0] \
         [list fdb_del_missing 4 $PRE_BR "bridge fdb del $STATIC_MAC dev v0 master" {} 255] \
         [list fdb_event 8 [concat $PRE_CANARY $PRE_BR] \
-            [rtnlcorpus::ipmon all $FDB_TRIGGER $FDB_UNTIL] {} 0] \
+            [rtnlcorpus::ipmon all $FDB_TRIGGER $FDB_UNTIL] $NS_RB 0] \
         [list vlan_show 2 $PRE_VLAN_ALL "bridge -d vlan show" \
-            {{getlink_brvlan 2 {bridge vlan show}}
-             {getlink_brvlan_compressed 2 {bridge -c vlan show}}
-             {getvlan_global 2 {bridge vlan global show}}} 0] \
+            [concat {{getlink_brvlan 2 {bridge vlan show}}
+                     {getlink_brvlan_compressed 2 {bridge -c vlan show}}
+                     {getvlan_global 2 {bridge vlan global show}}} $NS_RB] 0] \
         [list vlan_add 4 $PRE_VLAN "bridge vlan add vid 10 dev v0" $VLAN_RB 0] \
         [list vlan_add_range 4 $PRE_VLAN "bridge vlan add vid 20-30 dev v0 untagged" $VLAN_RB 0] \
         [list vlan_add_pvid 4 $PRE_VLAN "bridge vlan add vid 40 dev v0 pvid untagged" $VLAN_RB 0] \
@@ -215,18 +230,19 @@ namespace eval brmplscorpus {
             "bridge vlan del vid 20-30 dev v0" $VLAN_RB 0] \
         [list vlan_set_state 4 [concat $PRE_VLAN {{bridge vlan add vid 10 dev v0}}] \
             "bridge vlan set vid 10 dev v0 state blocking" $VLAN_RB 0] \
-        [list vlan_event 8 $PRE_VLAN [brmon vlan $VLAN_TRIGGER $VLAN_UNTIL] {} 0] \
+        [list vlan_event 8 $PRE_VLAN [brmon vlan $VLAN_TRIGGER $VLAN_UNTIL] $NS_RB 0] \
         [list mpls_route_add_swap 4 $PRE_MPLS "ip $MPLS_SWAP" $MPLS_RB 0] \
         [list mpls_route_add_pop 4 $PRE_MPLS "ip $MPLS_POP" $MPLS_RB 0] \
         [list mpls_route_add_multipath 4 $PRE_MPLS "ip $MPLS_MULTIPATH" $MPLS_RB 0] \
         [list mpls_route_add_via6 4 $PRE_MPLS \
-            "ip -f mpls route add 103 as 203 via inet6 2001:db8::10 dev d0" $MPLS_RB 0] \
+            "ip -f mpls route add 103 as 203 via inet6 2001:db8::10 dev d0" \
+            [concat $MPLS_RB $NS_RB] 0] \
         [list mpls_route_add_existing 4 [concat $PRE_MPLS [list $MPLS_SWAP]] "ip $MPLS_SWAP" {} 2] \
         [list mpls_route_add_reserved 4 $PRE_MPLS \
             "ip -f mpls route add 3 via inet 192.0.2.10 dev d0" {} 2] \
         [list mpls_route_add_over_limit 4 $PRE_MPLS \
             "ip -f mpls route add 2000 via inet 192.0.2.10 dev d0" {} 2] \
-        [list mpls_route_show 2 $PRE_MPLS_ROUTES "ip -f mpls route show" {} 0] \
+        [list mpls_route_show 2 $PRE_MPLS_ROUTES "ip -f mpls route show" $NS_RB 0] \
         [list mpls_route_get 2 $PRE_MPLS_ROUTES "ip -f mpls route get 100" {} 0] \
         [list mpls_route_del 2 $PRE_MPLS_ROUTES "ip -f mpls route del 100" $MPLS_RB 0] \
         [list mpls_route_del_missing 2 $PRE_MPLS "ip -f mpls route del 100" {} 0] \
@@ -236,9 +252,10 @@ namespace eval brmplscorpus {
             "ip route add 198.18.22.0/24 encap mpls 100 ttl 64 via 192.0.2.10 dev d0" $ROUTE_RB 0] \
         [list route6_encap_mpls 4 $PRE_MPLS "ip $ENCAP_V6" $ROUTE6_RB 0] \
         [list route_multipath_encap_mpls 4 $PRE_MPLS "ip $ENCAP_MULTIPATH" $ROUTE_RB 0] \
-        [list route_encap_show 4 $PRE_ENCAP_ROUTES "ip route show dev d0" $ROUTE6_RB 0] \
+        [list route_encap_show 4 $PRE_ENCAP_ROUTES "ip route show dev d0" \
+            [concat $ROUTE6_RB $NS_RB] 0] \
         [list mpls_event 8 [concat $PRE_CANARY $PRE_MPLS] \
-            [rtnlcorpus::ipmon route $MPLS_TRIGGER $MPLS_UNTIL] {} 0] \
+            [rtnlcorpus::ipmon route $MPLS_TRIGGER $MPLS_UNTIL] $NS_RB 0] \
     ]
 
     ###########################################################################

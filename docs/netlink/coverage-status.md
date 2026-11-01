@@ -1257,6 +1257,114 @@ pcap that exists.
     only"). The test flagged the exclusion as stale once the corpus held
     it, and it is removed: five exclusions remain.
 
+#### Still missing for BIRD: B4, each namespace's links and addresses (2026-10-31)
+
+BIRD's tests now use the brmpls MPLS rows: `mpls_route_show`,
+`mpls_route_add_via6`'s readback, `route_encap_show` (both families) and
+`mpls_event`. Every captured route parses to what `ip` printed. The bridge
+rows can't be used yet. **No brmpls row records the links or the addresses
+of its namespace**, and BIRD needs both before it accepts anything else
+from that namespace:
+
+- **Links.** Every `RTM_NEWLINK` in a brmpls `ip.pcap` or readback is a reply
+  to the name lookup `ip`/`bridge` makes before printing. It is 40 bytes, and
+  `IFLA_IFNAME` is its only attribute. BIRD's `nl_parse_link` needs
+  `IFLA_MTU` and rejects these ("KIF: Malformed message received"), so the
+  interface stays unknown. Every route on it is then dropped ("unknown
+  ifindex"). The one exception is `fdb_event`, whose `ip monitor all` saw full
+  br0 and v0 messages, but in a namespace with the canary interface.
+- **Addresses.** BIRD keeps a route only if its gateway is on a connected
+  subnet of the interface (`neigh_find`). No brmpls row has an
+  `RTM_NEWADDR` dump. 192.0.2.1/24 on d0 is visible only in `topology`.
+- **The bridge itself.** `nl_parse_vlan` takes a VLAN only from a bridge it
+  knows has VLAN filtering on. It learns that from br0's full link message:
+  `IFLA_LINKINFO` kind `bridge`, `IFLA_INFO_DATA` → `IFLA_BR_VLAN_FILTERING`.
+  `nl_parse_fdb` likewise needs br0's index and v0 as a known port.
+
+Correction to the **bridge VLANs** row above: BIRD's `nl_parse_vlan` reads
+the old form, `RTM_NEWLINK` with `ifi_family = AF_BRIDGE` and
+`IFLA_AF_SPEC` → `IFLA_BRIDGE_VLAN_INFO`, not `RTM_NEWVLAN`. Its own writes
+are `RTM_SETLINK`/`RTM_DELLINK`, the same as `bridge vlan add`/`del`. So
+`vlan_show`'s `netlink_route_getlink_brvlan.pcap` is the right reply. Its two
+`AF_BRIDGE` messages, for br0 and v0, are full. What it lacks is the
+`AF_UNSPEC` links next to them, which are name lookups again.
+
+**Workaround in BIRD until then.** The MPLS tests take goip0's full link and
+address messages from `7_3_0/dumps/` and rename them to d0 with the index
+changed: 3, or 4 in `mpls_event`, where the canary `c0` takes 3. This works
+only because the brmpls `topology` gives d0 goip0's addresses. There is no
+captured bridge link to start from, so the FDB and VLAN tests wait for B4.
+
+**B4, the fix.** Add two readbacks to the brmpls rows BIRD reads, taken
+after the row's command, with the same `{slug floor {command}}` shape as
+`ROUTE_RB`:
+
+```
+variable LINK_RB {{getlink 2 {ip -d link show}}}
+variable ADDR_RB {{getaddr 2 {ip addr show}}}
+```
+
+- `ip -d link show` and `ip addr show` with no `dev` filter, so the reply is
+  a full `NLM_F_DUMP` (every attribute, `IFLA_LINKINFO` included) rather
+  than a name lookup.
+- Rows: `fdb_show`, `fdb_event`, `vlan_show`, `vlan_event`,
+  `mpls_route_show`, `mpls_route_add_via6`, `route_encap_show` and
+  `mpls_event`, each appending `$LINK_RB $ADDR_RB` to its readbacks. For
+  the event rows, read back after the trigger: their links stay up, and
+  BIRD loads the links before replaying the events.
+- Optional: drop the canary from `mpls_event`, or keep it and record in the
+  row that d0 is index 4. Either way, the readback makes the index explicit.
+
+B4's tests extend `TestBrMplsCorpusComplete`:
+
+| description | input | expected |
+|---|---|---|
+| positive: every BIRD row has a link and an address readback | the 8 slugs above | `netlink_route_getlink.pcap` and `netlink_route_getaddr.pcap` in each |
+| positive: a link readback is a full dump | each `getlink` pcap | every `RTM_NEWLINK` has `IFLA_MTU` and `IFLA_LINKINFO` (lo has no `IFLA_LINKINFO`, so skip it) |
+| negative: a name-lookup reply is not a link readback | a 40-byte `RTM_NEWLINK` holding only `IFLA_IFNAME` (today's `ip.pcap`) | the test names the row |
+| positive: br0's link says VLAN filtering is on | `vlan_show`'s `getlink` | kind `bridge`, `IFLA_BR_VLAN_FILTERING` = 1 |
+| positive: d0 has the addresses of `topology` | each MPLS row's `getaddr` | 192.0.2.1/24 and 2001:db8::1/64 on d0 |
+| corner: the event rows' indexes | `mpls_event`'s `getlink` | c0 at 3, d0 at 4, as the routes' `RTA_OIF` say |
+| boundary: an address dump of a namespace without addresses | a row whose `topology` adds none | an empty dump (`NLMSG_DONE` only), not a missing file |
+
+Once these land, BIRD's FDB and VLAN tests use them directly. The MPLS tests
+then drop the renamed goip0 messages and load d0 from its own namespace.
+
+#### Delivered: B4 (2026-10-31)
+
+- **Captures.** `brmpls-write-corpus.exp` has `LINK_RB` and `ADDR_RB` as
+  above, appended (as `NS_RB`) to the eight rows' readbacks, after each
+  row's own. `nix run .#microvm-x86_64-link-write-capture-brmpls` rewrote the
+  whole `link-write/brmpls/` directory from one run. c0's and v0's MACs are
+  random on every run, br0 takes v0's, and the FDB rows' events carry them.
+  So a row's readbacks must come from the same run as its `ip.pcap`.
+  `brmpls-write-corpus-test.exp` pins which rows read back links and
+  addresses (those eight, and no others) and that neither dump has a `dev`
+  filter.
+- **Tests** (`xtcpnl_brmpls_corpus_test.go`): `TestBrMplsCorpusComplete`
+  expects both pcaps in the eight rows. `TestBrMplsCorpusLinkReadbacks`,
+  `…FullLinkProblem`, `…BridgeForBird`, `…AddrReadbacks` and
+  `…EventIndexes` hold the table's rows, with three changes the bytes forced.
+  `fullLinkProblem` is `nl_parse_link`'s test (`sysdep/linux/netlink.c:1088`
+  in BIRD): `IFLA_MTU` on every link, and `IFLA_LINKINFO` on every link but
+  lo. Three mutants of it are each caught by a row.
+- **What the bytes showed, against the table above:**
+  - Index 2 in every namespace is `nlmon0`, the capture device, so the
+    indexes are lo 1, nlmon0 2, then the row's devices. In `mpls_event`, c0
+    is 3 and d0 is 4, as the routes' `RTA_OIF` say; in the other MPLS rows
+    d0 is 3. The canary stays.
+  - lo is up in every row's namespace, with 127.0.0.1/8 and ::1/128. No
+    address dump is empty, so the boundary row is now "a namespace whose
+    devices have no address dumps only lo's" (`vlan_show`, `vlan_event`).
+  - `bridge`'s name lookups are not single lookups: `bridge` dumps every
+    link, names only (24-byte bodies), lo first. The negative row names lo.
+  - In the old-API VLAN dump BIRD reads, br0's own `AF_BRIDGE` entry
+    carries `IFLA_MASTER` = br0. `nl_parse_vlan` requires `IFLA_MASTER`, but
+    br0's entry has it, so BIRD takes br0's VLANs as well as v0's.
+  - BIRD dumps addresses per family (`AF_INET`, then `AF_INET6`); `ip addr
+    show` makes one `AF_UNSPEC` dump, which holds the same messages. Its
+    pcap also has the link dump `ip` makes first.
+
 ## What has landed
 
 The first three entries are from `feat/netlink-events-and-coverage-roadmap`
