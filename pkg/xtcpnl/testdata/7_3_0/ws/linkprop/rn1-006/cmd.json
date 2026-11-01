@@ -1,0 +1,36 @@
+{
+ "axes": {
+  "altname": "alt0",
+  "op": "del"
+ },
+ "cmd": "ip link property del altname alt0 dev d0",
+ "desc": "positive: op=del altname=short dev=dev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkprop/rn1-006",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link property add dev d0 altname alt0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link property add dev d0 altname alt0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

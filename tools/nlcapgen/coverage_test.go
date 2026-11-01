@@ -141,6 +141,8 @@ func TestCovTally(t *testing.T) {
 		{"corner: an AF_UNSPEC address dump is neither family's", covMsg(unix.RTM_GETADDR, req, unix.AF_UNSPEC, 8), ":0:"},
 		{"negative: a nexthop delete is judged by another policy", covMsg(unix.RTM_DELNEXTHOP, req, 0, 8, unix.NHA_ID), ":0:"},
 		{"boundary: a body shorter than its header", covMsg(unix.RTM_NEWLINK, req, 0, 12), ":0:"},
+		{"positive: an altname add is judged by the link policy", covMsg(unix.RTM_NEWLINKPROP, req, 0, 16, unix.IFLA_PROP_LIST|unix.NLA_F_NESTED), "link:1:52"},
+		{"negative: a link property get is no family's", covMsg(unix.RTM_GETLINKPROP, req, 0, 16, unix.IFLA_IFNAME), ":0:"},
 		{"corner: an odd-length attribute is padded to four bytes before the next", nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWROUTE, Flags: req},
 			Body: append(append([]byte{unix.AF_INET, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 5, 0, unix.RTA_PRIORITY, 0, 9, 0, 0, 0), 8, 0, unix.RTA_OIF, 0, 2, 0, 0, 0)}, "route4:1:4,6"},
 		{"corner: an attribute overrunning the body ends the walk", nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWADDR, Flags: req},

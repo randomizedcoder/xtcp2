@@ -2186,6 +2186,128 @@ in `TestWsSizeBudget` is now 64 MB per kernel version. Each version has its
 own `ws/`, so W7's replays don't count against it. Packing a family into
 one pcapng stays the fallback if a version nears the new limit.
 
+##### W4c: the link keywords no row sent
+
+The link family's fourth-column gaps. `nlcapgen matrix -family linkattr
+-seed 1 -random 20` writes `nix/microvms/workbench/linkattr.rows.jsonl`
+from three spaces in `tools/nlcapgen/matrix_linkattr.go`:
+
+| space | device | axes (boundary values in bold) |
+|---|---|---|
+| linkattr | `d0`, with a bridge `br0` and a VRF `v0` | master: `master br0`, `vrf v0`, `nomaster`; addrgenmode: eui64, none, random; carrier on/off; netns: `netns $$`, `netns $$ index 100`; xdp: `xdp off`, `xdpgeneric none`, `xdpdrv off` (always last) |
+| linkpd | a macvlan `m0` (a dummy has no `change_proto_down`) | protodown on/off; `protodown_reason` 0 on, 0 off, **31 on**; up |
+| linkprop | `d0` | `ip link property add`/`del`, and `ip link show` by altname; altname: short, 16 characters, **127 characters**, two at once, one with a slash; `dev d0` or bare `d0` |
+
+100 rows (linkattr 52, linkprop 28, linkpd 20): 18 positive, 5 boundary,
+59 corner and 18 negative. Two are derived:
+
+- `linkattr/xdp-not-last` has `xdp off carrier on`;
+- `linkattr/parentdev` is `ip link set dev d0 parentdev br0`. iplink_parse sends
+  `IFLA_PARENT_DEV_NAME` on a set too, and the kernel only ever dumps it
+  (`rtnl_fill_ifinfo`), so the set succeeds and changes nothing.
+
+`linkprop/del-absent` (ENOENT) and `linkprop/dup-1` (EEXIST) are derived
+too.
+
+The first runs' failures were all iproute2 parsing rules the spaces
+hadn't modeled:
+
+- **`xdp off` must be the last argument.** Otherwise `xdp_parse` hands
+  `off` to `bpf_parse_and_load_common` as a program mode (`What mode is
+  "off"?`).
+- **`carrier`/`protodown` with a bad value exit 22.** That is
+  `parse_on_off`'s -EINVAL, not the usual 255.
+- **`index` needs `netns`** (rc 255, "index can be used only when creating
+  devices or when moving device to another netns").
+- **The kernel decides the rest:**
+  - `xdpdrv off` on a dummy succeeds;
+  - a slash in an altname is taken (`netdev_name_node_alt_create`);
+  - `master nosuch` is ip's lookup refused with ENODEV;
+  - `protodown on` on a dummy gives EOPNOTSUPP;
+  - `protodown off` with a reason on gives EBUSY (`do_set_proto_down`,
+    "Cannot clear protodown, active reasons").
+
+**Two iproute2 print bugs** turned up in `ip -d link show` (`print_proto_down`,
+`ip/ipaddress.c`). Both are recorded here only:
+
+- **The reason is read with `rta_getattr_u8`**, though
+  `IFLA_PROTO_DOWN_REASON_VALUE` is a u32. Reasons 8–31 never print: the
+  `31 on` rows show no `protodown_reason`, while O4 finds 0x80000000 in
+  the kernel's dump.
+- **No space precedes `protodown_reason <…>`**, so it runs into the
+  address before it (`brd ff:ff:ff:ff:ff:ffprotodown_reason <0>`).
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_linkattr_test.go`):
+
+- **O3 for linkattr and linkpd** extends the W3c set model with:
+  - `IFLA_MASTER` as the looked-up index, 0 for `nomaster`;
+  - `IFLA_CARRIER` and `IFLA_PROTO_DOWN` as u8;
+  - `IFLA_NEW_IFINDEX`, `IFLA_LINK_NETNSID` and the
+    `IFLA_PARENT_DEV_NAME` string;
+  - the nests: addrgenmode in `IFLA_AF_SPEC`'s `AF_INET6`, `IFLA_XDP`'s fd
+    −1 and flags, and the reason's mask and value;
+  - the namespace fd `netns $$` opened, taken from the request (any
+    descriptor past stderr).
+
+  It checked 63 requests.
+- **O4 for linkattr and linkpd** holds the dumped device's master,
+  addrgenmode and carrier, and its protodown and reason, which are 0 when
+  not asked for. `ip link show dev m0` first looks m0 up and gets a
+  name-only answer, so the last reply about the device is the one read.
+  It checked 57 round trips.
+- **O3 for linkprop:**
+  - an add carries `NLM_F_EXCL|NLM_F_CREATE|NLM_F_APPEND`;
+  - the names are NUL-terminated `IFLA_ALT_IFNAME`s in `IFLA_PROP_LIST`;
+  - a show sends two `RTM_GETLINK`s naming the device by `IFLA_IFNAME`,
+    or by `IFLA_ALT_IFNAME` when `check_ifname` refuses the name (16 or
+    more characters, a slash or space, `.` or `..`). The second one has
+    `AF_PACKET` and no index.
+
+  It checked 27 requests.
+- **O4 for linkprop:** after an add or show, d0 holds every name; after a
+  del, none. It checked 24 round trips.
+- **O5:**
+  - linkattr has 2 same and 50 refused;
+  - linkpd has 1 same and 19 refused. goip has none of these keywords,
+    which adds addrgenmode, vrf, protodown and its reason, carrier, xdp,
+    netns, index, link-netnsid and parentdev to its list;
+  - linkprop has 19 same: goip's altname writes match ip's, and the 9
+    shows aren't writes.
+- **Coverage:** link rises from 19/56 to 31/56 (`ws-coverage.txt`). The
+  tally now counts `RTM_NEWLINKPROP` and `RTM_DELLINKPROP` as link
+  requests, since `rtnl_linkprop` parses them with `ifla_policy`. Of the
+  25 left, iproute2 7.2.0 sends only two:
+  - `IFLA_TARGET_NETNSID`, from `link-netnsid` with `link`, which needs a
+    peer namespace with an nsid;
+  - `IFLA_VFINFO_LIST` (`vf`, W5's netdevsim).
+
+  It never sends `IFLA_NET_NS_PID`: `netns_get_fd` turns a pid into
+  `/proc/PID/ns/net` and sends the fd.
+- **Determinism:** a second run of all 100 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:**
+
+- The generator: `TestBuildLinkAttr`, `TestDeriveLinkAttrCorners`,
+  `TestLinkAttrSetups`, `TestLinkPDJudge`, `TestBuildLinkPD`,
+  `TestBuildLinkProp`, `TestDeriveLinkPropAbsent` and
+  `TestMatrixLinkAttrRows`.
+- The oracles: `TestLinkAttrWantFromAxes`, `TestLinkNetnsFD`,
+  `TestLinkProtoDown`, `TestLinkAttrDumpProblem`, `TestLinkPropAlts`,
+  `TestLinkPropRequestProblem`, `TestLinkShowNameAttr`,
+  `TestLinkShowProblem` and `TestLinkPropDumpProblem`.
+
+**Mutation:** 30 of 30 mutants killed, each by a relevant test. Four
+survived the first pass, and each now has a row:
+
+- no generator test looked at reason 31's mask;
+- no O4 row had a carrier that was present but wrong;
+- no show row had three requests;
+- `TestWsO5HdrLen` lacked the property types. Their bodies match byte for
+  byte, so comparing them whole hid the missing header length.
+
+**Size:** the rows add 644 KB to `ws/`, 16.9 MB of 64 MB in all.
+
 ### Captures an outside consumer needs: BIRD's netlink parser
 
 Counted from the tree on 2026-10-31. The BIRD routing daemon's kernel protocol

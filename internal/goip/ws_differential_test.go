@@ -43,12 +43,13 @@ const wsO5Golden = "testdata/ws-differential.txt"
 // matrix's, then those mined from the fib selftests, then the address,
 // neighbor and link matrices'.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
-	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd"}
+	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
-// a write, so O5 does not apply to it; such rows are counted.
-var wsO5Verbs = []string{"add", "change", "replace", "prepend", "append", "del", "delete", "set"}
+// a write, so O5 does not apply to it; such rows are counted. `ip link
+// property` adds or deletes an altname.
+var wsO5Verbs = []string{"add", "change", "replace", "prepend", "append", "del", "delete", "set", "property"}
 
 // The outcomes, as the report spells them.
 const (
@@ -144,7 +145,7 @@ func wsO5HdrLen(msgType uint16) int {
 		return xtcpnl.IfAddrmsgSizeCst
 	case unix.RTM_NEWNEIGH, unix.RTM_DELNEIGH:
 		return xtcpnl.NdMsgSizeCst
-	case unix.RTM_NEWLINK, unix.RTM_DELLINK:
+	case unix.RTM_NEWLINK, unix.RTM_DELLINK, unix.RTM_NEWLINKPROP, unix.RTM_DELLINKPROP:
 		return xtcpnl.IfInfomsgSizeCst
 	default:
 		return -1
@@ -203,6 +204,9 @@ func TestWsO5HdrLen(t *testing.T) {
 		{"positive: a neighbor's ndmsg", unix.RTM_NEWNEIGH, xtcpnl.NdMsgSizeCst},
 		{"positive: a deleted neighbor's ndmsg", unix.RTM_DELNEIGH, xtcpnl.NdMsgSizeCst},
 		{"positive: a link's ifinfomsg", unix.RTM_NEWLINK, xtcpnl.IfInfomsgSizeCst},
+		{"positive: an altname add's ifinfomsg", unix.RTM_NEWLINKPROP, xtcpnl.IfInfomsgSizeCst},
+		{"positive: an altname delete's ifinfomsg", unix.RTM_DELLINKPROP, xtcpnl.IfInfomsgSizeCst},
+		{"negative: a link property get is not a write", unix.RTM_GETLINKPROP, -1},
 		{"negative: a type O5 does not compare", unix.RTM_GETLINK, -1},
 		{"boundary: type 0", 0, -1},
 	}

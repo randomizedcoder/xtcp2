@@ -32,7 +32,8 @@ import (
 // neighbor tables judge their family's gets and dumps too (inet_rtm_getroute
 // and its IPv6 twin, the address dump checks, rtnl_getlink and rtnl_dump_ifinfo,
 // the neighbor get and dump checks); the rule and new-nexthop tables only
-// the writes.
+// the writes. rtnl_linkprop parses an altname add or delete with
+// ifla_policy too.
 type covFamily struct {
 	Key     string   // the report's name for it
 	Prefix  string   // the enum's prefix; its first entry is Prefix+"UNSPEC"
@@ -59,7 +60,7 @@ var covFamilies = []covFamily{
 	{"neigh", "NDA_", "net/core", "nda_policy",
 		[]uint16{unix.RTM_NEWNEIGH, unix.RTM_DELNEIGH, unix.RTM_GETNEIGH}, 0, unix.SizeofNdMsg},
 	{"link", "IFLA_", "net/core", "ifla_policy",
-		[]uint16{unix.RTM_NEWLINK, unix.RTM_DELLINK, unix.RTM_GETLINK}, 0, unix.SizeofIfInfomsg},
+		[]uint16{unix.RTM_NEWLINK, unix.RTM_DELLINK, unix.RTM_GETLINK, unix.RTM_NEWLINKPROP, unix.RTM_DELLINKPROP}, 0, unix.SizeofIfInfomsg},
 }
 
 var (

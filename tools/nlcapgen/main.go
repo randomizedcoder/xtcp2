@@ -111,13 +111,14 @@ var families = map[string]func() []*space{
 	"addr":     func() []*space { return []*space{addr4Space(), addr6Space()} },
 	"neigh":    func() []*space { return []*space{neigh4Space(), neigh6Space()} },
 	"link":     func() []*space { return []*space{linkSetSpace(), linkAddSpace()} },
+	"linkattr": func() []*space { return []*space{linkAttrSpace(), linkPDSpace(), linkPropSpace()} },
 	"routeget": func() []*space { return []*space{routeGet4Space(), routeGet6Space()} },
 }
 
 func runMatrix(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, routeget")
+	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget")
 	seed := fs.Uint64("seed", 1, "the random rows' seed, recorded in their ids")
 	random := fs.Int("random", 0, "random rows per space")
 	out := fs.String("out", "", "rows file to write")

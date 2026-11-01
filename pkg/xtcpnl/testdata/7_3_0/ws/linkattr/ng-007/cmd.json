@@ -1,0 +1,32 @@
+{
+ "cmd": "ip link set dev d0 netns nosuch",
+ "desc": "negative: master=absent addrgenmode=absent carrier=absent netns=nosuch xdp=absent: a namespace neither named nor a pid (Invalid netns value)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 255,
+  "refused_by": "iproute2"
+ },
+ "id": "linkattr/ng-007",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}
