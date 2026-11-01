@@ -21,7 +21,10 @@ type row struct {
 	Modules  []string   `json:"modules,omitempty"`
 	Serial   bool       `json:"serial,omitempty"`
 	Expect   expect     `json:"expect"`
-	Source   *source    `json:"source,omitempty"`
+	// Axes is what a generated row's values mean (matrix.go's facts), for
+	// the corpus test's model of the request to read.
+	Axes   map[string]string `json:"axes,omitempty"`
+	Source *source           `json:"source,omitempty"`
 }
 
 // preStep is a setup command run outside the capture window. OK lists the
@@ -55,8 +58,10 @@ type readback struct {
 // expect is what the run must show; see wsExpect in
 // pkg/xtcpnl/xtcpnl_ws_corpus_test.go for the meaning of each field.
 type expect struct {
-	RC    *int   `json:"rc,omitempty"`
-	Match *match `json:"match,omitempty"`
+	RC        *int   `json:"rc,omitempty"`
+	Errno     string `json:"errno,omitempty"`
+	RefusedBy string `json:"refused_by,omitempty"`
+	Match     *match `json:"match,omitempty"`
 }
 
 // match counts a regexp's matches in a readback's stdout, the way tdc's

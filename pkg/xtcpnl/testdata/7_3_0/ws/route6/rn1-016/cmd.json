@@ -1,0 +1,56 @@
+{
+ "axes": {
+  "dst": "2001:db8:2::7",
+  "dst_len": "128",
+  "expires": "60",
+  "family": "6",
+  "gw": "2001:db8:3::1",
+  "metric": "4294967295",
+  "mtu": "1400",
+  "mtu_lock": "1",
+  "oif": "d0",
+  "onlink": "1",
+  "pref": "0",
+  "prefsrc": "2001:db8:1::10",
+  "proto": "0",
+  "table": "255",
+  "type": "unreachable",
+  "verb": "del"
+ },
+ "cmd": "ip -6 route del unreachable 2001:db8:2::7/128 table 255 metric 4294967295 proto 0 pref medium expires 60 mtu lock 1400 src 2001:db8:1::10 via 2001:db8:3::1 dev d0 onlink",
+ "desc": "negative: verb=del dst=128 type=unreachable table=255 metric=max proto=0 pref=medium expires=60 mtu=lock src=local nh=onlink: a reject route was moved to lo, so a delete naming its device or gateway finds nothing",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ESRCH",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "route6/rn1-016",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 route add unreachable 2001:db8:2::7/128 table 255 metric 4294967295 proto 0 pref medium expires 60 mtu lock 1400 src 2001:db8:1::10 via 2001:db8:3::1 dev d0 onlink"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add unreachable 2001:db8:2::7/128 table 255 metric 4294967295 proto 0 pref medium expires 60 mtu lock 1400 src 2001:db8:1::10 via 2001:db8:3::1 dev d0 onlink",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

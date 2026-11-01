@@ -974,6 +974,7 @@ recollection.
 - [Capture readiness](#capture-readiness)
   - [Workbench and generated rows](#workbench-and-generated-rows)
     - [tc from tdc (W1)](#tc-from-tdc-w1)
+    - [Grammar matrix (W2)](#grammar-matrix-w2)
   - [Captures an outside consumer needs: BIRD's netlink parser](#captures-an-outside-consumer-needs-birds-netlink-parser)
     - [Plan: B1–B3, the captures, their parsers and the completeness test](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test)
 - [What has landed](#what-has-landed)
@@ -1037,7 +1038,7 @@ is `ip -t monitor all label` (`:1757`).
 
 | Phase / family | Kernel module | Subscriber | Guest tooling | Ready? |
 |---|---|---|---|---|
-| 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes** |
+| 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes**; `ip route` also in the workbench (`ws/route4/`, `ws/route6/`, 343 generated rows); see [the grammar matrix](#grammar-matrix-w2) |
 | 3 bridge / VLAN | `bridge` ✅, loaded by the link-write capture | `ip monitor all` ✅ (FDB); `bridge monitor vlan` under `xtcp2-nl-brmon` ✅ (VLAN) | `bridge` (in `iproute2`) ✅ | **yes**, in the link-write capture (`link-write/brmpls/`), not this flavor; see [the BIRD plan](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test) |
 | link-write 0–3 bond / LACP, Tier 1 | `bonding` — **add**, with `options bonding max_bonds=0` (module load creates `bond0` in `init_net`, `drivers/net/bonding/bond_main.c:6629-6630`) | n/a (dump-only readback) | `iproute2` ✅; a **partner** bond in a second netns over veth — **add** | no |
 | link-write 8 bond / LACP, Tier 2 | `bonding` — **add** | n/a | a second microVM and two point-to-point virtio-net links with `speed=10000,duplex=full` — **add**; never a bridge (`BR_GROUPFWD_RESTRICTED` drops LACPDUs) | no |
@@ -1246,9 +1247,133 @@ equivalent (it removed a type mask the attribute walker already applies).
   `-j 8`. The corpus is 4.1 MB of file bytes in ~9,200 files (34 MB of disk
   blocks, which is not what git stores).
 
-The next step is the plan's W2–W7: a pairwise and boundary grammar matrix
-for `ip route`/`rule`/`nexthop`/`addr`/`neigh`/`link`, with negative rows
-made by mutation.
+#### Grammar matrix (W2)
+
+W2 is three commits, each verified on its own:
+
+- **W2a:** the generator and `ip route` for IPv4 and IPv6, with O3 and O4.
+  This section covers it.
+- **W2b:** `ip rule` and `ip nexthop`.
+- **W2c:** rows mined from the fib selftests, and O5 (the goip
+  differential).
+
+`nlcapgen matrix` (`tools/nlcapgen/matrix.go`) builds rows from a table of
+axes for each command. Each axis lists values, marked boundary or corner
+where they are. `matrix_route.go` has two spaces:
+
+- **route4**, 10 axes: verb, destination, type, table, metric, protocol,
+  scope, MTU/advmss, source and nexthop.
+- **route6**, 11 axes: the same, without scope, plus pref and expires.
+
+```sh
+go run ./tools/nlcapgen matrix -family route -seed 1 -random 40 \
+  -out nix/microvms/workbench/route.rows.jsonl
+nix run .#nlcap-ws -- batch nix/microvms/workbench/route.rows.jsonl -j 8
+```
+
+- **Strategies.** The generator writes these row groups:
+  - each-choice (`ec-`): every value appears at least once;
+  - pairwise (`pw-`): every pair of values from two axes appears in some
+    row, built greedily (AETG style);
+  - boundary (`bd-`): row n takes the n-th boundary value of every axis;
+  - seeded random (`rn<seed>-`): a SplitMix64 generator, so a seed always
+    gives the same rows, and a new seed gives new ones.
+
+  A repeated assignment is dropped, and the same seed gives the same file
+  byte for byte.
+- **Negatives.** These come from four sources:
+  - an *exclusion* (a pair of values the kernel or iproute2 refuses) keeps
+    the pair out of every positive row and writes one row expecting the
+    refusal;
+  - a *bad value* changes one axis of a positive row;
+  - `Judge` predicts refusals that depend on three axes or more, such as
+    IPv4 scope, which turns on type, scope and nexthop together. A judged
+    row stays in the matrix as a negative;
+  - `deriveRoute` adds repeated adds (EEXIST) and deletes of routes never
+    added (ESRCH).
+
+  Each negative records the errno it expects, and `TestWsCorpusRows`
+  checks it.
+- **Rows.** 343 rows: 228 the kernel accepts (13 positive, 78 boundary,
+  137 corner) and 115 negatives:
+
+  | outcome | rows |
+  |---|---|
+  | EINVAL | 55 |
+  | ESRCH | 19 |
+  | EEXIST | 10 |
+  | ENODEV | 10 |
+  | ENETUNREACH | 7 |
+  | refused by iproute2 before anything is sent | 10 |
+  | iproute2 exits after one acknowledged `RTM_GETLINK` | 3 |
+  | an unknown device (rc 1) | 1 |
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_route_test.go`), on top of
+`TestWsCorpusRows`:
+
+| # | test | holds |
+|---|---|---|
+| O3 | `TestWsRouteCorpus` | an accepted row sends one request, built from its axes the way `iproute_modify` builds it. The test checks the verb's flags, the `rtmsg` (protocol, type, scope and table, plus the table rule: under 256 in the header, otherwise `RT_TABLE_UNSPEC` there and `RTA_TABLE` u32), the exact set of attributes and their widths, the values, `rtnh_hops` = weight − 1, and `RTA_METRICS` |
+| O4 | `TestWsRouteCorpus` | after an accepted write, the `ip route show table all` dump has the route: same family, prefix, table, type and metric (IPv6 stores metric 0 as 1024). After an accepted delete, the route is gone |
+
+O3 checks 329 requests and O4 checks 228 round trips. The model and the oracles have
+unit tables (`TestRouteWantFromAxes`, `TestRouteRequestProblem`,
+`TestRouteDumpHas`, `TestRouteJudge`, `TestBuildRouteOrder`,
+`TestMatrixJudge`). 17 of 17 mutants of the oracles, the model and the
+generator were killed, each by a failing test.
+
+**What the route rows showed** (kernel 7.3.0, iproute2 7.2.0):
+
+- **An IPv4 reject route accepts `nhid`, and its scope is never checked.**
+  `fib_create_info` refuses a gateway, device or multipath on a
+  blackhole, unreachable, prohibit or throw route. It does not refuse a
+  nexthop id, and it then jumps to `link_it`, past every nexthop and scope
+  check (`net/ipv4/fib_semantics.c:1478-1484`). So
+  `ip route add blackhole 0.0.0.0/0 scope host nhid 10` succeeds.
+- **An IPv6 multipath reject route fails with EEXIST.**
+  `fib6_nh_init` puts a reject route's nexthop on lo before it stores a
+  gateway (`net/ipv6/route.c:3623-3640`), so every nexthop is identical.
+  The second is then a duplicate of the first (`rt6_duplicate_nexthop`,
+  `net/ipv6/ip6_fib.c:1136-1142`). The same happens for add, append,
+  prepend and replace, and no extended-ack text explains it.
+- **An IPv6 reject route can't be deleted with the arguments it was added
+  with.** The add accepts `dev d0` or `via …` and drops them, for the same
+  reason. A delete naming them then matches nothing in `ip6_route_del`
+  and fails with ESRCH (6 rows). Deleting by prefix, or by nhid, works.
+- **A gateway at IPv4 link scope fails with ENETUNREACH, not EINVAL.**
+  `fib_check_nh_v4_gw` looks the gateway up at scope host, where only
+  local routes live, and returns the lookup's own error with the
+  extended-ack text "Nexthop has invalid gateway"
+  (`fib_semantics.c:1211-1242`). Onlink at that scope is EINVAL
+  ("Nexthop has invalid scope", `:1183-1186`). Broadcast and multicast
+  routes get link scope from iproute2 when no scope is given, so they
+  hit this too. An IPv6 gateway (RFC 5549) and an nhid without onlink
+  pass. At host scope, any gateway or second nexthop is EINVAL
+  (`:1510-1519`, `net/ipv4/nexthop.c:1626-1641`).
+- **Every non-reject IPv6 type needs a device** (ENODEV), including
+  local and anycast.
+- **`default` sends an all-zero `RTA_DST`.** With `-4` or `-6`,
+  `get_addr_1` sizes `default` to the family (`lib/utils.c:579-586`), so
+  it sends the same request as `0.0.0.0/0` or `::/0`. The O3 model first
+  assumed no `RTA_DST`, so O3 failed every accepted `default` row (28)
+  until the model was corrected.
+- **`to` goes before the type.** `iproute_modify` takes `to` only ahead
+  of the type (`ip/iproute.c:1558-1566`), as `ip-route(8)` writes it
+  (`to TYPE PREFIX`). `ip route add unreachable to …` exits 1. The first
+  batch had 14 rows written that way, which was a generator bug. A
+  negative row keeps the wrong order.
+- **A bad nexthop weight is refused after the device lookup.**
+  `parse_one_nh` resolves `dev` (one acknowledged `RTM_GETLINK`) before it
+  reads `weight`, so weight 0 or 257 is "ack-then-fail" with rc 255, as
+  tc's bad arguments are in W1.
+- **Determinism.** The same 343 rows ran three times, the second on a
+  fresh boot, and wscmp found every row with the same status, rc and
+  message types each time. A batch takes ~90 s at `-j 8`, and a cold
+  `nlcap-ws up` takes 21 s. The corpus is 1.0 MB of file bytes in 2401
+  files.
+
+Next are W2b (`ip rule`, `ip nexthop`) and W2c (the selftest miner and
+O5), then W3's `ip addr`/`neigh`/`link` matrix.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

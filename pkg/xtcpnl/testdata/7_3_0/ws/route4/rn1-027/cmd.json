@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "dst": "0.0.0.0",
+  "dst_len": "0",
+  "family": "4",
+  "gw": "192.0.2.1",
+  "metric": "1024",
+  "prefsrc": "192.0.2.10",
+  "proto": "4",
+  "scope": "254",
+  "table": "254",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 route replace 0.0.0.0/0 table main metric 1024 proto static scope host src 192.0.2.10 via 192.0.2.1",
+ "desc": "negative: verb=replace dst=0 type=absent table=main metric=1024 proto=static scope=host mtu=absent src=local nh=via: a host-scope route takes no gateway",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "route4/rn1-027",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

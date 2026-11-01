@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "dst": "default",
+  "dst_len": "0",
+  "family": "6",
+  "gw": "2001:db8:3::1",
+  "mtu": "1400",
+  "mtu_lock": "1",
+  "oif": "d0",
+  "onlink": "1",
+  "pref": "1",
+  "proto": "4",
+  "table": "100",
+  "type": "anycast",
+  "verb": "append"
+ },
+ "cmd": "ip -6 route append anycast default table 100 proto static pref high mtu lock 1400 via 2001:db8:3::1 dev d0 onlink",
+ "desc": "corner: verb=append dst=default type=anycast table=100 metric=absent proto=static pref=high expires=absent mtu=lock src=absent nh=onlink",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "route6/pw-015",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

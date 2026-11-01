@@ -38,7 +38,10 @@ type wsRow struct {
 	Proto    string     `json:"proto"`
 	Expect   wsExpect   `json:"expect"`
 	Readback []wsRbSpec `json:"readback"`
-	Env      struct {
+	// Axes is what a generated row's values mean (tools/nlcapgen
+	// matrix.go), which the families' O3 models read.
+	Axes map[string]string `json:"axes"`
+	Env  struct {
 		Kernel   string `json:"kernel"`
 		Iproute2 string `json:"iproute2"`
 	} `json:"env"`
