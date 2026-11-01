@@ -16,6 +16,11 @@
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
 #
+# The nlcap-workbench flavor drives the same helper over ssh instead, by store
+# path, from a JSON Lines rows file: nix/microvms/workbench/nlcap_batch.py runs
+# each row in its own namespace through `ns-add`, `write` and `capio`
+# (docs/netlink/coverage-status.md, "Workbench and generated rows").
+#
 # Both flavors capture the same way, from the same namespace topology, and
 # that is deliberate rather than incidental: D_control - the diff between the
 # two `ip` sides that the comparator subtracts - only means what it claims if

@@ -1,0 +1,18 @@
+{
+ "cmd": "ip route add 300.1.2.3/32 dev lo",
+ "desc": "negative: iproute2 refuses an IPv4 prefix out of range before sending anything",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "iproute2",
+  "sent": 0
+ },
+ "id": "selftest/route-bad-prefix",
+ "result": {
+  "rc": 1,
+  "status": "OK"
+ }
+}

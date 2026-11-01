@@ -972,6 +972,7 @@ recollection.
 - [Baseline, measured 2026-09-25](#baseline-measured-2026-09-25)
 - [Phase status](#phase-status)
 - [Capture readiness](#capture-readiness)
+  - [Workbench and generated rows](#workbench-and-generated-rows)
   - [Captures an outside consumer needs: BIRD's netlink parser](#captures-an-outside-consumer-needs-birds-netlink-parser)
     - [Plan: B1–B3, the captures, their parsers and the completeness test](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test)
 - [What has landed](#what-has-landed)
@@ -1074,6 +1075,90 @@ extension](#item-7s-capture-extension--the-fixture-gaps-and-pinning-the-parity-t
 and the header of `nix/capture-netlink-fixtures.nix`. The rows above still apply
 to the *notification* families, which need a subscriber and a module in the
 guest.
+
+### Workbench and generated rows
+
+A hand-written `*-corpus.exp` row costs a VM rebuild and a ~500 s cold boot
+per attempt, so the corpus grew by dozens of rows when it needs thousands. The
+`nlcap-workbench` flavor removes both costs. It is a VM you keep up and drive
+over ssh, and the rows it runs are data (JSON Lines), not Tcl:
+
+```sh
+nix run .#nlcap-ws -- up                        # boot, wait for ssh
+nix run .#nlcap-ws -- run --slug t/fq -- tc qdisc add dev lo root fq
+nix run .#nlcap-ws -- batch nix/microvms/workbench/selftest.rows.jsonl -j 8
+nix run .#nlcap-ws -- down                      # power off, delete the key
+```
+
+- **Nothing in the repo rebuilds it.** The guest has no `xtcp2AllPackage`. The
+  capture helper (`netlink-capture.nix`) and the batch runner
+  (`workbench/nlcap_batch.py`) run by store path through the guest's 9p
+  `/nix/store`, so a new build of either is picked up by the next call, with
+  no reboot. Measured: after a Go test file and its testdata were staged, the
+  rebuilt CLI pointed at the same VM runner and helper store paths. Only the
+  batch runner changed, because its own source had been edited.
+- **Ephemeral ssh key.** `up` makes an ed25519 pair under
+  `$XDG_STATE_HOME/xtcp2-nlcap-ws/`. qemu hands the public half to the guest
+  over `-fw_cfg`, and a oneshot installs it before sshd starts. sshd listens
+  on `127.0.0.1:12061` only, and `down` deletes the key. The workbench owns
+  ports 12059–12061 (`constants.nix` `nlcapWs`), so it can stay up while
+  other sessions boot their VMs on 12055/12056.
+- **Parallel rows.** Netlink taps are per network namespace, so each row gets
+  a fresh netns (`ws<slot>`) with its own `nlmon0`, and `-j N` rows run at
+  once without seeing each other's messages. A row marked `serial` runs alone.
+- **`cache=loose` on the 9p store** is what makes this fast. With microvm.nix's
+  default (no cache), every exec from `/nix/store` took ~0.4 s and one row took
+  27 s. With `cache=loose`:
+
+  | measure | value |
+  |---|---|
+  | cold `up` to ssh | 28 s (98 s without `cache=loose`) |
+  | `ip -V` in the guest | 0.06 s |
+  | one row, alone | ~2.5 s |
+  | 40 rows, `-j 8` on 6 vCPUs | 23.5 s, 0.59 s a row (~38 s at `-j 4`) |
+  | the 6 selftest rows, `-j 8` | 7 s |
+
+**A row** is one JSON object per line: `id` (also the output directory under
+`testdata/<kver>/ws/`), `desc` (starts with `positive:`, `negative:`,
+`boundary:` or `corner:`), `cmd`, and optionally `pre` (setup outside the
+capture window, each step a command or `[command, rc]`), `readback` (named
+dumps captured after the command), `proto`, `floor`, `modules`, `serial`,
+`axes` and `source`, plus `expect`:
+
+| `expect` field | checked by `TestWsCorpusRows` against the pcap |
+|---|---|
+| `rc` | the command's exit status |
+| `sent` | how many requests the command sent |
+| `errno`, `extack` | the kernel's `NLMSG_ERROR` and its extack message |
+| `refused_by` | `none`, `kernel`, `iproute2` (rc ≠ 0 and **zero** requests sent) or `ack-then-fail` |
+
+Each run writes `cmd.json` beside the pcaps: the row, the guest's kernel and
+iproute2 versions, and the result. `pkg/xtcpnl/xtcpnl_ws_corpus_test.go` turns
+every `cmd.json` into a subtest, and `TestWsRowProblem` checks the oracle
+itself on hand-built observations, including the ones that must fail.
+
+**What the selftest rows already showed.** Three of the six expectations
+first written down were wrong, and the oracle caught each one:
+
+- `ip link add <16-byte name> type dummy` is **not** refused by iproute2. The
+  positional name is checked against `ALTIFNAMSIZ` (iproute2 `afd67550`, "allow
+  to use alternative names as handle"), so the request reaches the kernel.
+  There it fails `IFLA_IFNAME`'s `NLA_STRING` policy (`len = IFNAMSIZ - 1`,
+  `net/core/rtnetlink.c`), with **`ERANGE`**, not `EINVAL`: `validate_nla`
+  starts from `err = -ERANGE` (`lib/nlattr.c`), and the extack reads "Attribute
+  failed policy validation". This is a behavior, not a bug.
+- `ip -6 route add … dev d0 table 4294967295` sends **two** requests: an
+  `RTM_GETLINK` to resolve `d0`, then the `RTM_NEWROUTE`.
+- That request carries `rtm_table = RT_TABLE_UNSPEC` (0) plus `RTA_TABLE`
+  (`iproute_modify`, `ip/iproute.c`). The dump answers with
+  `RT_TABLE_COMPAT` (252) plus `RTA_TABLE` (`rt6_fill_node`,
+  `net/ipv6/route.c`). `TestWsSelftestTableMax` pins both.
+
+The two fresh-boot replays of the selftest batch matched row for row: the
+same status, rc and packet count. The next step is the generated rows in
+the plan's W1–W7: tc from the 1334 tdc cases, then a pairwise and boundary
+grammar matrix for `ip route`/`rule`/`nexthop`/`addr`/`neigh`/`link`, with
+negative rows made by mutation.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

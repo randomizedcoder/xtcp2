@@ -1,0 +1,38 @@
+{
+ "cmd": "ip -6 route add 2001:db8::/64 dev d0 table 4294967295",
+ "desc": "boundary: table 4294967295 travels in RTA_TABLE; iproute2 sends rtm_table RT_TABLE_UNSPEC, the kernel answers RT_TABLE_COMPAT (2 requests: GETLINK for d0, NEWROUTE)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none",
+  "sent": 2
+ },
+ "id": "selftest/route6-table-max",
+ "pre": [
+  "ip link add d0 type dummy",
+  "ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show table 4294967295",
+   "name": "getroute"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
