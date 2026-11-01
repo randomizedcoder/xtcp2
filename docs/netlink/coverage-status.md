@@ -521,7 +521,7 @@ that file only in a comment about what a solicited reply carries.
 |---|---|---|---|
 | `prefixmsg` | `rtnetlink.h` | `RTM_NEWPREFIX` | `ip monitor prefix` |
 | `nduseroptmsg` | `rtnetlink.h` | `RTM_NEWNDUSEROPT` | `ip monitor` RA options |
-| `br_port_msg` | `if_bridge.h` | `RTM_{NEW,DEL,GET}MDB` | `bridge mdb` — not an `ip` command |
+| `br_port_msg` | `if_bridge.h` | `RTM_{NEW,DEL,GET}MDB` | `bridge mdb` — not an `ip` command (decoded since W5b, `xtcpnl_mdb.go`) |
 | `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
 | `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
 
@@ -2425,6 +2425,152 @@ survived the first pass:
 Two mutants that didn't compile were rewritten and rerun.
 
 **Size:** the rows add 563 KB to `ws/`, 17 MB of 64 MB in all.
+
+##### W5b: `bridge mdb`
+
+W4's report covered no MDB writes. `bridge mdb` is the only iproute2
+command that sends `RTM_NEWMDB` or `RTM_DELMDB`, and the only one that
+dumps with `RTM_GETMDB`. `nlcapgen matrix -family mdb -seed 1 -random 40`
+writes `nix/microvms/workbench/mdb.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_mdb.go`:
+
+| space | devices | axes (boundary values in bold) |
+|---|---|---|
+| mdbbr | a VLAN-filtering bridge `br0` with a dummy port `d0`, VLAN 10 on both; a lone dummy `d9`; a second bridge `br1` with port `d2` | verb: add, replace, del; port: `d0` or `br0` (a host join); group: IPv4, IPv6, L2; state: none, permanent, temp; vid: none, 1, 10, **4094**; src: none, IPv4, IPv6; filter_mode: none, exclude, include; source_list: none, one, two; proto: none, static, bgp, 200 |
+| mdbvx | a VXLAN `vx0` (VNI 100, port 4789, nolearning) over `d1` (192.0.2.10/24) | verb; group: IPv4, 0.0.0.0, IPv6, `::`; state: permanent or none; dst: IPv4, IPv6, none; dst_port: none, 4790, **0**, **65535**; vni: none, 200, **0**, **16777215**; src_vni: none, 100, 300; `via d1`; src; filter_mode; source_list; proto |
+
+177 rows (mdbbr 90, mdbvx 87): 5 positive, 6 boundary, 18 corner and
+148 negative. As in W5a, a del's pre step is its own add, when that add
+would be accepted. Derived rows add a duplicate add (EEXIST), a delete of
+something absent (EINVAL on the bridge, ENOENT on the VXLAN) and
+`mdbbr/del-all-vlans` (below).
+
+**bridge's side** (`bridge/mdb.c` `mdb_modify`):
+
+- add is `NLM_F_CREATE|NLM_F_EXCL`, replace `NLM_F_CREATE|NLM_F_REPLACE`,
+  and del is `RTM_DELMDB` with no flags.
+- `MDBA_SET_ENTRY` is a 28-byte `struct br_mdb_entry` after an 8-byte
+  `struct br_port_msg`. `permanent` reaches the state only on
+  `RTM_NEWMDB`. The VLAN is `atoi` into a short and always sent, so
+  `vid 65535` is sent as 65535.
+- `MDBA_SET_ENTRY_ATTRS` is sent iff any of src, filter_mode,
+  source_list, proto, dst, dst_port, vni, src_vni or via is given. Its
+  attributes come in that order. `dst_port` is a host-order u16, and
+  `dst_port 0` is sent. The VNI isn't range-checked, so `vni 16777216`
+  reaches the kernel, which answers ERANGE.
+- As in `bridge fdb`, the links are dumped first (`ll_init_map`), so a
+  refused argument is `ack-then-fail` and exits 255.
+
+**The kernel:**
+
+- `rtnl_validate_mdb_entry` (`net/core/rtnetlink.c`, policy
+  `mdba_policy`) refuses (EINVAL):
+  - a zero port index;
+  - an IPv4 group that is neither multicast nor 0.0.0.0, or that is local
+    multicast;
+  - `ff02::1`;
+  - an L2 group that isn't multicast;
+  - a state other than 0 or 1;
+  - VLAN 4095 or more.
+
+  A device without `ndo_mdb_add`, such as a dummy, is EOPNOTSUPP.
+  `proto kernel` is under the policy's minimum (ERANGE).
+- **The bridge** (`net/bridge/br_mdb.c`, `br_mdb_config_init` and
+  `br_mdb_config_attrs_init`) refuses (EINVAL):
+  - a port that isn't one of its own;
+  - the 0.0.0.0 group;
+  - a source of the wrong family, or on an L2 group;
+  - a filter mode or source list on a host group or on an entry that is
+    no (*, G);
+  - a source list without a filter mode;
+  - INCLUDE with an empty list;
+  - a protocol on a host group.
+
+  `br_mdb_add` then refuses flags on a host group, a host join with a
+  source, and an L2 entry that isn't permanent. A VLAN the port lacks
+  (4094) is taken as given.
+- **The VXLAN** (`drivers/net/vxlan/vxlan_mdb.c`) refuses (EINVAL):
+  - a port other than itself;
+  - an add or replace that isn't permanent;
+  - a VLAN;
+  - a missing `dst`;
+  - a source on the all-zeros group;
+  - a filter mode or source list on an (S, G) entry;
+  - a source list without a mode;
+  - INCLUDE with an empty list.
+
+  It takes the 0.0.0.0 and `::` groups, its catch-all. A delete that
+  finds nothing is ENOENT; a duplicate add is EEXIST.
+
+**A kernel quirk** (recorded here only): on a VLAN-filtering bridge, a
+delete without a VLAN loops over the port's VLANs, and `br_mdb_del`
+returns the last one's result. After an add in VLAN 1 only, a delete
+with no VLAN removes that entry but reports VLAN 10's EINVAL
+(`mdbbr/del-all-vlans`).
+
+**Dumps differ by device:**
+
+- The bridge answers a dump with `RTM_GETMDB`
+  (`net/bridge/br_mdb.c:391`), and the VXLAN with `RTM_NEWMDB`
+  (`drivers/net/vxlan/vxlan_mdb.c:292`).
+- The bridge dumps an entry's filter mode and source list only under
+  IGMPv3 or MLDv2; `br0` runs the defaults (IGMPv2, MLDv1). Its dump
+  also holds the kernel's own MLD host joins (`ff02::6a` and the
+  solicited-node groups).
+- The VXLAN leaves out a port of 0 or its own 4789, a VNI that is its
+  own (100), and the source VNI unless it is `external`.
+- The dump's attribute numbers (`MDBA_MDB_EATTR_*`) differ from the
+  request's (`MDBE_ATTR_*`).
+
+**Oracles:**
+
+- **`pkg/xtcpnl/xtcpnl_mdb.go`:** `ParseMdbEntry`, `ParseMdbRequest` and
+  `ParseMdbDump`, which decode both attribute numberings.
+- **O3** (`pkg/xtcpnl/xtcpnl_ws_mdb_test.go`):
+  - the request is rebuilt from the row's axes alone: the type, the
+    flags, the entry with the looked-up indexes, and the nest in
+    `mdb_modify`'s order;
+  - the decoded request must equal it.
+
+  O3 checked 166 requests. An `ack-then-fail` row must send none.
+- **O4:**
+  - After an accepted add, the device's dump has the entry: in each of
+    VLANs 1 and 10 when none was given, with the state, protocol and, on
+    `vx0`, the dst, mode, source list, port, VNI and via.
+  - After a del, it is gone. Extra entries are ignored.
+
+  O4 checked 28 round trips.
+- **O5 doesn't apply**, as in W5a.
+- **Coverage:** `nlcapgen coverage` gains an `mdb` family
+  (`mdba_policy`, 2/2) and an `mdbe` family for the nest
+  (`vxlan_mdbe_attrs_pol`, 9/9). A family can now judge a nested
+  attribute's payload, and one request can count towards two families.
+- **Universe:** `RTM_GETMDB` is captured, so its exclusion in
+  `xtcpnl_universe_test.go` is gone (four exclusions remain).
+- **Determinism:** a second run of all 177 rows, on the same workbench
+  boot, matched on every row.
+
+**Tests:**
+
+- The parsers: `TestParseMdbEntry`, `TestParseMdbRequest` and
+  `TestParseMdbDump`.
+- The generator: `TestMdbBrJudge`, `TestMdbVxJudge`, `TestBuildMdb`,
+  `TestMdbBrAllVlans`, `TestDeriveBridgeDupGone`, `TestMatrixMdbRows`, and
+  five new `TestCovTally` rows.
+- The oracles: `TestMdbWantFromAxes`, `TestMdbRequestProblem`,
+  `TestMdbRoundTripProblem` and `TestWsMdbDump`.
+
+**Mutation:** 40 of 40 mutants killed, each by a relevant test. Three
+survived the first pass, and one didn't compile (it was rewritten and
+rerun):
+
+- **No test pinned the VXLAN's gone-row errno** (ENOENT, where the
+  bridge's is EINVAL). `TestMatrixMdbRows` now checks both.
+- **No hand-built row broke two O4 checks on the VXLAN:** its source list,
+  and an (S, G) entry dumping as INCLUDE. `TestMdbRoundTripProblem` has a
+  row for each.
+
+**Size:** the rows add 561 KB to `ws/`, 18 MB of 64 MB in all.
 
 ### Captures an outside consumer needs: BIRD's netlink parser
 

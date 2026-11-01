@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "bport": "vx0",
+  "dev": "vx0",
+  "dport": "65535",
+  "dst": "192.0.2.1",
+  "grp": "0.0.0.0",
+  "proto": "200",
+  "src_vni": "100",
+  "state": "1",
+  "verb": "add",
+  "via": "d1",
+  "vid": "0"
+ },
+ "cmd": "bridge mdb add dev vx0 port vx0 grp 0.0.0.0 permanent dst 192.0.2.1 dst_port 65535 src_vni 100 via d1 proto 200",
+ "desc": "corner: verb=add dev=vx0 bport=vx0 grp=zero state=permanent vid=absent dst=v4 dport=65535 vni=absent srcvni=own via=d1 src=absent mode=absent srclist=absent proto=200",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "mdbvx/rn1-035",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

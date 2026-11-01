@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/binary"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -150,22 +152,33 @@ func TestCovTally(t *testing.T) {
 			Body: append(append([]byte{unix.AF_INET, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 5, 0, unix.RTA_PRIORITY, 0, 9, 0, 0, 0), 8, 0, unix.RTA_OIF, 0, 2, 0, 0, 0)}, "route4:1:4,6"},
 		{"corner: an attribute overrunning the body ends the walk", nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWADDR, Flags: req},
 			Body: append(append(make([]byte, 0, 16), unix.AF_INET, 0, 0, 0, 0, 0, 0, 0), 40, 0, 2, 0)}, "addr4:1:"},
+		{"positive: an mdb add counts its attributes, and its entry nest's for mdbe", nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWMDB, Flags: req},
+			Body: []byte{unix.AF_BRIDGE, 0, 0, 0, 4, 0, 0, 0, 4, 0, 1, 0, 12, 0, 2, 0x80, 4, 0, 1, 0, 4, 0, 5, 0}}, "mdb:1:1,2;mdbe:1:1,5"},
+		{"negative: an mdb delete without the nest is no mdbe request", covMsg(unix.RTM_DELMDB, req, unix.AF_BRIDGE, 8, 1), "mdb:1:1"},
+		{"corner: an mdb write of another family is no family's", covMsg(unix.RTM_NEWMDB, req, unix.AF_INET, 8, 1), ":0:"},
+		{"negative: an mdb get is judged by another policy", covMsg(unix.RTM_GETMDB, req, unix.AF_BRIDGE, 8, 1), ":0:"},
+		{"boundary: a nest that overruns the body is not found", nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWMDB, Flags: req},
+			Body: []byte{unix.AF_BRIDGE, 0, 0, 0, 4, 0, 0, 0, 12, 0, 2, 0, 4, 0, 1, 0}}, "mdb:1:"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
 			tl := newCovTally()
 			tl.add(tc.msg)
-			var fam string
-			for k := range tl.requests {
-				fam = k
+			fams := slices.Sorted(maps.Keys(tl.requests))
+			if len(fams) == 0 {
+				fams = []string{""}
 			}
-			var attrs []string
-			for a := 0; a < 64; a++ {
-				if tl.sent[fam][a] > 0 {
-					attrs = append(attrs, strconv.Itoa(a))
+			parts := make([]string, 0, len(fams))
+			for _, fam := range fams {
+				var attrs []string
+				for a := 0; a < 64; a++ {
+					if tl.sent[fam][a] > 0 {
+						attrs = append(attrs, strconv.Itoa(a))
+					}
 				}
+				parts = append(parts, fam+":"+strconv.Itoa(tl.requests[fam])+":"+strings.Join(attrs, ","))
 			}
-			got := fam + ":" + strconv.Itoa(tl.requests[fam]) + ":" + strings.Join(attrs, ",")
+			got := strings.Join(parts, ";")
 			if tl.unjudged > 0 {
 				got += "/" + strconv.Itoa(tl.unjudged)
 			}
@@ -214,7 +227,8 @@ func TestWriteCoverage(t *testing.T) {
 
 func TestLoadPolicies(t *testing.T) {
 	fsys := fstest.MapFS{}
-	for _, fam := range covFamilies {
+	for i := range covFamilies {
+		fam := &covFamilies[i]
 		hdr := "enum {\n\t" + fam.Prefix + "UNSPEC,\n\t" + fam.Prefix + "A,\n\t" + fam.Prefix + "B,\n};\n"
 		fsys[uapiDir+"/"+strings.ToLower(strings.TrimSuffix(fam.Prefix, "_"))+".h"] = &fstest.MapFile{Data: []byte(hdr)}
 		pol := "static const struct nla_policy " + fam.Policy + "[] = {\n\t[" + fam.Prefix + "B] = { .type = NLA_U8 },\n};\n"

@@ -463,9 +463,5 @@ func buildFdb(sp *space, vals []value, setup string) row {
 // made by use or extern_learn take no NLM_F_EXCL, so they are not
 // duplicated.
 func deriveFdbDupGone(name string, pos []row) []row {
-	out := deriveDupGone(name, pos, "ENOENT", func(r *row) bool { return r.Axes["ntf"] != "1" && r.Axes["ntf"] != "16" })
-	for i := range out {
-		out[i].Expect.RC = intp(255)
-	}
-	return out
+	return bridgeRC(deriveDupGone(name, pos, "ENOENT", func(r *row) bool { return r.Axes["ntf"] != "1" && r.Axes["ntf"] != "16" }))
 }

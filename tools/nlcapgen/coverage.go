@@ -42,26 +42,43 @@ type covFamily struct {
 	Types   []uint16 // the request types it judges
 	Family  uint8    // the family header's family, or 0 for any
 	HdrSize int      // the family header's size
+	Nest    uint16   // the top-level attribute whose nest the policy judges, or 0 for the top level
 }
 
 var covFamilies = []covFamily{
 	{"route4", "RTA_", "net/ipv4", "rtm_ipv4_policy",
-		[]uint16{unix.RTM_NEWROUTE, unix.RTM_DELROUTE, unix.RTM_GETROUTE}, unix.AF_INET, unix.SizeofRtMsg},
+		[]uint16{unix.RTM_NEWROUTE, unix.RTM_DELROUTE, unix.RTM_GETROUTE}, unix.AF_INET, unix.SizeofRtMsg, 0},
 	{"route6", "RTA_", "net/ipv6", "rtm_ipv6_policy",
-		[]uint16{unix.RTM_NEWROUTE, unix.RTM_DELROUTE, unix.RTM_GETROUTE}, unix.AF_INET6, unix.SizeofRtMsg},
+		[]uint16{unix.RTM_NEWROUTE, unix.RTM_DELROUTE, unix.RTM_GETROUTE}, unix.AF_INET6, unix.SizeofRtMsg, 0},
 	{"rule", "FRA_", "net/core", "fib_rule_policy",
-		[]uint16{unix.RTM_NEWRULE, unix.RTM_DELRULE}, 0, 12},
+		[]uint16{unix.RTM_NEWRULE, unix.RTM_DELRULE}, 0, 12, 0},
 	{"nexthop", "NHA_", "net/ipv4", "rtm_nh_policy_new",
-		[]uint16{unix.RTM_NEWNEXTHOP}, 0, 8},
+		[]uint16{unix.RTM_NEWNEXTHOP}, 0, 8, 0},
 	{"addr4", "IFA_", "net/ipv4", "ifa_ipv4_policy",
-		[]uint16{unix.RTM_NEWADDR, unix.RTM_DELADDR, unix.RTM_GETADDR}, unix.AF_INET, unix.SizeofIfAddrmsg},
+		[]uint16{unix.RTM_NEWADDR, unix.RTM_DELADDR, unix.RTM_GETADDR}, unix.AF_INET, unix.SizeofIfAddrmsg, 0},
 	{"addr6", "IFA_", "net/ipv6", "ifa_ipv6_policy",
-		[]uint16{unix.RTM_NEWADDR, unix.RTM_DELADDR, unix.RTM_GETADDR}, unix.AF_INET6, unix.SizeofIfAddrmsg},
+		[]uint16{unix.RTM_NEWADDR, unix.RTM_DELADDR, unix.RTM_GETADDR}, unix.AF_INET6, unix.SizeofIfAddrmsg, 0},
 	{"neigh", "NDA_", "net/core", "nda_policy",
-		[]uint16{unix.RTM_NEWNEIGH, unix.RTM_DELNEIGH, unix.RTM_GETNEIGH}, 0, unix.SizeofNdMsg},
+		[]uint16{unix.RTM_NEWNEIGH, unix.RTM_DELNEIGH, unix.RTM_GETNEIGH}, 0, unix.SizeofNdMsg, 0},
 	{"link", "IFLA_", "net/core", "ifla_policy",
-		[]uint16{unix.RTM_NEWLINK, unix.RTM_DELLINK, unix.RTM_GETLINK, unix.RTM_NEWLINKPROP, unix.RTM_DELLINKPROP}, 0, unix.SizeofIfInfomsg},
+		[]uint16{unix.RTM_NEWLINK, unix.RTM_DELLINK, unix.RTM_GETLINK, unix.RTM_NEWLINKPROP, unix.RTM_DELLINKPROP}, 0, unix.SizeofIfInfomsg, 0},
+	// rtnl_mdb_add and rtnl_mdb_del parse a bridge mdb write with
+	// mdba_policy; the device's ndo_mdb_add parses MDBA_SET_ENTRY_ATTRS's
+	// nest with its own table. vxlan_mdbe_attrs_pol is the VXLAN's, and the
+	// bridge's br_mdbe_attrs_pol (net/bridge/br_mdb.c) takes only its first
+	// four: the source, source list, filter mode and protocol.
+	{"mdb", "MDBA_SET_ENTRY_", "net/core", "mdba_policy",
+		[]uint16{unix.RTM_NEWMDB, unix.RTM_DELMDB}, unix.AF_BRIDGE, mdbHdrSize, 0},
+	{"mdbe", "MDBE_ATTR_", "drivers/net/vxlan", "vxlan_mdbe_attrs_pol",
+		[]uint16{unix.RTM_NEWMDB, unix.RTM_DELMDB}, unix.AF_BRIDGE, mdbHdrSize, mdbaSetEntryAttrs},
 }
+
+const (
+	// mdbHdrSize is struct br_port_msg: a u8 and a u32, padded.
+	mdbHdrSize = 8
+	// mdbaSetEntryAttrs is MDBA_SET_ENTRY_ATTRS.
+	mdbaSetEntryAttrs = 2
+)
 
 var (
 	cBlockCommentRE = regexp.MustCompile(`(?s)/\*.*?\*/`)
@@ -220,7 +237,8 @@ type covPolicy struct {
 // loadPolicies reads each family's policy and enum from a Linux tree.
 func loadPolicies(linux fs.FS) ([]covPolicy, error) {
 	out := make([]covPolicy, 0, len(covFamilies))
-	for _, fam := range covFamilies {
+	for i := range covFamilies {
+		fam := &covFamilies[i]
 		enum, hdr, err := findEnum(linux, uapiDir, fam.Prefix)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", fam.Key, err)
@@ -229,7 +247,7 @@ func loadPolicies(linux fs.FS) ([]covPolicy, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", fam.Key, err)
 		}
-		p := covPolicy{fam: fam, names: map[int]string{}, enum: map[int]string{}}
+		p := covPolicy{fam: *fam, names: map[int]string{}, enum: map[int]string{}}
 		for n, v := range enum {
 			if old, ok := p.enum[v]; !ok || n < old {
 				p.enum[v] = n
@@ -284,20 +302,42 @@ func (t *covTally) add(m nlparity.Msg) {
 		if fam.Family != 0 && m.Body[0] != fam.Family {
 			continue
 		}
+		attrs := m.Body[fam.HdrSize:]
+		if fam.Nest != 0 {
+			var ok bool
+			if attrs, ok = covNest(attrs, fam.Nest); !ok {
+				continue
+			}
+		}
 		t.requests[fam.Key]++
 		if t.sent[fam.Key] == nil {
 			t.sent[fam.Key] = map[int]int{}
 		}
-		for b := m.Body[fam.HdrSize:]; len(b) >= 4; {
-			alen := int(binary.LittleEndian.Uint16(b[0:2]))
-			if alen < 4 || alen > len(b) {
-				break
-			}
-			t.sent[fam.Key][int(binary.LittleEndian.Uint16(b[2:4])&^(unix.NLA_F_NESTED|unix.NLA_F_NET_BYTEORDER))]++
-			b = b[min((alen+3)&^3, len(b)):]
-		}
-		return
+		covWalk(attrs, func(typ int, _ []byte) { t.sent[fam.Key][typ]++ })
 	}
+}
+
+// covWalk calls fn with each attribute's type, its flags masked off, and
+// payload, stopping at the first malformed one.
+func covWalk(b []byte, fn func(typ int, val []byte)) {
+	for len(b) >= 4 {
+		alen := int(binary.LittleEndian.Uint16(b[0:2]))
+		if alen < 4 || alen > len(b) {
+			return
+		}
+		fn(int(binary.LittleEndian.Uint16(b[2:4])&^(unix.NLA_F_NESTED|unix.NLA_F_NET_BYTEORDER)), b[4:alen])
+		b = b[min((alen+3)&^3, len(b)):]
+	}
+}
+
+// covNest is the payload of the first top-level attribute of type nest.
+func covNest(b []byte, nest uint16) (val []byte, ok bool) {
+	covWalk(b, func(typ int, v []byte) {
+		if !ok && typ == int(nest) {
+			val, ok = v, true
+		}
+	})
+	return val, ok
 }
 
 // tallyCorpus reads every row's ip.pcap under root (the ws directory of
@@ -336,7 +376,8 @@ func writeCoverage(w io.Writer, header []string, pols []covPolicy, t *covTally) 
 	}
 	b.WriteString("#\n# family: policy attributes sent / in the policy (requests seen)\n")
 	var body strings.Builder
-	for _, p := range pols {
+	for i := range pols {
+		p := &pols[i]
 		key := p.fam.Key
 		sent := t.sent[key]
 		var got, never, extra []string

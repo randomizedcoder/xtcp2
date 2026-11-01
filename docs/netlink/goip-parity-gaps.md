@@ -1133,7 +1133,7 @@ The order goes from built-in families to the ones that need modules or more setu
 **Delivered** (`pkg/xtcpnl/xtcpnl_universe_test.go`):
 - `netlinkUniverse` holds every `RTM_*`, genl command and `XFRM_MSG_*` name in iproute2 v7.1.0's `ip/*.c` and `lib/*.c`: 47 rtnetlink, 46 genl and 22 XFRM, 115 in all, each with the first `ip/` or `lib/` line that names it.
 - `universeExclusions` names six, each with its reason:
-  - `RTM_GETMDB`, `RTM_GETVLAN` and `RTM_GETTUNNEL`: their `lib/libnetlink.c` dump requests are called only from `bridge/`. (2026-10-31: `RTM_GETVLAN` has since been captured by the BIRD rows, `link-write/brmpls/`, and is no longer excluded; see [coverage-status.md](coverage-status.md).)
+  - `RTM_GETMDB`, `RTM_GETVLAN` and `RTM_GETTUNNEL`: their `lib/libnetlink.c` dump requests are called only from `bridge/`. (2026-10-31: `RTM_GETVLAN` has since been captured by the BIRD rows, `link-write/brmpls/`, and is no longer excluded; see [coverage-status.md](coverage-status.md). 2026-11-01: the W5b `bridge mdb` rows capture `RTM_GETMDB` too, so it is no longer excluded either.)
   - `RTM_DELNEXTHOPBUCKET`: the kernel neither handles nor sends it, and `ip/ipmonitor.c` only names it to print it;
   - `CTRL_CMD_GETPOLICY`: `lib/mnl_utils.c`'s policy dump is called only from `devlink/`;
   - `XFRM_MSG_REPORT`: `km_report`'s one caller is MIPv6 route optimization (`net/ipv6/mip6.c`).
