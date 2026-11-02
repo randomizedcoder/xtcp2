@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -23,8 +24,12 @@ func nla(atype uint16, payload ...[]byte) []byte {
 	for _, p := range payload {
 		body = append(body, p...)
 	}
+	n, ok := cint.U16(4 + len(body))
+	if !ok {
+		panic("nla: an attribute past 64 KiB")
+	}
 	b := make([]byte, 4, 4+len(body)+3)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(4+len(body))) //nolint:gosec // test sizes are small
+	binary.LittleEndian.PutUint16(b[0:2], n)
 	binary.LittleEndian.PutUint16(b[2:4], atype)
 	b = append(b, body...)
 	for len(b)%4 != 0 {
@@ -95,9 +100,11 @@ func targets16(n int) string {
 }
 
 func targetNest16() []byte {
-	var subs [][]byte
-	for i := 1; i <= 16; i++ {
-		subs = append(subs, nla(uint16(i-1), []byte{10, 0, 0, byte(i)})) //nolint:gosec // i <= 16
+	subs := make([][]byte, 0, 16)
+	last := byte(1)
+	for typ := range uint16(16) {
+		subs = append(subs, nla(typ, []byte{10, 0, 0, last}))
+		last++
 	}
 	return nla(unix.IFLA_BOND_ARP_IP_TARGET, subs...)
 }

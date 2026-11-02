@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"net/netip"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
@@ -303,7 +304,7 @@ type BondSlaveInfo struct {
 
 // PrioInt32 is Prio as the s32 the kernel sent.
 func (s *BondSlaveInfo) PrioInt32() int32 {
-	return int32(s.Prio.Value) //nolint:gosec // reinterpreting the wire s32, not converting a magnitude
+	return cint.Int(s.Prio.Value)
 }
 
 // ParseBondInfoData decodes IFLA_INFO_DATA for kind "bond". Tolerant in the

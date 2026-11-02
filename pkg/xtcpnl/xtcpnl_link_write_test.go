@@ -368,6 +368,21 @@ func TestEncodeBondSettings(t *testing.T) {
 			expected:    rtattr(unix.IFLA_BOND_SLAVE_QUEUE_ID, []byte{1, 0}),
 		},
 		{
+			description: "negative: a u8 setting past 255 is refused, not truncated",
+			settings:    []BondSetting{{Spec: bond(unix.IFLA_BOND_MODE), Value: 256}},
+			wantErr:     ErrBondSettingRange,
+		},
+		{
+			description: "negative: a u16 setting past 65535 is refused, not truncated",
+			settings:    []BondSetting{{Spec: slave(unix.IFLA_BOND_SLAVE_QUEUE_ID), Value: 65536}},
+			wantErr:     ErrBondSettingRange,
+		},
+		{
+			description: "boundary: a u16 setting of 65535 fits",
+			settings:    []BondSetting{{Spec: slave(unix.IFLA_BOND_SLAVE_QUEUE_ID), Value: 65535}},
+			expected:    rtattr(unix.IFLA_BOND_SLAVE_QUEUE_ID, []byte{0xff, 0xff}),
+		},
+		{
 			description: "negative: AD_INFO is read-only and has no encoding",
 			settings:    []BondSetting{{Spec: bond(unix.IFLA_BOND_AD_INFO)}},
 			wantErr:     ErrBondSettingWire,

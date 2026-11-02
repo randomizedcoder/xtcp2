@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
@@ -118,7 +119,7 @@ func EncodeIfInfomsg(family uint8, index int32, flags, change uint32) []byte {
 	// family, pad, ifi_type, then index, flags and change.
 	b := make([]byte, 0, IfInfomsgSizeCst)
 	b = append(b, family, 0, 0, 0)
-	b = binary.LittleEndian.AppendUint32(b, uint32(index)) //nolint:gosec // the wire int, reinterpreted
+	b = binary.LittleEndian.AppendUint32(b, cint.Bits(index))
 	b = binary.LittleEndian.AppendUint32(b, flags)
 	return binary.LittleEndian.AppendUint32(b, change)
 }
@@ -219,6 +220,11 @@ func EncodeBondSlaveData(settings []BondSetting) ([]byte, error) {
 // which the kernel reports and no keyword sets, or a nil row.
 var ErrBondSettingWire = errors.New("xtcpnl: bond option has no write encoding")
 
+// ErrBondSettingRange is a u8 or u16 setting whose value does not fit its
+// attribute. The parser bounds each value first, so only a hand-built
+// setting reaches it.
+var ErrBondSettingRange = errors.New("xtcpnl: bond option value past its attribute's width")
+
 func encodeBondSettings(settings []BondSetting) ([]byte, error) {
 	var raw [linkWriteBufCst]byte
 	ab := NewAttrBuilder(raw[:])
@@ -237,9 +243,17 @@ func putBondSetting(ab *AttrBuilder, s BondSetting) error {
 	id := s.Spec.ID
 	switch s.Spec.Wire {
 	case BondWireU8:
-		return ab.PutU8(id, uint8(s.Value)) //nolint:gosec // range checked by the parser
+		v, ok := cint.U8From64(uint64(s.Value))
+		if !ok {
+			return ErrBondSettingRange
+		}
+		return ab.PutU8(id, v)
 	case BondWireU16:
-		return ab.PutU16(id, uint16(s.Value)) //nolint:gosec // range checked by the parser
+		v, ok := cint.U16From64(uint64(s.Value))
+		if !ok {
+			return ErrBondSettingRange
+		}
+		return ab.PutU16(id, v)
 	case BondWireU32, BondWireS32:
 		return ab.PutU32(id, s.Value)
 	case BondWireMAC:
@@ -273,7 +287,11 @@ func putBondTargets(ab *AttrBuilder, s BondSetting) error {
 			b := a.As16()
 			p = b[:]
 		}
-		if err := ab.PutBytes(uint16(i), p); err != nil { //nolint:gosec // i < 16
+		typ, ok := cint.U16(i)
+		if !ok {
+			return ErrAttrTooLong
+		}
+		if err := ab.PutBytes(typ, p); err != nil {
 			return err
 		}
 	}

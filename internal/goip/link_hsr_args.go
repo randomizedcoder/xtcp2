@@ -3,6 +3,7 @@ package goip
 import (
 	"fmt"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -96,7 +97,7 @@ func hsrValue(w *hsrWord, v string, resolve linkResolver) (uint64, error) {
 	if idx == 0 {
 		return 0, linkUsage(invargErr("No such interface", v))
 	}
-	return uint64(s32Bits(idx)), nil
+	return uint64(cint.Bits(idx)), nil
 }
 
 // hsrData is hsr's parse_opt.

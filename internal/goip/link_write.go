@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -442,7 +443,7 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		if idx == 0 {
 			return linkUsage(invargErr("Device does not exist\n", v))
 		}
-		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, s32Bits(idx)))
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, cint.Bits(idx)))
 	case linkArmLink:
 		st.link = v
 	case linkArmAlias:
@@ -473,7 +474,7 @@ func (st *linkParseState) vrf(v string) error {
 	if !ok {
 		return linkUsage(invargErr("Not a valid VRF name\n", v))
 	}
-	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, s32Bits(idx)))
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, cint.Bits(idx)))
 	return nil
 }
 
@@ -736,7 +737,7 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 	case kindBondCst:
 		settings, err := parseBondArgs(rest, func(name string) (uint32, error) {
 			idx, err := resolve(name)
-			return s32Bits(idx), err
+			return cint.Bits(idx), err
 		})
 		if err != nil {
 			return nil, err
@@ -923,7 +924,7 @@ func newLinkNameResolverRemember(svc *service.Service, remember func(xtcpnl.Link
 			}
 			return l.Index, nil
 		case errors.As(err, &errno):
-			return u32AsS32(llIdxA2N(name)), nil
+			return cint.Int(llIdxA2N(name)), nil
 		default:
 			return 0, err
 		}
@@ -941,5 +942,5 @@ func llIdxA2N(name string) uint32 {
 	if r.end == 0 {
 		return 0
 	}
-	return low32(r.val)
+	return cint.Low32(r.val)
 }

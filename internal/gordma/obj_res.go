@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -295,12 +296,12 @@ func (r *rd) printKey(name string, v uint64, present bool) {
 		return
 	}
 	r.p.fp(name)
-	r.p.printHex(printAny, name, " 0x%x ", uint32(v)) //nolint:gosec // print_hex's truncation
+	r.p.printHex(printAny, name, " 0x%x ", cint.Low32(v))
 }
 
 // printDev is print_dev.
 func (r *rd) printDev(idx uint32, name string) {
-	r.p.printInt(printAny, "ifindex", "", int32(idx)) //nolint:gosec // print_int's int
+	r.p.printInt(printAny, "ifindex", "", cint.Int(idx))
 	r.p.printString(printAny, "ifname", "dev %s ", name)
 }
 
@@ -312,7 +313,7 @@ func (r *rd) printLink(idx uint32, name string, port uint32, hasPort bool) {
 	tmp := name + "/-"
 	if hasPort {
 		p.printUint(printJSON, "port", "", port)
-		tmp = name + "/" + strconv.FormatInt(int64(int32(port)), 10) //nolint:gosec // "%d"
+		tmp = name + "/" + strconv.FormatInt(int64(cint.Int(port)), 10)
 	}
 	if len(tmp) > 63 {
 		tmp = tmp[:63]
@@ -338,7 +339,7 @@ func (r *rd) taskName(pid uint32) (string, bool) {
 	if pid == 0 {
 		return "", false
 	}
-	b, err := os.ReadFile(filepath.Join(r.procRoot, strconv.FormatInt(int64(int32(pid)), 10), "comm")) //nolint:gosec // pid_t
+	b, err := os.ReadFile(filepath.Join(r.procRoot, strconv.FormatInt(int64(cint.Int(pid)), 10), "comm"))
 	if err != nil {
 		return "", false
 	}
@@ -417,7 +418,7 @@ func (r *rd) qpLine(name string, idx uint32, q xtcpnl.RdmaResQP) error {
 	r.printLink(idx, name, port, q.HasPortIndex)
 	r.resU32("lqpn", q.LQPN, true)
 	if q.HasRQPN {
-		p.printUintAs(printAny, "rqpn", "rqpn %d ", q.RQPN, int32(q.RQPN)) //nolint:gosec // "%d"
+		p.printUintAs(printAny, "rqpn", "rqpn %d ", q.RQPN, cint.Int(q.RQPN))
 	}
 	p.printString(printAny, "type", "type %s ", qpTypeStr(q.Type))
 	if q.Type == 0xff && q.HasSubtype {
@@ -425,7 +426,7 @@ func (r *rd) qpLine(name string, idx uint32, q xtcpnl.RdmaResQP) error {
 	}
 	p.printString(printAny, "state", "state %s ", qpStateStr(q.State))
 	if q.HasRQPSN {
-		p.printUintAs(printAny, "rq-psn", "rq-psn %d ", q.RQPSN, int32(q.RQPSN)) //nolint:gosec // "%d"
+		p.printUintAs(printAny, "rq-psn", "rq-psn %d ", q.RQPSN, cint.Int(q.RQPSN))
 	}
 	r.resU32("sq-psn", q.SQPSN, true)
 	if q.HasPathMigState {
@@ -448,7 +449,7 @@ func (r *rd) cqLine(name string, idx uint32, c xtcpnl.RdmaResCQ) error {
 	if !c.HasCQE || !c.HasUseCnt {
 		return errCB
 	}
-	if r.isFiltered("users", uint32(c.UseCnt), true) || //nolint:gosec // rd_is_filtered_attr's uint32
+	if r.isFiltered("users", cint.Low32(c.UseCnt), true) || // rd_is_filtered_attr's uint32
 		r.isStringFiltered("poll-ctx", pollCtxStr(c.PollCtx)) {
 		return nil
 	}
@@ -483,7 +484,7 @@ func (r *rd) mrLine(name string, idx uint32, m xtcpnl.RdmaResMR) error {
 	if !m.HasMRLen {
 		return errCB
 	}
-	if r.isFiltered("mrlen", uint32(m.MRLen), true) { //nolint:gosec // rd_is_filtered_attr's uint32
+	if r.isFiltered("mrlen", cint.Low32(m.MRLen), true) {
 		return nil
 	}
 	comm, ok := r.comm(m.RdmaResOwner)
@@ -513,7 +514,7 @@ func (r *rd) pdLine(name string, idx uint32, d xtcpnl.RdmaResPD) error {
 	if !d.HasUseCnt {
 		return errCB
 	}
-	if r.isFiltered("users", uint32(d.UseCnt), true) { //nolint:gosec // rd_is_filtered_attr's uint32
+	if r.isFiltered("users", cint.Low32(d.UseCnt), true) {
 		return nil
 	}
 	comm, ok := r.comm(d.RdmaResOwner)
@@ -596,15 +597,15 @@ func (r *rd) srqQPs(qps []xtcpnl.RdmaQPRange) (string, bool) {
 			if r.isFiltered("lqpn", q.Min, true) {
 				continue
 			}
-			add("%s%d", delim, int32(q.Min)) //nolint:gosec // "%d"
+			add("%s%d", delim, cint.Int(q.Min))
 			continue
 		}
 		var lo, hi uint32
 		flush := func() {
 			if hi == 0 {
-				add("%s%d", delim, int32(lo)) //nolint:gosec // "%d"
+				add("%s%d", delim, cint.Int(lo))
 			} else {
-				add("%s%d-%d", delim, int32(lo), int32(hi)) //nolint:gosec // "%d"
+				add("%s%d-%d", delim, cint.Int(lo), cint.Int(hi))
 			}
 		}
 		for n := q.Min; n <= q.Max; n++ {

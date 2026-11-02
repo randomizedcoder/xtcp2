@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -298,7 +299,7 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 		if len(p.data) > 0 {
 			st.attr(unix.RTA_SRC, p.data)
 		}
-		st.w.SrcLen = uint8(p.bitlen) //nolint:gosec // bitlen <= 128
+		st.w.SrcLen = p.prefixLen()
 	case routeArmPriority:
 		m, ok := getU32(v, 0)
 		if !ok {
@@ -306,18 +307,18 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 		}
 		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_PRIORITY, m))
 	case routeArmScope:
-		s, ok := rtnlNameA2N(routeScopeNames, v, math.MaxUint8)
+		s, ok := rtnlNameA2N8(routeScopeNames, v)
 		if !ok {
 			return invargErr(`invalid "scope" value`, v)
 		}
-		st.w.Scope = uint8(s) //nolint:gosec // bounded by rtnlNameA2N
+		st.w.Scope = s
 		st.scopeOK = true
 	case routeArmProtocol:
-		p, ok := rtnlNameA2N(routeProtoNames, v, math.MaxUint8)
+		p, ok := rtnlNameA2N8(routeProtoNames, v)
 		if !ok {
 			return invargErr(`"protocol" value is invalid`, v)
 		}
-		st.w.Protocol = uint8(p) //nolint:gosec // bounded by rtnlNameA2N
+		st.w.Protocol = p
 	case routeArmTable:
 		return st.table(v)
 	case routeArmDev:
@@ -476,7 +477,7 @@ func (st *routeParseState) destination(args []string, i int) (int, error) {
 		return i, err
 	}
 	st.adoptFamily(p.family)
-	st.w.DstLen = uint8(p.bitlen) //nolint:gosec // bitlen <= 128
+	st.w.DstLen = p.prefixLen()
 	st.dstOK = true
 	if len(p.data) > 0 {
 		st.attr(unix.RTA_DST, p.data)
@@ -497,7 +498,7 @@ func (st *routeParseState) finish(resolve linkResolver) error {
 		if idx == 0 {
 			return nodevErr(st.dev)
 		}
-		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_OIF, uint32(idx))) //nolint:gosec // an ifindex
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_OIF, cint.Bits(idx)))
 	}
 	if st.w.Family == unix.AF_UNSPEC {
 		st.w.Family = unix.AF_INET
@@ -578,6 +579,12 @@ type inetPrefix struct {
 	family uint8
 	data   []byte
 	bitlen int
+}
+
+// prefixLen is bitlen as the one-byte rtm_dst_len or rtm_src_len.
+// routeGetPrefix leaves it in [0, 128], so the clamp never applies.
+func (p inetPrefix) prefixLen() uint8 {
+	return uint8(max(min(p.bitlen, math.MaxUint8), 0))
 }
 
 // afBitLen is af_bit_len; af_byte_len is it over 8.
@@ -714,7 +721,7 @@ func routeGetPrefix(arg string, family uint8) (inetPrefix, error) {
 			return inetPrefix{}, refused
 		}
 		plen, ok := getNetmask(mask)
-		if !ok || uint64(plen) > uint64(bitlen) { //nolint:gosec // bitlen >= 0
+		if !ok || int64(plen) > int64(bitlen) {
 			return inetPrefix{}, refused
 		}
 		bitlen = int(plen)
@@ -748,7 +755,7 @@ func mask2bits(mask uint32) (uint32, bool) {
 	if host&(host+1) != 0 {
 		return 0, false
 	}
-	return uint32(bits.OnesCount32(mask)), true //nolint:gosec // at most 32
+	return cint.U32(bits.OnesCount32(mask))
 }
 
 // getTimeRtt is get_time_rtt (lib/utils.c:260): a number, then an optional
@@ -877,7 +884,20 @@ func rtnlNameA2N(names map[string]uint32, arg string, maxVal uint64) (uint32, bo
 		return v, true
 	}
 	v, ok := cGetUnsigned(arg, 0, maxVal)
-	return uint32(v), ok //nolint:gosec // maxVal <= MaxUint32
+	if !ok {
+		return 0, false
+	}
+	return cint.U32From64(v)
+}
+
+// rtnlNameA2N8 is rtnlNameA2N at most 255, for the one-byte rtm_scope and
+// rtm_protocol.
+func rtnlNameA2N8(names map[string]uint32, arg string) (uint8, bool) {
+	v, ok := rtnlNameA2N(names, arg, math.MaxUint8)
+	if !ok {
+		return 0, false
+	}
+	return cint.U8From64(uint64(v))
 }
 
 // rtnlRtntypeA2N is rtnl_rtntype_a2n (ip/rtm_map.c:59-93), in its order:

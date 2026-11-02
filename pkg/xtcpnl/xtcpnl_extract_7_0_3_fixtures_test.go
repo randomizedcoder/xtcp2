@@ -215,13 +215,24 @@ func TestExtract7_0_3_Fixtures(t *testing.T) {
 }
 
 // writeIfChanged writes data only when the existing file differs, so repeated
-// runs leave mtime untouched and `git status` stays clean.
-func writeIfChanged(path string, data []byte) error {
-	cur, err := os.ReadFile(path)
-	if err == nil && len(cur) == len(data) && bytesEqual(cur, data) {
+// runs leave mtime untouched and `git status` stays clean. It opens the file
+// through an os.Root on its directory, so the write cannot leave it.
+func writeIfChanged(path string, data []byte) (err error) {
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := root.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	name := filepath.Base(path)
+	cur, rerr := root.ReadFile(name)
+	if rerr == nil && len(cur) == len(data) && bytesEqual(cur, data) {
 		return nil
 	}
-	return os.WriteFile(path, data, 0o600) //nolint:gosec // G703: path is filepath.Join(testdataDir, …) inside the test, not user input
+	return root.WriteFile(name, data, 0o600)
 }
 
 func bytesEqual(a, b []byte) bool {

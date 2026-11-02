@@ -285,28 +285,16 @@ func TestLLAddrA2N(t *testing.T) {
 	}
 }
 
-// TestCIntBits is the bounded conversions between a C int and its 32 bits.
+// TestCIntBits is cIntBits: get_integer's int as its 32 bits, clamped.
 func TestCIntBits(t *testing.T) {
 	tests := []struct {
 		description string
 		got         uint64
 		expected    uint64
 	}{
-		{"positive: s32Bits of a positive int", uint64(s32Bits(7)), 7},
-		{"boundary: s32Bits of -1", uint64(s32Bits(-1)), 0xffffffff},
-		{"boundary: s32Bits of INT32_MIN", uint64(s32Bits(math.MinInt32)), 0x80000000},
-		{"boundary: s32Bits of INT32_MAX", uint64(s32Bits(math.MaxInt32)), 0x7fffffff},
-		{"boundary: s32Bits of 0", uint64(s32Bits(0)), 0},
-		{"positive: u32AsS32 of a small value", uint64(int64(u32AsS32(7))), 7},
-		{"boundary: u32AsS32 of 0xffffffff is -1", uint64(int64(u32AsS32(0xffffffff)) + 1), 0},
-		{"boundary: u32AsS32 of 0x80000000 is INT32_MIN", uint64(int64(u32AsS32(0x80000000)) - math.MinInt32), 0},
-		{"boundary: u32AsS32 of 0x7fffffff", uint64(int64(u32AsS32(0x7fffffff))), 0x7fffffff},
 		{"positive: cIntBits of -2", uint64(cIntBits(-2)), 0xfffffffe},
 		{"corner: cIntBits clamps past INT32_MAX", uint64(cIntBits(math.MaxInt32 + 1)), 0x7fffffff},
 		{"corner: cIntBits clamps past INT32_MIN", uint64(cIntBits(math.MinInt32 - 1)), 0x80000000},
-		{"positive: low32 keeps the low bits", uint64(low32(0x1_0000_0005)), 5},
-		{"boundary: low32 of 0xffffffff", uint64(low32(0xffffffff)), 0xffffffff},
-		{"negative: low32 of 0", uint64(low32(0)), 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

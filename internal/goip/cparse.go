@@ -6,6 +6,8 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 )
 
 // This file transcribes the libc and lib/utils.c number and address readers
@@ -27,16 +29,16 @@ func cIsSpace(c byte) bool {
 	return c == ' ' || (c >= '\t' && c <= '\r')
 }
 
-func cDigitVal(c byte) int {
+func cDigitVal(c byte) uint64 {
 	switch {
 	case c >= '0' && c <= '9':
-		return int(c - '0')
+		return uint64(c - '0')
 	case c >= 'a' && c <= 'z':
-		return int(c-'a') + 10
+		return uint64(c-'a') + 10
 	case c >= 'A' && c <= 'Z':
-		return int(c-'A') + 10
+		return uint64(c-'A') + 10
 	}
-	return math.MaxInt
+	return math.MaxUint64
 }
 
 // cStrtoulResult is what strtoul hands back: the value, how much of the input
@@ -71,19 +73,27 @@ func cStrtoul(s string, base int) cStrtoulResult {
 	case base == 0:
 		base = 10
 	}
+	// base is 8, 10 or 16 here.
+	ubase := uint64(10)
+	switch base {
+	case 8:
+		ubase = 8
+	case 16:
+		ubase = 16
+	}
 
 	start := i
 	var r cStrtoulResult
 	for i < len(s) {
 		d := cDigitVal(s[i])
-		if d >= base {
+		if d >= ubase {
 			break
 		}
 		if !r.overflow {
-			if r.val > (math.MaxUint64-uint64(d))/uint64(base) {
+			if r.val > (math.MaxUint64-d)/ubase {
 				r.overflow = true
 			} else {
-				r.val = r.val*uint64(base) + uint64(d)
+				r.val = r.val*ubase + d
 			}
 		}
 		i++
@@ -118,17 +128,26 @@ func cGetUnsigned(arg string, base int, maxVal uint64) (uint64, bool) {
 
 func getU8(arg string, base int) (uint8, bool) {
 	v, ok := cGetUnsigned(arg, base, math.MaxUint8)
-	return uint8(v), ok
+	if !ok {
+		return 0, false
+	}
+	return cint.U8From64(v)
 }
 
 func getU16(arg string, base int) (uint16, bool) {
 	v, ok := cGetUnsigned(arg, base, math.MaxUint16)
-	return uint16(v), ok
+	if !ok {
+		return 0, false
+	}
+	return cint.U16From64(v)
 }
 
 func getU32(arg string, base int) (uint32, bool) {
 	v, ok := cGetUnsigned(arg, base, math.MaxUint32)
-	return uint32(v), ok
+	if !ok {
+		return 0, false
+	}
+	return cint.U32From64(v)
 }
 
 // getU64 is get_u64: strtoull, the whole argument, ULLONG_MAX with ERANGE
@@ -154,14 +173,10 @@ func getLong(arg string, base int) (int64, bool) {
 	switch {
 	case r.overflow:
 		return 0, false
-	case !r.neg && mag > math.MaxInt64:
-		return 0, false
-	case r.neg && mag > 1<<63:
-		return 0, false
 	case r.neg:
-		return -int64(mag-1) - 1, true //nolint:gosec // mag <= 1<<63, checked above
+		return cint.NegInt64(mag)
 	}
-	return int64(mag), true //nolint:gosec // mag <= MaxInt64, checked above
+	return cint.Int64(mag)
 }
 
 // cAtoi is glibc's atoi: (int)strtol(s, NULL, 10). It reads the longest
@@ -364,37 +379,12 @@ func scanHexInt(s string) (int32, bool) {
 	if r.end == 0 {
 		return 0, false
 	}
-	return int32(uint32(r.val)), true //nolint:gosec // the C int truncation, on purpose
+	return cint.Int(cint.Low32(r.val)), true
 }
 
-// The C conversions between a 32-bit int and its unsigned bits, which the
-// write path makes where ip copies an int into a u32 attribute (addattr32,
-// addattr_l of an int) or sscanf's %u stores into an int. Each narrows only
-// a value it has bounded first.
-
-// s32Bits is an int32's 32 bits as a uint32: -1 is 0xffffffff.
-func s32Bits(n int32) uint32 {
-	if n >= 0 {
-		return uint32(n)
-	}
-	return math.MaxUint32 - uint32(-(n + 1))
-}
-
-// u32AsS32 is s32Bits' inverse: 0xffffffff is -1.
-func u32AsS32(v uint32) int32 {
-	if v <= math.MaxInt32 {
-		return int32(v)
-	}
-	return -int32(math.MaxUint32-v) - 1
-}
-
-// cIntBits is a C int's 32 bits. n comes from get_integer, so it is in an
-// int32's range; a value past it is clamped, which no caller passes.
+// cIntBits is a C int's 32 bits, as ip copies an int into a u32 attribute
+// (addattr32). n comes from get_integer, so it is in an int32's range; a
+// value past it is clamped, which no caller passes.
 func cIntBits(n int) uint32 {
-	return s32Bits(int32(max(min(n, math.MaxInt32), math.MinInt32)))
-}
-
-// low32 is the low 32 bits of v, which %u and a u32 cast store.
-func low32(v uint64) uint32 {
-	return uint32(v & math.MaxUint32)
+	return cint.Bits(int32(max(min(n, math.MaxInt32), math.MinInt32)))
 }

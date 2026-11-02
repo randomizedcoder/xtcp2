@@ -8,6 +8,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -450,7 +451,8 @@ func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 	if c.detailed() && li.Kind == render.BondKindCst && li.Bond != nil {
 		for _, id := range []uint16{unix.IFLA_BOND_ACTIVE_SLAVE, unix.IFLA_BOND_PRIMARY} {
 			if v := li.Bond.Value(id); v.Present {
-				resolveIndexName(c, svc, int32(v.U)) //nolint:gosec // an ifindex: the kernel's int, sent as u32
+				// An ifindex: the kernel's int, sent as a u32.
+				resolveIndexName(c, svc, cint.Int(v.U))
 			}
 		}
 	}

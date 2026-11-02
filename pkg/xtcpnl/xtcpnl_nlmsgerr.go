@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
@@ -56,7 +57,7 @@ func ParseNlMsgErr(flags uint16, body []byte) (NlMsgErr, error) {
 		return NlMsgErr{}, ErrNlMsgErrShort
 	}
 	e := NlMsgErr{
-		Errno:        int32(binary.LittleEndian.Uint32(body[0:4])), //nolint:gosec // the wire int
+		Errno:        cint.Int(binary.LittleEndian.Uint32(body[0:4])),
 		RequestType:  binary.LittleEndian.Uint16(body[8:10]),
 		RequestFlags: binary.LittleEndian.Uint16(body[10:12]),
 		RequestSeq:   binary.LittleEndian.Uint32(body[12:16]),

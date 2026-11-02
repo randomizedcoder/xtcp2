@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 )
 
@@ -597,7 +598,11 @@ func corpusRestoreRow(t *testing.T, c Command, dir string, typ uint16) writeRowF
 // with its own seq.
 func writeRequest(m nlparity.Msg, seq uint32) []byte {
 	req := make([]byte, nlMsgHdrCst+len(m.Body))
-	binary.LittleEndian.PutUint32(req[0:4], uint32(len(req))) //nolint:gosec // a captured message
+	n, ok := cint.U32(len(req))
+	if !ok {
+		panic("a captured message past 4 GiB")
+	}
+	binary.LittleEndian.PutUint32(req[0:4], n)
 	binary.LittleEndian.PutUint16(req[4:6], m.Hdr.Type)
 	binary.LittleEndian.PutUint16(req[6:8], m.Hdr.Flags)
 	binary.LittleEndian.PutUint32(req[8:12], seq)

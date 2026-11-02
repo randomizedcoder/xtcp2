@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -1863,7 +1864,7 @@ func (s *linkReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
 			// A refused get (ENODEV for a name that does not exist) is
 			// what the live socket hands back as the errno.
 			if r.Hdr.Type == unix.NLMSG_ERROR && len(r.Body) >= 4 {
-				if e := int32(binary.LittleEndian.Uint32(r.Body)); e < 0 { //nolint:gosec // the wire int
+				if e := cint.Int(binary.LittleEndian.Uint32(r.Body)); e < 0 {
 					return nil, syscall.Errno(-e)
 				}
 			}

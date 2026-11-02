@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -212,11 +213,11 @@ func readBondValue(args []string, i int, kw *bondKeyword, s *xtcpnl.BondSetting,
 	}
 	switch kw.arg {
 	case bondArgIndex:
-		n := getIndex(s.Spec.Names, v)
-		if n < 0 {
+		n, ok := cint.U32(getIndex(s.Spec.Names, v))
+		if !ok {
 			return i, invarg()
 		}
-		s.Value = uint32(n)
+		s.Value = n
 	case bondArgUint:
 		n, ok := readBondUint(v, s.Spec.Wire)
 		if !ok {
@@ -228,7 +229,7 @@ func readBondValue(args []string, i int, kw *bondKeyword, s *xtcpnl.BondSetting,
 		if !ok {
 			return i, invarg()
 		}
-		s.Value = s32Bits(n)
+		s.Value = cint.Bits(n)
 	case bondArgIfindex:
 		idx, err := resolve(v)
 		if err != nil {

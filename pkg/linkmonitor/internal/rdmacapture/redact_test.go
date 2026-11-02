@@ -289,7 +289,7 @@ func TestStraceCorpusRoundTrip(t *testing.T) {
 	}
 	r := testRedactor(t)
 	for _, p := range paths {
-		data, err := os.ReadFile(p) // #nosec G304 -- committed testdata
+		data, err := os.ReadFile(p)
 		if err != nil {
 			t.Fatal(err)
 		}

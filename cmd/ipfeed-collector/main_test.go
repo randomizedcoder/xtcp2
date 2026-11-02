@@ -13,22 +13,16 @@ import (
 	"time"
 )
 
-// setOrUnset sets key to val when set is true, otherwise ensures it is unset,
-// registering cleanup so the surrounding environment is restored.
+// setOrUnset sets key to val when set is true, otherwise ensures it is unset.
+// t.Setenv records the surrounding value, set or not, and restores it at
+// cleanup.
 func setOrUnset(t *testing.T, key, val string, set bool) {
 	t.Helper()
-	prev, had := os.LookupEnv(key)
-	t.Cleanup(func() {
-		if had {
-			os.Setenv(key, prev) //nolint:errcheck,gosec // test env restore; failure is not actionable
-		} else {
-			os.Unsetenv(key) //nolint:errcheck,gosec // test env restore; failure is not actionable
+	t.Setenv(key, val)
+	if !set {
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("unset %s: %v", key, err)
 		}
-	})
-	if set {
-		os.Setenv(key, val) //nolint:errcheck,gosec // test env setup; failure is not actionable
-	} else {
-		os.Unsetenv(key) //nolint:errcheck,gosec // test env setup; failure is not actionable
 	}
 }
 

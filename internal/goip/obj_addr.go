@@ -6,6 +6,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -253,7 +254,7 @@ func addrShowDev(c *runCtx, svc *service.Service, f *addrFilter) error {
 	// addrShow — ip/ipaddress.c:2310 guards both.
 	var addrs []xtcpnl.AddrInfo
 	if f.family != unix.AF_PACKET {
-		addrResources, aerr := svc.Addresses(f.family, uint32(link.Index)) //nolint:gosec // ifi_index into ifa_index
+		addrResources, aerr := svc.Addresses(f.family, cint.Bits(link.Index))
 		if aerr != nil {
 			return aerr
 		}
