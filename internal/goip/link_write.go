@@ -633,6 +633,7 @@ const (
 	kindBondCst      = "bond"
 	kindBondSlaveCst = "bond_slave"
 	kindVethCst      = "veth"
+	kindVxcanCst     = "vxcan"
 	kindDummyCst     = "dummy"
 	kindIfbCst       = "ifb"
 	kindNlmonCst     = "nlmon"
@@ -751,8 +752,20 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 		return hsrData(env, rest)
 	case kindNetkitCst:
 		return netkitData(env, rest)
-	case kindVethCst:
-		return vethData(env, rest)
+	case kindVethCst, kindVxcanCst:
+		return vethData(env, kind, rest)
+	case kindVrfCst:
+		settings, err := parseVrfArgs(rest)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeVrfInfoData(settings)
+	case kindBatadvCst:
+		settings, err := parseBatadvArgs(rest)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeBatadvInfoData(settings)
 	case kindDummyCst, kindIfbCst, kindNlmonCst, kindVcanCst, kindTeamCst, kindTeamSlaveCst, kindVrfSlaveCst:
 		// These kinds have no parse_opt (ip/iplink_dummy.c, ifb.c and
 		// so on), so iplink_modify takes its else arm.
@@ -804,12 +817,18 @@ func overlayData(errOut io.Writer, set bool, family uint8, kind string, rest []s
 	}
 }
 
-// vethData is veth_parse_opt: `peer` and then a second iplink_parse, whose
-// header fields go in the peer's own ifinfomsg while the outer ones are
-// kept. Parsing into a fresh linkParsed is the save, zero and restore the
-// C does around the shared request.
-func vethData(env *kindEnv, rest []string) ([]byte, error) {
+// vethData is veth_parse_opt, and vxcan_parse_opt, which is veth's with
+// VXCAN_INFO_PEER and its own usage: `peer` and then a second
+// iplink_parse, whose header fields go in the peer's own ifinfomsg while
+// the outer ones are kept. Parsing into a fresh linkParsed is the save,
+// zero and restore the C does around the shared request.
+func vethData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 	if rest[0] != vethPeerCst {
+		if kind == kindVxcanCst {
+			// vxcan's print_usage writes to stdout; goip's refusals go
+			// to stderr.
+			return nil, tunnelUsageErr(vxcanUsageLine)
+		}
 		return nil, fmt.Errorf("%w: veth: expected \"peer\", not %q", ErrInvalidArgument, rest[0])
 	}
 	p, err := parseLinkArgs(rest[1:], env.verb.create(), env.resolve, env.isVRF)
@@ -819,15 +838,22 @@ func vethData(env *kindEnv, rest []string) ([]byte, error) {
 	if p.hasKind {
 		// duparg("type", argv[err]): veth's argv starts at "peer", so
 		// index consumed is the peer's kind value.
-		return nil, dupargErr(linkTypeKeywordCst, p.kind)
+		return nil, linkUsage(dupargErr(linkTypeKeywordCst, p.kind))
 	}
-	return xtcpnl.EncodeVethPeer(xtcpnl.VethPeer{
+	peer := xtcpnl.VethPeer{
 		Index:    p.index,
 		IfFlags:  p.ifFlags,
 		IfChange: p.ifChange,
 		Attrs:    p.attrs,
-	})
+	}
+	if kind == kindVxcanCst {
+		return xtcpnl.EncodeVxcanInfoData(&peer)
+	}
+	return xtcpnl.EncodeVethPeer(peer)
 }
+
+// vxcanUsageLine is vxcan's print_usage's first line.
+const vxcanUsageLine = "Usage: ip link <options> type vxcan [peer <options>]"
 
 // linkWrite runs a write verb: resolve, build, and hand the request to
 // GOIP_WRITE_OUT instead of the kernel.
