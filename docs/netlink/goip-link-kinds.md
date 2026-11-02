@@ -2,18 +2,19 @@
 
 ## Status
 
-**Last updated:** 2026-10-25
+**Last updated:** 2026-11-02
 
 **Summary:**
 - [goip-parity-gaps.md](goip-parity-gaps.md) is finished. C0 to G7 are on `main` (#280, `31bff973`), and the parity VM passes 507 of 507 rows against `ip` 7.2.0.
 - That plan's inventory counted objects and verbs, not link kinds:
   - iproute2 7.2.0 has 39 `ip/iplink_*.c` and `ip/link_*.c` files.
-  - goip covers a handful of the kinds they define (see [Where goip stands](#where-goip-stands)).
+  - goip covered a handful of the kinds they define when this plan was written; it now covers every in-scope kind in [the inventory](#the-kind-inventory) (see [Where goip stands](#where-goip-stands)).
   - Every other kind is refused rather than wrongly answered.
 - This document plans the rest:
   - every link kind a VM can create with only a module;
   - the one new write the 7.2.0 pin brings, `ip link set dev X inet …`.
 - The tiers are the same as before, in the same order: captures (KC), then parsers with table tests and benchmarks (KP), then goip and the matrix (KG).
+- **Done (2026-11-02):** KC0 to KG5 are closed, and goip-parity's table is 1246 rows. [Where goip stands](#where-goip-stands) lists what each kind landed with.
 
 **Progress** is tracked in [goip-link-kinds-status.md](goip-link-kinds-status.md): the next action, the phase states, the task checklist, the verification ledger and the decision log. This document changes only when a task refines its own plan, or when a phase close updates the [inventory](#the-kind-inventory).
 
@@ -37,22 +38,24 @@ These are the trees [goip-parity-gaps.md](goip-parity-gaps.md#reference-sources)
 
 ## Where goip stands
 
+Since KG5 closed, goip parses the words of every kind in the inventory and renders the `-d` output of every kind KC captured, matched against `ip` 7.2.0 on KC's corpus and in goip-parity's VM rows.
+
 | kind | decode (`pkg/xtcpnl`) | encode | goip args | `-d` render |
 |---|---|---|---|---|
-| bond, bond_slave | `xtcpnl_bond.go` | `encodeBondSettings` (`xtcpnl_link_write.go:222`) | `link_bond_args.go` | `render/link_bond.go` |
-| vrf, vrf_slave | the table id | `EncodeVrfInfoData` (KP5) | no | yes |
-| dummy, veth | no `INFO_DATA` | no options | `link add` with no options | no `INFO_DATA` to render |
-| bridge, bridge_slave (KP1) | `xtcpnl_bridge.go`, `xtcpnl_bridge_slave.go` | `EncodeBridgeInfoData`, `EncodeBridgeSlaveData` | refused until KG1 | refused until KG1 |
-| vlan, macvlan, macvtap, ipvlan, ipvtap (KP2) | `xtcpnl_vlan.go`, `xtcpnl_macvlan.go`, `xtcpnl_ipvlan.go` | `EncodeVlanInfoData`, `EncodeMacvlanInfoData`, `EncodeIpvlanInfoData` | refused until KG2 | refused until KG2 |
-| vxlan, geneve, bareudp, amt, gtp (KP3) | `xtcpnl_vxlan.go`, `xtcpnl_geneve.go`, `xtcpnl_bareudp.go`, `xtcpnl_amt.go`, `xtcpnl_gtp.go` | `Encode<Kind>InfoData` for each | refused until KG3 | refused until KG3 |
-| gre, gretap, erspan, ip6gre, ip6gretap, ip6erspan, ipip, sit, ip6tnl, vti, vti6, xfrm (KP4) | `xtcpnl_gre.go`, `xtcpnl_iptun.go`, `xtcpnl_vti.go`, `xtcpnl_xfrm_link.go` | `EncodeGreInfoData`, `EncodeGre6InfoData`, `EncodeIptunInfoData`, `EncodeIp6tnlInfoData`, `EncodeVtiInfoData`, `EncodeXfrmLinkInfoData` | refused until KG4 | refused until KG4 |
-| hsr, netkit, vxcan, batadv (KP5) | `xtcpnl_hsr.go`, `xtcpnl_netkit.go`; vxcan and batadv send no `INFO_DATA` | `EncodeHsrInfoData`, `EncodeNetkitInfoData`, `EncodeVxcanInfoData`, `EncodeBatadvInfoData` | refused until KG5 | refused until KG5 |
-| ifb, nlmon, vcan, team, team_slave | no `INFO_DATA` (KP5-T04 tests it) | no options | `link add` with no options; a word after the type refused until KG5 | no `INFO_DATA` to render |
+| bond, bond_slave | `xtcpnl_bond.go` | `encodeBondSettings` (`xtcpnl_link_write.go`) | `link_bond_args.go`; `ip`'s exit statuses since KG5-T05 | `render/link_bond.go` |
+| vrf, vrf_slave | the table id | `EncodeVrfInfoData` (KP5) | `link_vrf_args.go` (KG5-T04); `iplink_parse`'s `vrf NAME` (KG5-T01) | `render/vrf.go` |
+| dummy, veth | no `INFO_DATA` | veth's peer | `link add` with no options; veth's peer through `vethData` | no `INFO_DATA` to render |
+| bridge, bridge_slave (KP1) | `xtcpnl_bridge.go`, `xtcpnl_bridge_slave.go` | `EncodeBridgeInfoData`, `EncodeBridgeSlaveData` | `link_bridge_args.go`, `link_bridge_slave_args.go` (KG1) | `render/link_bridge.go`, `render/link_bridge_slave.go` (KG1) |
+| vlan, macvlan, macvtap, ipvlan, ipvtap (KP2) | `xtcpnl_vlan.go`, `xtcpnl_macvlan.go`, `xtcpnl_ipvlan.go` | `EncodeVlanInfoData`, `EncodeMacvlanInfoData`, `EncodeIpvlanInfoData` | `link_vlan_args.go`, `link_macvlan_args.go`, `link_ipvlan_args.go` (KG2) | `render/link_vlan.go`, `render/link_macvlan.go`, `render/link_ipvlan.go` (KG2) |
+| vxlan, geneve, bareudp, amt, gtp (KP3) | `xtcpnl_vxlan.go`, `xtcpnl_geneve.go`, `xtcpnl_bareudp.go`, `xtcpnl_amt.go`, `xtcpnl_gtp.go` | `Encode<Kind>InfoData` for each | `link_<kind>_args.go` for each (KG3) | `render/link_<kind>.go` for each (KG3) |
+| gre, gretap, erspan, ip6gre, ip6gretap, ip6erspan, ipip, sit, ip6tnl, vti, vti6, xfrm (KP4) | `xtcpnl_gre.go`, `xtcpnl_iptun.go`, `xtcpnl_vti.go`, `xtcpnl_xfrm_link.go` | `EncodeGreInfoData`, `EncodeGre6InfoData`, `EncodeIptunInfoData`, `EncodeIp6tnlInfoData`, `EncodeVtiInfoData`, `EncodeXfrmLinkInfoData` | `link_gre_args.go`, `link_gre6_args.go`, `link_iptnl_args.go`, `link_ip6tnl_args.go`, `link_vti_args.go`, `link_xfrm_args.go`, with the set prefetch in `link_tunnel_args.go` (KG4); sit's `6rd-reset` refused | `render/link_gre.go`, `render/link_iptun.go`, `render/link_vti.go`, `render/link_tunnel.go` (KG4) |
+| hsr, netkit, vxcan, batadv (KP5) | `xtcpnl_hsr.go`, `xtcpnl_netkit.go`; vxcan and batadv send no `INFO_DATA` | `EncodeHsrInfoData`, `EncodeNetkitInfoData`, `EncodeVxcanInfoData`, `EncodeBatadvInfoData` | `link_hsr_args.go`, `link_netkit_args.go`, vxcan through `vethData`, batadv in `link_vrf_args.go` (KG5) | `render/link_hsr.go`, hsr's and netkit's (KG5-T06); vxcan and batadv have no `print_opt` |
+| ifb, nlmon, vcan, team, team_slave | no `INFO_DATA` (KP5-T04 tests it) | no options | `link add` with no options; a word after the type is dummy's `Garbage instead of arguments` (KG5-T01) | no `INFO_DATA` to render |
 | every other kind | no | no | refused | refused |
 
-The two refusals:
-- **`link add … type X <options>`:** `kindData` (`internal/goip/link_write.go:514`) returns `ErrNotImplemented` for a kind it has no case for (`:542`).
-- **`-d link show`:** `checkDetailSupported` (`internal/goip/obj_link.go:369`) refuses a device carrying `IFLA_INFO_DATA` that `renderableInfoData` (`:394`) doesn't accept, which today is everything except vrf and bond.
+The two refusals left:
+- **`link add … type X <options>`:** `kindData` (`internal/goip/link_write.go:694`) returns `ErrNotImplemented` for a kind it has no case for (`:778`), which is now only the [out of scope](#out-of-scope) kinds. Four help rows, which print `ip link`'s whole usage, stay `ErrNotImplemented` too.
+- **`-d link show`:** `checkDetailSupported` (`internal/goip/obj_link.go:372`) refuses a device carrying `IFLA_INFO_DATA` that `renderableInfoData` (`:400`) doesn't accept, which is now only a kind outside the inventory.
 
 `ip link set dev X inet …` is in goip's keyword chain since KG0-T01 (`linkParseKeywords`, `(*linkParseState).inet`), over KP0's codec (`xtcpnl_inet_devconf.go`: `LinkAttrInetDevconf`, `ParseInetDevconfRequest`, `ParseInetDevconfValues` and the `InetDevconfParams` table). Its matrix rows are KG0-T02's.
 

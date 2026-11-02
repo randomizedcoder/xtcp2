@@ -4888,6 +4888,549 @@ var commands = withArgs([]Command{
 		// "collect_md can't be changed", compared on the request.
 		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupXf0External,
 	},
+	// The remaining kinds' write rows (goip-link-kinds.md, KG5-T07): KC6's
+	// hsr, netkit, vrf, vrf_slave, vxcan, batadv, ifb, nlmon, vcan, team and
+	// team_slave rows that sent a request, in kind-write-corpus.exp's order,
+	// from pkg/xtcpnl/testdata/7_3_0/link-write/kinds/<kind>/. Each Floor is
+	// the row's ip.pcap record count, and each Setup is the row's topology
+	// file. The 46 rows the kernel refuses compare on the request; the 59
+	// rows ip refuses before netlink are not rows, and the kinds' refusal
+	// tests hold them offline. Six rows that share an argv with another take
+	// iplink_parse's optional dev.
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1", Slug: "link_hsr_add_default",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 supervision 42", Slug: "link_hsr_add_supervision",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 supervision 255", Slug: "link_hsr_add_supervision_max",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 supervision 0xff", Slug: "link_hsr_add_supervision_hex",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 supervision 1 supervision 2", Slug: "link_hsr_add_supervision_twice",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 version 1", Slug: "link_hsr_add_version_1",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 proto 1", Slug: "link_hsr_add_proto_prp",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 interlink d2", Slug: "link_hsr_add_interlink",
+		Floor: 8, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1D2,
+	},
+	{
+		Name: "link add hs0 type hsr sl d0 slave2 d1 s 7 v 1 p 0", Slug: "link_hsr_add_abbrev",
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr", Slug: "link_hsr_add_no_option",
+		// "No slave devices specified", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0", Slug: "link_hsr_add_slave1_only",
+		// "Slave2 device not specified", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave2 d1", Slug: "link_hsr_add_slave2_only",
+		// "Slave1 device not specified", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d0", Slug: "link_hsr_add_same_slaves",
+		// "Slave1 and Slave2 are same", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 version 2", Slug: "link_hsr_add_version_2",
+		// "Only HSR version 0/1 supported", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 proto 2", Slug: "link_hsr_add_proto_2",
+		// "Unsupported protocol", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 proto 1 version 0", Slug: "link_hsr_add_prp_version",
+		// "PRP version unsupported", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 d0 slave2 d1 interlink d0", Slug: "link_hsr_add_interlink_slave",
+		// "Interlink and Slave1 are the same", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link add hs0 type hsr slave1 lo slave2 d1", Slug: "link_hsr_add_slave_lo",
+		// "Cannot use loopback or non-ethernet device as HSR slave", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: hsrWriteSetupD0D1,
+	},
+	{
+		Name: "link set hs0 type hsr supervision 5", Slug: "link_hsr_set_option",
+		// "Operation not supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: hsrWriteSetupHs0,
+	},
+	{
+		Name: "link set hs0 type hsr", Slug: "link_hsr_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: hsrWriteSetupHs0,
+	},
+	{
+		Name: "link add nt0 type netkit", Slug: "link_netkit_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer", Slug: "link_netkit_add_peer_only",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit mode l2", Slug: "link_netkit_add_mode_l2",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit mode l3", Slug: "link_netkit_add_mode_l3",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit blackhole", Slug: "link_netkit_add_blackhole",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit forward blackhole", Slug: "link_netkit_add_policy_twice",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit scrub none", Slug: "link_netkit_add_scrub_none",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer blackhole", Slug: "link_netkit_add_peer_blackhole",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer scrub none", Slug: "link_netkit_add_peer_scrub",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer name nt1", Slug: "link_netkit_add_peer_name",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer nt1", Slug: "link_netkit_add_peer_bare_name",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer black", Slug: "link_netkit_add_peer_word",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer mode l2", Slug: "link_netkit_add_peer_mode",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer up", Slug: "link_netkit_add_peer_up",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 address 02:00:00:00:00:01 type netkit mode l2", Slug: "link_netkit_add_l2_address",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer name nt0", Slug: "link_netkit_add_peer_samename",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 address 02:00:00:00:00:01 type netkit", Slug: "link_netkit_add_l3_address",
+		// "Operation not supported", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 type netkit peer address 02:00:00:00:00:01", Slug: "link_netkit_add_l3_peer_address",
+		// "Operation not supported", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nt0 address 01:00:00:00:00:01 type netkit mode l2", Slug: "link_netkit_add_mcast_address",
+		// "Cannot assign requested address", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set nt0 type netkit blackhole", Slug: "link_netkit_set_blackhole",
+		Floor: 4, Implemented: true, Write: true, Setup: netkitWriteSetupNt0,
+	},
+	{
+		Name: "link set nt0 type netkit peer blackhole", Slug: "link_netkit_set_peer_policy",
+		Floor: 4, Implemented: true, Write: true, Setup: netkitWriteSetupNt0,
+	},
+	{
+		Name: "link set nt0 type netkit", Slug: "link_netkit_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: netkitWriteSetupNt0,
+	},
+	{
+		Name: "link set nt0 type netkit peer", Slug: "link_netkit_set_peer_only",
+		Floor: 4, Implemented: true, Write: true, Setup: netkitWriteSetupNt0,
+	},
+	{
+		Name: "link set nt0 type netkit mode l3", Slug: "link_netkit_set_mode",
+		// "netkit link operating mode cannot be changed after device creation", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: netkitWriteSetupNt0,
+	},
+	{
+		Name: "link set nt0 type netkit scrub none", Slug: "link_netkit_set_scrub",
+		// "netkit link scrubbing cannot be changed after device creation", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: netkitWriteSetupNt0,
+	},
+	{
+		Name: "link set nt0 type netkit peer name nt1", Slug: "link_netkit_set_peer_name",
+		// "netkit link peer info cannot be changed after device creation", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: netkitWriteSetupNt0Nt1,
+	},
+	{
+		Name: "link set nt1 type netkit blackhole", Slug: "link_netkit_set_on_peer",
+		// "netkit link settings can be changed only through the primary device", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: netkitWriteSetupNt0Nt1,
+	},
+	{
+		Name: "link add vr0 type vrf table 10", Slug: "link_vrf_add_table",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vr0 type vrf table 4294967295", Slug: "link_vrf_add_table_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vr0 type vrf table 0x10", Slug: "link_vrf_add_table_hex",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vr0 type vrf table main", Slug: "link_vrf_add_table_main",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vr0 type vrf table 10 table 20", Slug: "link_vrf_add_table_twice",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vr0 type vrf t 10", Slug: "link_vrf_add_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add dev vr0 type vrf table 10", Slug: "link_vrf_add_shared_table",
+		Floor: 2, Implemented: true, Write: true, Setup: vrfWriteSetupVr1,
+	},
+	{
+		Name: "link add vr0 type vrf", Slug: "link_vrf_add_no_option",
+		// "VRF table id is missing", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vr0 type vrf table 0", Slug: "link_vrf_add_table_zero",
+		// "Invalid VRF table id", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vr0 address 01:00:00:00:00:01 type vrf table 10", Slug: "link_vrf_add_mcast_address",
+		// "Invalid hardware address", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set vr0 type vrf table 20", Slug: "link_vrf_set_table",
+		// "Operation not supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vrfWriteSetupVr0,
+	},
+	{
+		Name: "link set vr0 type vrf", Slug: "link_vrf_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: vrfWriteSetupVr0,
+	},
+	{
+		Name: "link set d0 master vr0", Slug: "link_vrf_slave_set_master",
+		Floor: 6, Implemented: true, Write: true, Setup: vrfSlaveWriteSetupVr0D0,
+	},
+	{
+		Name: "link set d0 vrf vr0", Slug: "link_vrf_slave_set_vrf",
+		Floor: 8, Implemented: true, Write: true, Setup: vrfSlaveWriteSetupVr0D0,
+	},
+	{
+		Name: "link set d0 type vrf_slave", Slug: "link_vrf_slave_set_type",
+		Floor: 4, Implemented: true, Write: true, Setup: vrfSlaveWriteSetupD0Enslaved,
+	},
+	{
+		Name: "link set dev d0 nomaster", Slug: "link_vrf_slave_set_nomaster",
+		Floor: 4, Implemented: true, Write: true, Setup: vrfSlaveWriteSetupD0Enslaved,
+	},
+	{
+		Name: "link set lo master vr0", Slug: "link_vrf_slave_set_master_lo",
+		// "Can not enslave loopback device to a VRF", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: vrfWriteSetupVr0,
+	},
+	{
+		Name: "link set vr1 master vr0", Slug: "link_vrf_slave_set_vrf_in_vrf",
+		// "Can not enslave an L3 master device to a VRF", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: vrfSlaveWriteSetupVr0Vr1,
+	},
+	{
+		Name: "link add vs0 type vrf_slave", Slug: "link_vrf_slave_add",
+		// "Unknown device type", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vc0 type vxcan", Slug: "link_vxcan_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vc0 type vxcan peer", Slug: "link_vxcan_add_peer",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vc0 type vxcan peer name vc1", Slug: "link_vxcan_add_peer_name",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vc0 type vxcan peer vc1", Slug: "link_vxcan_add_peer_bare_name",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vc0 up type vxcan", Slug: "link_vxcan_add_up",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vc0 type vxcan peer name vc0", Slug: "link_vxcan_add_peer_samename",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vc0 type vxcan peer up", Slug: "link_vxcan_add_peer_up",
+		// "Transport endpoint is not connected", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set vc0 type vxcan peer name vc1", Slug: "link_vxcan_set_peer",
+		// "Operation not supported", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: vxcanWriteSetupVc0,
+	},
+	{
+		Name: "link set vc0 type vxcan", Slug: "link_vxcan_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: vxcanWriteSetupVc0,
+	},
+	{
+		Name: "link add bat0 type batadv", Slug: "link_batadv_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bat0 type batadv ra BATMAN_V", Slug: "link_batadv_add_ra_v",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bat0 type batadv ra BATMAN_IV", Slug: "link_batadv_add_ra_iv",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bat0 type batadv r BATMAN_V", Slug: "link_batadv_add_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bat0 type batadv ra BATMAN_IV ra BATMAN_V", Slug: "link_batadv_add_ra_twice",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add dev bat0 type batadv", Slug: "link_batadv_add_duplicate",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: batadvWriteSetupBat0,
+	},
+	{
+		Name: "link add bat0 type batadv ra BOGUS", Slug: "link_batadv_add_ra_bogus",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bat0 type batadv ra batman_v", Slug: "link_batadv_add_ra_lowercase",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bat0 mtu 67 type batadv", Slug: "link_batadv_add_mtu_low",
+		// "mtu less than device minimum", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set bat0 type batadv ra BATMAN_V", Slug: "link_batadv_set_ra",
+		// "Operation not supported", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: batadvWriteSetupBat0,
+	},
+	{
+		Name: "link set bat0 type batadv ra BOGUS", Slug: "link_batadv_set_ra_bogus",
+		// "Invalid argument", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: batadvWriteSetupBat0,
+	},
+	{
+		Name: "link set bat0 type batadv", Slug: "link_batadv_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: batadvWriteSetupBat0,
+	},
+	{
+		Name: "link add ib0 type ifb", Slug: "link_ifb_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ib0 numtxqueues 4 type ifb", Slug: "link_ifb_add_numtxqueues",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set ib0 type ifb", Slug: "link_ifb_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: ifbWriteSetupIb0,
+	},
+	{
+		Name: "link set ib0 type vcan", Slug: "link_ifb_set_kind_mismatch",
+		Floor: 4, Implemented: true, Write: true, Setup: ifbWriteSetupIb0,
+	},
+	{
+		Name: "link add ib0 address 01:00:5e:00:00:01 type ifb", Slug: "link_ifb_add_mcast_address",
+		// "Cannot assign requested address", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nm0 type nlmon", Slug: "link_nlmon_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nm0 mtu 16 type nlmon", Slug: "link_nlmon_add_mtu_min",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nm0 address 00:11:22:33:44:55 type nlmon", Slug: "link_nlmon_add_address",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add nm0 mtu 15 type nlmon", Slug: "link_nlmon_add_mtu_below",
+		// "mtu less than device minimum", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set nm0 type nlmon", Slug: "link_nlmon_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: nlmonWriteSetupNm0,
+	},
+	{
+		Name: "link add vn0 type vcan", Slug: "link_vcan_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vn0 mtu 16 type vcan", Slug: "link_vcan_add_mtu_16",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vn0 mtu 100 type vcan", Slug: "link_vcan_add_mtu_100",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set vn0 mtu 72", Slug: "link_vcan_set_mtu_72",
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0,
+	},
+	{
+		Name: "link set vn0 mtu 76", Slug: "link_vcan_set_mtu_76",
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0,
+	},
+	{
+		Name: "link set vn0 mtu 2060", Slug: "link_vcan_set_mtu_same",
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0,
+	},
+	{
+		Name: "link set vn0 up mtu 72", Slug: "link_vcan_set_up_and_mtu",
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0,
+	},
+	{
+		Name: "link set vn0 type vcan", Slug: "link_vcan_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0,
+	},
+	{
+		Name: "link set vn0 mtu 75", Slug: "link_vcan_set_mtu_75",
+		// "Invalid argument", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0,
+	},
+	{
+		Name: "link set vn0 mtu 2061", Slug: "link_vcan_set_mtu_2061",
+		// "Invalid argument", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0,
+	},
+	{
+		Name: "link set dev vn0 mtu 72", Slug: "link_vcan_set_mtu_up",
+		// "Device or resource busy", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vcanWriteSetupVn0Up,
+	},
+	{
+		Name: "link add tm0 type team", Slug: "link_team_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set tm0 type team", Slug: "link_team_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: teamWriteSetupTm0,
+	},
+	{
+		Name: "link set d0 master tm0", Slug: "link_team_set_enslave",
+		Floor: 6, Implemented: true, Write: true, Setup: teamWriteSetupTm0D0,
+	},
+	{
+		Name: "link add d0 master tm0 type dummy", Slug: "link_team_add_enslaved",
+		Floor: 4, Implemented: true, Write: true, Setup: teamWriteSetupTm0,
+	},
+	{
+		Name: "link set dev d0 master tm0", Slug: "link_team_set_enslave_again",
+		Floor: 6, Implemented: true, Write: true, Setup: teamWriteSetupD0Enslaved,
+	},
+	{
+		Name: "link set d0 nomaster", Slug: "link_team_set_nomaster",
+		Floor: 4, Implemented: true, Write: true, Setup: teamWriteSetupD0Enslaved,
+	},
+	{
+		Name: "link add tm0 address 01:00:5e:00:00:01 type team", Slug: "link_team_add_mcast_address",
+		// "Cannot assign requested address", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set d0 up master tm0", Slug: "link_team_set_enslave_up",
+		// "Device is up. Set it down before adding it as a team port", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: teamWriteSetupTm0D0,
+	},
+	{
+		Name: "link add d0 up master tm0 type dummy", Slug: "link_team_add_enslaved_up",
+		// "Device is up. Set it down before adding it as a team port", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: teamWriteSetupTm0,
+	},
+	{
+		Name: "link set lo master tm0", Slug: "link_team_set_enslave_lo",
+		// "Loopback device can't be added as a team port", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: teamWriteSetupTm0,
+	},
+	{
+		Name: "link set tm0 master tm0", Slug: "link_team_set_enslave_self",
+		// "Cannot enslave team device to itself", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: teamWriteSetupTm0,
+	},
+	{
+		Name: "link add ts0 type team_slave", Slug: "link_team_slave_add",
+		// "Unknown device type", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set d0 type team_slave", Slug: "link_team_slave_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: teamWriteSetupD0Enslaved,
+	},
+	{
+		Name: "link set dev d0 type team_slave", Slug: "link_team_slave_set_unenslaved",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
 	// The bridge read rows: br0's IFLA_INFO_DATA and p0's
 	// IFLA_INFO_SLAVE_DATA under -d, text and JSON, on one bridge with two
 	// ports. The stdout comparison is the facets, so the timers move freely;
@@ -5104,6 +5647,99 @@ var commands = withArgs([]Command{
 	{
 		Name: "-d -j link show dev xf0", Slug: "link_show_details_xfrm_json",
 		Setup: xfrmWriteSetupD0Xf0Dev, Floor: 6, Implemented: true,
+	},
+	// The remaining kinds' -d read rows (KG5-T07): each device as one
+	// accepted KC6 row left it, its Floor the row's getlink_detail record
+	// count. team_slave's d0 is shown without `dev`, since vrf_slave's read
+	// rows already name `dev d0`. TestLinkShowDetailHsrNetkitMatchesSidecar
+	// and the kinds' replays are the offline oracles.
+	{
+		Name: "-d link show dev hs0", Slug: "link_show_details_hsr",
+		Setup: hsrWriteSetupHs0, Floor: 8, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev hs0", Slug: "link_show_details_hsr_json",
+		Setup: hsrWriteSetupHs0, Floor: 8, Implemented: true,
+	},
+	{
+		Name: "-d link show dev nt0", Slug: "link_show_details_netkit",
+		Setup: netkitReadSetupNt0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev nt0", Slug: "link_show_details_netkit_json",
+		Setup: netkitReadSetupNt0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev vr0", Slug: "link_show_details_vrf",
+		Setup: vrfWriteSetupVr0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev vr0", Slug: "link_show_details_vrf_json",
+		Setup: vrfWriteSetupVr0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev d0", Slug: "link_show_details_vrf_slave",
+		Setup: vrfSlaveWriteSetupD0Enslaved, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev d0", Slug: "link_show_details_vrf_slave_json",
+		Setup: vrfSlaveWriteSetupD0Enslaved, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev vc0", Slug: "link_show_details_vxcan",
+		Setup: vxcanWriteSetupVc0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev vc0", Slug: "link_show_details_vxcan_json",
+		Setup: vxcanWriteSetupVc0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev bat0", Slug: "link_show_details_batadv",
+		Setup: batadvReadSetupBat0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev bat0", Slug: "link_show_details_batadv_json",
+		Setup: batadvReadSetupBat0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev ib0", Slug: "link_show_details_ifb",
+		Setup: ifbWriteSetupIb0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev ib0", Slug: "link_show_details_ifb_json",
+		Setup: ifbWriteSetupIb0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev nm0", Slug: "link_show_details_nlmon",
+		Setup: nlmonWriteSetupNm0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev nm0", Slug: "link_show_details_nlmon_json",
+		Setup: nlmonWriteSetupNm0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev vn0", Slug: "link_show_details_vcan",
+		Setup: vcanWriteSetupVn0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev vn0", Slug: "link_show_details_vcan_json",
+		Setup: vcanWriteSetupVn0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev tm0", Slug: "link_show_details_team",
+		Setup: teamWriteSetupTm0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev tm0", Slug: "link_show_details_team_json",
+		Setup: teamWriteSetupTm0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show d0", Slug: "link_show_details_team_slave",
+		Setup: teamSlaveReadSetupD0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show d0", Slug: "link_show_details_team_slave_json",
+		Setup: teamSlaveReadSetupD0, Floor: 6, Implemented: true,
 	},
 	// The route write rows (route-write-path.md phase 5): the corpus in
 	// pkg/xtcpnl/testdata/7_1_4/link-write/route/, less `nodev`, with the
@@ -6337,6 +6973,28 @@ var (
 	xfrmWriteSetupXf0Xf1         = []string{"link add xf0 type xfrm if_id 1", "link add xf1 type xfrm if_id 2"}
 	vtiReadSetupVt0              = []string{"link add d0 type dummy", "link add vt0 type vti remote 10.0.0.1 local 10.0.0.2 ikey 1 okey 2 dev d0"}
 	vti6ReadSetupV6              = []string{"link add d0 type dummy", "link add v6 type vti6 remote 2001:db8::1 key 5 dev d0 fwmark 0x10"}
+	hsrWriteSetupD0D1            = []string{"link add d0 type dummy", "link add d1 type dummy"}
+	hsrWriteSetupD0D1D2          = []string{"link add d0 type dummy", "link add d1 type dummy", "link add d2 type dummy"}
+	hsrWriteSetupHs0             = []string{"link add d0 type dummy", "link add d1 type dummy", "link add hs0 type hsr slave1 d0 slave2 d1"}
+	netkitWriteSetupNt0          = []string{"link add nt0 type netkit"}
+	netkitWriteSetupNt0Nt1       = []string{"link add nt0 type netkit peer name nt1"}
+	vrfWriteSetupVr1             = []string{"link add vr1 type vrf table 10"}
+	vrfWriteSetupVr0             = []string{"link add vr0 type vrf table 10"}
+	vrfSlaveWriteSetupVr0D0      = []string{"link add vr0 type vrf table 10", "link add d0 type dummy"}
+	vrfSlaveWriteSetupD0Enslaved = []string{"link add vr0 type vrf table 10", "link add d0 type dummy", "link set d0 master vr0"}
+	vrfSlaveWriteSetupVr0Vr1     = []string{"link add vr0 type vrf table 10", "link add vr1 type vrf table 20"}
+	vxcanWriteSetupVc0           = []string{"link add vc0 type vxcan peer name vc1"}
+	batadvWriteSetupBat0         = []string{"link add bat0 type batadv"}
+	ifbWriteSetupIb0             = []string{"link add ib0 type ifb"}
+	nlmonWriteSetupNm0           = []string{"link add nm0 type nlmon"}
+	vcanWriteSetupVn0            = []string{"link add vn0 type vcan"}
+	vcanWriteSetupVn0Up          = []string{"link add vn0 type vcan", "link set vn0 up"}
+	teamWriteSetupTm0            = []string{"link add tm0 type team"}
+	teamWriteSetupTm0D0          = []string{"link add tm0 type team", "link add d0 type dummy"}
+	teamWriteSetupD0Enslaved     = []string{"link add tm0 type team", "link add d0 type dummy", "link set d0 master tm0"}
+	netkitReadSetupNt0           = []string{"link add nt0 type netkit blackhole"}
+	batadvReadSetupBat0          = []string{"link add bat0 type batadv ra BATMAN_V"}
+	teamSlaveReadSetupD0         = []string{"link add tm0 type team", "link add d0 type dummy", "link set d0 master tm0", "link set d0 type team_slave"}
 )
 
 // bridgeReadSetup is the bridge read rows' namespace, PRE_PORTS: br0 and
