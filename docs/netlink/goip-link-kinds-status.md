@@ -1,6 +1,6 @@
 # goip ↔ `ip` link kinds: implementation status
 
-**Last updated:** 2026-10-26
+**Last updated:** 2026-11-01
 
 **Summary:**
 - The design and the task plan are in [goip-link-kinds.md](goip-link-kinds.md). This document tracks progress against them.
@@ -25,8 +25,9 @@
 - KG1 is done (KG1-T01, KG1-T02, KG1-T03, KG1-T04, KG1-T05; planned in DOC016): goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses. `-d link show` renders a bridge as `ip` does for all 50 accepted rows, text and JSON, and a bridge port for all 30 of its accepted rows, with `ip`'s gets. The 92 write rows and 4 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V154, V155). KG2 is planned (DOC017).
 - KG2 is done (KG2-T01, KG2-T02, KG2-T03, KG2-T04, KG2-T05; planned in DOC017): goip takes `iplink_parse`'s `link` keyword, resolving the lower device before `IFLA_IFNAME` on a create, and builds `ip link add|set … type vlan|macvlan|macvtap …` byte for byte as `ip` does for KC3's 21 vlan, 25 macvlan and 5 macvtap rows that sent a request, lookups included, and refuses the 17 `ip` refuses with `ip`'s texts and statuses. KG2-T03 adds `type ipvlan|ipvtap …`: KC3's 14 ipvlan and 3 ipvtap rows that sent a request, and the 5 refusals. KG2-T04 renders `-d link show` of the five kinds as `ip` does for all 54 accepted rows, text and JSON, with `ip`'s gets. The 68 write rows and 10 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V169, V170). KG3 is planned (DOC018).
 - KG3 is done (KG3-T01, KG3-T02, KG3-T03, KG3-T04, KG3-T05; planned in DOC018): goip builds `ip link add|set … type vxlan …` byte for byte as `ip` does for KC4's 58 vxlan rows that sent a request, lookups included, prints `ip`'s dstport warning, refuses the 15 `ip` refuses with `ip`'s texts and statuses, and sends `ip -4`'s and `-6`'s default group. KG3-T02 adds `type geneve …`: KC4's 35 geneve rows that sent a request, and the 14 refusals. KG3-T03 adds `type bareudp|amt|gtp …`: KC4's 10, 13 and 11 rows that sent a request, and the 21 refusals. KG3-T04 renders `-d link show` and `-d -j link show` of the five kinds as `ip`'s print_opts do, for all 86 accepted KC4 rows with `ip`'s gets, and vxlan's `-d -d`. The 127 write rows and 11 `-d` read rows are in the matrix and gated, on two clean `--section link` runs (V186, V187). KG4 is planned (DOC019).
+- KG4 is in progress (KG4-T01 and KG4-T02 done; planned in DOC019). KG4-T01 has goip-parity set `fb_tunnels_only_for_init_net=2` before its first row, so a `--section link` run makes no fallback tunnels (V194). KG4-T02 adds the set prefetch every tunnel parser but xfrm's shares: `Service.LinkInfoDataByIndex`'s 32-byte `RTM_GETLINK` with no `IFLA_EXT_MASK`, sent without `NLM_F_CREATE` (so on `set`, `change` and `delete`) when a word follows the kind, with `ip`'s `Failed to get existing tunnel info.` checks. On it, goip builds `ip link add|set|delete … type gre|gretap|erspan …` byte for byte as `ip` does for KC5-T01's 31 gre, 10 gretap and 19 erspan rows that sent a request, lookups and prefetch included, and refuses the 21 `ip` refuses with `ip`'s texts and statuses (V195–V197). The matrix rows wait for KG4-T09.
 
-**Next action:** [KG4-T02](goip-link-kinds.md#kg4-t02-the-prefetch-and-the-gre-gretap-and-erspan-words): the prefetch, and the gre, gretap and erspan words.
+**Next action:** [KG4-T03](goip-link-kinds.md#kg4-t03-the-ip6gre-ip6gretap-and-ip6erspan-words): the ip6gre, ip6gretap and ip6erspan words.
 
 ## Contents
 
@@ -68,7 +69,7 @@
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | KG1-T05 | done | V140–V156, DOC017 |
 | [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | KG2-T05 | done | V157–V173, DOC018 |
 | [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | KG3-T05 | done | V174–V190, DOC019 |
-| [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | KG4-T02 | in progress | V191–V194 |
+| [KG4](goip-link-kinds.md#kg4--goip-ip-tunnels) | goip | IP tunnels | KG4-T03 | in progress | V191–V197 |
 | [KG5](goip-link-kinds.md#kg5--goip-the-remaining-kinds) | goip | the remaining kinds | | not started | |
 
 ## Task checklist
@@ -136,7 +137,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG3-T04](goip-link-kinds.md#kg3-t04-the-udp-overlays--d-output) | the UDP overlays' `-d` output | done | V183–V185 |
 | [x] | [KG3-T05](goip-link-kinds.md#kg3-t05-the-udp-overlay-matrix-rows) | the UDP overlay matrix rows | done | V186–V190 |
 | [x] | [KG4-T01](goip-link-kinds.md#kg4-t01-no-fallback-tunnels-in-goip-parity) | no fallback tunnels in goip-parity | done | V191–V194 |
-| [ ] | [KG4-T02](goip-link-kinds.md#kg4-t02-the-prefetch-and-the-gre-gretap-and-erspan-words) | the prefetch, and the gre, gretap and erspan words | not started | |
+| [x] | [KG4-T02](goip-link-kinds.md#kg4-t02-the-prefetch-and-the-gre-gretap-and-erspan-words) | the prefetch, and the gre, gretap and erspan words | done | V195–V197 |
 | [ ] | [KG4-T03](goip-link-kinds.md#kg4-t03-the-ip6gre-ip6gretap-and-ip6erspan-words) | the ip6gre, ip6gretap and ip6erspan words | not started | |
 | [ ] | [KG4-T04](goip-link-kinds.md#kg4-t04-the-ipip-and-sit-words) | the ipip and sit words | not started | |
 | [ ] | [KG4-T05](goip-link-kinds.md#kg4-t05-the-ip6tnl-words) | the ip6tnl words | not started | |
@@ -363,6 +364,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V192 | 2026-10-26 | KG4-T01 | three mutants in scratch worktrees, each through vm-lib-exp | all three caught: the early call dropped (the two goip-parity corner rows fail), the call moved inside the row loop (the before-the-first-row row fails), and a refused sysctl returning no problem (both refused-sysctl rows fail) | this commit |
 | V193 | 2026-10-26 | KG4-T01 | `nix build .#checks.x86_64-linux.nix-fmt`, then `.#checks.x86_64-linux.statix`, then `.#checks.x86_64-linux.deadnix` | all three pass | this commit |
 | V194 | 2026-10-26 | KG4-T01 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section link` | 360 of 360 link rows `GOIP_PARITY_PASS`, no `GOIP_PARITY_EARLY_SETUP_PROBLEMS`; the sysctl set before the first row moves no fixture | this commit |
+| V195 | 2026-11-01 | KG4-T02 | `go vet ./internal/goip/...`, `go test -count=1 -race ./internal/goip/... ./pkg/xtcpnl/` | all pass: `TestGreCorpusArgv` (45, 11 and 25 argvs, one per row), `TestLinkGreWriteMatchesIp` over the 31, 10 and 19 rows that sent a request, byte for byte with their lookups and prefetch, `TestLinkGreRefusals` (the 21 `ip`-refused corpus rows plus the 13 built rows, `help` for each kind among them), `TestTunnelPrefetch` (11 built replies), `TestParseGreArgs` (17 rows) | this commit |
+| V196 | 2026-11-01 | KG4-T02 | mutation, a scratch worktree, each `go test ./internal/goip/...` in a `systemd-run --scope -p MemoryMax=6G` with `-timeout=180s`: tos before ttl in the chain; `external` by prefix; `encap-csum6` as a word; the erspan words on gre; the prefetch skipped; the prefetch on a set with no words; the prefetch keyed on `setOp()`; the prefetch with `IFLA_EXT_MASK`; the missing-`INFO_DATA` check skipped; the endpoint length check skipped; `dev`'s nodev as 1; the numeric key's failure as 1; the dotted key's failure as 255; the multicast check after external; the usage line unpadded | 15 of 15 killed: by `gre/add_abbrev`; `add_strcmp_abbrev`; `add_encap_csum6_word`; both `add_erspan_word` rows; `set_changeable`; `add_no_option` and `set_no_option`; the delete row; `set_changeable` and every prefetch row; `set_not_a_tunnel` and the prefetch-before-words row; the 16-byte row; `add_dev_missing`; `add_key_bad` and the key-past-32-bits row; `add_key_dotted_bad`; the multicast-before-external row; every usage-line row | scratch |
+| V197 | 2026-11-01 | KG4-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit`, in a scratch worktree holding only the task's diff | both pass; the first lint runs found goconst (`seq`, `nopmtudisc` and `pmtudisc` three times each, counting `obj_l2tp.go`'s and `obj_xfrm.go`'s), so gre's chain spells them `greSeq`, `greNopmtudisc` and `grePmtudisc` | this commit |
 
 ## Decision log
 
@@ -425,7 +429,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **gtp prints `unknown` for a role past sgsn.** The plan said the render has no name; `gtp_role_to_string` returns `unknown`. The parser also skips `LOCAL` and `LOCAL6` with the request-only `FD0`, `FD1` and `CREATE_SOCKETS`; the kernel dumps none of them.
 - **"Where goip stands" lagged.** KP1's and KP2's closes didn't add their kinds to it; KP3's close adds all three phases' rows.
 - **The tunnel encoders take the device, not a bool.** A set's request is the prefetch's values plus the words, so `Encode<Kind>InfoData` takes the decoded `cur`, nil on an add, and the tests decode it from the reply in `ip.pcap`.
-- **The prefetch's two `ip` bugs are copied, not fixed.** gre, gre6, iptnl and ip6tnl re-send an unnamed encap port byte-swapped (`ip6gre/set_encap_sport_swap`); vti and vti6 seed `LINK` with `rta_getattr_u8`, keeping only the low byte of the ifindex. The encoders match `ip` byte for byte; KG4 decides whether goip copies them too. Nothing is sent upstream.
+- **The prefetch's two `ip` bugs are copied, not fixed.** gre, gre6, iptnl and ip6tnl re-send an unnamed encap port byte-swapped (`ip6gre/set_encap_sport_swap`); vti and vti6 seed `LINK` with `rta_getattr_u8`, keeping only the low byte of the ifindex. The encoders match `ip` byte for byte, and goip copies them too (DOC019; KG4-T02's swapped-port prefetch row holds gre's). Nothing is sent upstream.
 - **One gre encoder covers gre, gretap and erspan.** `link_gre.c` parses all three; `EncodeGreInfoData` takes an `erspan` bool for the erspan-only words and the `ERSPAN_VER` default, as `gre_parse_opt` keys them on the kind name.
 - **KP4-T01's encode table gains a row.** No corpus row gives an index at version 2, so the plan's third mutant survived its table; `corner: an index at version 2 is not sent` is built to kill it.
 - **A malformed endpoint is dropped, not marked.** `tnl_print_endpoint` prints `unknown` for a `LOCAL` or `REMOTE` that isn't 4 or 16 bytes; `ParseGreInfoData` keeps the zero address, which renders `any`, so KP4-T01's short-remote row expects `any`. The kernel always sends 4 or 16 bytes. A 16-byte address on gre, or a 4-byte one on an ip6 kind, still renders `unknown`.
@@ -530,3 +534,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **Five tunnel cases are not implemented:** sit's `6rd-reset`, which segfaults `ip` 7.2.0; ip6tnl's `encaplimit` with a value that isn't a u8, which sends an uninitialized byte; sit's `6rd-prefix any` and `6rd-relay_prefix any`, which send an empty address no `IptunSetting` holds; and a prefetch reply of a kind outside the parser's.
 - **gre's and iptnl's parsers take `cur`.** gre's broadcast check and iptnl's ttl check read the seeded endpoints and values, before `external`, so the parser makes them with `ip`'s text and the encoders' refusals stay a backstop.
 - **Three tunnel rows are respelled.** `ip6gretap/add_beside_ip6gre`, `ip6tnl/set_collide` and `xfrm/set_drop_dev` share an argv with another row, so each takes `iplink_parse`'s optional `dev`.
+
+**2026-11-01:**
+- **gre's chain spells three words as constants.** goconst counts a literal across the package, so `seq`, `nopmtudisc` and `pmtudisc`, which l2tp's and xfrm state's words also use, are `greSeq`, `greNopmtudisc` and `grePmtudisc` in `link_gre_args.go`.
+- **The prefetch's tests add two rows.** `TestTunnelPrefetch` holds a reply with `IFLA_LINKINFO` but no `IFLA_INFO_DATA` beside the plan's no-`IFLA_LINKINFO` row, since `ip` fails on each separately, and the plan's seeded-multicast refusal moved there from `TestLinkGreRefusals`, as it needs a built reply. `TestParseGreArgs` adds `d d0`, the `dev` abbreviation resolving.

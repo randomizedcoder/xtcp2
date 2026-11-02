@@ -388,7 +388,7 @@ func TestBuildLinkWrite(t *testing.T) {
 				t.Fatalf("no verb %q", tc.verb)
 			}
 			links := newFakeLinks()
-			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve)
+			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve, nil)
 			if !slices.Equal(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}
@@ -447,7 +447,7 @@ func TestParseLinkLower(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			links := newFakeLinks()
-			got, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb(tc.verb), unix.AF_UNSPEC, tc.args, links.resolve)
+			got, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb(tc.verb), unix.AF_UNSPEC, tc.args, links.resolve, nil)
 			if !slices.Equal(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}

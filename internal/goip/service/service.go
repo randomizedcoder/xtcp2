@@ -5,6 +5,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
@@ -234,6 +235,61 @@ func (s *Service) LinkByIndex(index int32) (model.Link, error) {
 	}
 	match := func(l model.Link) bool { return l.Index == index }
 	return s.linkFromGet(r, match, fmt.Sprintf("index %d", index))
+}
+
+// LinkInfoData is what a tunnel parser's prefetch reads off its reply: the
+// kind, the raw IFLA_INFO_DATA, and whether IFLA_LINKINFO and
+// IFLA_INFO_DATA were there.
+type LinkInfoData struct {
+	Kind        string
+	HasLinkInfo bool
+	HasInfoData bool
+	Data        []byte
+}
+
+// LinkInfoDataByIndex is the get every tunnel parser but xfrm's sends before
+// a set (ip/link_gre.c:69-201 and its siblings, iproute2 v7.2.0): RTM_GETLINK
+// with NLM_F_REQUEST alone, ifi_family the preferred family, the device's
+// index, and no attribute, 32 bytes. LinkByIndex's get carries
+// IFLA_EXT_MASK, which this one doesn't. A kernel refusal is the talk's
+// error; a reply too short for an ifinfomsg has neither nest.
+func (s *Service) LinkInfoDataByIndex(family uint8, index int32) (LinkInfoData, error) {
+	r, err := xtcpnl.BuildGetLinkByIndexRequest(family, index, 0, s.nextSeq())
+	if err != nil {
+		return LinkInfoData{}, fmt.Errorf("goip: build link get request: %w", err)
+	}
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK")
+	if err != nil {
+		return LinkInfoData{}, err
+	}
+	var d LinkInfoData
+	if len(body) < xtcpnl.IfInfomsgSizeCst {
+		return d, nil
+	}
+	// parse_rtattr keeps the last of a repeated attribute; the kernel
+	// sends one of each.
+	var nerr error
+	err = xtcpnl.WalkRTAttrs(body[xtcpnl.IfInfomsgSizeCst:], func(atype uint16, val []byte) {
+		if atype&^unix.NLA_F_NESTED != unix.IFLA_LINKINFO {
+			return
+		}
+		d = LinkInfoData{HasLinkInfo: true}
+		nerr = xtcpnl.WalkRTAttrsNested(val, func(itype uint16, ival []byte) {
+			switch itype &^ unix.NLA_F_NESTED {
+			case unix.IFLA_INFO_KIND:
+				d.Kind = strings.TrimRight(string(ival), "\x00")
+			case unix.IFLA_INFO_DATA:
+				d.HasInfoData, d.Data = true, xtcpnl.CopyBytes(ival)
+			}
+		})
+	})
+	if err == nil {
+		err = nerr
+	}
+	if err != nil {
+		return LinkInfoData{}, fmt.Errorf("goip: decode RTM_NEWLINK: %w", err)
+	}
+	return d, nil
 }
 
 func contains(v []string, want string) bool {

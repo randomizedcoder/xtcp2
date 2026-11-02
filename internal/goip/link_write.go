@@ -596,8 +596,10 @@ const (
 )
 
 // buildLinkWrite is iplink_modify up to the send: parse, then the kind and
-// its options.
-func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []string, resolve linkResolver) (xtcpnl.LinkWrite, error) {
+// its options. fetch is the tunnel parsers' prefetch.
+func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []string, resolve linkResolver,
+	fetch linkDataFetcher,
+) (xtcpnl.LinkWrite, error) {
 	p, err := parseLinkArgs(args, verb.create(), resolve)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
@@ -627,7 +629,8 @@ func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []
 	if len(p.rest) == 0 {
 		return w, nil
 	}
-	w.Data, err = kindData(errOut, verb, family, p.kind, p.rest, resolve)
+	env := &kindEnv{errOut: errOut, verb: verb, family: family, index: p.index, resolve: resolve, fetch: fetch}
+	w.Data, err = kindData(env, p.kind, p.rest)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
 	}
@@ -636,14 +639,15 @@ func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []
 }
 
 // kindData is lu->parse_opt for the kinds goip implements, run only when
-// arguments follow the kind. errOut takes the warnings a parser prints and
-// goes on from; family is preferred_family, ip's -4 or -6.
-func kindData(errOut io.Writer, verb *linkWriteVerb, family uint8, kind string, rest []string,
-	resolve linkResolver,
-) ([]byte, error) {
+// arguments follow the kind. env.errOut takes the warnings a parser prints
+// and goes on from; env.family is preferred_family, ip's -4 or -6.
+func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
+	errOut, verb, resolve := env.errOut, env.verb, env.resolve
 	switch kind {
 	case kindVxlanCst, kindGeneveCst, kindBareudpCst, kindAmtCst, kindGtpCst:
-		return overlayData(errOut, verb.setOp(), family, kind, rest, resolve)
+		return overlayData(errOut, verb.setOp(), env.family, kind, rest, resolve)
+	case kindGreCst, kindGretapCst, kindErspanCst:
+		return greData(env, kind, rest)
 	case kindBridgeCst:
 		settings, err := parseBridgeArgs(errOut, rest)
 		if err != nil {
@@ -767,7 +771,7 @@ func vethData(verb *linkWriteVerb, rest []string, resolve linkResolver) ([]byte,
 // GOIP_WRITE_OUT instead of the kernel.
 func linkWrite(c *runCtx, verb *linkWriteVerb, args []string) error {
 	svc := service.New(c.src, c.nextSeq)
-	w, err := buildLinkWrite(c.errOut, verb, c.family, args, newLinkNameResolver(svc))
+	w, err := buildLinkWrite(c.errOut, verb, c.family, args, newLinkNameResolver(svc), svc.LinkInfoDataByIndex)
 	if err != nil {
 		return err
 	}
