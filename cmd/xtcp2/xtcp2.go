@@ -1187,46 +1187,80 @@ func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_co
 }
 
 // loadReconfigureConfig returns the full XtcpConfig carried across a
-// soft-restart re-exec via the reconfigureEnvKey environment variable. ok is
-// false when the variable is unset/empty (normal first boot). A non-nil error
-// means the variable was present but unparseable.
+// soft-restart re-exec: the config from the reconfigureEnvKey environment
+// variable, and its secrets from the memfd reconfigureMemfdFDKey names (see
+// reexec_handoff.go). ok is false when the variable is unset/empty (normal
+// first boot). A non-nil error means the carry was present but unusable.
 func loadReconfigureConfig() (c *xtcp_config.XtcpConfig, ok bool, err error) {
 	v, present := os.LookupEnv(reconfigureEnvKey)
 	if !present || v == "" {
+		if fd, set := os.LookupEnv(reconfigureMemfdFDKey); set && fd != "" {
+			return nil, false, fmt.Errorf("%w: %s is set without %s", errReconfigureSecrets,
+				reconfigureMemfdFDKey, reconfigureEnvKey)
+		}
 		return nil, false, nil
 	}
 	c = &xtcp_config.XtcpConfig{}
 	if err := protojson.Unmarshal([]byte(v), c); err != nil {
 		return nil, false, err
 	}
+	if err := loadReconfigureSecrets(c); err != nil {
+		return nil, false, err
+	}
 	return c, true, nil
 }
 
 // execSelfWithConfig re-execs this binary in place (same PID/container),
-// carrying newCfg as protojson in reconfigureEnvKey so the fresh process boots
-// with it. os.Args is preserved, so all process-level flags carry unchanged;
-// only the XtcpConfig is overridden at startup. On success syscall.Exec does
-// not return; on failure it logs and returns so the caller exits normally.
+// carrying newCfg so the fresh process boots with it: the config, secrets
+// blanked, as protojson in reconfigureEnvKey, and the secrets in a sealed
+// memfd (reexec_handoff.go). argv is rebuilt from the flags the command line
+// set, so process-level flags carry unchanged; only the XtcpConfig is
+// overridden at startup. On success syscall.Exec does not return; on failure
+// it logs and returns so the caller exits normally.
 func execSelfWithConfig(newCfg *xtcp_config.XtcpConfig) {
 	exe, err := os.Executable()
 	if err != nil {
 		log.Printf("reconfigure: os.Executable failed, cannot re-exec: %v", err)
 		return
 	}
-	js, err := protojson.Marshal(newCfg)
+	redacted, secrets := splitSecrets(newCfg)
+	js, err := protojson.Marshal(redacted)
 	if err != nil {
 		log.Printf("reconfigure: protojson.Marshal failed, cannot re-exec: %v", err)
 		return
 	}
-	env := append(envWithoutKey(os.Environ(), reconfigureEnvKey), reconfigureEnvKey+"="+string(js))
-	log.Printf("reconfigure: re-exec %s (soft restart, config %d bytes)", exe, len(js))
-	// G702 is a false positive here: this is an intentional in-place restart of
-	// THIS binary (os.Executable), preserving our own os.Args and environment
-	// plus a config we validated and serialized ourselves — not execution of an
-	// external, attacker-chosen command. The new config was protovalidate'd in
-	// the Set handler before reaching this path.
-	if err := syscall.Exec(exe, os.Args, env); err != nil { //nolint:gosec // G702: re-exec of self with validated config; see comment above
+	// ConfigService.Set refuses a config past this, so reaching it means a
+	// caller skipped Set; execve would fail with E2BIG.
+	if len(js) > xtcp.ReconfigureMaxConfigBytes {
+		log.Printf("reconfigure: config is %d bytes, past %d, cannot re-exec", len(js), xtcp.ReconfigureMaxConfigBytes)
+		return
+	}
+	env := envWithoutKey(envWithoutKey(os.Environ(), reconfigureEnvKey), reconfigureMemfdFDKey)
+	env = append(env, reconfigureEnvKey+"="+string(js))
+	var carried *os.File
+	if proto.Size(secrets) > 0 {
+		sb, err := protojson.Marshal(secrets)
+		if err != nil {
+			log.Printf("reconfigure: protojson.Marshal of the secrets failed, cannot re-exec: %v", err)
+			return
+		}
+		f, fd, err := secretsMemfd(sb)
+		if err != nil {
+			log.Printf("reconfigure: cannot carry the secrets, cannot re-exec: %v", err)
+			return
+		}
+		carried = f
+		env = append(env, reconfigureMemfdFDKey+"="+strconv.Itoa(fd))
+	}
+	argv := reexecArgv(exe, flag.CommandLine)
+	log.Printf("reconfigure: re-exec %s (soft restart, config %d bytes, %d flags)", exe, len(js), len(argv)-1)
+	if err := syscall.Exec(exe, argv, env); err != nil {
 		log.Printf("reconfigure: syscall.Exec failed: %v", err)
+	}
+	if carried != nil {
+		if err := carried.Close(); err != nil {
+			log.Printf("reconfigure: closing the secrets memfd: %v", err)
+		}
 	}
 }
 

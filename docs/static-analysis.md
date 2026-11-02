@@ -240,7 +240,7 @@ Counted 2026-10-05 from a full `nix flake check --keep-going` on the
 | `golangci-lint-quick` | **3** | staticcheck 3 |
 | `golangci-lint` | **36** | misspell 13, errcheck 12, gosec 4, staticcheck 3, gocritic 2, contextcheck 1, noctx 1 |
 | `golangci-lint-comprehensive` | **46** | the 36 above, plus goconst 4, funlen 3, gocyclo 1, exhaustive 1, unconvert 1 |
-| `go-sec` | **2** | G301 ×2 — it sees no tests, so it reports 2 of golangci's 4 gosec. It also excludes G103, G115, G204, G304 and G702 by flag, each with a reason in `nix/checks/go-sec.nix` |
+| `go-sec` | **2** | G301 ×2 — it sees no tests, so it reports 2 of golangci's 4 gosec. It also excludes G103, G115, G204 and G304 by flag, each with a reason in `nix/checks/go-sec.nix` |
 | `deadnix` | **2** | unused lambda patterns |
 | `nix-fmt` | **2 files** | `nix/default.nix`, `nix/tests/ipmeta-bootstrap.nix` |
 | `statix` | **0** | clean |

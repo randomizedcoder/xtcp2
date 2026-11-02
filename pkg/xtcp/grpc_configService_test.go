@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -602,6 +604,77 @@ func TestConfigService_Set_happy(t *testing.T) {
 	}
 	if got == nil || got.Tag != "INC-1234" {
 		t.Error("reconfigureFunc was not invoked with the new config")
+	}
+}
+
+// padConfigJSON grows cfg's enabled_deserializers map, which validation
+// leaves unbounded, until cfg's protojson is exactly n bytes.
+func padConfigJSON(t *testing.T, cfg *xtcp_config.XtcpConfig, n int) {
+	t.Helper()
+	size := func() int {
+		js, err := protojson.Marshal(cfg)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return len(js)
+	}
+	cfg.EnabledDeserializers = &xtcp_config.EnabledDeserializers{Enabled: map[string]bool{}}
+	m := cfg.EnabledDeserializers.Enabled
+	for i := 0; size() < n-1024; i += 32 {
+		for j := i; j < i+32; j++ {
+			m[fmt.Sprintf("pad%07d", j)] = true
+		}
+	}
+	// 32 keys are about 600 bytes, so this stops short of n. One more key,
+	// its length chosen to land on n: measure what an entry
+	// with a one-byte key costs, then lengthen that key by the remainder.
+	before := size()
+	m["z"] = true
+	short := size() - before
+	delete(m, "z")
+	m[strings.Repeat("z", n-before-short+1)] = true
+	if got := size(); got != n {
+		t.Fatalf("padded config is %d bytes, want %d", got, n)
+	}
+}
+
+// TestConfigService_Set_configSizeLimit: Set refuses a config the restart's
+// environment variable could not carry, before it shuts anything down.
+func TestConfigService_Set_configSizeLimit(t *testing.T) {
+	tests := []struct {
+		category    string
+		description string
+		jsonBytes   int // 0 leaves validSetConfig unpadded
+		secrets     bool
+		expected    codes.Code
+	}{
+		{"positive", "a typical config restarts", 0, false, codes.OK},
+		{"boundary", "a config at exactly the limit restarts", ReconfigureMaxConfigBytes, false, codes.OK},
+		{"boundary", "a config one byte past the limit is refused", ReconfigureMaxConfigBytes + 1, false, codes.FailedPrecondition},
+		{"corner", "secrets don't count: they travel in the memfd, not the variable", ReconfigureMaxConfigBytes, true, codes.OK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %v", tc.category, tc.description, tc.expected)
+			c, _ := newConfigServiceFixture(t)
+			restarted := false
+			c.reconfigureFunc = func(*xtcp_config.XtcpConfig) { restarted = true }
+			in := validSetConfig()
+			if tc.jsonBytes > 0 {
+				padConfigJSON(t, in, tc.jsonBytes)
+			}
+			if tc.secrets {
+				in.S3SecretKey = strings.Repeat("s", 4096)
+				in.S3AccessKey = strings.Repeat("a", 4096)
+			}
+			_, err := c.Set(context.Background(), &xtcp_config.SetRequest{Config: in})
+			if got := status.Code(err); got != tc.expected {
+				t.Fatalf("Set code = %v, want %v (err %v)", got, tc.expected, err)
+			}
+			if restarted != (tc.expected == codes.OK) {
+				t.Errorf("restarted = %v, want %v", restarted, tc.expected == codes.OK)
+			}
+		})
 	}
 }
 
