@@ -41,6 +41,7 @@ type kindEnv struct {
 	family  uint8
 	index   int32
 	resolve linkResolver
+	isVRF   vrfChecker
 	fetch   linkDataFetcher
 }
 

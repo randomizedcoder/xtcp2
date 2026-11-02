@@ -73,6 +73,9 @@ func (v *linkWriteVerb) setOp() bool { return v.msgType == unix.RTM_NEWLINK && !
 // linkResolver is ll_name_to_index: the ifindex for a name, 0 for none.
 type linkResolver func(name string) (int32, error)
 
+// vrfChecker is name_is_vrf: whether the device called name is a vrf.
+type vrfChecker func(name string) (bool, error)
+
 // linkArm is what an iplink_parse keyword does.
 type linkArm uint8
 
@@ -89,7 +92,10 @@ const (
 	linkArmType
 	linkArmAlias
 	linkArmInet
-	linkArmLink        // the lower device, resolved on a create
+	linkArmLink // the lower device, resolved on a create
+	linkArmVrf  // a vrf by name, sent as IFLA_MASTER
+	linkArmTxQueues
+	linkArmRxQueues
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -144,7 +150,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "carrier", arm: linkArmUnsupported},
 	{keyword: "vf", arm: linkArmUnsupported},
 	{keyword: "master", prefix: true, arm: linkArmMaster},
-	{keyword: vrfKeywordCst, arm: linkArmUnsupported},
+	{keyword: vrfKeywordCst, arm: linkArmVrf},
 	{keyword: "nomaster", prefix: true, arm: linkArmNomaster},
 	{keyword: "dynamic", prefix: true, arm: linkArmFlag, flag: unix.IFF_DYNAMIC, onSets: true},
 	{keyword: linkTypeKeywordCst, prefix: true, arm: linkArmType},
@@ -152,8 +158,8 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "group", arm: linkArmUnsupported},
 	{keyword: "mode", arm: linkArmUnsupported},
 	{keyword: "state", arm: linkArmUnsupported},
-	{keyword: "numtxqueues", prefix: true, arm: linkArmUnsupported},
-	{keyword: "numrxqueues", prefix: true, arm: linkArmUnsupported},
+	{keyword: numTxQueuesKeywordCst, prefix: true, arm: linkArmTxQueues},
+	{keyword: numRxQueuesKeywordCst, prefix: true, arm: linkArmRxQueues},
 	{keyword: "addrgenmode", prefix: true, arm: linkArmUnsupported},
 	{keyword: "link-netns", prefix: true, arm: linkArmUnsupported},
 	{keyword: "link-netnsid", prefix: true, arm: linkArmUnsupported},
@@ -166,6 +172,12 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "gro_ipv4_max_size", arm: linkArmUnsupported},
 	{keyword: "parentdev", arm: linkArmUnsupported},
 }
+
+// The queue keywords, matches() in iplink_parse.
+const (
+	numTxQueuesKeywordCst = "numtxqueues"
+	numRxQueuesKeywordCst = "numrxqueues"
+)
 
 func lookupLinkKeyword(arg string) *linkKeyword {
 	for i := range linkParseKeywords {
@@ -274,6 +286,7 @@ type linkParsed struct {
 type linkParseState struct {
 	create  bool
 	resolve linkResolver
+	isVRF   vrfChecker
 	out     linkParsed
 	name    string
 	dev     string
@@ -282,14 +295,16 @@ type linkParseState struct {
 	devSt   devState
 	mtu     int
 	qlen    int
+	txq     int
+	rxq     int
 	addrLen int
 }
 
 // parseLinkArgs is iplink_parse for the keywords goip implements. create
 // is NLM_F_CREATE in the request, which decides how the device is
 // addressed: by name on add and replace, by ifindex otherwise.
-func parseLinkArgs(args []string, create bool, resolve linkResolver) (linkParsed, error) {
-	st := linkParseState{create: create, resolve: resolve, mtu: -1, qlen: -1}
+func parseLinkArgs(args []string, create bool, resolve linkResolver, isVRF vrfChecker) (linkParsed, error) {
+	st := linkParseState{create: create, resolve: resolve, isVRF: isVRF, mtu: -1, qlen: -1, txq: -1, rxq: -1}
 	i := 0
 loop:
 	for ; i < len(args); i++ {
@@ -402,6 +417,12 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		return st.intAttr(&st.qlen, "txqueuelen", unix.IFLA_TXQLEN, v)
 	case linkArmMTU:
 		return st.intAttr(&st.mtu, mtuKeywordCst, unix.IFLA_MTU, v)
+	case linkArmTxQueues:
+		return st.intAttr(&st.txq, numTxQueuesKeywordCst, unix.IFLA_NUM_TX_QUEUES, v)
+	case linkArmRxQueues:
+		return st.intAttr(&st.rxq, numRxQueuesKeywordCst, unix.IFLA_NUM_RX_QUEUES, v)
+	case linkArmVrf:
+		return st.vrf(v)
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
@@ -435,7 +456,28 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 	return nil
 }
 
-// intAttr is the mtu and txqueuelen arms: get_integer base 0, a duplicate
+// vrf is `vrf NAME`: ll_name_to_index, then name_is_vrf, either failing
+// as invarg; it sends IFLA_MASTER, as `master` does.
+func (st *linkParseState) vrf(v string) error {
+	idx, err := st.resolve(v)
+	if err != nil {
+		return err
+	}
+	if idx <= 0 {
+		return linkUsage(invargErr("Not a valid VRF name\n", v))
+	}
+	ok, err := st.isVRF(v)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return linkUsage(invargErr("Not a valid VRF name\n", v))
+	}
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, uint32(idx)))
+	return nil
+}
+
+// intAttr is the mtu, txqueuelen and queue-count arms: get_integer base 0, a duplicate
 // test against the -1 sentinel (so `mtu -1 mtu 5` is not a duplicate, as
 // in `ip`), and the C int written as four bytes.
 func (st *linkParseState) intAttr(seen *int, key string, atype uint16, v string) error {
@@ -592,15 +634,21 @@ const (
 	kindBondSlaveCst = "bond_slave"
 	kindVethCst      = "veth"
 	kindDummyCst     = "dummy"
+	kindIfbCst       = "ifb"
+	kindNlmonCst     = "nlmon"
+	kindVcanCst      = "vcan"
+	kindTeamCst      = "team"
+	kindTeamSlaveCst = "team_slave"
+	kindVrfSlaveCst  = "vrf_slave"
 	vethPeerCst      = "peer"
 )
 
 // buildLinkWrite is iplink_modify up to the send: parse, then the kind and
 // its options. fetch is the tunnel parsers' prefetch.
 func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []string, resolve linkResolver,
-	fetch linkDataFetcher,
+	isVRF vrfChecker, fetch linkDataFetcher,
 ) (xtcpnl.LinkWrite, error) {
-	p, err := parseLinkArgs(args, verb.create(), resolve)
+	p, err := parseLinkArgs(args, verb.create(), resolve, isVRF)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
 	}
@@ -629,7 +677,7 @@ func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []
 	if len(p.rest) == 0 {
 		return w, nil
 	}
-	env := &kindEnv{errOut: errOut, verb: verb, family: family, index: p.index, resolve: resolve, fetch: fetch}
+	env := &kindEnv{errOut: errOut, verb: verb, family: family, index: p.index, resolve: resolve, isVRF: isVRF, fetch: fetch}
 	w.Data, err = kindData(env, p.kind, p.rest)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
@@ -700,10 +748,10 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 		}
 		return xtcpnl.EncodeBondSlaveData(settings)
 	case kindVethCst:
-		return vethData(verb, rest, resolve)
-	case kindDummyCst:
-		// dummy has no parse_opt (ip/iplink_dummy.c), so iplink_modify
-		// takes its else arm.
+		return vethData(env, rest)
+	case kindDummyCst, kindIfbCst, kindNlmonCst, kindVcanCst, kindTeamCst, kindTeamSlaveCst, kindVrfSlaveCst:
+		// These kinds have no parse_opt (ip/iplink_dummy.c, ifb.c and
+		// so on), so iplink_modify takes its else arm.
 		if matchesPrefix(rest[0], bondHelpKeywordCst) {
 			return nil, fmt.Errorf("%w: ip link help is not implemented by goip", ErrNotImplemented)
 		}
@@ -756,11 +804,11 @@ func overlayData(errOut io.Writer, set bool, family uint8, kind string, rest []s
 // header fields go in the peer's own ifinfomsg while the outer ones are
 // kept. Parsing into a fresh linkParsed is the save, zero and restore the
 // C does around the shared request.
-func vethData(verb *linkWriteVerb, rest []string, resolve linkResolver) ([]byte, error) {
+func vethData(env *kindEnv, rest []string) ([]byte, error) {
 	if rest[0] != vethPeerCst {
 		return nil, fmt.Errorf("%w: veth: expected \"peer\", not %q", ErrInvalidArgument, rest[0])
 	}
-	p, err := parseLinkArgs(rest[1:], verb.create(), resolve)
+	p, err := parseLinkArgs(rest[1:], env.verb.create(), env.resolve, env.isVRF)
 	if err != nil {
 		return nil, err
 	}
@@ -781,7 +829,8 @@ func vethData(verb *linkWriteVerb, rest []string, resolve linkResolver) ([]byte,
 // GOIP_WRITE_OUT instead of the kernel.
 func linkWrite(c *runCtx, verb *linkWriteVerb, args []string) error {
 	svc := service.New(c.src, c.nextSeq)
-	w, err := buildLinkWrite(c.errOut, verb, c.family, args, newLinkNameResolver(svc), svc.LinkInfoDataByIndex)
+	isVRF := func(name string) (bool, error) { return svc.IsVRF(c.family, name) }
+	w, err := buildLinkWrite(c.errOut, verb, c.family, args, newLinkNameResolver(svc), isVRF, svc.LinkInfoDataByIndex)
 	if err != nil {
 		return err
 	}
