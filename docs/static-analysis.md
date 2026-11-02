@@ -836,6 +836,63 @@ the fixture still round-trips through its `file://` URL *and* that
 loosened back silently. No exclusion was added and `pkg/misc/misc_test.go`'s
 `//nolint:gosec` was left alone — it is a different argument, and a real one.
 
+(Since then, commit 78ae084b replaced that `//nolint:gosec` and 69 others with
+checked conversions. See the TODO below.)
+
+### TODO: G115, the narrowing conversions the exclusion hides
+
+**Status: open, 2026-11-02. To be taken on soon.**
+
+`.golangci.yml` and `nix/checks/go-sec.nix` exclude G115 repo-wide, with the
+reason "all are bounds-checked". That isn't true. With G115 switched back on,
+gosec reports **474** narrowing conversions, 233 of them in tests. None of the
+lint checks can see them while the exclusion stands.
+
+Commit 78ae084b fixed the 65 sites that carried a `//nolint:gosec` (539 down to
+474). Its helpers in `pkg/cint` are the pattern to reuse: a mask (`Bits`,
+`Low32`, `LongBits`), or a two-sided guard that reports a value that doesn't
+fit (`U8`/`U16`/`U32`, `U*From64`, `Int64`). gosec accepts only those two
+shapes as proof that a conversion can't overflow.
+
+By package (findings / of which in tests), measured on 78ae084b's parent plus
+its diff:
+
+| package | findings | in tests |
+|---|---|---|
+| `pkg/xtcpnl` | 123 | 83 |
+| `internal/goip` | 102 | 34 |
+| `pkg/linkmonitor` (incl. `internal/*`) | 70 | 40 |
+| `internal/goip/render` | 28 | 0 |
+| `pkg/xtcp` | 25 | 17 |
+| `cmd/xtcp2` | 23 | 1 |
+| `pkg/nlparity` | 16 | 16 |
+| `pkg/io_uring` | 12 | 4 |
+| `pkg/nsdiscover` | 10 | 8 |
+| `pkg/lldp`, `tools/nlcapgen` | 8 each | 3, 5 |
+| `pkg/localnet` | 6 | 4 |
+| `gen/go/xtcp_flat_record` (generated) | 5 | 5 |
+| the remaining 17 packages | 1–4 each, 38 in all | 13 |
+
+Plan: fix package by package, starting with `pkg/xtcpnl`, `internal/goip`
+and `internal/gordma` (about 260 sites). A narrowing that can lose data
+becomes an error, as `ErrBondSettingRange` did for bond values, rather than
+silent truncation. When the count reaches zero, delete G115 from both
+exclusion lists so it can't come back.
+
+To measure it, the exclusion has to be off:
+
+```sh
+# in a scratch worktree (the checked-in vendor/ may be stale)
+go mod vendor
+sed '/- G115/d' .golangci.yml > /tmp/golangci-g115.yml
+golangci-lint run -c /tmp/golangci-g115.yml --enable-only gosec \
+  --max-issues-per-linter 0 --max-same-issues 0 ./... | grep -c G115
+```
+
+G304 (file path from a variable) is in the same position, at 213 findings.
+Its exclusion reason is narrower and true for the sites it names, but it
+covers the whole repo.
+
 ### `staticcheck` — 3 findings, all trivial, all in Tier 0
 
 | location | finding |
