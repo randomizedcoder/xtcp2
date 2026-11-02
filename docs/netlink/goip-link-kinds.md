@@ -3958,6 +3958,391 @@ Then the 272 rows go in `gated_commands`. A full run comes before the next push.
 
 ### KG5 — goip, the remaining kinds
 
+Seven tasks:
+- KG5-T01 sends the kinds `ip` has no parser for (ifb, nlmon, vcan, team, team_slave, vrf_slave) through dummy's else arm, and adds `iplink_parse`'s `vrf` and `numtxqueues`/`numrxqueues` keywords.
+- KG5-T02 adds the hsr words, KG5-T03 netkit's, and KG5-T04 vrf's, vxcan's and batadv's.
+- KG5-T05 moves the bond parsers' `invarg` and `NEXT_ARG` refusals to 255, which KG0 left for KG5.
+- KG5-T06 renders hsr's and netkit's `-d` output.
+- KG5-T07 adds the matrix rows and gates them, which closes KG5 and the plan's goip phases.
+
+The codec is KP5's (`pkg/xtcpnl/xtcpnl_hsr.go`, `xtcpnl_netkit.go`, `xtcpnl_vrf.go`, `xtcpnl_vxcan.go`, `xtcpnl_batadv.go`). Each encoder takes its words in `ip`'s order and refuses what `ip` can't send. So KG5 is the words, `ip`'s checks and texts, two link keywords, two renderers and the matrix.
+
+**Where goip stands.** A replay of every KC6 row that sent a request through `replayKindRow` with `useLLMap720` (a throwaway test, not committed) finds:
+- 54 of the 122 already match, lookups included: every row of a kind with no words, a set of only `type K`, and the `master`/`nomaster`/`mtu` rows.
+- The other 68 stop at `kindData`'s default arm, or at the `vrf` and `numtxqueues` keywords (`linkArmUnsupported`).
+- Of the 59 rows `ip` refuses, 3 already match: the two missing-master rows and `batadv/set_nodev`.
+
+**The rows** (`pkg/xtcpnl/testdata/7_3_0/link-write/kinds/`, argv in `kind-write-corpus.exp`). A set row's topology also makes the device it sets:
+
+| kind | rows | rc 0 | rc 2 (kernel) | rc 1 / 255 (`ip`, before the write) | requests | already match |
+|---|---|---|---|---|---|---|
+| hsr | 29 | 10 | 10 | 4 / 5 | 20 | 2 |
+| netkit | 43 | 19 | 8 | 8 / 8 | 27 | 3 |
+| vrf | 18 | 8 | 4 | 2 / 4 | 12 | 2 |
+| vrf_slave | 10 | 4 | 3 | 1 / 2 | 7 | 6 |
+| vxcan | 18 | 6 | 3 | 4 / 5 | 9 | 3 |
+| batadv | 17 | 6 | 6 | 4 / 1 | 12 | 4 |
+| ifb | 9 | 4 | 1 | 3 / 1 | 5 | 4 |
+| nlmon | 6 | 3 | 2 | 1 / 0 | 5 | 5 |
+| vcan | 13 | 8 | 3 | 2 / 0 | 11 | 11 |
+| team | 14 | 6 | 5 | 1 / 2 | 11 | 11 |
+| team_slave | 4 | 2 | 1 | 1 / 0 | 3 | 3 |
+
+**What `ip` does** (`ip/iplink_hsr.c`, `iplink_netkit.c`, `iplink_vrf.c`, `iplink_vxcan.c`, `iplink_batadv.c`, `iplink.c` and `iplink_vrf.c`'s `name_is_vrf` at `v7.2.0`):
+- **No parser.** ifb, nlmon, vcan, team, team_slave and vrf_slave have a `link_util` with no `parse_opt`. A word after `type K` takes `iplink_modify`'s else arm:
+  - a prefix of `help` calls `usage()`, which exits 255 after the whole `ip link` usage;
+  - any other word is `Garbage instead of arguments "<w> ...". Try "ip link help".`, exit 1.
+
+  So `type ifb mtu 1400` is refused: `iplink_parse` stops at `type`.
+- **`vrf NAME`** (`iplink_parse`, `strcmp`) runs `ll_name_to_index` (`ll_link_get`, the 7.2.0 mask with `RTEXT_FILTER_NAME_ONLY`), then `name_is_vrf`, a get by name with no `IFLA_EXT_MASK` whose `IFLA_INFO_KIND` must be `vrf`. Either failing is `invarg("Not a valid VRF name\n")`, 255. It sends `IFLA_MASTER`, as `master` does. goip's nexthop code already has the second get (`Service.IsVRF`).
+- **`numtxqueues N` and `numrxqueues N`** (`matches`): `get_integer` in base 0, so a negative number passes and goes out as its u32. A bad value is `invarg("Invalid \"numtxqueues\" value\n")`, 255, and a second one is `duparg`, 255. They send `IFLA_NUM_TX_QUEUES` (31) and `IFLA_NUM_RX_QUEUES` (32), u32, in word order.
+- **hsr.**
+  - `supervision`, `version`, `proto`, `slave1` and `slave2` are `matches` in that order, so `s` is supervision and `sl` is slave1; `interlink` is `strcmp`; `help` is `matches`, after the others.
+  - Each word sends its attribute as it is read, so a repeat sends twice.
+  - `supervision` is `get_u8` in base 0 (`ADDR-BYTE is invalid`). `version` and `proto` test `get_u8`'s return rather than the value, so any u8 passes (`version is invalid`, `protocol is invalid`). These are `invarg`s, 255.
+  - `slave1`, `slave2` and `interlink` resolve through `ll_name_to_index` in the loop: a get each, then `invarg("No such interface")`, 255.
+  - `help` prints the usage and an unknown word prints `hsr: what is "<w>"?` and the usage; both exit 1.
+- **netkit.**
+  - Every word is `strcmp`. `mode` takes `l3` or `l2`; another value is `Error: argument of "mode" must be either "l3" or "l2"`, 1, and a second `mode` is `duparg`, 255.
+  - `forward` and `blackhole` send `POLICY`, or `PEER_POLICY` after `peer`.
+  - `scrub` takes `none` or `default` (`Error: scrub must be either "none" or "default"`, 1) and sends `SCRUB`, or `PEER_SCRUB` after `peer`.
+  - A second `peer` is `duparg("peer", *(argv + 1))`, which prints `(null)` at the end of the line.
+  - After `peer`, any other word starts `iplink_parse` into `PEER_INFO`, over the rest of the line. `ip` first saves the device's `ifi_flags`, `ifi_change` and `ifi_index` and zeroes them, then copies what `iplink_parse` left there into the peer's header and restores its own. A `type` in the peer is `duparg("type", argv[err])`, which prints `(null)`.
+  - So `peer black` makes a peer named `black`, and `peer name nt1 blackhole` is `iplink_parse`'s `both "name" and "dev" cannot be used when creating devices.`, 255.
+  - Before `peer`, an unknown word, `help` among them, is `netkit: unknown option "<w>"?` and the usage, 1.
+- **vrf.** `table` (`matches`) goes through `rtnl_rttable_a2n`: a name from `rt_tables` or `get_u32` in base 0. A failure is `invarg("invalid table ID\n")`, 255. `help` prints `Usage: ... vrf table TABLEID`, and an unknown word prints `vrf: unknown option "<w>"?` and the usage; both 1. Each `table` sends `IFLA_VRF_TABLE`, repeats included.
+- **vxcan** is veth's parser with `VXCAN_INFO_PEER`:
+  - the first word must be `peer` (`strcmp`), else the usage goes to stdout, not stderr, and `ip` exits 1;
+  - `iplink_parse` reads the rest into the peer, with veth's header swap;
+  - a `type` in the peer is `duparg("type", argv[err])`, whose index is one short, so it prints the peer's kind value (`"vxcan"`).
+- **batadv.** `ra` (`matches`, so `r` is `ra`) sends its value as `IFLA_BATADV_ALGO_NAME` with its NUL (`addattrstrz`), unchecked, repeats included. `help` and an unknown word (`batadv: unknown command "<w>"?`) print the usage, 1.
+- **Rendering.** vrf, vrf_slave, vxcan, batadv and the no-parser kinds already render: a throwaway replay of every accepted row's `-d` and `-d -j` matches its readbacks.
+  - **hsr** returns before printing anything if `SLAVE1`, `SLAVE2` or `INTERLINK` is under 4 bytes, `SEQ_NR` under 2 or `SUPERVISION_ADDR` under 6. Otherwise:
+    - `slave1 <name> ` and `slave2 <name> ` through `ll_index_to_name`, or `<none>` (JSON `null`) when absent;
+    - `interlink <name> `;
+    - `sequence %d ` (JSON `seq_nr`);
+    - `supervision <mac> ` (JSON `supervision_addr`);
+    - `proto %hhu ` and `version %hhu `.
+  - **netkit** prints `mode`, then `type primary` or `type peer` from `PRIMARY`, then `policy`, `peer policy`, `scrub` and `peer scrub` (JSON `peer_policy`, `peer_scrub`). A value outside its table is `UNKNOWN`.
+
+**Exit statuses.** KG3's mapping holds:
+- `invarg`, `duparg`, `NEXT_ARG`'s `incomplete_command`, and `usage()` for a no-parser kind's `help` would wrap `ErrLinkUsage` (255).
+- A parser's returned -1 is `ErrInvalidArgument` (1). That covers its unknown word, its own `help`, netkit's mode and scrub texts, vxcan's missing `peer`, and the Garbage line.
+
+**Decisions this phase makes** (the decision log gets each):
+- **hsr's `version` and `proto`: goip copies the check as written.** Any u8 is sent, and `version 2` is the kernel's refusal, not goip's. KP5's encoder already takes any u8.
+- **sit's `6rd-reset` stays `ErrNotImplemented`** (KG4-T04). `ip` crashes on it, so there is no `ip` behavior to match.
+- **The help rows that print `ip link`'s whole usage stay `ErrNotImplemented`,** as dummy's `help` and `ip link help` are. Four rows: `ifb/add_help_abbrev`, `team/add_help`, `netkit/add_peer_help` and `vxcan/add_peer_help`.
+- **vxcan's usage goes to stderr in goip.** goip prints every refusal as `goip: <text>` on stderr, and the status (1) matches. `vxcan/add_abbrev`, `add_help` and `add_unknown` have an empty `ip.err`, so their table rows check the text against `ip.out`.
+
+#### KG5-T01 The kinds with no parser, and the vrf and queue keywords
+
+**Code.**
+- `internal/goip/link_write.go`:
+  - `kindData`'s dummy case becomes `kindNoParserCst`'s set: dummy, ifb, nlmon, vcan, team, team_slave and vrf_slave. The text and status don't change.
+  - The `kind*Cst` names go with the others.
+- `internal/goip/link_args.go`:
+  - `vrf` gets an arm. It resolves the name through the resolver, then calls a `vrfCheck` that `buildLinkWrite` takes beside `resolve`, `Service.IsVRF` in `linkWrite`. Either failing is `Error: argument "<v>" is wrong: Not a valid VRF name`, 255. The arm sends `IFLA_MASTER`.
+  - `numtxqueues` and `numrxqueues` get an arm each: `matches`, `strconv.ParseInt(v, 0, 32)`, and a negative value sent as its u32. A failure is `invarg`, 255; a second use is `duparg`, 255.
+
+`TestLinkNoParserWriteMatchesIp` replays the six kinds' 42 request rows (`replayKindRows`, with `useLLMap720`):
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | ifb 5, nlmon 5, vcan 11, team 11, team_slave 3, vrf_slave 7 | its lookups, then its request, byte for byte |
+| positive: the queue keyword | `ifb/add_numtxqueues` | `IFLA_NUM_TX_QUEUES` 4 before `IFLA_LINKINFO` |
+| positive: vrf as a keyword | `vrf_slave/set_vrf` | vr0's get with mask 0x109, vr0's get by name with no mask, d0's get; `IFLA_MASTER` vr0's index |
+| negative: a request the kernel refuses is built anyway | the 15 rc 2 rows | their requests |
+| corner: a set to another kind | `ifb/set_kind_mismatch` | `IFLA_INFO_KIND` vcan on ib0 |
+| corner: up and mtu together | `vcan/set_up_and_mtu` | `ifi_flags` and `ifi_change` `IFF_UP`, `IFLA_MTU` 72 |
+
+`TestLinkNoParserRefusals` checks the status, stderr's first line and the lookups, and that nothing is written:
+
+| description | input | expected |
+|---|---|---|
+| negative: Garbage | ifb `add_garbage`, `add_mtu_after_type`, `set_garbage`; nlmon `add_garbage`; vcan `add_garbage`, `add_mtu_after_type`; team `add_garbage`; team_slave `set_garbage`; vrf_slave `set_type_word` | 1; `Garbage instead of arguments "<w> ...". Try "ip link help"`; the set rows' device get |
+| negative: a missing master | team `set_master_missing`, vrf_slave `set_master_missing` | 255; `Error: argument "nosuch" is wrong: Device does not exist` |
+| negative: vrf names a device that isn't one | `vrf_slave/set_vrf_not_vrf` | 255; `Error: argument "d1" is wrong: Not a valid VRF name`; d1's two gets and no d0 get |
+| negative: vrf names no device | `link set d0 vrf nosuch`, built | 255, the same text; nosuch's get alone |
+| negative: a bad queue count | `numtxqueues x`; `numrxqueues 4294967296` | 255; `Error: argument "x" is wrong: Invalid "numtxqueues" value`; the same for numrxqueues |
+| boundary: the queue count's limits | `numtxqueues 2147483647`; `numtxqueues -1` | `IFLA_NUM_TX_QUEUES` 0x7fffffff; 0xffffffff |
+| corner: a second queue count | `numtxqueues 2 numtxqueues 3` | 255; `Error: duplicate "numtxqueues": "3" is the second value.` |
+| corner: the abbreviation | `numrx 2` | `IFLA_NUM_RX_QUEUES` 2 |
+| corner: help is not implemented | `ifb/add_help_abbrev`, `team/add_help` | `ErrNotImplemented`, 1; nothing written |
+
+`TestNoParserCorpusArgv` checks one argv per row of the six kinds, 56 in all.
+
+**Mutation check:**
+- vrf_slave left out of the set (`vrf_slave/set_type_word`);
+- `vrf` without `IsVRF` (`set_vrf_not_vrf`'s gets);
+- `IsVRF` before the resolver (the same row);
+- `numtxqueues` as `strcmp` (the abbreviation row);
+- a negative count refused (the boundary row);
+- the second count accepted (the duplicate row);
+- Garbage at 255 (the Garbage row).
+
+**Done when:**
+- the tables pass under `go test -race ./internal/goip/...`;
+- each mutant is caught, in a scratch worktree, under `systemd-run --user --scope -p MemoryMax=6G` and `-timeout=180s`;
+- lint-baseline and netlink-audit pass in a scratch worktree holding only the task's diff.
+
+#### KG5-T02 The hsr words
+
+**Code.** `internal/goip/link_hsr_args.go`:
+- `parseHsrArgs(args []string, resolve linkResolver) ([]xtcpnl.HsrSetting, error)` is `hsr_parse_opt`'s chain in its order, each slave resolved as it is read.
+- The `kindHsrCst` case calls `EncodeHsrInfoData`. The usage line is `Usage:\tip link add name NAME type hsr slave1 SLAVE1-IF slave2 SLAVE2-IF`, with its tab.
+
+`TestLinkHsrWriteMatchesIp` replays the 20 request rows:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 20 rows | the slaves' gets in word order, then the request |
+| positive: abbreviations | `hsr/add_abbrev` (`sl d0 slave2 d1 s 7 v 1 p 0`) | `SLAVE1`, `SLAVE2`, `MULTICAST_SPEC` 7, `VERSION` 1, `PROTOCOL` 0, in that order |
+| positive: the interlink | `hsr/add_interlink` | d0's, d1's and d2's gets; `INTERLINK` d2's index |
+| negative: a request the kernel refuses is built anyway | the 10 rc 2 rows | their requests; `add_version_2` sends `VERSION` 2 and `add_proto_2` `PROTOCOL` 2 |
+| boundary: the top supervision byte | `add_supervision_max`, `add_supervision_hex` | `MULTICAST_SPEC` 0xff |
+| corner: a repeat sends twice | `add_supervision_twice` | `MULTICAST_SPEC` 1, then 2 |
+| corner: no word, no data | `add_no_option`, `set_no_option` | `IFLA_INFO_KIND` alone |
+
+`TestLinkHsrRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_help`, `add_interlink_abbrev`, `add_protocol`, `add_unknown` (1); `add_no_value`, `add_slave_missing`, `add_supervision_bad`, `add_supervision_over`, `add_version_over` (255) | the row's `ip.rc` and `ip.err` first line; d0's and d1's gets where the slaves came first; nosuch's get for `add_slave_missing` |
+| boundary: a version past a u8 | `version 256` | 255, `Error: argument "256" is wrong: version is invalid` |
+| boundary: proto past a u8 | `proto 256` | 255, `Error: argument "256" is wrong: protocol is invalid` |
+| corner: interlink is not a prefix word | `inter d2` | 1, `hsr: what is "inter"?` |
+| corner: `h` is help | `h` | 1, the usage line |
+| corner: a missing interlink | `interlink nosuch` | 255, `Error: argument "nosuch" is wrong: No such interface`, after its get |
+
+`TestHsrCorpusArgv` checks one argv per row, 29 in all.
+
+**Mutation check:**
+- `slave1` before `supervision` in the chain (`add_abbrev`);
+- `interlink` by prefix (`add_interlink_abbrev`);
+- `version` checked as a value (`add_version_2`);
+- the repeat dropped (`add_supervision_twice`);
+- `supervision` in base 10 (`add_supervision_hex`);
+- the slave get skipped on a bad name (`add_slave_missing`).
+
+**Done when:** as KG5-T01.
+
+#### KG5-T03 The netkit words
+
+**Code.** `internal/goip/link_netkit_args.go`:
+- `netkitData(env, rest)` is `netkit_parse_opt`. It builds `[]xtcpnl.NetkitSetting` and, after `peer` and a word that isn't netkit's, runs `parseLinkArgs(rest[i:], verb.create(), resolve)` for the peer, as `vethData` does.
+- It refuses the peer's `type` with `duparg("type", "(null)")` and a second `peer` with `duparg("peer", next)`, where `next` is `(null)` at the end of the line.
+- It then calls `EncodeNetkitInfoData(settings, peer)`, the peer nil when no word followed `peer`.
+
+`TestLinkNetkitWriteMatchesIp` replays the 27 request rows:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | the 27 rows | its lookups, then its request |
+| positive: the peer's header | `add_peer_up` | `PEER_INFO`'s `ifi_flags` and `ifi_change` `IFF_UP`; the device's own 0 |
+| positive: the peer's name | `add_peer_name`, `add_peer_bare_name` | `PEER_INFO` with `IFLA_IFNAME` nt1 |
+| positive: the peer's policy and scrub | `add_peer_blackhole`, `add_peer_scrub` | `PEER_POLICY` 2; `PEER_SCRUB` 0 |
+| negative: a request the kernel refuses is built anyway | the 8 rc 2 rows | their requests |
+| corner: `peer` alone sends nothing for it | `add_peer_only`, `set_peer_only` | no `PEER_INFO`; `INFO_DATA` empty |
+| corner: a word that isn't netkit's is a name | `add_peer_word` (`peer black`) | `PEER_INFO` with `IFLA_IFNAME` black |
+| corner: both policies are sent | `add_policy_twice` | `POLICY` 0, then `POLICY` 2 |
+| corner: mode after peer is the device's | `add_peer_mode` | `MODE` 0 in `INFO_DATA`, no `PEER_INFO` |
+| corner: the address before the type | `add_l2_address` | `IFLA_ADDRESS` outside `INFO_DATA`; `MODE` 0 |
+
+`TestLinkNetkitRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: each `ip`-refused row | `add_headroom`, `add_help`, `add_mode_abbrev`, `add_mode_bad`, `add_mode_case`, `add_scrub_bad`, `add_unknown`, `set_peer_nodev` (1); `add_mode_missing`, `add_mode_twice`, `add_peer_name_long`, `add_peer_name_then_word`, `add_peer_twice`, `add_peer_type`, `add_scrub_missing` (255) | the row's `ip.rc` and `ip.err` first line, `(null)` included; nt0's get and nosuch's for `set_peer_nodev` |
+| corner: help in the peer is not implemented | `add_peer_help` | `ErrNotImplemented`, 1 |
+| corner: `help` is not a netkit word | `help` | 1, `netkit: unknown option "help"?` |
+| corner: a second peer mid-line | `peer peer name nt1` | 255, `Error: duplicate "peer": "name" is the second value.` |
+| corner: the device's header is kept | `link add nt0 up type netkit peer name nt1` | the device's `ifi_flags` `IFF_UP`; the peer's 0 |
+
+`TestNetkitCorpusArgv` checks one argv per row, 43 in all.
+
+**Mutation check:**
+- `mode` by prefix (`add_mode_abbrev`);
+- `PEER_POLICY` before `peer` (`add_policy_twice`);
+- the device's flags not saved (the header row);
+- the peer's flags left on the device (`add_peer_up`);
+- a second peer accepted (`add_peer_twice`);
+- `(null)` replaced by the empty string (`add_peer_type`);
+- the peer nest sent for `peer` alone (`add_peer_only`).
+
+**Done when:** as KG5-T01.
+
+#### KG5-T04 The vrf, vxcan and batadv words
+
+**Code.**
+- `internal/goip/link_vrf_args.go`: `parseVrfArgs(args)` is `vrf_parse_opt`. `table` goes through goip's `rtnl_rttable_a2n`, `routeTableNames` and then `get_u32`, factored out of `routeParseState.table` (`route_write.go:434`). The case calls `EncodeVrfInfoData`.
+- `link_write.go`: the `kindVxcanCst` case is `vethData` with a kind argument. That gives vxcan `ip`'s usage line, `Usage: ip link <options> type vxcan [peer <options>]`, and `EncodeVxcanInfoData`. veth keeps its own text.
+- `internal/goip/link_batadv_args.go`: `parseBatadvArgs(args)` is `batadv_parse_opt`, and the case calls `EncodeBatadvInfoData`.
+
+`TestLinkVrfVxcanBatadvWriteMatchesIp` replays the 33 request rows:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row that sent a request | vrf 12, vxcan 9, batadv 12 | its lookups, then its request |
+| positive: a table by name | `vrf/add_table_main` | `IFLA_VRF_TABLE` 254 |
+| positive: vxcan's peer | `vxcan/add_peer_name`, `add_peer_bare_name` | `VXCAN_INFO_PEER` with `IFLA_IFNAME` vc1 |
+| positive: batadv's algorithm | `batadv/add_ra_v`, `add_abbrev` | `ALGO_NAME` `BATMAN_V\0` |
+| negative: a request the kernel refuses is built anyway | the 13 rc 2 rows | their requests; `add_ra_lowercase` sends `batman_v\0` |
+| boundary: the top table | `vrf/add_table_max` | 0xffffffff |
+| boundary: table 0 is sent | `vrf/add_table_zero` | `IFLA_VRF_TABLE` 0 |
+| corner: repeats send twice | `vrf/add_table_twice`, `batadv/add_ra_twice` | two `TABLE`s; two `ALGO_NAME`s |
+| corner: `t` is table | `vrf/add_abbrev` | `IFLA_VRF_TABLE` 10 |
+| corner: a hex table | `vrf/add_table_hex` | 16 |
+| corner: vxcan's peer alone | `vxcan/add_peer` | an empty `VXCAN_INFO_PEER` holding the peer's header |
+
+`TestLinkVrfVxcanBatadvRefusals`:
+
+| description | input | expected |
+|---|---|---|
+| negative: vrf's refused rows | `add_help`, `add_unknown` (1); `add_no_value`, `add_table_bad`, `add_table_neg`, `add_table_over` (255) | the row's `ip.rc` and `ip.err` first line |
+| negative: vxcan's refused rows | `add_abbrev`, `add_help`, `add_unknown`, `set_peer_nodev` (1); `add_peer_name_long`, `add_peer_name_missing`, `add_peer_type`, `set_peer_bare` (255) | the row's `ip.rc`; the first line of `ip.err`, or of `ip.out` for the first three |
+| negative: batadv's refused rows | `add_help`, `add_ra_longer`, `add_unknown`, `set_nodev` (1); `add_no_value` (255) | the row's `ip.rc` and `ip.err` first line |
+| corner: vxcan's peer help is not implemented | `vxcan/add_peer_help` | `ErrNotImplemented`, 1 |
+| corner: vxcan's duparg prints the kind | `vxcan/add_peer_type` | `Error: duplicate "type": "vxcan" is the second value.` |
+| corner: a table name not in `rt_tables` | `table blue` | 255, `Error: argument "blue" is wrong: invalid table ID` |
+
+`TestVrfVxcanBatadvCorpusArgv` checks one argv per row, 53 in all.
+
+**Mutation check:**
+- `table` as `strcmp` (`vrf/add_abbrev`);
+- table names refused (`add_table_main`);
+- `-1` accepted (`add_table_neg`);
+- vxcan's `peer` by prefix (`vxcan/add_abbrev`);
+- veth's text on vxcan (the same row);
+- `ALGO_NAME` without its NUL (`batadv/add_ra_v`);
+- `ra` as `strcmp` (`batadv/add_abbrev`).
+
+**Done when:** as KG5-T01.
+
+#### KG5-T05 The bond parsers' statuses
+
+**The gap.** `ip`'s `bond_parse_opt` and `bond_slave_parse_opt` exit 255 on `invarg` and on `NEXT_ARG`'s incomplete line. goip's bond parsers return `ErrInvalidArgument`, 1, because KG0-T01 left them for KG5. The rest stay 1, as in `ip`:
+- the unknown word;
+- `nodev` for `primary` and `active_slave`;
+- `ll_addr_a2n` for `ad_actor_system`;
+- `parse_on_off`;
+- `get_addr32`'s and `get_addr`'s `exit(1)`.
+
+**Code.** `internal/goip/link_bond_args.go`:
+- `readBondValue`'s `invarg` and its incomplete-line error wrap `ErrLinkUsage`.
+- The two `//nolint:gosec` conversions (`link_bond_args.go`, `link_write.go`'s bond resolver) become bounds-checked conversions, so the parser needs no lint exception.
+
+`TestEncodeBondOptions`' and `TestEncodeBondSlaveOptions`' refusal rows take a status column:
+
+| description | input | expected |
+|---|---|---|
+| negative: an invalid value | `mode foo`; `miimon x`; `queue_id x` (slave) | 255; `Error: argument "foo" is wrong: invalid mode`; … |
+| negative: an incomplete line | `mode`; `queue_id` | 255; `Command line is not complete. Try option "help"` |
+| negative: an unknown word | `foo`; `foo` (slave) | 1; `bond: unknown command "foo"?`; `bond_slave: unknown option "foo"?` |
+| negative: a missing device | `primary nosuch` | 1; `Cannot find device "nosuch"` |
+| negative: on/off | `coupled_control maybe` | 1; `argument of "coupled_control" must be "on" or "off", not "maybe"` |
+| negative: a bad target | `arp_ip_target 10.0.0.x` | 1; `Error: an IP address is expected rather than "10.0.0.x"` |
+| boundary: the top ifindex | a resolver returning 2147483647 | `PRIMARY` 0x7fffffff |
+| corner: a negative ifindex | a resolver returning -1 | refused, not wrapped |
+
+**Mutation check:**
+- `invarg` back to 1 (the invalid row);
+- the incomplete line back to 1 (its row);
+- the unknown word at 255 (its row);
+- the bounds check dropped (the corner row).
+
+**Done when:** as KG5-T01, and `grep -n nolint internal/goip/link_bond_args.go internal/goip/link_write.go` finds nothing.
+
+#### KG5-T06 The hsr and netkit `-d` output
+
+**Code.**
+- `internal/goip/render/link_hsr.go`: `hsrData(h *xtcpnl.HsrInfo, names NameTab)`, which is `hsr_print_opt`. The decoder keeps each attribute's raw length, so the short-payload return can be checked.
+- `link_netkit.go`: `netkitData(n *xtcpnl.NetkitInfo)`.
+- `renderableInfoData` accepts both.
+- `TestDetailRefusedForUnrenderedKind` moves to a built `LinkInfo` of a kind goip doesn't render: `wireguard`, with an `INFO_DATA`.
+
+`TestLinkShowDetailHsrNetkitMatchesSidecar` runs every accepted row's `-d link show dev <device>` and `-d -j …` against its readbacks, with the capture's gets:
+
+| description | input | expected |
+|---|---|---|
+| positive: each accepted row's `-d` and `-d -j` | hsr's 10, netkit's 19 | `ip_getlink_detail` line for line; `ip_getlink_detail_json` entry for entry |
+| positive: the slaves by name | `hsr/add_interlink` | `slave1 d0 slave2 d1 interlink d2 `; the gets the capture holds |
+| corner: no -d | `hsr/add_default` without `-d` | `ip_getlink`; no `slave1` |
+| corner: the JSON keys | `hsr/add_default`, `netkit/add_peer_name` | `seq_nr`, `supervision_addr`; `peer_policy`, `peer_scrub` |
+| corner: type primary | `netkit/add_mode_l2` | `type primary ` |
+
+`TestHsrNetkitDataRender` (built data):
+
+| description | input | expected |
+|---|---|---|
+| positive: every attribute | hsr with both slaves, interlink, `SEQ_NR` 5, supervision, proto 1, version 1 | `slave1 d0 slave2 d1 interlink d2 sequence 5 supervision 01:15:4e:00:01:00 proto 1 version 1 ` |
+| negative: no slaves | hsr with `SEQ_NR` 0 alone | `slave1 <none> slave2 <none> sequence 0 `; JSON `"slave1":null,"slave2":null` |
+| negative: no data | nil, for each | `""`; `{}` |
+| boundary: a short slave | `SLAVE1` 2 bytes | `""` |
+| boundary: a short supervision address | 5 bytes | `""` |
+| corner: an unknown mode | netkit `MODE` 7 | `mode UNKNOWN ` |
+| corner: the peer's type | netkit `PRIMARY` 0 | `type peer ` |
+
+**Mutation check:**
+- `<none>` as an empty string in JSON (the no-slaves row);
+- the short-payload return dropped (the boundary rows);
+- `sequence` under its text name in JSON (the keys row);
+- `UNKNOWN` dropped (the unknown-mode row).
+
+**Done when:** as KG5-T01.
+
+#### KG5-T07 The remaining kinds' matrix rows
+
+**Rows.** In `internal/goipparity/commands.go`, after the IP tunnel rows:
+- **Write rows**, slug `link_<kind>_<slug>`, one per corpus row that sent a request, 122 in all: 20 hsr, 27 netkit, 12 vrf, 7 vrf_slave, 9 vxcan, 12 batadv, 5 ifb, 5 nlmon, 11 vcan, 11 team and 3 team_slave.
+  - Argv is as the corpus ran it. `Floor` is the row's `ip.pcap` record count, and `Setup` is its `topology`. A rc 2 row's comment is its `ip.err`'s last line.
+- **Respellings:** six pairs share an argv, so one of each takes `iplink_parse`'s optional `dev`:
+  - `batadv/add_duplicate` becomes `link add dev bat0 type batadv`;
+  - `vrf/add_shared_table` becomes `link add dev vr0 type vrf table 10`;
+  - `team/set_enslave_again` becomes `link set dev d0 master tm0`;
+  - `vrf_slave/set_nomaster` becomes `link set dev d0 nomaster`;
+  - `team_slave/set_unenslaved` becomes `link set dev d0 type team_slave`;
+  - `vcan/set_mtu_up` becomes `link set dev vn0 mtu 72`.
+- `kindRowKinds` gets the eleven kinds.
+- **Read rows:** `-d link show dev <dev>` and `-d -j …` for each kind, 22 in all. Each device's setup and command come from one accepted corpus row of its kind, and its floor is that row's `netlink_route_getlink_detail.pcap` record count.
+- **Modules.** Each kind's first row autoloads its module, as KC6's capture did.
+  - If a module's first load makes a leg differ, as ifb's two default devices or a fallback could, the module goes into `nltopo::late_modules`.
+  - The first VM run decides, and the decision log records it.
+
+`TestRemainingKindsMatrixRows` (`internal/goipparity/commands_kinds_test.go`):
+
+| description | input | expected |
+|---|---|---|
+| positive: one write row per request row | the eleven kinds' slugs | the corpus's rows with `ip.rc` 0 or 2: 122 |
+| negative: no `ip`-refused row | the 59 rows with `ip.rc` 1 or 255 | absent |
+| boundary: each floor | `Floor` | the row's `ip.pcap` record count |
+| corner: vrf's two gets count | `vrf_slave/set_vrf` | 8 |
+| corner: each setup | `Setup` | the row's `topology`, step for step |
+| corner: each name is unique | the 122 `Name`s, and every existing row's | no two alike; the six rows respelled |
+| positive: the 22 read rows | the read rows | not writes; each device's floor and setup |
+| positive: every row is gated | the 144 rows' names | each `IsGated` in the embedded allowlist |
+
+`TestCompareWriteRow`'s every-write-row case runs the 122 on their own corpus captures, and the 144 go in `TestAllowlistCommitted`'s earned list.
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: two consecutive clean section runs | `goip-parity -- --timeout 12000 --section link`, twice | the 144 rows `PASS` on both, and every gated `link` row still `PASS` |
+| corner: the kernel-refused rows compare on the request | the 46 rc 2 rows | `PASS` |
+| corner: a module's first load | the first ifb, team, hsr and batadv rows | `PASS` on all three legs |
+
+Then the 144 rows go in `gated_commands`. A full run comes before the next push.
+
+**Mutation check:**
+- `vrf_slave/set_vrf`'s floor as 6 (its corner row);
+- a setup step dropped (the setup row);
+- a row dropped (the request-row row);
+- an `ip`-refused row added (the negative row);
+- `vcan/set_mtu_up` back to its corpus spelling (the unique row);
+- a read row's floor short by 2 (the read row);
+- a row dropped from `gated_commands` (the gated row and `TestUngatedSurfaceIsNotVacuous`).
+
+**Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG5.
+
 ## See also
 
 - [goip-link-kinds-status.md](goip-link-kinds-status.md): progress against this plan.
