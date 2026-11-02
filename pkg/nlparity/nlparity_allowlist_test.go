@@ -393,6 +393,17 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-j netconf show",
 		"vrf show",
 		"-j vrf show",
+		// The three `vrf show NAME` rows - the single-lookup path (VS4 of
+		// docs/netlink/vrf-show-name.md, `ipvrf_get_table` iplink_vrf.c:102-166)
+		// - gated on two consecutive clean ungated runs measured 2026-11-01,
+		// both GOIP_PARITY_PASS 510/510 with GOIP_PARITY_UNGATED_CLEAN,
+		// txns 1/1, control nl=0 stdout=0, and identical captures on all
+		// three sides: vrf_show_name 2 datagrams / 12 bytes (`goipvrf 100\n`),
+		// vrf_show_default 2 / 12 (`default 254\n`), vrf_show_novrf 2 / 0
+		// (stdout silent; `Invalid VRF` is stderr, dropped).
+		"vrf show goipvrf",
+		"vrf show default",
+		"vrf show goip0",
 		// nexthop and addrlabel, gated on runs 10 and 11 - the first live
 		// grounding of those two objects, which were replay-grounded only.
 		// Both runs GOIP_PARITY_PASS with stdout=0 and no unsuppressed findings,

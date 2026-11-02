@@ -2,14 +2,15 @@
 
 ## Status
 
-**Last updated:** 2026-10-31. VS0 through VS3 have landed (VS001–VS004);
-VS4 is open. This document is the plan and its own status.
+**Last updated:** 2026-11-02. All five tasks have landed (VS001–VS005);
+the plan is complete. This document is the plan and its own status.
 
-`ip vrf show` (the dump form) and `-j vrf show` are gated matrix rows.
-`ip vrf show NAME` is the one refused-but-pure-netlink path left on the
-object: [coverage-status.md](coverage-status.md) records that "`vrf show
-NAME` (the `ipvrf_get_table` single-lookup path) … [is] refused with a
-rationale." This plan closes it in five tasks.
+`ip vrf show` (the dump form), `-j vrf show` and the three `vrf show
+NAME` rows are gated matrix rows. `ip vrf show NAME` **was** the one
+refused-but-pure-netlink path left on the object:
+[coverage-status.md](coverage-status.md) recorded that "`vrf show NAME`
+(the `ipvrf_get_table` single-lookup path) … [is] refused with a
+rationale." This plan closed it in five tasks.
 
 The plan is small enough to carry its own checklist. If it grows a sixth
 task, split a status document the way the address plan did
@@ -40,7 +41,7 @@ task, split a status document the way the address plan did
 | [x] | [VS1-T01](#vs1--the-service-accessor) | `Service.VrfTableByName` | done | VS002 |
 | [x] | [VS2-T01](#vs2--the-object) | `goip vrf show NAME` | done | VS003 |
 | [x] | [VS3-T01](#vs3--the-capture-rows-and-the-sidecar-replay-test) | capture rows and the sidecar replay test | done | VS004 |
-| [ ] | [VS4-T01](#vs4--the-matrix-rows-and-gating) | matrix rows and gating | not started | — |
+| [x] | [VS4-T01](#vs4--the-matrix-rows-and-gating) | matrix rows and gating | done | VS005 |
 
 ```
 VS0 ──> VS1 ──> VS2 ──┬──> VS3 ──> VS4
@@ -415,6 +416,7 @@ Not repeated in each "Done when":
 | VS002 | 2026-10-31 | VS1-T01 | `go test ./internal/goip/... -count=1` and `go vet ./internal/goip/...`: green, `TestVrfTableByName` 9/9 rows. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`, and the nix-fmt, statix and deadnix checks: green. Mutation check in a scratch worktree, removed after: `VrfTableByName`'s `errors.As(err, &miss)` widened to `&& false`, dropping the fallback's ENODEV normalization, failed exactly the row `negative: the fallback finds no matching link` (`goip: link "nosuchvrf" not found` no longer wrapping `no such device`), and was reverted. No VM runs; no `.exp` change. | Passed: 9/9 rows; the gates green; the mutant caught | `Service.VrfTableByName` and `linkNotFoundError` in `internal/goip/service/service.go`; `TestVrfTableByName` in `internal/goip/service/service_test.go` |
 | VS003 | 2026-10-31 | VS2-T01 | `go test ./internal/goip/... -count=1` and `go vet ./internal/goip/...`: green, `TestVrfShowName` 11/11 rows and `TestVrfShowNameReplay` 2/2 rows over `netlink_route_getvrf.pcap` and `netlink_route_getnexthop_vrf.pcap`. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`: green — after the comprehensive tier flagged the new `"default"` literal (fixed as `vrfDefaultNameCst`, the third package-wide occurrence would have tripped goconst) and the `vrfNameSource` reply slice (prealloc, built by copy instead of append). Mutation check in a scratch worktree, removed after, re-run against the post-lint-fix state: the stdout format `"%s %d\\n"` changed to `"%-16s %5d\\n"` (`obj_vrf.go`) failed exactly the seven stdout rows — five in `TestVrfShowName` (`goipvrf`, the verb synonym, `-j`, `default`, the boundary `default` table 100) and both `TestVrfShowNameReplay` rows — and no stderr or exit-code row, and was reverted. coverage-status's "deliberately not in scope" vrf bullet amended in this commit. No VM runs; no `.exp` change. | Passed: 13/13 rows; the gates green; the mutant caught | `ErrVrfUsage`/`ErrVrfInvalid`, `parseVrfShowArgs`, `vrfShowName` in `internal/goip/obj_vrf.go`; `exitCodeOf` in `internal/goip/goip.go`; the two tests in `internal/goip/obj_vrf_test.go` |
 | VS004 | 2026-10-31 | VS3-T01 | `nix run .#microvm-x86_64-netlink-dump-capture -- --out /tmp/vs3-cap/dumps` on the host: `NLCAP_DRIVER_PASS`, no missed floors, all nine new rows `datagrams=2 floor=2`; sidecars `goipvrf 100\n` (base `ip_vrf_name`), empty (mesh/tunnel `ip_vrf_name`, all `ip_vrf_novrf`), `default 254\n` (all `ip_vrf_default`). A scratch Go walker (deleted after) held every pcap to two datagrams and byte-compared each get against `req.VrfCheckByName` (seq/pid zeroed) — all nine equal VS0's pinned bytes — and each answer to its claimed shape: goipvrf/vrf/100 (base `_name`), NLMSG_ERROR ENODEV (mesh/tunnel `_name`, all `_default`), the device's full RTM_NEWLINK with kind dummy/veth/gre (all `_novrf`). `go test ./internal/goip/... -count=1`, `go vet`, and `nix build --no-link` of `.#test-focused-goip` (testdata `git add`ed first), `.#checks.x86_64-linux.vm-lib-exp`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`, nix-fmt, statix and deadnix: green, `TestCorpus730MatchesSidecarsAt720` 12/12 vrf subtests. Mutation check in a scratch worktree, removed after: `refuse := (r.cleanOnly && ns.subdir != "") || r.failsEverywhere` narrowed to drop `r.failsEverywhere` failed exactly the three `vrf show $dev` rows (clean/mesh/tunnel, `Run = 1` `Invalid VRF` on the positive path) and was reverted. | Passed: 2/2 datagrams and the pinned get bytes in all nine pcaps; the gates green; the mutant caught | the three capio rows in `nix/microvms/scripts/capture-netlink-dumps.exp`; the 18 new files under `pkg/xtcpnl/testdata/7_3_0/dumps/{,mesh/,tunnel/}`; the four vrf rows in `internal/goip/corpus_7_3_0_test.go` |
+| VS005 | 2026-11-02 | VS4-T01 | Four live runs of `nix run .#microvm-x86_64-goip-parity` on the host: two with the rows ungated, then, after the gating edits, two back to back with **no edit of any kind between them**. All four read `GOIP_PARITY_DRIVER_PASS` and `GOIP_PARITY_OVERALL_PASS` with **510/510 `GOIP_PARITY_PASS`**, 0 FAIL, `GOIP_PARITY_UNGATED_CLEAN`; each of the three rows `txns: ip=1 goip=1`, `control: nl=0 stdout=0`, with captures identical on all three sides: `vrf_show_name` 2 datagrams / 12 bytes (`goipvrf 100\n`), `vrf_show_default` 2 / 12 (`default 254\n`), `vrf_show_novrf` 2 / 0 (stdout silent; `Invalid VRF` is stderr, which read rows drop). A first gated attempt died at guest boot, a port collision with another session's concurrent run of the same flavor (no comparison reached); the clean gated pair is transcripts M38R and BgxE. `go test ./internal/goipparity/ ./pkg/nlparity/ -count=1` and `go vet` on both: green, the three family rows, `TestVrfShowNameRowsGated` 6/6 and `TestUngatedSurfaceIsNotVacuous` back to exactly `addr show dynamic`. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`, and the nix-fmt, statix and deadnix checks: green. Mutation check in a scratch worktree, removed after: the `vrf show default` row dropped from `commands.go` failed exactly the `vrf show default` row of `TestFamilyTableAndJSONRows`, the `default` row of `TestVrfShowNameRowsGated`, and the gated-command-is-in-the-table corners of `TestCommandsCoverAllowlist` and `TestObjectGatingStatus`, and was reverted. coverage-status's at-a-glance (510 commands / 509 gated, counted from 2026-11-01) and the README counts (510/509) amended in this commit. | Passed: 4/4 live runs clean; the gates green; the mutant caught | the three rows in `internal/goipparity/commands.go`; the family rows and `TestVrfShowNameRowsGated` in `internal/goipparity/commands_test.go`; the three names in `pkg/nlparity/goip-parity-allowlist.json` and the earned slice in `pkg/nlparity/nlparity_allowlist_test.go` |
 
 ## Out of scope
 
