@@ -196,6 +196,10 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab, details int) *KindData {
 		return vtiData(li.Vti, names, true)
 	case XfrmKindCst:
 		return xfrmData(li.Xfrm)
+	case HsrKindCst:
+		return hsrData(li.Hsr, names)
+	case NetkitKindCst:
+		return netkitData(li.Netkit)
 	}
 	return nil
 }

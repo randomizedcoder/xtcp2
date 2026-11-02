@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -985,46 +984,46 @@ func mustDecodeHex(t *testing.T, s string) []byte {
 	return b
 }
 
-// TestDetailRefusedForUnrenderedKind is the refusal on the kinds whose
-// print_opt goip doesn't have yet, against their KC readbacks: `-d link show
-// dev <device>` fails with ErrNotImplemented, naming the device and the
-// kind, and prints nothing. The control is a kind that renders.
+// TestDetailRefusedForUnrenderedKind is the refusal on a kind whose
+// print_opt goip doesn't have, over built links (every kind KC captured now
+// renders): -d fails with ErrNotImplemented, naming the device and the kind.
 //
 // go test ./internal/goip/ -run TestDetailRefusedForUnrenderedKind
 func TestDetailRefusedForUnrenderedKind(t *testing.T) {
-	const kinds = "../../pkg/xtcpnl/testdata/7_3_0/link-write/kinds/"
 	tests := []struct {
 		description string
-		dir         string
+		link        xtcpnl.LinkInfo
+		details     int
 		expected    []string
 	}{
-		{"negative: hsr's data", kinds + "hsr/add_default", []string{`"hsr"`, "IFLA_INFO_DATA"}},
-		{"negative: netkit's data", kinds + "netkit/add_blackhole", []string{`"netkit"`, "IFLA_INFO_DATA"}},
-		{"positive: ipip renders", kinds + "ipip/add_default", nil},
+		{"negative: wireguard's data", xtcpnl.LinkInfo{Name: "wg0", Kind: "wireguard", HasInfoData: true}, 1,
+			[]string{`"wireguard"`, "IFLA_INFO_DATA", "wg0"}},
+		{"negative: a slave kind with no slave print_opt",
+			xtcpnl.LinkInfo{Name: "d0", Kind: "dummy", SlaveKind: "team", HasInfoSlaveData: true}, 1,
+			[]string{`"team"`, "IFLA_INFO_SLAVE_DATA", "d0"}},
+		{"positive: hsr renders", xtcpnl.LinkInfo{Name: "hs0", Kind: render.HsrKindCst, HasInfoData: true}, 1, nil},
+		{"positive: netkit renders", xtcpnl.LinkInfo{Name: "nt0", Kind: render.NetkitKindCst, HasInfoData: true}, 1, nil},
+		{"positive: ipip renders", xtcpnl.LinkInfo{Name: "ip0", Kind: render.IpipKindCst, HasInfoData: true}, 1, nil},
+		{"corner: no data, nothing to refuse", xtcpnl.LinkInfo{Name: "wg0", Kind: "wireguard"}, 1, nil},
+		{"corner: without -d nothing is refused", xtcpnl.LinkInfo{Name: "wg0", Kind: "wireguard", HasInfoData: true}, 0, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			dev := kindShowDevice(t, tc.dir)
-			src := newLinkReplay(t, tc.dir+"/netlink_route_getlink_detail.pcap")
-			var out bytes.Buffer
-			c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: io.Discard, showDetails: 1}
-			err := runLink(c, []string{"show", "dev", dev})
+			c := &runCtx{showDetails: tc.details}
+			err := checkDetailSupported(c, []xtcpnl.LinkInfo{tc.link})
 			if tc.expected == nil {
-				if err != nil || out.Len() == 0 {
-					t.Fatalf("err %v, %d bytes; want a render", err, out.Len())
+				if err != nil {
+					t.Fatalf("err %v, want none", err)
 				}
 				return
 			}
 			if !errors.Is(err, ErrNotImplemented) {
 				t.Fatalf("err %v, want ErrNotImplemented", err)
 			}
-			for _, w := range append(tc.expected, dev) {
+			for _, w := range tc.expected {
 				if !strings.Contains(err.Error(), w) {
 					t.Errorf("%q not in %v", w, err)
 				}
-			}
-			if out.Len() != 0 {
-				t.Errorf("refused and still wrote:\n%s", out.String())
 			}
 		})
 	}

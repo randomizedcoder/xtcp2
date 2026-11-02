@@ -390,9 +390,9 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 // output for a kind: vrf (a single table id), bond (bond_print_opt,
 // grounded on the 7_1_4 link-write fixtures), bridge (bridge_print_opt),
 // the VLAN family, vlan, macvlan, macvtap, ipvlan and ipvtap, and the UDP
-// overlays, vxlan, geneve, bareudp, amt and gtp, and the twelve IP tunnel
-// kinds (gre's six, ipip, sit, ip6tnl, vti, vti6 and xfrm), grounded on the
-// 7_3_0 kind corpus. Every other kind's blob stays undecoded and its -d render refused, which keeps the gate kind-agnostic
+// overlays, vxlan, geneve, bareudp, amt and gtp, the twelve IP tunnel
+// kinds (gre's six, ipip, sit, ip6tnl, vti, vti6 and xfrm), and hsr and
+// netkit, grounded on the 7_3_0 kind corpus. Every other kind's blob stays undecoded and its -d render refused, which keeps the gate kind-agnostic
 // for everything goip has not verified against a capture. The list is
 // render's, so the gate and the renderer cannot disagree about which kinds
 // have a print_opt.
@@ -404,7 +404,8 @@ func renderableInfoData(kind string) bool {
 		render.GreKindCst, render.GretapKindCst, render.ErspanKindCst,
 		render.IP6GreKindCst, render.IP6GretapKindCst, render.IP6ErspanKindCst,
 		render.IpipKindCst, render.SitKindCst, render.IP6TnlKindCst,
-		render.VtiKindCst, render.Vti6KindCst, render.XfrmKindCst:
+		render.VtiKindCst, render.Vti6KindCst, render.XfrmKindCst,
+		render.HsrKindCst, render.NetkitKindCst:
 		return true
 	}
 	return false
@@ -456,6 +457,18 @@ func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 	// vxlan's and amt's dev, from the kind's print_opt.
 	if idx, ok := kindLowerIndex(li); ok && c.detailed() {
 		resolveIndexName(c, svc, idx)
+	}
+	// hsr_print_opt's slaves and interlink, unless a short attribute
+	// makes it print nothing.
+	if h := li.Hsr; c.detailed() && li.Kind == render.HsrKindCst && h != nil && !h.Short {
+		for _, s := range []struct {
+			has bool
+			idx uint32
+		}{{h.HasSlave1, h.Slave1}, {h.HasSlave2, h.Slave2}, {h.HasInterlink, h.Interlink}} {
+			if s.has && s.idx <= math.MaxInt32 {
+				resolveIndexName(c, svc, int32(s.idx))
+			}
+		}
 	}
 	// bridge_slave_print_opt's backup_port, after the master's print_opt
 	// as print_linktype runs them.
