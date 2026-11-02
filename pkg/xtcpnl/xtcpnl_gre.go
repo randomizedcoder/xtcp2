@@ -82,14 +82,19 @@ type GreInfo struct {
 	HasOKey bool
 	// Local and Remote are 4 bytes for gre, gretap and erspan and 16 for
 	// the ip6 kinds; the zero Addr when shorter or not sent.
-	Local       netip.Addr
-	Remote      netip.Addr
-	TTL         uint8
-	HasTTL      bool
-	TOS         uint8
-	HasTOS      bool
-	PMTUDisc    uint8
-	HasPMTUDisc bool
+	Local  netip.Addr
+	Remote netip.Addr
+	// LocalLen and RemoteLen are the last attribute's payload length, which
+	// tnl_print_endpoint reads as the family: 4, 16, or `unknown` for any
+	// other. HasLocal and HasRemote say it was sent.
+	LocalLen, RemoteLen int
+	HasLocal, HasRemote bool
+	TTL                 uint8
+	HasTTL              bool
+	TOS                 uint8
+	HasTOS              bool
+	PMTUDisc            uint8
+	HasPMTUDisc         bool
 	// EncapLimit, FlowInfo (big-endian, in host order) and Flags (the
 	// IP6_TNL_F_* bits, with the kernel's CAP bits) are the ip6 kinds'.
 	EncapLimit    uint8
@@ -141,9 +146,9 @@ func ParseGreInfoData(nest []byte) *GreInfo {
 		case IflaGreFlowInfo:
 			kindBE32(val, &g.FlowInfo, &g.HasFlowInfo)
 		case IflaGreLocal:
-			g.Local = kindAddr(val, g.Local)
+			g.Local, g.LocalLen, g.HasLocal = kindAddr(val, g.Local), len(val), true
 		case IflaGreRemote:
-			g.Remote = kindAddr(val, g.Remote)
+			g.Remote, g.RemoteLen, g.HasRemote = kindAddr(val, g.Remote), len(val), true
 		case IflaGreCollectMetadata:
 			g.CollectMetadata = true
 		case IflaGreErspanHwid:

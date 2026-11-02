@@ -413,6 +413,9 @@ func TestParseGreInfoData(t *testing.T) {
 		expected map[string]any
 		exact    bool
 		unknown  []uint16
+		// lens are the endpoints' recorded lengths, local then remote, -1
+		// for not sent; nil to skip.
+		lens []int
 	}{
 		{
 			description: "positive: a gre's dump",
@@ -445,12 +448,14 @@ func TestParseGreInfoData(t *testing.T) {
 			description: "negative: a short remote",
 			nest:        rtattr(IflaGreRemote, []byte{10, 0}),
 			expected:    map[string]any{"remote": "any"},
+			lens:        []int{-1, 2},
 		},
 		{
 			description: "boundary: an empty nest",
 			nest:        []byte{},
 			expected:    map[string]any{"remote": "any", "local": "any", "ttl": float64(0)},
 			exact:       true,
+			lens:        []int{-1, -1},
 		},
 		{
 			description: "boundary: the 20-bit index's top",
@@ -481,6 +486,12 @@ func TestParseGreInfoData(t *testing.T) {
 				"csum": false, "csum6": false, "remcsum": false}},
 		},
 		{
+			description: "corner: the endpoints' lengths, the last one kept",
+			nest: slices.Concat(rtattr(IflaGreLocal, []byte{10, 0, 0, 1}), rtattr(IflaGreRemote, make([]byte, 16)),
+				rtattr(IflaGreRemote, []byte{}), rtattr(IflaGreLocal, make([]byte, 16))),
+			lens: []int{16, 0},
+		},
+		{
 			description: "corner: an id past ERSPAN_HWID is listed",
 			nest:        rtattr(25, []byte{1}),
 			expected:    map[string]any{"remote": "any"},
@@ -507,6 +518,15 @@ func TestParseGreInfoData(t *testing.T) {
 			}
 			if !slices.Equal(g.Unknown, tt.unknown) {
 				t.Errorf("unknown: got %v, want %v", g.Unknown, tt.unknown)
+			}
+			sent := func(has bool, n int) int {
+				if !has {
+					return -1
+				}
+				return n
+			}
+			if got := []int{sent(g.HasLocal, g.LocalLen), sent(g.HasRemote, g.RemoteLen)}; tt.lens != nil && !slices.Equal(got, tt.lens) {
+				t.Errorf("lengths: got %v, want %v", got, tt.lens)
 			}
 		})
 	}

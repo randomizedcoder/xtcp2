@@ -390,8 +390,8 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 // output for a kind: vrf (a single table id), bond (bond_print_opt,
 // grounded on the 7_1_4 link-write fixtures), bridge (bridge_print_opt),
 // the VLAN family, vlan, macvlan, macvtap, ipvlan and ipvtap, and the UDP
-// overlays, vxlan, geneve, bareudp, amt and gtp (their print_opts),
-// grounded on the 7_3_0 kind corpus. Every other kind's blob stays
+// overlays, vxlan, geneve, bareudp, amt and gtp, and the six gre kinds
+// (their print_opts), grounded on the 7_3_0 kind corpus. Every other kind's blob stays
 // undecoded and its -d render refused, which keeps the gate kind-agnostic
 // for everything goip has not verified against a capture. The list is
 // render's, so the gate and the renderer cannot disagree about which kinds
@@ -400,7 +400,9 @@ func renderableInfoData(kind string) bool {
 	switch kind {
 	case render.VrfKindCst, render.BondKindCst, render.BridgeKindCst, render.VlanKindCst,
 		render.MacvlanKindCst, render.MacvtapKindCst, render.IpvlanKindCst, render.IpvtapKindCst,
-		render.VxlanKindCst, render.GeneveKindCst, render.BareudpKindCst, render.AmtKindCst, render.GtpKindCst:
+		render.VxlanKindCst, render.GeneveKindCst, render.BareudpKindCst, render.AmtKindCst, render.GtpKindCst,
+		render.GreKindCst, render.GretapKindCst, render.ErspanKindCst,
+		render.IP6GreKindCst, render.IP6GretapKindCst, render.IP6ErspanKindCst:
 		return true
 	}
 	return false

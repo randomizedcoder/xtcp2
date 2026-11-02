@@ -239,6 +239,14 @@ func TestAddrShowDetailFamilyMatchesSidecars(t *testing.T) {
 			sidecar:       guestDumpsDir + "tunnel/ip_addr_v6_n",
 			dropIoctlQlen: true,
 		},
+		{
+			// The tunnel namespace's -4 arm: its only IPv4 link with kind
+			// data is gre1, whose print_opt renders since KG4-T07.
+			description: "corner: -d -4 addr show renders the tunnel topology, whose only IPv4 tunnel is gre1",
+			args:        []string{"-d", "-4", "addr", "show"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr_v4.pcap",
+			sidecar:     guestDumpsDir + "tunnel/ip_addr_v4_n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -702,12 +710,12 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 			wantSidecarTokens: []string{"bridge forward_delay"},
 		},
 		{
-			description:       "corner: -d -4 addr show is still refused in the tunnel namespace, on a tunnel kind",
+			// gre1 renders since KG4-T07 (TestAddrShowDetailFamilyMatchesSidecars
+			// holds the text); tunl0 has no IPv4 address, so no refusal is left.
+			description:       "corner: -d -4 addr show renders the tunnel namespace, whose only IPv4 tunnel is gre",
 			args:              []string{"-d", "-4", "addr", "show"},
 			pcap:              guestDumpsDir + "tunnel/netlink_route_getaddr_v4.pcap",
-			wantCode:          ExitUsage,
-			wantErr:           true,
-			wantStderr:        []string{"IFLA_INFO_DATA"},
+			wantCode:          ExitOK,
 			sidecar:           guestDumpsDir + "tunnel/ip_addr_v4_n",
 			wantSidecarTokens: []string{"gre remote 198.51.100.3 local 192.0.2.3"},
 		},
