@@ -79,10 +79,15 @@ type IptunInfo struct {
 	// the zero Addr when shorter or not sent.
 	Local  netip.Addr
 	Remote netip.Addr
-	TTL    uint8
-	HasTTL bool
-	TOS    uint8
-	HasTOS bool
+	// LocalLen and RemoteLen are the last attribute's payload length, which
+	// tnl_print_endpoint reads as the family: 4, 16, or `unknown` for any
+	// other. HasLocal and HasRemote say it was sent.
+	LocalLen, RemoteLen int
+	HasLocal, HasRemote bool
+	TTL                 uint8
+	HasTTL              bool
+	TOS                 uint8
+	HasTOS              bool
 	// EncapLimit and FlowInfo (big-endian, in host order) are ip6tnl's.
 	EncapLimit    uint8
 	HasEncapLimit bool
@@ -127,9 +132,9 @@ func ParseIptunInfoData(nest []byte) *IptunInfo {
 		}
 		switch atype {
 		case IflaIptunLocal:
-			g.Local = kindAddr(val, g.Local)
+			g.Local, g.LocalLen, g.HasLocal = kindAddr(val, g.Local), len(val), true
 		case IflaIptunRemote:
-			g.Remote = kindAddr(val, g.Remote)
+			g.Remote, g.RemoteLen, g.HasRemote = kindAddr(val, g.Remote), len(val), true
 		case IflaIptun6rdPrefix:
 			g.RdPrefix = kindAddr16(val, g.RdPrefix)
 		case IflaIptun6rdRelayPrefix:

@@ -42,10 +42,15 @@ type VtiInfo struct {
 	HasOKey bool
 	// Local and Remote are 4 bytes for vti and 16 for vti6; the zero Addr
 	// when shorter or not sent.
-	Local     netip.Addr
-	Remote    netip.Addr
-	FwMark    uint32
-	HasFwMark bool
+	Local  netip.Addr
+	Remote netip.Addr
+	// LocalLen and RemoteLen are the last attribute's payload length, which
+	// tnl_print_endpoint reads as the family: 4, 16, or `unknown` for any
+	// other. HasLocal and HasRemote say it was sent.
+	LocalLen, RemoteLen int
+	HasLocal, HasRemote bool
+	FwMark              uint32
+	HasFwMark           bool
 	// Unknown lists attribute ids this package does not decode, in wire
 	// order.
 	Unknown []uint16
@@ -68,9 +73,9 @@ func ParseVtiInfoData(nest []byte) *VtiInfo {
 		case IflaVtiOKey:
 			kindBE32(val, &g.OKey, &g.HasOKey)
 		case IflaVtiLocal:
-			g.Local = kindAddr(val, g.Local)
+			g.Local, g.LocalLen, g.HasLocal = kindAddr(val, g.Local), len(val), true
 		case IflaVtiRemote:
-			g.Remote = kindAddr(val, g.Remote)
+			g.Remote, g.RemoteLen, g.HasRemote = kindAddr(val, g.Remote), len(val), true
 		case IflaVtiFwMark:
 			kindU32(val, &g.FwMark, &g.HasFwMark)
 		default:

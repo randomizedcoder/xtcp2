@@ -273,6 +273,9 @@ func TestParseIptunInfoData(t *testing.T) {
 		exact    bool
 		// absent are keys the view must not have.
 		absent []string
+		// lens are the endpoints' recorded lengths, local then remote, -1
+		// for not sent; nil to skip.
+		lens []int
 	}{
 		{
 			description: "positive: an ipip's dump keeps ip's default proto, any",
@@ -298,12 +301,20 @@ func TestParseIptunInfoData(t *testing.T) {
 			description: "negative: a short local is dropped",
 			nest:        rtattr(IflaIptunLocal, []byte{10, 0}),
 			expected:    map[string]any{"local": "any"},
+			lens:        []int{2, -1},
 		},
 		{
 			description: "boundary: an empty nest",
 			nest:        []byte{},
 			expected:    map[string]any{"remote": "any", "local": "any", "ttl": float64(0), "pmtudisc": false},
 			exact:       true,
+			lens:        []int{-1, -1},
+		},
+		{
+			description: "corner: the endpoints' lengths, the last one kept",
+			nest: slices.Concat(rtattr(IflaIptunRemote, []byte{10, 0, 0, 1}), rtattr(IflaIptunLocal, make([]byte, 16)),
+				rtattr(IflaIptunRemote, make([]byte, 16))),
+			lens: []int{16, 16},
 		},
 		{
 			description: "corner: a proto with no name",
@@ -346,6 +357,15 @@ func TestParseIptunInfoData(t *testing.T) {
 				if v, ok := got[k]; ok {
 					t.Errorf("%s: got %v, want none", k, v)
 				}
+			}
+			sent := func(has bool, n int) int {
+				if !has {
+					return -1
+				}
+				return n
+			}
+			if got := []int{sent(g.HasLocal, g.LocalLen), sent(g.HasRemote, g.RemoteLen)}; tt.lens != nil && !slices.Equal(got, tt.lens) {
+				t.Errorf("lengths: got %v, want %v", got, tt.lens)
 			}
 		})
 	}

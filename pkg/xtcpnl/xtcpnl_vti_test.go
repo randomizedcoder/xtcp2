@@ -176,6 +176,9 @@ func TestParseVtiInfoData(t *testing.T) {
 		// expected are keys of the -j view; with exact, the whole view.
 		expected map[string]any
 		exact    bool
+		// lens are the endpoints' recorded lengths, local then remote, -1
+		// for not sent; nil to skip.
+		lens []int
 	}{
 		{
 			description: "positive: a vti's dump",
@@ -197,6 +200,7 @@ func TestParseVtiInfoData(t *testing.T) {
 			description: "negative: a 16-byte remote on vti",
 			nest:        rtattr(IflaVtiRemote, netip.MustParseAddr("2001:db8::1").AsSlice()),
 			expected:    map[string]any{"remote": "unknown"},
+			lens:        []int{-1, 16},
 		},
 		{
 			description: "boundary: the highest key",
@@ -208,6 +212,13 @@ func TestParseVtiInfoData(t *testing.T) {
 			nest:        rtattr(IflaVtiIKey, []byte{0, 0, 0, 0}),
 			expected:    map[string]any{"remote": "any", "local": "any"},
 			exact:       true,
+			lens:        []int{-1, -1},
+		},
+		{
+			description: "corner: the endpoints' lengths, the last one kept",
+			nest: slices.Concat(rtattr(IflaVtiLocal, []byte{10, 0, 0, 1}), rtattr(IflaVtiRemote, []byte{1}),
+				rtattr(IflaVtiLocal, make([]byte, 16))),
+			lens: []int{16, 1},
 		},
 		{
 			description: "corner: vti6's dump order differs",
@@ -235,6 +246,15 @@ func TestParseVtiInfoData(t *testing.T) {
 				if !reflect.DeepEqual(got[k], tt.expected[k]) {
 					t.Errorf("%s: got %v, want %v", k, got[k], tt.expected[k])
 				}
+			}
+			sent := func(has bool, n int) int {
+				if !has {
+					return -1
+				}
+				return n
+			}
+			if got := []int{sent(g.HasLocal, g.LocalLen), sent(g.HasRemote, g.RemoteLen)}; tt.lens != nil && !slices.Equal(got, tt.lens) {
+				t.Errorf("lengths: got %v, want %v", got, tt.lens)
 			}
 		})
 	}

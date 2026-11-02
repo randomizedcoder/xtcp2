@@ -186,6 +186,16 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab, details int) *KindData {
 		return greData(li.Gre, names, false)
 	case IP6GreKindCst, IP6GretapKindCst, IP6ErspanKindCst:
 		return greData(li.Gre, names, true)
+	case IpipKindCst, SitKindCst:
+		return iptunData(li.Iptun, names, false)
+	case IP6TnlKindCst:
+		return iptunData(li.Iptun, names, true)
+	case VtiKindCst:
+		return vtiData(li.Vti, names, false)
+	case Vti6KindCst:
+		return vtiData(li.Vti, names, true)
+	case XfrmKindCst:
+		return xfrmData(li.Xfrm)
 	}
 	return nil
 }

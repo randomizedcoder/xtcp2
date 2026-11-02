@@ -94,3 +94,11 @@ func tnlLink(k *KindData, names NameTab, has bool, link uint32) {
 		k.add("link", "dev "+name+" ", name)
 	}
 }
+
+// tnlFwmark is the fwmark word, printed when not zero.
+func tnlFwmark(k *KindData, has bool, mark uint32) {
+	if has && mark != 0 {
+		h := cHex0x(uint64(mark))
+		k.add("fwmark", "fwmark "+h+" ", h)
+	}
+}

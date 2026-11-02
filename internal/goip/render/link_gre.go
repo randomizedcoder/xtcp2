@@ -66,7 +66,7 @@ func greData(g *xtcpnl.GreInfo, names NameTab, v6 bool) *KindData {
 	tnlLink(k, names, g.HasLink, g.Link)
 	if v6 {
 		tnlTTL(k, "hoplimit", g.TTL)
-		gre6Flow(k, g)
+		tnl6Flow(k, g.Flags, g.HasEncapLimit, g.EncapLimit, g.HasFlowInfo, g.FlowInfo)
 	} else {
 		tnlTTL(k, "ttl", g.TTL)
 		greTOS(k, g)
@@ -75,10 +75,10 @@ func greData(g *xtcpnl.GreInfo, names NameTab, v6 bool) *KindData {
 	if v6 {
 		gre6Flag(k, g.Flags, xtcpnl.Ip6TnlFlagAllowLocalRemote)
 		if !gre6Flag(k, g.Flags, xtcpnl.Ip6TnlFlagUseOrigFwmark) {
-			greFwmark(k, g)
+			tnlFwmark(k, g.HasFwMark, g.FwMark)
 		}
 	} else {
-		greFwmark(k, g)
+		tnlFwmark(k, g.HasFwMark, g.FwMark)
 	}
 	greErspan(k, g)
 	tnlEncap(k, g.Encap)
@@ -87,14 +87,7 @@ func greData(g *xtcpnl.GreInfo, names NameTab, v6 bool) *KindData {
 
 // greTOS is gre's tos, pmtudisc and ignore-df words.
 func greTOS(k *KindData, g *xtcpnl.GreInfo) {
-	if g.TOS != 0 {
-		h := cHex0x(uint64(g.TOS))
-		text := "tos " + h + " "
-		if g.TOS == 1 {
-			text = "tos inherit "
-		}
-		k.add("tos", text, h)
-	}
+	overlayTOS(k, g.TOS)
 	if g.HasPMTUDisc {
 		text := ""
 		if g.PMTUDisc == 0 {
@@ -107,20 +100,21 @@ func greTOS(k *KindData, g *xtcpnl.GreInfo) {
 	}
 }
 
-// gre6Flow is gre6's encaplimit, tclass, flowlabel and dscp words.
-func gre6Flow(k *KindData, g *xtcpnl.GreInfo) {
-	if !gre6Flag(k, g.Flags, xtcpnl.Ip6TnlFlagIgnEncapLimit) && g.HasEncapLimit {
-		k.add("encap_limit", fmt.Sprintf("encaplimit %d ", g.EncapLimit), g.EncapLimit)
+// tnl6Flow is gre6's and ip6tnl's encaplimit, tclass, flowlabel and dscp
+// words, each flag word hiding the value it stands for.
+func tnl6Flow(k *KindData, flags uint32, hasLimit bool, limit uint8, hasFlow bool, flow uint32) {
+	if !gre6Flag(k, flags, xtcpnl.Ip6TnlFlagIgnEncapLimit) && hasLimit {
+		k.add("encap_limit", fmt.Sprintf("encaplimit %d ", limit), limit)
 	}
-	if !gre6Flag(k, g.Flags, xtcpnl.Ip6TnlFlagUseOrigTclass) && g.HasFlowInfo {
-		v := fmt.Sprintf("0x%02x", (g.FlowInfo&xtcpnl.Ip6FlowInfoTclass)>>20)
+	if !gre6Flag(k, flags, xtcpnl.Ip6TnlFlagUseOrigTclass) && hasFlow {
+		v := fmt.Sprintf("0x%02x", (flow&xtcpnl.Ip6FlowInfoTclass)>>20)
 		k.add("tclass", "tclass "+v+" ", v)
 	}
-	if !gre6Flag(k, g.Flags, xtcpnl.Ip6TnlFlagUseOrigFlowlabel) && g.HasFlowInfo {
-		v := fmt.Sprintf("0x%05x", g.FlowInfo&xtcpnl.Ip6FlowInfoFlowlabel)
+	if !gre6Flag(k, flags, xtcpnl.Ip6TnlFlagUseOrigFlowlabel) && hasFlow {
+		v := fmt.Sprintf("0x%05x", flow&xtcpnl.Ip6FlowInfoFlowlabel)
 		k.add("flowlabel", "flowlabel "+v+" ", v)
 	}
-	gre6Flag(k, g.Flags, xtcpnl.Ip6TnlFlagRcvDscpCopy)
+	gre6Flag(k, flags, xtcpnl.Ip6TnlFlagRcvDscpCopy)
 }
 
 // greKeyText is a key as inet_ntop prints its four bytes.
@@ -148,14 +142,6 @@ func greKeys(k *KindData, g *xtcpnl.GreInfo) {
 		if f.on {
 			k.add(f.key, f.key+" ", true)
 		}
-	}
-}
-
-// greFwmark is the fwmark word, printed when not zero.
-func greFwmark(k *KindData, g *xtcpnl.GreInfo) {
-	if g.HasFwMark && g.FwMark != 0 {
-		h := cHex0x(uint64(g.FwMark))
-		k.add("fwmark", "fwmark "+h+" ", h)
 	}
 }
 
