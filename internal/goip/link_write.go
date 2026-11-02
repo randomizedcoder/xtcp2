@@ -749,6 +749,8 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 		return xtcpnl.EncodeBondSlaveData(settings)
 	case kindHsrCst:
 		return hsrData(env, rest)
+	case kindNetkitCst:
+		return netkitData(env, rest)
 	case kindVethCst:
 		return vethData(env, rest)
 	case kindDummyCst, kindIfbCst, kindNlmonCst, kindVcanCst, kindTeamCst, kindTeamSlaveCst, kindVrfSlaveCst:
