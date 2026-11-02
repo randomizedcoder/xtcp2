@@ -366,3 +366,35 @@ func scanHexInt(s string) (int32, bool) {
 	}
 	return int32(uint32(r.val)), true //nolint:gosec // the C int truncation, on purpose
 }
+
+// The C conversions between a 32-bit int and its unsigned bits, which the
+// write path makes where ip copies an int into a u32 attribute (addattr32,
+// addattr_l of an int) or sscanf's %u stores into an int. Each narrows only
+// a value it has bounded first.
+
+// s32Bits is an int32's 32 bits as a uint32: -1 is 0xffffffff.
+func s32Bits(n int32) uint32 {
+	if n >= 0 {
+		return uint32(n)
+	}
+	return math.MaxUint32 - uint32(-(n + 1))
+}
+
+// u32AsS32 is s32Bits' inverse: 0xffffffff is -1.
+func u32AsS32(v uint32) int32 {
+	if v <= math.MaxInt32 {
+		return int32(v)
+	}
+	return -int32(math.MaxUint32-v) - 1
+}
+
+// cIntBits is a C int's 32 bits. n comes from get_integer, so it is in an
+// int32's range; a value past it is clamped, which no caller passes.
+func cIntBits(n int) uint32 {
+	return s32Bits(int32(max(min(n, math.MaxInt32), math.MinInt32)))
+}
+
+// low32 is the low 32 bits of v, which %u and a u32 cast store.
+func low32(v uint64) uint32 {
+	return uint32(v & math.MaxUint32)
+}

@@ -442,7 +442,7 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		if idx == 0 {
 			return linkUsage(invargErr("Device does not exist\n", v))
 		}
-		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, uint32(idx))) //nolint:gosec // an ifindex
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, s32Bits(idx)))
 	case linkArmLink:
 		st.link = v
 	case linkArmAlias:
@@ -463,7 +463,7 @@ func (st *linkParseState) vrf(v string) error {
 	if err != nil {
 		return err
 	}
-	if idx <= 0 {
+	if idx == 0 {
 		return linkUsage(invargErr("Not a valid VRF name\n", v))
 	}
 	ok, err := st.isVRF(v)
@@ -473,7 +473,7 @@ func (st *linkParseState) vrf(v string) error {
 	if !ok {
 		return linkUsage(invargErr("Not a valid VRF name\n", v))
 	}
-	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, uint32(idx)))
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, s32Bits(idx)))
 	return nil
 }
 
@@ -489,7 +489,7 @@ func (st *linkParseState) intAttr(seen *int, key string, atype uint16, v string)
 		return linkUsage(invargErr("Invalid \""+key+"\" value\n", v))
 	}
 	*seen = n
-	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(atype, uint32(int32(n)))) //nolint:gosec // the C int, reinterpreted
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(atype, cIntBits(n)))
 	return nil
 }
 
@@ -736,7 +736,7 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 	case kindBondCst:
 		settings, err := parseBondArgs(rest, func(name string) (uint32, error) {
 			idx, err := resolve(name)
-			return uint32(idx), err //nolint:gosec // an ifindex
+			return s32Bits(idx), err
 		})
 		if err != nil {
 			return nil, err
@@ -923,7 +923,7 @@ func newLinkNameResolverRemember(svc *service.Service, remember func(xtcpnl.Link
 			}
 			return l.Index, nil
 		case errors.As(err, &errno):
-			return int32(llIdxA2N(name)), nil //nolint:gosec // the C unsigned, reinterpreted
+			return u32AsS32(llIdxA2N(name)), nil
 		default:
 			return 0, err
 		}
@@ -941,5 +941,5 @@ func llIdxA2N(name string) uint32 {
 	if r.end == 0 {
 		return 0
 	}
-	return uint32(r.val) //nolint:gosec // %u stores the low 32 bits
+	return low32(r.val)
 }

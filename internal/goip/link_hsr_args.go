@@ -93,10 +93,10 @@ func hsrValue(w *hsrWord, v string, resolve linkResolver) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if idx <= 0 {
+	if idx == 0 {
 		return 0, linkUsage(invargErr("No such interface", v))
 	}
-	return uint64(idx), nil
+	return uint64(s32Bits(idx)), nil
 }
 
 // hsrData is hsr's parse_opt.
