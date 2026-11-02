@@ -652,6 +652,8 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 		return gre6Data(env, kind, rest)
 	case kindIpipCst, kindSitCst:
 		return iptnlData(env, kind, rest)
+	case kindIp6tnlCst:
+		return ip6tnlData(env, rest)
 	case kindBridgeCst:
 		settings, err := parseBridgeArgs(errOut, rest)
 		if err != nil {

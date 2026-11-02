@@ -52,8 +52,8 @@ var greCommonChain = []greWord{
 	{keyword: greSeq}, {keyword: "noseq"}, {keyword: "iseq"}, {keyword: "noiseq"}, {keyword: "oseq"}, {keyword: "nooseq"},
 	{keyword: "csum"}, {keyword: "nocsum"}, {keyword: "icsum"}, {keyword: "noicsum"}, {keyword: "ocsum"}, {keyword: "noocsum"},
 	{keyword: kindKeyRemote}, {keyword: tnlKeyLocal}, {keyword: devKeywordCst},
-	{keyword: kindKeyTTL}, {keyword: kindKeyHoplimit, canon: kindKeyTTL}, {keyword: "hlim", canon: kindKeyTTL},
-	{keyword: tosKeywordCst}, {keyword: "tclass", canon: tosKeywordCst}, {keyword: kindKeyDsfield, canon: tosKeywordCst},
+	{keyword: kindKeyTTL}, {keyword: kindKeyHoplimit, canon: kindKeyTTL}, {keyword: tnlKeyHlim, canon: kindKeyTTL},
+	{keyword: tosKeywordCst}, {keyword: tnlKeyTClass, canon: tosKeywordCst}, {keyword: kindKeyDsfield, canon: tosKeywordCst},
 }
 
 // greParseChain is link_gre.c's gre_parse_opt chain. ip tries

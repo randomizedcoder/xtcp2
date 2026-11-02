@@ -23,9 +23,9 @@ const (
 // iptnlBase is the corpus's IPTNL_BASE.
 const iptnlBase = "remote 10.0.0.1"
 
-// iptnlRows is one kind's argv table: base rows add IPTNL_BASE first.
+// iptnlRows is one kind's argv table: base rows add remote first.
 type iptnlRows struct {
-	dev           string
+	dev, remote   string
 	base, plain   map[string]string
 	set           map[string]string
 	second, other map[string][]string
@@ -34,7 +34,7 @@ type iptnlRows struct {
 func (r iptnlRows) argv(kind string) map[string][]string {
 	out := map[string][]string{}
 	for slug, w := range r.base {
-		out[slug] = kindAddArgv(r.dev, kind, strings.TrimSpace(iptnlBase+" "+w))
+		out[slug] = kindAddArgv(r.dev, kind, strings.TrimSpace(r.remote+" "+w))
 	}
 	for slug, w := range r.plain {
 		out[slug] = kindAddArgv(r.dev, kind, w)
@@ -51,7 +51,8 @@ func (r iptnlRows) argv(kind string) map[string][]string {
 // ipipCorpusArgv is each KC5-T03 ipip row's argv, keyed by slug.
 func ipipCorpusArgv() map[string][]string {
 	return iptnlRows{
-		dev: "ip0",
+		dev:    "ip0",
+		remote: iptnlBase,
 		base: map[string]string{
 			"add_default":          "",
 			"add_mode_ipip":        "mode ipip",
@@ -113,7 +114,8 @@ func ipipCorpusArgv() map[string][]string {
 // sitCorpusArgv is each KC5-T03 sit row's argv, keyed by slug.
 func sitCorpusArgv() map[string][]string {
 	return iptnlRows{
-		dev: "st0",
+		dev:    "st0",
+		remote: iptnlBase,
 		base: map[string]string{
 			"add_default":            "",
 			"add_mode_ip6ip":         "mode ip6ip",

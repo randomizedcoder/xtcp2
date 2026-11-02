@@ -53,7 +53,22 @@ const (
 	tnlKeyFwmark   = "fwmark"
 	tnlKeyIgnoreDF = "ignore-df"
 	tnlKeyLocal    = addrLocalKeywordCst
+	tnlKeyHlim     = "hlim"
+	tnlKeyTClass   = "tclass"
 )
+
+// tunnelTTLTOSCanon is link_iptnl.c's and link_ip6tnl.c's ttl and tos
+// aliases: ttl, hoplimit and hlim are ttl; tos, tclass, tc and dsfield (by
+// prefix) are tos. "" for any other word.
+func tunnelTTLTOSCanon(arg string) string {
+	switch {
+	case arg == kindKeyTTL || arg == kindKeyHoplimit || arg == tnlKeyHlim:
+		return kindKeyTTL
+	case arg == tosKeywordCst || arg == tnlKeyTClass || arg == "tc" || matchesPrefix(arg, kindKeyDsfield):
+		return tosKeywordCst
+	}
+	return ""
+}
 
 // tunnelGetFailedText is get_failed's text.
 const tunnelGetFailedText = "Failed to get existing tunnel info."

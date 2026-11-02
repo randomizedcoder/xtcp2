@@ -56,7 +56,7 @@ func iptnlUsageLine(kind string) string {
 var iptnlModes = map[string]uint64{
 	"ipv4/ipv4": xtcpnl.IptunProtoIPIP, kindIpipCst: xtcpnl.IptunProtoIPIP, "ip4ip4": xtcpnl.IptunProtoIPIP,
 	"mpls/ipv4": xtcpnl.IptunProtoMPLS, "mplsip": xtcpnl.IptunProtoMPLS,
-	"any/ipv4": xtcpnl.IptunProtoAny, "any": xtcpnl.IptunProtoAny,
+	"any/ipv4": xtcpnl.IptunProtoAny, addrNameAnyCst: xtcpnl.IptunProtoAny,
 }
 
 // iptnlParse is iptunnel_parse_opt's locals.
@@ -125,10 +125,8 @@ func iptnlCanon(arg string, sit bool) string {
 	switch {
 	case matchesPrefix(arg, devKeywordCst):
 		return devKeywordCst
-	case arg == kindKeyTTL || arg == kindKeyHoplimit || arg == "hlim":
-		return kindKeyTTL
-	case arg == tosKeywordCst || arg == "tclass" || arg == "tc" || matchesPrefix(arg, kindKeyDsfield):
-		return tosKeywordCst
+	case tunnelTTLTOSCanon(arg) != "":
+		return tunnelTTLTOSCanon(arg)
 	case arg == iptnlIsatap:
 		if sit {
 			return arg
