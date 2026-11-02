@@ -3,6 +3,7 @@ package goip
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 
 	"golang.org/x/sys/unix"
 
@@ -42,21 +43,29 @@ type greWord struct {
 	erspan  bool
 }
 
-// greParseChain is gre_parse_opt's if/else chain, in order.
-var greParseChain = []greWord{
+// greCommonChain is the head of both gre_parse_opts' chains (link_gre.c
+// and link_gre6.c): the key, seq and csum words, the endpoints, dev, ttl's
+// and tos's aliases, all `matches`.
+var greCommonChain = []greWord{
 	{keyword: tnlKeyKey}, {keyword: "nokey"}, {keyword: tnlKeyIkey}, {keyword: "noikey"},
 	{keyword: tnlKeyOkey}, {keyword: "nookey"},
 	{keyword: greSeq}, {keyword: "noseq"}, {keyword: "iseq"}, {keyword: "noiseq"}, {keyword: "oseq"}, {keyword: "nooseq"},
 	{keyword: "csum"}, {keyword: "nocsum"}, {keyword: "icsum"}, {keyword: "noicsum"}, {keyword: "ocsum"}, {keyword: "noocsum"},
-	{keyword: greNopmtudisc}, {keyword: grePmtudisc},
 	{keyword: kindKeyRemote}, {keyword: tnlKeyLocal}, {keyword: devKeywordCst},
 	{keyword: kindKeyTTL}, {keyword: kindKeyHoplimit, canon: kindKeyTTL}, {keyword: "hlim", canon: kindKeyTTL},
 	{keyword: tosKeywordCst}, {keyword: "tclass", canon: tosKeywordCst}, {keyword: kindKeyDsfield, canon: tosKeywordCst},
+}
+
+// greParseChain is link_gre.c's gre_parse_opt chain. ip tries
+// [no]pmtudisc just before remote; after dsfield is the same, since no
+// word between starts with n or p, so no abbreviation hits both.
+var greParseChain = slices.Concat(greCommonChain, []greWord{
+	{keyword: greNopmtudisc}, {keyword: grePmtudisc},
 	{keyword: kindKeyExternal, exact: true}, {keyword: tnlKeyIgnoreDF, exact: true}, {keyword: "noignore-df", exact: true},
 	{keyword: tnlKeyFwmark, exact: true},
 	{keyword: kindErspanCst, exact: true, erspan: true}, {keyword: greErspanVer, exact: true, erspan: true},
 	{keyword: greErspanDir, exact: true, erspan: true}, {keyword: greErspanHwid, exact: true, erspan: true},
-}
+})
 
 const (
 	greErspanVer  = "erspan_ver"

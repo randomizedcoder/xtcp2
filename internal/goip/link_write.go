@@ -648,6 +648,8 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 		return overlayData(errOut, verb.setOp(), env.family, kind, rest, resolve)
 	case kindGreCst, kindGretapCst, kindErspanCst:
 		return greData(env, kind, rest)
+	case kindIP6GreCst, kindIP6GretapCst, kindIP6ErspanCst:
+		return gre6Data(env, kind, rest)
 	case kindBridgeCst:
 		settings, err := parseBridgeArgs(errOut, rest)
 		if err != nil {
