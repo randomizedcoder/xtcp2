@@ -19,12 +19,14 @@ const (
 )
 
 // kindRowKinds are the corpus kinds with write rows, each row's slug
-// `link_<kind>_<row>` (KG1-T05, KG2-T05, KG3-T05). bridge_slave's prefix
+// `link_<kind>_<row>` (KG1-T05, KG2-T05, KG3-T05, KG4-T09). bridge_slave's prefix
 // starts with bridge's, so it is tried first.
 var kindRowKinds = []string{
 	bridgeSlaveKindCst, bridgeKindCst,
 	vlanKindCst, macvlanKindCst, macvtapKindCst, ipvlanKindCst, ipvtapKindCst,
 	vxlanKindCst, geneveKindCst, bareudpKindCst, amtKindCst, gtpKindCst,
+	greKindCst, gretapKindCst, erspanKindCst, ip6greKindCst, ip6gretapKindCst, ip6erspanKindCst,
+	ipipKindCst, sitKindCst, ip6tnlKindCst, vtiKindCst, vti6KindCst, xfrmKindCst,
 }
 
 // kindRowKind is a kind write row's corpus kind and slug.

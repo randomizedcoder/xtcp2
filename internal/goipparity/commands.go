@@ -3813,6 +3813,1081 @@ var commands = withArgs([]Command{
 		// "Invalid argument", compared on the request.
 		Floor: 4, Implemented: true, Write: true, Setup: gtpWriteSetupG0,
 	},
+	// The IP tunnels' write rows (goip-link-kinds.md, KG4-T09): KC5's gre,
+	// gretap, erspan, ip6gre, ip6gretap, ip6erspan, ipip, sit, ip6tnl, vti,
+	// vti6 and xfrm rows that sent a request, in kind-write-corpus.exp's
+	// order, from pkg/xtcpnl/testdata/7_3_0/link-write/kinds/<kind>/. Each
+	// Floor is the row's ip.pcap record count, a set's counting the
+	// prefetch, and each Setup is the row's topology file. The 66 rows the
+	// kernel refuses compare on the request; the 88 rows ip refuses before
+	// netlink are not rows, and the kinds' refusal tests hold them offline.
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1", Slug: "link_gre_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre", Slug: "link_gre_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote any local 10.0.0.2", Slug: "link_gre_add_local",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 dev d0", Slug: "link_gre_add_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 key 42", Slug: "link_gre_add_key",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 ikey 1.2.3.4 okey 5", Slug: "link_gre_add_key_split",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 seq csum noocsum", Slug: "link_gre_add_seq_csum",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 hoplimit 255", Slug: "link_gre_add_ttl_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 tclass ff", Slug: "link_gre_add_tos_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 tos inherit", Slug: "link_gre_add_tos_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 nopmtudisc ignore-df", Slug: "link_gre_add_nopmtudisc_ignore_df",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 fwmark 0x10", Slug: "link_gre_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 encap none", Slug: "link_gre_add_encap_none",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 encap fou encap-sport auto encap-dport 5555 encap-csum noencap-csum encap-udp6-csum encap-remcsum", Slug: "link_gre_add_encap_fou",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre external", Slug: "link_gre_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre external encap fou", Slug: "link_gre_add_external_encap",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 239.1.1.1 local 10.0.0.1", Slug: "link_gre_add_multicast",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre r 10.0.0.1 l 10.0.0.2 t 64 k 5 s c", Slug: "link_gre_add_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 key 5 no", Slug: "link_gre_add_no_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr1 type gre remote 10.0.0.1 key 5", Slug: "link_gre_add_second_keyed",
+		Floor: 2, Implemented: true, Write: true, Setup: greWriteSetupGr0,
+	},
+	{
+		Name: "link set gr0 type gre ttl 32 tos 10 key 5 seq csum fwmark 7 local 10.0.0.2 remote 10.0.0.2", Slug: "link_gre_set_changeable",
+		Floor: 6, Implemented: true, Write: true, Setup: greWriteSetupGr0,
+	},
+	{
+		Name: "link set gr0 type gre dev d0", Slug: "link_gre_set_dev",
+		Floor: 8, Implemented: true, Write: true, Setup: greWriteSetupD0Gr0,
+	},
+	{
+		Name: "link set gr0 type gre", Slug: "link_gre_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: greWriteSetupGr0,
+	},
+	{
+		Name: "link set gr0 type gre ttl 64", Slug: "link_gre_set_on_external",
+		Floor: 6, Implemented: true, Write: true, Setup: greWriteSetupGr0External,
+	},
+	{
+		Name: "link add gr0 type gre remote 10.0.0.1 ignore-df", Slug: "link_gre_add_ignore_df",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gr1 type gre remote 10.0.0.1", Slug: "link_gre_add_duplicate",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: greWriteSetupGr0,
+	},
+	{
+		Name: "link add gr1 type gre external", Slug: "link_gre_add_second_external",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: greWriteSetupGr0External,
+	},
+	{
+		Name: "link set gr0 type gre remote any", Slug: "link_gre_set_remote_any",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: greWriteSetupGr0,
+	},
+	{
+		Name: "link set gr1 type gre remote 10.0.0.1", Slug: "link_gre_set_collide",
+		// "File exists", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: greWriteSetupGr0Gr1,
+	},
+	{
+		Name: "link set gr0 type gre external", Slug: "link_gre_set_external",
+		// "Enabling collect_md on an existing device is not supported", compared
+		// on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: greWriteSetupGr0,
+	},
+	{
+		Name: "link set gr0 type gre pmtudisc noignore-df", Slug: "link_gre_set_pmtudisc_ignore_df",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: greWriteSetupGr0NoPMTUDisc,
+	},
+	{
+		Name: "link add gt0 type gretap remote 10.0.0.1", Slug: "link_gretap_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt0 type gretap", Slug: "link_gretap_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt0 type gretap external", Slug: "link_gretap_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt0 type gretap remote 239.1.1.1 local 10.0.0.1", Slug: "link_gretap_add_multicast",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt0 address 02:00:00:00:00:01 type gretap remote 10.0.0.1", Slug: "link_gretap_add_address",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set gt0 type gretap remote any", Slug: "link_gretap_set_remote_any",
+		Floor: 6, Implemented: true, Write: true, Setup: gretapWriteSetupGt0,
+	},
+	{
+		Name: "link add gt0 address 01:00:5e:00:00:01 type gretap remote 10.0.0.1", Slug: "link_gretap_add_address_multicast",
+		// "Cannot assign requested address", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt1 type gretap external", Slug: "link_gretap_add_second_external",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: gretapWriteSetupGt0External,
+	},
+	{
+		Name: "link set gt0 type gretap external", Slug: "link_gretap_set_external",
+		// "Enabling collect_md on an existing device is not supported", compared
+		// on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: gretapWriteSetupGt0,
+	},
+	{
+		Name: "link set gr0 type gretap ttl 5", Slug: "link_gretap_set_on_gre",
+		// "Operation not supported", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: greWriteSetupGr0,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10", Slug: "link_erspan_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan", Slug: "link_erspan_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 erspan 123", Slug: "link_erspan_add_index",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 erspan 1048575", Slug: "link_erspan_add_index_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 iseq okey 10", Slug: "link_erspan_add_flags_split",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 1023", Slug: "link_erspan_add_key_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 erspan_ver 0 csum", Slug: "link_erspan_add_ver0",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 erspan_ver 2 erspan_dir egress erspan_hwid 7", Slug: "link_erspan_add_ver2",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 erspan_ver 2 erspan_hwid 0x3f", Slug: "link_erspan_add_hwid_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 erspan_ver 2 erspan_dir e", Slug: "link_erspan_add_dir_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 erspan_dir egress erspan_hwid 7", Slug: "link_erspan_add_dir_ver1",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan external", Slug: "link_erspan_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set es0 type erspan erspan 200", Slug: "link_erspan_set_index",
+		Floor: 6, Implemented: true, Write: true, Setup: erspanWriteSetupEs0,
+	},
+	{
+		Name: "link set es0 type erspan erspan_ver 0 noseq", Slug: "link_erspan_set_ver0_noseq",
+		Floor: 6, Implemented: true, Write: true, Setup: erspanWriteSetupEs0,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1", Slug: "link_erspan_add_remote_only",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 csum", Slug: "link_erspan_add_csum",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 1024", Slug: "link_erspan_add_key_over",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es0 type erspan remote 10.0.0.1 seq key 10 erspan_ver 2 erspan_hwid 0x40", Slug: "link_erspan_add_hwid_over",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set es0 type erspan noseq", Slug: "link_erspan_set_noseq",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: erspanWriteSetupEs0,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1", Slug: "link_ip6gre_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre", Slug: "link_ip6gre_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 dev d0", Slug: "link_ip6gre_add_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 ttl inherit", Slug: "link_ip6gre_add_ttl_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 encaplimit none", Slug: "link_ip6gre_add_encaplimit_none",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 hoplimit 255 tclass ff flowlabel 0xfffff", Slug: "link_ip6gre_add_tops",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 tclass inherit flowlabel inherit fwmark inherit dscp inherit allow-localremote", Slug: "link_ip6gre_add_flags",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 fwmark 0x10", Slug: "link_ip6gre_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 key 42 seq csum", Slug: "link_ip6gre_add_key",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 ikey 1.2.3.4 okey 5 iseq ocsum", Slug: "link_ip6gre_add_ikey_okey",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 key 42 seq csum nokey noseq nocsum", Slug: "link_ip6gre_add_no_forms",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre r 2001:db8::1 l 2001:db8::2 h 10 tc 20 k 5", Slug: "link_ip6gre_add_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 hoplimit 10 hoplimit 20", Slug: "link_ip6gre_add_repeat",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 encap none encap-sport 5555 encap-dport 6666 encap-csum encap-remcsum noencap-udp6-csum", Slug: "link_ip6gre_add_encap_none",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre external", Slug: "link_ip6gre_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 erspan_ver 0", Slug: "link_ip6gre_add_erspan_ver_zero",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g7 type ip6gre remote 2001:db8::1 key 1", Slug: "link_ip6gre_add_second_key",
+		Floor: 2, Implemented: true, Write: true, Setup: ip6greWriteSetupG6,
+	},
+	{
+		Name: "link set g6 type ip6gre hoplimit 10 tclass 20 flowlabel 0x1 encaplimit 2 key 5 local 2001:db8::2", Slug: "link_ip6gre_set_changeable",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6greWriteSetupG6,
+	},
+	{
+		Name: "link set g6 type ip6gre", Slug: "link_ip6gre_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: ip6greWriteSetupG6,
+	},
+	{
+		Name: "link set g6 type ip6gre external", Slug: "link_ip6gre_set_external_ignored",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6greWriteSetupG6,
+	},
+	{
+		Name: "link set g6 type ip6gre hoplimit 10", Slug: "link_ip6gre_set_encap_sport_swap",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6greWriteSetupG6EncapSport,
+	},
+	{
+		Name: "link add g7 type ip6gre remote 2001:db8::1", Slug: "link_ip6gre_add_duplicate",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6greWriteSetupG6,
+	},
+	{
+		Name: "link add g7 type ip6gre external", Slug: "link_ip6gre_add_external_twice",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6greWriteSetupG6External,
+	},
+	{
+		Name: "link set g7 type ip6gre remote 2001:db8::1", Slug: "link_ip6gre_set_collide",
+		// "File exists", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ip6greWriteSetupG6G7,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 encap fou encap-dport 5555", Slug: "link_ip6gre_add_encap_fou",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add g6 type ip6gre remote 2001:db8::1 encap gue encap-dport 5555", Slug: "link_ip6gre_add_encap_gue",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt6 type ip6gretap remote 2001:db8::1", Slug: "link_ip6gretap_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt6 type ip6gretap", Slug: "link_ip6gretap_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add gt6 type ip6gretap remote ::", Slug: "link_ip6gretap_add_remote_any",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add dev gt6 type ip6gretap remote 2001:db8::1", Slug: "link_ip6gretap_add_beside_ip6gre",
+		// Spelled with iplink_parse's optional `dev`, which sends the same
+		// request, since add_default has the plain spelling and Name is the
+		// allowlist key.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6greWriteSetupG6,
+	},
+	{
+		Name: "link set gt6 type ip6gretap hoplimit 10 key 5", Slug: "link_ip6gretap_set_changeable",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6gretapWriteSetupGt6,
+	},
+	{
+		Name: "link set gt7 type ip6gretap remote 2001:db8::1", Slug: "link_ip6gretap_set_collide_unchecked",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6gretapWriteSetupGt6Gt7,
+	},
+	{
+		Name: "link add gt7 type ip6gretap remote 2001:db8::1", Slug: "link_ip6gretap_add_duplicate",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6gretapWriteSetupGt6,
+	},
+	{
+		Name: "link add gt6 type ip6gretap external", Slug: "link_ip6gretap_add_external_beside_ip6gre",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6greWriteSetupG6External,
+	},
+	{
+		Name: "link set gt6 type ip6gre hoplimit 5", Slug: "link_ip6gretap_set_kind_mismatch",
+		// "Operation not supported", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ip6gretapWriteSetupGt6,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10 seq", Slug: "link_ip6erspan_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan", Slug: "link_ip6erspan_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan external", Slug: "link_ip6erspan_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10 seq erspan 1048575", Slug: "link_ip6erspan_add_index_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10 seq erspan_ver 2 erspan_dir e erspan_hwid 63", Slug: "link_ip6erspan_add_v2",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10 seq erspan_hwid 64", Slug: "link_ip6erspan_add_hwid_v1",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 1023 seq", Slug: "link_ip6erspan_add_key_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 ikey 10 oseq", Slug: "link_ip6erspan_add_split_flags",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set es6 type ip6erspan erspan_ver 2 erspan_dir egress erspan_hwid 63", Slug: "link_ip6erspan_set_v2",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6erspanWriteSetupEs6,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10", Slug: "link_ip6erspan_add_no_seq",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10 seq csum", Slug: "link_ip6erspan_add_csum",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 1024 seq", Slug: "link_ip6erspan_add_key_over",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10 seq erspan_ver 0", Slug: "link_ip6erspan_add_ver_zero",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add es6 type ip6erspan remote 2001:db8::1 key 10 seq erspan_ver 2 erspan_hwid 64", Slug: "link_ip6erspan_add_hwid_over",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set es6 type ip6erspan noseq", Slug: "link_ip6erspan_set_noseq",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ip6erspanWriteSetupEs6,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1", Slug: "link_ipip_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip", Slug: "link_ipip_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 mode ipip", Slug: "link_ipip_add_mode_ipip",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 mode mplsip", Slug: "link_ipip_add_mode_mplsip",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 mode any", Slug: "link_ipip_add_mode_any",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 mode ip4ip4", Slug: "link_ipip_add_mode_alias",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 local 10.0.0.2", Slug: "link_ipip_add_local",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 dev d0", Slug: "link_ipip_add_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 ttl 255", Slug: "link_ipip_add_ttl",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 ttl inherit", Slug: "link_ipip_add_ttl_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 tos 10", Slug: "link_ipip_add_tos",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 tos inherit", Slug: "link_ipip_add_tos_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 nopmtudisc", Slug: "link_ipip_add_nopmtudisc",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 fwmark 0xffffffff", Slug: "link_ipip_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip external", Slug: "link_ipip_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 encap fou encap-sport auto encap-dport 5555", Slug: "link_ipip_add_encap_fou",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 encap gue encap-sport 1000 encap-dport 6000 encap-csum encap-udp6-csum encap-remcsum", Slug: "link_ipip_add_encap_gue",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 encap fou encap-csum noencap noencap-csum", Slug: "link_ipip_add_noencap",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 10.0.0.1 6rd-prefix 2001:db8::/32", Slug: "link_ipip_add_6rd_ignored",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add ip0 type ipip remote 239.1.1.1", Slug: "link_ipip_add_remote_multicast",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set ip0 type ipip hlim 64 dsf 10 fwmark 5 local 10.0.0.2", Slug: "link_ipip_set_changeable",
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link set ip0 type ipip d d0", Slug: "link_ipip_set_dev",
+		Floor: 8, Implemented: true, Write: true, Setup: ipipWriteSetupD0Ip0,
+	},
+	{
+		Name: "link set ip0 type ipip mode mplsip", Slug: "link_ipip_set_mode",
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link set ip0 type ipip encap fou encap-dport 5555", Slug: "link_ipip_set_encap",
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link set ip0 type ipip nopmtudisc", Slug: "link_ipip_set_nopmtudisc",
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link set ip0 type ipip", Slug: "link_ipip_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link add ip1 type ipip remote 10.0.0.1", Slug: "link_ipip_add_duplicate",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link add ip1 type ipip external", Slug: "link_ipip_add_external_second",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ipipWriteSetupIp0External,
+	},
+	{
+		Name: "link set ip0 type ipip remote any", Slug: "link_ipip_set_remote_any",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link set ip0 type ipip remote 10.0.0.1", Slug: "link_ipip_set_remote_on_wildcard",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0Bare,
+	},
+	{
+		Name: "link set ip0 type ipip remote 239.1.1.1", Slug: "link_ipip_set_remote_multicast",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link set ip0 type ipip remote 10.0.0.2", Slug: "link_ipip_set_collide",
+		// "File exists", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0Ip1,
+	},
+	{
+		Name: "link set ip0 type ipip ttl 64", Slug: "link_ipip_set_on_external",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0External,
+	},
+	{
+		Name: "link set ip0 type ipip external", Slug: "link_ipip_set_external",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ipipWriteSetupIp0,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1", Slug: "link_sit_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit", Slug: "link_sit_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 mode ip6ip", Slug: "link_sit_add_mode_ip6ip",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 mode ipip", Slug: "link_sit_add_mode_ipip",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 mode mplsip", Slug: "link_sit_add_mode_mplsip",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 mode any", Slug: "link_sit_add_mode_any",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 mode ipv6/ipv4", Slug: "link_sit_add_mode_alias",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 local 10.0.0.2 dev d0", Slug: "link_sit_add_local_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 ttl 64 tos inherit", Slug: "link_sit_add_ttl_tos",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 nopmtudisc", Slug: "link_sit_add_nopmtudisc",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit isatap", Slug: "link_sit_add_isatap",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 fwmark 7", Slug: "link_sit_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 6rd-prefix 2001:db8::/32 6rd-relay_prefix 10.0.0.0/8", Slug: "link_sit_add_6rd_prefix",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 6rd-prefix 2001:db8::/48 6rd-relay_prefix 10.0.0.0/8", Slug: "link_sit_add_6rd_overlong",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit external", Slug: "link_sit_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add st0 type sit remote 10.0.0.1 encap fou encap-sport 1000 encap-dport 5555", Slug: "link_sit_add_encap_fou",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set st0 type sit ttl 64 tos 10 local 10.0.0.2", Slug: "link_sit_set_changeable",
+		Floor: 6, Implemented: true, Write: true, Setup: sitWriteSetupSt0,
+	},
+	{
+		Name: "link set st0 type sit mode ipip", Slug: "link_sit_set_mode",
+		Floor: 6, Implemented: true, Write: true, Setup: sitWriteSetupSt0,
+	},
+	{
+		Name: "link set st0 type sit isatap", Slug: "link_sit_set_isatap",
+		Floor: 6, Implemented: true, Write: true, Setup: sitWriteSetupSt0,
+	},
+	{
+		Name: "link set st0 type sit", Slug: "link_sit_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: sitWriteSetupSt0,
+	},
+	{
+		Name: "link add st1 type sit remote 10.0.0.1", Slug: "link_sit_add_duplicate",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: sitWriteSetupSt0,
+	},
+	{
+		Name: "link add st1 type sit", Slug: "link_sit_add_duplicate_wildcard",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: sitWriteSetupSt0Bare,
+	},
+	{
+		Name: "link set st0 type sit remote any", Slug: "link_sit_set_remote_any",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: sitWriteSetupSt0,
+	},
+	{
+		Name: "link set st0 type sit remote 10.0.0.1", Slug: "link_sit_set_remote_on_inherit",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: sitWriteSetupSt0Inherit,
+	},
+	{
+		Name: "link set st0 type sit remote 10.0.0.2", Slug: "link_sit_set_collide",
+		// "File exists", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: sitWriteSetupSt0St1,
+	},
+	{
+		Name: "link set st0 type sit external", Slug: "link_sit_set_external",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: sitWriteSetupSt0,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1", Slug: "link_ip6tnl_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl", Slug: "link_ip6tnl_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 mode ip6ip6", Slug: "link_ip6tnl_add_mode_ip6ip6",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 mode ipip6", Slug: "link_ip6tnl_add_mode_ipip6",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 mode any", Slug: "link_ip6tnl_add_mode_any",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 mode ip4ip6", Slug: "link_ip6tnl_add_mode_alias",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 local 2001:db8::2", Slug: "link_ip6tnl_add_local",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 dev d0", Slug: "link_ip6tnl_add_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 hoplimit 255", Slug: "link_ip6tnl_add_hoplimit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 hoplimit inherit", Slug: "link_ip6tnl_add_hoplimit_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 hoplimit 10 ttl 20", Slug: "link_ip6tnl_add_hoplimit_twice",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 encaplimit 0", Slug: "link_ip6tnl_add_encaplimit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 encaplimit none", Slug: "link_ip6tnl_add_encaplimit_none",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 tclass ff", Slug: "link_ip6tnl_add_tclass",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 tclass inherit", Slug: "link_ip6tnl_add_tclass_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 dsf 10", Slug: "link_ip6tnl_add_dsfield_abbrev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 flowlabel 0xfffff", Slug: "link_ip6tnl_add_flowlabel",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 fl inherit", Slug: "link_ip6tnl_add_flowlabel_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 dscp inherit", Slug: "link_ip6tnl_add_dscp_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 fwmark 0xffffffff", Slug: "link_ip6tnl_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 fwmark inherit", Slug: "link_ip6tnl_add_fwmark_inherit",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 allow-localremote", Slug: "link_ip6tnl_add_allow_localremote",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl external", Slug: "link_ip6tnl_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 noencap encap-sport 1000 encap-dport 5555 encap-csum noencap-udp6-csum encap-remcsum", Slug: "link_ip6tnl_add_noencap",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set t6 type ip6tnl hlim 32 encaplimit none tclass inherit flowlabel 0x12345 dscp inherit", Slug: "link_ip6tnl_set_changeable",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6,
+	},
+	{
+		Name: "link set t6 type ip6tnl mode ipip6", Slug: "link_ip6tnl_set_mode",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6,
+	},
+	{
+		Name: "link set t6 type ip6tnl remote 2001:db8::2", Slug: "link_ip6tnl_set_remote",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6,
+	},
+	{
+		Name: "link set t6 type ip6tnl tclass 0x20", Slug: "link_ip6tnl_set_keeps_prefetch",
+		Floor: 6, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6Hoplimit,
+	},
+	{
+		Name: "link set t6 type ip6tnl", Slug: "link_ip6tnl_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6,
+	},
+	{
+		Name: "link add t6 type ip6tnl remote 2001:db8::1 encap fou encap-dport 5555", Slug: "link_ip6tnl_add_encap_fou",
+		// "Invalid argument", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add t7 type ip6tnl remote 2001:db8::1", Slug: "link_ip6tnl_add_duplicate",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6,
+	},
+	{
+		Name: "link add t7 type ip6tnl", Slug: "link_ip6tnl_add_duplicate_wildcard",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6Bare,
+	},
+	{
+		Name: "link add t7 type ip6tnl external", Slug: "link_ip6tnl_add_external_second",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6External,
+	},
+	{
+		Name: "link set dev t6 type ip6tnl remote 2001:db8::2", Slug: "link_ip6tnl_set_collide",
+		// "File exists", compared on the request. Spelled with `dev`, as
+		// ip6gretap's add_beside_ip6gre is, since set_remote has the plain
+		// spelling.
+		Floor: 6, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6T7,
+	},
+	{
+		Name: "link set t6 type ip6tnl hoplimit 5", Slug: "link_ip6tnl_set_on_external",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6External,
+	},
+	{
+		Name: "link set t6 type ip6tnl external", Slug: "link_ip6tnl_set_external",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: ip6tnlWriteSetupT6,
+	},
+	{
+		Name: "link add vt0 type vti remote 10.0.0.1 local 10.0.0.2", Slug: "link_vti_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vt0 type vti", Slug: "link_vti_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vt0 type vti remote 10.0.0.1 ikey 1.2.3.4 okey 0x10", Slug: "link_vti_add_ikey_okey",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vt0 type vti remote 10.0.0.1 key 4294967295", Slug: "link_vti_add_key_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vt0 type vti remote 10.0.0.1 key 5 ikey 6", Slug: "link_vti_add_key_last_wins",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vt0 type vti remote 10.0.0.1 dev d0", Slug: "link_vti_add_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add vt0 type vti remote 10.0.0.1 fwmark 0x10", Slug: "link_vti_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add vt0 type vti r 10.0.0.1 l 10.0.0.2 i 1 o 2 d d0", Slug: "link_vti_add_abbrev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add vt1 type vti remote 10.0.0.1 dev d0", Slug: "link_vti_add_second_other_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: vtiWriteSetupD0Vt0,
+	},
+	{
+		Name: "link set vt0 type vti fwmark 5", Slug: "link_vti_set_fwmark",
+		Floor: 6, Implemented: true, Write: true, Setup: vtiWriteSetupVt0,
+	},
+	{
+		Name: "link set vt0 type vti", Slug: "link_vti_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: vtiWriteSetupVt0,
+	},
+	{
+		Name: "link add vt1 type vti remote 10.0.0.1 key 7", Slug: "link_vti_add_duplicate_other_key",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: vtiWriteSetupVt0,
+	},
+	{
+		Name: "link add vt1 type vti", Slug: "link_vti_add_duplicate_any",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: vtiWriteSetupVt0Bare,
+	},
+	{
+		Name: "link set vt0 type vti remote 10.0.0.1", Slug: "link_vti_set_remote_on_any",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: vtiWriteSetupVt0Bare,
+	},
+	{
+		Name: "link set vt0 type vti remote any", Slug: "link_vti_set_remote_any",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: vtiWriteSetupVt0,
+	},
+	{
+		Name: "link set vt1 type vti remote 10.0.0.1", Slug: "link_vti_set_collide",
+		// "File exists", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: vtiWriteSetupVt0Vt1,
+	},
+	{
+		Name: "link add v6 type vti6 remote 2001:db8::1 local 2001:db8::2", Slug: "link_vti6_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add v6 type vti6", Slug: "link_vti6_add_no_option",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add v6 type vti6 remote 2001:db8::1 key 5 dev d0 fwmark 0x10", Slug: "link_vti6_add_options",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set v6 type vti6 fwmark 5", Slug: "link_vti6_set_fwmark",
+		Floor: 6, Implemented: true, Write: true, Setup: vti6WriteSetupV6,
+	},
+	{
+		Name: "link set v6 type vti6", Slug: "link_vti6_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: vti6WriteSetupV6,
+	},
+	{
+		Name: "link set v6 type vti6 remote 2001:db8::1", Slug: "link_vti6_set_remote_on_any",
+		Floor: 6, Implemented: true, Write: true, Setup: vti6WriteSetupV6Bare,
+	},
+	{
+		Name: "link set v6 type vti6 remote any", Slug: "link_vti6_set_remote_any",
+		Floor: 6, Implemented: true, Write: true, Setup: vti6WriteSetupV6,
+	},
+	{
+		Name: "link add v7 type vti6 remote 2001:db8::1 dev d0", Slug: "link_vti6_add_duplicate_other_dev",
+		// "File exists", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: vti6WriteSetupD0V6,
+	},
+	{
+		Name: "link set v7 type vti6 remote 2001:db8::1", Slug: "link_vti6_set_collide",
+		// "File exists", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: vti6WriteSetupV6V7,
+	},
+	{
+		Name: "link add xf0 type xfrm if_id 1", Slug: "link_xfrm_add_default",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add xf0 type xfrm dev d0 if_id 1", Slug: "link_xfrm_add_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add xf0 type xfrm if_id 0xffffffff", Slug: "link_xfrm_add_if_id_max",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add xf0 type xfrm external", Slug: "link_xfrm_add_external",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add xf0 type xfrm d d0 i 5", Slug: "link_xfrm_add_abbrev",
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link add xf0 type xfrm if_id 1 if_id 2", Slug: "link_xfrm_add_if_id_twice",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set xf0 type xfrm if_id 2", Slug: "link_xfrm_set_if_id",
+		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupXf0,
+	},
+	{
+		Name: "link set xf0 type xfrm dev d0 if_id 2", Slug: "link_xfrm_set_if_id_dev",
+		Floor: 6, Implemented: true, Write: true, Setup: xfrmWriteSetupD0Xf0Dev,
+	},
+	{
+		Name: "link set xf0 type xfrm", Slug: "link_xfrm_set_no_option",
+		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupXf0,
+	},
+	{
+		Name: "link add xf0 type xfrm", Slug: "link_xfrm_add_no_option",
+		// "if_id must be non zero", compared on the request.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add xf1 type xfrm dev d0 if_id 1", Slug: "link_xfrm_add_duplicate_other_dev",
+		// "File exists", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupD0Xf0,
+	},
+	{
+		Name: "link add xf1 type xfrm external", Slug: "link_xfrm_add_second_external",
+		// "File exists", compared on the request.
+		Floor: 2, Implemented: true, Write: true, Setup: xfrmWriteSetupXf0External,
+	},
+	{
+		Name: "link set dev xf0 type xfrm if_id 2", Slug: "link_xfrm_set_drop_dev",
+		// "Invalid argument", compared on the request. Spelled with `dev`, as
+		// ip6gretap's add_beside_ip6gre is, since set_if_id has the plain
+		// spelling.
+		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupD0Xf0Dev,
+	},
+	{
+		Name: "link set xf0 type xfrm dev d0 if_id 1", Slug: "link_xfrm_set_add_dev",
+		// "Invalid argument", compared on the request.
+		Floor: 6, Implemented: true, Write: true, Setup: xfrmWriteSetupD0Xf0,
+	},
+	{
+		Name: "link set xf1 type xfrm if_id 1", Slug: "link_xfrm_set_collide",
+		// "File exists", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupXf0Xf1,
+	},
+	{
+		Name: "link set xf0 type xfrm external", Slug: "link_xfrm_set_external",
+		// "if_id must be non zero", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupXf0,
+	},
+	{
+		Name: "link set xf0 type xfrm if_id 5", Slug: "link_xfrm_set_on_external",
+		// "collect_md can't be changed", compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: xfrmWriteSetupXf0External,
+	},
 	// The bridge read rows: br0's IFLA_INFO_DATA and p0's
 	// IFLA_INFO_SLAVE_DATA under -d, text and JSON, on one bridge with two
 	// ports. The stdout comparison is the facets, so the timers move freely;
@@ -3928,6 +5003,107 @@ var commands = withArgs([]Command{
 	{
 		Name: "-d -d link show dev vx0", Slug: "link_show_details_vxlan_twice",
 		Setup: vxlanWriteSetupVx0, Floor: 4, Implemented: true,
+	},
+	// The IP tunnels' read rows: each kind's IFLA_INFO_DATA under -d, text
+	// and JSON. Each is the device's two gets (4), and vt0's, v6's and
+	// xf0's are d0's get too, for their `dev d0` (6).
+	// TestLinkShowDetailIptunMatchesSidecar and
+	// TestLinkShowDetailGreMatchesSidecar are the text and JSON oracles.
+	{
+		Name: "-d link show dev gr0", Slug: "link_show_details_gre",
+		Setup: greWriteSetupGr0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev gr0", Slug: "link_show_details_gre_json",
+		Setup: greWriteSetupGr0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev gt0", Slug: "link_show_details_gretap",
+		Setup: gretapWriteSetupGt0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev gt0", Slug: "link_show_details_gretap_json",
+		Setup: gretapWriteSetupGt0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev es0", Slug: "link_show_details_erspan",
+		Setup: erspanWriteSetupEs0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev es0", Slug: "link_show_details_erspan_json",
+		Setup: erspanWriteSetupEs0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev g6", Slug: "link_show_details_ip6gre",
+		Setup: ip6greWriteSetupG6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev g6", Slug: "link_show_details_ip6gre_json",
+		Setup: ip6greWriteSetupG6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev gt6", Slug: "link_show_details_ip6gretap",
+		Setup: ip6gretapWriteSetupGt6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev gt6", Slug: "link_show_details_ip6gretap_json",
+		Setup: ip6gretapWriteSetupGt6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev es6", Slug: "link_show_details_ip6erspan",
+		Setup: ip6erspanWriteSetupEs6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev es6", Slug: "link_show_details_ip6erspan_json",
+		Setup: ip6erspanWriteSetupEs6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev ip0", Slug: "link_show_details_ipip",
+		Setup: ipipWriteSetupIp0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev ip0", Slug: "link_show_details_ipip_json",
+		Setup: ipipWriteSetupIp0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev st0", Slug: "link_show_details_sit",
+		Setup: sitWriteSetupSt0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev st0", Slug: "link_show_details_sit_json",
+		Setup: sitWriteSetupSt0, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev t6", Slug: "link_show_details_ip6tnl",
+		Setup: ip6tnlWriteSetupT6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev t6", Slug: "link_show_details_ip6tnl_json",
+		Setup: ip6tnlWriteSetupT6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev vt0", Slug: "link_show_details_vti",
+		Setup: vtiReadSetupVt0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev vt0", Slug: "link_show_details_vti_json",
+		Setup: vtiReadSetupVt0, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev v6", Slug: "link_show_details_vti6",
+		Setup: vti6ReadSetupV6, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev v6", Slug: "link_show_details_vti6_json",
+		Setup: vti6ReadSetupV6, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d link show dev xf0", Slug: "link_show_details_xfrm",
+		Setup: xfrmWriteSetupD0Xf0Dev, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-d -j link show dev xf0", Slug: "link_show_details_xfrm_json",
+		Setup: xfrmWriteSetupD0Xf0Dev, Floor: 6, Implemented: true,
 	},
 	// The route write rows (route-write-path.md phase 5): the corpus in
 	// pkg/xtcpnl/testdata/7_1_4/link-write/route/, less `nodev`, with the
@@ -5112,6 +6288,55 @@ var (
 	bareudpWriteSetupB0         = []string{"link add b0 type bareudp dstport 6635 ethertype ip"}
 	amtWriteSetupA0             = []string{"link add d0 type dummy", "link add a0 type amt mode relay dev d0 local 10.0.0.1"}
 	gtpWriteSetupG0             = []string{"link add g0 type gtp role ggsn"}
+)
+
+// The IP tunnels' preconditions (kind-write-corpus.exp's PRE_* for the
+// twelve kinds), and the vti read rows' devices, keyed and on d0.
+var (
+	greWriteSetupGr0             = []string{"link add gr0 type gre remote 10.0.0.1"}
+	greWriteSetupGr0External     = []string{"link add gr0 type gre external"}
+	greWriteSetupGr0NoPMTUDisc   = []string{"link add gr0 type gre remote 10.0.0.1 nopmtudisc ignore-df"}
+	greWriteSetupD0Gr0           = []string{"link add d0 type dummy", "link add gr0 type gre remote 10.0.0.1"}
+	greWriteSetupGr0Gr1          = []string{"link add gr0 type gre remote 10.0.0.1", "link add gr1 type gre remote 10.0.0.2"}
+	gretapWriteSetupGt0          = []string{"link add gt0 type gretap remote 10.0.0.1"}
+	gretapWriteSetupGt0External  = []string{"link add gt0 type gretap external"}
+	erspanWriteSetupEs0          = []string{"link add es0 type erspan remote 10.0.0.1 seq key 10"}
+	ip6greWriteSetupG6           = []string{"link add g6 type ip6gre remote 2001:db8::1"}
+	ip6greWriteSetupG6External   = []string{"link add g6 type ip6gre external"}
+	ip6greWriteSetupG6EncapSport = []string{"link add g6 type ip6gre remote 2001:db8::1 encap-sport 4660"}
+	ip6greWriteSetupG6G7         = []string{"link add g6 type ip6gre remote 2001:db8::1", "link add g7 type ip6gre remote 2001:db8::2"}
+	ip6gretapWriteSetupGt6       = []string{"link add gt6 type ip6gretap remote 2001:db8::1"}
+	ip6gretapWriteSetupGt6Gt7    = []string{"link add gt6 type ip6gretap remote 2001:db8::1", "link add gt7 type ip6gretap remote 2001:db8::2"}
+	ip6erspanWriteSetupEs6       = []string{"link add es6 type ip6erspan remote 2001:db8::1 key 10 seq"}
+	ipipWriteSetupIp0            = []string{"link add ip0 type ipip remote 10.0.0.1"}
+	ipipWriteSetupIp0Bare        = []string{"link add ip0 type ipip"}
+	ipipWriteSetupIp0External    = []string{"link add ip0 type ipip external"}
+	ipipWriteSetupD0Ip0          = []string{"link add d0 type dummy", "link add ip0 type ipip remote 10.0.0.1"}
+	ipipWriteSetupIp0Ip1         = []string{"link add ip0 type ipip remote 10.0.0.1", "link add ip1 type ipip remote 10.0.0.2"}
+	sitWriteSetupSt0             = []string{"link add st0 type sit remote 10.0.0.1"}
+	sitWriteSetupSt0Bare         = []string{"link add st0 type sit"}
+	sitWriteSetupSt0Inherit      = []string{"link add st0 type sit ttl inherit"}
+	sitWriteSetupSt0St1          = []string{"link add st0 type sit remote 10.0.0.1", "link add st1 type sit remote 10.0.0.2"}
+	ip6tnlWriteSetupT6           = []string{"link add t6 type ip6tnl remote 2001:db8::1"}
+	ip6tnlWriteSetupT6Bare       = []string{"link add t6 type ip6tnl"}
+	ip6tnlWriteSetupT6External   = []string{"link add t6 type ip6tnl external"}
+	ip6tnlWriteSetupT6Hoplimit   = []string{"link add t6 type ip6tnl remote 2001:db8::1 hoplimit 10"}
+	ip6tnlWriteSetupT6T7         = []string{"link add t6 type ip6tnl remote 2001:db8::1", "link add t7 type ip6tnl remote 2001:db8::2"}
+	vtiWriteSetupVt0             = []string{"link add vt0 type vti remote 10.0.0.1"}
+	vtiWriteSetupVt0Bare         = []string{"link add vt0 type vti"}
+	vtiWriteSetupD0Vt0           = []string{"link add d0 type dummy", "link add vt0 type vti remote 10.0.0.1"}
+	vtiWriteSetupVt0Vt1          = []string{"link add vt0 type vti remote 10.0.0.1", "link add vt1 type vti remote 10.0.0.2"}
+	vti6WriteSetupV6             = []string{"link add v6 type vti6 remote 2001:db8::1"}
+	vti6WriteSetupV6Bare         = []string{"link add v6 type vti6"}
+	vti6WriteSetupD0V6           = []string{"link add d0 type dummy", "link add v6 type vti6 remote 2001:db8::1"}
+	vti6WriteSetupV6V7           = []string{"link add v6 type vti6 remote 2001:db8::1", "link add v7 type vti6 remote 2001:db8::2"}
+	xfrmWriteSetupXf0            = []string{"link add xf0 type xfrm if_id 1"}
+	xfrmWriteSetupXf0External    = []string{"link add xf0 type xfrm external"}
+	xfrmWriteSetupD0Xf0          = []string{"link add d0 type dummy", "link add xf0 type xfrm if_id 1"}
+	xfrmWriteSetupD0Xf0Dev       = []string{"link add d0 type dummy", "link add xf0 type xfrm dev d0 if_id 1"}
+	xfrmWriteSetupXf0Xf1         = []string{"link add xf0 type xfrm if_id 1", "link add xf1 type xfrm if_id 2"}
+	vtiReadSetupVt0              = []string{"link add d0 type dummy", "link add vt0 type vti remote 10.0.0.1 local 10.0.0.2 ikey 1 okey 2 dev d0"}
+	vti6ReadSetupV6              = []string{"link add d0 type dummy", "link add v6 type vti6 remote 2001:db8::1 key 5 dev d0 fwmark 0x10"}
 )
 
 // bridgeReadSetup is the bridge read rows' namespace, PRE_PORTS: br0 and
