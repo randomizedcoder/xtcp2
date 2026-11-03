@@ -17,9 +17,15 @@
 # linkattr: 25 same, 27 refuses, 0 sends, 0 differs; lookups differ in 22; not a write 0
 # linkpd: 20 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 0
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 9
+# kwroute4: 13 same, 0 refuses, 0 sends, 0 differs; lookups differ in 13; not a write 0
+# kwroute6: 9 same, 0 refuses, 0 sends, 0 differs; lookups differ in 9; not a write 0
+# kwlink: 5 same, 0 refuses, 0 sends, 0 differs; lookups differ in 1; not a write 0
+# kwnh: 8 same, 0 refuses, 0 sends, 0 differs; lookups differ in 8; not a write 0
+# kwrule: 1 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
+# encap padding: 4 rows: ip sends stack bytes in a nexthop's NHA_ENCAP or after NHA_ENCAP_TYPE; zeroed before comparing
 # lookups: 262 rows: dump IFLA_EXT_MASK 0x109, goip 0x1
-# lookups: 1009 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
+# lookups: 1040 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
 fibt/fib6_notify_test-001 refuses rc=0 route nexthop "encap": object recognized but not implemented by goip | ip -6 route add 2001::/64 nexthop via 2001:10::2 dev dummy_10 nexthop encap ip6 dst 2002::20 via 2001:20::2 dev dummy_20 nexthop encap ip6 dst 2002::30 via 2001:30::2 dev dummy_30 nexthop encap ip6 dst 2002::40 via 2001:40::2 dev dummy_40 nexthop encap ip6 dst 2002::50 via 2001:50::2 dev dummy_50 nexthop encap ip6 dst 2002::60 via 2001:60::2 dev dummy_60 nexthop encap ip6 dst 2002::70 via 2001:70::2 dev dummy_70
 fibt/fib_notify_test-001 refuses rc=0 route nexthop "encap": object recognized but not implemented by goip | ip route add 10.0.0.0/24 nexthop via 20.20.10.1 dev dummy_10 nexthop encap ip dst 192.168.10.20 via 20.20.20.1 dev dummy_20 nexthop encap ip dst 192.168.10.30 via 20.20.30.1 dev dummy_30 nexthop encap ip dst 192.168.10.40 via 20.20.40.1 dev dummy_40 nexthop encap ip dst 192.168.10.50 via 20.20.50.1 dev dummy_50 nexthop encap ip dst 192.168.10.60 via 20.20.60.1 dev dummy_60 nexthop encap ip dst 192.168.10.70 via 20.20.70.1 dev dummy_70
 linkattr/ec-002 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 carrier on netns $$ xdp off

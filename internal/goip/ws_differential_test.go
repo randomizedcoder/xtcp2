@@ -41,9 +41,10 @@ const wsO5Golden = "testdata/ws-differential.txt"
 
 // wsO5Spaces are the row directories O5 reads, in report order: the
 // matrix's, then those mined from the fib selftests, then the address,
-// neighbor and link matrices'.
+// neighbor and link matrices', then the kwlive keyword forms'.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
-	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop"}
+	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
+	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -173,17 +174,64 @@ func wsO5ZeroMetricsPad(msg []byte) ([]byte, bool) {
 			break
 		}
 		if binary.LittleEndian.Uint16(out[off+2:]) == unix.RTA_METRICS {
-			for sub := off + 4; sub+4 <= off+l; {
-				sl := int(binary.LittleEndian.Uint16(out[sub:]))
-				if sl < 4 || sub+sl > off+l {
-					break
-				}
-				for i := sub + sl; i < min(sub+(sl+3)&^3, off+l); i++ {
-					zeroed = zeroed || out[i] != 0
-					out[i] = 0
-				}
-				sub += (sl + 3) &^ 3
-			}
+			zeroed = wsO5ZeroSubPad(out, off+4, off+l) || zeroed
+		}
+		off += (l + 3) &^ 3
+	}
+	return out, zeroed
+}
+
+// wsO5ZeroPad zeroes out[from:to], and says whether any of it wasn't zero.
+func wsO5ZeroPad(out []byte, from, to int) bool {
+	zeroed := false
+	for i := from; i < to; i++ {
+		zeroed = zeroed || out[i] != 0
+		out[i] = 0
+	}
+	return zeroed
+}
+
+// wsO5ZeroSubPad zeroes the alignment padding after each attribute in
+// out[start:end], stopping at one that runs past end.
+func wsO5ZeroSubPad(out []byte, start, end int) bool {
+	zeroed := false
+	for sub := start; sub+4 <= end; {
+		sl := int(binary.LittleEndian.Uint16(out[sub:]))
+		if sl < 4 || sub+sl > end {
+			break
+		}
+		zeroed = wsO5ZeroPad(out, sub+sl, min(sub+(sl+3)&^3, end)) || zeroed
+		sub += (sl + 3) &^ 3
+	}
+	return zeroed
+}
+
+// wsO5ZeroEncapPad is a nexthop write with the alignment padding inside
+// NHA_ENCAP and after NHA_ENCAP_TYPE zeroed, and whether any of it wasn't
+// zero. ipnexthop_modify has lwt_parse_encap build both in an
+// uninitialized stack buffer (ip/ipnexthop.c:1102) and copies them with
+// their padding (addraw_l); rta_addattr_l doesn't clear it, so a ttl's
+// three pad bytes and NHA_ENCAP_TYPE's two can be stack bytes. goip
+// writes zeros.
+func wsO5ZeroEncapPad(msg []byte) ([]byte, bool) {
+	if len(msg) < xtcpnl.NlMsgHdrSizeCst+xtcpnl.NhMsgSizeCst {
+		return msg, false
+	}
+	if binary.LittleEndian.Uint16(msg[4:6]) != unix.RTM_NEWNEXTHOP {
+		return msg, false
+	}
+	out := slices.Clone(msg)
+	zeroed := false
+	for off := xtcpnl.NlMsgHdrSizeCst + xtcpnl.NhMsgSizeCst; off+4 <= len(out); {
+		l := int(binary.LittleEndian.Uint16(out[off:]))
+		if l < 4 || off+l > len(out) {
+			break
+		}
+		switch binary.LittleEndian.Uint16(out[off+2:]) &^ (unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORDER) {
+		case xtcpnl.NhaEncap:
+			zeroed = wsO5ZeroSubPad(out, off+4, off+l) || zeroed
+		case xtcpnl.NhaEncapType:
+			zeroed = wsO5ZeroPad(out, off+l, min(off+(l+3)&^3, len(out))) || zeroed
 		}
 		off += (l + 3) &^ 3
 	}
@@ -376,7 +424,7 @@ func wsO5Split(ipReqs [][]byte) (look, dumps, rest [][]byte) {
 }
 
 // wsO5Row runs one row through goip and classifies it.
-func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups string, pad bool) {
+func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups string, pad, encapPad bool) {
 	t.Helper()
 	family, object, args, err := wsO5Argv(row.Cmd)
 	if err != nil {
@@ -407,6 +455,8 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		var z bool
 		ipWrites[i], z = wsO5ZeroMetricsPad(ipWrites[i])
 		pad = pad || z
+		ipWrites[i], z = wsO5ZeroEncapPad(ipWrites[i])
+		encapPad = encapPad || z
 	}
 	lookups = wsO5Lookups("lookup", look, src.gets)
 	if d := wsO5Lookups("dump", dumps, src.dumpReqs); d != "" {
@@ -418,7 +468,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		// reached the device whose lookup ip sent.
 		lookups = ""
 	}
-	return outcome, detail, lookups, pad
+	return outcome, detail, lookups, pad, encapPad
 }
 
 // TestWsGoipDifferential is O5 over every route, rule and nexthop row the
@@ -430,7 +480,7 @@ func TestWsGoipDifferential(t *testing.T) {
 	var report []string
 	counts := map[string]map[string]int{}
 	lookupNotes := map[string]int{}
-	padRows := 0
+	padRows, encapPadRows := 0, 0
 	for _, sp := range wsO5Spaces {
 		ents, err := os.ReadDir(filepath.Join(wsCorpusDir, sp))
 		if err != nil {
@@ -454,9 +504,12 @@ func TestWsGoipDifferential(t *testing.T) {
 				counts[sp]["n/a"]++
 				continue
 			}
-			outcome, detail, lookups, pad := wsO5Row(t, dir, row)
+			outcome, detail, lookups, pad, encapPad := wsO5Row(t, dir, row)
 			if pad {
 				padRows++
+			}
+			if encapPad {
+				encapPadRows++
 			}
 			counts[sp][outcome]++
 			if lookups != "" {
@@ -481,6 +534,7 @@ func TestWsGoipDifferential(t *testing.T) {
 			sp, c[o5Same], c[o5Refuses], c[o5Sends], c[o5Differs], c["lookups"], c["n/a"]))
 	}
 	head = append(head, fmt.Sprintf("# metrics padding: %d rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing", padRows))
+	head = append(head, fmt.Sprintf("# encap padding: %d rows: ip sends stack bytes in a nexthop's NHA_ENCAP or after NHA_ENCAP_TYPE; zeroed before comparing", encapPadRows))
 	for _, n := range slices.Sorted(maps.Keys(lookupNotes)) {
 		head = append(head, fmt.Sprintf("# lookups: %d rows: %s", lookupNotes[n], n))
 	}
@@ -752,6 +806,49 @@ func TestWsO5ZeroMetricsPad(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			in := slices.Clone(tc.msg)
 			got, zeroed := wsO5ZeroMetricsPad(tc.msg)
+			if !bytes.Equal(got, tc.want) || zeroed != tc.wantZeroed {
+				t.Fatalf("got % x %v, want % x %v", got, zeroed, tc.want, tc.wantZeroed)
+			}
+			if !bytes.Equal(tc.msg, in) {
+				t.Fatal("the input was modified")
+			}
+		})
+	}
+}
+
+func TestWsO5ZeroEncapPad(t *testing.T) {
+	// nh is an RTM_NEWNEXTHOP with an nhmsg and the attributes after it.
+	nh := func(attrs ...byte) []byte {
+		m := make([]byte, xtcpnl.NlMsgHdrSizeCst+xtcpnl.NhMsgSizeCst, 64)
+		binary.LittleEndian.PutUint16(m[4:6], unix.RTM_NEWNEXTHOP)
+		return append(m, attrs...)
+	}
+	// encap nests MPLS_IPTUNNEL_DST label 101 and MPLS_IPTUNNEL_TTL 10 with
+	// pad bytes p, then NHA_ENCAP_TYPE mpls with pad bytes q.
+	encap := func(p, q byte) []byte {
+		return []byte{20, 0, 8, 0x80, 8, 0, 1, 0, 0, 6, 0x51, 0, 5, 0, 2, 0, 10, p, p, p, 6, 0, 7, 0, 1, 0, q, q}
+	}
+	other := nh(encap(0x7f, 0x9b)...)
+	binary.LittleEndian.PutUint16(other[4:6], unix.RTM_NEWROUTE)
+	tests := []struct {
+		description string
+		msg         []byte
+		want        []byte
+		wantZeroed  bool
+	}{
+		{"positive: stack bytes after the ttl and the encap type are zeroed", nh(encap(0x7f, 0x9b)...), nh(encap(0, 0)...), true},
+		{"positive: only the encap type's pad", nh(encap(0, 0x17)...), nh(encap(0, 0)...), true},
+		{"positive: a zero pad is left and not reported", nh(encap(0, 0)...), nh(encap(0, 0)...), false},
+		{"negative: padding after another attribute is left", nh(5, 0, 1, 0, 9, 0xff, 0xff, 0xff), nh(5, 0, 1, 0, 9, 0xff, 0xff, 0xff), false},
+		{"negative: a route write is left", other, other, false},
+		{"corner: a sub-attribute longer than its nest stops the walk", nh(8, 0, 8, 0x80, 9, 0, 1, 0), nh(8, 0, 8, 0x80, 9, 0, 1, 0), false},
+		{"boundary: shorter than an nhmsg", []byte{1, 2, 3}, []byte{1, 2, 3}, false},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			in := slices.Clone(tc.msg)
+			got, zeroed := wsO5ZeroEncapPad(tc.msg)
 			if !bytes.Equal(got, tc.want) || zeroed != tc.wantZeroed {
 				t.Fatalf("got % x %v, want % x %v", got, zeroed, tc.want, tc.wantZeroed)
 			}
