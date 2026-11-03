@@ -84,6 +84,8 @@ const (
 	routeArmTable
 	routeArmDev
 	routeArmNhid
+	routeArmPref
+	routeArmExpires
 	routeArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -124,7 +126,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: fromKeywordCst, arm: routeArmFrom},
 	{keyword: tosKeywordCst, arm: routeArmUnsupported},
 	{keyword: dsfieldKeywordCst, prefix: true, arm: routeArmUnsupported},
-	{keyword: "expires", arm: routeArmUnsupported},
+	{keyword: "expires", arm: routeArmExpires},
 	{keyword: routeMetricKeywordCst, prefix: true, arm: routeArmPriority},
 	{keyword: routePriorityKeywordCst, prefix: true, arm: routeArmPriority},
 	{keyword: routePreferenceKeywordCst, arm: routeArmPriority},
@@ -153,7 +155,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: vrfKeywordCst, prefix: true, arm: routeArmUnsupported},
 	{keyword: devKeywordCst, arm: routeArmDev},
 	{keyword: oifKeywordCst, arm: routeArmDev},
-	{keyword: "pref", prefix: true, arm: routeArmUnsupported},
+	{keyword: "pref", prefix: true, arm: routeArmPref},
 	{keyword: "encap", arm: routeArmUnsupported},
 	{keyword: "ttl-propagate", arm: routeArmUnsupported},
 	{keyword: "fastopen_no_cookie", prefix: true, arm: routeArmBool,
@@ -334,6 +336,18 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 		}
 		st.nhid = id
 		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(xtcpnl.RtaNhID, id))
+	case routeArmPref:
+		pref, ok := routePrefA2N(v)
+		if !ok {
+			return invargErr(`"pref" value is invalid`, v)
+		}
+		st.attr(unix.RTA_PREF, []byte{pref})
+	case routeArmExpires:
+		e, ok := getU32(v, 0)
+		if !ok {
+			return invargErr(`"expires" value is invalid`, v)
+		}
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_EXPIRES, e))
 	default:
 		return st.metric(kw, v)
 	}
@@ -544,6 +558,27 @@ func (st *routeParseState) defaultScope() {
 		}
 	}
 }
+
+// routePrefA2N is the pref arm's value: ICMPV6_ROUTER_PREF_LOW, MEDIUM and
+// HIGH by strcmp, else get_u8 in base 0.
+func routePrefA2N(v string) (uint8, bool) {
+	switch v {
+	case "low":
+		return icmpv6RouterPrefLow, true
+	case "medium":
+		return icmpv6RouterPrefMedium, true
+	case "high":
+		return icmpv6RouterPrefHigh, true
+	}
+	return getU8(v, 0)
+}
+
+// The router preferences of include/uapi/linux/icmpv6.h.
+const (
+	icmpv6RouterPrefLow    = 0x3
+	icmpv6RouterPrefMedium = 0x0
+	icmpv6RouterPrefHigh   = 0x1
+)
 
 // adoptFamily is `if (req.r.rtm_family == AF_UNSPEC) req.r.rtm_family =
 // addr.family`, which every address arm does.

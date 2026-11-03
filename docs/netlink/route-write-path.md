@@ -604,7 +604,8 @@ for it.
 - **The keywords goip refuses** in phase 4: `nexthop` (multipath, above),
   `nhid` (since built, by [goip-write-keywords.md](goip-write-keywords.md)'s
   GW1-T01), `encap`, `vrf` (which costs a lookup of its own), `tos`/`dsfield`,
-  `expires`, `realms`, `as`, `pref`, `ttl-propagate`, MPLS and `via link`
+  `expires` and `pref` (both since built, GW1-T02), `realms`, `as`,
+  `ttl-propagate`, MPLS and `via link`
   addresses, and table, protocol and scope names that come only from a local
   `rt_*` file. Also `route get`, `flush`, `save`, `restore` and `showdump`.
 - **`tc`** — the `us`/`usec` time units and the qdisc surface are a different tool.

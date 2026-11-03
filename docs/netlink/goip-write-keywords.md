@@ -162,13 +162,13 @@ The workbench rows are the replay table: `TestWsGoipDifferential` with the regen
 | negative: a bad pref | `pref highest`; `pref 256` | 255; `Error: argument "highest" is wrong: "pref" value is invalid`; the same for 256 |
 | negative: a bad expiry | `expires -1`; `expires x` | 255; `Error: argument "-1" is wrong: "expires" value is invalid` |
 | boundary: the limits | `pref 255`; `expires 4294967295`; `expires 0` | `RTA_PREF` 255; `RTA_EXPIRES` 0xffffffff; `RTA_EXPIRES` 0 |
-| corner: the abbreviations | `pre high`; `preference 7`; `pr 7` | `RTA_PREF` 1; `RTA_PRIORITY` 7; `RTA_PRIORITY` 7 |
+| corner: the abbreviations | `pre high`; `preference 7`; `pr 7`; `p 7` | `RTA_PREF` 1; `RTA_PRIORITY` 7 for the other three |
 | corner: a prefix past the word | `prefe high` | `prefe` is the destination, `ip`'s refusal |
 | corner: a name is strcmp | `pref Low` | 255, the invarg text |
 
 The workbench rows: the 68 `pref` and 35 `expires` rows `same`.
 
-**Mutation check:** `low` as 1 (the names row); `pref` as `strcmp` (the `pre` row); `pref` before `preference` in the chain (the `preference 7` row); a negative expiry accepted (the `-1` row).
+**Mutation check:** `low` as 1 (the names row); `pref` as `strcmp` (the `pre` row); `pref` before `metric` and `priority` in the chain (the `p 7` and `pr 7` rows); the names folded to lower case (the `Low` row); a negative expiry accepted (the `-1` row).
 
 **Done when:** as GW1-T01, with the 103 rows.
 

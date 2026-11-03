@@ -82,3 +82,74 @@ func scopeUniverse(w xtcpnl.RouteWrite) xtcpnl.RouteWrite {
 	w.Scope = unix.RT_SCOPE_UNIVERSE
 	return w
 }
+
+// TestRouteWritePrefExpires is iproute_modify's pref arm (ip/iproute.c:1504),
+// the three names by strcmp, else get_u8 in base 0, into RTA_PREF u8, and its
+// expires arm (:1258), get_u32 in base 0 into RTA_EXPIRES. GW1-T02.
+//
+// go test ./internal/goip/ -run TestRouteWritePrefExpires
+func TestRouteWritePrefExpires(t *testing.T) {
+	const (
+		create = unix.NLM_F_CREATE
+		excl   = unix.NLM_F_EXCL
+		p64    = "2001:db8::/64 dev d0"
+	)
+	pref := func(v uint8) xtcpnl.RouteAttr { return xtcpnl.RouteAttrBytes(unix.RTA_PREF, []byte{v}) }
+	u32 := xtcpnl.RouteAttrU32
+	// v6 is `-6 add 2001:db8::/64 dev d0 …`: the attributes argv gives, then
+	// RTA_OIF.
+	v6 := func(attrs ...xtcpnl.RouteAttr) routeWriteExpected {
+		as := append(append([]xtcpnl.RouteAttr{rtaDst("2001:db8::")}, attrs...), rtaOif(2))
+		return routeWriteExpected{write: routeWith(newRouteWrite(create|excl, 64, as...),
+			func(w *xtcpnl.RouteWrite) { w.Family, w.Scope = unix.AF_INET6, unix.RT_SCOPE_UNIVERSE }),
+			resolved: []string{"d0"}}
+	}
+	invalid := func(msg string) routeWriteExpected {
+		return routeWriteExpected{err: ErrInvalidArgument, errMsg: msg}
+	}
+	runRouteWriteRows(t, []routeWriteRow{
+		{description: "positive: pref low", verb: "add", family: unix.AF_INET6, args: p64 + " pref low", expected: v6(pref(3))},
+		{description: "positive: pref medium", verb: "add", family: unix.AF_INET6, args: p64 + " pref medium",
+			expected: v6(pref(0))},
+		{description: "positive: pref high", verb: "add", family: unix.AF_INET6, args: p64 + " pref high", expected: v6(pref(1))},
+		{description: "positive: a numeric pref", verb: "add", family: unix.AF_INET6, args: p64 + " pref 2", expected: v6(pref(2))},
+		{description: "positive: a hex pref, base 0", verb: "add", family: unix.AF_INET6, args: p64 + " pref 0x10",
+			expected: v6(pref(16))},
+		{description: "positive: an expiry", verb: "add", family: unix.AF_INET6, args: p64 + " expires 30",
+			expected: v6(u32(unix.RTA_EXPIRES, 30))},
+		{description: "positive: an IPv4 expiry is sent, as ip sends it", verb: "add", args: "198.51.100.0/24 dev d0 expires 30",
+			expected: routeWriteExpected{write: newRouteWrite(create|excl, 24, rtaDst("198.51.100.0"),
+				u32(unix.RTA_EXPIRES, 30), rtaOif(2)), resolved: []string{"d0"}}},
+		{description: "positive: pref and expires in word order", verb: "add", family: unix.AF_INET6,
+			args: p64 + " expires 5 pref high", expected: v6(u32(unix.RTA_EXPIRES, 5), pref(1))},
+		{description: "negative: an unknown name", verb: "add", family: unix.AF_INET6, args: p64 + " pref highest",
+			expected: invalid(`Error: argument "highest" is wrong: "pref" value is invalid`)},
+		{description: "negative: a pref past a u8", verb: "add", family: unix.AF_INET6, args: p64 + " pref 256",
+			expected: invalid(`Error: argument "256" is wrong: "pref" value is invalid`)},
+		{description: "negative: a negative expiry", verb: "add", family: unix.AF_INET6, args: p64 + " expires -1",
+			expected: invalid(`Error: argument "-1" is wrong: "expires" value is invalid`)},
+		{description: "negative: a word for the expiry", verb: "add", family: unix.AF_INET6, args: p64 + " expires x",
+			expected: invalid(`Error: argument "x" is wrong: "expires" value is invalid`)},
+		{description: "negative: pref with no value", verb: "add", family: unix.AF_INET6, args: p64 + " pref",
+			expected: invalid("Command line is not complete")},
+		{description: "boundary: the largest pref", verb: "add", family: unix.AF_INET6, args: p64 + " pref 255",
+			expected: v6(pref(255))},
+		{description: "boundary: the largest expiry", verb: "add", family: unix.AF_INET6, args: p64 + " expires 4294967295",
+			expected: v6(u32(unix.RTA_EXPIRES, 4294967295))},
+		{description: "boundary: a zero expiry", verb: "add", family: unix.AF_INET6, args: p64 + " expires 0",
+			expected: v6(u32(unix.RTA_EXPIRES, 0))},
+		{description: "corner: pre is pref", verb: "add", family: unix.AF_INET6, args: p64 + " pre high", expected: v6(pref(1))},
+		{description: "corner: preference is the metric, by strcmp", verb: "add", family: unix.AF_INET6,
+			args: p64 + " preference 7", expected: v6(u32(unix.RTA_PRIORITY, 7))},
+		{description: "corner: pr is priority, earlier in the chain", verb: "add", family: unix.AF_INET6,
+			args: p64 + " pr 7", expected: v6(u32(unix.RTA_PRIORITY, 7))},
+		{description: "corner: p is priority, which the chain tests before pref", verb: "add", family: unix.AF_INET6,
+			args: p64 + " p 7", expected: v6(u32(unix.RTA_PRIORITY, 7))},
+		{description: "corner: a prefix past the word is the destination", verb: "add", family: unix.AF_INET6,
+			args: p64 + " prefe high", expected: invalid(`Error: either "to" is duplicate, or "prefe" is garbage`)},
+		{description: "corner: the names are strcmp", verb: "add", family: unix.AF_INET6, args: p64 + " pref Low",
+			expected: invalid(`Error: argument "Low" is wrong: "pref" value is invalid`)},
+		{description: "corner: expires is strcmp", verb: "add", family: unix.AF_INET6, args: p64 + " expire 5",
+			expected: invalid(`Error: either "to" is duplicate, or "expire" is garbage`)},
+	})
+}

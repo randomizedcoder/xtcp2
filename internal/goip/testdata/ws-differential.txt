@@ -1,11 +1,11 @@
 # route4: 171 same, 19 refuses, 0 sends, 0 differs; lookups differ in 88; not a write 0
-# route6: 65 same, 88 refuses, 0 sends, 0 differs; lookups differ in 37; not a write 0
+# route6: 134 same, 19 refuses, 0 sends, 0 differs; lookups differ in 74; not a write 0
 # rule4: 173 same, 30 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # rule6: 203 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # nh4: 78 same, 2 refuses, 0 sends, 0 differs; lookups differ in 38; not a write 0
 # nh6: 78 same, 2 refuses, 0 sends, 0 differs; lookups differ in 36; not a write 0
 # nhgrp: 81 same, 39 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
-# fibt: 129 same, 101 refuses, 0 sends, 0 differs; lookups differ in 44; not a write 143
+# fibt: 154 same, 76 refuses, 0 sends, 0 differs; lookups differ in 69; not a write 143
 # fibnh: 387 same, 15 refuses, 0 sends, 0 differs; lookups differ in 151; not a write 50
 # fibrule: 72 same, 0 refuses, 0 sends, 0 differs; lookups differ in 4; not a write 88
 # addr4: 132 same, 0 refuses, 0 sends, 0 differs; lookups differ in 126; not a write 0
@@ -19,7 +19,7 @@
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 9
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # lookups: 262 rows: dump IFLA_EXT_MASK 0x109, goip 0x1
-# lookups: 723 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
+# lookups: 785 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
 route4/ec-005 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route del multicast 198.51.100.6/31 table 256 preference 7 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
 route4/ng-005 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route add blackhole 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
 route4/ng-011 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route add unreachable 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
@@ -39,94 +39,25 @@ route4/pw-074 refuses rc=0 route "nexthop": object recognized but not implemente
 route4/rn1-011 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -4 route del 128.0.0.0/1 table 4294967295 proto 0 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
 route4/rn1-012 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route append 128.0.0.0/1 table 256 metric 4294967295 proto 0 scope link nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
 route4/rn1-015 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route prepend to broadcast 203.0.113.0/24 table 0 preference 7 scope link mtu 1280 src 192.0.2.10 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route6/ec-002 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace unicast default table main metric 0 proto static pref low expires 60 mtu 1280 src 2001:db8:1::10 via 2001:db8:1::1 dev d0
-route6/ec-003 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append local ::/0 table 100 metric 1024 proto 255 pref medium mtu lock 1400 via 2001:db8:1::1
-route6/ec-004 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend anycast 8000::/1 table 255 metric 4294967295 proto 0 pref high advmss 1300 via 2001:db8:3::1 dev d0 onlink
 route6/ec-005 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route del multicast 2001:db8:2::/127 table 256 preference 7 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
 route6/gone-1 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route del multicast 2001:db8:2::/127 table 256 preference 7 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/gone-3 refuses rc=2 route "pref": object recognized but not implemented by goip | ip -6 route del prohibit 8000::/1 table main metric 1024 pref low mtu lock 1400 nhid 10
 route6/ng-006 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add blackhole 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
 route6/ng-007 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add unreachable 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
 route6/ng-008 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add prohibit 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
 route6/ng-009 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add throw 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/ng-012 refuses rc=255 route "pref": object recognized but not implemented by goip | ip -6 route add 2001:db8:2::/64 pref 256 dev d0
 route6/ng-015 refuses rc=255 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 257
-route6/pw-001 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add unicast default table main metric 0 proto static pref low expires 60 mtu 1280 src 2001:db8:1::10 via 2001:db8:1::1 dev d0
-route6/pw-002 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add local ::/0 table 100 metric 1024 proto 255 pref medium mtu lock 1400 src 2001:db8:1::10 via 2001:db8:1::1
-route6/pw-003 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add anycast 8000::/1 table 255 metric 4294967295 proto 0 pref high advmss 1300 via 2001:db8:3::1 dev d0 onlink
-route6/pw-004 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add multicast 2001:db8:2::/127 table 256 preference 7 pref low mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-005 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add blackhole 2001:db8:2::7/128 table 4294967295 proto static pref medium expires 60 advmss 1300 nhid 10
-route6/pw-006 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add unreachable ::ffff:198.51.100.0/120 table 0 proto 255 pref low expires 60 src 2001:db8:1::10
-route6/pw-007 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace unicast 2001:db8:2::/64 table 100 metric 4294967295 pref medium expires 60 mtu lock 1400 via 2001:db8:1::1 dev d0
-route6/pw-008 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace default table 255 metric 1024 proto static expires 60 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-009 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace anycast ::/0 metric 0 proto 255 pref high expires 60 mtu 1280 dev d0
-route6/pw-010 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace local 8000::/1 table main proto 0 expires 60 mtu 1280 via 2001:db8:1::1
-route6/pw-012 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace multicast 2001:db8:2::7/128 metric 1024 proto 0 pref low advmss 1300 src 2001:db8:1::10 dev d0
-route6/pw-013 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace prohibit ::ffff:198.51.100.0/120 table 256 metric 0 pref medium advmss 1300 src 2001:db8:1::10 via 2001:db8:3::1 dev d0 onlink
-route6/pw-014 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append local 2001:db8:2::/64 table 255 metric 0 pref low src 2001:db8:1::10 via 2001:db8:1::1
-route6/pw-015 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append anycast default table 100 proto static pref high mtu lock 1400 via 2001:db8:3::1 dev d0 onlink
-route6/pw-017 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append unicast 8000::/1 preference 7 proto static pref medium expires 60 src 2001:db8:1::10 dev d0
-route6/pw-018 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append unreachable 2001:db8:2::/127 table 4294967295 metric 1024 pref high mtu 1280
-route6/pw-019 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append prohibit 2001:db8:2::7/128 table 0 metric 4294967295 proto static pref high expires 60 via 2001:db8:1::1
-route6/pw-020 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append multicast ::ffff:198.51.100.0/120 table main metric 1024 proto static pref high expires 60 mtu lock 1400 nhid 10
-route6/pw-022 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend local default metric 4294967295 proto static pref low expires 60 mtu lock 1400 nhid 10
-route6/pw-023 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend unicast ::/0 table 255 proto 255 pref medium mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-024 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend 8000::/1 table 100 metric 0 proto 0 pref low via 2001:db8:1::1 dev d0
-route6/pw-025 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route prepend prohibit 2001:db8:2::/127 proto 255 expires 60 advmss 1300
-route6/pw-026 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route prepend unreachable 2001:db8:2::7/128 table 256 metric 0 proto static expires 60 mtu lock 1400
-route6/pw-027 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend blackhole ::ffff:198.51.100.0/120 metric 1024 pref high mtu 1280 src 2001:db8:1::10 via 2001:db8:1::1 dev d0
-route6/pw-029 refuses rc=2 route "pref": object recognized but not implemented by goip | ip -6 route del blackhole default table 256 metric 4294967295 proto 255 pref low expires 60 dev d0
-route6/pw-030 refuses rc=2 route "pref": object recognized but not implemented by goip | ip -6 route del unreachable ::/0 preference 7 proto 0 pref medium advmss 1300 via 2001:db8:1::1
-route6/pw-031 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route del prohibit 8000::/1 table main metric 1024 pref low mtu lock 1400 nhid 10
-route6/pw-032 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route del 2001:db8:2::/127 table 100 preference 7 proto static pref high mtu 1280 nhid 10
+route6/pw-004 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add multicast 2001:db8:2::/127 table 256 preference 7 pref low mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+route6/pw-008 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route replace default table 255 metric 1024 proto static expires 60 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+route6/pw-023 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route prepend unicast ::/0 table 255 proto 255 pref medium mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
 route6/pw-034 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route del local ::ffff:198.51.100.0/120 table 4294967295 preference 7 proto 0 mtu lock 1400 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-036 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add throw 2001:db8:2::/64 table 256 proto static pref high advmss 1300 via 2001:db8:1::1 dev d0
-route6/pw-037 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace unreachable 2001:db8:2::/64 table main metric 4294967295 pref medium mtu 1280
-route6/pw-038 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace throw default table 4294967295 preference 7 pref low expires 60 src 2001:db8:1::10 via 2001:db8:1::1
-route6/pw-041 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend multicast default table 0 pref medium advmss 1300 dev d0
-route6/pw-042 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend throw 8000::/1 table 4294967295 metric 4294967295 proto 255 pref medium mtu 1280 dev d0
-route6/pw-043 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route del anycast 2001:db8:2::/127 table 0 metric 1024 pref medium via 2001:db8:1::1 dev d0
-route6/pw-045 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append anycast 2001:db8:2::/64 table 0 metric 0 pref low mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-046 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend unicast 2001:db8:2::/127 table 256 metric 1024 proto 0 pref high advmss 1300 via 2001:db8:1::1
-route6/pw-050 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add multicast ::/0 table 100 metric 4294967295 pref low nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-056 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add local 2001:db8:2::/127 table 255 metric 4294967295 pref high advmss 1300 via 2001:db8:3::1 dev d0 onlink
-route6/pw-057 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add 2001:db8:2::7/128 table main pref medium mtu 1280 via 2001:db8:3::1 dev d0 onlink
-route6/pw-069 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add 8000::/1 pref high advmss 1300 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+route6/pw-045 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route append anycast 2001:db8:2::/64 table 0 metric 0 pref low mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+route6/pw-050 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add multicast ::/0 table 100 metric 4294967295 pref low nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+route6/pw-069 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 8000::/1 pref high advmss 1300 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
 route6/pw-071 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001:db8:2::7/128 table main nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-079 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add unreachable 2001:db8:2::/64 pref low expires 60 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-001 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add unreachable 2001:db8:2::/64 metric 0 pref high expires 60 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-002 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add blackhole 2001:db8:2::/64 table 0 preference 7 proto 255 pref medium via 2001:db8:1::1 dev d0
-route6/rn1-003 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add 2001:db8:2::/64 metric 1024 proto 255 pref low via 2001:db8:1::1 dev d0
-route6/rn1-004 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace ::ffff:198.51.100.0/120 table 4294967295 metric 4294967295 proto 255 expires 60 nhid 10
-route6/rn1-005 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append throw ::/0 table 256 metric 0 proto 0 pref low expires 60 advmss 1300 src 2001:db8:1::10 nhid 10
-route6/rn1-006 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append throw default metric 4294967295 proto 255 pref high mtu 1280
-route6/rn1-007 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace unreachable 8000::/1 table 256 metric 4294967295 proto static pref medium expires 60 advmss 1300
-route6/rn1-008 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add unreachable ::/0 table 255 metric 4294967295 proto static pref high mtu lock 1400 src 2001:db8:1::10 dev d0
-route6/rn1-009 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add unicast 2001:db8:2::/64 table 0 metric 4294967295 proto 0 expires 60 src 2001:db8:1::10 nhid 10
-route6/rn1-011 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append anycast 2001:db8:2::7/128 table 0 preference 7 pref low expires 60 mtu lock 1400 via 2001:db8:1::1 dev d0
-route6/rn1-014 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route del unreachable 8000::/1 table 0 preference 7 proto static pref medium advmss 1300
-route6/rn1-015 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend unicast ::/0 table 256 metric 0 proto 0 pref medium src 2001:db8:1::10 via 2001:db8:1::1 dev d0
-route6/rn1-016 refuses rc=2 route "pref": object recognized but not implemented by goip | ip -6 route del unreachable 2001:db8:2::7/128 table 255 metric 4294967295 proto 0 pref medium expires 60 mtu lock 1400 src 2001:db8:1::10 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-017 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace unicast ::/0 table 100 proto static expires 60 advmss 1300 src 2001:db8:1::10 nhid 10
-route6/rn1-018 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route del anycast 2001:db8:2::7/128 table 256 preference 7 proto static pref low expires 60 advmss 1300 src 2001:db8:1::10 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-021 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add anycast ::/0 table 0 proto 0 pref high expires 60 advmss 1300 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-022 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend unicast 2001:db8:2::/127 table 0 metric 1024 proto 255 pref medium mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-023 refuses rc=2 route "expires": object recognized but not implemented by goip | ip -6 route del throw ::ffff:198.51.100.0/120 table 4294967295 preference 7 expires 60 mtu lock 1400 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-024 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace unreachable 2001:db8:2::7/128 table 256 metric 4294967295 pref medium expires 60 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-026 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add throw 2001:db8:2::/64 table 100 preference 7 pref high mtu lock 1400 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-027 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace 2001:db8:2::7/128 table main proto 0 pref medium expires 60 mtu 1280 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-028 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append unicast 8000::/1 table main metric 0 proto 0 pref high advmss 1300 nhid 10
-route6/rn1-029 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add unicast 2001:db8:2::7/128 table 0 metric 0 proto 0 pref high mtu 1280 src 2001:db8:1::10 via 2001:db8:1::1 dev d0
-route6/rn1-030 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route prepend local ::/0 table 255 metric 4294967295 proto 0 pref medium expires 60 advmss 1300 nhid 10
-route6/rn1-031 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add multicast 2001:db8:2::/64 table main metric 4294967295 proto 0 pref medium expires 60 via 2001:db8:3::1 dev d0 onlink
+route6/rn1-021 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add anycast ::/0 table 0 proto 0 pref high expires 60 advmss 1300 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+route6/rn1-022 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route prepend unicast 2001:db8:2::/127 table 0 metric 1024 proto 255 pref medium mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+route6/rn1-027 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route replace 2001:db8:2::7/128 table main proto 0 pref medium expires 60 mtu 1280 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
 route6/rn1-033 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route del local ::/0 table 100 proto 0 mtu 1280 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-034 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route add prohibit default table 4294967295 metric 1024 proto 255 pref low src 2001:db8:1::10 via 2001:db8:1::1 dev d0
-route6/rn1-035 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route del prohibit 2001:db8:2::7/128 table 0 expires 60 mtu 1280
-route6/rn1-036 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append unreachable 2001:db8:2::/64 proto static pref low expires 60 mtu lock 1400 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-037 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace ::/0 metric 0 proto 255 pref low expires 60 advmss 1300 via 2001:db8:1::1
-route6/rn1-038 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route prepend unreachable ::/0 table 0 metric 0 proto 0 expires 60 advmss 1300 via 2001:db8:3::1 dev d0 onlink
-route6/rn1-039 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route append unicast 2001:db8:2::/64 table main metric 1024 proto 0 pref low expires 60 advmss 1300 src 2001:db8:1::10 via 2001:db8:1::1 dev d0
-route6/rn1-040 refuses rc=0 route "pref": object recognized but not implemented by goip | ip -6 route replace 2001:db8:2::7/128 preference 7 pref medium expires 60 mtu lock 1400 via 2001:db8:1::1
 rule4/ec-002 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/gone-1 refuses rc=2 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/pw-001 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule add not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
@@ -200,31 +131,6 @@ nhgrp/rn1-031 refuses rc=0 nexthop hw_stats: no capture shows it: object recogni
 nhgrp/rn1-033 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 31/32 type resilient buckets 4 idle_timer 0 fdb hw_stats off protocol static
 nhgrp/rn1-034 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 100 group 31/32 type resilient buckets 2 fdb hw_stats on
 nhgrp/rn1-038 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 21,10/22,20 type resilient buckets 4 idle_timer 0 hw_stats on
-fibt/fib6_gc_test-001 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-002 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-003 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-004 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-005 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-011 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-012 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-013 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-014 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-015 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-021 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace 2001:20::1 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-022 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace 2001:20::2 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-023 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace 2001:20::3 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-024 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace 2001:20::4 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-025 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route replace 2001:20::5 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-026 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-027 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-028 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-029 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-030 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5
-fibt/fib6_gc_test-036 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:10::1 via fe80:dead::2 dev veth1 expires 5
-fibt/fib6_gc_test-037 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:10::2 via fe80:dead::2 dev veth1 expires 5
-fibt/fib6_gc_test-038 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:10::3 via fe80:dead::2 dev veth1 expires 5
-fibt/fib6_gc_test-039 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:10::4 via fe80:dead::2 dev veth1 expires 5
-fibt/fib6_gc_test-040 refuses rc=0 route "expires": object recognized but not implemented by goip | ip -6 route add 2001:10::5 via fe80:dead::2 dev veth1 expires 5
 fibt/fib6_notify_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001::/64 nexthop via 2001:10::2 dev dummy_10 nexthop encap ip6 dst 2002::20 via 2001:20::2 dev dummy_20 nexthop encap ip6 dst 2002::30 via 2001:30::2 dev dummy_30 nexthop encap ip6 dst 2002::40 via 2001:40::2 dev dummy_40 nexthop encap ip6 dst 2002::50 via 2001:50::2 dev dummy_50 nexthop encap ip6 dst 2002::60 via 2001:60::2 dev dummy_60 nexthop encap ip6 dst 2002::70 via 2001:70::2 dev dummy_70
 fibt/fib_down_test-005 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 203.0.113.0/24 nexthop via 198.51.100.2 dev dummy0 nexthop via 192.0.2.2 dev dummy1
 fibt/fib_down_test-006 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001:db8:3::/64 nexthop via 2001:db8:1::2 dev dummy0 nexthop via 2001:db8:2::2 dev dummy1
