@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 )
 
 // The GW rows' sources: the workbench corpus and its O5 golden
@@ -297,6 +299,17 @@ func runGwMatrix(t *testing.T, families []string, forms []gwForm) {
 			}
 			if c.Name != strings.TrimPrefix(r.Cmd, gwIPPrefixCst) || !c.Write || !c.Implemented {
 				t.Errorf("%s: %q Write=%v Implemented=%v, expected %q, true, true", c.Slug, c.Name, c.Write, c.Implemented, r.Cmd)
+			}
+		}
+	})
+	t.Run("positive: every row is gated (GW5-T04)", func(t *testing.T) {
+		al, err := nlparity.EmbeddedAllowlist()
+		if err != nil {
+			t.Fatalf("EmbeddedAllowlist: %v", err)
+		}
+		for i := range mine {
+			if !al.IsGated(mine[i].Name) {
+				t.Errorf("%s (%q) is not gated", mine[i].Slug, mine[i].Name)
 			}
 		}
 	})

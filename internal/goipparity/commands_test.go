@@ -1039,9 +1039,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	}
 	ungated := map[string]bool{}
 	for _, c := range Commands() {
-		// GW5-T01 to T03's rows wait for GW5-T04's runs, which gate them
-		// and take this exception out (goip-write-keywords.md).
-		if !gated[c.Name] && !strings.HasPrefix(c.Slug, gwSlugPrefixCst) {
+		if !gated[c.Name] {
 			ungated[c.Name] = true
 		}
 	}

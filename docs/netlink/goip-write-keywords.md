@@ -621,11 +621,11 @@ The O5 golden already compares all 579 moved rows offline against their captures
 
 | description (VM) | input | expected |
 |---|---|---|
-| positive: two consecutive clean section runs | `goip-parity -- --section route`, `link`, `nexthop` and `rule`, each twice | the GW5 rows `PASS` on both runs, and every gated row of the section still `PASS` |
+| positive: two consecutive clean runs of each section | `goip-parity -- --section route,link,nexthop,rule`, then the full run, which runs the four sections again | the GW5 rows `PASS` on both runs, and every gated row of the sections still `PASS` |
 | corner: the kernel-refused rows compare on the request | the rc 2 rows | `PASS` |
 | positive: one clean full run | `goip-parity` with no section | every gated row `PASS` |
 
-Then the rows go in `gated_commands`, each in `TestAllowlistCommitted`'s earned list. The full run comes before the next push.
+Then the rows go in `gated_commands`, each in `TestAllowlistCommitted`'s earned list. The full run is the second run of each section and also the full run the next push needs.
 
 **Done when:** the offline tables pass; the section runs and the full run are clean; the rows are gated; lint-baseline passes. It closes GW5 and the plan.
 

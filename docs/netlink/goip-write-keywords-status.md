@@ -45,7 +45,10 @@
 
 - GW5-T03 is done: 6 nexthop and rule rows, as GW5-T01's (V055–V057). `encap mpls` has no row, since all four of its corpus rows run `sysctl`; the forms with no row are recorded in V055.
 
-**Next action:** GW5-T04, the VM gate: `goip-parity` sections `route`, `link`, `nexthop` and `rule`, each twice, then a full run.
+- GW5-T04 is done: a `--section route,link,nexthop,rule` run (904 of 904 rows `PASS`) and then the full run (1281 of 1281) are clean, so the 35 GW rows are gated, and `TestUngatedSurfaceIsNotVacuous`' exception is gone (V058–V060).
+- **GW5 is closed, and with it the plan** (DOC006). The 29 rows left `refuses` in the O5 golden are the ones the decision log lists.
+
+**Next action:** none in this plan. The whole-repo `test-go-race` check, then the push, which waits for an explicit OK.
 
 ## Contents
 
@@ -73,7 +76,7 @@
 | [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | done | V013–V036, DOC003 |
 | [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | GW3-T03 | done | V037–V045, DOC004 |
 | [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | GW4-T01 | done | V046–V048, DOC005 |
-| [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | GW5-T04 | in progress | |
+| [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | 35 | GW5-T04 | done | V049–V060, DOC006 |
 
 ## Task checklist
 
@@ -100,7 +103,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW5-T01](goip-write-keywords.md#gw5-t01-the-route-rows) | route matrix rows | done | 29 | V049–V051 |
 | [x] | [GW5-T02](goip-write-keywords.md#gw5-t02-the-link-rows) | link matrix rows | done | 29 | V052–V054 |
 | [x] | [GW5-T03](goip-write-keywords.md#gw5-t03-the-nexthop-and-rule-rows) | nexthop and rule matrix rows | done | 29 | V055–V057 |
-| [ ] | [GW5-T04](goip-write-keywords.md#gw5-t04-the-vm-gate) | the VM gate | not started | | |
+| [x] | [GW5-T04](goip-write-keywords.md#gw5-t04-the-vm-gate) | the VM gate | done | 29 | V058–V060 |
 
 ## Verification ledger
 
@@ -165,9 +168,13 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V052 | 2026-11-03 | GW5-T02 | as V049 | all pass: `TestGwLinkMatrixRows` (25 forms, the 6 checks and the address-floor row). The rows: `linkset/ec-002` (address, `gso_max_size`, `mode`), `ng-006` (address, rc 2), `bd-001` (`group` with a dev, `gso_max_segs`), `bd-002` and `ng-009` (`gro_max_size`), `ec-007`, `ec-008`, `ec-004` (`broadcast`, `state`); `linkattr/pw-005` (`eui64`, `xdpgeneric`), `pw-010` (`none`), `ng-004` (`stable_secret`, rc 2 alone), `ec-004` (`random`, `xdpdrv`), `ng-009` (`protodown` on a dummy, rc 2), `pw-007` (`carrier`, `xdp`), `ng-008` (`link-netnsid`, rc 2 alone), `parentdev`; `linkpd/ec-002` and `pw-008` (`protodown`, `protodown_reason`). The two address rows' floor is 6: the lookup, the get by index and the write, each answered. No row: the group-wide set, `xdpoffload` and `index` on a create, which the corpus never runs, so the plan's group-wide corner row has nothing to pin | d9d040ab |
 | V053 | 2026-11-03 | GW5-T02 | mutation, as V050, `-run TestGwLinkMatrixRows`: a floor one short; the address-length get left out of a floor; the macvlan left out of a setup; an rc 255 row (`netns nosuch`) added | 4 of 4 killed: by the floor row; the floor and address-floor rows; the setup row; the table, negative and floor rows | d9d040ab |
 | V054 | 2026-11-03 | GW5-T02 | as V003 | both pass first time | d9d040ab |
-| V055 | 2026-11-03 | GW5-T03 | as V049 | all pass: `TestGwNexthopRuleMatrixRows` (10 forms and the 6 checks). The rows: `nh4/ng-005` (`hw_stats on` a single nexthop, the kernel's rc 2 alone); `nhgrp/pw-002` and `ec-002` (`hw_stats on` a group), `pw-001` and `pw-008` (`off`); `rule4/ec-002` (rule `realms` `TO`, rc 0; rc 2's `gone-1` repeats its argv). No row, every candidate running `sysctl`: `encap mpls` with one label and with an IPv6 gateway (the 4 `fibnh` rows). No candidate: `hw_stats off` on a single nexthop, two labels, a `ttl`, rule `realms` `FROM/TO` | this commit |
-| V056 | 2026-11-03 | GW5-T03 | mutation, as V050, `-run TestGwNexthopRuleMatrixRows`: a floor one short; a group member left out of the setup; an rc 255 row (`dev nosuch`) added | 3 of 3 killed: by the floor row; the setup row; the table and negative rows | this commit |
-| V057 | 2026-11-03 | GW5-T03 | as V003 | both pass first time | this commit |
+| V055 | 2026-11-03 | GW5-T03 | as V049 | all pass: `TestGwNexthopRuleMatrixRows` (10 forms and the 6 checks). The rows: `nh4/ng-005` (`hw_stats on` a single nexthop, the kernel's rc 2 alone); `nhgrp/pw-002` and `ec-002` (`hw_stats on` a group), `pw-001` and `pw-008` (`off`); `rule4/ec-002` (rule `realms` `TO`, rc 0; rc 2's `gone-1` repeats its argv). No row, every candidate running `sysctl`: `encap mpls` with one label and with an IPv6 gateway (the 4 `fibnh` rows). No candidate: `hw_stats off` on a single nexthop, two labels, a `ttl`, rule `realms` `FROM/TO` | e4f7787e |
+| V056 | 2026-11-03 | GW5-T03 | mutation, as V050, `-run TestGwNexthopRuleMatrixRows`: a floor one short; a group member left out of the setup; an rc 255 row (`dev nosuch`) added | 3 of 3 killed: by the floor row; the setup row; the table and negative rows | e4f7787e |
+| V057 | 2026-11-03 | GW5-T03 | as V003 | both pass first time | e4f7787e |
+| V058 | 2026-11-03 | GW5-T04 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section route,link,nexthop,rule` at e4f7787e | `GOIP_PARITY_OVERALL_PASS`, rc 0: 904 of 1281 rows, all `PASS`, the 35 GW rows among them, the rc 2 rows comparing on the request; `UNGATED_CLEAN`, both hygiene passes | this commit |
+| V059 | 2026-11-03 | GW5-T04 | `nix run .#microvm-x86_64-goip-parity -- --timeout 20000` at e4f7787e | `GOIP_PARITY_OVERALL_PASS`, rc 0, "goip netlink + stdout parity holds on this kernel": 1281 of 1281 rows `PASS`, the 35 GW rows among them. The four sections' second clean run, and the full run the next push needs | this commit |
+| V060 | 2026-11-03 | GW5-T04 | as V049 with `./pkg/nlparity/`, then as V003 | all pass: `TestAllowlistCommitted` with the 35 names in `gated_commands` and `earned`; the matrix tables' new every-row-gated check; `TestUngatedSurfaceIsNotVacuous` without the `gw_` exception; lint-baseline and netlink-audit | this commit |
+| DOC006 | 2026-11-03 | GW5 close | The phase and the plan closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): no next phase to expand; the inventory unchanged at 29; the T04 table records one combined section run and the full run. No cross-doc statement was made false. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -193,7 +200,8 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **GW5 samples the moved rows rather than taking all 555.** The O5 golden compares every one offline against its capture. The matrix's job is the live `ip`-against-goip check in the VM, and one row per keyword form and rc does that without a VM run several times longer than KG4-T09's.
 - **A GW row's slug maps `-` to `_` as well as `/`.** `TestCommandTable` allows `[a-z0-9_]` only, and the workbench ids have dashes (`pw-023`), so `route4/pw-023` is `gw_route4_pw_023`; the plan's text is corrected.
 - **A row whose argv a picked row already has is passed over.** `Name` is the allowlist key, so two rows with one argv can't both be in the table. `route4/dup-2` and `route6/dup-2` repeat their `ec-006`'s add to meet `EEXIST`; IPv6's form takes `gone-3` instead, and IPv4 blackhole's has no rc 2 row. The plan adds this to its selection rule.
-- **The GW rows are ungated until GW5-T04, and `TestUngatedSurfaceIsNotVacuous` excepts them by slug.** The plan gates them only after the VM runs; the exception comes out with the gating.
+- **The GW rows are ungated until GW5-T04, and `TestUngatedSurfaceIsNotVacuous` excepts them by slug.** The plan gates them only after the VM runs; the exception came out with the gating at GW5-T04.
+- **GW5-T04 runs the four sections once together, then the full run, rather than each section twice.** The full run runs every section again, so each section has two consecutive clean runs, and it is the full run the push needs as well. Four section runs twice over would be about 75 minutes each for no extra coverage. The plan's T04 table is corrected.
 - **The offline comparator reads a GW row's own workbench capture.** `corpusWriteRow` maps a `gw_` slug back to its `ws/` directory, so `TestCompareWriteRow`'s every-write-row pass covers them as it does the other write rows.
 - **`encap mpls` has no live row.** Its four corpus rows are `fibnh` selftest rows whose `pre` runs `sysctl`, and the plan's rule passes such rows over rather than giving them a new setup. The O5 golden still compares all four offline, and `TestNexthopWriteEncapMpls` holds the one-label, two-label, `ttl` and IPv6 forms.
 - **Names from config files are the stock files' names only.** goip reads no `rt_dsfield`, `rt_realms` or `group` file, so it takes the numeric forms and the names iproute2 7.2.0 ships, as with `rt_tables`.
