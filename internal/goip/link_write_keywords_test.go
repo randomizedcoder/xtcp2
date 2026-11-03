@@ -132,3 +132,55 @@ func TestLinkWriteGroup(t *testing.T) {
 			}}},
 	})
 }
+
+// TestLinkWriteGsoGro is iplink_parse's five size arms (ip/iplink.c:1204-1249):
+// get_unsigned in base 0, gso_max_segs at most GSO_MAX_SEGS, each its own
+// IFLA_* u32, with no duparg. GW2-T03.
+//
+// go test ./internal/goip/ -run TestLinkWriteGsoGro
+func TestLinkWriteGsoGro(t *testing.T) {
+	u32 := xtcpnl.LinkAttrU32
+	set := func(a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: 2, Attrs: a,
+		}, resolved: []string{"d0"}}
+	}
+	d0 := func(w ...string) []string { return append([]string{"dev", "d0"}, w...) }
+	invalid := func(key, v string) linkWriteExpected {
+		return linkWriteExpected{err: ErrLinkUsage, errMsg: fmt.Sprintf(`Error: argument %q is wrong: Invalid %q value`, v, key)}
+	}
+	runLinkWriteRows(t, []linkWriteRow{
+		{description: "positive: gso_max_size", verb: "set", args: d0("gso_max_size", "32768"),
+			expected: set(u32(unix.IFLA_GSO_MAX_SIZE, 32768))},
+		{description: "positive: gso_max_segs", verb: "set", args: d0("gso_max_segs", "100"),
+			expected: set(u32(unix.IFLA_GSO_MAX_SEGS, 100))},
+		{description: "positive: gro_max_size", verb: "set", args: d0("gro_max_size", "524280"),
+			expected: set(u32(unix.IFLA_GRO_MAX_SIZE, 524280))},
+		{description: "positive: gso_ipv4_max_size", verb: "set", args: d0("gso_ipv4_max_size", "32768"),
+			expected: set(u32(unix.IFLA_GSO_IPV4_MAX_SIZE, 32768))},
+		{description: "positive: gro_ipv4_max_size", verb: "set", args: d0("gro_ipv4_max_size", "32768"),
+			expected: set(u32(unix.IFLA_GRO_IPV4_MAX_SIZE, 32768))},
+		{description: "positive: in word order", verb: "set", args: d0("gso_max_segs", "1", "gro_max_size", "2"),
+			expected: set(u32(unix.IFLA_GSO_MAX_SEGS, 1), u32(unix.IFLA_GRO_MAX_SIZE, 2))},
+		{description: "positive: hex, base 0", verb: "set", args: d0("gso_max_size", "0x10"),
+			expected: set(u32(unix.IFLA_GSO_MAX_SIZE, 16))},
+		{description: "negative: a word", verb: "set", args: d0("gso_max_size", "x"), expected: invalid("gso_max_size", "x")},
+		{description: "negative: negative", verb: "set", args: d0("gro_max_size", "-1"), expected: invalid("gro_max_size", "-1")},
+		{description: "negative: no value", verb: "set", args: d0("gso_max_segs"),
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: "Command line is not complete"}},
+		{description: "boundary: segs at its limit", verb: "set", args: d0("gso_max_segs", "65535"),
+			expected: set(u32(unix.IFLA_GSO_MAX_SEGS, 65535))},
+		{description: "boundary: segs one past", verb: "set", args: d0("gso_max_segs", "65536"),
+			expected: invalid("gso_max_segs", "65536")},
+		{description: "boundary: a size at UINT_MAX", verb: "set", args: d0("gso_max_size", "4294967295"),
+			expected: set(u32(unix.IFLA_GSO_MAX_SIZE, 4294967295))},
+		{description: "boundary: a size one past", verb: "set", args: d0("gso_ipv4_max_size", "4294967296"),
+			expected: invalid("gso_ipv4_max_size", "4294967296")},
+		{description: "boundary: zero", verb: "set", args: d0("gro_ipv4_max_size", "0"),
+			expected: set(u32(unix.IFLA_GRO_IPV4_MAX_SIZE, 0))},
+		{description: "corner: no prefix match, so gso_max is the dev", verb: "set", args: []string{"d0", "gso_max", "5"},
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: `either "dev" is duplicate, or "gso_max" is garbage`}},
+		{description: "corner: repeated, with no duparg", verb: "set", args: d0("gso_max_size", "1", "gso_max_size", "2"),
+			expected: set(u32(unix.IFLA_GSO_MAX_SIZE, 1), u32(unix.IFLA_GSO_MAX_SIZE, 2))},
+	})
+}

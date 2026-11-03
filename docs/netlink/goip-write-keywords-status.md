@@ -16,7 +16,9 @@
 
 - GW2-T02 is done: `group` is `IFLA_GROUP`, with `rtnl_group_a2n`'s int truncation, and with no dev the group-wide set. Of its 61 rows, 1 is `same` and 60 now stop at a later GW2 keyword; 276 rows refuse (V016–V018).
 
-**Next action:** GW2-T03, link GSO and GRO sizes (96 rows now stop there).
+- GW2-T03 is done: the five GSO and GRO sizes are their `IFLA_*` u32s. Of the 96 rows stopping there, 50 are `same` and 46 now stop at a later GW2 keyword; 226 rows refuse (V019–V021).
+
+**Next action:** GW2-T04, link `addrgenmode` (35 rows).
 
 ## Contents
 
@@ -41,7 +43,7 @@
 | Phase | Object | Rows | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [GW1](goip-write-keywords.md#gw1--route-keywords) | route | 331 | GW1-T04 | done | V001–V012, DOC002 |
-| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V018 |
+| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V021 |
 | [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | | not started | |
 | [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | | not started | |
 | [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | | not started | |
@@ -58,7 +60,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW1-T04](goip-write-keywords.md#gw1-t04-multipath-nexthop) | route multipath `nexthop` | done | 279 | V010–V012 |
 | [x] | [GW2-T01](goip-write-keywords.md#gw2-t01-the-set-address-length-lookup) | link `set address` length lookup | done | 277 | V013–V015 |
 | [x] | [GW2-T02](goip-write-keywords.md#gw2-t02-group) | link `group` | done | 276 | V016–V018 |
-| [ ] | [GW2-T03](goip-write-keywords.md#gw2-t03-gso-and-gro-sizes) | link GSO and GRO sizes | not started | | |
+| [x] | [GW2-T03](goip-write-keywords.md#gw2-t03-gso-and-gro-sizes) | link GSO and GRO sizes | done | 226 | V019–V021 |
 | [ ] | [GW2-T04](goip-write-keywords.md#gw2-t04-addrgenmode) | link `addrgenmode` | not started | | |
 | [ ] | [GW2-T05](goip-write-keywords.md#gw2-t05-protodown-and-protodown_reason) | link `protodown`, `protodown_reason` | not started | | |
 | [ ] | [GW2-T06](goip-write-keywords.md#gw2-t06-broadcast-carrier-mode-and-state) | link `broadcast`, `carrier`, `mode`, `state` | not started | | |
@@ -91,7 +93,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V015 | 2026-11-02 | GW2-T01 | as V003 | both pass; the first lint run found gofmt on the new test file, fixed | a19f251e |
 | V016 | 2026-11-02 | GW2-T02 | as V001 | all pass: `TestLinkWriteGroup` (21 rows) and `TestCStrtol` (14 rows). `TestBuildLinkWrite`'s `group` refusal row becomes a `carrier` one, still refused until GW2-T06. The golden: 277 `refuses` to 276; of the 61 `group` rows 1 `same` and 60 refusing at a later GW2 keyword (gso/gro 96 in all, broadcast 16, mode 5, state 2); `differs` and `sends` 0 in every family | this commit |
 | V017 | 2026-11-02 | GW2-T02 | mutation, as V002: the long not truncated to an int; `duparg` dropped; `default` by prefix; the group-wide create allowed; the group-wide kind kept; base 10; the group-wide path dropped | 7 of 7 killed: by the 2^32 and 2^32+5 rows; the second-group row; `group def`; the create row; the dropped-type row; the hex and octal rows; the four group-wide rows. The first truncation mutant didn't compile and was rewritten | this commit |
-| V018 | 2026-11-02 | GW2-T02 | as V003 | both pass first time | this commit |
+| V018 | 2026-11-02 | GW2-T02 | as V003 | both pass first time | ea22a6ec |
+| V019 | 2026-11-02 | GW2-T03 | as V001 | all pass: `TestLinkWriteGsoGro` (17 rows). The golden: 276 `refuses` to 226; of the 96 rows stopping at a size, 50 `same` and 46 refusing at a later GW2 keyword (`mode` 38, `state` 15 in all); `differs` and `sends` 0 in every family | this commit |
+| V020 | 2026-11-02 | GW2-T03 | mutation, as V002: `gso_max_segs` unbounded; base 10; `gro_ipv4_max_size` sent as `IFLA_GRO_MAX_SIZE`; `gso_ipv4_max_size` as `IFLA_GSO_MAX_SIZE`; `gso_max_segs` as `IFLA_GSO_MAX_SIZE`; `gso_max_size` by prefix | 6 of 6 killed: by segs one past; the hex row; the `gro_ipv4_max_size` and zero rows; the `gso_ipv4_max_size` row; the three segs rows; the `gso_max` row | this commit |
+| V021 | 2026-11-02 | GW2-T03 | as V003 | both pass first time | this commit |
 
 ## Decision log
 

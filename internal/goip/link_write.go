@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"syscall"
@@ -98,6 +99,7 @@ const (
 	linkArmTxQueues
 	linkArmRxQueues
 	linkArmGroup
+	linkArmU32Max      // get_unsigned in base 0, at most maxVal, as a u32 attribute
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -117,6 +119,10 @@ type linkKeyword struct {
 	// "on" sets it (trailers and arp are inverted).
 	flag   uint32
 	onSets bool
+	// attr and maxVal describe a linkArmU32Max: the IFLA_* it sends, and
+	// its bound.
+	attr   uint16
+	maxVal uint64
 }
 
 // linkParseKeywords is iplink_parse's if/else chain in its order
@@ -167,11 +173,11 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "link-netnsid", prefix: true, arm: linkArmUnsupported},
 	{keyword: "protodown", arm: linkArmUnsupported},
 	{keyword: "protodown_reason", arm: linkArmUnsupported},
-	{keyword: "gso_max_size", arm: linkArmUnsupported},
-	{keyword: "gso_max_segs", arm: linkArmUnsupported},
-	{keyword: "gro_max_size", arm: linkArmUnsupported},
-	{keyword: "gso_ipv4_max_size", arm: linkArmUnsupported},
-	{keyword: "gro_ipv4_max_size", arm: linkArmUnsupported},
+	{keyword: "gso_max_size", arm: linkArmU32Max, attr: unix.IFLA_GSO_MAX_SIZE, maxVal: math.MaxUint32},
+	{keyword: "gso_max_segs", arm: linkArmU32Max, attr: unix.IFLA_GSO_MAX_SEGS, maxVal: linkGsoMaxSegsCst},
+	{keyword: "gro_max_size", arm: linkArmU32Max, attr: unix.IFLA_GRO_MAX_SIZE, maxVal: math.MaxUint32},
+	{keyword: "gso_ipv4_max_size", arm: linkArmU32Max, attr: unix.IFLA_GSO_IPV4_MAX_SIZE, maxVal: math.MaxUint32},
+	{keyword: "gro_ipv4_max_size", arm: linkArmU32Max, attr: unix.IFLA_GRO_IPV4_MAX_SIZE, maxVal: math.MaxUint32},
 	{keyword: "parentdev", arm: linkArmUnsupported},
 }
 
@@ -446,6 +452,16 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		}
 		st.groupSet = true
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_GROUP, g))
+	case linkArmU32Max:
+		n, ok := cGetUnsigned(v, 0, kw.maxVal)
+		if !ok {
+			return linkUsage(invargErr("Invalid \""+kw.keyword+"\" value\n", v))
+		}
+		u, ok := cint.U32From64(n)
+		if !ok {
+			return linkUsage(invargErr("Invalid \""+kw.keyword+"\" value\n", v))
+		}
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(kw.attr, u))
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
@@ -481,6 +497,9 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 
 // linkGroupKeywordCst is iplink_parse's `group`, compared with strcmp.
 const linkGroupKeywordCst = "group"
+
+// linkGsoMaxSegsCst is ip/iplink.c's GSO_MAX_SEGS, gso_max_segs' bound.
+const linkGsoMaxSegsCst = 65535
 
 // rtnlGroupA2N is rtnl_group_a2n (lib/rt_names.c:713): the stock group
 // file's one name, default, then strtol in base 0 over the whole argument
