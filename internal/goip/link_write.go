@@ -101,6 +101,8 @@ const (
 	linkArmGroup
 	linkArmU32Max      // get_unsigned in base 0, at most maxVal, as a u32 attribute
 	linkArmAddrGenMode // IFLA_AF_SPEC{AF_INET6{IFLA_INET6_ADDR_GEN_MODE}}
+	linkArmProtodown   // parse_on_off, IFLA_PROTO_DOWN u8
+	linkArmProtodownReason
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -172,8 +174,8 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "addrgenmode", prefix: true, arm: linkArmAddrGenMode},
 	{keyword: "link-netns", prefix: true, arm: linkArmUnsupported},
 	{keyword: "link-netnsid", prefix: true, arm: linkArmUnsupported},
-	{keyword: "protodown", arm: linkArmUnsupported},
-	{keyword: "protodown_reason", arm: linkArmUnsupported},
+	{keyword: "protodown", arm: linkArmProtodown},
+	{keyword: "protodown_reason", arm: linkArmProtodownReason},
 	{keyword: "gso_max_size", arm: linkArmU32Max, attr: unix.IFLA_GSO_MAX_SIZE, maxVal: math.MaxUint32},
 	{keyword: "gso_max_segs", arm: linkArmU32Max, attr: unix.IFLA_GSO_MAX_SEGS, maxVal: linkGsoMaxSegsCst},
 	{keyword: "gro_max_size", arm: linkArmU32Max, attr: unix.IFLA_GRO_MAX_SIZE, maxVal: math.MaxUint32},
@@ -351,6 +353,13 @@ loop:
 			}
 			continue
 		}
+		if kw.arm == linkArmProtodownReason {
+			var err error
+			if i, err = st.protodownReason(args, i); err != nil {
+				return linkParsed{}, err
+			}
+			continue
+		}
 		// Every remaining arm is NEXT_ARG.
 		if i+1 >= len(args) {
 			return linkParsed{}, linkUsage(incompleteErr())
@@ -457,6 +466,8 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		return st.u32Max(kw, v)
 	case linkArmAddrGenMode:
 		return st.addrGenMode(v)
+	case linkArmProtodown:
+		return st.protodown(v)
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
@@ -617,6 +628,62 @@ func (st *linkParseState) addrGenMode(v string) error {
 	return nil
 }
 
+// protodown is the protodown arm: parse_on_off, then IFLA_PROTO_DOWN u8.
+func (st *linkParseState) protodown(v string) error {
+	on, err := parseOnOff("protodown", v)
+	if err != nil {
+		return err
+	}
+	var b uint8
+	if on {
+		b = 1
+	}
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU8(unix.IFLA_PROTO_DOWN, b))
+	return nil
+}
+
+// protodownReasonBitsCst is PROTODOWN_REASON_NUM_BITS: a reason is a bit
+// of the u32 mask.
+const protodownReasonBitsCst = 32
+
+// protodownReason is the protodown_reason arm: two NEXT_ARGs, the reason
+// between them, so a bad reason is refused before a missing on/off. The
+// reason is protodown_reason_a2n's strtoul in base 0; goip reads no
+// protodown_reasons.d, and iproute2 ships none. It returns the index of the
+// on/off word.
+func (st *linkParseState) protodownReason(args []string, i int) (int, error) {
+	if i+1 >= len(args) {
+		return i, linkUsage(incompleteErr())
+	}
+	i++
+	r := cStrtoul(args[i], 0)
+	if r.end == 0 || r.end != len(args[i]) || r.overflow || r.val >= protodownReasonBitsCst {
+		return i, linkUsage(invargErr("invalid protodown reason\n", args[i]))
+	}
+	if i+1 >= len(args) {
+		return i, linkUsage(incompleteErr())
+	}
+	i++
+	mask := uint32(1) << r.val
+	var value uint32
+	// matches(): the word is a prefix of on or off, and "" is a prefix of
+	// both, so it is on.
+	switch v := args[i]; {
+	case strings.HasPrefix(onKeywordCst, v):
+		value = mask
+	case strings.HasPrefix(offKeywordCst, v):
+	default:
+		return i, fmt.Errorf("%w: Error: argument of \"protodown_reason\" must be \"on\" or \"off\", not %q",
+			ErrInvalidArgument, v)
+	}
+	a, err := xtcpnl.LinkAttrProtoDownReason(mask, value)
+	if err != nil {
+		return i, err
+	}
+	st.out.attrs = append(st.out.attrs, a)
+	return i, nil
+}
+
 // addrGenModeA2N is get_addr_gen_mode: the four names by strcasecmp.
 func addrGenModeA2N(v string) (uint8, bool) {
 	switch {
@@ -648,15 +715,11 @@ func lookupInetParam(arg string) *xtcpnl.InetDevconfParam {
 // -1 is 0xffffffff.
 func inetValue(p *xtcpnl.InetDevconfParam, v string) (uint32, error) {
 	if p.OnOff {
-		switch v {
-		case offKeywordCst:
-			return 0, nil
-		case onKeywordCst:
-			return 1, nil
-		default:
-			return 0, fmt.Errorf("%w: Error: argument of %q must be one of \"off\", \"on\", not %q",
-				ErrInvalidArgument, p.Name, v)
+		on, err := parseOnOff(p.Name, v)
+		if on {
+			return 1, err
 		}
+		return 0, err
 	}
 	n, ok := getInteger(v, 0)
 	if !ok {
@@ -667,6 +730,19 @@ func inetValue(p *xtcpnl.InetDevconfParam, v string) (uint32, error) {
 		return 0, err
 	}
 	return binary.LittleEndian.Uint32(b), nil
+}
+
+// parseOnOff is lib/utils.c's parse_on_off: off or on by strcmp, and its
+// returned error otherwise (exit 1).
+func parseOnOff(key, v string) (bool, error) {
+	switch v {
+	case offKeywordCst:
+		return false, nil
+	case onKeywordCst:
+		return true, nil
+	}
+	return false, fmt.Errorf("%w: Error: argument of %q must be one of \"off\", \"on\", not %q",
+		ErrInvalidArgument, key, v)
 }
 
 func (st *linkParseState) setFlag(flag uint32, set bool) {

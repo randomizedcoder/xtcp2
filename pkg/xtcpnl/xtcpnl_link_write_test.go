@@ -498,3 +498,66 @@ func TestLinkAttrAddrGenMode(t *testing.T) {
 		})
 	}
 }
+
+func TestLinkAttrProtoDownReason(t *testing.T) {
+	tests := []struct {
+		description string
+		mask, value uint32
+		expected    string
+	}{
+		{
+			description: "positive: reason 0 on, MASK then VALUE",
+			mask:        1, value: 1,
+			expected: "080001000100000008000200" + "01000000",
+		},
+		{
+			description: "positive: reason 0 off keeps the mask and clears the value",
+			mask:        1, value: 0,
+			expected: "080001000100000008000200" + "00000000",
+		},
+		{
+			description: "boundary: reason 31, the top bit",
+			mask:        0x80000000, value: 0x80000000,
+			expected: "080001000000008008000200" + "00000080",
+		},
+		{
+			description: "corner: a value outside the mask is encoded as given",
+			mask:        1, value: 2,
+			expected: "080001000100000008000200" + "02000000",
+		},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.description, func(t *testing.T) {
+			got, err := LinkAttrProtoDownReason(tt.mask, tt.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			const want = unix.IFLA_PROTO_DOWN_REASON | unix.NLA_F_NESTED
+			if got.Type != want || hex.EncodeToString(got.Payload) != tt.expected {
+				t.Errorf("got type %#x %x, want %#x %s", got.Type, got.Payload, want, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLinkAttrU8(t *testing.T) {
+	tests := []struct {
+		description string
+		v           uint8
+		expected    []byte
+	}{
+		{description: "positive: one", v: 1, expected: []byte{1}},
+		{description: "boundary: zero is still a byte", v: 0, expected: []byte{0}},
+		{description: "boundary: the largest", v: 0xff, expected: []byte{0xff}},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.description, func(t *testing.T) {
+			got := LinkAttrU8(unix.IFLA_PROTO_DOWN, tt.v)
+			if got.Type != unix.IFLA_PROTO_DOWN || !bytes.Equal(got.Payload, tt.expected) {
+				t.Errorf("got %d % x, want %d % x", got.Type, got.Payload, unix.IFLA_PROTO_DOWN, tt.expected)
+			}
+		})
+	}
+}

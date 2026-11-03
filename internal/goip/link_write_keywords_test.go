@@ -67,6 +67,12 @@ func linkWithFamily(e linkWriteExpected, family uint8) linkWriteExpected {
 	return e
 }
 
+// linkWithFlags is e with its LinkWrite's ifi_flags and ifi_change set.
+func linkWithFlags(e linkWriteExpected, flags, change uint32) linkWriteExpected {
+	e.write.IfFlags, e.write.IfChange = flags, change
+	return e
+}
+
 // TestLinkWriteGroup is iplink_parse's group arm (ip/iplink.c:1102):
 // rtnl_group_a2n, default or strtol in base 0 into an int, refused when
 // negative, and IFLA_GROUP u32; duparg on a second. With no dev it is a
@@ -245,5 +251,81 @@ func TestLinkWriteAddrGenMode(t *testing.T) {
 				MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL | unix.NLM_F_ACK, Kind: "dummy",
 				Attrs: []xtcpnl.LinkAttr{mode(xtcpnl.In6AddrGenModeNone), xtcpnl.LinkAttrString(unix.IFLA_IFNAME, "d9")},
 			}}},
+	})
+}
+
+// TestLinkWriteProtodown is iplink_parse's protodown and protodown_reason
+// arms (ip/iplink.c:1173-1203): parse_on_off to IFLA_PROTO_DOWN u8, and a
+// reason by protodown_reason_a2n's strtoul below 32, then on or off by
+// matches(), as IFLA_PROTO_DOWN_REASON|NLA_F_NESTED{MASK, VALUE}. GW2-T05.
+//
+// go test ./internal/goip/ -run TestLinkWriteProtodown
+func TestLinkWriteProtodown(t *testing.T) {
+	down := func(v uint8) xtcpnl.LinkAttr { return xtcpnl.LinkAttrU8(unix.IFLA_PROTO_DOWN, v) }
+	reason := func(mask, value uint32) xtcpnl.LinkAttr {
+		a, err := xtcpnl.LinkAttrProtoDownReason(mask, value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	set := func(a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: 2, Attrs: a,
+		}, resolved: []string{"d0"}}
+	}
+	d0 := func(w ...string) []string { return append([]string{"dev", "d0"}, w...) }
+	badReason := func(v string) linkWriteExpected {
+		return linkWriteExpected{err: ErrLinkUsage,
+			errMsg: fmt.Sprintf(`Error: argument %q is wrong: invalid protodown reason`, v)}
+	}
+	notOnOff := func(v string) linkWriteExpected {
+		return linkWriteExpected{err: ErrInvalidArgument,
+			errMsg: fmt.Sprintf(`Error: argument of "protodown_reason" must be "on" or "off", not %q`, v)}
+	}
+	incomplete := linkWriteExpected{err: ErrLinkUsage, errMsg: "Command line is not complete"}
+	runLinkWriteRows(t, []linkWriteRow{
+		{description: "positive: protodown on", verb: "set", args: d0("protodown", "on"), expected: set(down(1))},
+		{description: "positive: protodown off", verb: "set", args: d0("protodown", "off"), expected: set(down(0))},
+		{description: "positive: a reason on", verb: "set", args: d0("protodown_reason", "0", "on"), expected: set(reason(1, 1))},
+		{description: "positive: a reason off", verb: "set", args: d0("protodown_reason", "0", "off"), expected: set(reason(1, 0))},
+		{description: "positive: the reason nest's bytes", verb: "set", args: d0("protodown_reason", "0", "on"),
+			expected: set(xtcpnl.LinkAttrBytes(unix.IFLA_PROTO_DOWN_REASON|unix.NLA_F_NESTED,
+				[]byte{8, 0, 1, 0, 1, 0, 0, 0, 8, 0, 2, 0, 1, 0, 0, 0}))},
+		{description: "positive: in word order, then up", verb: "set", args: d0("protodown", "on", "protodown_reason", "3", "on", "up"),
+			expected: linkWithFlags(set(down(1), reason(8, 8)), unix.IFF_UP, unix.IFF_UP)},
+		{description: "positive: a hex reason, base 0", verb: "set", args: d0("protodown_reason", "0x1f", "on"),
+			expected: set(reason(0x80000000, 0x80000000))},
+		{description: "negative: a bad on/off", verb: "set", args: d0("protodown", "maybe"),
+			expected: linkWriteExpected{err: ErrInvalidArgument,
+				errMsg: `Error: argument of "protodown" must be one of "off", "on", not "maybe"`}},
+		{description: "negative: protodown by prefix is a dev", verb: "set", args: []string{"d0", "protod", "on"},
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: `either "dev" is duplicate, or "protod" is garbage`}},
+		{description: "negative: reason 32", verb: "set", args: d0("protodown_reason", "32", "on"), expected: badReason("32")},
+		{description: "negative: a reason name, with no protodown_reasons.d", verb: "set",
+			args: d0("protodown_reason", "lacp", "on"), expected: badReason("lacp")},
+		{description: "negative: a negative reason is ULONG_MAX", verb: "set", args: d0("protodown_reason", "-1", "on"), expected: badReason("-1")},
+		{description: "negative: trailing junk", verb: "set", args: d0("protodown_reason", "1x", "on"), expected: badReason("1x")},
+		{description: "negative: no on/off word", verb: "set", args: d0("protodown_reason", "1", "up"), expected: notOnOff("up")},
+		{description: "negative: no reason", verb: "set", args: d0("protodown_reason"), expected: incomplete},
+		{description: "negative: no on/off after the reason", verb: "set", args: d0("protodown_reason", "1"), expected: incomplete},
+		{description: "negative: a bad reason is refused before the missing word", verb: "set",
+			args: d0("protodown_reason", "32"), expected: badReason("32")},
+		{description: "boundary: reason 31", verb: "set", args: d0("protodown_reason", "31", "on"),
+			expected: set(reason(0x80000000, 0x80000000))},
+		{description: "boundary: octal 037 is 31", verb: "set", args: d0("protodown_reason", "037", "off"),
+			expected: set(reason(0x80000000, 0))},
+		{description: "boundary: an empty reason", verb: "set", args: d0("protodown_reason", "", "on"), expected: badReason("")},
+		{description: "corner: o is on by prefix", verb: "set", args: d0("protodown_reason", "2", "o"), expected: set(reason(4, 4))},
+		{description: "corner: of is off by prefix", verb: "set", args: d0("protodown_reason", "2", "of"), expected: set(reason(4, 0))},
+		{description: "corner: an empty word matches on", verb: "set", args: d0("protodown_reason", "2", ""), expected: set(reason(4, 4))},
+		{description: "corner: onn is neither", verb: "set", args: d0("protodown_reason", "2", "onn"), expected: notOnOff("onn")},
+		{description: "corner: protodown takes no prefix of on", verb: "set", args: d0("protodown", "o"),
+			expected: linkWriteExpected{err: ErrInvalidArgument,
+				errMsg: `Error: argument of "protodown" must be one of "off", "on", not "o"`}},
+		{description: "corner: -0 is reason 0", verb: "set", args: d0("protodown_reason", "-0", "on"), expected: set(reason(1, 1))},
+		{description: "corner: twice is two nests, no duparg", verb: "set",
+			args:     d0("protodown_reason", "0", "on", "protodown_reason", "1", "off"),
+			expected: set(reason(1, 1), reason(2, 0))},
 	})
 }

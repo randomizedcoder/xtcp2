@@ -20,7 +20,9 @@
 
 - GW2-T04 is done: `addrgenmode` is `IFLA_AF_SPEC{AF_INET6{IFLA_INET6_ADDR_GEN_MODE}}`, with the names compared as `strcasecmp` does. Of its 35 rows, 2 are `same` and 33 now stop at a later GW2 keyword; 224 rows refuse (V022–V024).
 
-**Next action:** GW2-T05, link `protodown` and `protodown_reason` (20 rows).
+- GW2-T05 is done: `protodown` is `IFLA_PROTO_DOWN` u8, and `protodown_reason` the nested mask and value, with `matches()` for its on/off word. The 20 rows are `same`; 204 rows refuse (V025–V027).
+
+**Next action:** GW2-T06, link `broadcast`, `carrier`, `mode` and `state`.
 
 ## Contents
 
@@ -45,7 +47,7 @@
 | Phase | Object | Rows | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [GW1](goip-write-keywords.md#gw1--route-keywords) | route | 331 | GW1-T04 | done | V001–V012, DOC002 |
-| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V024 |
+| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V027 |
 | [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | | not started | |
 | [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | | not started | |
 | [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | | not started | |
@@ -64,7 +66,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW2-T02](goip-write-keywords.md#gw2-t02-group) | link `group` | done | 276 | V016–V018 |
 | [x] | [GW2-T03](goip-write-keywords.md#gw2-t03-gso-and-gro-sizes) | link GSO and GRO sizes | done | 226 | V019–V021 |
 | [x] | [GW2-T04](goip-write-keywords.md#gw2-t04-addrgenmode) | link `addrgenmode` | done | 224 | V022–V024 |
-| [ ] | [GW2-T05](goip-write-keywords.md#gw2-t05-protodown-and-protodown_reason) | link `protodown`, `protodown_reason` | not started | | |
+| [x] | [GW2-T05](goip-write-keywords.md#gw2-t05-protodown-and-protodown_reason) | link `protodown`, `protodown_reason` | done | 204 | V025–V027 |
 | [ ] | [GW2-T06](goip-write-keywords.md#gw2-t06-broadcast-carrier-mode-and-state) | link `broadcast`, `carrier`, `mode`, `state` | not started | | |
 | [ ] | [GW2-T07](goip-write-keywords.md#gw2-t07-xdp-off) | link `xdp off` | not started | | |
 | [ ] | [GW2-T08](goip-write-keywords.md#gw2-t08-index-netns-link-netnsid-and-parentdev) | link `index`, `netns`, `link-netnsid`, `parentdev` | not started | | |
@@ -101,7 +103,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V021 | 2026-11-02 | GW2-T03 | as V003 | both pass first time | 20249aff |
 | V022 | 2026-11-02 | GW2-T04 | as V001 | all pass: `TestLinkWriteAddrGenMode` (16 rows), `TestLinkAttrAddrGenMode` (4), `TestCStrcaseEq` (11). The golden: 226 `refuses` to 224; of the 35 `addrgenmode` rows, 2 `same` and 33 refusing at a later GW2 keyword (`carrier` 22, `netns` 6, `xdpdrv` 3, `xdpgeneric` 2); `differs` and `sends` 0 in every family | this commit |
 | V023 | 2026-11-02 | GW2-T04 | mutation, as V002: `NLA_F_NESTED` on the `AF_INET6` nest; case-sensitive `none`; `stable_secret` as 3; `strings.EqualFold` in `cStrcaseEq`; no prefix match; `Z` not folded; the mode as a u16 | 7 of 7 killed: by the bytes rows; upper case; `stable_secret` and mixed case; the U+017F and Kelvin rows; the two prefix rows; `AZ`; the bytes rows | this commit |
-| V024 | 2026-11-02 | GW2-T04 | as V003 | lint-baseline's first run failed: funlen, `value` at 75 statements against 70. The GSO/GRO and `addrgenmode` arms became `u32Max` and `addrGenMode`; both checks then pass | this commit |
+| V024 | 2026-11-02 | GW2-T04 | as V003 | lint-baseline's first run failed: funlen, `value` at 75 statements against 70. The GSO/GRO and `addrgenmode` arms became `u32Max` and `addrGenMode`; both checks then pass | 0ff083e6 |
+| V025 | 2026-11-02 | GW2-T05 | as V001 | all pass: `TestLinkWriteProtodown` (28 rows), `TestLinkAttrProtoDownReason` (4), `TestLinkAttrU8` (3), and `TestLinkSetInet*` after `inetValue` moved to the shared `parseOnOff`. The golden: 224 `refuses` to 204; the 20 `protodown`/`protodown_reason` rows are `same` (`linkpd` 20 of 20, one in `linkattr`); `differs` and `sends` 0 in every family | this commit |
+| V026 | 2026-11-02 | GW2-T05 | mutation, as V002: the reason bound at 33; the value 1 instead of the mask; `NLA_F_NESTED` dropped; `on` by strcmp; `""` not `on`; the missing word checked before the reason; trailing junk accepted; mask and value swapped; `protodown` inverted; `inet`'s on/off inverted | 10 of 10 killed: by reason 32 and the order row; reason 3, hex and 31; the bytes rows; `o`; `""`; the order row; `1x`; the off and outside-mask rows; on and off; `TestLinkSetInetMatchesIp` | this commit |
+| V027 | 2026-11-02 | GW2-T05 | as V003 | lint-baseline's first run failed: funlen, `value` at 71 statements against 70. The `protodown` arm became `protodown`; both checks then pass | this commit |
 
 ## Decision log
 
@@ -118,4 +123,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **dev's index from the check is kept for `finish`.** `ll_name_to_index` caches a hit, so `ip` sends one get by name for both. A miss isn't cached in either, so a missing device costs two gets in both.
 - **The group-wide set is built, not refused.** The plan had `group` with no dev as `ErrNotImplemented`. It is `iplink_parse`'s early return with the request as the loop left it, so goip sends that request: `ifi_index` 0 and `IFLA_GROUP`.
 - **`strcasecmp` is an ASCII fold, not `strings.EqualFold`.** `ip` runs in the C locale, where only ASCII letters fold; `EqualFold` also takes U+017F for `s` and the Kelvin sign for `k`, so `addrgenmode ſtable_secret` would be sent where `ip` refuses it. GW2-T04 adds `cStrcaseEq` and uses it. `ll_proto.go`'s `EqualFold` and `obj_l2tp.go`'s `strings.ToLower` have the same gap; it is left to a task that touches them.
+- **`protodown_reason` takes numbers only.** `protodown_reason_a2n` looks names up in `protodown_reasons.d`, which iproute2 doesn't ship, so with the stock files a name is refused; goip refuses it the same way.
 - **Names from config files are the stock files' names only.** goip reads no `rt_dsfield`, `rt_realms` or `group` file, so it takes the numeric forms and the names iproute2 7.2.0 ships, as with `rt_tables`.

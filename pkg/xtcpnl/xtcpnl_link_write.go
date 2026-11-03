@@ -46,7 +46,7 @@ var (
 )
 
 // LinkAttr is one generic IFLA_* attribute of a link write, payload already
-// encoded. The constructors below are the three shapes iplink_parse writes.
+// encoded. The constructors below are the shapes iplink_parse writes.
 type LinkAttr struct {
 	Type    uint16
 	Payload []byte
@@ -57,6 +57,11 @@ func LinkAttrU32(atype uint16, v uint32) LinkAttr {
 	p := make([]byte, 4)
 	binary.LittleEndian.PutUint32(p, v)
 	return LinkAttr{Type: atype, Payload: p}
+}
+
+// LinkAttrU8 is addattr8: IFLA_PROTO_DOWN.
+func LinkAttrU8(atype uint16, v uint8) LinkAttr {
+	return LinkAttr{Type: atype, Payload: []byte{v}}
 }
 
 // LinkAttrString is addattr_l with strlen+1: the NUL is part of the payload.
@@ -91,6 +96,23 @@ func LinkAttrAddrGenMode(mode uint8) (LinkAttr, error) {
 		return LinkAttr{}, err
 	}
 	return LinkAttr{Type: unix.IFLA_AF_SPEC, Payload: ab.Bytes()}, nil
+}
+
+// protoDownReasonCst is IFLA_PROTO_DOWN_REASON's payload: two u32s.
+const protoDownReasonCst = 2 * (RTAttrSizeCst + 4)
+
+// LinkAttrProtoDownReason is iplink_parse's `protodown_reason`:
+// IFLA_PROTO_DOWN_REASON{MASK u32, VALUE u32}. Unlike the other link nests
+// it carries NLA_F_NESTED, because iplink_parse ORs it in.
+func LinkAttrProtoDownReason(mask, value uint32) (LinkAttr, error) {
+	ab := NewAttrBuilder(make([]byte, protoDownReasonCst))
+	if err := ab.PutU32(unix.IFLA_PROTO_DOWN_REASON_MASK, mask); err != nil {
+		return LinkAttr{}, err
+	}
+	if err := ab.PutU32(unix.IFLA_PROTO_DOWN_REASON_VALUE, value); err != nil {
+		return LinkAttr{}, err
+	}
+	return LinkAttr{Type: unix.IFLA_PROTO_DOWN_REASON | unix.NLA_F_NESTED, Payload: ab.Bytes()}, nil
 }
 
 // LinkWrite is one link write as iplink_modify assembles it.

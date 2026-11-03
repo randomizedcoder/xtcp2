@@ -14,12 +14,12 @@
 # neigh6: 137 same, 0 refuses, 0 sends, 0 differs; lookups differ in 131; not a write 0
 # linkset: 61 same, 69 refuses, 0 sends, 0 differs; lookups differ in 56; not a write 0
 # linkadd: 111 same, 0 refuses, 0 sends, 0 differs; lookups differ in 50; not a write 0
-# linkattr: 5 same, 47 refuses, 0 sends, 0 differs; lookups differ in 4; not a write 0
-# linkpd: 1 same, 19 refuses, 0 sends, 0 differs; lookups differ in 1; not a write 0
+# linkattr: 6 same, 46 refuses, 0 sends, 0 differs; lookups differ in 5; not a write 0
+# linkpd: 20 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 0
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 9
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # lookups: 262 rows: dump IFLA_EXT_MASK 0x109, goip 0x1
-# lookups: 897 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
+# lookups: 915 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
 rule4/ec-002 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/gone-1 refuses rc=2 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/pw-001 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule add not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
@@ -185,7 +185,6 @@ linkattr/ng-005 refuses rc=22 link keyword "carrier": object recognized but not 
 linkattr/ng-006 refuses rc=255 link keyword "index": object recognized but not implemented by goip | ip link set dev d0 index 100
 linkattr/ng-007 refuses rc=255 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 netns nosuch
 linkattr/ng-008 refuses rc=2 link keyword "link-netnsid": object recognized but not implemented by goip | ip link set dev d0 link-netnsid 5
-linkattr/ng-009 refuses rc=2 link keyword "protodown": object recognized but not implemented by goip | ip link set dev d0 protodown on
 linkattr/parentdev refuses rc=0 link keyword "parentdev": object recognized but not implemented by goip | ip link set dev d0 parentdev br0
 linkattr/pw-001 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on netns $$ xdp off
 linkattr/pw-002 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode none carrier off netns $$ index 100 xdpgeneric none
@@ -225,22 +224,3 @@ linkattr/rn1-017 refuses rc=0 link keyword "carrier": object recognized but not 
 linkattr/rn1-018 refuses rc=0 link keyword "xdpdrv": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 xdpdrv off
 linkattr/rn1-019 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on xdpgeneric none
 linkattr/xdp-not-last refuses rc=255 link keyword "xdp": object recognized but not implemented by goip | ip link set dev d0 xdp off carrier on
-linkpd/ec-002 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on protodown_reason 0 on up
-linkpd/ec-003 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown off protodown_reason 0 off
-linkpd/ec-004 refuses rc=0 link keyword "protodown_reason": object recognized but not implemented by goip | ip link set dev m0 protodown_reason 31 on
-linkpd/ng-001 refuses rc=255 link keyword "protodown_reason": object recognized but not implemented by goip | ip link set dev m0 protodown_reason 32 on
-linkpd/ng-002 refuses rc=22 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown maybe
-linkpd/pw-001 refuses rc=0 link keyword "protodown_reason": object recognized but not implemented by goip | ip link set dev m0 protodown_reason 0 on up
-linkpd/pw-002 refuses rc=0 link keyword "protodown_reason": object recognized but not implemented by goip | ip link set dev m0 protodown_reason 0 off
-linkpd/pw-003 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on up
-linkpd/pw-004 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on protodown_reason 0 on
-linkpd/pw-005 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on protodown_reason 0 off up
-linkpd/pw-006 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on protodown_reason 31 on up
-linkpd/pw-007 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown off
-linkpd/pw-008 refuses rc=2 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown off protodown_reason 0 on up
-linkpd/pw-009 refuses rc=2 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown off protodown_reason 31 on
-linkpd/rn1-001 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on protodown_reason 0 off
-linkpd/rn1-002 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown off protodown_reason 0 off up
-linkpd/rn1-003 refuses rc=2 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown off protodown_reason 0 on
-linkpd/rn1-004 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on protodown_reason 31 on
-linkpd/rn1-005 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on
