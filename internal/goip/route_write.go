@@ -83,6 +83,7 @@ const (
 	routeArmProtocol
 	routeArmTable
 	routeArmDev
+	routeArmNhid
 	routeArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -146,7 +147,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "realms", prefix: true, arm: routeArmUnsupported},
 	{keyword: "onlink", arm: routeArmOnlink},
 	{keyword: "nexthop", arm: routeArmUnsupported},
-	{keyword: "nhid", arm: routeArmUnsupported},
+	{keyword: "nhid", arm: routeArmNhid},
 	{keyword: "protocol", prefix: true, arm: routeArmProtocol},
 	{keyword: "table", prefix: true, arm: routeArmTable},
 	{keyword: vrfKeywordCst, prefix: true, arm: routeArmUnsupported},
@@ -198,6 +199,9 @@ type routeParseState struct {
 	dstOK   bool
 	scopeOK bool
 	tableOK bool
+	// nhid is iproute_modify's nhid local: the last id read, so `nhid 0`
+	// is absent to the scope default.
+	nhid uint32
 }
 
 // parseRouteWriteArgs is iproute_modify up to rtnl_talk: the loop, then the
@@ -323,6 +327,13 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 		return st.table(v)
 	case routeArmDev:
 		st.dev, st.devSet = v, true
+	case routeArmNhid:
+		id, ok := getU32(v, 0)
+		if !ok {
+			return invargErr(`"id" value is invalid`, v)
+		}
+		st.nhid = id
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(xtcpnl.RtaNhID, id))
 	default:
 		return st.metric(kw, v)
 	}
@@ -527,8 +538,8 @@ func (st *routeParseState) defaultScope() {
 	case t == unix.RTN_UNICAST || t == unix.RTN_UNSPEC:
 		if st.del {
 			st.w.Scope = unix.RT_SCOPE_NOWHERE
-		} else if !st.gwOK {
-			// nexthop and nhid would also keep universe; both are refused.
+		} else if !st.gwOK && st.nhid == 0 {
+			// nexthop would also keep universe; it is refused.
 			st.w.Scope = unix.RT_SCOPE_LINK
 		}
 	}

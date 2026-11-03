@@ -143,7 +143,7 @@ Four tasks, all in `internal/goip/route_write.go`'s `routeParseKeywords` (`iprou
 
 The workbench rows are the replay table: `TestWsGoipDifferential` with the regenerated golden, the 122 `nhid` rows `same`.
 
-**Mutation check:** the id parsed in base 10 (the hex row); scope left at link (the IPv6 row); `nhid 0` counted as present (the id-0 row); the attribute moved to the end (the word-order row).
+**Mutation check:** the id parsed in base 10 (the hex row); scope left at link (the IPv4 unicast row; an IPv6 route is universe whatever its next hop); `nhid 0` counted as present (the id-0 row); the attribute moved to the end (the word-order row).
 
 **Done when:** the table passes under `go test -race`; the golden shows the 122 rows `same` with `differs` and `sends` still 0; each mutant is caught; lint-baseline and netlink-audit pass in a scratch worktree.
 

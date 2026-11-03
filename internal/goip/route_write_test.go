@@ -151,13 +151,7 @@ func TestParseRouteWriteArgs(t *testing.T) {
 	}
 	via6 := append([]byte{unix.AF_INET6, 0}, netip.MustParseAddr("2001:db8::2").AsSlice()...)
 
-	tests := []struct {
-		description string
-		verb        string
-		family      uint8
-		args        string
-		expected    routeWriteExpected
-	}{
+	tests := []routeWriteRow{
 		// The verbs.
 		{description: "positive: replace", verb: "replace", args: p24 + " dev d0", expected: devRoute(create | replace)},
 		{description: "positive: add", verb: "add", args: p24 + " dev d0", expected: devRoute(create | excl)},
@@ -392,12 +386,29 @@ func TestParseRouteWriteArgs(t *testing.T) {
 			expected: notImpl(`"vrf"`)},
 		{description: "negative: tos", verb: "add", args: p24 + " tos 0x10", expected: notImpl(`"tos"`)},
 		{description: "negative: realms", verb: "add", args: p24 + " realms 1", expected: notImpl(`"realms"`)},
-		{description: "negative: nhid", verb: "add", args: p24 + " nhid 1", expected: notImpl(`"nhid"`)},
 		{description: "negative: via link", verb: "add", args: p24 + " via link 02:00:00:00:00:01", expected: notImpl("link")},
 		{description: "negative: help", verb: "add", args: "help", expected: notImpl("help")},
 		{description: "corner: h is help, since hoplimit is strcmp", verb: "add", args: "h", expected: notImpl("help")},
 	}
-	for _, tc := range tests {
+	runRouteWriteRows(t, tests)
+}
+
+// routeWriteRow is one argv after the verb and the RouteWrite, lookups or
+// error it parses to.
+type routeWriteRow struct {
+	description string
+	verb        string
+	family      uint8
+	args        string
+	expected    routeWriteExpected
+}
+
+// runRouteWriteRows parses each row with the fake links: d0 is ifindex 2,
+// boom a resolver failure, and any other name a miss.
+func runRouteWriteRows(t *testing.T, rows []routeWriteRow) {
+	t.Helper()
+	for i := range rows {
+		tc := &rows[i]
 		t.Run(tc.description, func(t *testing.T) {
 			verb := lookupRouteWriteVerb(tc.verb)
 			if verb == nil {
