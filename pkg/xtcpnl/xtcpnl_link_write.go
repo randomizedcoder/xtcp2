@@ -71,6 +71,28 @@ func LinkAttrBytes(atype uint16, b []byte) LinkAttr {
 	return LinkAttr{Type: atype, Payload: b}
 }
 
+// addrGenModeAfSpecCst is IFLA_AF_SPEC's payload for `addrgenmode`: the
+// AF_INET6 nest header and one u8 attribute padded to four bytes.
+const addrGenModeAfSpecCst = 2*RTAttrSizeCst + 4
+
+// LinkAttrAddrGenMode is iplink_parse's `addrgenmode`:
+// IFLA_AF_SPEC{AF_INET6{IFLA_INET6_ADDR_GEN_MODE u8}}. Like the other link
+// nests it has no NLA_F_NESTED, because addattr_nest does not set it.
+func LinkAttrAddrGenMode(mode uint8) (LinkAttr, error) {
+	ab := NewAttrBuilder(make([]byte, addrGenModeAfSpecCst))
+	af, err := ab.BeginNest(unix.AF_INET6)
+	if err != nil {
+		return LinkAttr{}, err
+	}
+	if err := ab.PutU8(unix.IFLA_INET6_ADDR_GEN_MODE, mode); err != nil {
+		return LinkAttr{}, err
+	}
+	if err := ab.EndNest(af); err != nil {
+		return LinkAttr{}, err
+	}
+	return LinkAttr{Type: unix.IFLA_AF_SPEC, Payload: ab.Bytes()}, nil
+}
+
 // LinkWrite is one link write as iplink_modify assembles it.
 type LinkWrite struct {
 	// MsgType is RTM_NEWLINK (add, set, change, replace) or RTM_DELLINK.

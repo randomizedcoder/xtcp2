@@ -457,3 +457,44 @@ func TestEncodeVethPeer(t *testing.T) {
 		})
 	}
 }
+
+func TestLinkAttrAddrGenMode(t *testing.T) {
+	tests := []struct {
+		description string
+		mode        uint8
+		expected    string
+	}{
+		{
+			description: "positive: none is the captured nest, AF_INET6 then a padded u8",
+			mode:        In6AddrGenModeNone,
+			expected:    "0c000a000500080001000000",
+		},
+		{
+			description: "boundary: eui64 is zero, still sent",
+			mode:        In6AddrGenModeEUI64,
+			expected:    "0c000a000500080000000000",
+		},
+		{
+			description: "boundary: random is the largest named mode",
+			mode:        In6AddrGenModeRandom,
+			expected:    "0c000a000500080003000000",
+		},
+		{
+			description: "corner: a mode ip has no name for is encoded as given",
+			mode:        0xff,
+			expected:    "0c000a0005000800ff000000",
+		},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.description, func(t *testing.T) {
+			got, err := LinkAttrAddrGenMode(tt.mode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Type != unix.IFLA_AF_SPEC || hex.EncodeToString(got.Payload) != tt.expected {
+				t.Errorf("got type %d %x, want %d %s", got.Type, got.Payload, unix.IFLA_AF_SPEC, tt.expected)
+			}
+		})
+	}
+}

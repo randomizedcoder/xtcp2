@@ -184,3 +184,66 @@ func TestLinkWriteGsoGro(t *testing.T) {
 			expected: set(u32(unix.IFLA_GSO_MAX_SIZE, 1), u32(unix.IFLA_GSO_MAX_SIZE, 2))},
 	})
 }
+
+// TestLinkWriteAddrGenMode is iplink_parse's addrgenmode arm
+// (ip/iplink.c:1144): get_addr_gen_mode's four names by strcasecmp, sent as
+// IFLA_AF_SPEC{AF_INET6{IFLA_INET6_ADDR_GEN_MODE u8}} in argument order,
+// with no duparg. GW2-T04.
+//
+// go test ./internal/goip/ -run TestLinkWriteAddrGenMode
+func TestLinkWriteAddrGenMode(t *testing.T) {
+	mode := func(m uint8) xtcpnl.LinkAttr {
+		a, err := xtcpnl.LinkAttrAddrGenMode(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	set := func(a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: 2, Attrs: a,
+		}, resolved: []string{"d0"}}
+	}
+	d0 := func(w ...string) []string { return append([]string{"dev", "d0"}, w...) }
+	invalid := func(v string) linkWriteExpected {
+		return linkWriteExpected{err: ErrLinkUsage,
+			errMsg: fmt.Sprintf(`Error: argument %q is wrong: Invalid address generation mode`, v)}
+	}
+	runLinkWriteRows(t, []linkWriteRow{
+		{description: "positive: eui64", verb: "set", args: d0("addrgenmode", "eui64"),
+			expected: set(mode(xtcpnl.In6AddrGenModeEUI64))},
+		{description: "positive: none", verb: "set", args: d0("addrgenmode", "none"),
+			expected: set(mode(xtcpnl.In6AddrGenModeNone))},
+		{description: "positive: stable_secret", verb: "set", args: d0("addrgenmode", "stable_secret"),
+			expected: set(mode(xtcpnl.In6AddrGenModeStablePrivacy))},
+		{description: "positive: random", verb: "set", args: d0("addrgenmode", "random"),
+			expected: set(mode(xtcpnl.In6AddrGenModeRandom))},
+		{description: "positive: the nest's bytes", verb: "set", args: d0("addrgenmode", "none"),
+			expected: set(xtcpnl.LinkAttrBytes(unix.IFLA_AF_SPEC, []byte{
+				0x0c, 0, unix.AF_INET6, 0, 5, 0, unix.IFLA_INET6_ADDR_GEN_MODE, 0, 1, 0, 0, 0}))},
+		{description: "positive: in word order", verb: "set", args: d0("mtu", "1400", "addrgenmode", "none", "txqueuelen", "5"),
+			expected: set(xtcpnl.LinkAttrU32(unix.IFLA_MTU, 1400), mode(xtcpnl.In6AddrGenModeNone),
+				xtcpnl.LinkAttrU32(unix.IFLA_TXQLEN, 5))},
+		{description: "negative: an unknown mode", verb: "set", args: d0("addrgenmode", "stable"), expected: invalid("stable")},
+		{description: "negative: a number", verb: "set", args: d0("addrgenmode", "1"), expected: invalid("1")},
+		{description: "negative: no value", verb: "set", args: d0("addrgenmode"),
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: "Command line is not complete"}},
+		{description: "boundary: upper case", verb: "set", args: d0("addrgenmode", "NONE"),
+			expected: set(mode(xtcpnl.In6AddrGenModeNone))},
+		{description: "boundary: mixed case", verb: "set", args: d0("addrgenmode", "Stable_Secret"),
+			expected: set(mode(xtcpnl.In6AddrGenModeStablePrivacy))},
+		{description: "boundary: a non-ASCII fold, which strcasecmp does not make", verb: "set",
+			args: d0("addrgenmode", "ſtable_secret"), expected: invalid("ſtable_secret")},
+		{description: "corner: the prefix", verb: "set", args: d0("addrgen", "none"),
+			expected: set(mode(xtcpnl.In6AddrGenModeNone))},
+		{description: "corner: the shortest prefix after address", verb: "set", args: d0("addrg", "random"),
+			expected: set(mode(xtcpnl.In6AddrGenModeRandom))},
+		{description: "corner: twice is two nests, no duparg", verb: "set", args: d0("addrgenmode", "none", "addrgenmode", "random"),
+			expected: set(mode(xtcpnl.In6AddrGenModeNone), mode(xtcpnl.In6AddrGenModeRandom))},
+		{description: "corner: on add, before the kind", verb: "add", args: []string{"d9", "addrgenmode", "none", "type", "dummy"},
+			expected: linkWriteExpected{write: xtcpnl.LinkWrite{
+				MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL | unix.NLM_F_ACK, Kind: "dummy",
+				Attrs: []xtcpnl.LinkAttr{mode(xtcpnl.In6AddrGenModeNone), xtcpnl.LinkAttrString(unix.IFLA_IFNAME, "d9")},
+			}}},
+	})
+}

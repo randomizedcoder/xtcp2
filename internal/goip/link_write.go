@@ -100,6 +100,7 @@ const (
 	linkArmRxQueues
 	linkArmGroup
 	linkArmU32Max      // get_unsigned in base 0, at most maxVal, as a u32 attribute
+	linkArmAddrGenMode // IFLA_AF_SPEC{AF_INET6{IFLA_INET6_ADDR_GEN_MODE}}
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -168,7 +169,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "state", arm: linkArmUnsupported},
 	{keyword: numTxQueuesKeywordCst, prefix: true, arm: linkArmTxQueues},
 	{keyword: numRxQueuesKeywordCst, prefix: true, arm: linkArmRxQueues},
-	{keyword: "addrgenmode", prefix: true, arm: linkArmUnsupported},
+	{keyword: "addrgenmode", prefix: true, arm: linkArmAddrGenMode},
 	{keyword: "link-netns", prefix: true, arm: linkArmUnsupported},
 	{keyword: "link-netnsid", prefix: true, arm: linkArmUnsupported},
 	{keyword: "protodown", arm: linkArmUnsupported},
@@ -453,15 +454,9 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		st.groupSet = true
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_GROUP, g))
 	case linkArmU32Max:
-		n, ok := cGetUnsigned(v, 0, kw.maxVal)
-		if !ok {
-			return linkUsage(invargErr("Invalid \""+kw.keyword+"\" value\n", v))
-		}
-		u, ok := cint.U32From64(n)
-		if !ok {
-			return linkUsage(invargErr("Invalid \""+kw.keyword+"\" value\n", v))
-		}
-		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(kw.attr, u))
+		return st.u32Max(kw, v)
+	case linkArmAddrGenMode:
+		return st.addrGenMode(v)
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
@@ -592,6 +587,49 @@ func (st *linkParseState) inet(args []string, i int) (int, error) {
 	}
 	st.out.attrs = append(st.out.attrs, a)
 	return i, nil
+}
+
+// u32Max is a linkArmU32Max: get_unsigned in base 0, at most kw.maxVal.
+func (st *linkParseState) u32Max(kw *linkKeyword, v string) error {
+	n, ok := cGetUnsigned(v, 0, kw.maxVal)
+	if !ok {
+		return linkUsage(invargErr("Invalid \""+kw.keyword+"\" value\n", v))
+	}
+	u, ok := cint.U32From64(n)
+	if !ok {
+		return linkUsage(invargErr("Invalid \""+kw.keyword+"\" value\n", v))
+	}
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(kw.attr, u))
+	return nil
+}
+
+// addrGenMode is the addrgenmode arm: the name, then the two nests.
+func (st *linkParseState) addrGenMode(v string) error {
+	mode, ok := addrGenModeA2N(v)
+	if !ok {
+		return linkUsage(invargErr("Invalid address generation mode\n", v))
+	}
+	a, err := xtcpnl.LinkAttrAddrGenMode(mode)
+	if err != nil {
+		return err
+	}
+	st.out.attrs = append(st.out.attrs, a)
+	return nil
+}
+
+// addrGenModeA2N is get_addr_gen_mode: the four names by strcasecmp.
+func addrGenModeA2N(v string) (uint8, bool) {
+	switch {
+	case cStrcaseEq(v, "eui64"):
+		return xtcpnl.In6AddrGenModeEUI64, true
+	case cStrcaseEq(v, "none"):
+		return xtcpnl.In6AddrGenModeNone, true
+	case cStrcaseEq(v, "stable_secret"):
+		return xtcpnl.In6AddrGenModeStablePrivacy, true
+	case cStrcaseEq(v, "random"):
+		return xtcpnl.In6AddrGenModeRandom, true
+	}
+	return 0, false
 }
 
 // lookupInetParam is iplink_parse_inet's strcmp chain.

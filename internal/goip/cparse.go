@@ -416,3 +416,25 @@ func scanHexInt(s string) (int32, bool) {
 func cIntBits(n int) uint32 {
 	return cint.Bits(int32(max(min(n, math.MaxInt32), math.MinInt32)))
 }
+
+// cStrcaseEq is strcasecmp(a, b) == 0 in the C locale `ip` runs in: only
+// ASCII letters fold, byte by byte. strings.EqualFold folds Unicode too, so
+// it would take "ſ" (U+017F) for "s" where strcasecmp does not.
+func cStrcaseEq(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range len(a) {
+		if asciiLower(a[i]) != asciiLower(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiLower(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+	return c
+}

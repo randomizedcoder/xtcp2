@@ -345,3 +345,34 @@ func TestCIntBits(t *testing.T) {
 		})
 	}
 }
+
+// TestCStrcaseEq is strcasecmp(a, b) == 0 in the C locale.
+//
+// go test ./internal/goip/ -run TestCStrcaseEq
+func TestCStrcaseEq(t *testing.T) {
+	tests := []struct {
+		description string
+		a, b        string
+		expected    bool
+	}{
+		{description: "positive: equal", a: "none", b: "none", expected: true},
+		{description: "positive: upper against lower", a: "NONE", b: "none", expected: true},
+		{description: "positive: mixed, with an underscore and digits", a: "Eui64_X", b: "eUI64_x", expected: true},
+		{description: "negative: a different letter", a: "nope", b: "none", expected: false},
+		{description: "negative: a prefix", a: "non", b: "none", expected: false},
+		{description: "boundary: both empty", a: "", b: "", expected: true},
+		{description: "boundary: A and Z fold", a: "AZ", b: "az", expected: true},
+		{description: "boundary: the bytes either side of A and Z don't fold", a: "@[", b: "`{", expected: false},
+		{description: "corner: U+017F is not s", a: "ſ", b: "s", expected: false},
+		{description: "corner: the Kelvin sign is not k", a: "K", b: "k", expected: false},
+		{description: "corner: non-ASCII bytes compare exactly", a: "é", b: "é", expected: true},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.description, func(t *testing.T) {
+			if got := cStrcaseEq(tt.a, tt.b); got != tt.expected {
+				t.Errorf("cStrcaseEq(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.expected)
+			}
+		})
+	}
+}

@@ -14,12 +14,12 @@
 # neigh6: 137 same, 0 refuses, 0 sends, 0 differs; lookups differ in 131; not a write 0
 # linkset: 61 same, 69 refuses, 0 sends, 0 differs; lookups differ in 56; not a write 0
 # linkadd: 111 same, 0 refuses, 0 sends, 0 differs; lookups differ in 50; not a write 0
-# linkattr: 3 same, 49 refuses, 0 sends, 0 differs; lookups differ in 3; not a write 0
+# linkattr: 5 same, 47 refuses, 0 sends, 0 differs; lookups differ in 4; not a write 0
 # linkpd: 1 same, 19 refuses, 0 sends, 0 differs; lookups differ in 1; not a write 0
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 9
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # lookups: 262 rows: dump IFLA_EXT_MASK 0x109, goip 0x1
-# lookups: 896 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
+# lookups: 897 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
 rule4/ec-002 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/gone-1 refuses rc=2 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/pw-001 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule add not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
@@ -178,54 +178,52 @@ linkset/rn1-036 refuses rc=0 link keyword "state": object recognized but not imp
 linkset/rn1-037 refuses rc=0 link keyword "state": object recognized but not implemented by goip | ip link set dev d0 down mtu 65535 alias hello address 02:00:00:00:00:aa multicast off state dormant name d9
 linkset/rn1-038 refuses rc=0 link keyword "mode": object recognized but not implemented by goip | ip link set dev d0 mtu 1400 txq 100 dynamic on gso_max_segs 65535 mode dormant
 linkset/rn1-040 refuses rc=0 link keyword "mode": object recognized but not implemented by goip | ip link set dev d0 down mtu 0 qlen 32767 addr 02:00:00:00:00:bb dynamic on gro_ipv4_max_size 32768 mode dormant name d9
-linkattr/ec-002 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 carrier on netns $$ xdp off
-linkattr/ec-003 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier off netns $$ index 100 xdpgeneric none
-linkattr/ec-004 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode random xdpdrv off
-linkattr/ng-003 refuses rc=255 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode nosuch
-linkattr/ng-004 refuses rc=2 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode stable_secret
+linkattr/ec-002 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 carrier on netns $$ xdp off
+linkattr/ec-003 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier off netns $$ index 100 xdpgeneric none
+linkattr/ec-004 refuses rc=0 link keyword "xdpdrv": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode random xdpdrv off
 linkattr/ng-005 refuses rc=22 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 carrier maybe
 linkattr/ng-006 refuses rc=255 link keyword "index": object recognized but not implemented by goip | ip link set dev d0 index 100
 linkattr/ng-007 refuses rc=255 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 netns nosuch
 linkattr/ng-008 refuses rc=2 link keyword "link-netnsid": object recognized but not implemented by goip | ip link set dev d0 link-netnsid 5
 linkattr/ng-009 refuses rc=2 link keyword "protodown": object recognized but not implemented by goip | ip link set dev d0 protodown on
 linkattr/parentdev refuses rc=0 link keyword "parentdev": object recognized but not implemented by goip | ip link set dev d0 parentdev br0
-linkattr/pw-001 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on netns $$ xdp off
-linkattr/pw-002 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode none carrier off netns $$ index 100 xdpgeneric none
-linkattr/pw-003 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random netns $$ xdpdrv off
+linkattr/pw-001 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on netns $$ xdp off
+linkattr/pw-002 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode none carrier off netns $$ index 100 xdpgeneric none
+linkattr/pw-003 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random netns $$ xdpdrv off
 linkattr/pw-004 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 master br0 carrier on netns $$ index 100 xdpdrv off
-linkattr/pw-005 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 xdpgeneric none
-linkattr/pw-006 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode none netns $$
-linkattr/pw-007 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode random carrier off xdp off
+linkattr/pw-005 refuses rc=0 link keyword "xdpgeneric": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 xdpgeneric none
+linkattr/pw-006 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode none netns $$
+linkattr/pw-007 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode random carrier off xdp off
 linkattr/pw-008 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 vrf v0 carrier off netns $$ xdpgeneric none
-linkattr/pw-009 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 netns $$ index 100
-linkattr/pw-010 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier on xdpdrv off
-linkattr/pw-011 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode random carrier on netns $$ index 100
+linkattr/pw-009 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 netns $$ index 100
+linkattr/pw-010 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier on xdpdrv off
+linkattr/pw-011 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode random carrier on netns $$ index 100
 linkattr/pw-012 refuses rc=0 link keyword "xdp": object recognized but not implemented by goip | ip link set dev d0 nomaster xdp off
-linkattr/pw-013 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode eui64 carrier off netns $$ xdpdrv off
-linkattr/pw-014 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode none carrier on netns $$ index 100 xdp off
-linkattr/pw-015 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode random xdpgeneric none
+linkattr/pw-013 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode eui64 carrier off netns $$ xdpdrv off
+linkattr/pw-014 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode none carrier on netns $$ index 100 xdp off
+linkattr/pw-015 refuses rc=0 link keyword "xdpgeneric": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode random xdpgeneric none
 linkattr/pw-016 refuses rc=0 link keyword "xdp": object recognized but not implemented by goip | ip link set dev d0 vrf v0 xdp off
 linkattr/pw-017 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 nomaster carrier off
 linkattr/pw-018 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 carrier on xdpgeneric none
-linkattr/rn1-001 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 netns $$ index 100 xdpgeneric none
-linkattr/rn1-002 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random xdpdrv off
-linkattr/rn1-003 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier on netns $$ index 100
+linkattr/rn1-001 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 netns $$ index 100 xdpgeneric none
+linkattr/rn1-002 refuses rc=0 link keyword "xdpdrv": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random xdpdrv off
+linkattr/rn1-003 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier on netns $$ index 100
 linkattr/rn1-004 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 nomaster netns $$ xdpdrv off
-linkattr/rn1-005 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 carrier off netns $$ index 100 xdpgeneric none
-linkattr/rn1-006 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on netns $$ xdpdrv off
-linkattr/rn1-007 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random netns $$
-linkattr/rn1-008 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode random carrier off netns $$ index 100 xdp off
-linkattr/rn1-009 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier off netns $$ index 100 xdpgeneric none
-linkattr/rn1-010 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random carrier on xdpdrv off
-linkattr/rn1-011 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode random carrier on netns $$ index 100 xdpgeneric none
-linkattr/rn1-012 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random carrier on netns $$ index 100 xdp off
-linkattr/rn1-013 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode none carrier off netns $$ xdpgeneric none
-linkattr/rn1-014 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode random carrier on xdpdrv off
-linkattr/rn1-015 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode none carrier off netns $$ xdpdrv off
-linkattr/rn1-016 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none netns $$ index 100 xdpgeneric none
-linkattr/rn1-017 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 carrier off
-linkattr/rn1-018 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 xdpdrv off
-linkattr/rn1-019 refuses rc=0 link keyword "addrgenmode": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on xdpgeneric none
+linkattr/rn1-005 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 carrier off netns $$ index 100 xdpgeneric none
+linkattr/rn1-006 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on netns $$ xdpdrv off
+linkattr/rn1-007 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random netns $$
+linkattr/rn1-008 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode random carrier off netns $$ index 100 xdp off
+linkattr/rn1-009 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier off netns $$ index 100 xdpgeneric none
+linkattr/rn1-010 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random carrier on xdpdrv off
+linkattr/rn1-011 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode random carrier on netns $$ index 100 xdpgeneric none
+linkattr/rn1-012 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random carrier on netns $$ index 100 xdp off
+linkattr/rn1-013 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode none carrier off netns $$ xdpgeneric none
+linkattr/rn1-014 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode random carrier on xdpdrv off
+linkattr/rn1-015 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode none carrier off netns $$ xdpdrv off
+linkattr/rn1-016 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none netns $$ index 100 xdpgeneric none
+linkattr/rn1-017 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 carrier off
+linkattr/rn1-018 refuses rc=0 link keyword "xdpdrv": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 xdpdrv off
+linkattr/rn1-019 refuses rc=0 link keyword "carrier": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on xdpgeneric none
 linkattr/xdp-not-last refuses rc=255 link keyword "xdp": object recognized but not implemented by goip | ip link set dev d0 xdp off carrier on
 linkpd/ec-002 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown on protodown_reason 0 on up
 linkpd/ec-003 refuses rc=0 link keyword "protodown": object recognized but not implemented by goip | ip link set dev m0 protodown off protodown_reason 0 off
