@@ -613,7 +613,7 @@ The O5 golden already compares all 579 moved rows offline against their captures
 
 **Rows.** After the nexthop and rule write rows: `hw_stats on` and `off` (a single nexthop and a group), `encap mpls` (one label, two, a `ttl`, an IPv6 gateway), and rule `realms` (`TO` and `FROM/TO`).
 
-`TestGwNexthopRuleMatrixRows`: GW5-T01's table over these forms. `dst_port` has no row, since `ip` 7.2.0 refuses it.
+`TestGwNexthopRuleMatrixRows`: GW5-T01's table over these forms. `dst_port` has no row, since `ip` 7.2.0 refuses it. `encap mpls` has none either: its four corpus rows run `sysctl`, so they are passed over and recorded.
 
 **Mutation check:** as GW5-T01.
 

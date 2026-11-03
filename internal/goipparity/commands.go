@@ -1518,6 +1518,39 @@ var commands = withArgs([]Command{
 		Name: "nexthop del id 1", Slug: "nexthop_del",
 		Floor: 2, Implemented: true, Write: true, Setup: nexthopBlackholeSetup,
 	},
+	// The GW nexthop and rule rows (goip-write-keywords.md, "GW5-T03 the
+	// nexthop and rule rows"): as the GW route rows, for GW3's hw_stats and
+	// GW4's rule realms. Every encap mpls row runs sysctl, so none is here.
+	{
+		Name: "-4 nexthop add id 10 dev d0 hw_stats on", Slug: "gw_nh4_ng_005",
+		// nh4/ng-005: hw_stats_single_on (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 1 group 21/26 type resilient buckets 2 hw_stats on", Slug: "gw_nhgrp_pw_002",
+		// nhgrp/pw-002: hw_stats_group_on (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNhGrp,
+	},
+	{
+		Name: "nexthop replace group 21/22 type mpath hw_stats on protocol static", Slug: "gw_nhgrp_ec_002",
+		// nhgrp/ec-002: hw_stats_group_on (rc 2).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNhGrp,
+	},
+	{
+		Name: "nexthop add group 21/22/23 type resilient buckets 8 idle_timer 10 unbalanced_timer 20 hw_stats off protocol static", Slug: "gw_nhgrp_pw_001",
+		// nhgrp/pw-001: hw_stats_group_off (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNhGrp,
+	},
+	{
+		Name: "nexthop replace id 0 group 21/22/23 type resilient buckets 2 hw_stats off protocol static", Slug: "gw_nhgrp_pw_008",
+		// nhgrp/pw-008: hw_stats_group_off (rc 2).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNhGrp,
+	},
+	{
+		Name: "-4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main", Slug: "gw_rule4_ec_002",
+		// rule4/ec-002: rule_realms_to (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: append(slices.Clone(gwWsSetupD0), "-4 rule add not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main"),
+	},
 	// The flush: the groups dump, then the full dump, each reply's id deleted
 	// from a second socket and acked. nexthop_flush's capture held resilient
 	// group 20 as well, deleted between the two dumps, but a write row's
@@ -7168,6 +7201,10 @@ var (
 		"addr add 192.0.2.10/24 dev d0", "-6 addr add 2001:db8:1::10/64 dev d0 nodad"}
 	gwWsSetupNh4 = append(slices.Clone(gwWsSetupD0), "nexthop add id 10 via 192.0.2.1 dev d0")
 	gwWsSetupNh6 = append(slices.Clone(gwWsSetupD0), "-6 nexthop add id 10 via 2001:db8:1::1 dev d0")
+	// The groups' members: nlcapgen's nhMembers.
+	gwWsSetupNhGrp = append(slices.Clone(gwWsSetupD0), "nexthop add id 21 via 192.0.2.1 dev d0",
+		"nexthop add id 22 via 192.0.2.2 dev d0", "nexthop add id 23 dev d0", "-6 nexthop add id 26 via 2001:db8:1::1 dev d0",
+		"nexthop add id 29 blackhole", "nexthop add id 31 via 192.0.2.1 fdb", "nexthop add id 32 via 192.0.2.2 fdb")
 )
 
 // The route write rows' preconditions: PRE_DEV, PRE_DEV6 and PRE_ROUTE in

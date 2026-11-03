@@ -442,3 +442,28 @@ func lookupSlug(t *testing.T, slug string) Command {
 	t.Fatalf("no row %s", slug)
 	return Command{}
 }
+
+// TestGwNexthopRuleMatrixRows pins GW5-T03's rows (goip-write-keywords.md,
+// "GW5-T03 the nexthop and rule rows"): one per nexthop and rule keyword
+// form GW3 and GW4 built and ip rc. dst_port has no form, since ip 7.2.0
+// refuses it.
+//
+// go test ./internal/goipparity/ -run TestGwNexthopRuleMatrixRows
+func TestGwNexthopRuleMatrixRows(t *testing.T) {
+	runGwMatrix(t, []string{"nh4", "nh6", "nhgrp", "fibnh", "rule4", "rule6", "fibrule"}, []gwForm{
+		{"corner: hw_stats on a single nexthop, rc 2 alone, the kernel's refusal",
+			`^ip (-[46] )?nexthop \w+ id \d+ (via|dev|blackhole) .*\bhw_stats on\b`, "", [2]string{"", "nh4/ng-005"}},
+		{"boundary: hw_stats off on a single nexthop, no row",
+			`^ip (-[46] )?nexthop \w+ id \d+ (via|dev|blackhole) .*\bhw_stats off\b`, "", [2]string{"", ""}},
+		{"positive: hw_stats on a group", `\bgroup \S+ .*\bhw_stats on\b`, "", [2]string{"nhgrp/pw-002", "nhgrp/ec-002"}},
+		{"positive: hw_stats off a group", `\bgroup \S+ .*\bhw_stats off\b`, "", [2]string{"nhgrp/pw-001", "nhgrp/pw-008"}},
+		{"corner: encap mpls, one label, every row runs sysctl", `\bencap mpls \d+ `, "", [2]string{"", ""}},
+		{"boundary: encap mpls, two labels, no row", `\bencap mpls \d+/\d+`, "", [2]string{"", ""}},
+		{"boundary: encap mpls with a ttl, no row", `\bencap mpls \S+ ttl \d+`, "", [2]string{"", ""}},
+		{"corner: encap mpls, an IPv6 gateway, every row runs sysctl", `\bencap mpls \S+ .*via (inet6 )?[0-9a-f]*:[0-9a-f:]+`, "",
+			[2]string{"", ""}},
+		{"corner: rule realms TO; rc 2's gone-1 repeats ec-002's argv", `^ip .*rule .*\brealms [^/ ]+( |$)`, "",
+			[2]string{"rule4/ec-002", ""}},
+		{"boundary: rule realms FROM/TO, no row", `^ip .*rule .*\brealms \S+/\S+`, "", [2]string{"", ""}},
+	})
+}
