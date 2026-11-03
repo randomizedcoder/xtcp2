@@ -391,8 +391,8 @@ func TestNexthopShowRefusals(t *testing.T) {
 		args        []string
 	}{
 		{
-			description: "negative: `nexthop add encap` is an argument no capture shows",
-			args:        []string{"nexthop", "add", "id", "1", "encap", "mpls", "100"},
+			description: "negative: `nexthop add encap ip` is an encap type goip doesn't build",
+			args:        []string{"nexthop", "add", "id", "1", "encap", "ip", "dst", "10.0.0.1"},
 		},
 		{
 			description: "negative: `nexthop get` is a single-get verb with no captured shape",

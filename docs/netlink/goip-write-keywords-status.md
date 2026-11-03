@@ -33,7 +33,10 @@
 
 - GW3-T02 is done: `dst_port` is refused by the chain's last arm, as `ip` 7.2.0 refuses an unknown word. The 12 rows are `same`; 63 rows refuse (V040–V042).
 
-**Next action:** GW3-T03, nexthop `encap mpls` (4 rows), which closes GW3.
+- GW3-T03 is done: `encap mpls` is `NHA_ENCAP` (`NLA_F_NESTED`) with the label stack and an optional ttl, then `NHA_ENCAP_TYPE`; other encap types stay not implemented. The 4 rows are `same`; 59 rows refuse (V043–V045).
+- **GW3 is closed** (DOC004). No nexthop row refuses. GW4 is one task in the plan.
+
+**Next action:** GW4-T01, rule `realms` (30 rows), which closes GW4.
 
 ## Contents
 
@@ -59,8 +62,8 @@
 |---|---|---|---|---|---|
 | [GW1](goip-write-keywords.md#gw1--route-keywords) | route | 331 | GW1-T04 | done | V001–V012, DOC002 |
 | [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | done | V013–V036, DOC003 |
-| [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | GW3-T03 | in progress | V037–V042 |
-| [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | | not started | |
+| [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | GW3-T03 | done | V037–V045, DOC004 |
+| [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | GW4-T01 | not started | |
 | [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | | not started | |
 
 ## Task checklist
@@ -83,8 +86,8 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW2-T08](goip-write-keywords.md#gw2-t08-index-netns-link-netnsid-and-parentdev) | link `index`, `netns`, `link-netnsid`, `parentdev` | done | 116 | V034–V036 |
 | [x] | [GW3-T01](goip-write-keywords.md#gw3-t01-hw_stats) | nexthop `hw_stats` | done | 75 | V037–V039 |
 | [x] | [GW3-T02](goip-write-keywords.md#gw3-t02-dst_port) | nexthop `dst_port` | done | 63 | V040–V042 |
-| [ ] | [GW3-T03](goip-write-keywords.md#gw3-t03-encap-mpls) | nexthop `encap mpls` | not started | | |
-| [ ] | [GW4-T01…](goip-write-keywords.md#gw4--rule-realms) | rule `realms` | not started | | |
+| [x] | [GW3-T03](goip-write-keywords.md#gw3-t03-encap-mpls) | nexthop `encap mpls` | done | 59 | V043–V045 |
+| [ ] | [GW4-T01](goip-write-keywords.md#gw4-t01-realms) | rule `realms` | not started | | |
 | [ ] | [GW5-T01…](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | matrix rows, VM gate | not started | | |
 
 ## Verification ledger
@@ -135,7 +138,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V039 | 2026-11-02 | GW3-T01 | as V003 | both pass first time | 32a1ad80 |
 | V040 | 2026-11-02 | GW3-T02 | as V001 | all pass: `TestNexthopWriteDstPort` (6 rows); `TestParseNexthopWriteArgs` loses its `dst_port` not-implemented row. The golden: 75 `refuses` to 63; `nh4` and `nh6` 80 `same`, 0 `refuses`; `fibnh` 398 `same`, 4 `refuses` (`encap`); `differs` and `sends` 0 in every family | this commit |
 | V041 | 2026-11-02 | GW3-T02 | mutation, as V002: `dst_port` still not implemented; a `NEXT_ARG` before the refusal | 2 of 2 killed: by the three refusal rows; the last-word row | this commit |
-| V042 | 2026-11-02 | GW3-T02 | as V003 | both pass first time | this commit |
+| V042 | 2026-11-02 | GW3-T02 | as V003 | both pass first time | f08fea4e |
+| V043 | 2026-11-02 | GW3-T03 | as V001 | all pass: `TestNexthopWriteEncapMpls` (23 rows), `TestMplsPton` (11), `TestPutMplsEncap` (7). `TestParseNexthopWriteArgs`' and `TestNexthopShowRefusals`' not-implemented `encap mpls 100` rows are now `encap ip`, since `encap mpls 100` as the last words is `missarg`. The golden: 63 `refuses` to 59; `fibnh` 402 `same`, 0 `refuses`; `differs` and `sends` 0 in every family | this commit |
+| V044 | 2026-11-02 | GW3-T03 | mutation, as V002: `NLA_F_NESTED` dropped; the bottom bit on every label; `NHA_ENCAP_TYPE` before the nest; no `missarg`; the label bound at 2^20 + 1; a shift of 8; no `duparg2` on `ttl`; `default` passed to `mpls_pton`; 63 labels at most | 8 of 9 killed: by the captured and bytes rows; the stack rows; the captured rows; the label-last rows; 2^20; the captured rows; `ttl` twice; 64 labels. `default` to `mpls_pton` survives and is equivalent: `mpls_pton` refuses it too, having no digits, so the explicit case was removed | this commit |
+| V045 | 2026-11-02 | GW3-T03 | as V003 | lint-baseline's first run failed: goconst on `"help"` and `"mpls"`. `addrHelpKeywordCst` is reused, and `mplsKeywordCst` is shared with route_write.go's family words; both checks then pass | this commit |
+| DOC004 | 2026-11-02 | GW3 close | The phase closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): GW4 planned as GW4-T01 with its table, from `ip` 7.2.0's `iprule_modify` and `get_rt_realms_or_raw`; the inventory's remaining count. No cross-doc statement was made false. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -157,4 +164,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **`xdp` builds the detach only.** `xdp_parse` deletes for `off`/`none` as argv's last word and otherwise loads a BPF object, which goip doesn't do; that path is `ErrNotImplemented` and the golden's one row for it (`xdp off carrier on`) stays `refuses`.
 - **`netns` isn't built, so GW2 closes with 26 `netns` rows refusing.** `ip` opens `/run/netns/NAME` or `/proc/PID/ns/net` and sends the descriptor's number. goip writes the request to `GOIP_WRITE_OUT` for something else to send, so a descriptor it opened would be closed, and its number meaningless, by then. 25 of the rows also use `$$`, the capturing shell's pid, which no replay can reproduce. The plan's GW2-T08 had `netns` built; this replaces that, and the plan's out-of-scope list now says so. `link-netns` stays not implemented for the same reason, and a create whose lower `link` would be looked up in a `link-netnsid` namespace is refused as not implemented too.
 - **`index` on a set is always refused.** `iplink_modify` allows it only with `netns`, which goip doesn't build, so the refusal is `ip`'s whenever goip gets that far.
+- **`encap` builds `mpls` only.** `lwt_parse_encap` has ten types; the 4 nexthop rows use `mpls`, so the others stay `ErrNotImplemented`, after `ip`'s own checks on the type word and `missarg`, which every type shares. The 2 route rows with a per-hop `encap ip`/`ip6` still refuse; `xtcpnl.PutMplsEncap` takes the two attribute types so the route writer can reuse it.
 - **Names from config files are the stock files' names only.** goip reads no `rt_dsfield`, `rt_realms` or `group` file, so it takes the numeric forms and the names iproute2 7.2.0 ships, as with `rt_tables`.

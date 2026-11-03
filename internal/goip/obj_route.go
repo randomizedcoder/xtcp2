@@ -347,7 +347,7 @@ func routeTableID(arg string) (uint32, error) {
 		return unix.RT_TABLE_LOCAL, nil
 	case addrNameAllCst:
 		return unix.RT_TABLE_UNSPEC, nil
-	case "cache", "help":
+	case "cache", addrHelpKeywordCst:
 		return 0, fmt.Errorf("route show table %q: %w", arg, ErrNotImplemented)
 	}
 	// strtoul(arg, &end, 0): base 0, so 0x-prefixed and 0-prefixed forms are

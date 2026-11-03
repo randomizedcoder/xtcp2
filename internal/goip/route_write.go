@@ -878,7 +878,7 @@ func familyNameVerbose(f uint8) string {
 	case unix.AF_PACKET:
 		return familyLinkCst
 	case unix.AF_MPLS:
-		return "mpls"
+		return mplsKeywordCst
 	case unix.AF_BRIDGE:
 		return "bridge"
 	}
@@ -894,7 +894,7 @@ func readFamily(name string) uint8 {
 		return unix.AF_INET6
 	case familyLinkCst:
 		return unix.AF_PACKET
-	case "mpls":
+	case mplsKeywordCst:
 		return unix.AF_MPLS
 	case "bridge":
 		return unix.AF_BRIDGE

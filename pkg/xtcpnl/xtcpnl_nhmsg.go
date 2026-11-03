@@ -46,6 +46,8 @@ const (
 	NhaBlackhole uint16 = 4  // NHA_BLACKHOLE: a flag attribute, no payload
 	NhaOIF       uint16 = 5  // NHA_OIF: the outgoing interface index
 	NhaGateway   uint16 = 6  // NHA_GATEWAY: the next hop, network order
+	NhaEncapType uint16 = 7  // NHA_ENCAP_TYPE: u16, LWTUNNEL_ENCAP_*
+	NhaEncap     uint16 = 8  // NHA_ENCAP: nested lwt encap data
 	NhaGroups    uint16 = 9  // NHA_GROUPS: dump flag, return only groups
 	NhaMaster    uint16 = 10 // NHA_MASTER: dump filter, master dev index
 	NhaFdb       uint16 = 11 // NHA_FDB: flag, nexthop belongs to a bridge fdb

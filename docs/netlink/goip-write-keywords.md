@@ -65,6 +65,8 @@ By object: route 331, link 190, nexthop 57, rule 30.
 
 **Remaining after GW2** (DOC003): 116. These are route 2 (as above), link 27, nexthop 57 and rule 30. The link 27 are all `linkattr`: 25 `netns $$` rows, `netns nosuch`, and `xdp off carrier on`, an `xdp` that isn't argv's last word and so is a program load. None of them is a keyword GW3 to GW5 build; they are in the decision log.
 
+**Remaining after GW3** (DOC004): 59. These are route 2 and link 27 (as above), and rule 30. No nexthop row refuses.
+
 ## Out of scope
 
 - **Anything outside the 608.** The plan follows the oracle. A keyword no workbench row uses (route `as`, `encap` at the top level, `ttl-propagate`, link `vf`, `xdpgeneric` with a program) stays `ErrNotImplemented` until a row exercises it.
@@ -518,7 +520,38 @@ The workbench rows: the 4 rows `same` (2 accepted, and 2 with `fdb` that the ker
 
 ### GW4 — rule `realms`
 
-Planned when GW3 closes. The 30 rule4 rows, through GW1-T03's `getRtRealmsOrRaw` into `FRA_FLOW`.
+One task, in `internal/goip/rule_write.go`'s `(*ruleWrite).parseArg` (`iprule_modify`'s chain in its order). Today `realms` is `ErrNotImplemented`, on the grounds that `ip` reads realm names from `rt_realms`; GW1-T03's `getRtRealmsOrRaw` now takes the numbers and the stock file's one name, `cosmos`.
+
+The 30 rows after GW3-T03's golden are all rule4, and all carry `realms 10`.
+
+**What `ip` does** (`ip/iprule.c` at `v7.2.0`):
+- **`realms`** (`matches`, `:1050`): `NEXT_ARG`, then `get_rt_realms_or_raw` (`ip/rtm_map.c:118`), the parse `ip route`'s `realms` uses: `[FROM/]TO`, each half a name or 0 to 255, `FROM` in the high 16 bits; else `get_unsigned` in base 0 over the whole argument. A failure is `invarg("invalid realms\n")`, 255. It sends `FRA_FLOW` u32 where the loop reads it, with no `duparg`.
+- Only `not`, `from`, `to`, the preference group, `tos`/`dsfield` and `fwmark` come before it, and none of their `matches()` patterns starts with `r`, so `r` is `realms`.
+
+#### GW4-T01 `realms`
+
+**Code.** A `realms` arm: `nextArg`, `getRtRealmsOrRaw`, then `FRA_FLOW` u32.
+
+`TestRuleWriteRealms`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a TO realm | `realms 10` | `FRA_FLOW` 10 |
+| positive: FROM/TO | `realms 1/2` | `FRA_FLOW` 0x00010002 |
+| positive: the stock name | `realms cosmos` | `FRA_FLOW` 0 |
+| positive: raw past a half | `realms 0x10000` | `FRA_FLOW` 65536 |
+| negative: a word | `realms x` | 255; `invalid realms` |
+| negative: no value | `realms` | 255; `Command line is not complete` |
+| boundary: both halves at 255 | `realms 255/255` | 0x00ff00ff |
+| boundary: raw at UINT_MAX | `realms 4294967295` | 0xffffffff |
+| corner: `r` is realms | `r 10` | `FRA_FLOW` 10 |
+| corner: twice | `realms 1 realms 2` | two `FRA_FLOW`, no `duparg` |
+
+The workbench rows: the 30 rows `same`.
+
+**Mutation check:** the halves swapped (`1/2`); `FRA_FLOW` as another type (the bytes); `realms` by `strcmp` (`r`).
+
+**Done when:** as GW1-T01, with the 30 rows `same`, and `differs` and `sends` 0. GW4-T01 closes GW4 and expands GW5.
 
 ### GW5 — matrix rows and the VM gate
 

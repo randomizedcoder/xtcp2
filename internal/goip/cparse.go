@@ -1,6 +1,7 @@
 package goip
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 	"net/netip"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 // This file transcribes the libc and lib/utils.c number and address readers
@@ -437,4 +439,33 @@ func asciiLower(c byte) byte {
 		return c + 'a' - 'A'
 	}
 	return c
+}
+
+// mplsLabelMaxCst is 1 << 20: an MPLS label is 20 bits.
+const mplsLabelMaxCst = 1 << 20
+
+// mplsPton is mpls_pton1 (lib/mpls_pton.c): up to xtcpnl.MplsLabelStackMax
+// labels split on '/', each strtoul in base 0 below 2^20, stored big-endian
+// as label << 12 with the bottom-of-stack bit (0x100) on the last. tooMany
+// is the stack running past the limit, where mpls_pton1 prints "too many
+// labels" before failing.
+func mplsPton(s string) (data []byte, tooMany, ok bool) {
+	for range xtcpnl.MplsLabelStackMax {
+		r := cStrtoul(s, 0)
+		label, fits := cint.U32From64(r.val)
+		if r.overflow || !fits || label >= mplsLabelMaxCst || r.end == 0 {
+			return nil, false, false
+		}
+		entry := label << 12
+		rest := s[r.end:]
+		if rest == "" {
+			return binary.BigEndian.AppendUint32(data, entry|1<<8), false, true
+		}
+		if rest[0] != '/' {
+			return nil, false, false
+		}
+		data = binary.BigEndian.AppendUint32(data, entry)
+		s = rest[1:]
+	}
+	return nil, true, false
 }
