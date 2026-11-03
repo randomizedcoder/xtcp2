@@ -561,3 +561,33 @@ func TestLinkAttrU8(t *testing.T) {
 		})
 	}
 }
+
+func TestLinkAttrXdp(t *testing.T) {
+	tests := []struct {
+		description string
+		fd          int32
+		flags       uint32
+		expected    string
+	}{
+		{description: "positive: xdp off, fd -1 then UPDATE_IF_NOEXIST", fd: -1, flags: unix.XDP_FLAGS_UPDATE_IF_NOEXIST,
+			expected: "08000100ffffffff" + "0800030001000000"},
+		{description: "positive: xdpoffload off", fd: -1, flags: unix.XDP_FLAGS_UPDATE_IF_NOEXIST | unix.XDP_FLAGS_HW_MODE,
+			expected: "08000100ffffffff" + "0800030009000000"},
+		{description: "boundary: flags 0 leave IFLA_XDP_FLAGS out", fd: -1, flags: 0,
+			expected: "08000100ffffffff"},
+		{description: "corner: an fd is sent as given", fd: 7, flags: unix.XDP_FLAGS_DRV_MODE,
+			expected: "0800010007000000" + "0800030004000000"},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.description, func(t *testing.T) {
+			got, err := LinkAttrXdp(tt.fd, tt.flags)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Type != unix.IFLA_XDP || hex.EncodeToString(got.Payload) != tt.expected {
+				t.Errorf("got type %d %x, want %d %s", got.Type, got.Payload, unix.IFLA_XDP, tt.expected)
+			}
+		})
+	}
+}

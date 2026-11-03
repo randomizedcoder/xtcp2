@@ -392,3 +392,64 @@ func TestLinkWriteBrdCarrierModeState(t *testing.T) {
 			expected: set(u8(unix.IFLA_OPERSTATE, 6), u8(unix.IFLA_OPERSTATE, 2))},
 	})
 }
+
+// TestLinkWriteXdp is iplink_parse's xdp arms (ip/iplink.c:949) through
+// xdp_parse: off or none as the last word is IFLA_XDP{FD -1, FLAGS}, with
+// UPDATE_IF_NOEXIST (goip refuses -force) and the mode's bit; xdpoffload
+// looks dev up first. Any other word is a program load, not implemented.
+// GW2-T07.
+//
+// go test ./internal/goip/ -run TestLinkWriteXdp
+func TestLinkWriteXdp(t *testing.T) {
+	xdp := func(flags uint32) xtcpnl.LinkAttr {
+		a, err := xtcpnl.LinkAttrXdp(-1, flags)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+	set := func(a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: 2, Attrs: a,
+		}, resolved: []string{"d0"}}
+	}
+	d0 := func(w ...string) []string { return append([]string{"dev", "d0"}, w...) }
+	notImpl := func(key string) linkWriteExpected {
+		return linkWriteExpected{err: ErrNotImplemented, errMsg: fmt.Sprintf("%q: an XDP program", key)}
+	}
+	incomplete := func(resolved ...string) linkWriteExpected {
+		return linkWriteExpected{err: ErrLinkUsage, errMsg: "Command line is not complete", resolved: resolved}
+	}
+	const noexist = unix.XDP_FLAGS_UPDATE_IF_NOEXIST
+	runLinkWriteRows(t, []linkWriteRow{
+		{description: "positive: xdp off", verb: "set", args: d0("xdp", "off"), expected: set(xdp(noexist))},
+		{description: "positive: xdp none", verb: "set", args: d0("xdp", "none"), expected: set(xdp(noexist))},
+		{description: "positive: xdpgeneric none", verb: "set", args: d0("xdpgeneric", "none"),
+			expected: set(xdp(noexist | unix.XDP_FLAGS_SKB_MODE))},
+		{description: "positive: xdpdrv off", verb: "set", args: d0("xdpdrv", "off"),
+			expected: set(xdp(noexist | unix.XDP_FLAGS_DRV_MODE))},
+		{description: "positive: xdpoffload off looks d0 up once", verb: "set", args: d0("xdpoffload", "off"),
+			expected: set(xdp(noexist | unix.XDP_FLAGS_HW_MODE))},
+		{description: "positive: the nest's bytes", verb: "set", args: d0("xdp", "off"),
+			expected: set(xtcpnl.LinkAttrBytes(unix.IFLA_XDP, []byte{8, 0, 1, 0, 0xff, 0xff, 0xff, 0xff, 8, 0, 3, 0, 1, 0, 0, 0}))},
+		{description: "positive: after other words", verb: "set", args: d0("mtu", "1400", "xdp", "off"),
+			expected: set(xtcpnl.LinkAttrU32(unix.IFLA_MTU, 1400), xdp(noexist))},
+		{description: "negative: off not last is a program", verb: "set", args: d0("xdp", "off", "carrier", "on"), expected: notImpl("xdp")},
+		{description: "negative: an object file", verb: "set", args: d0("xdpdrv", "obj", "prog.o"), expected: notImpl("xdpdrv")},
+		{description: "negative: no value", verb: "set", args: d0("xdp"), expected: incomplete()},
+		{description: "negative: xdpoffload with no dev yet", verb: "set", args: []string{"xdpoffload", "off"}, expected: incomplete()},
+		{description: "negative: xdpoffload on a missing dev", verb: "set", args: []string{"dev", "nosuch", "xdpoffload", "off"},
+			expected: incomplete("nosuch")},
+		{description: "negative: xdpoffload looks up before the program", verb: "set", args: []string{"dev", "nosuch", "xdpoffload", "obj", "p.o"},
+			expected: incomplete("nosuch")},
+		{description: "boundary: off as the only word after dev", verb: "set", args: []string{"d0", "xdpgeneric", "off"},
+			expected: set(xdp(noexist | unix.XDP_FLAGS_SKB_MODE))},
+		{description: "corner: OFF is strcmp, so a program", verb: "set", args: d0("xdp", "OFF"), expected: notImpl("xdp")},
+		{description: "corner: of is no prefix of off, so a program", verb: "set", args: d0("xdp", "of"), expected: notImpl("xdp")},
+		{description: "corner: xd is no keyword, so a dev", verb: "set", args: []string{"d0", "xd", "off"},
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: `either "dev" is duplicate, or "xd" is garbage`}},
+		{description: "corner: twice, the first isn't last", verb: "set", args: d0("xdp", "off", "xdp", "off"), expected: notImpl("xdp")},
+		{description: "corner: xdpoffload by a bare dev name", verb: "set", args: []string{"d0", "xdpoffload", "none"},
+			expected: set(xdp(noexist | unix.XDP_FLAGS_HW_MODE))},
+	})
+}

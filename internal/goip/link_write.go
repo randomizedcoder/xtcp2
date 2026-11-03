@@ -108,6 +108,7 @@ const (
 	linkArmCarrier     // parse_on_off, IFLA_CARRIER u8
 	linkArmLinkMode    // get_link_mode, IFLA_LINKMODE u8
 	linkArmOperstate   // get_operstate, IFLA_OPERSTATE u8
+	linkArmXdp         // xdp_parse's off/none: IFLA_XDP{FD -1, FLAGS}
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -131,6 +132,8 @@ type linkKeyword struct {
 	// its bound.
 	attr   uint16
 	maxVal uint64
+	// xdpMode is a linkArmXdp's XDP_FLAGS_*_MODE bit; plain xdp has none.
+	xdpMode uint32
 }
 
 // linkProtodownKeywordCst is protodown, whose u8 shares carrier's arm.
@@ -156,10 +159,10 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "txqlen", prefix: true, arm: linkArmTxqlen},
 	{keyword: mtuKeywordCst, arm: linkArmMTU},
 	{keyword: inetKeywordCst, arm: linkArmInet},
-	{keyword: "xdpgeneric", arm: linkArmUnsupported},
-	{keyword: "xdpdrv", arm: linkArmUnsupported},
-	{keyword: "xdpoffload", arm: linkArmUnsupported},
-	{keyword: "xdp", arm: linkArmUnsupported},
+	{keyword: "xdpgeneric", arm: linkArmXdp, xdpMode: unix.XDP_FLAGS_SKB_MODE},
+	{keyword: "xdpdrv", arm: linkArmXdp, xdpMode: unix.XDP_FLAGS_DRV_MODE},
+	{keyword: "xdpoffload", arm: linkArmXdp, xdpMode: unix.XDP_FLAGS_HW_MODE},
+	{keyword: "xdp", arm: linkArmXdp},
 	{keyword: "netns", arm: linkArmUnsupported},
 	{keyword: "multicast", arm: linkArmFlag, flag: unix.IFF_MULTICAST, onSets: true},
 	{keyword: "allmulticast", arm: linkArmFlag, flag: unix.IFF_ALLMULTI, onSets: true},
@@ -357,6 +360,13 @@ loop:
 		if kw.arm == linkArmInet {
 			var err error
 			if i, err = st.inet(args, i); err != nil {
+				return linkParsed{}, err
+			}
+			continue
+		}
+		if kw.arm == linkArmXdp {
+			var err error
+			if i, err = st.xdp(kw, args, i); err != nil {
 				return linkParsed{}, err
 			}
 			continue
@@ -695,6 +705,41 @@ func nameIndex(names []string, v string) (uint8, bool) {
 	return 0, false
 }
 
+// xdp is xdp_parse (ip/iplink_xdp.c:47) for the one form goip builds: off
+// or none as argv's last word, xdp_delete's fd -1. Anything else is a
+// program to load, which goip doesn't do. xdpoffload looks dev up first and
+// a miss is incomplete_command. -force is refused by goip's options, so
+// XDP_FLAGS_UPDATE_IF_NOEXIST is always set. It returns the index of the
+// off word.
+func (st *linkParseState) xdp(kw *linkKeyword, args []string, i int) (int, error) {
+	if i+1 >= len(args) {
+		return i, linkUsage(incompleteErr())
+	}
+	i++
+	if kw.xdpMode == unix.XDP_FLAGS_HW_MODE {
+		idx := int32(0)
+		if st.dev != "" {
+			var err error
+			if idx, err = st.resolve(st.dev); err != nil {
+				return i, err
+			}
+		}
+		if idx == 0 {
+			return i, linkUsage(incompleteErr())
+		}
+		st.devIndex = idx
+	}
+	if i != len(args)-1 || (args[i] != noneKeywordCst && args[i] != offKeywordCst) {
+		return i, fmt.Errorf("link keyword %q: an XDP program: %w", kw.keyword, ErrNotImplemented)
+	}
+	a, err := xtcpnl.LinkAttrXdp(-1, unix.XDP_FLAGS_UPDATE_IF_NOEXIST|kw.xdpMode)
+	if err != nil {
+		return i, err
+	}
+	st.out.attrs = append(st.out.attrs, a)
+	return i, nil
+}
+
 // protodownReasonBitsCst is PROTODOWN_REASON_NUM_BITS: a reason is a bit
 // of the u32 mask.
 const protodownReasonBitsCst = 32
@@ -742,7 +787,7 @@ func addrGenModeA2N(v string) (uint8, bool) {
 	switch {
 	case cStrcaseEq(v, "eui64"):
 		return xtcpnl.In6AddrGenModeEUI64, true
-	case cStrcaseEq(v, "none"):
+	case cStrcaseEq(v, noneKeywordCst):
 		return xtcpnl.In6AddrGenModeNone, true
 	case cStrcaseEq(v, "stable_secret"):
 		return xtcpnl.In6AddrGenModeStablePrivacy, true

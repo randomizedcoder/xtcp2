@@ -402,11 +402,11 @@ The workbench rows: the 15 rows `same`, or refusing later.
 | positive: offload | `xdpoffload off` | d0's lookup; flags 9 |
 | negative: not last | `xdp off carrier on` | `ErrNotImplemented`; `ip` tries an object |
 | negative: no value | `xdp` | 255; `Command line is not complete` |
-| corner: `-force` | `ip -force link set dev d0 xdp off` | flags 0, so no `IFLA_XDP_FLAGS` |
+| corner: `-force` | `ip -force link set dev d0 xdp off` | refused by goip's option parser, so goip's flags always carry `UPDATE_IF_NOEXIST`; `LinkAttrXdp`'s own table has the flags-0 row (V032) |
 
 The workbench rows: the 3 `xdp` rows and the ones behind `carrier`/`netns` `same`; `xdp-not-last` stays `refuses`.
 
-**Mutation check:** flags always sent (the force row); `UPDATE_IF_NOEXIST` dropped (`xdp off`); fd 0 (any row).
+**Mutation check:** flags always sent (`LinkAttrXdp`'s flags-0 row); `UPDATE_IF_NOEXIST` dropped (`xdp off`); fd 0 (any row).
 
 #### GW2-T08 `index`, `netns`, `link-netnsid` and `parentdev`
 

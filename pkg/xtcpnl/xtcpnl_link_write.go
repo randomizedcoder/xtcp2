@@ -115,6 +115,25 @@ func LinkAttrProtoDownReason(mask, value uint32) (LinkAttr, error) {
 	return LinkAttr{Type: unix.IFLA_PROTO_DOWN_REASON | unix.NLA_F_NESTED, Payload: ab.Bytes()}, nil
 }
 
+// linkXdpCst is IFLA_XDP's payload at its largest: the fd and the flags.
+const linkXdpCst = 2 * (RTAttrSizeCst + 4)
+
+// LinkAttrXdp is xdp_ebpf_cb's IFLA_XDP{IFLA_XDP_FD s32, IFLA_XDP_FLAGS u32},
+// the flags only when they're not zero. `xdp off` is fd -1. Like the other
+// link nests it has no NLA_F_NESTED.
+func LinkAttrXdp(fd int32, flags uint32) (LinkAttr, error) {
+	ab := NewAttrBuilder(make([]byte, linkXdpCst))
+	if err := ab.PutS32(unix.IFLA_XDP_FD, fd); err != nil {
+		return LinkAttr{}, err
+	}
+	if flags != 0 {
+		if err := ab.PutU32(unix.IFLA_XDP_FLAGS, flags); err != nil {
+			return LinkAttr{}, err
+		}
+	}
+	return LinkAttr{Type: unix.IFLA_XDP, Payload: ab.Bytes()}, nil
+}
+
 // LinkWrite is one link write as iplink_modify assembles it.
 type LinkWrite struct {
 	// MsgType is RTM_NEWLINK (add, set, change, replace) or RTM_DELLINK.
