@@ -387,7 +387,7 @@ The workbench rows: the 20 rows `same`.
 
 The workbench rows: the 15 rows `same`, or refusing later.
 
-**Mutation check:** `mode` by prefix (`mod`); the operstate table off by one (`up`); `brd` by prefix.
+**Mutation check:** `mode` by prefix (`mod`); the operstate table off by one (`up`). `brd` by prefix is an equivalent mutant: `b` and `br` are prefixes of `broadcast`, which the chain tests first, and a longer word is a prefix of neither (V029).
 
 #### GW2-T07 `xdp off`
 

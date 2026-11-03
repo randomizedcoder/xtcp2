@@ -329,3 +329,66 @@ func TestLinkWriteProtodown(t *testing.T) {
 			expected: set(reason(1, 1), reason(2, 0))},
 	})
 }
+
+// TestLinkWriteBrdCarrierModeState is iplink_parse's broadcast, carrier, mode
+// and state arms (ip/iplink.c:921, 1027, 1109, 1117): ll_addr_a2n to
+// IFLA_BROADCAST; parse_on_off to IFLA_CARRIER u8; and get_link_mode and
+// get_operstate by strcasecmp to IFLA_LINKMODE and IFLA_OPERSTATE u8s.
+// GW2-T06.
+//
+// go test ./internal/goip/ -run TestLinkWriteBrdCarrierModeState
+func TestLinkWriteBrdCarrierModeState(t *testing.T) {
+	u8 := xtcpnl.LinkAttrU8
+	brd := func(b ...byte) xtcpnl.LinkAttr { return xtcpnl.LinkAttrBytes(unix.IFLA_BROADCAST, b) }
+	set := func(a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: 2, Attrs: a,
+		}, resolved: []string{"d0"}}
+	}
+	d0 := func(w ...string) []string { return append([]string{"dev", "d0"}, w...) }
+	invarg := func(v, msg string) linkWriteExpected {
+		return linkWriteExpected{err: ErrLinkUsage, errMsg: fmt.Sprintf(`Error: argument %q is wrong: %s`, v, msg)}
+	}
+	ff := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xfe}
+	runLinkWriteRows(t, []linkWriteRow{
+		{description: "positive: broadcast", verb: "set", args: d0("broadcast", "ff:ff:ff:ff:ff:fe"), expected: set(brd(ff...))},
+		{description: "positive: brd", verb: "set", args: d0("brd", "ff:ff:ff:ff:ff:fe"), expected: set(brd(ff...))},
+		{description: "positive: carrier on", verb: "set", args: d0("carrier", "on"), expected: set(u8(unix.IFLA_CARRIER, 1))},
+		{description: "positive: carrier off", verb: "set", args: d0("carrier", "off"), expected: set(u8(unix.IFLA_CARRIER, 0))},
+		{description: "positive: mode dormant", verb: "set", args: d0("mode", "dormant"), expected: set(u8(unix.IFLA_LINKMODE, 1))},
+		{description: "positive: mode default", verb: "set", args: d0("mode", "default"), expected: set(u8(unix.IFLA_LINKMODE, 0))},
+		{description: "positive: state dormant", verb: "set", args: d0("state", "dormant"), expected: set(u8(unix.IFLA_OPERSTATE, 5))},
+		{description: "positive: state up", verb: "set", args: d0("state", "up"), expected: set(u8(unix.IFLA_OPERSTATE, 6))},
+		{description: "positive: in word order", verb: "set", args: d0("mode", "dormant", "carrier", "off", "state", "testing"),
+			expected: set(u8(unix.IFLA_LINKMODE, 1), u8(unix.IFLA_CARRIER, 0), u8(unix.IFLA_OPERSTATE, 4))},
+		{description: "negative: carrier maybe", verb: "set", args: d0("carrier", "maybe"),
+			expected: linkWriteExpected{err: ErrInvalidArgument,
+				errMsg: `Error: argument of "carrier" must be one of "off", "on", not "maybe"`}},
+		{description: "negative: mode x", verb: "set", args: d0("mode", "x"), expected: invarg("x", "Invalid link mode")},
+		{description: "negative: state x", verb: "set", args: d0("state", "x"), expected: invarg("x", "Invalid operstate")},
+		{description: "negative: a bad broadcast", verb: "set", args: d0("broadcast", "zz"),
+			expected: linkWriteExpected{err: ErrInvalidArgument, errMsg: `"zz" is invalid lladdr`}},
+		{description: "negative: mode by prefix is a dev", verb: "set", args: []string{"d0", "mod", "dormant"},
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: `either "dev" is duplicate, or "mod" is garbage`}},
+		{description: "negative: no value", verb: "set", args: d0("state"),
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: "Command line is not complete"}},
+		{description: "boundary: mode DORMANT", verb: "set", args: d0("mode", "DORMANT"), expected: set(u8(unix.IFLA_LINKMODE, 1))},
+		{description: "boundary: state UP", verb: "set", args: d0("state", "UP"), expected: set(u8(unix.IFLA_OPERSTATE, 6))},
+		{description: "boundary: state unknown, the first", verb: "set", args: d0("state", "unknown"), expected: set(u8(unix.IFLA_OPERSTATE, 0))},
+		{description: "boundary: state LowerLayerDown", verb: "set", args: d0("state", "LowerLayerDown"),
+			expected: set(u8(unix.IFLA_OPERSTATE, 3))},
+		{description: "boundary: a one-byte broadcast", verb: "set", args: d0("broadcast", "ff"), expected: set(brd(0xff))},
+		{description: "corner: b is broadcast", verb: "set", args: d0("b", "ff:ff:ff:ff:ff:fe"), expected: set(brd(ff...))},
+		{description: "corner: br is broadcast by prefix", verb: "set", args: d0("br", "ff"), expected: set(brd(0xff))},
+		{description: "corner: brdx is no keyword, so a dev", verb: "set", args: []string{"d0", "brdx", "ff"},
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: `either "dev" is duplicate, or "brdx" is garbage`}},
+		{description: "corner: broadcast's length isn't checked against the device", verb: "set", args: d0("broadcast", "ff:ff"),
+			expected: set(brd(0xff, 0xff))},
+		{description: "corner: carrier takes no prefix of on", verb: "set", args: d0("carrier", "o"),
+			expected: linkWriteExpected{err: ErrInvalidArgument,
+				errMsg: `Error: argument of "carrier" must be one of "off", "on", not "o"`}},
+		{description: "corner: a state number is not a name", verb: "set", args: d0("state", "6"), expected: invarg("6", "Invalid operstate")},
+		{description: "corner: twice is two attributes, no duparg", verb: "set", args: d0("state", "up", "state", "down"),
+			expected: set(u8(unix.IFLA_OPERSTATE, 6), u8(unix.IFLA_OPERSTATE, 2))},
+	})
+}

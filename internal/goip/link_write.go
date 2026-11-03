@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -103,6 +104,10 @@ const (
 	linkArmAddrGenMode // IFLA_AF_SPEC{AF_INET6{IFLA_INET6_ADDR_GEN_MODE}}
 	linkArmProtodown   // parse_on_off, IFLA_PROTO_DOWN u8
 	linkArmProtodownReason
+	linkArmBroadcast   // ll_addr_a2n, IFLA_BROADCAST
+	linkArmCarrier     // parse_on_off, IFLA_CARRIER u8
+	linkArmLinkMode    // get_link_mode, IFLA_LINKMODE u8
+	linkArmOperstate   // get_operstate, IFLA_OPERSTATE u8
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -128,6 +133,9 @@ type linkKeyword struct {
 	maxVal uint64
 }
 
+// linkProtodownKeywordCst is protodown, whose u8 shares carrier's arm.
+const linkProtodownKeywordCst = "protodown"
+
 // linkParseKeywords is iplink_parse's if/else chain in its order
 // (ip/iplink.c:578-951). Every keyword is listed, the unimplemented ones
 // too, because the chain decides what an argument IS: an argument that
@@ -141,8 +149,8 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "index", arm: linkArmUnsupported},
 	{keyword: "link", prefix: true, arm: linkArmLink},
 	{keyword: "address", prefix: true, arm: linkArmAddress},
-	{keyword: "broadcast", prefix: true, arm: linkArmUnsupported},
-	{keyword: "brd", arm: linkArmUnsupported},
+	{keyword: "broadcast", prefix: true, arm: linkArmBroadcast},
+	{keyword: "brd", arm: linkArmBroadcast},
 	{keyword: "txqueuelen", prefix: true, arm: linkArmTxqlen},
 	{keyword: "qlen", arm: linkArmTxqlen},
 	{keyword: "txqlen", prefix: true, arm: linkArmTxqlen},
@@ -158,7 +166,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "promisc", arm: linkArmFlag, flag: unix.IFF_PROMISC, onSets: true},
 	{keyword: "trailers", arm: linkArmFlag, flag: unix.IFF_NOTRAILERS},
 	{keyword: "arp", arm: linkArmFlag, flag: unix.IFF_NOARP},
-	{keyword: "carrier", arm: linkArmUnsupported},
+	{keyword: "carrier", arm: linkArmCarrier},
 	{keyword: "vf", arm: linkArmUnsupported},
 	{keyword: "master", prefix: true, arm: linkArmMaster},
 	{keyword: vrfKeywordCst, arm: linkArmVrf},
@@ -167,14 +175,14 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: linkTypeKeywordCst, prefix: true, arm: linkArmType},
 	{keyword: "alias", prefix: true, arm: linkArmAlias},
 	{keyword: linkGroupKeywordCst, arm: linkArmGroup},
-	{keyword: "mode", arm: linkArmUnsupported},
-	{keyword: "state", arm: linkArmUnsupported},
+	{keyword: "mode", arm: linkArmLinkMode},
+	{keyword: "state", arm: linkArmOperstate},
 	{keyword: numTxQueuesKeywordCst, prefix: true, arm: linkArmTxQueues},
 	{keyword: numRxQueuesKeywordCst, prefix: true, arm: linkArmRxQueues},
 	{keyword: "addrgenmode", prefix: true, arm: linkArmAddrGenMode},
 	{keyword: "link-netns", prefix: true, arm: linkArmUnsupported},
 	{keyword: "link-netnsid", prefix: true, arm: linkArmUnsupported},
-	{keyword: "protodown", arm: linkArmProtodown},
+	{keyword: linkProtodownKeywordCst, arm: linkArmProtodown},
 	{keyword: "protodown_reason", arm: linkArmProtodownReason},
 	{keyword: "gso_max_size", arm: linkArmU32Max, attr: unix.IFLA_GSO_MAX_SIZE, maxVal: math.MaxUint32},
 	{keyword: "gso_max_segs", arm: linkArmU32Max, attr: unix.IFLA_GSO_MAX_SEGS, maxVal: linkGsoMaxSegsCst},
@@ -466,8 +474,10 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		return st.u32Max(kw, v)
 	case linkArmAddrGenMode:
 		return st.addrGenMode(v)
-	case linkArmProtodown:
-		return st.protodown(v)
+	case linkArmProtodown, linkArmCarrier:
+		return st.onOffU8(kw.keyword, v)
+	case linkArmBroadcast, linkArmLinkMode, linkArmOperstate:
+		return st.linkState(kw.arm, v)
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
@@ -628,18 +638,61 @@ func (st *linkParseState) addrGenMode(v string) error {
 	return nil
 }
 
-// protodown is the protodown arm: parse_on_off, then IFLA_PROTO_DOWN u8.
-func (st *linkParseState) protodown(v string) error {
-	on, err := parseOnOff("protodown", v)
+// onOffU8 is the protodown and carrier arms: parse_on_off, then
+// IFLA_PROTO_DOWN or IFLA_CARRIER as a u8.
+func (st *linkParseState) onOffU8(key, v string) error {
+	on, err := parseOnOff(key, v)
 	if err != nil {
 		return err
+	}
+	atype := uint16(unix.IFLA_CARRIER)
+	if key == linkProtodownKeywordCst {
+		atype = unix.IFLA_PROTO_DOWN
 	}
 	var b uint8
 	if on {
 		b = 1
 	}
-	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU8(unix.IFLA_PROTO_DOWN, b))
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU8(atype, b))
 	return nil
+}
+
+// linkState is the broadcast, mode and state arms. broadcast is address's
+// ll_addr_a2n without the length check; mode and state are an index into
+// print's name tables by strcasecmp, refused by invarg.
+func (st *linkParseState) linkState(arm linkArm, v string) error {
+	switch arm {
+	case linkArmBroadcast:
+		b, ok := llAddrA2N(v, linkLLAddrBufCst)
+		if !ok {
+			return fmt.Errorf("%w: %q is invalid lladdr", ErrInvalidArgument, v)
+		}
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrBytes(unix.IFLA_BROADCAST, b))
+	case linkArmLinkMode:
+		m, ok := nameIndex(render.LinkModeNames(), v)
+		if !ok {
+			return linkUsage(invargErr("Invalid link mode\n", v))
+		}
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU8(unix.IFLA_LINKMODE, m))
+	default: // linkArmOperstate
+		o, ok := nameIndex(render.OperStateNames(), v)
+		if !ok {
+			return linkUsage(invargErr("Invalid operstate\n", v))
+		}
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU8(unix.IFLA_OPERSTATE, o))
+	}
+	return nil
+}
+
+// nameIndex is get_operstate's loop: the index of the first name equal to v
+// by strcasecmp.
+func nameIndex(names []string, v string) (uint8, bool) {
+	for i, n := range names {
+		if cStrcaseEq(v, n) {
+			return cint.U8(i)
+		}
+	}
+	return 0, false
 }
 
 // protodownReasonBitsCst is PROTODOWN_REASON_NUM_BITS: a reason is a bit
