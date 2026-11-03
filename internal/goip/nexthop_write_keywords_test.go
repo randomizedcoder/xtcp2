@@ -100,3 +100,24 @@ func TestNexthopWriteHwStats(t *testing.T) {
 		{description: "corner: twice is two attributes", args: "hw_stats on hw_stats off", nhm: nhmOf(0, 0, 0), attrs: cat(hw(1), hw(0))},
 	})
 }
+
+// TestNexthopWriteDstPort is dst_port on iproute2 7.2.0, which has no such
+// keyword: ipnh_modify's last arm, invarg("", *argv), refuses it, after any
+// dev before it has been looked up. GW3-T02.
+//
+// go test ./internal/goip/ -run TestNexthopWriteDstPort
+func TestNexthopWriteDstPort(t *testing.T) {
+	const refused = `Error: argument "dst_port" is wrong: `
+	runNexthopKeywordRows(t, []nexthopKeywordRow{
+		{description: "negative: dst_port", args: "id 31 fdb dst_port 4790", err: ErrInvalidArgument, errMsg: refused},
+		{description: "negative: after a dev", args: "id 10 dev d0 dst_port 4789", resolved: []string{"d0"},
+			err: ErrInvalidArgument, errMsg: refused},
+		{description: "negative: dst_port is not ErrNotImplemented", args: "id 31 dst_port 4790", err: ErrInvalidArgument,
+			errMsg: refused},
+		{description: "boundary: port 0", args: "id 31 via 172.16.1.2 fdb dst_port 0", err: ErrInvalidArgument, errMsg: refused},
+		{description: "corner: as the last word, refused before its value is read", args: "id 31 dst_port",
+			err: ErrInvalidArgument, errMsg: refused},
+		{description: "corner: a prefix of it is refused the same way", args: "dst_p 1", err: ErrInvalidArgument,
+			errMsg: `Error: argument "dst_p" is wrong: `},
+	})
+}

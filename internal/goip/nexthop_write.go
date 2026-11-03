@@ -138,7 +138,7 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 		return w.dev(args, i)
 	case a == nexthopViaKeyCst:
 		return w.via(args, i)
-	case a == tnlKeyEncap, a == "dst_port":
+	case a == tnlKeyEncap:
 		return i, fmt.Errorf("nexthop %s: no capture shows it: %w", a, ErrNotImplemented)
 	case a == "hw_stats":
 		return w.hwStats(args, i)
@@ -159,6 +159,8 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 	case a == "help":
 		return i, fmt.Errorf("nexthop help: %w", ErrNotImplemented)
 	}
+	// The chain's last arm. dst_port lands here too: iproute2 7.2.0 has no
+	// such keyword (ad2b2d95 adds it later).
 	return i, invargErr("", args[i])
 }
 

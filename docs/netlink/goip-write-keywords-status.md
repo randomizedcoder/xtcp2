@@ -31,7 +31,9 @@
 
 - GW3-T01 is done: `hw_stats` is `NHA_HW_STATS_ENABLE` u32 through `parseOnOff`. The 41 rows are `same` (`nhgrp` 120 of 120); 75 rows refuse (V037–V039).
 
-**Next action:** GW3-T02, nexthop `dst_port` (12 rows).
+- GW3-T02 is done: `dst_port` is refused by the chain's last arm, as `ip` 7.2.0 refuses an unknown word. The 12 rows are `same`; 63 rows refuse (V040–V042).
+
+**Next action:** GW3-T03, nexthop `encap mpls` (4 rows), which closes GW3.
 
 ## Contents
 
@@ -57,7 +59,7 @@
 |---|---|---|---|---|---|
 | [GW1](goip-write-keywords.md#gw1--route-keywords) | route | 331 | GW1-T04 | done | V001–V012, DOC002 |
 | [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | done | V013–V036, DOC003 |
-| [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | GW3-T03 | in progress | V037–V039 |
+| [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | GW3-T03 | in progress | V037–V042 |
 | [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | | not started | |
 | [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | | not started | |
 
@@ -80,7 +82,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW2-T07](goip-write-keywords.md#gw2-t07-xdp-off) | link `xdp off` | done | 119 | V031–V033 |
 | [x] | [GW2-T08](goip-write-keywords.md#gw2-t08-index-netns-link-netnsid-and-parentdev) | link `index`, `netns`, `link-netnsid`, `parentdev` | done | 116 | V034–V036 |
 | [x] | [GW3-T01](goip-write-keywords.md#gw3-t01-hw_stats) | nexthop `hw_stats` | done | 75 | V037–V039 |
-| [ ] | [GW3-T02](goip-write-keywords.md#gw3-t02-dst_port) | nexthop `dst_port` | not started | | |
+| [x] | [GW3-T02](goip-write-keywords.md#gw3-t02-dst_port) | nexthop `dst_port` | done | 63 | V040–V042 |
 | [ ] | [GW3-T03](goip-write-keywords.md#gw3-t03-encap-mpls) | nexthop `encap mpls` | not started | | |
 | [ ] | [GW4-T01…](goip-write-keywords.md#gw4--rule-realms) | rule `realms` | not started | | |
 | [ ] | [GW5-T01…](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | matrix rows, VM gate | not started | | |
@@ -130,7 +132,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | DOC003 | 2026-11-02 | GW2 close | The phase closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): GW3 broken into GW3-T01 to T03 with their tables, from `ip` 7.2.0's `ipnh_modify`, `lwt_parse_encap`, `parse_encap_mpls`, `mpls_pton`, `get_addr` and `duparg2`; the inventory's remaining count; `netns` and `link-netns` added to the plan's out-of-scope list; link-write-path.md's statement on the write verbs amended. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | 73183cd7 |
 | V037 | 2026-11-02 | GW3-T01 | as V001 | all pass: `TestNexthopWriteHwStats` (10 rows, in the new `nexthop_write_keywords_test.go` with its row runner); `TestParseNexthopWriteArgs` loses its `hw_stats` not-implemented row. The golden: 116 `refuses` to 75; `nhgrp` 120 `same`, 0 `refuses`; `nh4` and `nh6` 79 `same` and 1 `refuses` each (`dst_port`); `differs` and `sends` 0 in every family | this commit |
 | V038 | 2026-11-02 | GW3-T01 | mutation, as V002: the value inverted; a u8; `hw_stats` by prefix; `NhaHwStatsEnable` as 15; the keyword read as the value | 5 of 5 killed: by on and off; on and off; `hw_stat`; the bytes row; on and off | this commit |
-| V039 | 2026-11-02 | GW3-T01 | as V003 | both pass first time | this commit |
+| V039 | 2026-11-02 | GW3-T01 | as V003 | both pass first time | 32a1ad80 |
+| V040 | 2026-11-02 | GW3-T02 | as V001 | all pass: `TestNexthopWriteDstPort` (6 rows); `TestParseNexthopWriteArgs` loses its `dst_port` not-implemented row. The golden: 75 `refuses` to 63; `nh4` and `nh6` 80 `same`, 0 `refuses`; `fibnh` 398 `same`, 4 `refuses` (`encap`); `differs` and `sends` 0 in every family | this commit |
+| V041 | 2026-11-02 | GW3-T02 | mutation, as V002: `dst_port` still not implemented; a `NEXT_ARG` before the refusal | 2 of 2 killed: by the three refusal rows; the last-word row | this commit |
+| V042 | 2026-11-02 | GW3-T02 | as V003 | both pass first time | this commit |
 
 ## Decision log
 
