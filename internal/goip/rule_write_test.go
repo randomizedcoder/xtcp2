@@ -212,8 +212,6 @@ func TestParseRuleWriteArgs(t *testing.T) {
 		{"negative: an unknown rule type", 0, unix.RTM_NEWRULE, "add bogus", result{err: ErrInvalidArgument}},
 		{"negative: a keyword with no value", 0, unix.RTM_NEWRULE, "add pref", result{err: ErrInvalidArgument}},
 		{"negative: l3mdev with a table", 0, unix.RTM_NEWRULE, "add l3mdev table 100", result{err: ErrInvalidArgument}},
-		{"negative: realms reads rt_realms, which goip does not", 0, unix.RTM_NEWRULE, "add realms 1",
-			result{err: ErrNotImplemented}},
 		{"negative: nat is not built", 0, unix.RTM_NEWRULE, "add nat 192.0.2.1", result{err: ErrNotImplemented}},
 		{"negative: an ipproto name outside goip's table", 0, unix.RTM_NEWRULE, "add ipproto ospf",
 			result{err: ErrNotImplemented}},

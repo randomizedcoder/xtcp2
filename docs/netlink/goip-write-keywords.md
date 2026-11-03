@@ -2,7 +2,7 @@
 
 ## Status
 
-**Last updated:** 2026-11-02
+**Last updated:** 2026-11-03
 
 **Summary:**
 - [goip-link-kinds.md](goip-link-kinds.md) is finished: KC0 to KG5 are closed, and goip-parity's table is 1246 rows.
@@ -66,6 +66,8 @@ By object: route 331, link 190, nexthop 57, rule 30.
 **Remaining after GW2** (DOC003): 116. These are route 2 (as above), link 27, nexthop 57 and rule 30. The link 27 are all `linkattr`: 25 `netns $$` rows, `netns nosuch`, and `xdp off carrier on`, an `xdp` that isn't argv's last word and so is a program load. None of them is a keyword GW3 to GW5 build; they are in the decision log.
 
 **Remaining after GW3** (DOC004): 59. These are route 2 and link 27 (as above), and rule 30. No nexthop row refuses.
+
+**Remaining after GW4** (DOC005): 29. These are route 2 and link 27, as above. Of the 608, 579 rows are `same`: 555 with `ip` rc 0 or 2, and 24 that `ip` refused before sending (rc 1, 22 or 255).
 
 ## Out of scope
 
@@ -555,7 +557,64 @@ The workbench rows: the 30 rows `same`.
 
 ### GW5 — matrix rows and the VM gate
 
-Planned when GW4 closes. goip-parity rows for each keyword group, gated on two clean `--section` runs, and a clean full run before the push.
+Four tasks. GW5-T01 to T03 add goip-parity write rows in `internal/goipparity/commands.go` for the keywords GW1 to GW4 built, by object, with an offline table each. GW5-T04 runs the VM, gates the rows and closes the plan.
+
+The O5 golden already compares all 579 moved rows offline against their captures, so the matrix doesn't take all 555 that sent a request. It takes a sample that runs both `ip` and goip live in the parity VM:
+- **Which rows.** For each keyword form a task built, the first workbench row by id that is `same` now, once with `ip` rc 0 and once with rc 2 if the corpus has one. A "form" is a distinct encoding: each `pref` name, `hw_stats on` and `off`, a one-label and a two-label `encap mpls`, and so on, as each task's section lists them.
+- **Setup.** The row's `pre`, split on ` && ` into `ip` subcommands. A row whose `pre` needs anything else (a `sysctl`, a module) is passed over for the next row of its form, and a form with no such row is recorded in the task's ledger row rather than given a new setup.
+- **Floor.** The row's `ip.pcap` record count: lookups, the write and its answer.
+- **Rows `ip` refused before sending** (rc 1 or 255) aren't matrix rows, since a write row needs goip to exit 0. The offline tables hold them.
+- **Names.** `Slug` is `gw_<family>_<id>`, with the id's `/` as `_`. Argv is the row's `cmd` without the leading `ip`.
+
+#### GW5-T01 the route rows
+
+**Rows.** After the route write rows: `nhid` (a unicast by id, blackhole by id, IPv6), `pref` (`low`, `medium`, `high`, a number), `expires`, `tos` and `dsfield`, `realms` (`TO` and `FROM/TO`), `vrf` (a table under 256 and one over), and multipath `nexthop` (two hops, weights 1 and 256, `onlink`, `via inet6` on an IPv4 route, a per-hop `realms`).
+
+`TestGwRouteMatrixRows` (`internal/goipparity/commands_gw_test.go`):
+
+| description | input | expected |
+|---|---|---|
+| positive: one row per form and rc | the route forms | the first `same` row by id for each, rc 0 and rc 2 |
+| negative: no `ip`-refused row | the route rows with rc 1 or 255 | absent |
+| boundary: each floor | `Floor` | the row's `ip.pcap` record count |
+| corner: each setup | `Setup` | the row's `pre`, split on ` && `, without `ip` |
+| corner: a passed-over row | a form whose first row needs a `sysctl` | the next row of the form, or the form recorded as having none |
+| corner: each name is unique | the rows' `Name`s and `Slug`s | no two alike |
+
+**Mutation check:** a floor one short (the floor row); a setup step dropped (the setup row); an rc 255 row added (the negative row).
+
+#### GW5-T02 the link rows
+
+**Rows.** After the link write rows: the `set address` length lookup, `group` (with a dev, and the group-wide set), the five GSO and GRO sizes, `addrgenmode` (each mode), `protodown` and `protodown_reason`, `broadcast`, `carrier`, `mode`, `state`, `xdp off` (each of the four keywords), `index` on a create, `link-netnsid` and `parentdev`.
+
+`TestGwLinkMatrixRows`: GW5-T01's table over the link forms, plus:
+
+| description | input | expected |
+|---|---|---|
+| corner: a set's floor counts the address-length get | a `set … address` row | the lookup, the get by index, the write and its answer |
+| corner: the group-wide set has no lookup | `link set group 1 mtu 1400` | `Floor` 2 |
+
+**Mutation check:** as GW5-T01, and the address-length get left out of a floor.
+
+#### GW5-T03 the nexthop and rule rows
+
+**Rows.** After the nexthop and rule write rows: `hw_stats on` and `off` (a single nexthop and a group), `encap mpls` (one label, two, a `ttl`, an IPv6 gateway), and rule `realms` (`TO` and `FROM/TO`).
+
+`TestGwNexthopRuleMatrixRows`: GW5-T01's table over these forms. `dst_port` has no row, since `ip` 7.2.0 refuses it.
+
+**Mutation check:** as GW5-T01.
+
+#### GW5-T04 the VM gate
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: two consecutive clean section runs | `goip-parity -- --section route`, `link`, `nexthop` and `rule`, each twice | the GW5 rows `PASS` on both runs, and every gated row of the section still `PASS` |
+| corner: the kernel-refused rows compare on the request | the rc 2 rows | `PASS` |
+| positive: one clean full run | `goip-parity` with no section | every gated row `PASS` |
+
+Then the rows go in `gated_commands`, each in `TestAllowlistCommitted`'s earned list. The full run comes before the next push.
+
+**Done when:** the offline tables pass; the section runs and the full run are clean; the rows are gated; lint-baseline passes. It closes GW5 and the plan.
 
 ## See also
 
