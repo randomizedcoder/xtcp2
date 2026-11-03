@@ -2453,6 +2453,98 @@ var commands = withArgs([]Command{
 		// RTM_DELLINK by index.
 		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
 	},
+	// The GW link rows (goip-write-keywords.md, "GW5-T02 the link rows"):
+	// as the GW route rows, for the link keyword forms GW2 built.
+	{
+		Name: "link set dev d0 up mtu 1400 txqueuelen 500 group 5 alias hello address 02:00:00:00:00:aa multicast on gso_max_size 32768 mode dormant name d9", Slug: "gw_linkset_ec_002",
+		// linkset/ec-002: address (rc 0), gso_max_size (rc 0), mode (rc 0).
+		Floor: 6, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 address 01:00:00:00:00:01", Slug: "gw_linkset_ng_006",
+		// linkset/ng-006: address (rc 2).
+		Floor: 6, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 mtu 0 txqlen 0 group 2147483647 alias aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa gso_max_segs 65535", Slug: "gw_linkset_bd_001",
+		// linkset/bd-001: group_dev (rc 0), gso_max_segs (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 mtu 65535 qlen 32767 group 2147483647 alias aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa gro_max_size 524280", Slug: "gw_linkset_bd_002",
+		// linkset/bd-002: gro_max_size (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 gro_max_size 524281", Slug: "gw_linkset_ng_009",
+		// linkset/ng-009: gro_max_size (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 dynamic on gso_ipv4_max_size 32768", Slug: "gw_linkset_ec_007",
+		// linkset/ec-007: gso_ipv4_max_size (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 trailers off gro_ipv4_max_size 32768", Slug: "gw_linkset_ec_008",
+		// linkset/ec-008: gro_ipv4_max_size (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 master br0 addrgenmode eui64 xdpgeneric none", Slug: "gw_linkattr_pw_005",
+		// linkattr/pw-005: agm_eui64 (rc 0), xdpgeneric (rc 0).
+		Floor: 6, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	{
+		Name: "link set dev d0 vrf v0 addrgenmode none carrier on xdpdrv off", Slug: "gw_linkattr_pw_010",
+		// linkattr/pw-010: agm_none (rc 0).
+		Floor: 8, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	{
+		Name: "link set dev d0 addrgenmode stable_secret", Slug: "gw_linkattr_ng_004",
+		// linkattr/ng-004: agm_stable_secret (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	{
+		Name: "link set dev d0 nomaster addrgenmode random xdpdrv off", Slug: "gw_linkattr_ec_004",
+		// linkattr/ec-004: agm_random (rc 0), xdpdrv (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	{
+		Name: "link set dev m0 protodown on protodown_reason 0 on up", Slug: "gw_linkpd_ec_002",
+		// linkpd/ec-002: protodown (rc 0), protodown_reason (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkMacvlan,
+	},
+	{
+		Name: "link set dev d0 protodown on", Slug: "gw_linkattr_ng_009",
+		// linkattr/ng-009: protodown (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	{
+		Name: "link set dev m0 protodown off protodown_reason 0 on up", Slug: "gw_linkpd_pw_008",
+		// linkpd/pw-008: protodown_reason (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkMacvlan,
+	},
+	{
+		Name: "link set dev d0 mtu 65535 qlen 32767 group 2147483647 broadcast ff:ff:ff:ff:ff:fe promisc on gro_max_size 32768 state dormant", Slug: "gw_linkset_ec_004",
+		// linkset/ec-004: broadcast (rc 0), state (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkD0,
+	},
+	{
+		Name: "link set dev d0 master br0 addrgenmode random carrier off xdp off", Slug: "gw_linkattr_pw_007",
+		// linkattr/pw-007: carrier (rc 0), xdp (rc 0).
+		Floor: 6, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	{
+		Name: "link set dev d0 link-netnsid 5", Slug: "gw_linkattr_ng_008",
+		// linkattr/ng-008: link_netnsid (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	{
+		Name: "link set dev d0 parentdev br0", Slug: "gw_linkattr_parentdev",
+		// linkattr/parentdev: parentdev (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
 	// The inet rows (goip-link-kinds.md, KG0-T02): KC1-T01's 11 rows the
 	// kernel answers, in its order, from pkg/xtcpnl/testdata/7_3_0/link-write/
 	// rtnl/inet_*. Each is the d0 lookup and the write (4). The 7 rows ip
@@ -7060,6 +7152,14 @@ var (
 // bridgeReadSetup is the bridge read rows' namespace, PRE_PORTS: br0 and
 // its ports p0 and p1, dummies, none up.
 var bridgeReadSetup = bridgeWriteSetupPorts
+
+// The GW link rows' preconditions: nlcapgen's d0, with the bridge and vrf
+// a master needs, or with a macvlan, whose protodown a dummy refuses.
+var (
+	gwWsLinkD0      = []string{"link add d0 type dummy", "link set d0 addrgenmode none"}
+	gwWsLinkBrVrf   = append(slices.Clone(gwWsLinkD0), "link add br0 type bridge", "link add v0 type vrf table 10")
+	gwWsLinkMacvlan = append(slices.Clone(gwWsLinkD0), "link add m0 link d0 type macvlan mode bridge")
+)
 
 // The GW rows' preconditions: the workbench's d0 (nlcapgen's routeSetup), and
 // with nexthop 10 by a v4 or a v6 gateway.

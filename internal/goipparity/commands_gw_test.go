@@ -384,3 +384,61 @@ func TestGwSetup(t *testing.T) {
 		})
 	}
 }
+
+// TestGwLinkMatrixRows pins GW5-T02's rows (goip-write-keywords.md, "GW5-T02
+// the link rows"): one per link keyword form GW2 built and ip rc.
+//
+// go test ./internal/goipparity/ -run TestGwLinkMatrixRows
+func TestGwLinkMatrixRows(t *testing.T) {
+	runGwMatrix(t, []string{"linkset", "linkadd", "linkattr", "linkpd", "linkprop"}, []gwForm{
+		{"positive: a set's address, its length got by index", `^ip link set dev \S+ .*\baddr(ess)? [0-9a-f:]+`, "",
+			[2]string{"linkset/ec-002", "linkset/ng-006"}},
+		{"positive: group with a dev, rc 0 alone", `^ip link set dev \S+ .*\bgroup \S+`, "", [2]string{"linkset/bd-001", ""}},
+		{"boundary: the group-wide set, no row", `^ip link set group \S+`, "", [2]string{"", ""}},
+		{"positive: gso_max_size", `\bgso_max_size \d`, "", [2]string{"linkset/ec-002", ""}},
+		{"positive: gso_max_segs", `\bgso_max_segs \d`, "", [2]string{"linkset/bd-001", ""}},
+		{"positive: gro_max_size, one past its bound at rc 2", `\bgro_max_size \d`, "", [2]string{"linkset/bd-002", "linkset/ng-009"}},
+		{"positive: gso_ipv4_max_size", `\bgso_ipv4_max_size \d`, "", [2]string{"linkset/ec-007", ""}},
+		{"positive: gro_ipv4_max_size", `\bgro_ipv4_max_size \d`, "", [2]string{"linkset/ec-008", ""}},
+		{"positive: addrgenmode eui64", `^ip link set .*\baddrgenmode eui64\b`, "", [2]string{"linkattr/pw-005", ""}},
+		{"positive: addrgenmode none", `^ip link set .*\baddrgenmode none\b`, "", [2]string{"linkattr/pw-010", ""}},
+		{"corner: addrgenmode stable_secret, rc 2 alone, with no secret set", `^ip link set .*\baddrgenmode stable_secret\b`, "",
+			[2]string{"", "linkattr/ng-004"}},
+		{"positive: addrgenmode random", `^ip link set .*\baddrgenmode random\b`, "", [2]string{"linkattr/ec-004", ""}},
+		{"positive: protodown, a dummy's at rc 2", `\bprotodown (on|off)\b`, "", [2]string{"linkpd/ec-002", "linkattr/ng-009"}},
+		{"positive: protodown_reason", `\bprotodown_reason \d`, "", [2]string{"linkpd/ec-002", "linkpd/pw-008"}},
+		{"positive: broadcast", `\b(broadcast|brd) [0-9a-f:]+`, "", [2]string{"linkset/ec-004", ""}},
+		{"positive: carrier", `\bcarrier (on|off)\b`, "", [2]string{"linkattr/pw-007", ""}},
+		{"positive: mode", `\bmode (default|dormant)\b`, "", [2]string{"linkset/ec-002", ""}},
+		{"positive: state", `\bstate \S+`, "", [2]string{"linkset/ec-004", ""}},
+		{"positive: xdp off", `\bxdp (off|none)$`, "", [2]string{"linkattr/pw-007", ""}},
+		{"positive: xdpgeneric none", `\bxdpgeneric (off|none)$`, "", [2]string{"linkattr/pw-005", ""}},
+		{"positive: xdpdrv off", `\bxdpdrv (off|none)$`, "", [2]string{"linkattr/ec-004", ""}},
+		{"boundary: xdpoffload, no row", `\bxdpoffload (off|none)$`, "", [2]string{"", ""}},
+		{"boundary: index on a create, no row", `^ip link add .*\bindex \d+`, "", [2]string{"", ""}},
+		{"corner: link-netnsid, rc 2 alone, with no such namespace", `\blink-netnsid \S+`, "", [2]string{"", "linkattr/ng-008"}},
+		{"positive: parentdev", `\bparentdev \S+`, "", [2]string{"linkattr/parentdev", ""}},
+	})
+	t.Run("corner: a set's floor counts the address-length get", func(t *testing.T) {
+		// The lookup by name, the get by index and the write, each answered.
+		for _, slug := range []string{"gw_linkset_ec_002", "gw_linkset_ng_006"} {
+			c := lookupSlug(t, slug)
+			if c.Floor != 6 {
+				t.Errorf("%s: Floor %d, expected 6", slug, c.Floor)
+			}
+		}
+	})
+}
+
+// lookupSlug is the table's row with slug.
+func lookupSlug(t *testing.T, slug string) Command {
+	t.Helper()
+	all := Commands()
+	for i := range all {
+		if all[i].Slug == slug {
+			return all[i]
+		}
+	}
+	t.Fatalf("no row %s", slug)
+	return Command{}
+}

@@ -605,7 +605,7 @@ The O5 golden already compares all 579 moved rows offline against their captures
 | description | input | expected |
 |---|---|---|
 | corner: a set's floor counts the address-length get | a `set … address` row | the lookup, the get by index, the write and its answer |
-| corner: the group-wide set has no lookup | `link set group 1 mtu 1400` | `Floor` 2 |
+| boundary: the group-wide set | `^ip link set group` | no row: the corpus never runs one, so its no-lookup floor of 2 is left to the offline tables |
 
 **Mutation check:** as GW5-T01, and the address-length get left out of a floor.
 

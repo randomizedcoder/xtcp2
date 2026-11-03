@@ -41,7 +41,9 @@
 
 - GW5-T01 is done: 11 route rows in goip-parity's matrix, one per route keyword form and `ip` rc the corpus has with an `ip`-only setup, each the workbench row's argv, setup and floor (V049–V051). Ten forms have no such row and are recorded in V049. The rows are ungated until GW5-T04.
 
-**Next action:** GW5-T02, the link matrix rows.
+- GW5-T02 is done: 18 link rows, as GW5-T01's (V052–V054). Three forms have no row (the group-wide set, `xdpoffload`, `index` on a create), recorded in V052.
+
+**Next action:** GW5-T03, the nexthop and rule matrix rows.
 
 ## Contents
 
@@ -94,7 +96,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW3-T03](goip-write-keywords.md#gw3-t03-encap-mpls) | nexthop `encap mpls` | done | 59 | V043–V045 |
 | [x] | [GW4-T01](goip-write-keywords.md#gw4-t01-realms) | rule `realms` | done | 29 | V046–V048 |
 | [x] | [GW5-T01](goip-write-keywords.md#gw5-t01-the-route-rows) | route matrix rows | done | 29 | V049–V051 |
-| [ ] | [GW5-T02](goip-write-keywords.md#gw5-t02-the-link-rows) | link matrix rows | not started | | |
+| [x] | [GW5-T02](goip-write-keywords.md#gw5-t02-the-link-rows) | link matrix rows | done | 29 | V052–V054 |
 | [ ] | [GW5-T03](goip-write-keywords.md#gw5-t03-the-nexthop-and-rule-rows) | nexthop and rule matrix rows | not started | | |
 | [ ] | [GW5-T04](goip-write-keywords.md#gw5-t04-the-vm-gate) | the VM gate | not started | | |
 
@@ -155,9 +157,12 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V047 | 2026-11-03 | GW4-T01 | mutation, as V002: `FRA_FLOW` as `FRA_FWMARK`; `realms` by `strcmp`; the keyword read as the value; the `FROM` half not shifted | 4 of 4 killed: by the TO, FROM/TO and name rows; `r`; the TO row; FROM/TO and 255/255 | 092b72a4 |
 | V048 | 2026-11-03 | GW4-T01 | as V003 | both pass first time | 092b72a4 |
 | DOC005 | 2026-11-03 | GW4 close | The phase closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): GW5 broken into GW5-T01 to T04 with their tables, the matrix taking a sample of the 555 moved rows `ip` sent, one per keyword form and rc; the inventory's remaining count. No cross-doc statement was made false. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | 092b72a4 |
-| V049 | 2026-11-03 | GW5-T01 | `go vet ./internal/goipparity/`, `go test -count=1 -race ./internal/goipparity/` | all pass: `TestGwRouteMatrixRows` (25 subtests: 19 forms and 6 checks), `TestGwSetup` (6 rows), and `TestCompareWriteRow`'s every-write-row pass over the 11 rows' workbench captures. The rows: nhid (v4 unicast, v4 blackhole, IPv6 with rc 2), `pref` `low`, `medium` (both rc), `high`, `expires` (both rc), two hops with weights 1 and 256 (both rc): `route4/pw-023`, `ec-006`, `pw-004`, `ec-005`; `route6/ec-006`, `gone-3`, `ec-002`, `ec-003`, `pw-030`, `ec-004`, `pw-029`. No row, every candidate's pre running `sysctl` or tolerating a failure: `pref` by number, `dsfield`, `vrf` (both table forms). No candidate at all: `tos`, `realms` `TO` and `FROM/TO`, a hop `onlink`, a hop `via inet6` on IPv4, a hop's `realms`. No rc 2 row: nhid v4 unicast, `pref high`, and nhid v4 blackhole, whose `dup-2` repeats `ec-006`'s argv | this commit |
-| V050 | 2026-11-03 | GW5-T01 | mutation, as V002, `-run 'TestGwRouteMatrixRows\|TestGwSetup'`: a floor one short; a setup step dropped; an rc 255 row added; the repeated-argv pass-over dropped; a non-`ip` step skipped rather than disqualifying | 5 of 5 killed: by the floor row; the setup row; the table, negative and floor rows; the blackhole and IPv6 forms and the table row; `TestGwSetup`'s sysctl and `ipset` rows. The last survived the corpus tables alone, since each `sysctl` row there also has a tolerant step, so `TestGwSetup` was added | this commit |
-| V051 | 2026-11-03 | GW5-T01 | as V003 | lint-baseline's first run failed: `rangeValCopy` on the 144-byte `Command` loops in `commands_gw_test.go`, fixed by indexing; both checks then pass | this commit |
+| V049 | 2026-11-03 | GW5-T01 | `go vet ./internal/goipparity/`, `go test -count=1 -race ./internal/goipparity/` | all pass: `TestGwRouteMatrixRows` (25 subtests: 19 forms and 6 checks), `TestGwSetup` (6 rows), and `TestCompareWriteRow`'s every-write-row pass over the 11 rows' workbench captures. The rows: nhid (v4 unicast, v4 blackhole, IPv6 with rc 2), `pref` `low`, `medium` (both rc), `high`, `expires` (both rc), two hops with weights 1 and 256 (both rc): `route4/pw-023`, `ec-006`, `pw-004`, `ec-005`; `route6/ec-006`, `gone-3`, `ec-002`, `ec-003`, `pw-030`, `ec-004`, `pw-029`. No row, every candidate's pre running `sysctl` or tolerating a failure: `pref` by number, `dsfield`, `vrf` (both table forms). No candidate at all: `tos`, `realms` `TO` and `FROM/TO`, a hop `onlink`, a hop `via inet6` on IPv4, a hop's `realms`. No rc 2 row: nhid v4 unicast, `pref high`, and nhid v4 blackhole, whose `dup-2` repeats `ec-006`'s argv | d017fb81 |
+| V050 | 2026-11-03 | GW5-T01 | mutation, as V002, `-run 'TestGwRouteMatrixRows\|TestGwSetup'`: a floor one short; a setup step dropped; an rc 255 row added; the repeated-argv pass-over dropped; a non-`ip` step skipped rather than disqualifying | 5 of 5 killed: by the floor row; the setup row; the table, negative and floor rows; the blackhole and IPv6 forms and the table row; `TestGwSetup`'s sysctl and `ipset` rows. The last survived the corpus tables alone, since each `sysctl` row there also has a tolerant step, so `TestGwSetup` was added | d017fb81 |
+| V051 | 2026-11-03 | GW5-T01 | as V003 | lint-baseline's first run failed: `rangeValCopy` on the 144-byte `Command` loops in `commands_gw_test.go`, fixed by indexing; both checks then pass | d017fb81 |
+| V052 | 2026-11-03 | GW5-T02 | as V049 | all pass: `TestGwLinkMatrixRows` (25 forms, the 6 checks and the address-floor row). The rows: `linkset/ec-002` (address, `gso_max_size`, `mode`), `ng-006` (address, rc 2), `bd-001` (`group` with a dev, `gso_max_segs`), `bd-002` and `ng-009` (`gro_max_size`), `ec-007`, `ec-008`, `ec-004` (`broadcast`, `state`); `linkattr/pw-005` (`eui64`, `xdpgeneric`), `pw-010` (`none`), `ng-004` (`stable_secret`, rc 2 alone), `ec-004` (`random`, `xdpdrv`), `ng-009` (`protodown` on a dummy, rc 2), `pw-007` (`carrier`, `xdp`), `ng-008` (`link-netnsid`, rc 2 alone), `parentdev`; `linkpd/ec-002` and `pw-008` (`protodown`, `protodown_reason`). The two address rows' floor is 6: the lookup, the get by index and the write, each answered. No row: the group-wide set, `xdpoffload` and `index` on a create, which the corpus never runs, so the plan's group-wide corner row has nothing to pin | this commit |
+| V053 | 2026-11-03 | GW5-T02 | mutation, as V050, `-run TestGwLinkMatrixRows`: a floor one short; the address-length get left out of a floor; the macvlan left out of a setup; an rc 255 row (`netns nosuch`) added | 4 of 4 killed: by the floor row; the floor and address-floor rows; the setup row; the table, negative and floor rows | this commit |
+| V054 | 2026-11-03 | GW5-T02 | as V003 | both pass first time | this commit |
 
 ## Decision log
 
