@@ -194,6 +194,47 @@ func TestCAtoi(t *testing.T) {
 	}
 }
 
+// TestCStrtol is strtol on a 64-bit long: the value and endptr, clamped to
+// the long range on ERANGE.
+//
+// go test ./internal/goip/ -run TestCStrtol
+func TestCStrtol(t *testing.T) {
+	type result struct {
+		val int64
+		end int
+	}
+	tests := []struct {
+		description string
+		arg         string
+		base        int
+		expected    result
+	}{
+		{description: "positive: decimal", arg: "42", expected: result{42, 2}},
+		{description: "positive: hex in base 0", arg: "0x10", expected: result{16, 4}},
+		{description: "positive: octal in base 0", arg: "010", expected: result{8, 3}},
+		{description: "positive: negative", arg: "-5", expected: result{-5, 2}},
+		{description: "negative: no digits", arg: "x", expected: result{0, 0}},
+		{description: "negative: empty", arg: "", expected: result{0, 0}},
+		{description: "boundary: LONG_MAX", arg: "9223372036854775807", expected: result{math.MaxInt64, 19}},
+		{description: "boundary: LONG_MAX+1 clamps", arg: "9223372036854775808", expected: result{math.MaxInt64, 19}},
+		{description: "boundary: LONG_MIN", arg: "-9223372036854775808", expected: result{math.MinInt64, 20}},
+		{description: "boundary: LONG_MIN-1 clamps", arg: "-9223372036854775809", expected: result{math.MinInt64, 20}},
+		{description: "corner: past ULONG_MAX clamps", arg: "99999999999999999999", expected: result{math.MaxInt64, 20}},
+		{description: "corner: past ULONG_MAX negative clamps", arg: "-99999999999999999999", expected: result{math.MinInt64, 21}},
+		{description: "corner: trailing garbage stops end", arg: "5x", expected: result{5, 1}},
+		{description: "corner: base 10 reads 0x10 as 0", arg: "0x10", base: 10, expected: result{0, 1}},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			val, end := cStrtol(tc.arg, tc.base)
+			if got := (result{val, end}); got != tc.expected {
+				t.Errorf("strtol(%q, %d) = %+v, want %+v", tc.arg, tc.base, got, tc.expected)
+			}
+		})
+	}
+}
+
 // TestGetAddr is get_addr_1 for AF_INET (as get_addr32 reads it) and AF_INET6.
 //
 // go test ./internal/goip/ -run TestGetAddr

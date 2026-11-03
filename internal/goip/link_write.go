@@ -97,6 +97,7 @@ const (
 	linkArmVrf  // a vrf by name, sent as IFLA_MASTER
 	linkArmTxQueues
 	linkArmRxQueues
+	linkArmGroup
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -156,7 +157,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "dynamic", prefix: true, arm: linkArmFlag, flag: unix.IFF_DYNAMIC, onSets: true},
 	{keyword: linkTypeKeywordCst, prefix: true, arm: linkArmType},
 	{keyword: "alias", prefix: true, arm: linkArmAlias},
-	{keyword: "group", arm: linkArmUnsupported},
+	{keyword: linkGroupKeywordCst, arm: linkArmGroup},
 	{keyword: "mode", arm: linkArmUnsupported},
 	{keyword: "state", arm: linkArmUnsupported},
 	{keyword: numTxQueuesKeywordCst, prefix: true, arm: linkArmTxQueues},
@@ -295,6 +296,8 @@ type linkParseState struct {
 	// devIndex is dev's index once a lookup found it: ll_name_to_index
 	// caches a hit, so finish doesn't look it up again. A miss isn't kept.
 	devIndex int32
+	// groupSet is iplink_parse's group != -1.
+	groupSet bool
 	out      linkParsed
 	name     string
 	dev      string
@@ -433,6 +436,16 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		return st.intAttr(&st.rxq, numRxQueuesKeywordCst, unix.IFLA_NUM_RX_QUEUES, v)
 	case linkArmVrf:
 		return st.vrf(v)
+	case linkArmGroup:
+		if st.groupSet {
+			return linkUsage(dupargErr(linkGroupKeywordCst, v))
+		}
+		g, ok := rtnlGroupA2N(v)
+		if !ok {
+			return linkUsage(invargErr("Invalid \"group\" value\n", v))
+		}
+		st.groupSet = true
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_GROUP, g))
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
@@ -464,6 +477,28 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		return fmt.Errorf("goip: link keyword %q has no value reader", kw.keyword)
 	}
 	return nil
+}
+
+// linkGroupKeywordCst is iplink_parse's `group`, compared with strcmp.
+const linkGroupKeywordCst = "group"
+
+// rtnlGroupA2N is rtnl_group_a2n (lib/rt_names.c:713): the stock group
+// file's one name, default, then strtol in base 0 over the whole argument
+// into an int, refused when negative. The int keeps the long's low 32 bits,
+// so 2147483648 is refused and 4294967296 is 0.
+func rtnlGroupA2N(arg string) (uint32, bool) {
+	if arg == addrNameDefaultCst {
+		return 0, true
+	}
+	l, end := cStrtol(arg, 0)
+	if end == 0 || end != len(arg) {
+		return 0, false
+	}
+	i := cint.LongToInt(l)
+	if i < 0 {
+		return 0, false
+	}
+	return cint.Bits(i), true
 }
 
 // vrf is `vrf NAME`: ll_name_to_index, then name_is_vrf, either failing
@@ -599,6 +634,10 @@ func (st *linkParseState) finish() error {
 		}
 	}
 
+	if st.groupSet && !haveDev {
+		return st.groupWide()
+	}
+
 	if !st.create {
 		if !haveDev {
 			return linkUsage(fmt.Errorf("%w: Not enough information: \"dev\" argument is required", ErrInvalidArgument))
@@ -639,6 +678,22 @@ func (st *linkParseState) finish() error {
 	if haveDev {
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrString(unix.IFLA_IFNAME, st.dev))
 	}
+	return nil
+}
+
+// groupWide is iplink_parse's `group` with no dev (ip/iplink.c:1299): a set
+// of every device in the group, sent with ifi_index 0 and IFLA_GROUP. Words
+// after a type are refused, and so is a create; a type with none is dropped.
+// Both refusals are exit(-1).
+func (st *linkParseState) groupWide() error {
+	if len(st.out.rest) > 0 {
+		return linkUsage(fmt.Errorf("%w: Garbage instead of arguments \"%s ...\". Try \"ip link help\"",
+			ErrInvalidArgument, st.out.rest[0]))
+	}
+	if st.create {
+		return linkUsage(fmt.Errorf("%w: group cannot be used when creating devices", ErrInvalidArgument))
+	}
+	st.out.kind, st.out.hasKind = "", false
 	return nil
 }
 

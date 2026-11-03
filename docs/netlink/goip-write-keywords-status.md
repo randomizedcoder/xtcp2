@@ -14,7 +14,9 @@
 
 - GW2-T01 is done: `set … address` runs `nl_get_ll_addr_len`'s get by index and checks the reply's address length. The 2 rows are `same`; 277 rows refuse (V013–V015).
 
-**Next action:** GW2-T02, link `group` (61 rows).
+- GW2-T02 is done: `group` is `IFLA_GROUP`, with `rtnl_group_a2n`'s int truncation, and with no dev the group-wide set. Of its 61 rows, 1 is `same` and 60 now stop at a later GW2 keyword; 276 rows refuse (V016–V018).
+
+**Next action:** GW2-T03, link GSO and GRO sizes (96 rows now stop there).
 
 ## Contents
 
@@ -39,7 +41,7 @@
 | Phase | Object | Rows | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [GW1](goip-write-keywords.md#gw1--route-keywords) | route | 331 | GW1-T04 | done | V001–V012, DOC002 |
-| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V015 |
+| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V018 |
 | [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | | not started | |
 | [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | | not started | |
 | [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | | not started | |
@@ -55,7 +57,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW1-T03](goip-write-keywords.md#gw1-t03-tos-dsfield-realms-and-vrf) | route `tos`/`dsfield`, `realms`, `vrf` | done | 374 | V007–V009 |
 | [x] | [GW1-T04](goip-write-keywords.md#gw1-t04-multipath-nexthop) | route multipath `nexthop` | done | 279 | V010–V012 |
 | [x] | [GW2-T01](goip-write-keywords.md#gw2-t01-the-set-address-length-lookup) | link `set address` length lookup | done | 277 | V013–V015 |
-| [ ] | [GW2-T02](goip-write-keywords.md#gw2-t02-group) | link `group` | not started | | |
+| [x] | [GW2-T02](goip-write-keywords.md#gw2-t02-group) | link `group` | done | 276 | V016–V018 |
 | [ ] | [GW2-T03](goip-write-keywords.md#gw2-t03-gso-and-gro-sizes) | link GSO and GRO sizes | not started | | |
 | [ ] | [GW2-T04](goip-write-keywords.md#gw2-t04-addrgenmode) | link `addrgenmode` | not started | | |
 | [ ] | [GW2-T05](goip-write-keywords.md#gw2-t05-protodown-and-protodown_reason) | link `protodown`, `protodown_reason` | not started | | |
@@ -86,7 +88,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | DOC002 | 2026-11-02 | GW1 close | The phase closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): GW2 broken into GW2-T01 to T08 with their tables, from `ip` 7.2.0's `iplink_parse`, `iplink_modify`, `nl_get_ll_addr_len`, `xdp_parse`, `rtnl_group_a2n`, `protodown_reason_a2n`, `get_operstate` and `parse_on_off`; the inventory's remaining count; route-write-path.md's multipath statements amended. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | acbabfef |
 | V013 | 2026-11-02 | GW2-T01 | as V001 | all pass: `TestLinkWriteAddrLen` (13 rows) and `TestLinkInfoDataByIndex` (7 rows). `TestBuildLinkWrite`'s row loop is now `runLinkWriteRows`, shared, with a fake get by index whose calls list beside the names, and it loses its address-length refusal row. The golden: 279 `refuses` to 277, the 2 `set address` rows `same` (linkset); their by-index gets match `ip`'s bytes; `differs` and `sends` 0 in every family | this commit |
 | V014 | 2026-11-02 | GW2-T01 | mutation, as V002: the length check as `>=`, and as `<=`; the get with ext mask 1 (`-run TestLinkInfoDataByIndex`); a refused get returned rather than skipped; the check on add; dev looked up again after the check; the linkinfo walk resetting the address (`-run TestLinkInfoDataByIndex`); the family of the get as `AF_UNSPEC` | 8 of 8 killed: by the short and one-byte rows; the long row; 4 of the 7 rows; the refused-get row; the add row; 4 rows, by their lookup lists; the address-and-kind row; the `-6` row. The first refused-get mutant didn't compile and was rewritten | this commit |
-| V015 | 2026-11-02 | GW2-T01 | as V003 | both pass; the first lint run found gofmt on the new test file, fixed | this commit |
+| V015 | 2026-11-02 | GW2-T01 | as V003 | both pass; the first lint run found gofmt on the new test file, fixed | a19f251e |
+| V016 | 2026-11-02 | GW2-T02 | as V001 | all pass: `TestLinkWriteGroup` (21 rows) and `TestCStrtol` (14 rows). `TestBuildLinkWrite`'s `group` refusal row becomes a `carrier` one, still refused until GW2-T06. The golden: 277 `refuses` to 276; of the 61 `group` rows 1 `same` and 60 refusing at a later GW2 keyword (gso/gro 96 in all, broadcast 16, mode 5, state 2); `differs` and `sends` 0 in every family | this commit |
+| V017 | 2026-11-02 | GW2-T02 | mutation, as V002: the long not truncated to an int; `duparg` dropped; `default` by prefix; the group-wide create allowed; the group-wide kind kept; base 10; the group-wide path dropped | 7 of 7 killed: by the 2^32 and 2^32+5 rows; the second-group row; `group def`; the create row; the dropped-type row; the hex and octal rows; the four group-wide rows. The first truncation mutant didn't compile and was rewritten | this commit |
+| V018 | 2026-11-02 | GW2-T02 | as V003 | both pass first time | this commit |
 
 ## Decision log
 
@@ -101,4 +106,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **coverage-status.md's O5 table is left as W2c's snapshot.** It records that task's counts, not the current ones, which are in the golden and in this document.
 - **GW2-T01 reuses the tunnel prefetch's get.** `nl_get_ll_addr_len` sends the same 32 bytes as `LinkInfoDataByIndex`, so the check takes the `fetch` callback the tunnel parsers already have, rather than a second callback for the same request.
 - **dev's index from the check is kept for `finish`.** `ll_name_to_index` caches a hit, so `ip` sends one get by name for both. A miss isn't cached in either, so a missing device costs two gets in both.
+- **The group-wide set is built, not refused.** The plan had `group` with no dev as `ErrNotImplemented`. It is `iplink_parse`'s early return with the request as the loop left it, so goip sends that request: `ifi_index` 0 and `IFLA_GROUP`.
 - **Names from config files are the stock files' names only.** goip reads no `rt_dsfield`, `rt_realms` or `group` file, so it takes the numeric forms and the names iproute2 7.2.0 ships, as with `rt_tables`.

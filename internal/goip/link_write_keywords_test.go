@@ -1,6 +1,7 @@
 package goip
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -64,4 +65,70 @@ func TestLinkWriteAddrLen(t *testing.T) {
 func linkWithFamily(e linkWriteExpected, family uint8) linkWriteExpected {
 	e.write.Family = family
 	return e
+}
+
+// TestLinkWriteGroup is iplink_parse's group arm (ip/iplink.c:1102):
+// rtnl_group_a2n, default or strtol in base 0 into an int, refused when
+// negative, and IFLA_GROUP u32; duparg on a second. With no dev it is a
+// group-wide set (:1299), ifi_index 0. GW2-T02.
+//
+// go test ./internal/goip/ -run TestLinkWriteGroup
+func TestLinkWriteGroup(t *testing.T) {
+	group := func(g uint32) xtcpnl.LinkAttr { return xtcpnl.LinkAttrU32(unix.IFLA_GROUP, g) }
+	set := func(index int32, resolved []string, a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: index, Attrs: a,
+		}, resolved: resolved}
+	}
+	d0 := []string{"d0"}
+	usage := func(msg string) linkWriteExpected {
+		return linkWriteExpected{err: ErrLinkUsage, errMsg: msg}
+	}
+	invalid := `Error: argument %q is wrong: Invalid "group" value`
+	runLinkWriteRows(t, []linkWriteRow{
+		{description: "positive: a number", verb: "set", args: []string{"dev", "d0", "group", "5"}, expected: set(2, d0, group(5))},
+		{description: "positive: the stock name", verb: "set", args: []string{"dev", "d0", "group", "default"},
+			expected: set(2, d0, group(0))},
+		{description: "positive: hex, base 0", verb: "set", args: []string{"dev", "d0", "group", "0x10"}, expected: set(2, d0, group(16))},
+		{description: "positive: octal, base 0", verb: "set", args: []string{"dev", "d0", "group", "010"}, expected: set(2, d0, group(8))},
+		{description: "positive: in word order", verb: "set", args: []string{"dev", "d0", "mtu", "1400", "group", "5"},
+			expected: set(2, d0, xtcpnl.LinkAttrU32(unix.IFLA_MTU, 1400), group(5))},
+		{description: "positive: a group-wide set has no dev and index 0", verb: "set", args: []string{"group", "5", "up"},
+			expected: linkWriteExpected{write: xtcpnl.LinkWrite{
+				MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, IfFlags: unix.IFF_UP, IfChange: unix.IFF_UP,
+				Attrs: []xtcpnl.LinkAttr{group(5)},
+			}}},
+		{description: "negative: a word", verb: "set", args: []string{"dev", "d0", "group", "nosuch"},
+			expected: usage(fmt.Sprintf(invalid, "nosuch"))},
+		{description: "negative: negative", verb: "set", args: []string{"dev", "d0", "group", "-1"},
+			expected: usage(fmt.Sprintf(invalid, "-1"))},
+		{description: "negative: trailing garbage", verb: "set", args: []string{"dev", "d0", "group", "5x"},
+			expected: usage(fmt.Sprintf(invalid, "5x"))},
+		{description: "negative: a second group", verb: "set", args: []string{"dev", "d0", "group", "1", "group", "2"},
+			expected: usage(`duplicate "group": "2" is the second value`)},
+		{description: "negative: a group-wide create", verb: "add", args: []string{"group", "5", "type", "dummy"},
+			expected: usage("group cannot be used when creating devices")},
+		{description: "negative: kind words on a group-wide set", verb: "set", args: []string{"group", "5", "type", "bond", "mode", "1"},
+			expected: usage(`Garbage instead of arguments "mode ..."`)},
+		{description: "boundary: the largest", verb: "set", args: []string{"dev", "d0", "group", "2147483647"},
+			expected: set(2, d0, group(0x7fffffff))},
+		{description: "boundary: one past, which wraps negative", verb: "set", args: []string{"dev", "d0", "group", "2147483648"},
+			expected: usage(fmt.Sprintf(invalid, "2147483648"))},
+		{description: "boundary: zero", verb: "set", args: []string{"dev", "d0", "group", "0"}, expected: set(2, d0, group(0))},
+		{description: "corner: 2^32 wraps to 0", verb: "set", args: []string{"dev", "d0", "group", "4294967296"},
+			expected: set(2, d0, group(0))},
+		{description: "corner: 2^32+5 wraps to 5", verb: "set", args: []string{"dev", "d0", "group", "4294967301"},
+			expected: set(2, d0, group(5))},
+		{description: "corner: past LONG_MAX clamps, and LONG_MAX's low int is -1", verb: "set",
+			args: []string{"dev", "d0", "group", "99999999999999999999"}, expected: usage(fmt.Sprintf(invalid, "99999999999999999999"))},
+		{description: "corner: group is strcmp, so grou is the dev", verb: "set", args: []string{"grou", "group", "5"},
+			expected: linkWriteExpected{err: ErrInvalidArgument, errMsg: `Cannot find device "grou"`, resolved: []string{"grou"}}},
+		{description: "corner: names are strcmp", verb: "set", args: []string{"dev", "d0", "group", "def"},
+			expected: usage(fmt.Sprintf(invalid, "def"))},
+		{description: "corner: a type with no words is dropped on a group-wide set", verb: "set",
+			args: []string{"group", "5", "type", "dummy"},
+			expected: linkWriteExpected{write: xtcpnl.LinkWrite{
+				MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Attrs: []xtcpnl.LinkAttr{group(5)},
+			}}},
+	})
 }

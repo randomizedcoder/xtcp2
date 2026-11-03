@@ -179,6 +179,34 @@ func getLong(arg string, base int) (int64, bool) {
 	return cint.Int64(mag)
 }
 
+// cStrtol is glibc's strtol on a 64-bit long: strtoul's reading, clamped to
+// [LONG_MIN, LONG_MAX] as strtol clamps on ERANGE. end is cStrtoul's: 0 when
+// no digits were read.
+func cStrtol(s string, base int) (val int64, end int) {
+	r := cStrtoul(s, base)
+	if r.end == 0 {
+		return 0, 0
+	}
+	if r.overflow {
+		if r.neg {
+			return math.MinInt64, r.end
+		}
+		return math.MaxInt64, r.end
+	}
+	if r.neg {
+		v, ok := cint.NegInt64(-r.val)
+		if !ok {
+			return math.MinInt64, r.end
+		}
+		return v, r.end
+	}
+	v, ok := cint.Int64(r.val)
+	if !ok {
+		return math.MaxInt64, r.end
+	}
+	return v, r.end
+}
+
 // cAtoi is glibc's atoi: (int)strtol(s, NULL, 10). It reads the longest
 // prefix of space, a sign and decimal digits, so "3x" is 3 and "abc" is 0.
 // strtol clamps to the long range, and the cast to int keeps the low 32 bits,

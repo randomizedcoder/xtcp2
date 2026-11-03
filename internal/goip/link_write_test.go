@@ -310,8 +310,8 @@ func TestBuildLinkWrite(t *testing.T) {
 		// Keywords goip does not implement are refused, never read as a device.
 		{description: "negative: index", verb: "add", args: []string{"d0", "index", "5", "type", "dummy"},
 			expected: notImpl(`"index"`)},
-		{description: "negative: group", verb: "set", args: []string{"d0", "group", "1"},
-			expected: notImpl(`"group"`)},
+		{description: "negative: carrier", verb: "set", args: []string{"d0", "carrier", "on"},
+			expected: notImpl(`"carrier"`)},
 
 		// Kinds.
 		{description: "positive: a kind with no arguments has no data nest, implemented or not", verb: "add",

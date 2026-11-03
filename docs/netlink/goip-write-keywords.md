@@ -285,7 +285,7 @@ The workbench rows: the 2 `set address` rows `same`.
 
 #### GW2-T02 `group`
 
-**Code.** `linkArmGroup`: `duparg`, `rtnlGroupA2N` (`default` is 0; else `strtol` base 0 truncated to `int32`, refused when negative), `IFLA_GROUP` u32. With no dev, `ErrNotImplemented`, recorded with its count if a row reaches it.
+**Code.** `linkArmGroup`: `duparg`, `rtnlGroupA2N` (`default` is 0; else `strtol` base 0 truncated to `int32`, refused when negative), `IFLA_GROUP` u32. With no dev it is the group-wide set: `ifi_index` 0, kind words refused, a create refused, and a bare `type` dropped, as `iplink_parse`'s early return does. `cStrtol` joins `cparse.go` for the clamp.
 
 `TestLinkWriteGroup`:
 
