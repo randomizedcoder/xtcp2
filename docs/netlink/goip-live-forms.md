@@ -31,7 +31,7 @@
 
 ## The forms
 
-One new family, `kwlive`, in a new `tools/nlcapgen/matrix_kwlive.go`. Each space has two axes, the verb (`add` alone) and the form. Pairwise over two axes gives one positive row per form, and the space's `Derive` adds the duplicate add (rc 2, `EEXIST`) where the object can be added twice. "rc" is the expectation the generator writes; LF2-T01's first capture confirms or corrects each one, and a correction goes in the decision log.
+One new family, `kwlive`, in a new `tools/nlcapgen/matrix_kwlive.go`. Each space has two axes, the verb (`add` alone) and the form. Pairwise over two axes gives one positive row per form, and the space's `Derive` adds up to three duplicate adds (rc 2, `EEXIST`) in `kwroute4`, `kwroute6` and `kwnh`, as `deriveDupGone` does for the other spaces. A form the kernel refuses is a bad value on the form axis, so its row is an `ng` row. "rc" is the expectation the generator writes; LF2-T01's first capture confirms or corrects each one, and a correction goes in the decision log.
 
 **The setup.** `kwroute4`, `kwroute6` and `kwnh` take GW5's `d0` setup (the dummy, `addrgenmode none`, up, `192.0.2.10/24`, `2001:db8:1::10/64 nodad`). The route spaces add `vrf0` (table 100) and `vrf1` (table 1111), both up. `kwlink` takes `d0` and `d1` in group 5. `kwrule` needs none. Every step is `ip`.
 
@@ -55,9 +55,9 @@ One new family, `kwlive`, in a new `tools/nlcapgen/matrix_kwlive.go`. Each space
 | `kwroute6` | `vrf`, table ≥ 256 | `-6 route add 2001:db8:2::/64 dev d0 vrf vrf1` | 0 | as IPv4's |
 | `kwlink` | set by `group` alone | `link set group 5 mtu 1400` | 0 | `ifi_index` 0, `IFLA_GROUP` 5, `IFLA_MTU` |
 | `kwlink` | a group with no member | `link set group 6 mtu 1400` | 0 | as above with 6; the kernel's loop finds nothing |
-| `kwlink` | `xdpoffload off` | `link set d0 xdpoffload off` | 2 | `IFLA_XDP` with `IFLA_XDP_FD` -1 and `XDP_FLAGS_HW_MODE` |
+| `kwlink` | `xdpoffload off` | `link set d0 xdpoffload off` | 0 | `IFLA_XDP` with `IFLA_XDP_FD` -1 and `XDP_FLAGS_HW_MODE`; no program, so `dev_xdp_attach` never asks the driver |
 | `kwlink` | `index` on a create | `link add d7 index 77 type dummy` | 0 | `ifi_index` 77 |
-| `kwlink` | an `index` in use | `link add d8 index 1 type dummy` | 2 | `ifi_index` 1; `EBUSY` |
+| `kwlink` | an `index` in use | `link add d8 index 1 type dummy` | 2 | `ifi_index` 1; `rtnl_newlink` finds `lo`, and the add's `NLM_F_EXCL` makes it `EEXIST` |
 | `kwnh` | `encap mpls`, one label | `nexthop add id 51 encap mpls 101 via 192.0.2.1 dev d0` | 0 | `NHA_ENCAP` (nested), `NHA_ENCAP_TYPE` `LWTUNNEL_ENCAP_MPLS` |
 | `kwnh` | `encap mpls`, two labels | `nexthop add id 52 encap mpls 101/102 via 192.0.2.1 dev d0` | 0 | a two-entry stack, the bottom bit on the second |
 | `kwnh` | `encap mpls` with `ttl` | `nexthop add id 53 encap mpls 101 ttl 10 via 192.0.2.1 dev d0` | 0 | `MPLS_IPTUNNEL_TTL` 10 |
@@ -98,8 +98,8 @@ Every task's tests are tables: description | input | expected, with positive, ne
 
 | description | input | expected |
 |---|---|---|
-| positive: one positive row per form | `kwlive`'s spaces, `-random 0` | 27 rows from the forms table, each `cmd` as listed |
-| positive: the duplicate adds | `Derive` | a `dup` row for each rc 0 add in `kwroute4`, `kwroute6` and `kwnh`, rc 2 `EEXIST`, the positive's argv |
+| positive: one row per form | `kwlive`'s spaces, `-random 0` | 27 rows from the forms table, each `cmd` as listed, and 9 duplicates |
+| positive: the duplicate adds | `Derive` | three `dup` rows in each of `kwroute4`, `kwroute6` and `kwnh`, rc 2, each a positive's argv |
 | positive: each row's rc | the forms table | each row's `expect.rc` as listed |
 | negative: no setup step is anything but `ip` | every row's `pre` | each step starts `ip ` and tolerates no exit status |
 | boundary: `pref` 255 | `kwroute6` | the row's `axes` has `pref` 255 |
