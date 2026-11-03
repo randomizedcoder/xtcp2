@@ -20,8 +20,10 @@ const (
 	gwWsDirCst      = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 	gwO5GoldenCst   = "../goip/testdata/ws-differential.txt"
 	gwSlugPrefixCst = "gw_"
-	gwIPPrefixCst   = "ip "
-	gwStepSepCst    = " && "
+	// gwKwSlugPrefixCst is the kwlive rows' (goip-live-forms.md, LF3-T01).
+	gwKwSlugPrefixCst = "gw_kw"
+	gwIPPrefixCst     = "ip "
+	gwStepSepCst      = " && "
 )
 
 // gwRcs are the ip exit statuses a GW row takes: 0, and 2 for a request the
@@ -308,6 +310,10 @@ func runGwMatrix(t *testing.T, families []string, forms []gwForm) {
 			t.Fatalf("EmbeddedAllowlist: %v", err)
 		}
 		for i := range mine {
+			// LF3-T02's runs gate the kwlive rows and take this out.
+			if strings.HasPrefix(mine[i].Slug, gwKwSlugPrefixCst) {
+				continue
+			}
 			if !al.IsGated(mine[i].Name) {
 				t.Errorf("%s (%q) is not gated", mine[i].Slug, mine[i].Name)
 			}
@@ -330,11 +336,13 @@ func runGwMatrix(t *testing.T, families []string, forms []gwForm) {
 }
 
 // TestGwRouteMatrixRows pins GW5-T01's rows (goip-write-keywords.md, "GW5-T01
-// the route rows"): one per route keyword form GW1 built and ip rc.
+// the route rows"): one per route keyword form GW1 built and ip rc, and
+// LF3-T01's kwlive picks for the forms GW5 found no row for
+// (goip-live-forms.md). A dup row is passed over where a pick has its argv.
 //
 // go test ./internal/goipparity/ -run TestGwRouteMatrixRows
 func TestGwRouteMatrixRows(t *testing.T) {
-	runGwMatrix(t, []string{"route4", "route6", "fibt", "fibnh"}, []gwForm{
+	runGwMatrix(t, []string{"route4", "route6", "fibt", "fibnh", "kwroute4", "kwroute6"}, []gwForm{
 		{"corner: nhid on a v4 unicast, past 7 fibnh rows that run sysctl", `^ip (-4 )?route \w+ (unicast )?[\d.]+(/\d+)? .*\bnhid \d+$`, "",
 			[2]string{"route4/pw-023", ""}},
 		{"corner: nhid on a v4 blackhole; rc 2's dup-2 repeats ec-006's argv", `^ip (-4 )?route \w+ blackhole .*\bnhid \d+`, "",
@@ -343,21 +351,22 @@ func TestGwRouteMatrixRows(t *testing.T) {
 		{"positive: pref low", `\bpref low\b`, "", [2]string{"route6/ec-002", "route6/gone-3"}},
 		{"positive: pref medium", `\bpref medium\b`, "", [2]string{"route6/ec-003", "route6/pw-030"}},
 		{"positive: pref high, rc 0 alone", `\bpref high\b`, "", [2]string{"route6/ec-004", ""}},
-		{"corner: pref by number, every row runs sysctl", `\bpref \d`, "", [2]string{"", ""}},
+		{"positive: pref by number; rc 2's dup-2 is pref 2's duplicate add, dup-1 repeating ec-001", `\bpref \d`, "",
+			[2]string{"kwroute6/ec-001", "kwroute6/dup-2"}},
 		{"positive: expires", `\bexpires \d`, "", [2]string{"route6/ec-002", "route6/pw-029"}},
-		{"boundary: tos, no route row", `^ip .*route .*\btos\b`, "", [2]string{"", ""}},
-		{"corner: dsfield, every row runs sysctl", `\bdsfield\b`, "", [2]string{"", ""}},
-		{"boundary: realms TO, no route row", `\brealms? [^/ ]+( |$)`, "", [2]string{"", ""}},
-		{"boundary: realms FROM/TO, no route row", `\brealms? \S+/\S+`, "", [2]string{"", ""}},
-		{"corner: vrf, a table under 256, every row runs sysctl", `\bvrf \S+`, `type vrf table ([1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\b`,
-			[2]string{"", ""}},
-		{"corner: vrf, a table over 255, every row runs sysctl", `\bvrf \S+`, `type vrf table (25[6-9]|2[6-9]\d|[3-9]\d\d|\d{4,})\b`,
-			[2]string{"", ""}},
-		{"corner: two hops, past the fib rows that run sysctl", `nexthop .*nexthop `, "", [2]string{"route4/pw-004", "route4/ec-005"}},
+		{"positive: tos, an ECN bit at rc 2", `^ip .*route .*\btos\b`, "", [2]string{"kwroute4/ec-001", "kwroute4/ng-001"}},
+		{"positive: dsfield; rc 2 is IPv6's, dup-2 repeating ec-002", `\bdsfield\b`, "", [2]string{"kwroute4/ec-002", "kwroute6/ng-001"}},
+		{"positive: realms TO, rc 0 alone; dup-3 repeats ec-003", `\brealms? [^/ ]+( |$)`, "", [2]string{"kwroute4/ec-003", ""}},
+		{"positive: realms FROM/TO, rc 0 alone", `\brealms? \S+/\S+`, "", [2]string{"kwroute4/ec-004", ""}},
+		{"positive: vrf, a table under 256, rc 0 alone", `\bvrf vrf0\b`, `vrf0 type vrf table ([1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\b`,
+			[2]string{"kwroute4/ec-005", ""}},
+		{"boundary: vrf, a table over 255, rc 0 alone", `\bvrf vrf1\b`, `vrf1 type vrf table (25[6-9]|2[6-9]\d|[3-9]\d\d|\d{4,})\b`,
+			[2]string{"kwroute4/ec-006", ""}},
+		{"corner: two hops, kwlive's onlink row before route4's", `nexthop .*nexthop `, "", [2]string{"kwroute4/ec-007", "route4/ec-005"}},
 		{"boundary: hop weights 1 and 256", `weight 1 .*weight 256`, "", [2]string{"route4/pw-004", "route4/ec-005"}},
-		{"boundary: a hop onlink, no row", `^ip .*route .*nexthop .*onlink`, "", [2]string{"", ""}},
-		{"boundary: a hop via inet6 on IPv4, no row", `^ip (-4 )?route .*nexthop .*via inet6`, "", [2]string{"", ""}},
-		{"boundary: a hop's realms, no row", `nexthop .*realms`, "", [2]string{"", ""}},
+		{"positive: a hop onlink, rc 0 alone", `^ip .*route .*nexthop .*onlink`, "", [2]string{"kwroute4/ec-007", ""}},
+		{"positive: a hop via inet6 on IPv4, rc 0 alone", `^ip (-4 )?route .*nexthop .*via inet6`, "", [2]string{"kwroute4/ec-008", ""}},
+		{"positive: a hop's realms, rc 0 alone", `nexthop .*realms`, "", [2]string{"kwroute4/ec-009", ""}},
 	})
 }
 
@@ -399,15 +408,16 @@ func TestGwSetup(t *testing.T) {
 }
 
 // TestGwLinkMatrixRows pins GW5-T02's rows (goip-write-keywords.md, "GW5-T02
-// the link rows"): one per link keyword form GW2 built and ip rc.
+// the link rows"): one per link keyword form GW2 built and ip rc, and
+// LF3-T01's kwlive picks.
 //
 // go test ./internal/goipparity/ -run TestGwLinkMatrixRows
 func TestGwLinkMatrixRows(t *testing.T) {
-	runGwMatrix(t, []string{"linkset", "linkadd", "linkattr", "linkpd", "linkprop"}, []gwForm{
+	runGwMatrix(t, []string{"linkset", "linkadd", "linkattr", "linkpd", "linkprop", "kwlink"}, []gwForm{
 		{"positive: a set's address, its length got by index", `^ip link set dev \S+ .*\baddr(ess)? [0-9a-f:]+`, "",
 			[2]string{"linkset/ec-002", "linkset/ng-006"}},
 		{"positive: group with a dev, rc 0 alone", `^ip link set dev \S+ .*\bgroup \S+`, "", [2]string{"linkset/bd-001", ""}},
-		{"boundary: the group-wide set, no row", `^ip link set group \S+`, "", [2]string{"", ""}},
+		{"positive: the group-wide set, rc 0 alone", `^ip link set group \S+`, "", [2]string{"kwlink/ec-001", ""}},
 		{"positive: gso_max_size", `\bgso_max_size \d`, "", [2]string{"linkset/ec-002", ""}},
 		{"positive: gso_max_segs", `\bgso_max_segs \d`, "", [2]string{"linkset/bd-001", ""}},
 		{"positive: gro_max_size, one past its bound at rc 2", `\bgro_max_size \d`, "", [2]string{"linkset/bd-002", "linkset/ng-009"}},
@@ -427,8 +437,8 @@ func TestGwLinkMatrixRows(t *testing.T) {
 		{"positive: xdp off", `\bxdp (off|none)$`, "", [2]string{"linkattr/pw-007", ""}},
 		{"positive: xdpgeneric none", `\bxdpgeneric (off|none)$`, "", [2]string{"linkattr/pw-005", ""}},
 		{"positive: xdpdrv off", `\bxdpdrv (off|none)$`, "", [2]string{"linkattr/ec-004", ""}},
-		{"boundary: xdpoffload, no row", `\bxdpoffload (off|none)$`, "", [2]string{"", ""}},
-		{"boundary: index on a create, no row", `^ip link add .*\bindex \d+`, "", [2]string{"", ""}},
+		{"positive: xdpoffload off, rc 0 alone", `\bxdpoffload (off|none)$`, "", [2]string{"kwlink/ec-003", ""}},
+		{"positive: index on a create, lo's index at rc 2", `^ip link add .*\bindex \d+`, "", [2]string{"kwlink/ec-004", "kwlink/ng-001"}},
 		{"corner: link-netnsid, rc 2 alone, with no such namespace", `\blink-netnsid \S+`, "", [2]string{"", "linkattr/ng-008"}},
 		{"positive: parentdev", `\bparentdev \S+`, "", [2]string{"linkattr/parentdev", ""}},
 	})
@@ -458,25 +468,25 @@ func lookupSlug(t *testing.T, slug string) Command {
 
 // TestGwNexthopRuleMatrixRows pins GW5-T03's rows (goip-write-keywords.md,
 // "GW5-T03 the nexthop and rule rows"): one per nexthop and rule keyword
-// form GW3 and GW4 built and ip rc. dst_port has no form, since ip 7.2.0
-// refuses it.
+// form GW3 and GW4 built and ip rc, and LF3-T01's kwlive picks. dst_port
+// has no form, since ip 7.2.0 refuses it.
 //
 // go test ./internal/goipparity/ -run TestGwNexthopRuleMatrixRows
 func TestGwNexthopRuleMatrixRows(t *testing.T) {
-	runGwMatrix(t, []string{"nh4", "nh6", "nhgrp", "fibnh", "rule4", "rule6", "fibrule"}, []gwForm{
+	runGwMatrix(t, []string{"nh4", "nh6", "nhgrp", "fibnh", "rule4", "rule6", "fibrule", "kwnh", "kwrule"}, []gwForm{
 		{"corner: hw_stats on a single nexthop, rc 2 alone, the kernel's refusal",
 			`^ip (-[46] )?nexthop \w+ id \d+ (via|dev|blackhole) .*\bhw_stats on\b`, "", [2]string{"", "nh4/ng-005"}},
-		{"boundary: hw_stats off on a single nexthop, no row",
-			`^ip (-[46] )?nexthop \w+ id \d+ (via|dev|blackhole) .*\bhw_stats off\b`, "", [2]string{"", ""}},
+		{"corner: hw_stats off on a single nexthop, rc 2 alone, refused even off",
+			`^ip (-[46] )?nexthop \w+ id \d+ (via|dev|blackhole) .*\bhw_stats off\b`, "", [2]string{"", "kwnh/ng-001"}},
 		{"positive: hw_stats on a group", `\bgroup \S+ .*\bhw_stats on\b`, "", [2]string{"nhgrp/pw-002", "nhgrp/ec-002"}},
 		{"positive: hw_stats off a group", `\bgroup \S+ .*\bhw_stats off\b`, "", [2]string{"nhgrp/pw-001", "nhgrp/pw-008"}},
-		{"corner: encap mpls, one label, every row runs sysctl", `\bencap mpls \d+ `, "", [2]string{"", ""}},
-		{"boundary: encap mpls, two labels, no row", `\bencap mpls \d+/\d+`, "", [2]string{"", ""}},
-		{"boundary: encap mpls with a ttl, no row", `\bencap mpls \S+ ttl \d+`, "", [2]string{"", ""}},
-		{"corner: encap mpls, an IPv6 gateway, every row runs sysctl", `\bencap mpls \S+ .*via (inet6 )?[0-9a-f]*:[0-9a-f:]+`, "",
-			[2]string{"", ""}},
+		{"positive: encap mpls, one label, rc 0 alone; dup-1 repeats ec-001", `\bencap mpls \d+ via `, "", [2]string{"kwnh/ec-001", ""}},
+		{"positive: encap mpls, two labels, rc 0 alone; dup-2 repeats ec-002", `\bencap mpls \d+/\d+`, "", [2]string{"kwnh/ec-002", ""}},
+		{"positive: encap mpls with a ttl, rc 0 alone; dup-3 repeats ec-003", `\bencap mpls \S+ ttl \d+`, "", [2]string{"kwnh/ec-003", ""}},
+		{"positive: encap mpls, an IPv6 gateway, rc 0 alone", `\bencap mpls \S+ .*via (inet6 )?[0-9a-f]*:[0-9a-f:]+`, "",
+			[2]string{"kwnh/ec-004", ""}},
 		{"corner: rule realms TO; rc 2's gone-1 repeats ec-002's argv", `^ip .*rule .*\brealms [^/ ]+( |$)`, "",
 			[2]string{"rule4/ec-002", ""}},
-		{"boundary: rule realms FROM/TO, no row", `^ip .*rule .*\brealms \S+/\S+`, "", [2]string{"", ""}},
+		{"positive: rule realms FROM/TO, rc 0 alone", `^ip .*rule .*\brealms \S+/\S+`, "", [2]string{"kwrule/ec-001", ""}},
 	})
 }

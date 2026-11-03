@@ -6265,6 +6265,128 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Writes: 8, Setup: addrRestoreExistingSetup,
 	},
 
+	// The kwlive rows (goip-live-forms.md, LF3-T01): as the GW rows, for the
+	// keyword forms GW5 found no row for, from the workbench's kwlive
+	// family, whose setups are ip alone. They are the last route rows: the
+	// kwnh rows' encap mpls autoloads mpls_router and mpls_iptunnel, which
+	// add AF_MPLS to netconf and afstats replies, and every row after them
+	// is generic netlink or XFRM.
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 tos 0x10", Slug: "gw_kwroute4_ec_001",
+		// kwroute4/ec-001: tos (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 tos 0x01", Slug: "gw_kwroute4_ng_001",
+		// kwroute4/ng-001: tos-ecn (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 dsfield 0x10", Slug: "gw_kwroute4_ec_002",
+		// kwroute4/ec-002: dsfield (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 dev d0 dsfield 0x10", Slug: "gw_kwroute6_ng_001",
+		// kwroute6/ng-001: dsfield (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 realms 5", Slug: "gw_kwroute4_ec_003",
+		// kwroute4/ec-003: realms-to (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 realms 1/2", Slug: "gw_kwroute4_ec_004",
+		// kwroute4/ec-004: realms-from-to (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 vrf vrf0", Slug: "gw_kwroute4_ec_005",
+		// kwroute4/ec-005: vrf-100 (rc 0).
+		Floor: 6, Implemented: true, Write: true, Setup: gwWsSetupVrf,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 vrf vrf1", Slug: "gw_kwroute4_ec_006",
+		// kwroute4/ec-006: vrf-1111 (rc 0).
+		Floor: 6, Implemented: true, Write: true, Setup: gwWsSetupVrf,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 nexthop via 203.0.113.1 dev d0 onlink nexthop via 192.0.2.1 dev d0", Slug: "gw_kwroute4_ec_007",
+		// kwroute4/ec-007: hop-onlink (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 nexthop via inet6 2001:db8:1::1 dev d0 nexthop via 192.0.2.1 dev d0", Slug: "gw_kwroute4_ec_008",
+		// kwroute4/ec-008: hop-via6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 realms 3 nexthop via 192.0.2.2 dev d0", Slug: "gw_kwroute4_ec_009",
+		// kwroute4/ec-009: hop-realms (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 dev d0 pref 1", Slug: "gw_kwroute6_ec_001",
+		// kwroute6/ec-001: pref-1 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 dev d0 pref 2", Slug: "gw_kwroute6_dup_2",
+		// kwroute6/dup-2: pref-2 (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: append(slices.Clone(gwWsSetupD0), "-6 route add 2001:db8:2::/64 dev d0 pref 2"),
+	},
+	{
+		Name: "link set group 5 mtu 1400", Slug: "gw_kwlink_ec_001",
+		// kwlink/ec-001: group (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsKwLink,
+	},
+	{
+		Name: "link set d0 xdpoffload off", Slug: "gw_kwlink_ec_003",
+		// kwlink/ec-003: xdpoffload (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsKwLink,
+	},
+	{
+		Name: "link add d7 index 77 type dummy", Slug: "gw_kwlink_ec_004",
+		// kwlink/ec-004: index (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsKwLink,
+	},
+	{
+		Name: "link add d8 index 1 type dummy", Slug: "gw_kwlink_ng_001",
+		// kwlink/ng-001: index-used (rc 2).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsKwLink,
+	},
+	{
+		Name: "-4 rule add pref 200 realms 1/2 table 100", Slug: "gw_kwrule_ec_001",
+		// kwrule/ec-001: realms-from-to (rc 0).
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "nexthop add id 55 via 192.0.2.1 dev d0 hw_stats off", Slug: "gw_kwnh_ng_001",
+		// kwnh/ng-001: hw-stats-off (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 51 encap mpls 101 via 192.0.2.1 dev d0", Slug: "gw_kwnh_ec_001",
+		// kwnh/ec-001: mpls (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 52 encap mpls 101/102 via 192.0.2.1 dev d0", Slug: "gw_kwnh_ec_002",
+		// kwnh/ec-002: mpls-two (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 53 encap mpls 101 ttl 10 via 192.0.2.1 dev d0", Slug: "gw_kwnh_ec_003",
+		// kwnh/ec-003: mpls-ttl (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 54 encap mpls 101 via 2001:db8:1::1 dev d0", Slug: "gw_kwnh_ec_004",
+		// kwnh/ec-004: mpls-v6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+
 	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
 	// preconditions (genl-write-corpus.exp). The connections' entries carry
 	// each side's own RTTs and ages, which nlparity normalizes, and a dump's
@@ -7199,6 +7321,11 @@ var (
 var (
 	gwWsSetupD0 = []string{"link add d0 type dummy", "link set d0 addrgenmode none", "link set d0 up",
 		"addr add 192.0.2.10/24 dev d0", "-6 addr add 2001:db8:1::10/64 dev d0 nodad"}
+	// The kwlive vrf rows' VRFs: tables 100 and 1111, either side of 256.
+	gwWsSetupVrf = append(slices.Clone(gwWsSetupD0), "link add vrf0 type vrf table 100", "link set vrf0 up",
+		"link add vrf1 type vrf table 1111", "link set vrf1 up")
+	// The kwlink rows' two dummies in group 5, for the group-wide set.
+	gwWsKwLink   = []string{"link add d0 type dummy", "link set d0 group 5", "link add d1 type dummy", "link set d1 group 5"}
 	gwWsSetupNh4 = append(slices.Clone(gwWsSetupD0), "nexthop add id 10 via 192.0.2.1 dev d0")
 	gwWsSetupNh6 = append(slices.Clone(gwWsSetupD0), "-6 nexthop add id 10 via 2001:db8:1::1 dev d0")
 	// The groups' members: nlcapgen's nhMembers.
