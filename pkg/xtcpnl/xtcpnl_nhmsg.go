@@ -51,6 +51,8 @@ const (
 	NhaFdb       uint16 = 11 // NHA_FDB: flag, nexthop belongs to a bridge fdb
 	NhaResGroup  uint16 = 12 // NHA_RES_GROUP: nested resilient-group args
 	NhaOpFlags   uint16 = 14 // NHA_OP_FLAGS: op filter (request) / resvd (reply)
+	// NhaHwStatsEnable is NHA_HW_STATS_ENABLE, u32: `ip nexthop … hw_stats`.
+	NhaHwStatsEnable uint16 = 16
 
 	// NexthopGrpTypeMpath is NEXTHOP_GRP_TYPE_MPATH, the default group type that
 	// iproute2 prints no `type` token for. NexthopGrpTypeRes is

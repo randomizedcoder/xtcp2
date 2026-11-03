@@ -2,9 +2,9 @@
 # route6: 153 same, 0 refuses, 0 sends, 0 differs; lookups differ in 93; not a write 0
 # rule4: 173 same, 30 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # rule6: 203 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
-# nh4: 78 same, 2 refuses, 0 sends, 0 differs; lookups differ in 38; not a write 0
-# nh6: 78 same, 2 refuses, 0 sends, 0 differs; lookups differ in 36; not a write 0
-# nhgrp: 81 same, 39 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# nh4: 79 same, 1 refuses, 0 sends, 0 differs; lookups differ in 39; not a write 0
+# nh6: 79 same, 1 refuses, 0 sends, 0 differs; lookups differ in 37; not a write 0
+# nhgrp: 120 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # fibt: 228 same, 2 refuses, 0 sends, 0 differs; lookups differ in 90; not a write 143
 # fibnh: 388 same, 14 refuses, 0 sends, 0 differs; lookups differ in 152; not a write 50
 # fibrule: 72 same, 0 refuses, 0 sends, 0 differs; lookups differ in 4; not a write 88
@@ -19,7 +19,7 @@
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 9
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # lookups: 262 rows: dump IFLA_EXT_MASK 0x109, goip 0x1
-# lookups: 1001 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
+# lookups: 1003 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
 rule4/ec-002 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/gone-1 refuses rc=2 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/pw-001 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule add not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
@@ -51,48 +51,7 @@ rule4/rn1-031 refuses rc=0 rule realms: iproute2 reads realm names from rt_realm
 rule4/rn1-033 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule add not from 198.51.100.7/32 to 203.0.113.0/24 pref 4294967295 fwmark 0x10/0xff iif nosuch oif nosuch dscp 46/0x3f ipproto icmp sport 1000-2000 dport 80 uidrange 0-4294967294 suppress_ifgroup 5 protocol kernel realms 10 table 100
 rule4/rn1-035 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del from all order 200 fwmark 0 dev d0 oif nosuch dscp 46/0x3f ipproto icmp sport 1-65534 dport 65534 sup_pl 24 protocol static realms 10 table 4294967295
 nh4/ng-004 refuses rc=255 nexthop dst_port: no capture shows it: object recognized but not implemented by goip | ip -4 nexthop add id 10 dev d0 dst_port 4789
-nh4/ng-005 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip -4 nexthop add id 10 dev d0 hw_stats on
 nh6/ng-004 refuses rc=255 nexthop dst_port: no capture shows it: object recognized but not implemented by goip | ip -6 nexthop add id 10 dev d0 dst_port 4789
-nh6/ng-005 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip -6 nexthop add id 10 dev d0 hw_stats on
-nhgrp/ec-002 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace group 21/22 type mpath hw_stats on protocol static
-nhgrp/pw-001 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 21/22/23 type resilient buckets 8 idle_timer 10 unbalanced_timer 20 hw_stats off protocol static
-nhgrp/pw-002 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 1 group 21/26 type resilient buckets 2 hw_stats on
-nhgrp/pw-007 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 4294967295 group 21,10/22,20 hw_stats on protocol static
-nhgrp/pw-008 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 21/22/23 type resilient buckets 2 hw_stats off protocol static
-nhgrp/pw-015 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 21,1/22,65535 hw_stats on
-nhgrp/pw-016 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 100 group 21/26 type resilient buckets 4 idle_timer 0 hw_stats off
-nhgrp/pw-017 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 100 group 29 type resilient buckets 2 hw_stats on
-nhgrp/pw-018 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 100 group 31/32 fdb hw_stats on protocol static
-nhgrp/pw-022 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 4294967295 group 21 type resilient buckets 8 hw_stats on
-nhgrp/pw-026 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 1 group 21/22/23 type resilient buckets 4 idle_timer 0 hw_stats on
-nhgrp/pw-027 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 1 group 29 hw_stats off
-nhgrp/pw-029 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 4294967295 group 21/22 type resilient buckets 2 hw_stats off
-nhgrp/pw-033 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 0 group 21 type resilient buckets 4 idle_timer 0 hw_stats on
-nhgrp/pw-038 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 100 group 21 type mpath hw_stats off
-nhgrp/rn1-002 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 21,1/22,65535 type resilient buckets 8 hw_stats on protocol static
-nhgrp/rn1-004 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 1 group 29 type mpath hw_stats on
-nhgrp/rn1-005 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 1 group 21/26 type resilient buckets 8 hw_stats on
-nhgrp/rn1-007 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 4294967295 group 21,10/22,20 type mpath hw_stats on
-nhgrp/rn1-008 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 29 type resilient buckets 4 idle_timer 0 hw_stats on protocol static
-nhgrp/rn1-010 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 100 group 21 type resilient buckets 2 hw_stats on
-nhgrp/rn1-011 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 4294967295 group 21,10/22,20 hw_stats off protocol static
-nhgrp/rn1-012 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 29 type resilient buckets 2 hw_stats on
-nhgrp/rn1-014 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 100 group 21 type mpath hw_stats on
-nhgrp/rn1-015 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 21,1/22,65535 type resilient buckets 2 hw_stats off protocol static
-nhgrp/rn1-016 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 0 group 21 type resilient buckets 2 hw_stats off protocol static
-nhgrp/rn1-017 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 31/32 type resilient buckets 8 idle_timer 10 unbalanced_timer 20 fdb hw_stats off protocol static
-nhgrp/rn1-019 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 0 group 21 type resilient buckets 2 hw_stats on
-nhgrp/rn1-021 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 1 group 21/26 type resilient buckets 4 idle_timer 0 hw_stats off protocol static
-nhgrp/rn1-023 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 1 group 21,10/22,20 hw_stats off
-nhgrp/rn1-024 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 21/26 hw_stats on protocol static
-nhgrp/rn1-025 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 21 hw_stats off protocol static
-nhgrp/rn1-026 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 1 group 21,10/22,20 type resilient buckets 4 idle_timer 0 hw_stats off
-nhgrp/rn1-028 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace group 21/22/23 type resilient buckets 4 idle_timer 0 hw_stats off protocol static
-nhgrp/rn1-029 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 4294967295 group 21/26 type resilient buckets 2 hw_stats on protocol static
-nhgrp/rn1-031 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 100 group 21/22 type resilient buckets 2 hw_stats off protocol static
-nhgrp/rn1-033 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 31/32 type resilient buckets 4 idle_timer 0 fdb hw_stats off protocol static
-nhgrp/rn1-034 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 100 group 31/32 type resilient buckets 2 fdb hw_stats on
-nhgrp/rn1-038 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 21,10/22,20 type resilient buckets 4 idle_timer 0 hw_stats on
 fibt/fib6_notify_test-001 refuses rc=0 route nexthop "encap": object recognized but not implemented by goip | ip -6 route add 2001::/64 nexthop via 2001:10::2 dev dummy_10 nexthop encap ip6 dst 2002::20 via 2001:20::2 dev dummy_20 nexthop encap ip6 dst 2002::30 via 2001:30::2 dev dummy_30 nexthop encap ip6 dst 2002::40 via 2001:40::2 dev dummy_40 nexthop encap ip6 dst 2002::50 via 2001:50::2 dev dummy_50 nexthop encap ip6 dst 2002::60 via 2001:60::2 dev dummy_60 nexthop encap ip6 dst 2002::70 via 2001:70::2 dev dummy_70
 fibt/fib_notify_test-001 refuses rc=0 route nexthop "encap": object recognized but not implemented by goip | ip route add 10.0.0.0/24 nexthop via 20.20.10.1 dev dummy_10 nexthop encap ip dst 192.168.10.20 via 20.20.20.1 dev dummy_20 nexthop encap ip dst 192.168.10.30 via 20.20.30.1 dev dummy_30 nexthop encap ip dst 192.168.10.40 via 20.20.40.1 dev dummy_40 nexthop encap ip dst 192.168.10.50 via 20.20.50.1 dev dummy_50 nexthop encap ip dst 192.168.10.60 via 20.20.60.1 dev dummy_60 nexthop encap ip dst 192.168.10.70 via 20.20.70.1 dev dummy_70
 fibnh/ipv4_fcnal_runtime-039 refuses rc=0 nexthop encap: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 51 encap mpls 101 via 172.16.1.2 dev veth1

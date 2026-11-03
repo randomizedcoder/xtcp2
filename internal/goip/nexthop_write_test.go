@@ -259,7 +259,6 @@ func TestParseNexthopWriteArgs(t *testing.T) {
 		{"negative: an unknown keyword", 0, "bogus", result{err: ErrInvalidArgument}},
 		{"negative: encap is not implemented", 0, "encap mpls 100", result{err: ErrNotImplemented}},
 		{"negative: dst_port is not implemented", 0, "dst_port 4789", result{err: ErrNotImplemented}},
-		{"negative: hw_stats is not implemented", 0, "hw_stats on", result{err: ErrNotImplemented}},
 		{"negative: help is not implemented", 0, "help", result{err: ErrNotImplemented}},
 	}
 	resolve := func(name string) (int32, error) {

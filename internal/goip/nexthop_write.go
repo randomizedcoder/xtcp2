@@ -138,8 +138,10 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 		return w.dev(args, i)
 	case a == nexthopViaKeyCst:
 		return w.via(args, i)
-	case a == tnlKeyEncap, a == "dst_port", a == "hw_stats":
+	case a == tnlKeyEncap, a == "dst_port":
 		return i, fmt.Errorf("nexthop %s: no capture shows it: %w", a, ErrNotImplemented)
+	case a == "hw_stats":
+		return w.hwStats(args, i)
 	case a == "blackhole":
 		w.familyIfUnset(unix.AF_INET)
 		return i, w.attrs.PutBytes(xtcpnl.NhaBlackhole, nil)
@@ -178,6 +180,24 @@ func (w *nexthopWrite) u32Arg(args []string, i int, typ uint16, msg string) (int
 		return i, invargErr(msg, args[i])
 	}
 	return i, w.attrs.PutU32(typ, v)
+}
+
+// hwStats is hw_stats: parse_on_off, whose error ipnh_modify returns, into
+// NHA_HW_STATS_ENABLE u32.
+func (w *nexthopWrite) hwStats(args []string, i int) (int, error) {
+	i, err := nextArg(args, i)
+	if err != nil {
+		return i, err
+	}
+	on, err := parseOnOff("hw_stats", args[i])
+	if err != nil {
+		return i, err
+	}
+	var v uint32
+	if on {
+		v = 1
+	}
+	return i, w.attrs.PutU32(xtcpnl.NhaHwStatsEnable, v)
 }
 
 // dev is ll_name_to_index into NHA_OIF, which also makes an unset family
