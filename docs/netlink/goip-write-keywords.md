@@ -262,7 +262,7 @@ The 190 rows after GW1-T04's golden: 61 `group`, 16 `gso_max_segs`, 15 `gro_max_
 
 #### GW2-T01 the `set address` length lookup
 
-**Code.** `finish` replaces its refusal with a `addrLen` callback beside `resolve`, `Service.LinkAddrLen(family, index)`: the get by index, then the reply's `IFLA_ADDRESS` length, or -1. A different length is `Invalid address length N - must be M bytes`, exit 1.
+**Code.** `finish` replaces its refusal with `checkAddrLen`: dev's index, then the get by index through the tunnel prefetch's `fetch` callback (`Service.LinkInfoDataByIndex`, whose reply now records `IFLA_ADDRESS`'s length). A different length is `Invalid address length N - must be M bytes`, exit 1.
 
 `TestLinkWriteAddrLen`:
 
@@ -277,7 +277,7 @@ The 190 rows after GW1-T04's golden: 61 `group`, 16 `gso_max_segs`, 15 `gro_max_
 | corner: `add` doesn't look | `link add d9 type dummy address 02:00` | no get; the request |
 | corner: no dev | `set address 02:00:00:00:00:aa` | `iplink_modify`'s no-dev refusal, as today |
 
-`TestLinkAddrLen` in `service_test.go` checks the bytes of the get: `ifi_index` set, `ifi_family` the preference, no attributes.
+`TestLinkInfoDataByIndex` in `service_test.go` checks the bytes of the get (`ifi_index` set, `ifi_family` the preference, no attributes) and the address length read off the reply. The get is the tunnel prefetch's, `LinkInfoDataByIndex`, so `addrLen` is that callback.
 
 The workbench rows: the 2 `set address` rows `same`.
 

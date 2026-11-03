@@ -265,12 +265,15 @@ func (s *Service) LinkByIndex(index int32) (model.Link, error) {
 
 // LinkInfoData is what a tunnel parser's prefetch reads off its reply: the
 // kind, the raw IFLA_INFO_DATA, and whether IFLA_LINKINFO and
-// IFLA_INFO_DATA were there.
+// IFLA_INFO_DATA were there. AddrLen is IFLA_ADDRESS's length, which
+// nl_get_ll_addr_len reads off the same get; HasAddress says it was there.
 type LinkInfoData struct {
 	Kind        string
 	HasLinkInfo bool
 	HasInfoData bool
 	Data        []byte
+	HasAddress  bool
+	AddrLen     int
 }
 
 // LinkInfoDataByIndex is the get every tunnel parser but xfrm's sends before
@@ -278,7 +281,9 @@ type LinkInfoData struct {
 // with NLM_F_REQUEST alone, ifi_family the preferred family, the device's
 // index, and no attribute, 32 bytes. LinkByIndex's get carries
 // IFLA_EXT_MASK, which this one doesn't. A kernel refusal is the talk's
-// error; a reply too short for an ifinfomsg has neither nest.
+// error; a reply too short for an ifinfomsg has neither nest. iplink_modify's
+// address-length check (nl_get_ll_addr_len, ip/iplink.c:216) sends the same
+// bytes.
 func (s *Service) LinkInfoDataByIndex(family uint8, index int32) (LinkInfoData, error) {
 	r, err := xtcpnl.BuildGetLinkByIndexRequest(family, index, 0, s.nextSeq())
 	if err != nil {
@@ -296,18 +301,21 @@ func (s *Service) LinkInfoDataByIndex(family uint8, index int32) (LinkInfoData, 
 	// sends one of each.
 	var nerr error
 	err = xtcpnl.WalkRTAttrs(body[xtcpnl.IfInfomsgSizeCst:], func(atype uint16, val []byte) {
-		if atype&^unix.NLA_F_NESTED != unix.IFLA_LINKINFO {
-			return
+		switch atype &^ unix.NLA_F_NESTED {
+		case unix.IFLA_ADDRESS:
+			d.HasAddress, d.AddrLen = true, len(val)
+		case unix.IFLA_LINKINFO:
+			d.Kind, d.HasInfoData, d.Data = "", false, nil
+			d.HasLinkInfo = true
+			nerr = xtcpnl.WalkRTAttrsNested(val, func(itype uint16, ival []byte) {
+				switch itype &^ unix.NLA_F_NESTED {
+				case unix.IFLA_INFO_KIND:
+					d.Kind = strings.TrimRight(string(ival), "\x00")
+				case unix.IFLA_INFO_DATA:
+					d.HasInfoData, d.Data = true, xtcpnl.CopyBytes(ival)
+				}
+			})
 		}
-		d = LinkInfoData{HasLinkInfo: true}
-		nerr = xtcpnl.WalkRTAttrsNested(val, func(itype uint16, ival []byte) {
-			switch itype &^ unix.NLA_F_NESTED {
-			case unix.IFLA_INFO_KIND:
-				d.Kind = strings.TrimRight(string(ival), "\x00")
-			case unix.IFLA_INFO_DATA:
-				d.HasInfoData, d.Data = true, xtcpnl.CopyBytes(ival)
-			}
-		})
 	})
 	if err == nil {
 		err = nerr

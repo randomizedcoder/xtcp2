@@ -12,14 +12,14 @@
 # addr6: 128 same, 0 refuses, 0 sends, 0 differs; lookups differ in 122; not a write 0
 # neigh4: 138 same, 0 refuses, 0 sends, 0 differs; lookups differ in 131; not a write 0
 # neigh6: 137 same, 0 refuses, 0 sends, 0 differs; lookups differ in 131; not a write 0
-# linkset: 8 same, 122 refuses, 0 sends, 0 differs; lookups differ in 5; not a write 0
+# linkset: 10 same, 120 refuses, 0 sends, 0 differs; lookups differ in 7; not a write 0
 # linkadd: 111 same, 0 refuses, 0 sends, 0 differs; lookups differ in 50; not a write 0
 # linkattr: 3 same, 49 refuses, 0 sends, 0 differs; lookups differ in 3; not a write 0
 # linkpd: 1 same, 19 refuses, 0 sends, 0 differs; lookups differ in 1; not a write 0
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 9
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # lookups: 262 rows: dump IFLA_EXT_MASK 0x109, goip 0x1
-# lookups: 845 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
+# lookups: 847 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
 rule4/ec-002 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/gone-1 refuses rc=2 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/pw-001 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule add not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
@@ -119,8 +119,6 @@ linkset/ec-006 refuses rc=0 link keyword "gro_max_size": object recognized but n
 linkset/ec-007 refuses rc=0 link keyword "gso_ipv4_max_size": object recognized but not implemented by goip | ip link set dev d0 dynamic on gso_ipv4_max_size 32768
 linkset/ec-008 refuses rc=0 link keyword "gro_ipv4_max_size": object recognized but not implemented by goip | ip link set dev d0 trailers off gro_ipv4_max_size 32768
 linkset/ng-004 refuses rc=255 link keyword "group": object recognized but not implemented by goip | ip link set dev d0 group nosuch
-linkset/ng-006 refuses rc=2 link set address: the address-length lookup is object recognized but not implemented by goip | ip link set dev d0 address 01:00:00:00:00:01
-linkset/ng-007 refuses rc=1 link set address: the address-length lookup is object recognized but not implemented by goip | ip link set dev d0 address 02:00
 linkset/ng-008 refuses rc=255 link keyword "gso_max_segs": object recognized but not implemented by goip | ip link set dev d0 gso_max_segs 65536
 linkset/ng-009 refuses rc=2 link keyword "gro_max_size": object recognized but not implemented by goip | ip link set dev d0 gro_max_size 524281
 linkset/pw-001 refuses rc=0 link keyword "group": object recognized but not implemented by goip | ip link set dev d0 mtu 1400 txqueuelen 500 group 5 alias hello address 02:00:00:00:00:aa multicast on gso_max_size 32768 mode dormant name d9

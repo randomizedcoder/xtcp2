@@ -142,13 +142,7 @@ func TestBuildLinkWrite(t *testing.T) {
 	dev127 := strings.Repeat("x", altIfNameSizeCst-1)
 	dev128 := strings.Repeat("x", altIfNameSizeCst)
 
-	tests := []struct {
-		description string
-		verb        string
-		family      uint8
-		args        []string
-		expected    linkWriteExpected
-	}{
+	tests := []linkWriteRow{
 		// Addressing and the header.
 		{description: "positive: add addresses by name, index 0", verb: "add",
 			args:     []string{"d0", "type", "dummy"},
@@ -298,8 +292,6 @@ func TestBuildLinkWrite(t *testing.T) {
 				ifname("d0")), "dummy")}},
 		{description: "negative: an unparseable address", verb: "add", args: []string{"d0", "address", "zz", "type", "dummy"},
 			expected: invalid(`"zz" is invalid lladdr`)},
-		{description: "negative: address on set needs a length lookup goip does not do", verb: "set",
-			args: []string{"d0", "address", "02:00:00:00:00:01"}, expected: notImpl("address-length")},
 
 		// Flag keywords.
 		{description: "positive: promisc on", verb: "set", args: []string{"d0", "promisc", "on"},
@@ -381,14 +373,33 @@ func TestBuildLinkWrite(t *testing.T) {
 			args:     []string{"v0", "type", "veth", "peer", "name", "v1", "type", "dummy"},
 			expected: invalid(`duplicate "type": "dummy" is the second value`)},
 	}
-	for _, tc := range tests {
+	runLinkWriteRows(t, tests)
+}
+
+// linkWriteRow is one argv after the verb and the LinkWrite, lookups or
+// error it parses to.
+type linkWriteRow struct {
+	description string
+	verb        string
+	family      uint8
+	args        []string
+	expected    linkWriteExpected
+}
+
+// runLinkWriteRows builds each row with the fake links and their fake get
+// by index, whose calls are listed as "get N" (and its family, when set)
+// beside the names.
+func runLinkWriteRows(t *testing.T, rows []linkWriteRow) {
+	t.Helper()
+	for i := range rows {
+		tc := &rows[i]
 		t.Run(tc.description, func(t *testing.T) {
 			verb := lookupLinkWriteVerb(tc.verb)
 			if verb == nil {
 				t.Fatalf("no verb %q", tc.verb)
 			}
 			links := newFakeLinks()
-			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve, nil, nil)
+			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve, nil, links.fetch)
 			if !slices.Equal(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}
@@ -409,6 +420,26 @@ func TestBuildLinkWrite(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeAddrLens are the fake get by index's answers: d0 (2) has a 6-byte
+// address, la1 (3) none, la2 (5) is refused ENODEV, and v0 (6) fails.
+var fakeAddrLens = map[int32]int{2: 6}
+
+func (f *fakeLinks) fetch(family uint8, index int32) (service.LinkInfoData, error) {
+	call := fmt.Sprintf("get %d", index)
+	if family != unix.AF_UNSPEC {
+		call += fmt.Sprintf(" family %d", family)
+	}
+	f.calls = append(f.calls, call)
+	switch index {
+	case 5:
+		return service.LinkInfoData{}, unix.ENODEV
+	case 6:
+		return service.LinkInfoData{}, errFakeResolve
+	}
+	n, ok := fakeAddrLens[index]
+	return service.LinkInfoData{HasAddress: ok, AddrLen: n}, nil
 }
 
 // TestParseLinkLower is iplink_parse's `link` keyword (KG2-T01): stored, last

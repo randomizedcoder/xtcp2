@@ -1103,3 +1103,60 @@ func TestVRFTable(t *testing.T) {
 		})
 	}
 }
+
+// TestLinkInfoDataByIndex is the get by index the tunnel parsers' prefetch
+// and nl_get_ll_addr_len send: no IFLA_EXT_MASK, ifi_family the preference,
+// and off the reply the kind, INFO_DATA and IFLA_ADDRESS's length.
+//
+// go test ./internal/goip/service/ -run TestLinkInfoDataByIndex
+func TestLinkInfoDataByIndex(t *testing.T) {
+	mac := testServiceAttr(uint16(unix.IFLA_ADDRESS), []byte{2, 0, 0, 0, 0, 0xaa})
+	linkInfo := testServiceAttr(uint16(unix.IFLA_LINKINFO)|unix.NLA_F_NESTED,
+		testServiceAttr(uint16(unix.IFLA_INFO_KIND), []byte("dummy\x00")))
+	cat := func(bs ...[]byte) []byte { return bytes.Join(bs, nil) }
+	tests := []struct {
+		description string
+		family      uint8
+		body        []byte
+		talkErr     error
+		expected    LinkInfoData
+		wantErrno   bool
+	}{
+		{description: "positive: an address and a kind", body: cat(linkBody(2), mac, linkInfo),
+			expected: LinkInfoData{Kind: "dummy", HasLinkInfo: true, HasAddress: true, AddrLen: 6}},
+		{description: "positive: the -6 preference is the family of the get", family: unix.AF_INET6, body: cat(linkBody(2), mac),
+			expected: LinkInfoData{HasAddress: true, AddrLen: 6}},
+		{description: "negative: a refused get is the errno", talkErr: unix.ENODEV, wantErrno: true},
+		{description: "boundary: no address", body: cat(linkBody(2), linkInfo),
+			expected: LinkInfoData{Kind: "dummy", HasLinkInfo: true}},
+		{description: "boundary: an empty address is present, length 0",
+			body: cat(linkBody(2), testServiceAttr(uint16(unix.IFLA_ADDRESS), nil)), expected: LinkInfoData{HasAddress: true}},
+		{description: "boundary: a reply shorter than an ifinfomsg has nothing", body: []byte{0, 0, 0, 0}},
+		{description: "corner: the address after the linkinfo is kept too", body: cat(linkBody(2), linkInfo, mac),
+			expected: LinkInfoData{Kind: "dummy", HasLinkInfo: true, HasAddress: true, AddrLen: 6}},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := xtcpnl.BuildGetLinkByIndexRequest(tc.family, 2, 0, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			src := &fakeTalkSource{body: tc.body, err: tc.talkErr}
+			got, err := New(src, func() uint32 { return 1 }).LinkInfoDataByIndex(tc.family, 2)
+			var errno unix.Errno
+			if errors.As(err, &errno) != tc.wantErrno {
+				t.Fatalf("err = %v, want an errno %v", err, tc.wantErrno)
+			}
+			if !tc.wantErrno && err != nil {
+				t.Fatalf("err = %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.expected) {
+				t.Errorf("got %+v, want %+v", got, tc.expected)
+			}
+			if len(src.reqs) != 1 || !bytes.Equal(src.reqs[0], want) {
+				t.Errorf("requests %x, want one %x", src.reqs, want)
+			}
+		})
+	}
+}

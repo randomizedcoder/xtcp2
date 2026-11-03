@@ -1060,8 +1060,10 @@ The command line never applies anything. A write verb resolves the names it
 needs with `RTM_GETLINK` (`ll_name_to_index`: the per-command cache, then
 the get, then `ifN`), builds its request and writes it to `GOIP_WRITE_OUT`.
 Without that variable it exits 1 with `ErrWriteNotApplied`. A name that only
-an `IFLA_ALT_IFNAME` get could resolve is `ErrNotImplemented`, as is
-`address` on a non-create, which needs `nl_get_ll_addr_len`.
+an `IFLA_ALT_IFNAME` get could resolve is `ErrNotImplemented`. `address` on
+a non-create was too, until [goip-write-keywords.md](goip-write-keywords.md)'s
+GW2-T01 built `nl_get_ll_addr_len`: the get by index, and its reply's
+`IFLA_ADDRESS` length checked against the address.
 
 `TestLinkWriteMatchesIpBytes` (`internal/goip/link_write_corpus_test.go`)
 replays each corpus row: the lookups are answered from the row's pcap and

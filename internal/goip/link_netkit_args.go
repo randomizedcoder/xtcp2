@@ -101,7 +101,7 @@ loop:
 
 // netkitPeer is iplink_parse over the peer's words.
 func netkitPeer(env *kindEnv, args []string) (*xtcpnl.VethPeer, error) {
-	p, err := parseLinkArgs(args, env.verb.create(), env.resolve, env.isVRF)
+	p, err := parseLinkArgs(args, env.verb.create(), env.family, env.resolve, env.isVRF, env.fetch)
 	if err != nil {
 		return nil, err
 	}

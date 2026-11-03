@@ -12,7 +12,9 @@
 - GW1-T04 is done: multipath `nexthop` is `RTA_MULTIPATH`, its hops read after `RTA_OIF` with each hop's dev looked up as it is read. 95 of the 97 rows are `same`; 279 rows refuse (V010–V012).
 - **GW1 is closed** (DOC002). The route rows refuse only at a per-hop `encap ip`/`ip6` (2, fibt). GW2 is broken into eight tasks in the plan.
 
-**Next action:** GW2-T01, the `set address` length lookup.
+- GW2-T01 is done: `set … address` runs `nl_get_ll_addr_len`'s get by index and checks the reply's address length. The 2 rows are `same`; 277 rows refuse (V013–V015).
+
+**Next action:** GW2-T02, link `group` (61 rows).
 
 ## Contents
 
@@ -37,7 +39,7 @@
 | Phase | Object | Rows | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [GW1](goip-write-keywords.md#gw1--route-keywords) | route | 331 | GW1-T04 | done | V001–V012, DOC002 |
-| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | not started | |
+| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V015 |
 | [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | | not started | |
 | [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | | not started | |
 | [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | | not started | |
@@ -52,7 +54,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW1-T02](goip-write-keywords.md#gw1-t02-pref-and-expires) | route `pref`, `expires` | done | 392 | V004–V006 |
 | [x] | [GW1-T03](goip-write-keywords.md#gw1-t03-tos-dsfield-realms-and-vrf) | route `tos`/`dsfield`, `realms`, `vrf` | done | 374 | V007–V009 |
 | [x] | [GW1-T04](goip-write-keywords.md#gw1-t04-multipath-nexthop) | route multipath `nexthop` | done | 279 | V010–V012 |
-| [ ] | [GW2-T01](goip-write-keywords.md#gw2-t01-the-set-address-length-lookup) | link `set address` length lookup | not started | | |
+| [x] | [GW2-T01](goip-write-keywords.md#gw2-t01-the-set-address-length-lookup) | link `set address` length lookup | done | 277 | V013–V015 |
 | [ ] | [GW2-T02](goip-write-keywords.md#gw2-t02-group) | link `group` | not started | | |
 | [ ] | [GW2-T03](goip-write-keywords.md#gw2-t03-gso-and-gro-sizes) | link GSO and GRO sizes | not started | | |
 | [ ] | [GW2-T04](goip-write-keywords.md#gw2-t04-addrgenmode) | link `addrgenmode` | not started | | |
@@ -80,8 +82,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V009 | 2026-11-02 | GW1-T03 | as V003 | both pass; the first lint run found gofmt on `routeParseState`'s field alignment after `vrfTable` was added, fixed | 986e62b7 |
 | V010 | 2026-11-02 | GW1-T04 | as V001, with `go test -count=1 -race` over every package importing `pkg/xtcpnl` (its `RouteWrite` gains `Nexthops`) | all pass: `TestRouteWriteMultipath` (24 rows), `TestEncodeRouteMultipath` (9 rows), and a `TestBuildRouteWriteRequestMetricsNest` row for `RTA_MULTIPATH` after `RTA_METRICS`. `TestParseRouteWriteArgs` loses its `nexthop` refusal row, and `TestRunRouteWrite`'s unimplemented keyword is now `encap`. `pkg/xtcp`'s test binary doesn't link locally (giouring, as before) and runs under the nix check. The golden: 374 `refuses` to 279; 95 of the 97 `nexthop` rows `same` (route4 19, route6 19, fibt 56, fibnh 1), and 2 refusing at a per-hop `encap` (fibt); `differs` and `sends` 0 in every family | this commit |
 | V011 | 2026-11-02 | GW1-T04 | mutation, as V002: `rtnh_hops` as the weight; `RTA_MULTIPATH` before `RTA_METRICS` (`-run TestBuildRouteWriteRequestMetricsNest`); `rtnh_len` counting only the first attribute (`-run TestEncodeRouteMultipath`); `RTA_GATEWAY` for any family; the scope rule unchanged; the hops parsed before the route's dev; `weight` by prefix | 7 of 7 killed: by the weight, hex-weight and delete rows; the multipath-after-metrics row; the RTA_FLOW and RTA_VIA rows; the via-inet row; every universe-scope row; the two dev-order rows; the `weigh` row | this commit |
-| V012 | 2026-11-02 | GW1-T04 | as V003 | both pass; the first lint run found goconst on `"encap"`, which `tnlKeyEncap` already names, in route_write.go and nexthop_write.go, fixed | this commit |
-| DOC002 | 2026-11-02 | GW1 close | The phase closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): GW2 broken into GW2-T01 to T08 with their tables, from `ip` 7.2.0's `iplink_parse`, `iplink_modify`, `nl_get_ll_addr_len`, `xdp_parse`, `rtnl_group_a2n`, `protodown_reason_a2n`, `get_operstate` and `parse_on_off`; the inventory's remaining count; route-write-path.md's multipath statements amended. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | this commit |
+| V012 | 2026-11-02 | GW1-T04 | as V003 | both pass; the first lint run found goconst on `"encap"`, which `tnlKeyEncap` already names, in route_write.go and nexthop_write.go, fixed. The whole-repo `nix build .#checks.x86_64-linux.test-go-race` passes at acbabfef | acbabfef |
+| DOC002 | 2026-11-02 | GW1 close | The phase closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): GW2 broken into GW2-T01 to T08 with their tables, from `ip` 7.2.0's `iplink_parse`, `iplink_modify`, `nl_get_ll_addr_len`, `xdp_parse`, `rtnl_group_a2n`, `protodown_reason_a2n`, `get_operstate` and `parse_on_off`; the inventory's remaining count; route-write-path.md's multipath statements amended. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | acbabfef |
+| V013 | 2026-11-02 | GW2-T01 | as V001 | all pass: `TestLinkWriteAddrLen` (13 rows) and `TestLinkInfoDataByIndex` (7 rows). `TestBuildLinkWrite`'s row loop is now `runLinkWriteRows`, shared, with a fake get by index whose calls list beside the names, and it loses its address-length refusal row. The golden: 279 `refuses` to 277, the 2 `set address` rows `same` (linkset); their by-index gets match `ip`'s bytes; `differs` and `sends` 0 in every family | this commit |
+| V014 | 2026-11-02 | GW2-T01 | mutation, as V002: the length check as `>=`, and as `<=`; the get with ext mask 1 (`-run TestLinkInfoDataByIndex`); a refused get returned rather than skipped; the check on add; dev looked up again after the check; the linkinfo walk resetting the address (`-run TestLinkInfoDataByIndex`); the family of the get as `AF_UNSPEC` | 8 of 8 killed: by the short and one-byte rows; the long row; 4 of the 7 rows; the refused-get row; the add row; 4 rows, by their lookup lists; the address-and-kind row; the `-6` row. The first refused-get mutant didn't compile and was rewritten | this commit |
+| V015 | 2026-11-02 | GW2-T01 | as V003 | both pass; the first lint run found gofmt on the new test file, fixed | this commit |
 
 ## Decision log
 
@@ -94,4 +99,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **A per-hop `encap` or `as` is refused, not built.** goip has no lwt encoder. GW3's `nexthop encap mpls` is the first one the plan builds, and the 2 route rows here use `encap ip`/`ip6`, a different type. They stay `refuses` until a later plan or task builds `ip`'s `lwt_parse_encap` for them.
 - **The link count was 190, not 196.** DOC001's split summed to 614 against its own total of 608; the inventory table's link rows sum to 190, and so does the golden. The status summary and GW2's phase row are corrected.
 - **coverage-status.md's O5 table is left as W2c's snapshot.** It records that task's counts, not the current ones, which are in the golden and in this document.
+- **GW2-T01 reuses the tunnel prefetch's get.** `nl_get_ll_addr_len` sends the same 32 bytes as `LinkInfoDataByIndex`, so the check takes the `fetch` callback the tunnel parsers already have, rather than a second callback for the same request.
+- **dev's index from the check is kept for `finish`.** `ll_name_to_index` caches a hit, so `ip` sends one get by name for both. A miss isn't cached in either, so a missing device costs two gets in both.
 - **Names from config files are the stock files' names only.** goip reads no `rt_dsfield`, `rt_realms` or `group` file, so it takes the numeric forms and the names iproute2 7.2.0 ships, as with `rt_tables`.

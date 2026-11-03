@@ -288,9 +288,16 @@ type linkParseState struct {
 	create  bool
 	resolve linkResolver
 	isVRF   vrfChecker
-	out     linkParsed
-	name    string
-	dev     string
+	// family and fetch are preferred_family and the get by index that
+	// nl_get_ll_addr_len sends for a set's address.
+	family uint8
+	fetch  linkDataFetcher
+	// devIndex is dev's index once a lookup found it: ll_name_to_index
+	// caches a hit, so finish doesn't look it up again. A miss isn't kept.
+	devIndex int32
+	out      linkParsed
+	name     string
+	dev      string
 	// link is the `link` argument, the last one given.
 	link    string
 	devSt   devState
@@ -304,8 +311,10 @@ type linkParseState struct {
 // parseLinkArgs is iplink_parse for the keywords goip implements. create
 // is NLM_F_CREATE in the request, which decides how the device is
 // addressed: by name on add and replace, by ifindex otherwise.
-func parseLinkArgs(args []string, create bool, resolve linkResolver, isVRF vrfChecker) (linkParsed, error) {
-	st := linkParseState{create: create, resolve: resolve, isVRF: isVRF, mtu: -1, qlen: -1, txq: -1, rxq: -1}
+func parseLinkArgs(args []string, create bool, family uint8, resolve linkResolver, isVRF vrfChecker,
+	fetch linkDataFetcher) (linkParsed, error) {
+	st := linkParseState{create: create, resolve: resolve, isVRF: isVRF, family: family, fetch: fetch,
+		mtu: -1, qlen: -1, txq: -1, rxq: -1}
 	i := 0
 loop:
 	for ; i < len(args); i++ {
@@ -585,17 +594,21 @@ func (st *linkParseState) finish() error {
 	haveDev := st.devSt != devUnset
 
 	if haveDev && st.addrLen > 0 && !st.create {
-		// nl_get_ll_addr_len(dev): one more read, for a length check.
-		return fmt.Errorf("link set address: the address-length lookup is %w", ErrNotImplemented)
+		if err := st.checkAddrLen(); err != nil {
+			return err
+		}
 	}
 
 	if !st.create {
 		if !haveDev {
 			return linkUsage(fmt.Errorf("%w: Not enough information: \"dev\" argument is required", ErrInvalidArgument))
 		}
-		idx, err := st.resolve(st.dev)
-		if err != nil {
-			return err
+		idx := st.devIndex
+		if idx == 0 {
+			var err error
+			if idx, err = st.resolve(st.dev); err != nil {
+				return err
+			}
 		}
 		if idx == 0 {
 			return nodevErr(st.dev)
@@ -629,6 +642,29 @@ func (st *linkParseState) finish() error {
 	return nil
 }
 
+// checkAddrLen is iplink_parse's address-length check on a set
+// (ip/iplink.c:1279), through nl_get_ll_addr_len: the dev's index, the get
+// by index, and the reply's IFLA_ADDRESS length. No index, a refused get or
+// a reply with no address is -1 there, which skips the check.
+func (st *linkParseState) checkAddrLen() error {
+	idx, err := st.resolve(st.dev)
+	if err != nil || idx == 0 {
+		return err
+	}
+	st.devIndex = idx
+	d, err := st.fetch(st.family, idx)
+	var errno syscall.Errno
+	switch {
+	case errors.As(err, &errno):
+		return nil
+	case err != nil:
+		return err
+	case !d.HasAddress || d.AddrLen == st.addrLen:
+		return nil
+	}
+	return fmt.Errorf("%w: Invalid address length %d - must be %d bytes", ErrInvalidArgument, st.addrLen, d.AddrLen)
+}
+
 // Kinds iplink_modify treats specially.
 const (
 	kindBondCst      = "bond"
@@ -650,7 +686,7 @@ const (
 func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []string, resolve linkResolver,
 	isVRF vrfChecker, fetch linkDataFetcher,
 ) (xtcpnl.LinkWrite, error) {
-	p, err := parseLinkArgs(args, verb.create(), resolve, isVRF)
+	p, err := parseLinkArgs(args, verb.create(), family, resolve, isVRF, fetch)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
 	}
@@ -832,7 +868,7 @@ func vethData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("%w: veth: expected \"peer\", not %q", ErrInvalidArgument, rest[0])
 	}
-	p, err := parseLinkArgs(rest[1:], env.verb.create(), env.resolve, env.isVRF)
+	p, err := parseLinkArgs(rest[1:], env.verb.create(), env.family, env.resolve, env.isVRF, env.fetch)
 	if err != nil {
 		return nil, err
 	}
