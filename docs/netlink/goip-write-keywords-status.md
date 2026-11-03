@@ -26,7 +26,10 @@
 
 - GW2-T07 is done: `xdp`, `xdpgeneric`, `xdpdrv` and `xdpoffload` with `off` or `none` as the last word are `IFLA_XDP` with fd -1, and `xdpoffload` looks dev up first. Any other form is a program load and stays not implemented. 13 rows become `same`; `xdp off carrier on` still refuses; 119 rows refuse (V031–V033).
 
-**Next action:** GW2-T08, link `index`, `netns`, `link-netnsid` and `parentdev`, which closes GW2.
+- GW2-T08 is done: `index` is `ifi_index` on a create and refused on a set, `link-netnsid` is `IFLA_LINK_NETNSID`, and `parentdev` is `IFLA_PARENT_DEV_NAME`. `netns` stays not implemented (decision log). The 3 rows are `same`; 116 rows refuse (V034–V036).
+- **GW2 is closed** (DOC003). The link rows refuse only at `netns` (26) and at an `xdp` that isn't last (1), both in the decision log. GW3 is broken into three tasks in the plan.
+
+**Next action:** GW3-T01, nexthop `hw_stats` (41 rows).
 
 ## Contents
 
@@ -51,8 +54,8 @@
 | Phase | Object | Rows | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [GW1](goip-write-keywords.md#gw1--route-keywords) | route | 331 | GW1-T04 | done | V001–V012, DOC002 |
-| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | in progress | V013–V033 |
-| [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | | not started | |
+| [GW2](goip-write-keywords.md#gw2--link-set-keywords) | link | 190 | GW2-T08 | done | V013–V036, DOC003 |
+| [GW3](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop | 57 | GW3-T03 | not started | |
 | [GW4](goip-write-keywords.md#gw4--rule-realms) | rule | 30 | | not started | |
 | [GW5](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | goip-parity | | | not started | |
 
@@ -73,8 +76,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [GW2-T05](goip-write-keywords.md#gw2-t05-protodown-and-protodown_reason) | link `protodown`, `protodown_reason` | done | 204 | V025–V027 |
 | [x] | [GW2-T06](goip-write-keywords.md#gw2-t06-broadcast-carrier-mode-and-state) | link `broadcast`, `carrier`, `mode`, `state` | done | 132 | V028–V030 |
 | [x] | [GW2-T07](goip-write-keywords.md#gw2-t07-xdp-off) | link `xdp off` | done | 119 | V031–V033 |
-| [ ] | [GW2-T08](goip-write-keywords.md#gw2-t08-index-netns-link-netnsid-and-parentdev) | link `index`, `netns`, `link-netnsid`, `parentdev` | not started | | |
-| [ ] | [GW3-T01…](goip-write-keywords.md#gw3--nexthop-keywords) | nexthop keywords | not started | | |
+| [x] | [GW2-T08](goip-write-keywords.md#gw2-t08-index-netns-link-netnsid-and-parentdev) | link `index`, `netns`, `link-netnsid`, `parentdev` | done | 116 | V034–V036 |
+| [ ] | [GW3-T01](goip-write-keywords.md#gw3-t01-hw_stats) | nexthop `hw_stats` | not started | | |
+| [ ] | [GW3-T02](goip-write-keywords.md#gw3-t02-dst_port) | nexthop `dst_port` | not started | | |
+| [ ] | [GW3-T03](goip-write-keywords.md#gw3-t03-encap-mpls) | nexthop `encap mpls` | not started | | |
 | [ ] | [GW4-T01…](goip-write-keywords.md#gw4--rule-realms) | rule `realms` | not started | | |
 | [ ] | [GW5-T01…](goip-write-keywords.md#gw5--matrix-rows-and-the-vm-gate) | matrix rows, VM gate | not started | | |
 
@@ -116,7 +121,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V030 | 2026-11-02 | GW2-T06 | as V003 | both pass first time | 938d22f3 |
 | V031 | 2026-11-02 | GW2-T07 | as V001 | all pass: `TestLinkWriteXdp` (19 rows), `TestLinkAttrXdp` (4), and `TestLinkParseKeywordsAreUnique` once the mode bit moved from `flag` to its own `xdpMode` field. The golden: 132 `refuses` to 119; `linkattr` 22 `same`, 30 `refuses` (`netns` 26, `index`, `link-netnsid`, `parentdev` 1 each, and `xdp off carrier on`); `differs` and `sends` 0 in every family | this commit |
 | V032 | 2026-11-02 | GW2-T07 | mutation, as V002: `UPDATE_IF_NOEXIST` dropped; fd 0; the last-word test dropped; `none` dropped; no `xdpoffload` lookup; the lookup not kept for `finish`; `xdpgeneric` as `DRV_MODE`; `LinkAttrXdp` sends flags 0; `NLA_F_NESTED` added | 9 of 9 killed: by `xdp off`; `xdp off`; the not-last rows; the `none` rows; the three offload refusals; "looks d0 up once"; `xdpgeneric`; the flags-0 row; the bytes rows. The plan's `-force` row can't be reached, since goip refuses `-force`; the plan is corrected | this commit |
-| V033 | 2026-11-02 | GW2-T07 | as V003 | both pass first time | this commit |
+| V033 | 2026-11-02 | GW2-T07 | as V003 | both pass first time | 763c463c |
+| V034 | 2026-11-02 | GW2-T08 | as V001 | all pass: `TestLinkWriteIndexNetns` (24 rows). `TestBuildLinkWrite`'s not-implemented `index` row is now `netns`. The golden: 119 `refuses` to 116; the `index`, `link-netnsid` and `parentdev` rows are `same`; `linkattr` 25 `same`, 27 `refuses` (`netns` 26, `xdp off carrier on`); `differs` and `sends` 0 in every family | this commit |
+| V035 | 2026-11-02 | GW2-T08 | mutation, as V002: `index` allowed on a set; `index 0` accepted; `parentdev` without its NUL; `ifi_index` not set on a create; no `duparg` on a second `index`; `link-netnsid -1` counted as given; `link-netnsid` in base 10; a lower dev in the nsid's namespace looked up here; the `index` check after the group-wide set | 9 of 9 killed: by the set rows; `index 0` and `x`; the two `parentdev` rows; the create rows; `index` twice; the two `-1` rows; `0x10`; the lower-dev row; the group-wide row | this commit |
+| V036 | 2026-11-02 | GW2-T08 | as V003 | both pass first time | this commit |
+| DOC003 | 2026-11-02 | GW2 close | The phase closed as the plan's [Closing a phase](goip-write-keywords.md#closing-a-phase): GW3 broken into GW3-T01 to T03 with their tables, from `ip` 7.2.0's `ipnh_modify`, `lwt_parse_encap`, `parse_encap_mpls`, `mpls_pton`, `get_addr` and `duparg2`; the inventory's remaining count; `netns` and `link-netns` added to the plan's out-of-scope list; link-write-path.md's statement on the write verbs amended. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -136,4 +145,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **`protodown_reason` takes numbers only.** `protodown_reason_a2n` looks names up in `protodown_reasons.d`, which iproute2 doesn't ship, so with the stock files a name is refused; goip refuses it the same way.
 - **`mode` and `state` read render's tables.** `get_link_mode` and `get_operstate` compare against the names `ip` prints, so goip looks them up in `render`'s `linkModes` and `operStates` (as copies) rather than keeping a second list.
 - **`xdp` builds the detach only.** `xdp_parse` deletes for `off`/`none` as argv's last word and otherwise loads a BPF object, which goip doesn't do; that path is `ErrNotImplemented` and the golden's one row for it (`xdp off carrier on`) stays `refuses`.
+- **`netns` isn't built, so GW2 closes with 26 `netns` rows refusing.** `ip` opens `/run/netns/NAME` or `/proc/PID/ns/net` and sends the descriptor's number. goip writes the request to `GOIP_WRITE_OUT` for something else to send, so a descriptor it opened would be closed, and its number meaningless, by then. 25 of the rows also use `$$`, the capturing shell's pid, which no replay can reproduce. The plan's GW2-T08 had `netns` built; this replaces that, and the plan's out-of-scope list now says so. `link-netns` stays not implemented for the same reason, and a create whose lower `link` would be looked up in a `link-netnsid` namespace is refused as not implemented too.
+- **`index` on a set is always refused.** `iplink_modify` allows it only with `netns`, which goip doesn't build, so the refusal is `ip`'s whenever goip gets that far.
 - **Names from config files are the stock files' names only.** goip reads no `rt_dsfield`, `rt_realms` or `group` file, so it takes the numeric forms and the names iproute2 7.2.0 ships, as with `rt_tables`.

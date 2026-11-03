@@ -63,11 +63,14 @@ By object: route 331, link 190, nexthop 57, rule 30.
 
 **Remaining after GW1** (DOC002): 279. These are route 2 (`fib_notify_test-001` and `fib6_notify_test-001`, a per-hop `encap ip`/`ip6`, which goip has no lwt encoder for), link 190, nexthop 57 and rule 30.
 
+**Remaining after GW2** (DOC003): 116. These are route 2 (as above), link 27, nexthop 57 and rule 30. The link 27 are all `linkattr`: 25 `netns $$` rows, `netns nosuch`, and `xdp off carrier on`, an `xdp` that isn't argv's last word and so is a program load. None of them is a keyword GW3 to GW5 build; they are in the decision log.
+
 ## Out of scope
 
 - **Anything outside the 608.** The plan follows the oracle. A keyword no workbench row uses (route `as`, `encap` at the top level, `ttl-propagate`, link `vf`, `xdpgeneric` with a program) stays `ErrNotImplemented` until a row exercises it.
 - **Names from config files.** goip reads none. Where `ip` reads `rt_dsfield`, `rt_realms` or `group`, goip takes the numeric forms and the stock files' names, as it already does for `rt_tables` (`routeTableNames`). A row naming anything else is recorded in the decision log rather than matched.
 - **`xdp` with a program.** Only `xdp off` is in the rows. Loading an object needs libbpf, which goip doesn't link.
+- **`netns` and `link-netns`.** `ip` opens the namespace and sends the descriptor's number in `IFLA_NET_NS_FD`, or asks the kernel for an nsid with it. goip writes its request to `GOIP_WRITE_OUT` rather than sending it, so a descriptor it opened would be closed, and its number meaningless, by the time anything sends the bytes. Both stay `ErrNotImplemented` (GW2-T08's decision).
 
 ## Gates every task inherits
 
@@ -410,7 +413,7 @@ The workbench rows: the 3 `xdp` rows and the ones behind `carrier`/`netns` `same
 
 #### GW2-T08 `index`, `netns`, `link-netnsid` and `parentdev`
 
-**Code.** `linkArmIndex` (`atoi`, positive, `duparg`) and `finish`'s set-without-netns refusal. `linkArmNetns` opens the namespace as `netns_get_fd` does and sends the descriptor's number. `linkArmLinkNetnsid` uses `get_integer`. `linkArmParentdev` sends the NUL-terminated name.
+**Code.** `linkArmIndex` (`atoi`, positive, `duparg`) and `finish`'s set-without-netns refusal. `netns` was to open the namespace as `netns_get_fd` does and send the descriptor's number; at the task it stays `ErrNotImplemented` instead (see [Out of scope](#out-of-scope)), so its two rows below are a not-implemented refusal. `linkArmLinkNetnsid` uses `get_integer`. `linkArmParentdev` sends the NUL-terminated name.
 
 `TestLinkWriteIndexNetns`:
 
@@ -433,7 +436,85 @@ The workbench rows: the 5 rows `same`, except `netns $$` rows: the shell's pid i
 
 ### GW3 — nexthop keywords
 
-Planned when GW2 closes. The rows: 41 `hw_stats` (`NHA_HW_STATS_ENABLE`), 12 `dst_port` that `ip` 7.2.0 refuses as an unknown word (`Error: argument "dst_port" is wrong:`, 255) and goip should refuse the same way, and 4 `encap mpls`.
+Three tasks, all in `internal/goip/nexthop_write.go`'s `(*nexthopWrite).parseArg` (`ipnh_modify`'s chain in its order). Today `encap`, `dst_port` and `hw_stats` share one `ErrNotImplemented` arm.
+
+The 57 rows after GW2-T08's golden: 41 `hw_stats` (nhgrp 39, nh4 1, nh6 1), 12 `dst_port` (fibnh 10, nh4 1, nh6 1) and 4 `encap mpls` (fibnh).
+
+**What `ip` does** (`ip/ipnexthop.c` at `v7.2.0`):
+- **`hw_stats`** (`strcmp`, `:1131`): `NEXT_ARG`, then `parse_on_off`, whose error `ipnh_modify` returns. It sends `NHA_HW_STATS_ENABLE` u32, 0 or 1, where the loop reads it.
+- **`dst_port`** isn't a 7.2.0 keyword (iproute2 `ad2b2d95` adds it later). The chain's last arm, `invarg("", *argv)`, refuses it: `Error: argument "dst_port" is wrong: `, 255, with nothing sent. Any `dev` before it has been looked up by then. goip's default arm already prints that refusal.
+- **`encap`** (`strcmp`, `:1095`): `lwt_parse_encap` (`ip/iproute_lwtunnel.c:2298`) writes into a scratch buffer, which is appended raw where the loop reads it:
+  - `NEXT_ARG`, then `read_encap_type` by `strcmp` (`mpls`, `ip`, `ip6`, `ila`, `bpf`, `seg6`, `seg6local`, `rpl`, `ioam6`, `xfrm`), else `invarg("\"encap type\" value is invalid\n")`, 255.
+  - `NEXT_ARG`, then `argc <= 1` is `missarg("encap type")`: `Error: argument "encap type" is required`, 255. So the type's first argument can't be argv's last word.
+  - `NHA_ENCAP`, opened by `rta_nest`, which sets `NLA_F_NESTED`.
+  - For `mpls`, `parse_encap_mpls` (`:1610`): `get_addr` in `AF_MPLS`, which is `mpls_pton` (`lib/mpls_pton.c`). It takes up to 64 labels split on `/`, each `strtoul` in base 0 below 2^20, stored big-endian as `label << 12`, with the bottom-of-stack bit (`0x100`) on the last. `default`, `all` and `any` are refused in `AF_MPLS`. A bad address is `get_addr`'s own `Error: mpls address is expected rather than "%s".`, exit 1. More than 64 labels first prints `Error: too many labels.` It sends `MPLS_IPTUNNEL_DST`, the labels' bytes. Then an optional `ttl N` (`get_u8` in base 0, `duparg2` on a second) sends `MPLS_IPTUNNEL_TTL` u8, and the first other word ends the encap.
+  - The nest closes, and `NHA_ENCAP_TYPE` u16 (`LWTUNNEL_ENCAP_MPLS` 1) follows it.
+
+#### GW3-T01 `hw_stats`
+
+**Code.** A `hw_stats` arm: `nextArg`, link_write.go's `parseOnOff`, then `NHA_HW_STATS_ENABLE` u32.
+
+`TestNexthopWriteHwStats`:
+
+| description | input | expected |
+|---|---|---|
+| positive: on | `id 1 group 21 hw_stats on` | `NHA_ID`, `NHA_GROUP`, `NHA_HW_STATS_ENABLE` 1 |
+| positive: off | `id 1 group 21 hw_stats off` | `NHA_HW_STATS_ENABLE` 0 |
+| positive: before protocol | `group 21 hw_stats off protocol static` | the attribute, and `nh_protocol` 4 |
+| negative: a bad value | `hw_stats maybe` | `parse_on_off`'s error and status |
+| negative: no value | `hw_stats` | 255; `Command line is not complete` |
+| corner: no prefix match | `hw_stat on` | 255; `Error: argument "hw_stat" is wrong: ` |
+| corner: twice | `hw_stats on hw_stats off` | two attributes, 1 then 0 |
+
+The workbench rows: the 41 rows `same`.
+
+**Mutation check:** the value inverted (on and off); a u8 rather than a u32 (the bytes); `hw_stats` by prefix (`hw_stat`).
+
+#### GW3-T02 `dst_port`
+
+**Code.** `dst_port` leaves the not-implemented arm, so the default arm's `invarg` refuses it, as `ip` 7.2.0 does.
+
+`TestNexthopWriteDstPort`:
+
+| description | input | expected |
+|---|---|---|
+| negative: dst_port | `id 31 fdb dst_port 4790` | 255; `Error: argument "dst_port" is wrong: `, nothing sent |
+| negative: after a dev | `id 10 dev d0 dst_port 4789` | d0's lookup, then the same refusal |
+| boundary: port 0 | `id 31 via 172.16.1.2 fdb dst_port 0` | the same refusal |
+| corner: as the last word | `id 31 dst_port` | the same refusal: the word is refused before its value is read |
+
+The workbench rows: the 12 rows `same`.
+
+**Mutation check:** `dst_port` still not implemented (the rows stay `refuses`); a `NEXT_ARG` before the refusal (the last-word row).
+
+#### GW3-T03 `encap mpls`
+
+**Code.** An `encap` arm reading the type; `mpls` through a new `mplsPton` and an `xtcpnl` encoder for the `NHA_ENCAP` nest and `NHA_ENCAP_TYPE`; every other type stays `ErrNotImplemented`, since no row uses one.
+
+`TestNexthopWriteEncapMpls`:
+
+| description | input | expected |
+|---|---|---|
+| positive: one label | `id 51 encap mpls 101 via 172.16.1.2 dev veth1` | `NHA_ID`, `NHA_ENCAP`\|`NLA_F_NESTED`{`MPLS_IPTUNNEL_DST` `00065100`}, `NHA_ENCAP_TYPE` 1, `NHA_GATEWAY`, `NHA_OIF` |
+| positive: a stack | `encap mpls 101/102 via 172.16.1.2` | `00065000 00066100`: the bottom bit on the last only |
+| positive: ttl | `encap mpls 101 ttl 64 via 172.16.1.2` | `MPLS_IPTUNNEL_TTL` 64 after the labels |
+| positive: an IPv6 gateway | `id 52 encap mpls 102 via inet6 2001:db8:91::2 dev veth1` | as captured, `nh_family` 10 |
+| negative: a label at 2^20 | `encap mpls 1048576 via 172.16.1.2` | 1; `Error: mpls address is expected rather than "1048576".` |
+| negative: an unknown type | `encap foo 1 via 172.16.1.2` | 255; `"encap type" value is invalid` |
+| negative: the label last | `id 1 encap mpls 101` | 255; `Error: argument "encap type" is required` |
+| negative: ttl twice | `encap mpls 101 ttl 1 ttl 2 via 172.16.1.2` | 255; `duparg2`'s error |
+| negative: a bad ttl | `encap mpls 101 ttl 256 via 172.16.1.2` | 255; `"ttl" value is invalid` |
+| boundary: the largest label | `encap mpls 1048575 via 172.16.1.2` | `fffff100` |
+| boundary: 64 labels and 65 | 64 `/`-joined labels; 65 | 256 bytes; `too many labels` and the address error |
+| corner: default | `encap mpls default via 172.16.1.2` | the address error |
+| corner: hex, base 0 | `encap mpls 0x10 via 172.16.1.2` | `00010100` |
+| corner: another type | `encap ip id 1 dst 10.0.0.1 via 172.16.1.2` | `ErrNotImplemented` |
+
+The workbench rows: the 4 rows `same` (2 accepted, and 2 with `fdb` that the kernel refuses).
+
+**Mutation check:** `NLA_F_NESTED` dropped (the bytes); the bottom bit on every label (the stack); `NHA_ENCAP_TYPE` before the nest; the `missarg` check dropped (the label-last row).
+
+**Done when** (every GW3 task): as GW1-T01, with the task's rows `same`, and `differs` and `sends` 0. GW3-T03 closes GW3 and expands GW4.
 
 ### GW4 — rule `realms`
 

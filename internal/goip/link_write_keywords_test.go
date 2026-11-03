@@ -453,3 +453,76 @@ func TestLinkWriteXdp(t *testing.T) {
 			expected: set(xdp(noexist | unix.XDP_FLAGS_HW_MODE))},
 	})
 }
+
+// TestLinkWriteIndexNetns is iplink_parse's index, link-netnsid and
+// parentdev arms (ip/iplink.c:904, 1164, 1250) and the index check after the
+// loop (:1291). index is atoi, positive, ifi_index on a create and refused
+// on a set, since goip doesn't implement netns (move_netns). link-netnsid is
+// get_integer as IFLA_LINK_NETNSID; parentdev the name with its NUL. GW2-T08.
+//
+// go test ./internal/goip/ -run TestLinkWriteIndexNetns
+func TestLinkWriteIndexNetns(t *testing.T) {
+	set := func(a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: 2, Attrs: a,
+		}, resolved: []string{"d0"}}
+	}
+	add := func(index int32, resolved []string, a ...xtcpnl.LinkAttr) linkWriteExpected {
+		return linkWriteExpected{write: xtcpnl.LinkWrite{
+			MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL | unix.NLM_F_ACK,
+			Index: index, Kind: "dummy", Attrs: a,
+		}, resolved: resolved}
+	}
+	d0 := func(w ...string) []string { return append([]string{"dev", "d0"}, w...) }
+	nsid := func(v uint32) xtcpnl.LinkAttr { return xtcpnl.LinkAttrU32(unix.IFLA_LINK_NETNSID, v) }
+	ifname := func(n string) xtcpnl.LinkAttr { return xtcpnl.LinkAttrString(unix.IFLA_IFNAME, n) }
+	usage := func(msg string) linkWriteExpected { return linkWriteExpected{err: ErrLinkUsage, errMsg: msg} }
+	badIndex := func(v string) linkWriteExpected {
+		return usage(fmt.Sprintf(`Error: argument %q is wrong: Invalid "index" value`, v))
+	}
+	const onSet = "index can be used only when creating devices or when moving device to another netns"
+	runLinkWriteRows(t, []linkWriteRow{
+		{description: "positive: parentdev", verb: "set", args: d0("parentdev", "br0"),
+			expected: set(xtcpnl.LinkAttrBytes(unix.IFLA_PARENT_DEV_NAME, []byte("br0\x00")))},
+		{description: "positive: link-netnsid", verb: "set", args: d0("link-netnsid", "5"), expected: set(nsid(5))},
+		{description: "positive: index on a create is ifi_index", verb: "add", args: []string{"d9", "index", "100", "type", "dummy"},
+			expected: add(100, nil, ifname("d9"))},
+		{description: "positive: link-netnsid in base 0", verb: "set", args: d0("link-netnsid", "0x10"), expected: set(nsid(16))},
+		{description: "negative: index on a set", verb: "set", args: d0("index", "100"), expected: usage(onSet)},
+		{description: "negative: index on a set is refused before the dev lookup", verb: "set", args: []string{"nosuch", "index", "1"},
+			expected: usage(onSet)},
+		{description: "negative: index 0", verb: "add", args: []string{"d9", "index", "0", "type", "dummy"}, expected: badIndex("0")},
+		{description: "negative: index x", verb: "add", args: []string{"d9", "index", "x", "type", "dummy"}, expected: badIndex("x")},
+		{description: "negative: a negative index", verb: "add", args: []string{"d9", "index", "-3", "type", "dummy"}, expected: badIndex("-3")},
+		{description: "negative: index twice", verb: "add", args: []string{"d9", "index", "1", "index", "2", "type", "dummy"},
+			expected: usage(`Error: duplicate "index": "2" is the second value`)},
+		{description: "negative: link-netnsid twice", verb: "set", args: d0("link-netnsid", "1", "link-netnsid", "2"),
+			expected: usage(`Error: duplicate "link-netns/link-netnsid": "2" is the second value`)},
+		{description: "negative: a bad link-netnsid", verb: "set", args: d0("link-netnsid", "x"),
+			expected: usage(`Error: argument "x" is wrong: Invalid "link-netnsid" value`)},
+		{description: "negative: netns stays not implemented", verb: "set", args: d0("netns", "nosuch"),
+			expected: linkWriteExpected{err: ErrNotImplemented, errMsg: `"netns"`}},
+		{description: "negative: a lower dev in link-netnsid's namespace", verb: "add",
+			args:     []string{"v9", "link", "d0", "link-netnsid", "1", "type", "dummy"},
+			expected: linkWriteExpected{err: ErrNotImplemented, errMsg: `link "d0" in link-netnsid's namespace`}},
+		{description: "boundary: link-netnsid -1", verb: "set", args: d0("link-netnsid", "-1"), expected: set(nsid(0xffffffff))},
+		{description: "boundary: index at INT_MAX", verb: "add", args: []string{"d9", "index", "2147483647", "type", "dummy"},
+			expected: add(2147483647, nil, ifname("d9"))},
+		{description: "boundary: index 2^32+1 wraps to 1 in atoi's int", verb: "add", args: []string{"d9", "index", "4294967297", "type", "dummy"},
+			expected: add(1, nil, ifname("d9"))},
+		{description: "boundary: index 2^31 wraps negative and is refused", verb: "add",
+			args: []string{"d9", "index", "2147483648", "type", "dummy"}, expected: badIndex("2147483648")},
+		{description: "boundary: an empty parentdev is its NUL alone", verb: "set", args: d0("parentdev", ""),
+			expected: set(xtcpnl.LinkAttrBytes(unix.IFLA_PARENT_DEV_NAME, []byte{0}))},
+		{description: "corner: atoi reads 5x as 5", verb: "add", args: []string{"d9", "index", "5x", "type", "dummy"},
+			expected: add(5, nil, ifname("d9"))},
+		{description: "corner: link-netnsid -1 isn't counted, so a second is no duparg", verb: "set",
+			args: d0("link-netnsid", "-1", "link-netnsid", "2"), expected: set(nsid(0xffffffff), nsid(2))},
+		{description: "corner: link-netnsid -1 leaves the lower dev looked up here", verb: "add",
+			args:     []string{"v9", "link", "d0", "link-netnsid", "-1", "type", "dummy"},
+			expected: add(0, []string{"d0"}, nsid(0xffffffff), xtcpnl.LinkAttrU32(unix.IFLA_LINK, 2), ifname("v9"))},
+		{description: "corner: link-netnsi is link-netnsid by prefix", verb: "set", args: d0("link-netnsi", "3"), expected: set(nsid(3))},
+		{description: "corner: index on a group-wide set is refused first", verb: "set", args: []string{"group", "1", "index", "4"},
+			expected: usage(onSet)},
+	})
+}

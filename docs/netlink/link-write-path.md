@@ -1063,7 +1063,10 @@ Without that variable it exits 1 with `ErrWriteNotApplied`. A name that only
 an `IFLA_ALT_IFNAME` get could resolve is `ErrNotImplemented`. `address` on
 a non-create was too, until [goip-write-keywords.md](goip-write-keywords.md)'s
 GW2-T01 built `nl_get_ll_addr_len`: the get by index, and its reply's
-`IFLA_ADDRESS` length checked against the address.
+`IFLA_ADDRESS` length checked against the address. GW2 built the rest of
+`iplink_parse`'s generic keywords too, except `netns`, `link-netns`, `vf` and
+`xdp` with a program, which stay `ErrNotImplemented`
+([why](goip-write-keywords-status.md#decision-log)).
 
 `TestLinkWriteMatchesIpBytes` (`internal/goip/link_write_corpus_test.go`)
 replays each corpus row: the lookups are answered from the row's pcap and

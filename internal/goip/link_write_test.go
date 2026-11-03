@@ -308,8 +308,8 @@ func TestBuildLinkWrite(t *testing.T) {
 			expected: invalid(`argument of "promisc" must be "on" or "off", not "On"`)},
 
 		// Keywords goip does not implement are refused, never read as a device.
-		{description: "negative: index", verb: "add", args: []string{"d0", "index", "5", "type", "dummy"},
-			expected: notImpl(`"index"`)},
+		{description: "negative: netns", verb: "add", args: []string{"d0", "netns", "ns1", "type", "dummy"},
+			expected: notImpl(`"netns"`)},
 		{description: "negative: vf", verb: "set", args: []string{"d0", "vf", "0", "mac", "02:00:00:00:00:01"},
 			expected: notImpl(`"vf"`)},
 

@@ -109,6 +109,9 @@ const (
 	linkArmLinkMode    // get_link_mode, IFLA_LINKMODE u8
 	linkArmOperstate   // get_operstate, IFLA_OPERSTATE u8
 	linkArmXdp         // xdp_parse's off/none: IFLA_XDP{FD -1, FLAGS}
+	linkArmIndex       // atoi, positive: ifi_index on a create
+	linkArmLinkNetnsid // get_integer, IFLA_LINK_NETNSID s32
+	linkArmParentdev   // IFLA_PARENT_DEV_NAME with its NUL
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -149,7 +152,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "up", arm: linkArmUp},
 	{keyword: "down", arm: linkArmDown},
 	{keyword: "name", arm: linkArmName},
-	{keyword: "index", arm: linkArmUnsupported},
+	{keyword: "index", arm: linkArmIndex},
 	{keyword: "link", prefix: true, arm: linkArmLink},
 	{keyword: "address", prefix: true, arm: linkArmAddress},
 	{keyword: "broadcast", prefix: true, arm: linkArmBroadcast},
@@ -184,7 +187,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: numRxQueuesKeywordCst, prefix: true, arm: linkArmRxQueues},
 	{keyword: "addrgenmode", prefix: true, arm: linkArmAddrGenMode},
 	{keyword: "link-netns", prefix: true, arm: linkArmUnsupported},
-	{keyword: "link-netnsid", prefix: true, arm: linkArmUnsupported},
+	{keyword: "link-netnsid", prefix: true, arm: linkArmLinkNetnsid},
 	{keyword: linkProtodownKeywordCst, arm: linkArmProtodown},
 	{keyword: "protodown_reason", arm: linkArmProtodownReason},
 	{keyword: "gso_max_size", arm: linkArmU32Max, attr: unix.IFLA_GSO_MAX_SIZE, maxVal: math.MaxUint32},
@@ -192,7 +195,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "gro_max_size", arm: linkArmU32Max, attr: unix.IFLA_GRO_MAX_SIZE, maxVal: math.MaxUint32},
 	{keyword: "gso_ipv4_max_size", arm: linkArmU32Max, attr: unix.IFLA_GSO_IPV4_MAX_SIZE, maxVal: math.MaxUint32},
 	{keyword: "gro_ipv4_max_size", arm: linkArmU32Max, attr: unix.IFLA_GRO_IPV4_MAX_SIZE, maxVal: math.MaxUint32},
-	{keyword: "parentdev", arm: linkArmUnsupported},
+	{keyword: "parentdev", arm: linkArmParentdev},
 }
 
 // The queue keywords, matches() in iplink_parse.
@@ -329,6 +332,10 @@ type linkParseState struct {
 	txq     int
 	rxq     int
 	addrLen int
+	// index is `index N`, 0 when absent. hasNetnsid is link_netnsid != -1:
+	// `link-netnsid -1` reads as never given.
+	index      int32
+	hasNetnsid bool
 }
 
 // parseLinkArgs is iplink_parse for the keywords goip implements. create
@@ -488,6 +495,8 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		return st.onOffU8(kw.keyword, v)
 	case linkArmBroadcast, linkArmLinkMode, linkArmOperstate:
 		return st.linkState(kw.arm, v)
+	case linkArmIndex, linkArmLinkNetnsid, linkArmParentdev:
+		return st.linkIdentity(kw.arm, v)
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
@@ -694,6 +703,33 @@ func (st *linkParseState) linkState(arm linkArm, v string) error {
 	return nil
 }
 
+// linkIdentity is the index, link-netnsid and parentdev arms.
+func (st *linkParseState) linkIdentity(arm linkArm, v string) error {
+	switch arm {
+	case linkArmIndex:
+		if st.index != 0 {
+			return linkUsage(dupargErr("index", v))
+		}
+		if st.index = cint.LongToInt(cAtoi(v)); st.index <= 0 {
+			st.index = 0
+			return linkUsage(invargErr("Invalid \"index\" value", v))
+		}
+	case linkArmLinkNetnsid:
+		if st.hasNetnsid {
+			return linkUsage(dupargErr("link-netns/link-netnsid", v))
+		}
+		n, ok := getInteger(v, 0)
+		if !ok {
+			return linkUsage(invargErr("Invalid \"link-netnsid\" value\n", v))
+		}
+		st.hasNetnsid = n != -1
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_LINK_NETNSID, cint.LongBits(int64(n))))
+	default: // linkArmParentdev
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrString(unix.IFLA_PARENT_DEV_NAME, v))
+	}
+	return nil
+}
+
 // nameIndex is get_operstate's loop: the index of the first name equal to v
 // by strcasecmp.
 func nameIndex(names []string, v string) (uint8, bool) {
@@ -865,6 +901,12 @@ func (st *linkParseState) finish() error {
 		}
 	}
 
+	// goip doesn't implement netns, so move_netns is never set here.
+	if st.index != 0 && !st.create {
+		return linkUsage(fmt.Errorf("%w: index can be used only when creating devices or when moving device to another netns",
+			ErrInvalidArgument))
+	}
+
 	if st.groupSet && !haveDev {
 		return st.groupWide()
 	}
@@ -893,8 +935,12 @@ func (st *linkParseState) finish() error {
 	if !sameName {
 		return linkUsage(fmt.Errorf("%w: both \"name\" and \"dev\" cannot be used when creating devices", ErrInvalidArgument))
 	}
-	// The lower device, looked up as ll_name_to_index does; `link-netnsid`
-	// is not implemented, so it's never looked up in another namespace.
+	// The lower device, looked up as ll_name_to_index does. With a
+	// link-netnsid, ip looks it up in that namespace (get_ifindex_in_netns),
+	// which goip doesn't implement.
+	if st.link != "" && st.hasNetnsid {
+		return fmt.Errorf("link %q in link-netnsid's namespace: %w", st.link, ErrNotImplemented)
+	}
 	if st.link != "" {
 		idx, err := st.resolve(st.link)
 		if err != nil {
@@ -905,7 +951,7 @@ func (st *linkParseState) finish() error {
 		}
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_LINK, uint32(idx)))
 	}
-	// `index N` is not implemented, so ifi_index stays 0.
+	st.out.index = st.index
 	if haveDev {
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrString(unix.IFLA_IFNAME, st.dev))
 	}
