@@ -1,0 +1,36 @@
+{
+ "axes": {
+  "ifindex": "77",
+  "verb": "add"
+ },
+ "cmd": "ip link add d7 index 77 type dummy",
+ "desc": "positive: verb=none form=index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "kwlink/ec-004",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 group 5 && ip link add d1 type dummy && ip link set d1 group 5"
+ ],
+ "readback": [
+  {
+   "cmd": "ip link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 group 5 && ip link add d1 type dummy && ip link set d1 group 5",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
