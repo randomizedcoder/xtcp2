@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"reflect"
@@ -1039,6 +1040,65 @@ func TestNetconfFallbackTwoPass(t *testing.T) {
 			}
 			if !reflect.DeepEqual(fams, tc.wantFams) {
 				t.Errorf("record families = %v, want %v", fams, tc.wantFams)
+			}
+		})
+	}
+}
+
+// kindLinkBody is a named link whose IFLA_LINKINFO carries kind and, when
+// data is non-nil, an IFLA_INFO_DATA nest holding it.
+func kindLinkBody(index int32, name, kind string, data []byte) []byte {
+	info := testServiceAttr(uint16(unix.IFLA_INFO_KIND), append([]byte(kind), 0))
+	if data != nil {
+		info = append(info, testServiceAttr(uint16(unix.IFLA_INFO_DATA)|unix.NLA_F_NESTED, data)...)
+	}
+	return append(namedLinkBody(index, name), testServiceAttr(uint16(unix.IFLA_LINKINFO)|unix.NLA_F_NESTED, info)...)
+}
+
+// TestVRFTable is ipvrf_get_table: one get by name with no IFLA_EXT_MASK,
+// and the table of a vrf, or 0.
+//
+// go test ./internal/goip/service/ -run TestVRFTable
+func TestVRFTable(t *testing.T) {
+	u32 := func(v uint32) []byte { return binary.LittleEndian.AppendUint32(nil, v) }
+	vrfData := func(table uint32) []byte { return testServiceAttr(xtcpnl.IflaVrfTable, u32(table)) }
+	tests := []struct {
+		description string
+		body        []byte
+		talkErr     error
+		name        string
+		expected    uint32
+		wantErr     bool
+	}{
+		{description: "positive: a vrf's table", body: kindLinkBody(5, "vr0", "vrf", vrfData(10)), name: "vr0", expected: 10},
+		{description: "positive: a table past 255", body: kindLinkBody(5, "vr1", "vrf", vrfData(1000)), name: "vr1",
+			expected: 1000},
+		{description: "negative: another kind is 0", body: kindLinkBody(2, "d0", "dummy", nil), name: "d0"},
+		{description: "negative: no IFLA_LINKINFO is 0", body: namedLinkBody(2, "d0"), name: "d0"},
+		{description: "negative: no such device is 0", talkErr: unix.ENODEV, name: "nosuch"},
+		{description: "negative: a source error is returned", talkErr: errSource, name: "vr0", wantErr: true},
+		{description: "boundary: a vrf with no table is 0", body: kindLinkBody(5, "vr0", "vrf", []byte{}), name: "vr0"},
+		{description: "corner: default with ENODEV is the main table", talkErr: unix.ENODEV, name: "default",
+			expected: unix.RT_TABLE_MAIN},
+		{description: "corner: default refused otherwise is 0", talkErr: unix.EPERM, name: "default"},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := xtcpnl.BuildGetLinkByNameRequest(unix.AF_INET, tc.name, 0, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			src := &fakeTalkSource{body: tc.body, err: tc.talkErr}
+			got, err := New(src, func() uint32 { return 1 }).VRFTable(unix.AF_INET, tc.name)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if got != tc.expected {
+				t.Errorf("table = %d, want %d", got, tc.expected)
+			}
+			if len(src.reqs) != 1 || !bytes.Equal(src.reqs[0], want) {
+				t.Errorf("requests %x, want one %x", src.reqs, want)
 			}
 		})
 	}

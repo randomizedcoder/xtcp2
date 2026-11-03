@@ -199,7 +199,7 @@ The workbench rows: the 68 `pref` and 35 `expires` rows `same`.
 
 The rule writer's tos rows pass unchanged.
 
-The workbench rows: the 5 `dsfield` and 15 `vrf` rows `same`.
+The workbench rows: the 5 `dsfield` and 15 `vrf` rows `same`, except those with a later `nexthop`, which then refuse there (2 of the `vrf` rows, V007).
 
 **Mutation check:** tos in base 10 (`dsfield 10`); the realm halves swapped (`realms 1/2`); `tableOK` not set by `vrf` (the local row); the vrf get with `IFLA_EXT_MASK` (the bytes of the get); `default` not mapped (the default row).
 

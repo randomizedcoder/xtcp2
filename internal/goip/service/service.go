@@ -207,6 +207,32 @@ func (s *Service) IsVRF(family uint8, name string) (bool, error) {
 	return l.Kind == "vrf", nil
 }
 
+// VRFTable is ipvrf_get_table (ip/iplink_vrf.c:102): the same get by name
+// as IsVRF, and the reply's IFLA_VRF_TABLE when its kind is vrf; 0 when it
+// is not, or the get fails. A get of "default" refused with ENODEV is the
+// main table.
+func (s *Service) VRFTable(family uint8, name string) (uint32, error) {
+	r, err := req.VrfCheckByName(family, name, s.nextSeq())
+	if err != nil {
+		return 0, fmt.Errorf("goip: build vrf table request: %w", err)
+	}
+	l, err := s.linkFromGet(r, matchName(name), fmt.Sprintf("%q", name))
+	if err != nil {
+		var errno unix.Errno
+		if errors.As(err, &errno) {
+			if errno == unix.ENODEV && name == "default" {
+				return unix.RT_TABLE_MAIN, nil
+			}
+			return 0, nil
+		}
+		return 0, err
+	}
+	if l.Kind != "vrf" || !l.VrfTable.Present {
+		return 0, nil
+	}
+	return l.VrfTable.Value, nil
+}
+
 // LinkShowDev performs iplink_get (ip/iplink.c:1497-1515), the second and last
 // request `ip link show dev NAME` sends and the one whose reply print_linkinfo
 // renders (ip/ipaddress.c:2293).

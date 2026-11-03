@@ -86,6 +86,9 @@ const (
 	routeArmNhid
 	routeArmPref
 	routeArmExpires
+	routeArmTos
+	routeArmRealms
+	routeArmVrf
 	routeArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -124,8 +127,8 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "as", arm: routeArmUnsupported},
 	{keyword: "via", arm: routeArmVia},
 	{keyword: fromKeywordCst, arm: routeArmFrom},
-	{keyword: tosKeywordCst, arm: routeArmUnsupported},
-	{keyword: dsfieldKeywordCst, prefix: true, arm: routeArmUnsupported},
+	{keyword: tosKeywordCst, arm: routeArmTos},
+	{keyword: dsfieldKeywordCst, prefix: true, arm: routeArmTos},
 	{keyword: "expires", arm: routeArmExpires},
 	{keyword: routeMetricKeywordCst, prefix: true, arm: routeArmPriority},
 	{keyword: routePriorityKeywordCst, prefix: true, arm: routeArmPriority},
@@ -146,13 +149,13 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "congctl", prefix: true, arm: routeArmCongctl, rtax: unix.RTAX_CC_ALGO},
 	{keyword: "rttvar", prefix: true, arm: routeArmTime, rtax: unix.RTAX_RTTVAR, name: "rttvar", scale: 4},
 	{keyword: "ssthresh", prefix: true, arm: routeArmMetric, rtax: unix.RTAX_SSTHRESH, name: "ssthresh"},
-	{keyword: "realms", prefix: true, arm: routeArmUnsupported},
+	{keyword: "realms", prefix: true, arm: routeArmRealms},
 	{keyword: "onlink", arm: routeArmOnlink},
 	{keyword: "nexthop", arm: routeArmUnsupported},
 	{keyword: "nhid", arm: routeArmNhid},
 	{keyword: "protocol", prefix: true, arm: routeArmProtocol},
 	{keyword: "table", prefix: true, arm: routeArmTable},
-	{keyword: vrfKeywordCst, prefix: true, arm: routeArmUnsupported},
+	{keyword: vrfKeywordCst, prefix: true, arm: routeArmVrf},
 	{keyword: devKeywordCst, arm: routeArmDev},
 	{keyword: oifKeywordCst, arm: routeArmDev},
 	{keyword: "pref", prefix: true, arm: routeArmPref},
@@ -191,16 +194,20 @@ func routeHelpErr() error {
 	return fmt.Errorf("%w: ip route help is not implemented by goip", ErrNotImplemented)
 }
 
+// vrfTabler is ipvrf_get_table: a VRF device's table, or 0.
+type vrfTabler func(name string) (uint32, error)
+
 // routeParseState is iproute_modify's locals.
 type routeParseState struct {
-	w       xtcpnl.RouteWrite
-	del     bool
-	dev     string
-	devSet  bool
-	gwOK    bool
-	dstOK   bool
-	scopeOK bool
-	tableOK bool
+	w        xtcpnl.RouteWrite
+	vrfTable vrfTabler
+	del      bool
+	dev      string
+	devSet   bool
+	gwOK     bool
+	dstOK    bool
+	scopeOK  bool
+	tableOK  bool
 	// nhid is iproute_modify's nhid local: the last id read, so `nhid 0`
 	// is absent to the scope default.
 	nhid uint32
@@ -212,9 +219,11 @@ type routeParseState struct {
 // Attributes go out in argv order, RTA_OIF after the loop, RTA_METRICS last;
 // metrics in argv order with no dedup, RTAX_LOCK after them. resolve is
 // ll_name_to_index, called once, after the whole argv has parsed, so an
-// argument error never costs a lookup.
-func parseRouteWriteArgs(verb *routeWriteVerb, family uint8, args []string, resolve linkResolver) (xtcpnl.RouteWrite, error) {
-	st := routeParseState{del: verb.msgType == unix.RTM_DELROUTE}
+// argument error never costs a lookup. vrfTable is ipvrf_get_table, which
+// the vrf arm calls in the loop, so its get goes out before dev's.
+func parseRouteWriteArgs(verb *routeWriteVerb, family uint8, args []string, resolve linkResolver,
+	vrfTable vrfTabler) (xtcpnl.RouteWrite, error) {
+	st := routeParseState{del: verb.msgType == unix.RTM_DELROUTE, vrfTable: vrfTable}
 	st.w = xtcpnl.RouteWrite{
 		MsgType: verb.msgType,
 		Flags:   verb.flags | unix.NLM_F_ACK,
@@ -342,6 +351,20 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 			return invargErr(`"pref" value is invalid`, v)
 		}
 		st.attr(unix.RTA_PREF, []byte{pref})
+	case routeArmTos:
+		tos, ok := rtnlDsfieldA2N(v)
+		if !ok {
+			return invargErr(`"tos" value is invalid`, v)
+		}
+		st.w.Tos = tos
+	case routeArmRealms:
+		r, ok := getRtRealmsOrRaw(v)
+		if !ok {
+			return invargErr(`"realm" value is invalid`, v)
+		}
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_FLOW, r))
+	case routeArmVrf:
+		return st.vrf(v)
 	case routeArmExpires:
 		e, ok := getU32(v, 0)
 		if !ok {
@@ -462,6 +485,13 @@ func (st *routeParseState) table(v string) error {
 	if !ok {
 		return invargErr(`"table" value is invalid`, v)
 	}
+	st.putTable(id)
+	return nil
+}
+
+// putTable is the table and vrf arms' common tail: rtm_table under 256,
+// else RT_TABLE_UNSPEC and RTA_TABLE, and table_ok.
+func (st *routeParseState) putTable(id uint32) {
 	if id < 256 {
 		st.w.Table = uint8(id)
 	} else {
@@ -469,7 +499,6 @@ func (st *routeParseState) table(v string) error {
 		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_TABLE, id))
 	}
 	st.tableOK = true
-	return nil
 }
 
 // destination is the else-arm: an optional "to", an optional route type,
@@ -559,6 +588,57 @@ func (st *routeParseState) defaultScope() {
 	}
 }
 
+// vrf is the vrf arm: the VRF's table, then table's path into rtm_table or
+// RTA_TABLE.
+func (st *routeParseState) vrf(v string) error {
+	id, err := st.vrfTable(v)
+	if err != nil {
+		return err
+	}
+	if id == 0 {
+		return invargErr("Invalid VRF", v)
+	}
+	st.putTable(id)
+	return nil
+}
+
+// getRtRealmsOrRaw is get_rt_realms_or_raw (ip/rtm_map.c:118): [FROM/]TO,
+// each half a stock rt_realms name or 0 to 255 in base 0, FROM in the high
+// 16 bits; else get_unsigned in base 0 over the whole argument.
+func getRtRealmsOrRaw(arg string) (uint32, bool) {
+	if r, ok := getRtRealms(arg); ok {
+		return r, true
+	}
+	v, ok := cGetUnsigned(arg, 0, math.MaxUint32)
+	if !ok {
+		return 0, false
+	}
+	return cint.U32From64(v)
+}
+
+func getRtRealms(arg string) (uint32, bool) {
+	var realms uint32
+	if from, to, ok := strings.Cut(arg, "/"); ok {
+		f, ok := rtnlNameA2N(routeRealmNames, from, math.MaxUint8)
+		if !ok {
+			return 0, false
+		}
+		realms, arg = f<<16, to
+	}
+	if arg == "" {
+		return realms, true
+	}
+	r, ok := rtnlNameA2N(routeRealmNames, arg, math.MaxUint8)
+	if !ok {
+		return 0, false
+	}
+	return realms | r, true
+}
+
+// routeRealmNames is iproute2 7.2.0's stock etc/iproute2/rt_realms: one
+// name, the rest of the file commented out.
+var routeRealmNames = map[string]uint32{"cosmos": 0}
+
 // routePrefA2N is the pref arm's value: ICMPV6_ROUTER_PREF_LOW, MEDIUM and
 // HIGH by strcmp, else get_u8 in base 0.
 func routePrefA2N(v string) (uint8, bool) {
@@ -596,7 +676,8 @@ func (st *routeParseState) attr(atype uint16, b []byte) {
 // request to GOIP_WRITE_OUT instead of the kernel.
 func routeWrite(c *runCtx, verb *routeWriteVerb, args []string) error {
 	svc := service.New(c.src, c.nextSeq)
-	w, err := parseRouteWriteArgs(verb, c.family, args, newLinkNameResolver(svc))
+	w, err := parseRouteWriteArgs(verb, c.family, args, newLinkNameResolver(svc),
+		func(name string) (uint32, error) { return svc.VRFTable(c.family, name) })
 	if err != nil {
 		return err
 	}

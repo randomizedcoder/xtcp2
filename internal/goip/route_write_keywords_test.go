@@ -153,3 +153,80 @@ func TestRouteWritePrefExpires(t *testing.T) {
 			expected: invalid(`Error: either "to" is duplicate, or "expire" is garbage`)},
 	})
 }
+
+// TestRouteWriteTosRealmsVrf is iproute_modify's tos and dsfield arm
+// (ip/iproute.c:1251), rtnl_dsfield_a2n into rtm_tos; its realms arm
+// (:1450), get_rt_realms_or_raw into RTA_FLOW; and its vrf arm (:1487),
+// ipvrf_get_table in the loop, then table's path into rtm_table or
+// RTA_TABLE with table_ok set. The fake VRF lookup's calls are listed as
+// "vrf NAME" beside dev's. GW1-T03.
+//
+// go test ./internal/goip/ -run TestRouteWriteTosRealmsVrf
+func TestRouteWriteTosRealmsVrf(t *testing.T) {
+	const (
+		create = unix.NLM_F_CREATE
+		excl   = unix.NLM_F_EXCL
+		p24    = "198.51.100.0/24 dev d0"
+	)
+	// v4 is `add 198.51.100.0/24 dev d0 …` with f applied, the attributes
+	// argv gives before RTA_OIF, and the lookups.
+	v4 := func(f func(*xtcpnl.RouteWrite), resolved []string, attrs ...xtcpnl.RouteAttr) routeWriteExpected {
+		as := append(append([]xtcpnl.RouteAttr{rtaDst("198.51.100.0")}, attrs...), rtaOif(2))
+		return routeWriteExpected{write: routeWith(newRouteWrite(create|excl, 24, as...), f), resolved: resolved}
+	}
+	d0 := []string{"d0"}
+	tos := func(v uint8) func(*xtcpnl.RouteWrite) { return func(w *xtcpnl.RouteWrite) { w.Tos = v } }
+	table := func(v uint8) func(*xtcpnl.RouteWrite) { return func(w *xtcpnl.RouteWrite) { w.Table = v } }
+	flow := func(v uint32) xtcpnl.RouteAttr { return xtcpnl.RouteAttrU32(unix.RTA_FLOW, v) }
+	keep := func(*xtcpnl.RouteWrite) {}
+	invalid := func(msg string, resolved ...string) routeWriteExpected {
+		return routeWriteExpected{err: ErrInvalidArgument, errMsg: msg, resolved: resolved}
+	}
+	runRouteWriteRows(t, []routeWriteRow{
+		{description: "positive: a hex tos", verb: "add", args: p24 + " tos 0x10", expected: v4(tos(16), d0)},
+		{description: "positive: dsfield is base 16 without the 0x", verb: "add", args: p24 + " dsfield 10",
+			expected: v4(tos(16), d0)},
+		{description: "positive: a realm", verb: "add", args: p24 + " realms 10", expected: v4(keep, d0, flow(10))},
+		{description: "positive: a FROM/TO realm, FROM in the high half", verb: "add", args: p24 + " realms 1/2",
+			expected: v4(keep, d0, flow(0x10002))},
+		{description: "positive: a stock realm name", verb: "add", args: p24 + " realms cosmos/5",
+			expected: v4(keep, d0, flow(5))},
+		{description: "positive: a vrf's table, looked up before dev", verb: "add", args: p24 + " vrf vr0",
+			expected: v4(table(10), []string{"vrf vr0", "d0"})},
+		{description: "positive: a vrf's large table goes in RTA_TABLE", verb: "add", args: p24 + " vrf vr1",
+			expected: v4(table(unix.RT_TABLE_UNSPEC), []string{"vrf vr1", "d0"},
+				xtcpnl.RouteAttrU32(unix.RTA_TABLE, 1000))},
+		{description: "negative: a tos past a byte", verb: "add", args: p24 + " tos 0x100",
+			expected: invalid(`Error: argument "0x100" is wrong: "tos" value is invalid`)},
+		{description: "negative: a word for the tos", verb: "add", args: p24 + " tos zz",
+			expected: invalid(`Error: argument "zz" is wrong: "tos" value is invalid`)},
+		{description: "negative: an unknown realm", verb: "add", args: p24 + " realms nosuch",
+			expected: invalid(`Error: argument "nosuch" is wrong: "realm" value is invalid`)},
+		{description: "negative: a bad FROM realm", verb: "add", args: p24 + " realms x/2",
+			expected: invalid(`Error: argument "x/2" is wrong: "realm" value is invalid`)},
+		{description: "negative: not a vrf", verb: "add", args: p24 + " vrf d0",
+			expected: invalid(`Error: argument "d0" is wrong: Invalid VRF`, "vrf d0")},
+		{description: "negative: the vrf lookup fails", verb: "add", args: p24 + " vrf boom",
+			expected: routeWriteExpected{err: errFakeResolve, errMsg: "fake", resolved: []string{"vrf boom"}}},
+		{description: "negative: vrf with no value", verb: "add", args: p24 + " vrf",
+			expected: invalid("Command line is not complete")},
+		{description: "boundary: the largest tos", verb: "add", args: p24 + " tos 0xff", expected: v4(tos(255), d0)},
+		{description: "boundary: a zero tos", verb: "add", args: p24 + " tos 0", expected: v4(tos(0), d0)},
+		{description: "boundary: a TO past a byte is raw", verb: "add", args: p24 + " realms 256",
+			expected: v4(keep, d0, flow(256))},
+		{description: "boundary: an empty TO", verb: "add", args: p24 + " realms 3/",
+			expected: v4(keep, d0, flow(0x30000))},
+		{description: "corner: the default vrf is main", verb: "add", args: p24 + " vrf default",
+			expected: v4(table(unix.RT_TABLE_MAIN), []string{"vrf default", "d0"})},
+		{description: "corner: v is vrf", verb: "add", args: p24 + " v vr0",
+			expected: v4(table(10), []string{"vrf vr0", "d0"})},
+		{description: "corner: vrf then table, the last wins", verb: "add", args: p24 + " vrf vr0 table 20",
+			expected: v4(table(20), []string{"vrf vr0", "d0"})},
+		{description: "corner: a local route in a vrf stays out of the local table", verb: "add",
+			args: "local 198.51.100.1 dev d0 vrf vr0",
+			expected: routeWriteExpected{write: routeWith(newRouteWrite(create|excl, 32, rtaDst("198.51.100.1"), rtaOif(2)),
+				func(w *xtcpnl.RouteWrite) { w.Type, w.Table, w.Scope = unix.RTN_LOCAL, 10, unix.RT_SCOPE_HOST }),
+				resolved: []string{"vrf vr0", "d0"}}},
+		{description: "corner: ds is dsfield, by its prefix", verb: "add", args: p24 + " ds 10", expected: v4(tos(16), d0)},
+	})
+}

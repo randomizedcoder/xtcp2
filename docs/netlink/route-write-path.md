@@ -390,10 +390,12 @@ New pieces, smallest first:
   `runRoute` (`internal/goip/obj_route.go`) tries before the list verbs. It is
   `iproute_modify`'s keyword chain as a table in its order, because the first
   `matches()` wins (`s` is `ssthresh`, `rt` is `rttvar`, `t` is `table`). The
-  keywords goip does not implement (`nexthop`, `nhid`, `encap`, `vrf`, `tos`,
-  `expires`, `realms`, `as`, `pref`, `ttl-propagate`) are in the chain and
-  refused with `ErrNotImplemented`, so a later argument is never misread as
-  the destination. Landed.
+  keywords goip does not implement (`nexthop`, `encap`, `as`,
+  `ttl-propagate`) are in the chain and refused with `ErrNotImplemented`, so
+  a later argument is never misread as the destination. Landed. `nhid`,
+  `expires`, `pref`, `tos`/`dsfield`, `realms` and `vrf` were refused too, and
+  are since built by [goip-write-keywords.md](goip-write-keywords.md)'s
+  GW1-T01 to GW1-T03.
 - The policy stays in `internal/goip` rather than a `req` function: the
   parser has to resolve `dev`, which is a netlink round trip, as
   `internal/goip/link_write.go` does for link.
@@ -603,8 +605,9 @@ for it.
   `addr` has one too: [addr-write-path.md](addr-write-path.md).
 - **The keywords goip refuses** in phase 4: `nexthop` (multipath, above),
   `nhid` (since built, by [goip-write-keywords.md](goip-write-keywords.md)'s
-  GW1-T01), `encap`, `vrf` (which costs a lookup of its own), `tos`/`dsfield`,
-  `expires` and `pref` (both since built, GW1-T02), `realms`, `as`,
+  GW1-T01), `encap`, `vrf` (which costs a lookup of its own), `tos`/`dsfield`
+  and `realms` (the three since built, GW1-T03), `expires` and `pref` (both
+  since built, GW1-T02), `as`,
   `ttl-propagate`, MPLS and `via link`
   addresses, and table, protocol and scope names that come only from a local
   `rt_*` file. Also `route get`, `flush`, `save`, `restore` and `showdump`.
