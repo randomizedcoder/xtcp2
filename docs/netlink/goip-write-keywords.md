@@ -564,7 +564,9 @@ The O5 golden already compares all 579 moved rows offline against their captures
 - **Setup.** The row's `pre`, split on ` && ` into `ip` subcommands. A row whose `pre` needs anything else (a `sysctl`, a module) is passed over for the next row of its form, and a form with no such row is recorded in the task's ledger row rather than given a new setup.
 - **Floor.** The row's `ip.pcap` record count: lookups, the write and its answer.
 - **Rows `ip` refused before sending** (rc 1 or 255) aren't matrix rows, since a write row needs goip to exit 0. The offline tables hold them.
-- **Names.** `Slug` is `gw_<family>_<id>`, with the id's `/` as `_`. Argv is the row's `cmd` without the leading `ip`.
+- **Repeats.** A row whose `cmd` a picked row already has is passed over for the next row of its form, since `Name` is the allowlist key.
+- **Names.** `Slug` is `gw_` and the id with its `/` and `-` as `_` (`route4/pw-023` is `gw_route4_pw_023`), since a slug takes `[a-z0-9_]` only. Argv is the row's `cmd` without the leading `ip`.
+- **Gating.** The rows are ungated until GW5-T04; `TestUngatedSurfaceIsNotVacuous` excepts the `gw_` slugs until then.
 
 #### GW5-T01 the route rows
 
@@ -581,7 +583,18 @@ The O5 golden already compares all 579 moved rows offline against their captures
 | corner: a passed-over row | a form whose first row needs a `sysctl` | the next row of the form, or the form recorded as having none |
 | corner: each name is unique | the rows' `Name`s and `Slug`s | no two alike |
 
-**Mutation check:** a floor one short (the floor row); a setup step dropped (the setup row); an rc 255 row added (the negative row).
+`TestGwSetup`, the setup rule on its own:
+
+| description | input | expected |
+|---|---|---|
+| positive: ip steps split and trimmed | `ip link add d0 type dummy && ip link set d0 up` | the two steps without `ip` |
+| positive: two pre entries in order | two `ip` entries | both, in order |
+| negative: a sysctl step | an `ip` step `&&` a `sysctl` | not usable |
+| negative: a step tolerating a failure | `["ip …", [2]]` | not usable |
+| boundary: no pre | `[]` | usable, no steps |
+| corner: ip as a word's prefix | `ipset create …` | not usable |
+
+**Mutation check:** a floor one short (the floor row); a setup step dropped (the setup row); an rc 255 row added (the negative row); the repeat pass-over dropped (a `dup-2` form); a non-`ip` step skipped (`TestGwSetup`).
 
 #### GW5-T02 the link rows
 

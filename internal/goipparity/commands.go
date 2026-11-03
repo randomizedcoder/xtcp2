@@ -5868,6 +5868,66 @@ var commands = withArgs([]Command{
 		// Both sub-attributes go out, in order.
 		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
 	},
+	// The GW route rows (goip-write-keywords.md, "GW5-T01 the route rows"):
+	// for each route keyword form GW1 built, the first workbench row by id
+	// in pkg/xtcpnl/testdata/7_3_0/ws/ that O5 finds the same, once with ip
+	// rc 0 and once with rc 2, its pre as Setup and its ip.pcap record count
+	// as Floor. TestGwRouteMatrixRows derives each from the corpus.
+	{
+		Name: "-4 route prepend unicast 0.0.0.0/0 table 255 proto 255 scope global nhid 10", Slug: "gw_route4_pw_023",
+		// route4/pw-023: nhid_v4_unicast (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNh4,
+	},
+	{
+		Name: "-4 route add blackhole 198.51.100.7/32 table 4294967295 nhid 10", Slug: "gw_route4_ec_006",
+		// route4/ec-006: nhid_v4_blackhole (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNh4,
+	},
+	{
+		Name: "-6 route add blackhole 2001:db8:2::7/128 table 4294967295 nhid 10", Slug: "gw_route6_ec_006",
+		// route6/ec-006: nhid_v6 (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNh6,
+	},
+	{
+		Name: "-6 route del prohibit 8000::/1 table main metric 1024 pref low mtu lock 1400 nhid 10", Slug: "gw_route6_gone_3",
+		// route6/gone-3: nhid_v6 (rc 2), pref_low (rc 2).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupNh6,
+	},
+	{
+		Name: "-6 route replace unicast default table main metric 0 proto static pref low expires 60 mtu 1280 src 2001:db8:1::10 via 2001:db8:1::1 dev d0", Slug: "gw_route6_ec_002",
+		// route6/ec-002: pref_low (rc 0), expires (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route append local ::/0 table 100 metric 1024 proto 255 pref medium mtu lock 1400 via 2001:db8:1::1", Slug: "gw_route6_ec_003",
+		// route6/ec-003: pref_medium (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route del unreachable ::/0 preference 7 proto 0 pref medium advmss 1300 via 2001:db8:1::1", Slug: "gw_route6_pw_030",
+		// route6/pw-030: pref_medium (rc 2).
+		Floor: 2, Implemented: true, Write: true, Setup: append(slices.Clone(gwWsSetupD0), "-6 route add unreachable ::/0 preference 7 proto 0 pref medium advmss 1300 via 2001:db8:1::1"),
+	},
+	{
+		Name: "-6 route prepend anycast 8000::/1 table 255 metric 4294967295 proto 0 pref high advmss 1300 via 2001:db8:3::1 dev d0 onlink", Slug: "gw_route6_ec_004",
+		// route6/ec-004: pref_high (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route del blackhole default table 256 metric 4294967295 proto 255 pref low expires 60 dev d0", Slug: "gw_route6_pw_029",
+		// route6/pw-029: expires (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: append(slices.Clone(gwWsSetupD0), "-6 route add blackhole default table 256 metric 4294967295 proto 255 pref low expires 60 dev d0"),
+	},
+	{
+		Name: "-4 route add multicast 198.51.100.6/31 table 256 preference 7 scope global mtu lock 1400 src 192.0.2.10 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256", Slug: "gw_route4_pw_004",
+		// route4/pw-004: mp_two_hops (rc 0), mp_weights_1_256 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route del multicast 198.51.100.6/31 table 256 preference 7 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256", Slug: "gw_route4_ec_005",
+		// route4/ec-005: mp_two_hops (rc 2), mp_weights_1_256 (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
 	// The address write rows (addr-write-path.md phase 7): the corpus in
 	// pkg/xtcpnl/testdata/7_1_4/link-write/addr/, with the preconditions and
 	// floors of addr-corpus.exp. Each is the d0 lookup and the write (4); a
@@ -7000,6 +7060,15 @@ var (
 // bridgeReadSetup is the bridge read rows' namespace, PRE_PORTS: br0 and
 // its ports p0 and p1, dummies, none up.
 var bridgeReadSetup = bridgeWriteSetupPorts
+
+// The GW rows' preconditions: the workbench's d0 (nlcapgen's routeSetup), and
+// with nexthop 10 by a v4 or a v6 gateway.
+var (
+	gwWsSetupD0 = []string{"link add d0 type dummy", "link set d0 addrgenmode none", "link set d0 up",
+		"addr add 192.0.2.10/24 dev d0", "-6 addr add 2001:db8:1::10/64 dev d0 nodad"}
+	gwWsSetupNh4 = append(slices.Clone(gwWsSetupD0), "nexthop add id 10 via 192.0.2.1 dev d0")
+	gwWsSetupNh6 = append(slices.Clone(gwWsSetupD0), "-6 nexthop add id 10 via 2001:db8:1::1 dev d0")
+)
 
 // The route write rows' preconditions: PRE_DEV, PRE_DEV6 and PRE_ROUTE in
 // capture-link-writes.exp, and v6_del's own.

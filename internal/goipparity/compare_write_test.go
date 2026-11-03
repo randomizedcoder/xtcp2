@@ -312,6 +312,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if kind, slug, ok := kindRowKind(c.Slug); ok {
 		dir = filepath.Join(tdKinds730, kind, slug)
 	}
+	if strings.HasPrefix(c.Slug, gwSlugPrefixCst) {
+		dir = gwCorpusDir(t, c.Slug)
+	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
 
