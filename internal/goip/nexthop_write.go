@@ -138,7 +138,7 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 		return w.dev(args, i)
 	case a == nexthopViaKeyCst:
 		return w.via(args, i)
-	case a == "encap", a == "dst_port", a == "hw_stats":
+	case a == tnlKeyEncap, a == "dst_port", a == "hw_stats":
 		return i, fmt.Errorf("nexthop %s: no capture shows it: %w", a, ErrNotImplemented)
 	case a == "blackhole":
 		w.familyIfUnset(unix.AF_INET)

@@ -59,6 +59,10 @@ The 608 rows at 4da0e473, by the keyword goip stops at. "rc" is `ip`'s exit stat
 | nexthop | `encap` | 4 | fibnh | `:1095` | `NHA_ENCAP`, `NHA_ENCAP_TYPE` |
 | rule | `realms` | 30 | rule4 | `ip/iprule.c:1050` | `FRA_FLOW` u32 |
 
+By object: route 331, link 190, nexthop 57, rule 30.
+
+**Remaining after GW1** (DOC002): 279. These are route 2 (`fib_notify_test-001` and `fib6_notify_test-001`, a per-hop `encap ip`/`ip6`, which goip has no lwt encoder for), link 190, nexthop 57 and rule 30.
+
 ## Out of scope
 
 - **Anything outside the 608.** The plan follows the oracle. A keyword no workbench row uses (route `as`, `encap` at the top level, `ttl-propagate`, link `vf`, `xdpgeneric` with a program) stays `ErrNotImplemented` until a row exercises it.
@@ -237,7 +241,195 @@ The workbench rows: the 86 `nexthop` rows `same`, or the ones with a per-hop `en
 
 ### GW2 — link set keywords
 
-Planned when GW1 closes. The rows: 61 `group`, 49 GSO/GRO, 35 `addrgenmode`, 20 protodown, 6 `broadcast`, 5 `carrier`, 4 `mode`/`state`, 3 `xdp off`, 2 `set address` length lookups and 5 more (`netns`, `index`, `link-netnsid`, `parentdev`). Most are a u8 or u32 in `iplink_parse`'s order (`internal/goip/link_write.go`'s `linkParseKeywords`).
+Eight tasks, all in `internal/goip/link_write.go`'s `linkParseKeywords` (`iplink_parse`'s chain in its order) and `(*linkParseState).finish` (`iplink_modify`'s checks after it). Each replaces a `linkArmUnsupported` with an arm.
+
+The 190 rows after GW1-T04's golden: 61 `group`, 16 `gso_max_segs`, 15 `gro_max_size`, 7 `gro_ipv4_max_size`, 6 `gso_ipv4_max_size`, 5 `gso_max_size`, 35 `addrgenmode`, 16 `protodown`, 4 `protodown_reason`, 6 `broadcast`, 5 `carrier`, 3 `mode`, 1 `state`, 3 `xdp`, 2 `set address`, 2 `netns`, and one each of `index`, `link-netnsid` and `parentdev`. goip stops at the first keyword it refuses, so a row that carries two moves from one task's count to a later one's. About 30 of the linkset rows also carry `address`, and reach T01's lookup once their first keyword is built. That's why T01 comes first.
+
+**What `ip` does** (`ip/iplink.c` at `v7.2.0`):
+- **`address` on `set`** (`iplink_modify`, `:1279`): with a dev, an address and no `NLM_F_CREATE`, `nl_get_ll_addr_len` looks the dev up (`ll_name_to_index`), then sends `RTM_GETLINK` by `ifi_index` with `ifi_family` the `-4`/`-6` preference and no attributes. It reads the reply's `IFLA_ADDRESS` length. A different length is `Invalid address length %d - must be %d bytes`, and `iplink_parse` returns -1, which exits 1. A failed get or a reply with no address skips the check.
+- **`group`** (`strcmp`, `:1102`): `duparg` on a second one. `rtnl_group_a2n` takes a name from `group` (stock: `default` is 0), else `strtol` in base 0 into an `int`, refused when negative. So 2147483648 wraps negative and is refused, and 4294967296 wraps to 0. A failure is `invarg("Invalid \"group\" value\n")`. It sends `IFLA_GROUP` u32. With no dev, `group` is the filter of a group-wide set (`:1299`), a different request.
+- **`gso_max_size`, `gso_max_segs`, `gro_max_size`, `gso_ipv4_max_size`, `gro_ipv4_max_size`** (all `strcmp`, `:1204`–`:1249`): `get_unsigned` in base 0, `gso_max_segs` at most `GSO_MAX_SEGS` (65535), else `invarg("Invalid \"<name>\" value\n")`. Each sends its `IFLA_*` u32.
+- **`addrgenmode`** (`matches`, `:1144`): `get_addr_gen_mode` by `strcasecmp`: `eui64` 0, `none` 1, `stable_secret` 2, `random` 3, else `invarg("Invalid address generation mode\n")`. It sends `IFLA_AF_SPEC` holding `AF_INET6` holding `IFLA_INET6_ADDR_GEN_MODE` u8. Neither nest has `NLA_F_NESTED`.
+- **`protodown`** (`strcmp`, `:1173`): `parse_on_off`, `IFLA_PROTO_DOWN` u8. **`protodown_reason`** (`strcmp`, `:1182`): `protodown_reason_a2n`, a name from `protodown_reasons.d` (none stock) or `strtoul` in base 0 below 32, else `invarg("invalid protodown reason\n")`. Then `on` or `off` by `matches`, else `on_off`'s error. It sends `IFLA_PROTO_DOWN_REASON | NLA_F_NESTED` holding `_MASK` (1 << reason) and `_VALUE` (the mask or 0), both u32.
+- **`broadcast`** (`matches`) and **`brd`** (`strcmp`), `:921`: `ll_addr_a2n`, the same parse as `address`, into `IFLA_BROADCAST`.
+- **`carrier`** (`strcmp`, `:1027`): `parse_on_off`, `IFLA_CARRIER` u8. A bad value returns `parse_on_off`'s `-EINVAL`.
+- **`mode`** (`strcmp`, `:1109`): `get_link_mode` by `strcasecmp`, `default` 0 or `dormant` 1, else `invarg("Invalid link mode\n")`, `IFLA_LINKMODE` u8. **`state`** (`strcmp`, `:1117`): `get_operstate` (`ip/ipaddress.c:150`), the `oper_states` names by `strcasecmp`, else `invarg("Invalid operstate\n")`, `IFLA_OPERSTATE` u8.
+- **`xdp`, `xdpgeneric`, `xdpdrv`, `xdpoffload`** (`strcmp`, `:949`): `xdp_parse` (`ip/iplink_xdp.c`). When `off` or `none` is the last word of argv, `xdp_delete` sends `IFLA_XDP` (no `NLA_F_NESTED`) holding `IFLA_XDP_FD` -1 and `IFLA_XDP_FLAGS`. The flags are `XDP_FLAGS_UPDATE_IF_NOEXIST` (1) without `-force`, with `SKB_MODE` (2) for generic, `DRV_MODE` (4) for drv and `HW_MODE` (8) for offload. Anything else loads a BPF object. `xdpoffload` looks the dev up first.
+- **`index`** (`strcmp`, `:904`): `duparg` on a second one. `atoi`, then `invarg("Invalid \"index\" value")` unless it is positive. On `set` with no `netns`, `iplink_modify` refuses: `index can be used only when creating devices or when moving device to another netns.`, `exit(-1)`.
+- **`netns`** (`strcmp`, `:964`): `duparg` on a second one. `netns_get_fd` opens `/run/netns/NAME`, else `/proc/PID/ns/net`, else `invarg("Invalid \"netns\" value\n")`. It sends `IFLA_NET_NS_FD` with the descriptor's number.
+- **`link-netnsid`** (`matches`, `:1164`): `duparg("link-netns/link-netnsid")` against either, `get_integer` in base 0, else `invarg`, `IFLA_LINK_NETNSID` s32.
+- **`parentdev`** (`strcmp`, `:1250`): `IFLA_PARENT_DEV_NAME`, the name with its NUL.
+
+#### GW2-T01 the `set address` length lookup
+
+**Code.** `finish` replaces its refusal with a `addrLen` callback beside `resolve`, `Service.LinkAddrLen(family, index)`: the get by index, then the reply's `IFLA_ADDRESS` length, or -1. A different length is `Invalid address length N - must be M bytes`, exit 1.
+
+`TestLinkWriteAddrLen`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a matching length | `set dev d0 address 02:00:00:00:00:aa`, d0 a 6-byte device | d0's lookup, the get by index, then `IFLA_ADDRESS` 6 bytes |
+| positive: a multicast address is sent | `address 01:00:00:00:00:01` | the request; the kernel's refusal is not goip's |
+| negative: a short address | `address 02:00` | 1; `Invalid address length 2 - must be 6 bytes`, no request |
+| negative: a long address | `address 02:00:00:00:00:00:01` | 1; `... 7 - must be 6 bytes` |
+| boundary: a device with no address | the reply has no `IFLA_ADDRESS` | the request, unchecked |
+| boundary: the get fails | the source returns `ENODEV` | the request, unchecked |
+| corner: `add` doesn't look | `link add d9 type dummy address 02:00` | no get; the request |
+| corner: no dev | `set address 02:00:00:00:00:aa` | `iplink_modify`'s no-dev refusal, as today |
+
+`TestLinkAddrLen` in `service_test.go` checks the bytes of the get: `ifi_index` set, `ifi_family` the preference, no attributes.
+
+The workbench rows: the 2 `set address` rows `same`.
+
+**Mutation check:** the length compared by `>` (the long row); the get with `IFLA_EXT_MASK` (the bytes); a failed get refused rather than skipped (the `ENODEV` row); the check on `add` (the add row).
+
+#### GW2-T02 `group`
+
+**Code.** `linkArmGroup`: `duparg`, `rtnlGroupA2N` (`default` is 0; else `strtol` base 0 truncated to `int32`, refused when negative), `IFLA_GROUP` u32. With no dev, `ErrNotImplemented`, recorded with its count if a row reaches it.
+
+`TestLinkWriteGroup`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a number | `group 5` | `IFLA_GROUP` 5 |
+| positive: the stock name | `group default` | `IFLA_GROUP` 0 |
+| positive: hex, base 0 | `group 0x10` | 16 |
+| negative: a word | `group nosuch` | 255; `Error: argument "nosuch" is wrong: Invalid "group" value` |
+| negative: negative | `group -1` | 255; the same text |
+| negative: a second group | `group 1 group 2` | 255; `duparg`'s text |
+| boundary: the largest | `group 2147483647` | `IFLA_GROUP` 0x7fffffff |
+| boundary: one past, which wraps negative | `group 2147483648` | 255; the invarg text |
+| corner: 2^32 wraps to 0 | `group 4294967296` | `IFLA_GROUP` 0 |
+| corner: `group` is `strcmp` | `grou 5` | the dev rule, as today |
+| corner: names are `strcmp` | `group def` | 255; the invarg text |
+
+The workbench rows: the 61 `group` rows `same`, or refusing at a later GW2 keyword.
+
+**Mutation check:** `strtol` not truncated to `int` (the 2^32 row); `duparg` dropped (the second-group row); the name matched by prefix (a `group def` row, which `strtol` refuses).
+
+#### GW2-T03 GSO and GRO sizes
+
+**Code.** One `linkArmU32Max` arm, with a table entry per keyword: its `IFLA_*` type, its name for the invarg, and its bound (65535 for `gso_max_segs`, otherwise `UINT_MAX`).
+
+`TestLinkWriteGsoGro`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each of the five | `gso_max_size 32768`; `gso_max_segs 100`; `gro_max_size 524280`; `gso_ipv4_max_size 32768`; `gro_ipv4_max_size 32768` | the matching `IFLA_*` u32 |
+| positive: in word order | `gso_max_segs 1 gro_max_size 2` | the two attributes in that order |
+| negative: a word | `gso_max_size x` | 255; `Invalid "gso_max_size" value` |
+| negative: negative | `gro_max_size -1` | 255 |
+| boundary: segs at its limit | `gso_max_segs 65535`; `65536` | sent; 255 |
+| boundary: a size at `UINT_MAX` | `gso_max_size 4294967295`; `4294967296` | sent; 255 |
+| corner: no prefix match | `gso_max 5` | the dev rule |
+| corner: repeated | `gso_max_size 1 gso_max_size 2` | two attributes, no `duparg` |
+
+The workbench rows: the 49 rows `same`, or refusing later.
+
+**Mutation check:** the segs bound dropped (65536); base 10 (`0x10`); one shared attribute type (each of the five).
+
+#### GW2-T04 `addrgenmode`
+
+**Code.** `linkArmAddrGenMode`: the four names by case-insensitive compare, then the two plain nests. `pkg/xtcpnl`'s link-write encoder gets the nest if it has none.
+
+`TestLinkWriteAddrGenMode`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each mode | `eui64`; `none`; `stable_secret`; `random` | `IFLA_AF_SPEC`/`AF_INET6`/`IFLA_INET6_ADDR_GEN_MODE` 0; 1; 2; 3 |
+| positive: the bytes of the nest | `addrgenmode none` | `10001a00 0c000a00 05000800 01000000` |
+| negative: an unknown mode | `addrgenmode stable` | 255; `Invalid address generation mode` |
+| boundary: case | `addrgenmode NONE` | 1 |
+| corner: the prefix | `addrgen none` | the same request |
+| corner: twice | `addrgenmode none addrgenmode random` | two `IFLA_AF_SPEC` attributes |
+
+The workbench rows: the 35 rows `same`, or refusing later.
+
+**Mutation check:** `NLA_F_NESTED` on a nest (the bytes row); case-sensitive names (`NONE`); `stable_secret` as 3.
+
+#### GW2-T05 `protodown` and `protodown_reason`
+
+**Code.** `linkArmProtodown`: goip's `parseOnOff`, `IFLA_PROTO_DOWN` u8. `linkArmProtodownReason`: `strtoul` in base 0 below 32, `on`/`off` by prefix, the nested mask and value.
+
+`TestLinkWriteProtodown`:
+
+| description | input | expected |
+|---|---|---|
+| positive: on and off | `protodown on`; `protodown off` | `IFLA_PROTO_DOWN` 1; 0 |
+| positive: a reason on | `protodown_reason 0 on` | `IFLA_PROTO_DOWN_REASON` (`NLA_F_NESTED`): mask 1, value 1 |
+| positive: a reason off | `protodown_reason 0 off` | mask 1, value 0 |
+| negative: a bad on/off | `protodown maybe` | `parse_on_off`'s error and status |
+| negative: reason 32 | `protodown_reason 32 on` | 255; `invalid protodown reason` |
+| negative: no on/off | `protodown_reason 1 up` | `on_off`'s error |
+| boundary: reason 31 | `protodown_reason 31 on` | mask and value 0x80000000 |
+| corner: `o` is `on` by prefix | `protodown_reason 2 o` | value 4 |
+
+The workbench rows: the 20 rows `same`.
+
+**Mutation check:** the reason bound at 33 (the 32 row); the value without the mask (the on row); `NLA_F_NESTED` dropped (the bytes).
+
+#### GW2-T06 `broadcast`, `carrier`, `mode` and `state`
+
+**Code.** `linkArmBroadcast` reuses `address`'s `llAddrA2N`. `linkArmCarrier` uses `parseOnOff`. `linkArmLinkMode` and `linkArmOperstate` use name tables by case-insensitive compare.
+
+`TestLinkWriteBrdCarrierModeState`:
+
+| description | input | expected |
+|---|---|---|
+| positive: broadcast | `broadcast ff:ff:ff:ff:ff:fe`; `brd ...` | `IFLA_BROADCAST` 6 bytes |
+| positive: carrier | `carrier on`; `carrier off` | `IFLA_CARRIER` 1; 0 |
+| positive: mode | `mode dormant`; `mode default` | `IFLA_LINKMODE` 1; 0 |
+| positive: state | `state dormant`; `state up` | `IFLA_OPERSTATE` 5; 6 |
+| negative: carrier | `carrier maybe` | `parse_on_off`'s error and status |
+| negative: mode and state | `mode x`; `state x` | 255; `Invalid link mode`; `Invalid operstate` |
+| boundary: case | `mode DORMANT`; `state UP` | 1; 6 |
+| corner: `b` is broadcast | `b ff:ff:ff:ff:ff:fe` | `IFLA_BROADCAST`: only `link` and `address` are matched earlier |
+
+The workbench rows: the 15 rows `same`, or refusing later.
+
+**Mutation check:** `mode` by prefix (`mod`); the operstate table off by one (`up`); `brd` by prefix.
+
+#### GW2-T07 `xdp off`
+
+**Code.** `linkArmXdp`: with `off` or `none` as argv's last word, the nest with fd -1 and the flags. Anything else stays `ErrNotImplemented` (a program load), recorded with its count. `xdpoffload` looks the dev up first.
+
+`TestLinkWriteXdp`:
+
+| description | input | expected |
+|---|---|---|
+| positive: xdp off | `set dev d0 xdp off` | `IFLA_XDP`: `IFLA_XDP_FD` -1, `IFLA_XDP_FLAGS` 1 |
+| positive: generic and drv | `xdpgeneric none`; `xdpdrv off` | flags 3; 5 |
+| positive: offload | `xdpoffload off` | d0's lookup; flags 9 |
+| negative: not last | `xdp off carrier on` | `ErrNotImplemented`; `ip` tries an object |
+| negative: no value | `xdp` | 255; `Command line is not complete` |
+| corner: `-force` | `ip -force link set dev d0 xdp off` | flags 0, so no `IFLA_XDP_FLAGS` |
+
+The workbench rows: the 3 `xdp` rows and the ones behind `carrier`/`netns` `same`; `xdp-not-last` stays `refuses`.
+
+**Mutation check:** flags always sent (the force row); `UPDATE_IF_NOEXIST` dropped (`xdp off`); fd 0 (any row).
+
+#### GW2-T08 `index`, `netns`, `link-netnsid` and `parentdev`
+
+**Code.** `linkArmIndex` (`atoi`, positive, `duparg`) and `finish`'s set-without-netns refusal. `linkArmNetns` opens the namespace as `netns_get_fd` does and sends the descriptor's number. `linkArmLinkNetnsid` uses `get_integer`. `linkArmParentdev` sends the NUL-terminated name.
+
+`TestLinkWriteIndexNetns`:
+
+| description | input | expected |
+|---|---|---|
+| positive: parentdev | `parentdev br0` | `IFLA_PARENT_DEV_NAME` `br0\0` |
+| positive: link-netnsid | `link-netnsid 5` | `IFLA_LINK_NETNSID` 5 |
+| negative: index on set | `set dev d0 index 100` | 255; `index can be used only when creating devices or when moving device to another netns.` |
+| negative: a bad index | `index 0`; `index x` | 255; `Invalid "index" value` |
+| negative: no such netns | `netns nosuch` | 255; `Invalid "netns" value` |
+| negative: link-netnsid twice | `link-netnsid 1 link-netnsid 2` | 255; `duparg` |
+| boundary: link-netnsid -1 | `link-netnsid -1` | `IFLA_LINK_NETNSID` -1 |
+| corner: netns by pid | `netns <the test's pid>` | `IFLA_NET_NS_FD` with the descriptor goip opened |
+
+The workbench rows: the 5 rows `same`, except `netns $$` rows: the shell's pid in the capture is a process that no longer exists, so those stay as recorded in the decision log.
+
+**Mutation check:** `index` allowed on set (the index row); `atoi` of `x` as valid (it is 0, refused); `parentdev` without its NUL.
+
+**Done when** (every GW2 task): as GW1-T01, with the task's rows `same` or refusing at a later GW2 keyword, and `differs` and `sends` 0. GW2-T08 closes GW2: the link rows have no `refuses` left except those the decision log lists.
 
 ### GW3 — nexthop keywords
 

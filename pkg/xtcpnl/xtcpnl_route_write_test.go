@@ -266,6 +266,8 @@ func TestBuildRouteWriteRequestMetricsNest(t *testing.T) {
 	}
 	withMx := base
 	withMx.Metrics = []RouteMetric{{Type: unix.RTAX_INITCWND, U32: 32}}
+	withMp := withMx
+	withMp.Nexthops = []RouteNexthop{{Ifindex: 2, Attrs: []RouteAttr{RouteAttrBytes(unix.RTA_GATEWAY, []byte{192, 0, 2, 1})}}}
 
 	tests := []struct {
 		description string
@@ -280,6 +282,16 @@ func TestBuildRouteWriteRequestMetricsNest(t *testing.T) {
 				08000100 c0000232
 				08000400 02000000
 				0c000800 08000b00 20000000`),
+		},
+		{
+			description: "positive: RTA_MULTIPATH (9) comes after RTA_METRICS, len 20, no NLA_F_NESTED",
+			w:           withMp,
+			expected: hexBytes(t, `4c000000 1800 0505 34120000 00000000
+				02200000 fe03fd01 00000000
+				08000100 c0000232
+				08000400 02000000
+				0c000800 08000b00 20000000
+				14000900 10000000 02000000 08000500 c0000201`),
 		},
 		{
 			description: "corner: no metrics, no RTA_METRICS",
@@ -299,6 +311,84 @@ func TestBuildRouteWriteRequestMetricsNest(t *testing.T) {
 			}
 			if !bytes.Equal(got, tc.expected) {
 				t.Errorf("request = % x\nwant      % x", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestEncodeRouteMultipath is RTA_MULTIPATH's payload as parse_nexthops lays
+// it out: per hop a struct rtnexthop whose rtnh_len counts its attributes,
+// padding included.
+//
+// go test ./pkg/xtcpnl/ -run TestEncodeRouteMultipath
+func TestEncodeRouteMultipath(t *testing.T) {
+	gw := RouteAttrBytes(unix.RTA_GATEWAY, []byte{192, 0, 2, 1})
+	empties := func(n int) []RouteNexthop { return make([]RouteNexthop, n) }
+	empty := hexBytes(t, `0800 00 00 00000000`)
+	tests := []struct {
+		description string
+		hops        []RouteNexthop
+		expected    []byte
+		wantErr     error
+	}{
+		{
+			description: "positive: one hop with a gateway, rtnh_len 16",
+			hops:        []RouteNexthop{{Ifindex: 2, Attrs: []RouteAttr{gw}}},
+			expected:    hexBytes(t, `1000 00 00 02000000 08000500 c0000201`),
+		},
+		{
+			description: "positive: flags, hops and RTA_FLOW after the gateway, rtnh_len 24",
+			hops: []RouteNexthop{{Flags: unix.RTNH_F_ONLINK, Hops: 255, Ifindex: 3,
+				Attrs: []RouteAttr{gw, RouteAttrU32(unix.RTA_FLOW, 5)}}},
+			expected: hexBytes(t, `1800 04 ff 03000000 08000500 c0000201 08000b00 05000000`),
+		},
+		{
+			description: "positive: two hops back to back",
+			hops:        []RouteNexthop{{Ifindex: 2, Attrs: []RouteAttr{gw}}, {Hops: 1, Ifindex: 2}},
+			expected:    hexBytes(t, `1000 00 00 02000000 08000500 c0000201  0800 00 01 02000000`),
+		},
+		{
+			description: "boundary: RTA_VIA's 10 bytes are padded to 12, and rtnh_len counts the padding",
+			hops: []RouteNexthop{{Ifindex: 2,
+				Attrs: []RouteAttr{RouteAttrBytes(unix.RTA_VIA, []byte{unix.AF_INET, 0, 192, 0, 2, 1})}}},
+			expected: hexBytes(t, `1400 00 00 02000000 0a001200 0200c000 02010000`),
+		},
+		{
+			description: "boundary: an empty hop is a bare 8-byte rtnexthop",
+			hops:        empties(1),
+			expected:    empty,
+		},
+		{
+			description: "boundary: 511 empty hops fill 4088 of the 4092 bytes",
+			hops:        empties(511),
+			expected:    bytes.Repeat(empty, 511),
+		},
+		{
+			description: "negative: 512 empty hops are past parse_nexthops' buffer",
+			hops:        empties(512),
+			wantErr:     ErrAttrNoSpace,
+		},
+		{
+			description: "corner: no hops is nil, never an empty RTA_MULTIPATH",
+		},
+		{
+			description: "corner: a negative ifindex is its two's complement",
+			hops:        []RouteNexthop{{Ifindex: -1}},
+			expected:    hexBytes(t, `0800 00 00 ffffffff`),
+		},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := EncodeRouteMultipath(tc.hops)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr != nil {
+				return
+			}
+			if !bytes.Equal(got, tc.expected) {
+				t.Errorf("multipath = % x\nwant        % x", got, tc.expected)
 			}
 		})
 	}

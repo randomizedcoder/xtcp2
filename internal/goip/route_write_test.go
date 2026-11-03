@@ -380,7 +380,6 @@ func TestParseRouteWriteArgs(t *testing.T) {
 			expected: routeWriteExpected{err: errFakeResolve, errMsg: "fake", resolved: []string{"boom"}}},
 
 		// Keywords goip does not implement.
-		{description: "negative: nexthop", verb: "add", args: p24 + " nexthop via 192.0.2.1", expected: notImpl(`"nexthop"`)},
 		{description: "negative: encap", verb: "add", args: p24 + " encap mpls 100 dev d0", expected: notImpl(`"encap"`)},
 		{description: "negative: via link", verb: "add", args: p24 + " via link 02:00:00:00:00:01", expected: notImpl("link")},
 		{description: "negative: help", verb: "add", args: "help", expected: notImpl("help")},
@@ -566,7 +565,7 @@ func TestRunRouteWrite(t *testing.T) {
 			args: []string{"route", "add", "blackhole", "198.51.100.0/24", "quickack", "2"}, hook: hookSet,
 			expected: result{code: ExitUsage, stderr: `"quickack" value should be 0 or 1`}},
 		{description: "boundary: an unimplemented keyword writes no file",
-			args: []string{"route", "add", "198.51.100.0/24", "nexthop", "via", "192.0.2.1"}, hook: hookSet,
+			args: []string{"route", "add", "198.51.100.0/24", "encap", "mpls", "100", "dev", "d0"}, hook: hookSet,
 			expected: result{code: ExitUsage, stderr: "not implemented"}},
 	}
 	for _, tc := range tests {

@@ -230,3 +230,108 @@ func TestRouteWriteTosRealmsVrf(t *testing.T) {
 		{description: "corner: ds is dsfield, by its prefix", verb: "add", args: p24 + " ds 10", expected: v4(tos(16), d0)},
 	})
 }
+
+// TestRouteWriteMultipath is iproute_modify's nexthop arm (ip/iproute.c:1459),
+// which ends the loop, and parse_nexthops and parse_one_nh (:1101, :1019),
+// which read the hops after RTA_OIF: each hop's dev looked up as it is read,
+// its weight less one in rtnh_hops, and RTA_MULTIPATH after RTA_METRICS. A
+// route with hops keeps universe scope. GW1-T04.
+//
+// go test ./internal/goip/ -run TestRouteWriteMultipath
+func TestRouteWriteMultipath(t *testing.T) {
+	const (
+		create = unix.NLM_F_CREATE
+		excl   = unix.NLM_F_EXCL
+		p24    = "198.51.100.0/24"
+		gw1    = "192.0.2.1"
+	)
+	gw := func(s string) xtcpnl.RouteAttr { return rtaAddr(unix.RTA_GATEWAY, s) }
+	flow := func(v uint32) xtcpnl.RouteAttr { return xtcpnl.RouteAttrU32(unix.RTA_FLOW, v) }
+	hop := func(flags, hops uint8, ifindex int32, attrs ...xtcpnl.RouteAttr) xtcpnl.RouteNexthop {
+		return xtcpnl.RouteNexthop{Flags: flags, Hops: hops, Ifindex: ifindex, Attrs: attrs}
+	}
+	// v4 is `add 198.51.100.0/24 …` at universe scope, with the attributes
+	// before RTA_MULTIPATH, the hops, and the lookups.
+	v4 := func(resolved []string, attrs []xtcpnl.RouteAttr, hops ...xtcpnl.RouteNexthop) routeWriteExpected {
+		w := scopeUniverse(newRouteWrite(create|excl, 24, append([]xtcpnl.RouteAttr{rtaDst("198.51.100.0")}, attrs...)...))
+		w.Nexthops = hops
+		return routeWriteExpected{write: w, resolved: resolved}
+	}
+	d0 := []string{"d0"}
+	invalid := func(msg string, resolved ...string) routeWriteExpected {
+		return routeWriteExpected{err: ErrInvalidArgument, errMsg: msg, resolved: resolved}
+	}
+	runRouteWriteRows(t, []routeWriteRow{
+		{description: "positive: two weighted hops, each dev looked up", verb: "add",
+			args:     p24 + " nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256",
+			expected: v4([]string{"d0", "d0"}, nil, hop(0, 0, 2, gw(gw1)), hop(0, 255, 2, gw("192.0.2.2")))},
+		{description: "positive: an IPv4 hop on an IPv6 route is RTA_VIA", verb: "add", family: unix.AF_INET6,
+			args: "2001:db8::/64 nexthop via inet 192.0.2.1 dev d0",
+			expected: routeWriteExpected{write: routeWith(newRouteWrite(create|excl, 64, rtaDst("2001:db8::")),
+				func(w *xtcpnl.RouteWrite) {
+					w.Family, w.Scope = unix.AF_INET6, unix.RT_SCOPE_UNIVERSE
+					w.Nexthops = []xtcpnl.RouteNexthop{hop(0, 0, 2,
+						xtcpnl.RouteAttrBytes(unix.RTA_VIA, []byte{unix.AF_INET, 0, 192, 0, 2, 1}))}
+				}), resolved: d0}},
+		{description: "positive: onlink and realms in a hop", verb: "add",
+			args:     p24 + " nexthop via 192.0.2.1 dev d0 onlink realms 5",
+			expected: v4(d0, nil, hop(unix.RTNH_F_ONLINK, 0, 2, gw(gw1), flow(5)))},
+		{description: "positive: the route's attributes, then the hops", verb: "add",
+			args: p24 + " table 1000 metric 5 mtu 1400 nexthop via 192.0.2.1 dev d0",
+			expected: routeWriteExpected{write: routeWith(scopeUniverse(newRouteWrite(create|excl, 24, rtaDst("198.51.100.0"),
+				xtcpnl.RouteAttrU32(unix.RTA_TABLE, 1000), xtcpnl.RouteAttrU32(unix.RTA_PRIORITY, 5))),
+				func(w *xtcpnl.RouteWrite) {
+					w.Table = unix.RT_TABLE_UNSPEC
+					w.Metrics = []xtcpnl.RouteMetric{{Type: unix.RTAX_MTU, U32: 1400}}
+					w.Nexthops = []xtcpnl.RouteNexthop{hop(0, 0, 2, gw(gw1))}
+				}), resolved: d0}},
+		{description: "positive: the route's dev is looked up before a hop's", verb: "add", args: p24 + " dev d0 nexthop dev v0",
+			expected: v4([]string{"d0", "v0"}, []xtcpnl.RouteAttr{rtaOif(2)}, hop(0, 0, 6))},
+		{description: "negative: weight 0", verb: "add", args: p24 + " nexthop dev d0 weight 0",
+			expected: invalid(`Error: argument "0" is wrong: "weight" is invalid`, "d0")},
+		{description: "negative: weight 257", verb: "add", args: p24 + " nexthop dev d0 weight 257",
+			expected: invalid(`Error: argument "257" is wrong: "weight" is invalid`, "d0")},
+		{description: "negative: no such hop device", verb: "add", args: p24 + " nexthop via 192.0.2.1 dev nosuch",
+			expected: invalid("Cannot find device \"nosuch\"\nError: cannot parse nexthop", "nosuch")},
+		{description: "negative: the hop lookup fails", verb: "add", args: p24 + " nexthop dev boom",
+			expected: routeWriteExpected{err: errFakeResolve, errMsg: "fake", resolved: []string{"boom"}}},
+		{description: "negative: a route keyword after a hop", verb: "add", args: p24 + " nexthop via 192.0.2.1 dev d0 metric 5",
+			expected: invalid(`Error: "nexthop" or end of line is expected instead of "metric"`, "d0")},
+		{description: "negative: a bare nexthop at the end", verb: "add", args: p24 + " nexthop via 192.0.2.1 nexthop",
+			expected: invalid(`Error: unexpected end of line after "nexthop"`)},
+		{description: "negative: via with no address", verb: "add", args: p24 + " nexthop via",
+			expected: invalid("Command line is not complete")},
+		{description: "negative: an IPv6 gateway on an IPv4 route", verb: "add", args: p24 + " nexthop via 2001:db8::1",
+			expected: invalid(`Error: inet address is expected rather than "2001:db8::1"`)},
+		{description: "negative: encap in a hop is not implemented", verb: "add",
+			args:     p24 + " nexthop via 192.0.2.1 encap mpls 100 dev d0",
+			expected: routeWriteExpected{err: ErrNotImplemented, errMsg: `"encap"`}},
+		{description: "negative: the route's dev fails before any hop is read", verb: "add",
+			args: p24 + " dev nosuch nexthop dev d0 weight 0", expected: invalid(`Cannot find device "nosuch"`, "nosuch")},
+		{description: "boundary: a hex weight of 256, base 0", verb: "add", args: p24 + " nexthop via 192.0.2.1 weight 0x100",
+			expected: v4(nil, nil, hop(0, 255, 0, gw(gw1)))},
+		{description: "boundary: an empty hop is a bare rtnexthop", verb: "add", args: p24 + " nexthop nexthop via 192.0.2.1",
+			expected: v4(nil, nil, hop(0, 0, 0), hop(0, 0, 0, gw(gw1)))},
+		{description: "corner: a hop keeps universe scope where dev alone is link", verb: "add", args: p24 + " nexthop dev d0",
+			expected: v4(d0, nil, hop(0, 0, 2))},
+		{description: "corner: a delete with hops keeps scope nowhere", verb: "del", args: p24 + " nexthop via 192.0.2.1 weight 1",
+			expected: routeWriteExpected{write: xtcpnl.RouteWrite{
+				MsgType: unix.RTM_DELROUTE, Flags: unix.NLM_F_ACK, Family: unix.AF_INET, DstLen: 24,
+				Table: unix.RT_TABLE_MAIN, Scope: unix.RT_SCOPE_NOWHERE,
+				Attrs: []xtcpnl.RouteAttr{rtaDst("198.51.100.0")}, Nexthops: []xtcpnl.RouteNexthop{hop(0, 0, 0, gw(gw1))},
+			}}},
+		{description: "corner: realm is realms, by its prefix", verb: "add", args: p24 + " nexthop via 192.0.2.1 realm 5",
+			expected: v4(nil, nil, hop(0, 0, 0, gw(gw1), flow(5)))},
+		{description: "corner: two vias in a hop are two gateways", verb: "add",
+			args:     p24 + " nexthop via 192.0.2.1 via 192.0.2.2",
+			expected: v4(nil, nil, hop(0, 0, 0, gw(gw1), gw("192.0.2.2")))},
+		{description: "corner: weight is strcmp, so weigh ends the hop", verb: "add", args: p24 + " nexthop via 192.0.2.1 weigh 2",
+			expected: invalid(`Error: "nexthop" or end of line is expected instead of "weigh"`)},
+		{description: "corner: a hop gives the route its family", verb: "add", args: "default nexthop via 2001:db8::1",
+			expected: routeWriteExpected{write: xtcpnl.RouteWrite{
+				MsgType: unix.RTM_NEWROUTE, Flags: create | excl | unix.NLM_F_ACK, Family: unix.AF_INET6,
+				Table: unix.RT_TABLE_MAIN, Protocol: unix.RTPROT_BOOT, Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST,
+				Nexthops: []xtcpnl.RouteNexthop{hop(0, 0, 0, gw("2001:db8::1"))},
+			}}},
+	})
+}

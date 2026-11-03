@@ -390,12 +390,12 @@ New pieces, smallest first:
   `runRoute` (`internal/goip/obj_route.go`) tries before the list verbs. It is
   `iproute_modify`'s keyword chain as a table in its order, because the first
   `matches()` wins (`s` is `ssthresh`, `rt` is `rttvar`, `t` is `table`). The
-  keywords goip does not implement (`nexthop`, `encap`, `as`,
-  `ttl-propagate`) are in the chain and refused with `ErrNotImplemented`, so
-  a later argument is never misread as the destination. Landed. `nhid`,
-  `expires`, `pref`, `tos`/`dsfield`, `realms` and `vrf` were refused too, and
-  are since built by [goip-write-keywords.md](goip-write-keywords.md)'s
-  GW1-T01 to GW1-T03.
+  keywords goip does not implement (`encap`, `as`, `ttl-propagate`, and
+  `encap` and `as` inside a multipath hop) are in the chain and refused with
+  `ErrNotImplemented`, so a later argument is never misread as the
+  destination. Landed. `nhid`, `expires`, `pref`, `tos`/`dsfield`, `realms`,
+  `vrf` and multipath `nexthop` were refused too, and are since built by
+  [goip-write-keywords.md](goip-write-keywords.md)'s GW1-T01 to GW1-T04.
 - The policy stays in `internal/goip` rather than a `req` function: the
   parser has to resolve `dev`, which is a netlink round trip, as
   `internal/goip/link_write.go` does for link.
@@ -597,14 +597,16 @@ for it.
   explicitly-gated proposal.
 - **Multipath routes** — the `nexthop …` syntax and `RTA_MULTIPATH`
   (`struct rtnexthop`). The single-`dev`/single-`via` route is the first target.
+  Since built, by [goip-write-keywords.md](goip-write-keywords.md)'s GW1-T04;
+  a per-hop `encap` or `as` is still refused.
 - **Write paths for other families** — `addr`/`link`/`neigh`/`rule` add/del. Each
   would be its own design once the route write path proves the pattern. `link`
   now has one: [link-write-path.md](link-write-path.md), which also renamed this
   design's `ErrNotARouteWrite` to `ErrNotAnAdmittedWrite` when Phase 1 landed,
   because the gate's admitted set grew to include `RTM_NEWLINK`/`RTM_DELLINK`.
   `addr` has one too: [addr-write-path.md](addr-write-path.md).
-- **The keywords goip refuses** in phase 4: `nexthop` (multipath, above),
-  `nhid` (since built, by [goip-write-keywords.md](goip-write-keywords.md)'s
+- **The keywords goip refuses** in phase 4: `nexthop` (multipath, above;
+  since built, GW1-T04), `nhid` (since built, by [goip-write-keywords.md](goip-write-keywords.md)'s
   GW1-T01), `encap`, `vrf` (which costs a lookup of its own), `tos`/`dsfield`
   and `realms` (the three since built, GW1-T03), `expires` and `pref` (both
   since built, GW1-T02), `as`,

@@ -1,12 +1,12 @@
-# route4: 171 same, 19 refuses, 0 sends, 0 differs; lookups differ in 88; not a write 0
-# route6: 134 same, 19 refuses, 0 sends, 0 differs; lookups differ in 74; not a write 0
+# route4: 190 same, 0 refuses, 0 sends, 0 differs; lookups differ in 107; not a write 0
+# route6: 153 same, 0 refuses, 0 sends, 0 differs; lookups differ in 93; not a write 0
 # rule4: 173 same, 30 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # rule6: 203 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # nh4: 78 same, 2 refuses, 0 sends, 0 differs; lookups differ in 38; not a write 0
 # nh6: 78 same, 2 refuses, 0 sends, 0 differs; lookups differ in 36; not a write 0
 # nhgrp: 81 same, 39 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
-# fibt: 172 same, 58 refuses, 0 sends, 0 differs; lookups differ in 76; not a write 143
-# fibnh: 387 same, 15 refuses, 0 sends, 0 differs; lookups differ in 151; not a write 50
+# fibt: 228 same, 2 refuses, 0 sends, 0 differs; lookups differ in 90; not a write 143
+# fibnh: 388 same, 14 refuses, 0 sends, 0 differs; lookups differ in 152; not a write 50
 # fibrule: 72 same, 0 refuses, 0 sends, 0 differs; lookups differ in 4; not a write 88
 # addr4: 132 same, 0 refuses, 0 sends, 0 differs; lookups differ in 126; not a write 0
 # addr6: 128 same, 0 refuses, 0 sends, 0 differs; lookups differ in 122; not a write 0
@@ -19,45 +19,7 @@
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 18; not a write 9
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # lookups: 262 rows: dump IFLA_EXT_MASK 0x109, goip 0x1
-# lookups: 792 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
-route4/ec-005 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route del multicast 198.51.100.6/31 table 256 preference 7 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/ng-005 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route add blackhole 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/ng-011 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route add unreachable 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/ng-017 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route add prohibit 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/ng-023 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route add throw 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/ng-040 refuses rc=255 route "nexthop": object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 0
-route4/ng-041 refuses rc=255 route "nexthop": object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 weight 257
-route4/pw-004 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -4 route add multicast 198.51.100.6/31 table 256 preference 7 scope global mtu lock 1400 src 192.0.2.10 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-010 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route replace local 128.0.0.0/1 table main proto 0 scope host src 192.0.2.10 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-017 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -4 route append unicast 128.0.0.0/1 preference 7 proto static mtu lock 1400 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-043 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route del broadcast 198.51.100.6/31 table 0 metric 1024 scope host mtu 1280 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-049 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route prepend 198.51.100.0/24 table 4294967295 metric 0 proto 255 scope link mtu 1280 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-063 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route add to 203.0.113.0/24 table 100 metric 4294967295 scope link mtu lock 1400 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-068 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -4 route add default table 255 advmss 1300 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-069 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -4 route add 0.0.0.0/0 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/pw-074 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -4 route add 198.51.100.7/32 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/rn1-011 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -4 route del 128.0.0.0/1 table 4294967295 proto 0 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/rn1-012 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route append 128.0.0.0/1 table 256 metric 4294967295 proto 0 scope link nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route4/rn1-015 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -4 route prepend to broadcast 203.0.113.0/24 table 0 preference 7 scope link mtu 1280 src 192.0.2.10 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256
-route6/ec-005 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route del multicast 2001:db8:2::/127 table 256 preference 7 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/gone-1 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route del multicast 2001:db8:2::/127 table 256 preference 7 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/ng-006 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add blackhole 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/ng-007 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add unreachable 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/ng-008 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add prohibit 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/ng-009 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 route add throw 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/ng-015 refuses rc=255 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 weight 257
-route6/pw-004 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add multicast 2001:db8:2::/127 table 256 preference 7 pref low mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-008 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route replace default table 255 metric 1024 proto static expires 60 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-023 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route prepend unicast ::/0 table 255 proto 255 pref medium mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-034 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route del local ::ffff:198.51.100.0/120 table 4294967295 preference 7 proto 0 mtu lock 1400 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-045 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route append anycast 2001:db8:2::/64 table 0 metric 0 pref low mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-050 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add multicast ::/0 table 100 metric 4294967295 pref low nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-069 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 8000::/1 pref high advmss 1300 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/pw-071 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001:db8:2::7/128 table main nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-021 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add anycast ::/0 table 0 proto 0 pref high expires 60 advmss 1300 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-022 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route prepend unicast 2001:db8:2::/127 table 0 metric 1024 proto 255 pref medium mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-027 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route replace 2001:db8:2::7/128 table main proto 0 pref medium expires 60 mtu 1280 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
-route6/rn1-033 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route del local ::/0 table 100 proto 0 mtu 1280 src 2001:db8:1::10 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256
+# lookups: 845 rows: lookup IFLA_EXT_MASK 0x109, goip 0x9
 rule4/ec-002 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/gone-1 refuses rc=2 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule del not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
 rule4/pw-001 refuses rc=0 rule realms: iproute2 reads realm names from rt_realms and goip reads no config files: object recognized but not implemented by goip | ip -4 rule add not from 198.51.100.0/24 to 203.0.113.0/24 pref 100 fwmark 0x10 iif d0 oif d0 tos 0x10 ipproto tcp sport 80 dport 80 uidrange 1000-2000 suppress_prefixlength 0 protocol static realms 10 lookup main
@@ -131,65 +93,8 @@ nhgrp/rn1-031 refuses rc=0 nexthop hw_stats: no capture shows it: object recogni
 nhgrp/rn1-033 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop add group 31/32 type resilient buckets 4 idle_timer 0 fdb hw_stats off protocol static
 nhgrp/rn1-034 refuses rc=0 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 100 group 31/32 type resilient buckets 2 fdb hw_stats on
 nhgrp/rn1-038 refuses rc=2 nexthop hw_stats: no capture shows it: object recognized but not implemented by goip | ip nexthop replace id 0 group 21,10/22,20 type resilient buckets 4 idle_timer 0 hw_stats on
-fibt/fib6_notify_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001::/64 nexthop via 2001:10::2 dev dummy_10 nexthop encap ip6 dst 2002::20 via 2001:20::2 dev dummy_20 nexthop encap ip6 dst 2002::30 via 2001:30::2 dev dummy_30 nexthop encap ip6 dst 2002::40 via 2001:40::2 dev dummy_40 nexthop encap ip6 dst 2002::50 via 2001:50::2 dev dummy_50 nexthop encap ip6 dst 2002::60 via 2001:60::2 dev dummy_60 nexthop encap ip6 dst 2002::70 via 2001:70::2 dev dummy_70
-fibt/fib_down_test-005 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 203.0.113.0/24 nexthop via 198.51.100.2 dev dummy0 nexthop via 192.0.2.2 dev dummy1
-fibt/fib_down_test-006 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001:db8:3::/64 nexthop via 2001:db8:1::2 dev dummy0 nexthop via 2001:db8:2::2 dev dummy1
-fibt/fib_notify_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 10.0.0.0/24 nexthop via 20.20.10.1 dev dummy_10 nexthop encap ip dst 192.168.10.20 via 20.20.20.1 dev dummy_20 nexthop encap ip dst 192.168.10.30 via 20.20.30.1 dev dummy_30 nexthop encap ip dst 192.168.10.40 via 20.20.40.1 dev dummy_40 nexthop encap ip dst 192.168.10.50 via 20.20.50.1 dev dummy_50 nexthop encap ip dst 192.168.10.60 via 20.20.60.1 dev dummy_60 nexthop encap ip dst 192.168.10.70 via 20.20.70.1 dev dummy_70
-fibt/fib_unreg_test-005 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 203.0.113.0/24 nexthop via 198.51.100.2 dev dummy0 nexthop via 192.0.2.2 dev dummy1
-fibt/fib_unreg_test-006 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 route add 2001:db8:3::/64 nexthop via 2001:db8:1::2 dev dummy0 nexthop via 2001:db8:2::2 dev dummy1
-fibt/ipv4_mpath_balance_preferred_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 172.16.105.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_mpath_balance_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 172.16.105.1 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_mpath_oif_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 203.0.113.0/24 nexthop via 198.51.100.2 dev dummy0 nexthop via 192.0.2.2 dev dummy1
-fibt/ipv4_mpath_oif_vrf_test-003 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 203.0.113.0/24 vrf vrf-123 nexthop via 198.51.100.2 dev dummy0 nexthop via 192.0.2.2 dev dummy1
-fibt/ipv4_route_metrics_test-002 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.112.0/24 mtu 1400 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-029 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-031 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-032 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-041 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2
-fibt/ipv4_route_test-042 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro replace 172.16.104.0/24 nexthop via 172.16.101.3 nexthop via 172.16.103.2
-fibt/ipv4_route_test-044 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2
-fibt/ipv4_route_test-048 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro replace 172.16.104.0/24 nexthop via 172.16.103.2
-fibt/ipv4_route_test-056 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-057 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro replace 172.16.104.0/24 nexthop via 172.16.101.3 nexthop via 172.16.103.3
-fibt/ipv4_route_test-059 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-062 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-063 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro replace 172.16.104.0/24 nexthop via 172.16.101.3
-fibt/ipv4_route_test-065 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-068 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-069 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip ro replace 172.16.104.0/24 nexthop via 172.16.111.3 nexthop via 172.16.103.3
-fibt/ipv4_route_test-071 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-072 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip ro replace 172.16.104.0/24 nexthop via 172.16.101.3 nexthop via 172.16.113.3
-fibt/ipv4_route_test-074 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.101.2 nexthop via 172.16.103.2
-fibt/ipv4_route_test-075 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip ro change 172.16.105.0/24 nexthop via 172.16.101.3 nexthop via 172.16.103.3
-fibt/ipv4_route_v6_gw_test-003 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via inet6 2001:db8:101::2 dev veth1 nexthop via 172.16.103.2 dev veth3
-fibt/ipv4_route_v6_gw_test-004 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip ro del 172.16.104.0/24 nexthop via 172.16.103.2 dev veth3 nexthop via inet6 2001:db8:101::2 dev veth1
-fibt/ipv4_route_v6_gw_test-005 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro del 172.16.104.0/24 nexthop via inet6 2001:db8:101::2 dev veth1 nexthop via 172.16.103.2 dev veth3
-fibt/ipv4_route_v6_gw_test-006 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro add 172.16.104.0/24 nexthop via 172.16.103.2 dev veth3 nexthop via inet6 2001:db8:101::2 dev veth1
-fibt/ipv4_route_v6_gw_test-007 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip ro del 172.16.104.0/24 nexthop via inet6 2001:db8:101::2 dev veth1 nexthop via 172.16.103.2 dev veth3
-fibt/ipv4_route_v6_gw_test-008 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip ro del 172.16.104.0/24 nexthop via 172.16.103.2 dev veth3 nexthop via inet6 2001:db8:101::2 dev veth1
-fibt/ipv6_mpath_balance_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 2001:db8:105::1 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_mpath_oif_test-001 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 2001:db8:10::/64 nexthop via 2001:db8:1::2 dev dummy0 nexthop via 2001:db8:2::2 dev dummy1
-fibt/ipv6_mpath_oif_vrf_test-003 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip route add 2001:db8:10::/64 vrf vrf-123 nexthop via 2001:db8:1::2 dev dummy0 nexthop via 2001:db8:2::2 dev dummy1
-fibt/ipv6_route_metrics_test-007 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:115::/64 mtu 1400 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-014 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-016 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-017 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-026 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2
-fibt/ipv6_route_test-027 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro replace 2001:db8:104::/64 nexthop via 2001:db8:101::3 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-030 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro replace 2001:db8:104::/64 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-038 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-039 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro replace 2001:db8:104::/64 nexthop via 2001:db8:101::3 nexthop via 2001:db8:103::3
-fibt/ipv6_route_test-041 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-044 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-045 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro replace 2001:db8:104::/64 nexthop via 2001:db8:101::3
-fibt/ipv6_route_test-047 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-050 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-051 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 ro replace 2001:db8:104::/64 nexthop via 2001:db8:111::3 nexthop via 2001:db8:103::3
-fibt/ipv6_route_test-053 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-054 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 ro replace 2001:db8:104::/64 nexthop via 2001:db8:101::3 nexthop via 2001:db8:113::3
-fibt/ipv6_route_test-056 refuses rc=0 route "nexthop": object recognized but not implemented by goip | ip -6 ro add 2001:db8:104::/64 nexthop via 2001:db8:101::2 nexthop via 2001:db8:103::2
-fibt/ipv6_route_test-057 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip -6 ro change 2001:db8:105::/64 nexthop via 2001:db8:101::3 nexthop via 2001:db8:103::3
-fibnh/ipv4_fcnal-017 refuses rc=2 route "nexthop": object recognized but not implemented by goip | ip ro del 172.16.101.0/24 nexthop via 172.16.1.7 dev veth1 nexthop via 172.16.1.8 dev veth1
+fibt/fib6_notify_test-001 refuses rc=0 route nexthop "encap": object recognized but not implemented by goip | ip -6 route add 2001::/64 nexthop via 2001:10::2 dev dummy_10 nexthop encap ip6 dst 2002::20 via 2001:20::2 dev dummy_20 nexthop encap ip6 dst 2002::30 via 2001:30::2 dev dummy_30 nexthop encap ip6 dst 2002::40 via 2001:40::2 dev dummy_40 nexthop encap ip6 dst 2002::50 via 2001:50::2 dev dummy_50 nexthop encap ip6 dst 2002::60 via 2001:60::2 dev dummy_60 nexthop encap ip6 dst 2002::70 via 2001:70::2 dev dummy_70
+fibt/fib_notify_test-001 refuses rc=0 route nexthop "encap": object recognized but not implemented by goip | ip route add 10.0.0.0/24 nexthop via 20.20.10.1 dev dummy_10 nexthop encap ip dst 192.168.10.20 via 20.20.20.1 dev dummy_20 nexthop encap ip dst 192.168.10.30 via 20.20.30.1 dev dummy_30 nexthop encap ip dst 192.168.10.40 via 20.20.40.1 dev dummy_40 nexthop encap ip dst 192.168.10.50 via 20.20.50.1 dev dummy_50 nexthop encap ip dst 192.168.10.60 via 20.20.60.1 dev dummy_60 nexthop encap ip dst 192.168.10.70 via 20.20.70.1 dev dummy_70
 fibnh/ipv4_fcnal_runtime-039 refuses rc=0 nexthop encap: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 51 encap mpls 101 via 172.16.1.2 dev veth1
 fibnh/ipv4_fcnal_runtime-040 refuses rc=0 nexthop encap: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 52 encap mpls 102 via inet6 2001:db8:91::2 dev veth1
 fibnh/ipv4_fdb_grp_fcnal-014 refuses rc=2 nexthop encap: no capture shows it: object recognized but not implemented by goip | ip nexthop add id 17 encap mpls 101 via 172.16.1.2 dev veth1 fdb

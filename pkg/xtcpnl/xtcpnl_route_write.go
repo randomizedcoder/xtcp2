@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
@@ -31,6 +32,9 @@ const (
 	// RTA_METRICS header as well as the metrics, so the payload has 4 bytes
 	// less.
 	routeMetricsBufCst = 256 - RTAttrSizeCst
+	// routeMultipathBufCst is parse_nexthops' char buf[4096], which holds
+	// the RTA_MULTIPATH header as well as the hops.
+	routeMultipathBufCst = 4096 - RTAttrSizeCst
 )
 
 // ErrRouteWriteType is a RouteWrite whose MsgType is not RTM_NEWROUTE or
@@ -95,6 +99,20 @@ type RouteWrite struct {
 	// MetricLock is the RTAX_LOCK bitmask, 1<<RTAX_* per locked metric. It
 	// is written after the metrics, and only when non-zero.
 	MetricLock uint32
+
+	// Nexthops are the multipath hops, sent as one RTA_MULTIPATH after
+	// RTA_METRICS; none sends no RTA_MULTIPATH.
+	Nexthops []RouteNexthop
+}
+
+// RouteNexthop is one struct rtnexthop of RTA_MULTIPATH and the attributes
+// parse_one_nh puts after it: RTA_GATEWAY or RTA_VIA, and RTA_FLOW, in argv
+// order. rtnh_len is the header and the attributes, padding included.
+type RouteNexthop struct {
+	Flags   uint8
+	Hops    uint8
+	Ifindex int32
+	Attrs   []RouteAttr
 }
 
 // EncodeRtMsg lays out a struct rtmsg.
@@ -146,13 +164,54 @@ func EncodeRouteMetrics(ms []RouteMetric, lock uint32) ([]byte, error) {
 	return append([]byte(nil), ab.Bytes()...), nil
 }
 
+// EncodeRouteMultipath is the payload of RTA_MULTIPATH: each hop's struct
+// rtnexthop, then its attributes. With no hops it is nil.
+//
+// parse_one_nh grows rtnh_len by RTA_SPACE for RTA_VIA and by the
+// unpadded length for RTA_GATEWAY and RTA_FLOW, whose payloads are 4, 16
+// or 4 bytes, so every hop's length is its attributes' padded length.
+func EncodeRouteMultipath(hops []RouteNexthop) ([]byte, error) {
+	if len(hops) == 0 {
+		return nil, nil
+	}
+	var raw [routeMultipathBufCst]byte
+	n := 0
+	for i := range hops {
+		h := &hops[i]
+		if routeMultipathBufCst-n < RtNextHopSizeCst {
+			return nil, ErrAttrNoSpace
+		}
+		ab := NewAttrBuilder(raw[n+RtNextHopSizeCst:])
+		for _, a := range h.Attrs {
+			if err := ab.PutBytes(a.Type, a.Payload); err != nil {
+				return nil, err
+			}
+		}
+		hl := RtNextHopSizeCst + ab.Len()
+		l16, ok := cint.U16(hl)
+		if !ok {
+			return nil, ErrAttrTooLong
+		}
+		binary.LittleEndian.PutUint16(raw[n:], l16)
+		raw[n+2], raw[n+3] = h.Flags, h.Hops
+		binary.LittleEndian.PutUint32(raw[n+4:], cint.Bits(h.Ifindex))
+		n += hl
+	}
+	return append([]byte(nil), raw[:n]...), nil
+}
+
 // BuildRouteWriteRequest lays out w: the rtmsg, w.Attrs in order, then
-// RTA_METRICS when there are metrics.
+// RTA_METRICS when there are metrics, then RTA_MULTIPATH when there are
+// hops.
 func BuildRouteWriteRequest(w RouteWrite, seq uint32) ([]byte, error) {
 	if w.MsgType != uint16(unix.RTM_NEWROUTE) && w.MsgType != uint16(unix.RTM_DELROUTE) {
 		return nil, ErrRouteWriteType
 	}
 	mx, err := EncodeRouteMetrics(w.Metrics, w.MetricLock)
+	if err != nil {
+		return nil, err
+	}
+	mp, err := EncodeRouteMultipath(w.Nexthops)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +225,11 @@ func BuildRouteWriteRequest(w RouteWrite, seq uint32) ([]byte, error) {
 	}
 	if mx != nil {
 		if err := ab.PutBytes(uint16(unix.RTA_METRICS), mx); err != nil {
+			return nil, err
+		}
+	}
+	if mp != nil {
+		if err := ab.PutBytes(uint16(unix.RTA_MULTIPATH), mp); err != nil {
 			return nil, err
 		}
 	}
