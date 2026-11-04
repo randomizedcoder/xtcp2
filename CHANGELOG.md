@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- **Uplink columns: `lo` as UPLINK2, empty NIC and LLDP columns.** Automatic uplink detection took the kernel's `unreachable ::/0 dev lo`, which every host has, as a default route, and used a bond itself as the uplink, which has no NIC attributes and no LLDP neighbour. Only up, non-reject default routes off `lo` count now, and a bond, vlan or bridge holding the route is replaced by the physical NICs beneath it. `-uplinkInterfaces` is unchanged.
+
+### New
+
+- **Netns mount propagation check.** In a container, `/run/netns` and `/run/docker/netns` must be mounted `rslave` (`-v /run/netns:/run/netns:ro,rslave`). With Docker's default `rprivate`, namespaces created after xtcp2 starts are invisible: their sockets aren't collected and their container name/image stays empty. xtcp2 now logs a warning at startup and sets `xtcp_gauges{function="checkNetnsPropagation",variable="private",type="<dir>"}` to 1 for each such dir.
+
 ## 0.2.0 (2026-10)
 
 The first tagged release. These notes compare against `32a4fed4` (2026-08-17), the last revision most deployments built from; that tree also said `0.1.0` in `VERSION`.
