@@ -2,8 +2,8 @@
 
 ## Status
 
-**Last updated:** 2026-11-04. Not started. This document is the plan and its
-own status.
+**Last updated:** 2026-11-04. VF0 has landed (VF001); VF1 and VF2 are
+open. This document is the plan and its own status.
 
 [vrf-show-name.md](vrf-show-name.md) parked the family forms in its
 decision 8: "-4/-6 changes only the request's `ifi_family` byte on this
@@ -34,7 +34,7 @@ the 7.3.0 pin bump).
 
 | Done | Task | Work | State | Evidence |
 |---|---|---|---|---|
-| [ ] | [VF0-T01](#vf0--the-captures-and-the-family-byte-pin) | the captures and the family-byte pin | not started | — |
+| [x] | [VF0-T01](#vf0--the-captures-and-the-family-byte-pin) | the captures and the family-byte pin | done | VF001 |
 | [ ] | [VF1-T01](#vf1--the-object) | delete the guard, pass the family | not started | — |
 | [ ] | [VF2-T01](#vf2--the-matrix-rows-and-gating) | matrix rows and gating | not started | — |
 
@@ -202,6 +202,7 @@ test-shape review, and a mutation check in a scratch worktree.
 
 | Evidence ID | Date | Tasks / scope | Command or check and environment | Result | Evidence location |
 |---|---|---|---|---|---|
+| VF001 | 2026-11-04 | VF0-T01 | `nix run .#microvm-x86_64-netlink-dump-capture -- --out /tmp/vf0-cap/dumps` on the host: `NLCAP_DRIVER_PASS`, all nine new rows `datagrams=2 floor=2` — base stdout 12 bytes (`goipvrf 100\n`), mesh and tunnel 0 (`Invalid VRF` is stderr, which read rows drop). `go test ./internal/goip/ -count=1` and `go vet`: green, `TestVrfFamilyFormsRequestIsTheNameGet` 9/9 subtests — each recorded get byte-identical to `req.VrfCheckByName(<family>, goipvrf)` with seq/pid zeroed, the family byte the only delta from the plain form's built request, base's reply `RTM_NEWLINK` and mesh/tunnel's `NLMSG_ERROR` `-ENODEV`. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.vm-lib-exp`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`, and the nix-fmt, statix and deadnix checks: green. Mutation check in a scratch worktree, removed after — `VrfCheckByName`'s family parameter overwritten to hardcode AF_UNSPEC — killed exactly the nine byte-compare subtests and nothing else (`TestVrfShowNameRequestIsNameIsVrf`, `TestVrfShowName`, `TestVrfShowNameReplay` and `TestCorpus730MatchesSidecarsAt720` stayed green), and was reverted. | Passed: 9/9 rows and 9/9 subtests; the gates green; the mutant caught | the three capio rows in `nix/microvms/scripts/capture-netlink-dumps.exp`; the 18 new files under `pkg/xtcpnl/testdata/7_3_0/dumps/{,mesh/,tunnel/}`; `TestVrfFamilyFormsRequestIsTheNameGet` in `internal/goip/obj_vrf_test.go` |
 
 ## Out of scope
 
