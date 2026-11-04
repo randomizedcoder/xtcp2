@@ -2373,6 +2373,28 @@ var commands = withArgs([]Command{
 		// ground.
 		Floor: 2, Implemented: true,
 	},
+	{
+		Name: "-4 vrf show goipvrf", Slug: "vrf_show_name_v4",
+		// The parked NAME get's family forms (vrf-family-forms.md): -4/-6/-0
+		// changes only the request's ifi_family byte (iplink_vrf.c:110-113) —
+		// the kernel resolves the name without consulting the family
+		// (rtnetlink.c:4346-4355), so the answer and stdout are the plain
+		// row's own, `goipvrf 100`, and the floor with it. VF0's captures
+		// ground the bytes; VF1 deleted the guard.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-6 vrf show goipvrf", Slug: "vrf_show_name_v6",
+		// The AF_INET6 twin: the same get with the v6 family byte, the same
+		// answer, the same floor.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-0 vrf show goipvrf", Slug: "vrf_show_name_0",
+		// The AF_PACKET corner: the family byte no other vrf request carries;
+		// the kernel answers it exactly as the others.
+		Floor: 2, Implemented: true,
+	},
 	// The link write rows (link-write-path.md phase 7): the 21 rows of the
 	// committed corpus in pkg/xtcpnl/testdata/7_1_4/link-write/write/, with
 	// the same preconditions and floors as capture-link-writes.exp. All 21

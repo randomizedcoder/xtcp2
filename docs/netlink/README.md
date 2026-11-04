@@ -24,7 +24,7 @@ If you are looking for the daemon as a whole, start at the
 | [goip parity: remaining gaps](goip-parity-gaps.md) | What full `ip` coverage still needs: the 20 objects goip does not run, the missing verbs on the 11 it does, the generic netlink and XFRM families, and the 23 ungated rows, 22 of which G0 has gated. For each netlink message type `ip` uses, a measured count of nlmon pcaps, table-driven parse tests and parse benchmarks. The plan to close the gaps runs in three tiers: complete the capture corpus, then the parsers, then goip and the matrix. |
 | [goip parity gaps — status](goip-parity-gaps-status.md) | The tracker for that plan: the next action, the state of each phase from C0 to G7, the task checklist, the verification ledger and the decision log. A phase is closed, and the assessment re-measured, in its last task PR. |
 | [vrf show NAME](vrf-show-name.md) | **Landed.** `goip vrf show NAME`, the refused `ipvrf_get_table` single lookup — the one netlink path left on the `vrf` object. Five tasks (VS0–VS4), each with its test table: pin the already-committed request bytes, the `VrfTableByName` accessor, the argv and output, the capture rows, and the three matrix rows — gated. |
-| [vrf family forms](vrf-family-forms.md) | The next increment: `goip -4/-6/-0 vrf show NAME`, the parked decision-8 family byte — the kernel resolves the name without consulting `ifi_family`, so the three forms are the 44-byte get with one byte changed. Three tasks (VF0–VF2): the captures with the family-byte pin, the guard deletion (the object change is one line), and the three matrix rows to gate. |
+| [vrf family forms](vrf-family-forms.md) | **Landed.** `goip -4/-6/-0 vrf show NAME`, the parked decision-8 family byte — the kernel resolves the name without consulting `ifi_family`, so the three forms are the 44-byte get with one byte changed. Three tasks (VF0–VF2): the captures with the family-byte pin, the guard deletion (the object change is one line), and the three matrix rows — gated. |
 | [Upstream bug: bond partner state width](upstream/iproute2-bond-partner-state-width.md) | An iproute2 bug found while designing the link write path: `ip` reads the u16 `IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE` as a u8, so big-endian hosts always print `0 <>`. |
 
 The last three are a chain — the audit finds the gaps, the roadmap decides the
@@ -40,9 +40,9 @@ each sent** and the **text each printed**. It is the strongest evidence in the
 tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
 reference is iproute2 itself rather than our reading of iproute2.
 
-510 commands are compared, 275 of them dry-run link, link property, route,
+513 commands are compared, 275 of them dry-run link, link property, route,
 address, neighbor, rule, nexthop, address label, neighbor table, statistics,
-token, nsid, tcp_metrics, sr, ioam, mptcp, fou, ila, l2tp, macsec, XFRM state and XFRM policy writes, flushes and restores, and 509 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
+token, nsid, tcp_metrics, sr, ioam, mptcp, fou, ila, l2tp, macsec, XFRM state and XFRM policy writes, flushes and restores, and 512 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
 in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
 comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
 (command level); the accepted-divergence list is
