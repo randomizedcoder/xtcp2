@@ -110,6 +110,11 @@ func TestPutIPEncap(t *testing.T) {
 			expected:    "1c000880" + "18000880" + "14000180" + "0500020080000000" + "0800030000112233" + ipType,
 		},
 		{
+			description: "corner: dst any is an empty attribute",
+			e:           IPEncap{Family: unix.AF_INET6, Items: []IPEncapItem{{Kind: LwtunnelIPDst}}},
+			expected:    "08000880" + "04000200" + ip6Type,
+		},
+		{
 			description: "corner: one hex digit of data is an empty DATA",
 			e:           IPEncap{Family: unix.AF_INET, Items: []IPEncapItem{geneve(GeneveOpt{HasData: true})}},
 			expected:    "10000880" + "0c000880" + "08000180" + "04000300" + ipType,

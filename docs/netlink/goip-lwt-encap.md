@@ -62,7 +62,7 @@ None of the three buffers is zeroed. `rta_addattr_l` leaves alignment padding as
 Each keyword's second use is `duparg2` (exit 255). The three option words share one counter, so a second option of any kind is `duparg2("opts", …)`. An unknown word ends the type, and the caller reads it.
 
 **The options**, inside `LWTUNNEL_IP_OPTS`:
-- **`geneve_opts C:T:D[,C:T:D…]`:** one `LWTUNNEL_IP_OPTS_GENEVE | NLA_F_NESTED` per comma-separated option, holding `CLASS` be16 (`get_be16`), `TYPE` u8 and `DATA` (`hex2mem` of `strlen/2` bytes). An empty field is skipped, and a fourth field is "Unknown "geneve_opts" type" (exit 255 through `invarg`).
+- **`geneve_opts C:T:D[,C:T:D…]`:** one `LWTUNNEL_IP_OPTS_GENEVE | NLA_F_NESTED` per comma-separated option, holding `CLASS` be16 (`get_be16`, base 0, so `0102` is octal), `TYPE` u8 (`get_u8`, base 0) and `DATA` (`hex2mem` of `strlen/2` bytes). An empty field is skipped, and a fourth field is "Unknown "geneve_opts" type" (exit 255 through `invarg`).
 - **`vxlan_opts GBP`:** `LWTUNNEL_IP_OPTS_VXLAN | NLA_F_NESTED` holding `GBP` u32.
 - **`erspan_opts V:I:D:H`:** `LWTUNNEL_IP_OPTS_ERSPAN | NLA_F_NESTED` holding `VER` u8, `INDEX` be32, `DIR` u8 and `HWID` u8. An empty field is skipped.
 
@@ -84,17 +84,18 @@ One new family, `lwt`, in a new `tools/nlcapgen/matrix_lwt.go`, built as `kwlive
 | `lwtroute4` | `mpls` implicit null | `… encap mpls 3 via 192.0.2.1 dev d0` | 2 | sent; `EINVAL` from `nla_get_labels` |
 | `lwtroute4` | `ip`, `id` and `dst` | `… encap ip id 1 dst 203.0.113.5 dev d0` | 0 | `ID` be64 1, `DST`, `RTA_ENCAP_TYPE` 2 |
 | `lwtroute4` | `ip`, every scalar | `… encap ip id 1 dst 203.0.113.5 src 192.0.2.10 tos 0x10 ttl 64 key csum seq dev d0` | 0 | in that order, then `FLAGS` be16 0xd |
-| `lwtroute4` | `ip` `geneve_opts` | `… encap ip id 1 dst 203.0.113.5 geneve_opts 0102:80:00112233 dev d0` | 0 | one `GENEVE` nest: `CLASS` be16 0x0102, `TYPE` 0x80, `DATA` 4 bytes |
-| `lwtroute4` | `ip`, two geneve options | `… geneve_opts 0102:80:00112233,0102:81:44556677 dev d0` | 0 | two `GENEVE` nests |
+| `lwtroute4` | `ip` `geneve_opts` | `… encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233 dev d0` | 0 | one `GENEVE` nest: `CLASS` be16 0x0102, `TYPE` 0x80, `DATA` 4 bytes |
+| `lwtroute4` | `ip` `geneve_opts`, base 0 | `… encap ip id 1 dst 203.0.113.5 geneve_opts 0102:80:00112233 dev d0` | 0 | `CLASS` 66 (`0102` is octal), `TYPE` 80 |
+| `lwtroute4` | `ip`, two geneve options | `… geneve_opts 0x0102:0x80:00112233,0x0102:0x81:44556677 dev d0` | 0 | two `GENEVE` nests |
 | `lwtroute4` | `ip` `vxlan_opts` | `… encap ip id 1 dst 203.0.113.5 vxlan_opts 0x800 dev d0` | 0 | `VXLAN`{`GBP` 0x800} |
 | `lwtroute4` | `ip` `erspan_opts` | `… encap ip id 1 dst 203.0.113.5 erspan_opts 1:0x1234:: dev d0` | 0 | `ERSPAN`{`VER` 1, `INDEX` be32 0x1234} |
-| `lwtroute4` | geneve data not a multiple of 4 | `… geneve_opts 0102:80:001122 dev d0` | 2 | sent; `EINVAL` (`data_len % 4`) |
-| `lwtroute4` | two option kinds | `… geneve_opts 0102:80:00112233 vxlan_opts 1 dev d0` | 255 | nothing: `duparg2("opts")` |
+| `lwtroute4` | geneve data not a multiple of 4 | `… geneve_opts 0x0102:0x80:001122 dev d0` | 2 | sent; `EINVAL` (`data_len % 4`) |
+| `lwtroute4` | two option kinds | `… geneve_opts 0x0102:0x80:00112233 vxlan_opts 1 dev d0` | 255 | nothing: `duparg2("opts")` |
 | `lwtroute4` | an unknown type | `… encap foo 1 dev d0` | 255 | nothing: `invarg` |
 | `lwtroute4` | the type's word last | `… dev d0 encap ip key` | 255 | nothing: `missarg("encap type")` |
 | `lwtroute6` | `ip6`, `id` and `dst` | `-6 route add 2001:db8:2::/64 encap ip6 id 1 dst 2001:db8:9::1 dev d0` | 0 | `ID`, `DST` 16 bytes, `RTA_ENCAP_TYPE` 4 |
 | `lwtroute6` | `ip6`, every scalar | `… encap ip6 id 1 dst 2001:db8:9::1 src 2001:db8:1::10 tc 0x10 hoplimit 64 key csum seq dev d0` | 0 | in that order, then `FLAGS` be16 0xd |
-| `lwtroute6` | `ip6` `geneve_opts` | `… encap ip6 id 1 dst 2001:db8:9::1 geneve_opts 0102:80:00112233 dev d0` | 0 | `LWTUNNEL_IP6_OPTS`{`GENEVE`} |
+| `lwtroute6` | `ip6` `geneve_opts` | `… encap ip6 id 1 dst 2001:db8:9::1 geneve_opts 0x0102:0x80:00112233 dev d0` | 0 | `LWTUNNEL_IP6_OPTS`{`GENEVE`} |
 | `lwtroute6` | `mpls` on IPv6 | `-6 route add 2001:db8:2::/64 encap mpls 100 via 2001:db8:1::1 dev d0` | 0 | as the IPv4 `mpls` row |
 | `lwtroute6` | `ip` on an IPv6 route | `-6 route add 2001:db8:2::/64 encap ip id 1 dst 203.0.113.5 dev d0` | 0 | `RTA_ENCAP_TYPE` 2 on an AF_INET6 `rtmsg` |
 | `lwthop` | a hop's `mpls` | `-4 route add 198.51.100.0/24 nexthop encap mpls 100 via 192.0.2.1 dev d0 nexthop via 192.0.2.2 dev d0` | 0 | the first `rtnexthop` holds `RTA_ENCAP`, `RTA_ENCAP_TYPE`, then `RTA_GATEWAY` |
@@ -103,9 +104,9 @@ One new family, `lwt`, in a new `tools/nlcapgen/matrix_lwt.go`, built as `kwlive
 | `lwthop` | a hop's unknown type | `-4 route add 198.51.100.0/24 nexthop encap foo 1 via 192.0.2.1 dev d0` | 255 | nothing: `invarg` |
 | `lwtnh` | `ip` | `nexthop add id 61 encap ip id 1 dst 203.0.113.5 via 192.0.2.1 dev d0` | 0 | `NHA_ENCAP`{…}, `NHA_ENCAP_TYPE` 2 |
 | `lwtnh` | `ip6` | `nexthop add id 62 encap ip6 dst 2001:db8:9::1 via 2001:db8:1::1 dev d0` | 0 | `NHA_ENCAP_TYPE` 4 |
-| `lwtnh` | `ip` `geneve_opts` | `nexthop add id 63 encap ip id 1 dst 203.0.113.5 geneve_opts 0102:80:00112233 via 192.0.2.1 dev d0` | 0 | the options nest inside `NHA_ENCAP` |
+| `lwtnh` | `ip` `geneve_opts` | `nexthop add id 63 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233 via 192.0.2.1 dev d0` | 0 | the options nest inside `NHA_ENCAP` |
 
-That makes 26 forms (19 rc 0, 3 rc 2, 4 rc 255), plus up to 9 duplicates.
+That makes 27 forms (20 rc 0, 3 rc 2, 4 rc 255), plus up to 9 duplicates.
 
 ## Out of scope
 
@@ -158,9 +159,9 @@ A new `pkg/xtcpnl/xtcpnl_lwt_ip.go` beside `xtcpnl_lwt_mpls.go`:
 #### LE1-T02 `lwtEncapArgs`
 
 In `internal/goip`, a new `lwt_encap_args.go`:
-- `lwtEncapArgs(args, i, family)` is `lwt_parse_encap` and the three type parsers. It returns an `xtcpnl.LwtEncap` and the index of the last word it used, with `ip`'s error text for each refusal.
+- `lwtEncapArgs(args, i)` is `lwt_parse_encap` and the three type parsers. It returns an `xtcpnl.LwtEncap` and the index of the last word it used, with `ip`'s error text for each refusal.
 - `mplsEncapArgs` moves here unchanged.
-- The helpers it needs are `getBe16`, `getBe32`, `getBe64` (`get_be*` are `get_u*` then a byte swap), `hex2mem`, and `rtnlDsfieldA2N` (already in `rule_write.go:513`).
+- The helpers it needs are `hex2mem` and the existing `getU16`/`getU32`/`getU64` and `rtnlDsfieldA2N` (`rule_write.go:513`). `get_be*` are `get_u*` and then a byte swap; xtcpnl does the swap, so goip keeps the host value.
 
 `TestLwtEncapArgs` (`lwt_encap_args_test.go`):
 
@@ -174,12 +175,12 @@ In `internal/goip`, a new `lwt_encap_args.go`:
 | negative: a bad address | `ip dst 300.1.1.1` | `get_addr`'s message, exit 1 as `ErrInvalidArgument` |
 | negative: a fourth geneve field | `0102:80:00:01` | `"geneve_opts" value is invalid` |
 | boundary: the type's word last | `ip key` at the end | `missarg("encap type")` |
-| boundary: `tos` in hex and decimal | `tos 0x10`, `tos 16` | 0x10 both times, through `rtnlDsfieldA2N` (`rule_write.go:513`) |
+| boundary: `tos` is base 16 | `tos 0x10`, `tos 10`, `tos AF11` | 0x10, 0x10 and 0x28, through `rtnlDsfieldA2N` (`rule_write.go:513`) |
 | corner: odd-length geneve data | `0102:80:001` | one byte, `0x00`, as `hex2mem` of `strlen/2` |
 | corner: `help` as the type | `help` | `ErrNotImplemented`, as now |
 | corner: a type this plan leaves out | `seg6 …` | `ErrNotImplemented`, naming the type |
 
-**Mutation check:** `strlen/2` rounded up; a second `opts` accepted; `get_be64` without the swap.
+**Mutation check:** `strlen/2` rounded up; a second `opts` accepted; geneve's class read base 16.
 
 ### LE2 — goip's three places
 
@@ -218,7 +219,7 @@ In `internal/goip`, a new `lwt_encap_args.go`:
 
 #### LE3-T01 the `lwt` family
 
-As [LF1-T01](goip-live-forms.md#lf1-t01-the-kwlive-family), for the forms table. `TestLwtSpaces` checks each row's cmd and rc, the 26 forms and up to 9 duplicates, every setup step `ip`, the modules, and the same bytes twice.
+As [LF1-T01](goip-live-forms.md#lf1-t01-the-kwlive-family), for the forms table. `TestLwtSpaces` checks each row's cmd and rc, the 27 forms and up to 9 duplicates, every setup step `ip`, the modules, and the same bytes twice.
 
 #### LE3-T02 capture
 

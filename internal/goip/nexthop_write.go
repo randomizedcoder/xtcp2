@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
@@ -185,76 +184,18 @@ func (w *nexthopWrite) u32Arg(args []string, i int, typ uint16, msg string) (int
 	return i, w.attrs.PutU32(typ, v)
 }
 
-// lwtEncapTypes are read_encap_type's names (ip/iproute_lwtunnel.c:76).
-var lwtEncapTypes = []string{mplsKeywordCst, "ip", "ip6", "ila", "bpf", "seg6", "seg6local", "rpl", "ioam6", "xfrm"}
-
-// mplsKeywordCst is "mpls": read_family's word for AF_MPLS, and the one
-// encap type goip builds.
-const mplsKeywordCst = "mpls"
-
-// encap is lwt_parse_encap (ip/iproute_lwtunnel.c:2298) into NHA_ENCAP and
-// NHA_ENCAP_TYPE: the type, then argc <= 1's missarg, so the type's first
-// argument can't be the last word. Only mpls is built; no row uses another.
+// encap is lwt_parse_encap (ip/iproute_lwtunnel.c:2278) into NHA_ENCAP and
+// NHA_ENCAP_TYPE. Only mpls is built here yet; lwtEncapArgs reads ip and
+// ip6 too.
 func (w *nexthopWrite) encap(args []string, i int) (int, error) {
-	i, err := nextArg(args, i)
+	e, i, err := lwtEncapArgs(args, i)
 	if err != nil {
 		return i, err
 	}
-	typ := args[i]
-	if !slices.Contains(lwtEncapTypes, typ) {
-		if typ == addrHelpKeywordCst {
-			return i, fmt.Errorf("nexthop encap help: %w", ErrNotImplemented)
-		}
-		return i, invargErr("\"encap type\" value is invalid\n", typ)
+	if e.MPLS == nil {
+		return i, fmt.Errorf("nexthop encap %s: %w", ipEncapTypeName(e.IP), ErrNotImplemented)
 	}
-	if i, err = nextArg(args, i); err != nil {
-		return i, err
-	}
-	if i == len(args)-1 {
-		return i, fmt.Errorf("%w: Error: argument \"encap type\" is required", ErrInvalidArgument)
-	}
-	if typ != mplsKeywordCst {
-		return i, fmt.Errorf("nexthop encap %s: %w", typ, ErrNotImplemented)
-	}
-	e, i, err := mplsEncapArgs(args, i)
-	if err != nil {
-		return i, err
-	}
-	return i, xtcpnl.PutMplsEncap(&w.attrs, xtcpnl.NhaEncap, xtcpnl.NhaEncapType, e)
-}
-
-// mplsEncapArgs is parse_encap_mpls (ip/iproute_lwtunnel.c:1610) from the
-// label stack at args[i]: get_addr in AF_MPLS, which exits 1 on a bad one,
-// then any number of `ttl N` (get_u8 base 0, duparg2 on a second). It
-// returns the index of the last argument it used.
-func mplsEncapArgs(args []string, i int) (xtcpnl.MplsEncap, int, error) {
-	var e xtcpnl.MplsEncap
-	label := args[i]
-	// __get_addr_1 refuses default, all and any in AF_MPLS before
-	// mpls_pton; mpls_pton would too, since none starts with a digit.
-	var tooMany, ok bool
-	e.Dst, tooMany, ok = mplsPton(label)
-	if !ok {
-		msg := fmt.Sprintf("Error: mpls address is expected rather than %q.", label)
-		if tooMany {
-			msg = "Error: too many labels.\n" + msg
-		}
-		return e, i, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
-	}
-	for i+1 < len(args) && args[i+1] == "ttl" {
-		var err error
-		if i, err = nextArg(args, i+1); err != nil {
-			return e, i, err
-		}
-		if e.HasTTL {
-			return e, i, duparg2Err("ttl", args[i])
-		}
-		if e.TTL, ok = getU8(args[i], 0); !ok {
-			return e, i, invargErr("\"ttl\" value is invalid\n", args[i])
-		}
-		e.HasTTL = true
-	}
-	return e, i, nil
+	return i, xtcpnl.PutLwtEncap(&w.attrs, xtcpnl.NhaEncap, xtcpnl.NhaEncapType, e)
 }
 
 // hwStats is hw_stats: parse_on_off, whose error ipnh_modify returns, into

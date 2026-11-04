@@ -53,7 +53,8 @@ var ErrIPEncap = errors.New("xtcpnl: an ip encap is AF_INET or AF_INET6 items of
 
 // IPEncapItem is one keyword of parse_encap_ip or parse_encap_ip6, in the
 // order read. Kind is the LWTUNNEL_IP_* attribute it writes: ID uses U64,
-// Dst and Src use Addr, TTL and Tos use U8, and Opts uses Opts.
+// Dst and Src use Addr (empty for `any` or `all`), TTL and Tos use U8, and
+// Opts uses Opts.
 type IPEncapItem struct {
 	Kind uint16
 	U64  uint64
@@ -140,7 +141,9 @@ func putIPEncapItem(ab *AttrBuilder, it *IPEncapItem, addrLen int) error {
 	case LwtunnelIPID:
 		return ab.PutBytes(it.Kind, binary.BigEndian.AppendUint64(nil, it.U64))
 	case LwtunnelIPDst, LwtunnelIPSrc:
-		if len(it.Addr) != addrLen {
+		// get_addr gives `any` and `all` no bytes, and rta_addattr_l
+		// sends that as an empty attribute.
+		if len(it.Addr) != addrLen && len(it.Addr) != 0 {
 			return ErrIPEncap
 		}
 		return ab.PutBytes(it.Kind, it.Addr)
