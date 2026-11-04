@@ -21,7 +21,7 @@ const (
 // request so far plus the encap; ip prints its error and sends the route
 // without the encap, which goip refuses rather than do.
 func (st *routeParseState) encap(args []string, i int) (int, error) {
-	e, i, err := lwtEncapArgs(args, i)
+	e, i, err := lwtEncapArgs(args, i, st.resolve)
 	if err != nil {
 		return i, err
 	}
@@ -41,8 +41,8 @@ func (st *routeParseState) encap(args []string, i int) (int, error) {
 // parse_nexthops' buffer after its rtattr, the hops before this one, this
 // hop's rtnexthop and its attributes so far. Over it, ip's parse_one_nh
 // fails, which is "Error: cannot parse nexthop" and exit(-1).
-func (st *routeParseState) nhEncap(h *xtcpnl.RouteNexthop, args []string, i int) (int, error) {
-	e, i, err := lwtEncapArgs(args, i)
+func (st *routeParseState) nhEncap(h *xtcpnl.RouteNexthop, args []string, i int, resolve linkResolver) (int, error) {
+	e, i, err := lwtEncapArgs(args, i, resolve)
 	if err != nil {
 		return i, err
 	}

@@ -5,14 +5,6 @@ import (
 	"errors"
 )
 
-// ILA_ATTR_* (include/uapi/linux/ila.h) that parse_encap_ila writes.
-const (
-	IlaAttrLocator   uint16 = 1 // u64, the locator's four groups in network order
-	IlaAttrCsumMode  uint16 = 7 // u8 ILA_CSUM_*
-	IlaAttrIdentType uint16 = 8 // u8 ILA_ATYPE_*
-	IlaAttrHookType  uint16 = 9 // u8 ILA_HOOK_*
-)
-
 // LWT_XFRM_* (include/uapi/linux/lwtunnel.h).
 const (
 	LwtXfrmIfID uint16 = 1 // u32
@@ -46,7 +38,8 @@ const (
 )
 
 // IlaItem is one of parse_encap_ila's keywords after the locator, in the
-// order read: Kind is IlaAttrCsumMode, IlaAttrIdentType or IlaAttrHookType.
+// order read: Kind is ILAAttrCsumMode, ILAAttrIdentType or ILAAttrHookType
+// (xtcpnl_ila.go).
 // A keyword given twice is written twice.
 type IlaItem struct {
 	Kind uint16
@@ -98,12 +91,12 @@ type RplEncap struct {
 var ErrLwtEncapOther = errors.New("xtcpnl: an ila, xfrm, ioam6 or rpl encap has known items, 16-byte addresses and 1 or more rpl slots")
 
 func putIlaEncap(ab *AttrBuilder, e *IlaEncap) error {
-	if err := ab.PutBytes(IlaAttrLocator, e.Locator[:]); err != nil {
+	if err := ab.PutBytes(ILAAttrLocator, e.Locator[:]); err != nil {
 		return err
 	}
 	for _, it := range e.Items {
 		switch it.Kind {
-		case IlaAttrCsumMode, IlaAttrIdentType, IlaAttrHookType:
+		case ILAAttrCsumMode, ILAAttrIdentType, ILAAttrHookType:
 		default:
 			return ErrLwtEncapOther
 		}

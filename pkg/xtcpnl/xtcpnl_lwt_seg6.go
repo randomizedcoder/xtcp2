@@ -122,8 +122,8 @@ type Seg6Encap struct {
 
 // Seg6LocalItem is one of parse_encap_seg6local's keywords, in the order
 // read. Kind is the SEG6_LOCAL_* it writes: Action, Table, VrfTable, IIF
-// and OIF use U32, NH4 and NH6 use Addr, Counters nothing, and Flavors
-// Flavors.
+// and OIF use U32, NH4 and NH6 use Addr (empty for `any`), Counters
+// nothing, and Flavors Flavors.
 type Seg6LocalItem struct {
 	Kind    uint16
 	U32     uint32
@@ -187,7 +187,9 @@ func putSeg6LocalItem(ab *AttrBuilder, it *Seg6LocalItem) error {
 		if it.Kind == Seg6LocalNH6 {
 			want = srhSegLenCst
 		}
-		if len(it.Addr) != want {
+		// get_addr gives `any` no bytes, and rta_addattr_l sends that as
+		// an empty attribute.
+		if len(it.Addr) != want && len(it.Addr) != 0 {
 			return ErrSeg6Encap
 		}
 		return ab.PutBytes(it.Kind, it.Addr)

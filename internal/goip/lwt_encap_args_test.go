@@ -164,12 +164,12 @@ func TestLwtEncapArgs(t *testing.T) {
 			last:        1,
 		},
 		{description: "corner: help as the type", args: "encap help me", err: ErrNotImplemented, errText: "encap help"},
-		{description: "corner: a type this plan leaves out", args: "encap seg6 mode encap segs 2001:db8::1", err: ErrNotImplemented, errText: "encap seg6"},
+		{description: "corner: bpf, which loads a program object", args: "encap bpf in obj.o", err: ErrNotImplemented, errText: "encap bpf"},
 	}
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.description, func(t *testing.T) {
-			got, last, err := lwtEncapArgs(strings.Fields(tt.args), 0)
+			got, last, err := lwtEncapArgs(strings.Fields(tt.args), 0, nil)
 			if tt.err != nil {
 				if !errors.Is(err, tt.err) || !strings.Contains(err.Error(), tt.errText) {
 					t.Fatalf("err = %v, want %v with %q", err, tt.err, tt.errText)

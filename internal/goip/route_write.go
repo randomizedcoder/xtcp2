@@ -222,6 +222,9 @@ type routeParseState struct {
 	// hopsLen is the hops parse_nexthops has written to its buffer, each
 	// rtnexthop and its attributes, so a hop's encap is bounded as ip's is.
 	hopsLen int
+	// resolve is ll_name_to_index for the encap's devices, which
+	// lwt_parse_encap looks up as it reads them, inside the loop.
+	resolve linkResolver
 }
 
 // parseRouteWriteArgs is iproute_modify up to rtnl_talk: the loop, then the
@@ -234,7 +237,7 @@ type routeParseState struct {
 // the vrf arm calls in the loop, so its get goes out before dev's.
 func parseRouteWriteArgs(verb *routeWriteVerb, family uint8, args []string, resolve linkResolver,
 	vrfTable vrfTabler) (xtcpnl.RouteWrite, error) {
-	st := routeParseState{del: verb.msgType == unix.RTM_DELROUTE, vrfTable: vrfTable}
+	st := routeParseState{del: verb.msgType == unix.RTM_DELROUTE, vrfTable: vrfTable, resolve: resolve}
 	st.w = xtcpnl.RouteWrite{
 		MsgType: verb.msgType,
 		Flags:   verb.flags | unix.NLM_F_ACK,
@@ -664,7 +667,7 @@ func (st *routeParseState) parseOneNh(h *xtcpnl.RouteNexthop, args []string, i i
 				h.Attrs = append(h.Attrs, xtcpnl.RouteAttrU32(unix.RTA_FLOW, r))
 			}
 		case w == tnlKeyEncap:
-			i, err = st.nhEncap(h, args, i)
+			i, err = st.nhEncap(h, args, i, resolve)
 		case w == "as":
 			return i, fmt.Errorf("route nexthop %q: %w", w, ErrNotImplemented)
 		default:

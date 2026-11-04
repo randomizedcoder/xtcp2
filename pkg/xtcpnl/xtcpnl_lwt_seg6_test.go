@@ -147,6 +147,8 @@ func TestPutSeg6Encap(t *testing.T) {
 		{description: "corner: End.B6.Encaps' SRH has none",
 			e:        local(srh(1, 0, s1), action(10)),
 			expected: "28000880" + "080001000a000000" + "1c000200" + "0002040000000000" + seg6S1Hex + localType},
+		{description: "corner: nh6 any is an empty attribute", e: local(nil, action(5), Seg6LocalItem{Kind: Seg6LocalNH6}),
+			expected: "10000880" + "0800010005000000" + "04000500" + localType},
 		{description: "corner: next-csid with neither length",
 			e:        local(nil, action(1), Seg6LocalItem{Kind: Seg6LocalFlavors, Flavors: Seg6LocalFlavorSet{Ops: 1 << Seg6LocalFlvOpNextCSID}}),
 			expected: "18000880" + "0800010001000000" + "0c000b80" + "0800010010000000" + localType},

@@ -188,7 +188,7 @@ func (w *nexthopWrite) u32Arg(args []string, i int, typ uint16, msg string) (int
 // NHA_ENCAP and NHA_ENCAP_TYPE in buf[1024], then addraw_l into the
 // request, whose bound counts the request so far, as a route's does.
 func (w *nexthopWrite) encap(args []string, i int) (int, error) {
-	e, i, err := lwtEncapArgs(args, i)
+	e, i, err := lwtEncapArgs(args, i, w.resolve)
 	if err != nil {
 		return i, err
 	}

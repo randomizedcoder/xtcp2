@@ -391,8 +391,8 @@ func TestNexthopShowRefusals(t *testing.T) {
 		args        []string
 	}{
 		{
-			description: "negative: `nexthop add encap seg6` is an encap type goip doesn't build",
-			args:        []string{"nexthop", "add", "id", "1", "encap", "seg6", "mode", "encap", "segs", "2001:db8::1"},
+			description: "negative: `nexthop add encap bpf` is an encap type goip doesn't build",
+			args:        []string{"nexthop", "add", "id", "1", "encap", "bpf", "in", "obj.o"},
 		},
 		{
 			description: "negative: `nexthop get` is a single-get verb with no captured shape",

@@ -10,7 +10,8 @@ import (
 )
 
 // lwtEncapTypes are read_encap_type's names (ip/iproute_lwtunnel.c:76).
-var lwtEncapTypes = []string{mplsKeywordCst, lwtEncapIPCst, lwtEncapIP6Cst, "ila", "bpf", "seg6", "seg6local", "rpl", "ioam6", "xfrm"}
+var lwtEncapTypes = []string{mplsKeywordCst, lwtEncapIPCst, lwtEncapIP6Cst, lwtEncapILACst, "bpf", lwtEncapSeg6Cst,
+	lwtEncapSeg6LocalCst, lwtEncapRplCst, lwtEncapIoam6Cst, lwtEncapXfrmCst}
 
 // mplsKeywordCst is "mpls": read_family's word for AF_MPLS, and an encap
 // type.
@@ -19,8 +20,14 @@ const mplsKeywordCst = "mpls"
 // The ip and ip6 encap types, and the words parse_encap_ip and
 // parse_encap_ip6 share.
 const (
-	lwtEncapIPCst  = "ip"
-	lwtEncapIP6Cst = "ip6"
+	lwtEncapIPCst        = "ip"
+	lwtEncapIP6Cst       = "ip6"
+	lwtEncapILACst       = "ila"
+	lwtEncapSeg6Cst      = "seg6"
+	lwtEncapSeg6LocalCst = "seg6local"
+	lwtEncapRplCst       = "rpl"
+	lwtEncapIoam6Cst     = "ioam6"
+	lwtEncapXfrmCst      = "xfrm"
 
 	lwtKeyID     = "id"
 	lwtKeyDst    = "dst"
@@ -43,9 +50,10 @@ var lwtTunnelFlagWords = map[string]uint16{
 // `encap` at args[i]: the type (read_encap_type, strcmp), a second
 // NEXT_ARG, then argc <= 1's missarg, so the type's first argument can't
 // be the last word, then the type's parser. It returns the encap and the
-// index of the last word the parser used. mpls, ip and ip6 are built; the
-// other types are ErrNotImplemented.
-func lwtEncapArgs(args []string, i int) (xtcpnl.LwtEncap, int, error) {
+// index of the last word the parser used. resolve is ll_name_to_index for
+// seg6local's iif and oif and xfrm's link_dev, which ip looks up as it
+// reads them. Every type is built but bpf, which loads a program object.
+func lwtEncapArgs(args []string, i int, resolve linkResolver) (xtcpnl.LwtEncap, int, error) {
 	i, err := nextArg(args, i)
 	if err != nil {
 		return xtcpnl.LwtEncap{}, i, err
@@ -74,6 +82,18 @@ func lwtEncapArgs(args []string, i int) (xtcpnl.LwtEncap, int, error) {
 		return ipEncapArgs(args, i, unix.AF_INET)
 	case lwtEncapIP6Cst:
 		return ipEncapArgs(args, i, unix.AF_INET6)
+	case lwtEncapSeg6Cst:
+		return seg6EncapArgs(args, i)
+	case lwtEncapSeg6LocalCst:
+		return seg6LocalEncapArgs(args, i, resolve)
+	case lwtEncapILACst:
+		return ilaEncapArgs(args, i)
+	case lwtEncapXfrmCst:
+		return xfrmEncapArgs(args, i, resolve)
+	case lwtEncapIoam6Cst:
+		return ioam6EncapArgs(args, i)
+	case lwtEncapRplCst:
+		return rplEncapArgs(args, i)
 	}
 	return xtcpnl.LwtEncap{}, i, fmt.Errorf("encap %s: %w", typ, ErrNotImplemented)
 }
