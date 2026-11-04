@@ -42,10 +42,11 @@ const wsO5Golden = "testdata/ws-differential.txt"
 // wsO5Spaces are the row directories O5 reads, in report order: the
 // matrix's, then those mined from the fib selftests, then the address,
 // neighbor and link matrices', then the kwlive keyword forms', then the
-// lwt encap forms'.
+// lwt encap forms', then the lwtx ones'.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
 	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
-	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh"}
+	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh",
+	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -889,6 +890,13 @@ func TestWsO5ZeroEncapPad(t *testing.T) {
 		return []byte{28, 0, 0x16, 0x80, 24, 0, 8, 0x80, 20, 0, 1, 0x80,
 			6, 0, 1, 0, 1, 2, p, p, 5, 0, 2, 0, 0x80, p, p, p, 6, 0, 21, 0, 2, 0, 0, 0}
 	}
+	// flavors is RTA_ENCAP holding seg6local's ACTION End and its FLAVORS
+	// nest, OPERATION next-csid and LCBLOCK_BITS 32 with pad bytes p, then
+	// RTA_ENCAP_TYPE seg6local (LX3-T03).
+	flavors := func(p byte) []byte {
+		return []byte{32, 0, 0x16, 0x80, 8, 0, 1, 0, 1, 0, 0, 0, 20, 0, 0x0b, 0x80,
+			8, 0, 1, 0, 0x10, 0, 0, 0, 5, 0, 2, 0, 32, p, p, p, 6, 0, 21, 0, 7, 0, 0, 0}
+	}
 	// hop is RTA_MULTIPATH with one rtnexthop: ttl(p, q), then a gateway.
 	hop := func(p, q byte) []byte {
 		return append([]byte{40, 0, 9, 0, 36, 0, 0, 0, 2, 0, 0, 0}, append(ttl(p, q), 8, 0, 5, 0, 192, 0, 2, 1)...)
@@ -907,6 +915,7 @@ func TestWsO5ZeroEncapPad(t *testing.T) {
 		{"positive: a route's encap and its type", route(ttl(0x7f, 0x9b)...), route(ttl(0, 0)...), true},
 		{"positive: a geneve option's padding, two nests down", route(geneve(0x7f)...), route(geneve(0)...), true},
 		{"positive: a hop's padding zeroed, its other bytes kept", route(hop(0x7f, 0x9b)...), route(hop(0, 0)...), true},
+		{"positive: a seg6local flavors u8's padding, a nest down", route(flavors(0x7f)...), route(flavors(0)...), true},
 		{"negative: padding after a route's other attribute is left", route(5, 0, 20, 0, 1, 0xff, 0xff, 0xff),
 			route(5, 0, 20, 0, 1, 0xff, 0xff, 0xff), false},
 		{"corner: a hop longer than RTA_MULTIPATH stops the walk", route(12, 0, 9, 0, 9, 0, 0, 0, 2, 0, 0, 0),
