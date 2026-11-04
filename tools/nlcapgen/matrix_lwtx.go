@@ -124,7 +124,8 @@ func seg6LocalSpace() *space {
 			{Axis: "form", Value: v("no-action", lwtxLocal+" table 100 dev d0", f("encap", "seg6local")),
 				Expect: expIproute2Invarg, Why: "no action (Missing action type, exit(-1))"},
 			{Axis: "form", Value: v("oif-nosuch", act+"End.DX2 oif nosuch dev d0", f("encap", "seg6local")),
-				Expect: expIproute2Invarg, Why: "an oif that doesn't exist (exit(nodev))"},
+				Expect: expect{RC: intp(255), Errno: "ENODEV", RefusedBy: "kernel"},
+				Why:    "an oif that doesn't exist: ll_name_to_index's get is refused, then exit(nodev)"},
 		},
 	}
 	sp.Build = func(vals []value) row { return buildLwtx("ip ", "ip -6 route show table all", vals) }
@@ -174,7 +175,7 @@ func xfrmSpace() *space {
 			{Axis: "form", Value: v("if-id-0", lwtxP6+" dev d0 encap xfrm if_id 0", xf()),
 				Expect: expIproute2Invarg, Why: `if_id 0 (invarg("\"if_id\" value is invalid"))`},
 			{Axis: "form", Value: v("no-if-id", lwtxP6+" dev d0 encap xfrm link_dev d0", xf()),
-				Expect: expIproute2Invarg, Why: "no if_id (lwt_xfrm_usage, exit(-1))"},
+				Expect: expIproute2InvargAfterDev, Why: "no if_id, after link_dev's lookup (lwt_xfrm_usage, exit(-1))"},
 		},
 	}
 	sp.Build = func(vals []value) row { return buildLwtx("ip ", "ip route show table all", vals) }

@@ -10,8 +10,9 @@
 - LX2-T01 is done: `lwtEncapArgs` reads all six types (`internal/goip/lwt_encap_srv6_args.go`), with `ip`'s argv quirks, so a route, a hop and a nexthop object build them. It takes the resolver, so `seg6local`'s `iif`/`oif` and `xfrm`'s `link_dev` are looked up as `ip` does, inside the loop. Only `bpf` is still `ErrNotImplemented`, and the refusal rows that named `seg6` now name it (V007–V009).
 - LX2-T02 is done, and LX2 is closed. No new code was needed: `TestRouteWriteSrv6` and `TestNexthopWriteSrv6` check that each type lands where its keyword is, on a route, in a hop and on a nexthop object. They also check that `seg6local`'s `oif` is looked up before `dev`, the route bound at 59 segments, and the quirks that change what the caller reads next. O5's golden is unchanged (V010–V012).
 - LX3-T01 is done: `nlcapgen matrix -family lwtx` writes 73 rows to `nix/microvms/workbench/lwtx.rows.jsonl`: the 56 forms (32 at rc 0, 11 at rc 2, 1 at rc 1, 12 at rc 255) in eight spaces, and 17 duplicate adds. Every row loads `ila` and `xfrm_interface`. The plan's space and duplicate counts were corrected to these (V013–V015).
+- LX3-T02 is done: two fresh-boot batches agree on all 73 rows, and every rc is as the generator wrote it. The first batch is the corpus, in `pkg/xtcpnl/testdata/7_3_0/ws/` (228 KB). `TestWsCorpusRows` corrected two rows' `refused_by`: `seg6local`'s `oif nosuch` and `xfrm`'s `link_dev` both look the device up first, so one is refused by the kernel (ENODEV) and the other is ack-then-fail. The boots' only byte differences are `ip`'s padding after a route's `RTA_ENCAP_TYPE` (V016–V018).
 
-**Next action:** LX3-T02, two fresh-boot `nlcap-ws` batches of `lwtx.rows.jsonl`; the first is the corpus.
+**Next action:** LX3-T03, O3 (`pkg/xtcpnl/xtcpnl_ws_lwtx_test.go`) and O5 over the eight `lwtx` spaces.
 
 ## Contents
 
@@ -34,7 +35,7 @@
 |---|---|---|---|---|
 | [LX1](goip-lwt-srv6.md#lx1--the-encoder) | the encoder | LX1-T02 | done | V001–V006 |
 | [LX2](goip-lwt-srv6.md#lx2--the-parsers-and-the-three-places) | the parsers, the three places | LX2-T02 | done | V007–V012 |
-| [LX3](goip-lwt-srv6.md#lx3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LX3-T03 | in progress | V013–V015 |
+| [LX3](goip-lwt-srv6.md#lx3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LX3-T03 | in progress | V013–V018 |
 | [LX4](goip-lwt-srv6.md#lx4--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LX4-T02 | not started | — |
 
 ## Task checklist
@@ -46,7 +47,7 @@
 | [x] | [LX2-T01](goip-lwt-srv6.md#lx2-t01-lwtencapargs-for-the-six-types) | `lwtEncapArgs` for the six types | done | V007–V009 |
 | [x] | [LX2-T02](goip-lwt-srv6.md#lx2-t02-the-three-places) | the three places | done | V010–V012 |
 | [x] | [LX3-T01](goip-lwt-srv6.md#lx3-t01-the-lwtx-family) | the `lwtx` family | done | V013–V015 |
-| [ ] | [LX3-T02](goip-lwt-srv6.md#lx3-t02-capture) | capture, twice | not started | — |
+| [x] | [LX3-T02](goip-lwt-srv6.md#lx3-t02-capture) | capture, twice | done | V016–V018 |
 | [ ] | [LX3-T03](goip-lwt-srv6.md#lx3-t03-o3-and-o5) | O3 and O5 | not started | — |
 | [ ] | [LX4-T01](goip-lwt-srv6.md#lx4-t01-the-rows) | matrix rows | not started | — |
 | [ ] | [LX4-T02](goip-lwt-srv6.md#lx4-t02-the-vm-gate) | the VM gate | not started | — |
@@ -68,9 +69,12 @@
 | V010 | 2026-11-04 | LX2-T02 | `go vet`, `go test -count=1 -race ./internal/goip/` | all pass. `TestRouteWriteSrv6` (14 rows: a route's `seg6` before `RTA_OIF`; `seg6` on IPv4; `seg6local`'s `oif` resolved before `dev`; `ila`; `xfrm` with `dev` before it; a hop's `seg6` after its gateway, IPv6 and IPv4; `bpf` refused; 59 segments fill the route bound and 60 are over it; `xfrm` swallowing a route's `dev` and a hop's; `ioam6`'s trace and `seg6local`'s `srh segs S` last, each last word read again as a second destination, `duparg2("to", …)`). `TestNexthopWriteSrv6` (5 rows: `seg6`, `seg6local`, `oif` before `dev`, `bpf` refused, `xfrm` swallowing `dev`). `TestWsGoipDifferential`: the golden unchanged | 43cf3cfc |
 | V011 | 2026-11-04 | LX2-T02 | mutation under `MemoryMax=6G`: a route's encap given no resolver | killed (2 failing subtests) | 43cf3cfc |
 | V012 | 2026-11-04 | LX2-T02 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | lint-baseline's tier 2 found one `prealloc` in the test's helper, fixed; then all pass | 43cf3cfc |
-| V013 | 2026-11-04 | LX3-T01 | `go vet`, `go test -count=1 -race ./tools/nlcapgen/` | all pass. `TestLwtxSpaces` (65 subtests): each of the 56 forms' cmd and rc as the plan's table, three duplicates, 56 forms and 17 duplicates with rcs 32/11/1/12, every setup step `ip`, every row loading `ila` and `xfrm_interface`, `ioam6` and `rpl` ENOTSUP negatives, no doubled space, the same bytes twice | — |
-| V014 | 2026-11-04 | LX3-T01 | mutation under `MemoryMax=6G`: `xfrm_interface` dropped from the modules; the `psp` form dropped; `rpl` expected EINVAL | 3 of 3 killed (1, 10 and 1 failing subtests). The modules mutant survived first, as the check compared each row with `lwtxModules` itself; it now names the list | — |
-| V015 | 2026-11-04 | LX3-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | — |
+| V013 | 2026-11-04 | LX3-T01 | `go vet`, `go test -count=1 -race ./tools/nlcapgen/` | all pass. `TestLwtxSpaces` (65 subtests): each of the 56 forms' cmd and rc as the plan's table, three duplicates, 56 forms and 17 duplicates with rcs 32/11/1/12, every setup step `ip`, every row loading `ila` and `xfrm_interface`, `ioam6` and `rpl` ENOTSUP negatives, no doubled space, the same bytes twice | fb6ab8ae |
+| V014 | 2026-11-04 | LX3-T01 | mutation under `MemoryMax=6G`: `xfrm_interface` dropped from the modules; the `psp` form dropped; `rpl` expected EINVAL | 3 of 3 killed (1, 10 and 1 failing subtests). The modules mutant survived first, as the check compared each row with `lwtxModules` itself; it now names the list | fb6ab8ae |
+| V015 | 2026-11-04 | LX3-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | fb6ab8ae |
+| V016 | 2026-11-04 | LX3-T02 | `nix run .#nlcap-ws -- up`, `batch nix/microvms/workbench/lwtx.rows.jsonl --out <scratch>/lwtx1`, `down` (guest 7.3.0, iproute2 7.2.0) | `NLCAP_BATCH_DONE rows=73 ok=73 not_ok=0`: every rc as written. The kernel's answers: `lwt encapsulation type not supported` for `ioam6` and `rpl`; `Unsupported Flavor operation(s)` for `usp`; a bare `Invalid argument` (no extack) for `seg6` with no mode, `inline` on IPv4, `End.X` without `nh6`, `End.DT4` and both `ila` refusals; `No such device` for `xfrm` swallowing `dev`; `File exists` for the 17 duplicates. `ip`'s: each `invarg` text the plan names, `Bad locator: 2001:0:0:2:3` (exit 1), `Missing action type`, `Cannot find device "nosuch"`, and `lwt_xfrm_usage`'s line | — |
+| V017 | 2026-11-04 | LX3-T02 | the same on a second fresh boot into `lwtx2`; each row's `ip.rc` and message types compared with the first's, then each request's bytes with seq and pid blanked | 73 of 73 the same rc and types. The bytes differ in 2 requests, `lwtxreq/ec-002` and `seg6local/ec-012`, both at offsets 134–135: the padding after a route's `RTA_ENCAP_TYPE`, which O5 already zeroes | — |
+| V018 | 2026-11-04 | LX3-T02 | `lwtx1` copied to `pkg/xtcpnl/testdata/7_3_0/ws/`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; lint-baseline and netlink-audit in a worktree with the captures | `TestWsCorpusRows` first failed on `seg6local/ng-006` (refused by kernel, want iproute2) and `xfrm/ng-003` (ack-then-fail, want iproute2). The generator's expectations were corrected, the rows regenerated, and the two captures' `cmd.json` given the corrected `expect` and `desc`. Then all pass; `TestWsSizeBudget` holds (ws/ is 21.2 MB of 64) | — |
 
 ## Decision log
 
@@ -88,3 +92,4 @@
 - **An SRH past `hdrlen`'s u8 is refused with the route bound's message.** `ip` wraps `hdrlen`, but a header that long is more than 2000 bytes, past the 1024-byte buffer either way.
 - **`ila` reuses `obj_ila.go`'s `ilaAddr64` and name tables, and `xtcpnl_ila.go`'s `ILAAttr*`.** LX1-T02 had defined the attribute numbers a second time; they were removed.
 - **`ioam6` and `rpl` share one space, `lwtxreq`, whose forms are all `Judge`d negatives.** The guest kernel refuses even the forms `ip` sends, so the space has no rc 0 row. A `Bad` value needs a positive row as its base (`negatives` takes `pos[0]`), so the forms are axis values, and `Judge` gives each its refusal. There are eight spaces, not nine, and 17 duplicates, since only spaces with rc 0 forms get them.
+- **A refusal after a device lookup is the lookup's, not `ip`'s.** `seg6local`'s `oif nosuch` sends `ll_name_to_index`'s get, which the kernel refuses (ENODEV), before `exit(nodev)`. `xfrm`'s `link_dev d0` is acknowledged before `lwt_xfrm_usage`. So the first is `refused_by: kernel` and the second `ack-then-fail`, as `TestWsCorpusRows` classifies them. The captures were kept, and only their `cmd.json` expectation corrected to the regenerated rows'.
