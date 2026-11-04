@@ -8,8 +8,9 @@
 - LX1-T01 is done: `pkg/xtcpnl/xtcpnl_lwt_seg6.go` builds `parse_srh`'s SRH (`SRH`), `encap seg6` (`Seg6Encap`) and `encap seg6local` (`Seg6LocalEncap`), which `LwtEncap` and `PutLwtEncap` now take. `TestSRH`'s and `TestPutSeg6Encap`'s goldens are hand-built from the uapi headers (V001–V003).
 - LX1-T02 is done, and LX1 is closed: `pkg/xtcpnl/xtcpnl_lwt_other.go` builds `encap ila` (`IlaEncap`), `xfrm` (`XfrmEncap`), `ioam6` (`Ioam6Encap`, with `ioam6_trace_hdr`) and `rpl` (`RplEncap`, through `RplSRH`). `LwtEncap` takes all eight types. `TestPutLwtEncapOther`'s goldens are hand-built (V004–V006).
 - LX2-T01 is done: `lwtEncapArgs` reads all six types (`internal/goip/lwt_encap_srv6_args.go`), with `ip`'s argv quirks, so a route, a hop and a nexthop object build them. It takes the resolver, so `seg6local`'s `iif`/`oif` and `xfrm`'s `link_dev` are looked up as `ip` does, inside the loop. Only `bpf` is still `ErrNotImplemented`, and the refusal rows that named `seg6` now name it (V007–V009).
+- LX2-T02 is done, and LX2 is closed. No new code was needed: `TestRouteWriteSrv6` and `TestNexthopWriteSrv6` check that each type lands where its keyword is, on a route, in a hop and on a nexthop object. They also check that `seg6local`'s `oif` is looked up before `dev`, the route bound at 59 segments, and the quirks that change what the caller reads next. O5's golden is unchanged (V010–V012).
 
-**Next action:** LX2-T02, the three places: a route's, a hop's and a nexthop object's encap, checked end to end.
+**Next action:** LX3-T01, the `lwtx` family in `tools/nlcapgen/matrix_lwtx.go`.
 
 ## Contents
 
@@ -31,7 +32,7 @@
 | Phase | Work | Closed by | State | Evidence |
 |---|---|---|---|---|
 | [LX1](goip-lwt-srv6.md#lx1--the-encoder) | the encoder | LX1-T02 | done | V001–V006 |
-| [LX2](goip-lwt-srv6.md#lx2--the-parsers-and-the-three-places) | the parsers, the three places | LX2-T02 | in progress | V007–V009 |
+| [LX2](goip-lwt-srv6.md#lx2--the-parsers-and-the-three-places) | the parsers, the three places | LX2-T02 | done | V007–V012 |
 | [LX3](goip-lwt-srv6.md#lx3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LX3-T03 | not started | — |
 | [LX4](goip-lwt-srv6.md#lx4--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LX4-T02 | not started | — |
 
@@ -42,7 +43,7 @@
 | [x] | [LX1-T01](goip-lwt-srv6.md#lx1-t01-the-srv6-encodings) | the SRv6 encodings | done | V001–V003 |
 | [x] | [LX1-T02](goip-lwt-srv6.md#lx1-t02-ila-xfrm-ioam6-and-rpl) | `ila`, `xfrm`, `ioam6`, `rpl` | done | V004–V006 |
 | [x] | [LX2-T01](goip-lwt-srv6.md#lx2-t01-lwtencapargs-for-the-six-types) | `lwtEncapArgs` for the six types | done | V007–V009 |
-| [ ] | [LX2-T02](goip-lwt-srv6.md#lx2-t02-the-three-places) | the three places | not started | — |
+| [x] | [LX2-T02](goip-lwt-srv6.md#lx2-t02-the-three-places) | the three places | done | V010–V012 |
 | [ ] | [LX3-T01](goip-lwt-srv6.md#lx3-t01-the-lwtx-family) | the `lwtx` family | not started | — |
 | [ ] | [LX3-T02](goip-lwt-srv6.md#lx3-t02-capture) | capture, twice | not started | — |
 | [ ] | [LX3-T03](goip-lwt-srv6.md#lx3-t03-o3-and-o5) | O3 and O5 | not started | — |
@@ -60,9 +61,12 @@
 | V004 | 2026-11-04 | LX1-T02 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/` | all pass: `TestPutLwtEncapOther` (17 rows: `ila`'s locator in network order and its u8s in argv order; `xfrm`'s `IF_ID` and `LINK`; `ioam6` inline and `encap`, `SRC` before `DST`; `rpl`'s two segments; inline dropping `SRC` and `DST`; an unknown `ila` or `xfrm` item, a 4-byte `tundst`, `rpl` with no slots and two types refused, writing nothing; `size` 244 as `remlen` 61; one byte short; the 24-bit type shifted up a byte; an `ila` keyword twice; `rpl`'s empty field a zero slot) | d6e8ed21 |
 | V005 | 2026-11-04 | LX1-T02 | mutation under `MemoryMax=6G`: the locator byte-reversed; `remlen` as `size` (rerun after the netlink-audit fix); `ioam6`'s `SRC` and `DST` written for inline | 3 of 3 killed (3, 5 and 1 failing subtests). A first locator mutant that didn't compile was redone | d6e8ed21 |
 | V006 | 2026-11-04 | LX1-T02 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | netlink-audit found 2: `ioam6Trace` indexed and sliced its `make`d buffer. It now appends, and both pass | d6e8ed21 |
-| V007 | 2026-11-04 | LX2-T01 | `go vet`, `go test -count=1 -race ./internal/goip/... ./pkg/xtcpnl/ ./internal/goipparity/` | all pass. `TestLwtEncapArgsSrv6` (65 rows): `seg6`'s modes, segments, `hmac`, `tunsrc`, `hmac` before `mode`, and its refusals (`segs` and `tunsrc` before `mode`, `tunsrc` with inline, a second `segs`, an unknown mode, a bad segment); no `mode` as −1; `hmac x` as 0; an empty field a zero slot. `seg6local`'s actions, `count`, `flavors` and `next-csid` with and without its lengths, `nh4`/`nh6`, `oif` resolved, `vrftable`, `End.B6`'s and `End.B6.Encaps`' SRH; no action, an unknown action, an `oif` that doesn't exist, `End.BPF`, `endpoint`, a flavor twice, `srh` without `segs`, `count` twice; `nflen` last, `next-csid` last refused as incomplete; flavors by strcasecmp; `srh segs S` last giving the index before S; `table main`. `ila`'s keywords in argv order, five groups (exit 1), a bad `csum-mode`, a short locator as zeros, a keyword twice. `xfrm`'s `if_id`, `link_dev`, `if_id 0`, no `if_id`, a missing device, and swallowing `dev d0`. `ioam6` inline and `encap`, its refusals and `missarg`s, `size` 244 and 248, `freq 5/5`, and the trace at the end of argv. `rpl`'s segments and `segs` twice. The `seg6` refusal rows in six tests now name `bpf`. `TestPutSeg6Encap` gained `nh6 any` as an empty attribute (19 rows) | — |
-| V008 | 2026-11-04 | LX2-T01 | mutation under `MemoryMax=6G`: `xfrm` given an `else break`; `ioam6`'s trace loop not stepping back; `seg6local`'s stop index off by one | 3 of 3 killed (1, 5 and 11 failing subtests) | — |
-| V009 | 2026-11-04 | LX2-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time; codespell's one hit is the `iif` keyword | — |
+| V007 | 2026-11-04 | LX2-T01 | `go vet`, `go test -count=1 -race ./internal/goip/... ./pkg/xtcpnl/ ./internal/goipparity/` | all pass. `TestLwtEncapArgsSrv6` (65 rows): `seg6`'s modes, segments, `hmac`, `tunsrc`, `hmac` before `mode`, and its refusals (`segs` and `tunsrc` before `mode`, `tunsrc` with inline, a second `segs`, an unknown mode, a bad segment); no `mode` as −1; `hmac x` as 0; an empty field a zero slot. `seg6local`'s actions, `count`, `flavors` and `next-csid` with and without its lengths, `nh4`/`nh6`, `oif` resolved, `vrftable`, `End.B6`'s and `End.B6.Encaps`' SRH; no action, an unknown action, an `oif` that doesn't exist, `End.BPF`, `endpoint`, a flavor twice, `srh` without `segs`, `count` twice; `nflen` last, `next-csid` last refused as incomplete; flavors by strcasecmp; `srh segs S` last giving the index before S; `table main`. `ila`'s keywords in argv order, five groups (exit 1), a bad `csum-mode`, a short locator as zeros, a keyword twice. `xfrm`'s `if_id`, `link_dev`, `if_id 0`, no `if_id`, a missing device, and swallowing `dev d0`. `ioam6` inline and `encap`, its refusals and `missarg`s, `size` 244 and 248, `freq 5/5`, and the trace at the end of argv. `rpl`'s segments and `segs` twice. The `seg6` refusal rows in six tests now name `bpf`. `TestPutSeg6Encap` gained `nh6 any` as an empty attribute (19 rows) | a8ab98bf |
+| V008 | 2026-11-04 | LX2-T01 | mutation under `MemoryMax=6G`: `xfrm` given an `else break`; `ioam6`'s trace loop not stepping back; `seg6local`'s stop index off by one | 3 of 3 killed (1, 5 and 11 failing subtests) | a8ab98bf |
+| V009 | 2026-11-04 | LX2-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time; codespell's one hit is the `iif` keyword | a8ab98bf |
+| V010 | 2026-11-04 | LX2-T02 | `go vet`, `go test -count=1 -race ./internal/goip/` | all pass. `TestRouteWriteSrv6` (14 rows: a route's `seg6` before `RTA_OIF`; `seg6` on IPv4; `seg6local`'s `oif` resolved before `dev`; `ila`; `xfrm` with `dev` before it; a hop's `seg6` after its gateway, IPv6 and IPv4; `bpf` refused; 59 segments fill the route bound and 60 are over it; `xfrm` swallowing a route's `dev` and a hop's; `ioam6`'s trace and `seg6local`'s `srh segs S` last, each last word read again as a second destination, `duparg2("to", …)`). `TestNexthopWriteSrv6` (5 rows: `seg6`, `seg6local`, `oif` before `dev`, `bpf` refused, `xfrm` swallowing `dev`). `TestWsGoipDifferential`: the golden unchanged | — |
+| V011 | 2026-11-04 | LX2-T02 | mutation under `MemoryMax=6G`: a route's encap given no resolver | killed (2 failing subtests) | — |
+| V012 | 2026-11-04 | LX2-T02 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | lint-baseline's tier 2 found one `prealloc` in the test's helper, fixed; then all pass | — |
 
 ## Decision log
 
