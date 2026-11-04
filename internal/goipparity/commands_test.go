@@ -1060,7 +1060,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	}
 	ungated := map[string]bool{}
 	for _, c := range Commands() {
-		if !gated[c.Name] && !gwIsLwtx(c.Slug) {
+		if !gated[c.Name] {
 			ungated[c.Name] = true
 		}
 	}

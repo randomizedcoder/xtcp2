@@ -32,12 +32,6 @@ var gwRcs = [2]int{0, 2}
 // LX4-T01).
 var gwLwtxFamilies = []string{"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh"}
 
-// gwIsLwtx is whether slug is an lwtx row's. LX4-T02's runs gate the lwtx
-// rows and take its two uses out.
-func gwIsLwtx(slug string) bool {
-	return slices.ContainsFunc(gwLwtxFamilies, func(f string) bool { return strings.HasPrefix(slug, gwSlugPrefixCst+f+"_") })
-}
-
 // gwWsRow is the part of a workbench row the GW rows read.
 type gwWsRow struct {
 	ID     string            `json:"id"`
@@ -318,9 +312,6 @@ func runGwMatrix(t *testing.T, families []string, forms []gwForm) {
 			t.Fatalf("EmbeddedAllowlist: %v", err)
 		}
 		for i := range mine {
-			if gwIsLwtx(mine[i].Slug) {
-				continue
-			}
 			if !al.IsGated(mine[i].Name) {
 				t.Errorf("%s (%q) is not gated", mine[i].Slug, mine[i].Name)
 			}

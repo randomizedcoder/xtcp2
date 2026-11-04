@@ -5,6 +5,7 @@
 **Last updated:** 2026-11-04
 
 **Summary:**
+- **Closed, 2026-11-04.** goip builds `encap` `seg6`, `seg6local`, `ila`, `xfrm`, `ioam6` and `rpl` on a route, in a hop and on a nexthop object. The `lwtx` workbench family's 73 rows are O3- and O5-checked, and 43 goip-parity rows are gated ([status](goip-lwt-srv6-status.md), V025–V028). The rest of this section is the state the plan started from.
 - [goip-lwt-encap.md](goip-lwt-encap.md) is closed. goip builds `encap` `mpls`, `ip` and `ip6` on a route, in a hop and on a nexthop object. Every other type is `ErrNotImplemented` from `lwtEncapArgs` (`internal/goip/lwt_encap_args.go:78`), in all three places.
 - This plan builds `seg6`, `seg6local`, `ila`, `xfrm`, `ioam6` and `rpl`, which is every type `lwt_parse_encap` reads except `bpf`. Then it adds rows, captures, O3, O5, goip-parity rows and a VM gate, as goip-lwt-encap.md did.
 - **The order follows the guest kernel, not the selftests.** nixpkgs' `linux_latest` 7.3 has `IPV6_SEG6_LWTUNNEL=y`, `IPV6_SEG6_HMAC=y`, `IPV6_ILA=m` and `XFRM_INTERFACE=m`, but not `IPV6_IOAM6_LWTUNNEL` or `IPV6_RPL_LWTUNNEL`. So `seg6`, `seg6local`, `ila` and `xfrm` are checked end to end. For `ioam6` and `rpl`, the kernel answers `EOPNOTSUPP` ("lwt encapsulation type not supported", `lwtunnel_valid_encap_type`), so their rows check the request alone, at rc 2.

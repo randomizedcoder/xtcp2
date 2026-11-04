@@ -13,8 +13,9 @@
 - LX3-T02 is done: two fresh-boot batches agree on all 73 rows, and every rc is as the generator wrote it. The first batch is the corpus, in `pkg/xtcpnl/testdata/7_3_0/ws/` (228 KB). `TestWsCorpusRows` corrected two rows' `refused_by`: `seg6local`'s `oif nosuch` and `xfrm`'s `link_dev` both look the device up first, so one is refused by the kernel (ENODEV) and the other is ack-then-fail. The boots' only byte differences are `ip`'s padding after a route's `RTA_ENCAP_TYPE` (V016–V018).
 - LX3-T03 is done, and LX3 is closed. O3 (`pkg/xtcpnl/xtcpnl_ws_lwtx_test.go`) checks the 60 captured requests' encaps against their axes, and each SRH's segments against the row's own `segs`, last to first. The 13 rows `ip` refuses before sending send none. O5 has the eight spaces: all 73 rows are `same`, no existing row moved, and the encap-padding zeroing now reaches 41 rows (V019–V021).
 - LX4-T01 is done: 43 goip-parity write rows (`gw_seg6route6_*`, `gw_seg6route4_*`, `gw_seg6local_*`, `gw_ila_*`, `gw_xfrm_*`, `gw_lwtxreq_*`, `gw_lwtxhop_*`, `gw_lwtxnh_*`), one per rc 0 and rc 2 form, picked by `TestGwLwtxMatrixRows` from the `lwtx` rows. The rows stay ungated until LX4-T02 (V022–V024).
+- LX4-T02 is done, and LX4 and the plan are closed. On dfe50cf3, two `--section route,nexthop` runs passed 167 of 167, all 43 lwtx rows among them (V025). The full run with the rows gated passed 1373 of 1373 (V026). The 43 rows are in `gated_commands` and `TestAllowlistCommitted`'s earned list, and the GW matrix tables' gated check and `TestUngatedSurfaceIsNotVacuous` no longer skip them: `gwIsLwtx` is gone (V027–V028).
 
-**Next action:** LX4-T02, a `--section route,nexthop` goip-parity run, twice clean, then the full run; then gate the 43 rows.
+**Next action:** none; the plan is closed. `bpf` and `End.BPF` stay refused by design ([out of scope](goip-lwt-srv6.md#out-of-scope)).
 
 ## Contents
 
@@ -38,7 +39,7 @@
 | [LX1](goip-lwt-srv6.md#lx1--the-encoder) | the encoder | LX1-T02 | done | V001–V006 |
 | [LX2](goip-lwt-srv6.md#lx2--the-parsers-and-the-three-places) | the parsers, the three places | LX2-T02 | done | V007–V012 |
 | [LX3](goip-lwt-srv6.md#lx3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LX3-T03 | done | V013–V021 |
-| [LX4](goip-lwt-srv6.md#lx4--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LX4-T02 | in progress | V022–V024 |
+| [LX4](goip-lwt-srv6.md#lx4--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LX4-T02 | done | V022–V028 |
 
 ## Task checklist
 
@@ -52,7 +53,7 @@
 | [x] | [LX3-T02](goip-lwt-srv6.md#lx3-t02-capture) | capture, twice | done | V016–V018 |
 | [x] | [LX3-T03](goip-lwt-srv6.md#lx3-t03-o3-and-o5) | O3 and O5 | done | V019–V021 |
 | [x] | [LX4-T01](goip-lwt-srv6.md#lx4-t01-the-rows) | matrix rows | done | V022–V024 |
-| [ ] | [LX4-T02](goip-lwt-srv6.md#lx4-t02-the-vm-gate) | the VM gate | not started | — |
+| [x] | [LX4-T02](goip-lwt-srv6.md#lx4-t02-the-vm-gate) | the VM gate | done | V025–V028 |
 
 ## Verification ledger
 
@@ -80,9 +81,13 @@
 | V019 | 2026-11-04 | LX3-T03 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/` | all pass. `TestLwtxProblem` (14 rows: seg6's two segments last to first, inline's zero slot, `hmac`; `ioam6`'s trace; `ila`'s locator; the segments first to last, `remlen` as the size, the wrong encap type, a missing HMAC flag, `xfrm`'s `RTA_OIF` sent and an axis with no check, each failing; the 24-bit type; `seg6local`'s zero counters; `rpl`'s `segments_left`). `TestWsLwtxCorpus`: 60 requests as their axes, 13 refusals sending none. `TestWsGoipDifferential`: 73 new rows `same`; `TestWsO5ZeroEncapPad` gained a `seg6local` flavors nest's u8 padding, a nest down (13 rows) | 8f8eb657 |
 | V020 | 2026-11-04 | LX3-T03 | mutation under `MemoryMax=6G`: O3's segment-slot check dropped; O5's zeroing not recursing into nests | 2 of 2 killed (1 failing subtest; 19 failures and golden lines) | 8f8eb657 |
 | V021 | 2026-11-04 | LX3-T03 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | 8f8eb657 |
-| V022 | 2026-11-04 | LX4-T01 | `go vet`, `go test -count=1 -race ./internal/goipparity/ ./pkg/nlparity/` | all pass. `TestGwLwtxMatrixRows` (38 forms and 7 checks): each form's pick, 43 rows (10 `seg6route6`, 2 `seg6route4`, 15 `seg6local`, 5 `ila`, 4 `xfrm`, 3 `lwtxreq`, 2 `lwtxhop`, 2 `lwtxnh`); the duplicates passed over; every floor the `ip.pcap` record count (42 at 4, `xfrm/ng-001` at 2); every setup GW5's d0. The gated check and `TestUngatedSurfaceIsNotVacuous` skip the lwtx rows (`gwIsLwtx`) until LX4-T02 | — |
-| V023 | 2026-11-04 | LX4-T01 | mutation under `MemoryMax=6G`: the `rpl` row dropped from `commands.go`; `End.X`'s floor one short | 2 of 2 killed (1 failing subtest each) | — |
-| V024 | 2026-11-04 | LX4-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell over the added lines | all pass first time | — |
+| V022 | 2026-11-04 | LX4-T01 | `go vet`, `go test -count=1 -race ./internal/goipparity/ ./pkg/nlparity/` | all pass. `TestGwLwtxMatrixRows` (38 forms and 7 checks): each form's pick, 43 rows (10 `seg6route6`, 2 `seg6route4`, 15 `seg6local`, 5 `ila`, 4 `xfrm`, 3 `lwtxreq`, 2 `lwtxhop`, 2 `lwtxnh`); the duplicates passed over; every floor the `ip.pcap` record count (42 at 4, `xfrm/ng-001` at 2); every setup GW5's d0. The gated check and `TestUngatedSurfaceIsNotVacuous` skip the lwtx rows (`gwIsLwtx`) until LX4-T02 | dfe50cf3 |
+| V023 | 2026-11-04 | LX4-T01 | mutation under `MemoryMax=6G`: the `rpl` row dropped from `commands.go`; `End.X`'s floor one short | 2 of 2 killed (1 failing subtest each) | dfe50cf3 |
+| V024 | 2026-11-04 | LX4-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell over the added lines | all pass first time | dfe50cf3 |
+| V025 | 2026-11-04 | LX4-T02 | `--section route,nexthop` goip-parity run, twice, on dfe50cf3 | both 167 of 167 `GOIP_PARITY_PASS`, the 43 lwtx rows among them (10 `gw_seg6route6_*`, 2 `gw_seg6route4_*`, 15 `gw_seg6local_*`, 5 `gw_ila_*`, 4 `gw_xfrm_*`, 3 `gw_lwtxreq_*`, 2 `gw_lwtxhop_*`, 2 `gw_lwtxnh_*`); `GOIP_PARITY_OVERALL_PASS`, `GOIP_PARITY_UNGATED_CLEAN` both times | dfe50cf3 |
+| V026 | 2026-11-04 | LX4-T02 | full goip-parity run (`nix run .#microvm-x86_64-goip-parity -- --timeout 12000`) with the 43 rows gated | 1373 of 1373 `GOIP_PARITY_PASS`, the 43 among them; `GOIP_PARITY_OVERALL_PASS`, `GOIP_PARITY_UNGATED_CLEAN` | — |
+| V027 | 2026-11-04 | LX4-T02 | `go vet`, `go test -count=1 -race ./internal/goipparity/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`: `gw_seg6route6_ec_005`'s command taken out of `gated_commands` | all pass; the mutant killed (`TestGwLwtxMatrixRows`, `TestUngatedSurfaceIsNotVacuous`, `TestAllowlistCommitted`) | — |
+| V028 | 2026-11-04 | LX4-T02 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell over the added lines | all pass first time | — |
 
 ## Decision log
 
