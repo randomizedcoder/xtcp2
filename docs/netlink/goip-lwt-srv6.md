@@ -159,7 +159,7 @@ That is 56 forms: 32 at rc 0, 11 at rc 2, 1 at rc 1 and 12 at rc 255. The `ioam6
 - **Building the guest kernel with `IOAM6_LWTUNNEL` and `RPL_LWTUNNEL`.** That would mean a custom kernel for every VM flavor. The `ioam6` and `rpl` rows compare the request, which is goip's half; the kernel's answer is the same `EOPNOTSUPP` for both. If the kernel config changes, the rows' rc moves to 0, and the first capture after it records that.
 - **`End.BPF` and `seg6local`'s `endpoint`.** They load a BPF program, so they stay refused, as `bpf` does.
 - **`ila`'s uninitialized groups.** goip sends zeros (see [the quirks](#ips-quirks-goip-copies)). No form uses fewer than four groups, since the bytes `ip` sends there are whatever is on the stack.
-- **`seg6`'s 1023-byte `segs` cut.** goip cuts at the same length. No form reaches it: about 25 segments, past the 1024-byte route bound already.
+- **`seg6`'s 1023-byte `segs` cut.** goip cuts at the same length. No form reaches it. The cut is inside the route bound: 26 segments written out in full (`2001:0db8:0000:…`, 40 characters each) pass 1023 bytes with a 424-byte SRH, and `ip` installs the route with the last segment cut (`docs/netlink/upstream/iproute2-lwtunnel-encap-parsing.md`, not committed, bug 4). (Corrected after the plan closed; this said the cut was past the bound.)
 - **Moving the existing families**, as in [goip-live-forms.md](goip-live-forms.md#out-of-scope).
 
 ## Gates every task inherits
@@ -262,7 +262,7 @@ No new code is expected, since all three call `lwtEncapArgs`. This task checks i
 | positive: a route's `seg6` | the `seg6route6` forms | `RTA_ENCAP`, `RTA_ENCAP_TYPE` 5 where the keyword is |
 | positive: a hop's `seg6` | the `lwtxhop` forms | the encap inside the first `rtnexthop`, after `RTA_GATEWAY` |
 | positive: a nexthop's `seg6` and `seg6local` | the `lwtxnh` forms | `NHA_ENCAP`, `NHA_ENCAP_TYPE` 5 and 7 |
-| boundary: a `seg6` SRH at the route bound | segments to 1024 bytes, then one more | built, then `addraw_l`'s refusal |
+| boundary: a `seg6` SRH at the route bound | segments to 1024 bytes, then one more | built, then refused with `addraw_l`'s message, where `ip` prints it and sends the route without the encap ([goip-lwt-encap-status.md](goip-lwt-encap-status.md)'s decision log) |
 | corner: `xfrm` in a hop | `nexthop via … encap xfrm if_id 1 dev d0` | `dev d0` swallowed, as on a route |
 
 **Done when:** both tables pass; O5's golden, regenerated, shows no row moved; lint-baseline and netlink-audit pass.
