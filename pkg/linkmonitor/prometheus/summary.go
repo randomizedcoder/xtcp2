@@ -11,15 +11,16 @@ import (
 // summaryCollector serves the sparse problem summary. It never walks samples,
 // descriptors or devices: one snapshot, one clock read and the candidate list.
 type summaryCollector struct {
-	snapshot func() linkmonitor.Snapshot
-	now      func() time.Time
-	scalars  bool
-	problems *client.Desc
-	iface    *client.Desc
-	host     *client.Desc
-	delta    *client.Desc
-	ready    *client.Desc
-	healthy  *client.Desc
+	snapshot    func() linkmonitor.Snapshot
+	now         func() time.Time
+	scalars     bool
+	problems    *client.Desc
+	iface       *client.Desc
+	host        *client.Desc
+	delta       *client.Desc
+	ready       *client.Desc
+	provisional *client.Desc
+	healthy     *client.Desc
 }
 
 // SummaryOption configures a summary collector at construction.
@@ -38,21 +39,23 @@ func WithoutScalars() SummaryOption {
 }
 
 // NewSummaryCollector constructs the alerting summary: problems,
-// up_links_delta, baseline_ready, collection_healthy and one
-// interface_problem or host_problem series per active reason. A healthy host
-// emits only the scalars, however many interfaces it has.
+// up_links_delta, baseline_ready, collection_healthy, baseline_provisional
+// (only while the baseline is provisional) and one interface_problem or
+// host_problem series per active reason. A healthy host emits only the
+// scalars, however many interfaces it has.
 func NewSummaryCollector(m *linkmonitor.Monitor, opts ...SummaryOption) client.Collector {
 	desc := func(name, help string, labels ...string) *client.Desc {
 		return client.NewDesc(metricPrefix+name, help, labels, nil)
 	}
 	c := &summaryCollector{
 		now: time.Now, scalars: true,
-		problems: desc("problems", "Number of interface_problem and host_problem series in this scrape."),
-		iface:    desc("interface_problem", "Active problem reason for an included interface; absent when healthy.", interfaceLabel, reasonLabel),
-		host:     desc("host_problem", "Active host-scope problem reason; absent when healthy.", reasonLabel),
-		delta:    desc("up_links_delta", "Link monitor up_links_delta."),
-		ready:    desc("baseline_ready", "Link monitor baseline_ready."),
-		healthy:  desc("collection_healthy", "Link monitor collection_healthy."),
+		problems:    desc("problems", "Number of interface_problem and host_problem series in this scrape."),
+		iface:       desc("interface_problem", "Active problem reason for an included interface; absent when healthy.", interfaceLabel, reasonLabel),
+		host:        desc("host_problem", "Active host-scope problem reason; absent when healthy.", reasonLabel),
+		delta:       desc("up_links_delta", "Link monitor up_links_delta."),
+		ready:       desc("baseline_ready", "Link monitor baseline_ready."),
+		provisional: desc("baseline_provisional", "Link monitor baseline_provisional."),
+		healthy:     desc("collection_healthy", "Link monitor collection_healthy."),
 	}
 	if m != nil {
 		c.snapshot = m.Snapshot
@@ -99,5 +102,8 @@ func (c *summaryCollector) Collect(out chan<- client.Metric) {
 	}
 	health := s.Health()
 	out <- client.MustNewConstMetric(c.ready, client.GaugeValue, boolean(health.BaselineReady))
+	if health.BaselineProvisional {
+		out <- client.MustNewConstMetric(c.provisional, client.GaugeValue, 1)
+	}
 	out <- client.MustNewConstMetric(c.healthy, client.GaugeValue, boolean(health.CollectionHealthy))
 }

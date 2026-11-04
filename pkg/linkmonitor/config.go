@@ -37,8 +37,14 @@ const (
 // Config is copied by New. Use DefaultConfig before overriding fields; zero
 // values are not replaced by defaults. CLI/environment parsing belongs to hosts.
 type Config struct {
-	BaselineFile       string
-	Settle             time.Duration
+	BaselineFile string
+	Settle       time.Duration
+	// LearnDeadline bounds the wait for a ready count before the first
+	// baseline. Past it, given one complete inventory, the visible up links
+	// become a provisional baseline, held in memory and never written, so
+	// up_links_delta still reports what it can; normal learning replaces it
+	// once the count is ready. Zero waits for a ready count forever.
+	LearnDeadline      time.Duration
 	Resync             time.Duration
 	StatsInterval      time.Duration
 	StatsInclude       string
@@ -68,7 +74,8 @@ func DefaultConfig() Config {
 	return Config{
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
 		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
-		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*",
+		LearnDeadline: 5 * time.Minute,
+		StatsInclude:  ".*", StatsExclude: "^$", NetstatFields: ".*",
 		IOBackend:   IOBackendPoller,
 		ErrorWindow: defaultProblemWindow, FlapWindow: defaultProblemWindow,
 		ErrorClasses:   []string{"link", "rdma"},
@@ -90,6 +97,9 @@ func validateConfig(cfg Config) (configuration, error) {
 	}
 	if cfg.Settle < 0 || cfg.Resync <= 0 || cfg.StatsInterval <= 0 {
 		return result, fmt.Errorf("settle must be nonnegative; resync and stats interval must be positive")
+	}
+	if cfg.LearnDeadline < 0 {
+		return result, fmt.Errorf("learn deadline must be nonnegative")
 	}
 	if cfg.StatsInterval > math.MaxInt64/3 || cfg.Resync > (math.MaxInt64-1)/2 {
 		return result, fmt.Errorf("stats or resync interval exceeds representable freshness deadline")

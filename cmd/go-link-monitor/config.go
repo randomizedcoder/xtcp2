@@ -90,6 +90,8 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.StringVar(&opts.address, "metrics-addr", ":9101", "HTTP listen address")
 	flags.StringVar(&opts.monitor.BaselineFile, "baseline-file", opts.monitor.BaselineFile, "Persistent baseline file")
 	flags.DurationVar(&opts.monitor.Settle, "settle", opts.monitor.Settle, "Initial stable interval (nonnegative)")
+	flags.DurationVar(&opts.monitor.LearnDeadline, "learn-deadline", opts.monitor.LearnDeadline,
+		"Take a provisional in-memory baseline if none is learned this long after start (0 waits forever)")
 	flags.DurationVar(&opts.monitor.Resync, "resync", opts.monitor.Resync, "Full reconciliation interval (positive)")
 	flags.DurationVar(&opts.monitor.StatsInterval, "stats-interval", opts.monitor.StatsInterval, "Poll mode: statistics interval (positive); unused on demand")
 	flags.StringVar(&opts.monitor.StatsInclude, "stats-include", opts.monitor.StatsInclude, "Driver/PHY names to include (regexp)")

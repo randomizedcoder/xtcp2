@@ -1206,6 +1206,7 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     $core.bool? ipPaths,
     $core.int? ipMaxBytes,
     $core.String? ipListen,
+    $1.Duration? learnDeadline,
   }) {
     final result = LinkMonitorConfig._();
     if (enable != null) result.enable = enable;
@@ -1239,6 +1240,7 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     if (ipPaths != null) result.ipPaths = ipPaths;
     if (ipMaxBytes != null) result.ipMaxBytes = ipMaxBytes;
     if (ipListen != null) result.ipListen = ipListen;
+    if (learnDeadline != null) result.learnDeadline = learnDeadline;
     return result;
   }
 
@@ -1292,6 +1294,8 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     ..aI(26, _omitFieldNames ? '' : 'ipMaxBytes',
         fieldType: $pb.PbFieldType.OU3)
     ..aOS(27, _omitFieldNames ? '' : 'ipListen')
+    ..aOM<$1.Duration>(28, _omitFieldNames ? '' : 'learnDeadline',
+        subBuilder: $1.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1618,6 +1622,21 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
   $core.bool hasIpListen() => $_has(26);
   @$pb.TagNumber(27)
   void clearIpListen() => $_clearField(27);
+
+  /// How long after start to wait for a learned baseline before taking the
+  /// visible up count as a provisional one, kept in memory only and flagged
+  /// by baseline_provisional, so up_links_delta still reports when the count
+  /// never becomes ready. Unset is 5m; 0 waits forever.
+  @$pb.TagNumber(28)
+  $1.Duration get learnDeadline => $_getN(27);
+  @$pb.TagNumber(28)
+  set learnDeadline($1.Duration value) => $_setField(28, value);
+  @$pb.TagNumber(28)
+  $core.bool hasLearnDeadline() => $_has(27);
+  @$pb.TagNumber(28)
+  void clearLearnDeadline() => $_clearField(28);
+  @$pb.TagNumber(28)
+  $1.Duration ensureLearnDeadline() => $_ensure(27);
 }
 
 /// xtcp configuration
