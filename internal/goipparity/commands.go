@@ -6540,6 +6540,228 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 
+	// The lwtx rows (goip-lwt-srv6.md, LX4-T01): as the lwt rows, for the
+	// seg6, seg6local, ila, xfrm, ioam6 and rpl forms, from the workbench's
+	// lwtx family, whose setups are GW5's d0. ioam6 and rpl are refused by
+	// a guest kernel without them, after ip and goip send the same request,
+	// so they are rc 2 rows. The twelve rc 255 forms and ila's Bad locator
+	// (rc 1) are refusals goip exits 1 for, so they are O5's alone.
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode encap segs 2001:db8:9::1 dev d0", Slug: "gw_seg6route6_ec_001",
+		// seg6route6/ec-001: encap (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode encap segs 2001:db8:9::1,2001:db8:9::2,2001:db8:9::3 dev d0", Slug: "gw_seg6route6_ec_002",
+		// seg6route6/ec-002: encap-three (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode inline segs 2001:db8:9::1 dev d0", Slug: "gw_seg6route6_ec_003",
+		// seg6route6/ec-003: inline (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode l2encap segs 2001:db8:9::1 dev d0", Slug: "gw_seg6route6_ec_004",
+		// seg6route6/ec-004: l2encap (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode encap.red segs 2001:db8:9::1,2001:db8:9::2,2001:db8:9::3 dev d0", Slug: "gw_seg6route6_ec_005",
+		// seg6route6/ec-005: encap-red (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode l2encap.red segs 2001:db8:9::1 dev d0", Slug: "gw_seg6route6_ec_006",
+		// seg6route6/ec-006: l2encap-red (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode encap segs 2001:db8:9::1 hmac 7 dev d0", Slug: "gw_seg6route6_ec_007",
+		// seg6route6/ec-007: hmac (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode encap tunsrc 2001:db8:1::10 segs 2001:db8:9::1 dev d0", Slug: "gw_seg6route6_ec_008",
+		// seg6route6/ec-008: tunsrc (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 mode encap segs 2001:db8:9::1 hmac x dev d0", Slug: "gw_seg6route6_ec_009",
+		// seg6route6/ec-009: hmac-x (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap seg6 hmac 1 dev d0", Slug: "gw_seg6route6_ng_001",
+		// seg6route6/ng-001: no-mode (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap seg6 mode encap segs 2001:db8:9::1 dev d0", Slug: "gw_seg6route4_ec_001",
+		// seg6route4/ec-001: encap (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap seg6 mode inline segs 2001:db8:9::1 dev d0", Slug: "gw_seg6route4_ng_001",
+		// seg6route4/ng-001: inline (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End dev d0", Slug: "gw_seg6local_ec_001",
+		// seg6local/ec-001: end (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End count dev d0", Slug: "gw_seg6local_ec_002",
+		// seg6local/ec-002: end-count (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End flavors next-csid lblen 32 nflen 16 dev d0", Slug: "gw_seg6local_ec_003",
+		// seg6local/ec-003: end-csid (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End flavors psp dev d0", Slug: "gw_seg6local_ec_004",
+		// seg6local/ec-004: end-psp (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End flavors usp dev d0", Slug: "gw_seg6local_ng_001",
+		// seg6local/ng-001: end-usp (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.X nh6 2001:db8:1::1 oif d0 dev d0", Slug: "gw_seg6local_ec_005",
+		// seg6local/ec-005: end-x (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.X dev d0", Slug: "gw_seg6local_ng_002",
+		// seg6local/ng-002: end-x-bare (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.T table 100 dev d0", Slug: "gw_seg6local_ec_006",
+		// seg6local/ec-006: end-t (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.DX2 oif d0 dev d0", Slug: "gw_seg6local_ec_007",
+		// seg6local/ec-007: end-dx2 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.DX6 nh6 2001:db8:1::1 dev d0", Slug: "gw_seg6local_ec_008",
+		// seg6local/ec-008: end-dx6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.DX4 nh4 192.0.2.1 dev d0", Slug: "gw_seg6local_ec_009",
+		// seg6local/ec-009: end-dx4 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.DT6 table 100 dev d0", Slug: "gw_seg6local_ec_010",
+		// seg6local/ec-010: end-dt6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.DT4 vrftable 100 dev d0", Slug: "gw_seg6local_ng_003",
+		// seg6local/ng-003: end-dt4 (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.B6 srh segs 2001:db8:9::1,2001:db8:9::2,2001:db8:9::3 dev d0", Slug: "gw_seg6local_ec_011",
+		// seg6local/ec-011: end-b6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:5::/64 encap seg6local action End.B6.Encaps srh segs 2001:db8:9::1 hmac 7 dev d0", Slug: "gw_seg6local_ec_012",
+		// seg6local/ec-012: end-b6-encaps (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:0:1::/64 encap ila 2001:0:0:2 ident-type luid dev d0", Slug: "gw_ila_ec_001",
+		// ila/ec-001: luid (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:0:1::/64 encap ila 2001:0:0:2 dev d0", Slug: "gw_ila_ng_001",
+		// ila/ng-001: use-format (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:0:1::/64 encap ila 2001:0:0:2 csum-mode no-action ident-type luid hook-type output dev d0", Slug: "gw_ila_ec_002",
+		// ila/ec-002: every (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:0:1::/64 encap ila 2001:0:0:2 csum-mode adj-transport ident-type luid dev d0", Slug: "gw_ila_ec_003",
+		// ila/ec-003: adj-transport (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ila 2001:0:0:2 ident-type luid dev d0", Slug: "gw_ila_ng_002",
+		// ila/ng-002: ipv4 (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 dev d0 encap xfrm if_id 1", Slug: "gw_xfrm_ec_001",
+		// xfrm/ec-001: if-id (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap xfrm if_id 1 dev d0", Slug: "gw_xfrm_ng_001",
+		// xfrm/ng-001: swallowed (rc 2).
+		Floor: 2, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 dev d0 encap xfrm if_id 1 link_dev d0", Slug: "gw_xfrm_ec_002",
+		// xfrm/ec-002: link-dev (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 dev d0 encap xfrm if_id 7", Slug: "gw_xfrm_ec_003",
+		// xfrm/ec-003: ipv4 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_lwtxreq_ec_001",
+		// lwtxreq/ec-001: ioam6-inline (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 freq 1/2 mode encap tunsrc 2001:db8:1::10 tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_lwtxreq_ec_002",
+		// lwtxreq/ec-002: ioam6-encap (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1,2001:db8:9::2 dev d0", Slug: "gw_lwtxreq_ec_006",
+		// lwtxreq/ec-006: rpl (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap seg6 mode encap segs 2001:db8:9::1 nexthop via 2001:db8:1::2 dev d0", Slug: "gw_lwtxhop_ec_001",
+		// lwtxhop/ec-001: hop6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 encap seg6 mode encap segs 2001:db8:9::1 nexthop via 192.0.2.2 dev d0", Slug: "gw_lwtxhop_ec_002",
+		// lwtxhop/ec-002: hop4 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 71 encap seg6 mode encap segs 2001:db8:9::1 dev d0", Slug: "gw_lwtxnh_ec_001",
+		// lwtxnh/ec-001: seg6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 72 encap seg6local action End dev d0", Slug: "gw_lwtxnh_ec_002",
+		// lwtxnh/ec-002: seg6local (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+
 	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
 	// preconditions (genl-write-corpus.exp). The connections' entries carry
 	// each side's own RTTs and ages, which nlparity normalizes, and a dump's

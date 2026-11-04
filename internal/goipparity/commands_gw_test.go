@@ -28,6 +28,16 @@ const (
 // kernel refused. Index 0 and 1 of gwForm.expected.
 var gwRcs = [2]int{0, 2}
 
+// gwLwtxFamilies are the lwtx rows' workbench families (goip-lwt-srv6.md,
+// LX4-T01).
+var gwLwtxFamilies = []string{"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh"}
+
+// gwIsLwtx is whether slug is an lwtx row's. LX4-T02's runs gate the lwtx
+// rows and take its two uses out.
+func gwIsLwtx(slug string) bool {
+	return slices.ContainsFunc(gwLwtxFamilies, func(f string) bool { return strings.HasPrefix(slug, gwSlugPrefixCst+f+"_") })
+}
+
 // gwWsRow is the part of a workbench row the GW rows read.
 type gwWsRow struct {
 	ID     string            `json:"id"`
@@ -308,6 +318,9 @@ func runGwMatrix(t *testing.T, families []string, forms []gwForm) {
 			t.Fatalf("EmbeddedAllowlist: %v", err)
 		}
 		for i := range mine {
+			if gwIsLwtx(mine[i].Slug) {
+				continue
+			}
 			if !al.IsGated(mine[i].Name) {
 				t.Errorf("%s (%q) is not gated", mine[i].Slug, mine[i].Name)
 			}
@@ -516,5 +529,62 @@ func TestGwLwtMatrixRows(t *testing.T) {
 		{"positive: a nexthop's ip", `^ip nexthop add id \d+ encap ip id \d+ dst \S+ via`, "", [2]string{"lwtnh/ec-001", ""}},
 		{"positive: a nexthop's ip6", `^ip nexthop add id \d+ encap ip6`, "", [2]string{"lwtnh/ec-002", ""}},
 		{"positive: a nexthop's geneve_opts", `^ip nexthop add .*geneve_opts`, "", [2]string{"lwtnh/ec-003", ""}},
+	})
+}
+
+// TestGwLwtxMatrixRows holds the lwtx rows to goip-lwt-srv6.md's forms:
+// one form per rc 0 form, its rc 2 sibling where the corpus has one, and
+// the rc 2 forms the kernel alone refuses, ioam6's and rpl's among them.
+// LX4-T01.
+//
+// go test ./internal/goipparity/ -run TestGwLwtxMatrixRows
+func TestGwLwtxMatrixRows(t *testing.T) {
+	const (
+		seg6  = `^ip -6 route add \S+ encap seg6 `
+		local = `^ip -6 route add \S+ encap seg6local action `
+		ila   = `^ip -6 route add \S+ encap ila 2001:0:0:2 `
+	)
+	runGwMatrix(t, gwLwtxFamilies, []gwForm{
+		{"positive: seg6 encap, one segment", seg6 + `mode encap segs [^, ]+ dev d0$`, "", [2]string{"seg6route6/ec-001", ""}},
+		{"positive: seg6 encap, three segments", seg6 + `mode encap segs \S+,\S+,\S+ dev d0$`, "", [2]string{"seg6route6/ec-002", ""}},
+		{"positive: seg6 inline", seg6 + `mode inline segs`, "", [2]string{"seg6route6/ec-003", ""}},
+		{"positive: seg6 l2encap", seg6 + `mode l2encap segs`, "", [2]string{"seg6route6/ec-004", ""}},
+		{"positive: seg6 encap.red", seg6 + `mode encap\.red`, "", [2]string{"seg6route6/ec-005", ""}},
+		{"positive: seg6 l2encap.red", seg6 + `mode l2encap\.red`, "", [2]string{"seg6route6/ec-006", ""}},
+		{"positive: seg6 hmac", seg6 + `mode encap segs \S+ hmac 7 dev d0$`, "", [2]string{"seg6route6/ec-007", ""}},
+		{"positive: seg6 tunsrc", seg6 + `mode encap tunsrc`, "", [2]string{"seg6route6/ec-008", ""}},
+		{"corner: seg6 hmac x", seg6 + `.*hmac x `, "", [2]string{"seg6route6/ec-009", ""}},
+		{"boundary: seg6 with no mode, at rc 2", seg6 + `hmac 1 dev d0$`, "", [2]string{"", "seg6route6/ng-001"}},
+		{"positive: seg6 on IPv4; inline at rc 2", `^ip -4 route add \S+ encap seg6 mode (encap|inline) segs`, "",
+			[2]string{"seg6route4/ec-001", "seg6route4/ng-001"}},
+		{"positive: seg6local End", local + `End dev d0$`, "", [2]string{"seg6local/ec-001", ""}},
+		{"positive: seg6local End count", local + `End count`, "", [2]string{"seg6local/ec-002", ""}},
+		{"positive: seg6local next-csid", local + `End flavors next-csid`, "", [2]string{"seg6local/ec-003", ""}},
+		{"positive: seg6local psp; usp at rc 2", local + `End flavors (psp|usp) dev`, "", [2]string{"seg6local/ec-004", "seg6local/ng-001"}},
+		{"positive: seg6local End.X; without nh6 at rc 2", local + `End\.X `, "", [2]string{"seg6local/ec-005", "seg6local/ng-002"}},
+		{"positive: seg6local End.T", local + `End\.T `, "", [2]string{"seg6local/ec-006", ""}},
+		{"positive: seg6local End.DX2", local + `End\.DX2 oif d0`, "", [2]string{"seg6local/ec-007", ""}},
+		{"positive: seg6local End.DX6", local + `End\.DX6 `, "", [2]string{"seg6local/ec-008", ""}},
+		{"positive: seg6local End.DX4", local + `End\.DX4 `, "", [2]string{"seg6local/ec-009", ""}},
+		{"positive: seg6local End.DT6", local + `End\.DT6 `, "", [2]string{"seg6local/ec-010", ""}},
+		{"negative: seg6local End.DT4 without strict mode, at rc 2", local + `End\.DT4 `, "", [2]string{"", "seg6local/ng-003"}},
+		{"positive: seg6local End.B6", local + `End\.B6 srh`, "", [2]string{"seg6local/ec-011", ""}},
+		{"positive: seg6local End.B6.Encaps", local + `End\.B6\.Encaps `, "", [2]string{"seg6local/ec-012", ""}},
+		{"positive: ila luid; use-format at rc 2", ila + `(ident-type luid )?dev d0$`, "", [2]string{"ila/ec-001", "ila/ng-001"}},
+		{"positive: ila, every keyword", ila + `.*hook-type output`, "", [2]string{"ila/ec-002", ""}},
+		{"positive: ila adj-transport", ila + `csum-mode adj-transport`, "", [2]string{"ila/ec-003", ""}},
+		{"negative: ila on IPv4, at rc 2", `^ip -4 route add \S+ encap ila `, "", [2]string{"", "ila/ng-002"}},
+		{"positive: xfrm if_id; dev swallowed at rc 2", `^ip -6 route add \S+ (dev d0 )?encap xfrm if_id 1( dev d0)?$`, "",
+			[2]string{"xfrm/ec-001", "xfrm/ng-001"}},
+		{"positive: xfrm link_dev", `^ip -6 route add \S+ dev d0 encap xfrm if_id 1 link_dev d0$`, "", [2]string{"xfrm/ec-002", ""}},
+		{"positive: xfrm on IPv4", `^ip -4 route add \S+ dev d0 encap xfrm `, "", [2]string{"xfrm/ec-003", ""}},
+		{"corner: ioam6 inline, refused by the guest kernel", `^ip -6 route add \S+ encap ioam6 trace `, "", [2]string{"", "lwtxreq/ec-001"}},
+		{"corner: ioam6 encap, refused by the guest kernel", `^ip -6 route add \S+ encap ioam6 freq 1/2 mode encap `, "",
+			[2]string{"", "lwtxreq/ec-002"}},
+		{"corner: rpl, refused by the guest kernel", `^ip -6 route add \S+ encap rpl `, "", [2]string{"", "lwtxreq/ec-006"}},
+		{"positive: a hop's seg6", `^ip -6 route add \S+ nexthop via \S+ dev d0 encap seg6 `, "", [2]string{"lwtxhop/ec-001", ""}},
+		{"positive: a hop's seg6 on IPv4", `^ip -4 route add \S+ nexthop via \S+ dev d0 encap seg6 `, "", [2]string{"lwtxhop/ec-002", ""}},
+		{"positive: a nexthop's seg6", `^ip -6 nexthop add id \d+ encap seg6 mode`, "", [2]string{"lwtxnh/ec-001", ""}},
+		{"positive: a nexthop's seg6local", `^ip -6 nexthop add id \d+ encap seg6local `, "", [2]string{"lwtxnh/ec-002", ""}},
 	})
 }

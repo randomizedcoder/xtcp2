@@ -299,7 +299,7 @@ As [LE3-T02](goip-lwt-encap.md#le3-t02-capture): two fresh-boot batches that agr
 
 #### LX4-T01 the rows
 
-As [LE4-T01](goip-lwt-encap.md#le4-t01-the-rows): a form table for the `lwtx` spaces in `commands_gw_test.go`, and `gw_lwtx*` rows in `commands.go`, one per form whose goip exit matches `ip`'s. That is the rc 0 and rc 2 forms, and the rc 1 `ila` form. The rc 255 forms stay O5-only, as in goip-lwt-encap.md, since goip exits 1. The rows stay ungated until LX4-T02.
+As [LE4-T01](goip-lwt-encap.md#le4-t01-the-rows): a form table for the `lwtx` spaces in `commands_gw_test.go`, and `gw_lwtx*` rows in `commands.go`, one per rc 0 and rc 2 form, 43 rows. The rc 255 forms stay O5-only, as in goip-lwt-encap.md, since goip exits 1, and so does the rc 1 `ila` form, since a GW row is rc 0 or 2 (`gwRcs`). The rows stay ungated until LX4-T02.
 
 #### LX4-T02 the VM gate
 
