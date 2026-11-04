@@ -26,6 +26,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 | 2026-10-21 | `BenchmarkPromScrapeLinkMonitor` | [F1](#findings) |
 | 2026-10-21 | Nix gates | `checks.{go-vet,lint-baseline,go-sec,xtcp2-exec,test-linkmonitor}` pass (lint-baseline after one misspelling fix) |
 | 2026-11-04 | Prod fleet check of `runpodinc/xtcp2:v2.0.0` (upstream v0.2.0, 0a4c8a26): 105 hosts, all running and healthy, 0 errors. Baseline file written on 27; `up_links_delta` in VictoriaMetrics on the same 27, all 0 | [F2](#findings), [F3](#findings); fleet-snapshots `analysis/xtcp2/xtcp2-v2-health-check.md` |
+| 2026-11-04 | F2/F3 fixes, test first: `bonding_masters` skipped; kernel-unsupported RDMA events fall back to polled state and are reported once | `go test ./pkg/linkmonitor/...` (and `-race` on the package), `./pkg/xtcp ./cmd/xtcp2` with `-checklinkname=0`, `checks.lint-baseline` pass; each fix reverted as a mutant turns its table red (5, 1, 3 and 4 rows) |
 
 ## Deviations from the plan
 
@@ -120,8 +121,10 @@ Performance and production findings, appended as measured.
 - [ ] `/metrics-all`: when [design-summary-metrics.md](design-summary-metrics.md) is implemented, merge xtcp2's full registry into the same path (see the design's forward note).
 - [ ] A `link_monitor` config block without `collection_mode` keeps `poll`; consider making the library default `on-demand` too, so every entry point agrees.
 - [ ] Load test: point `nix/tests/linkmonitor_http.py --url` at xtcp2's listener in a guest, as was done for go-link-monitor.
-- [ ] **F2 cause 2:** skip `/sys/class/net` entries that aren't netdevs (`bonding_masters` is a regular file) in `rdmaFilesystem.netdevices`; table rows for a regular file, a dangling link, and a real netdev beside them.
-- [ ] **F2 cause 1:** when the kernel can't deliver RDMA events (`EOPNOTSUPP`, `EPROTONOSUPPORT`), fall back to polling RDMA state and let the count become ready, rather than holding the baseline forever. Mark the coverage in a gauge (e.g. `rdma_events_supported 0`) so the gap stays visible.
-- [ ] **F3:** log `RDMA event coverage unavailable` once per state change, not every retry, and not at all when no RDMA device is required.
-- [ ] Once both F2 fixes ship, re-run the fleet check (`nix run .#check-xtcp2-v2` in fleet-snapshots) and expect a baseline on every host.
+- [x] **F2 cause 2:** `rdmaFilesystem.netdevices` skips `/sys/class/net` entries whose `ifindex` open fails with `ENOTDIR` (`bonding_masters`, or a link to a file); a real netdev missing `ifindex` or a dangling link still fails the walk. `TestRDMANetdevicesTable`.
+- [x] **F2 cause 1:** `EOPNOTSUPP` / `EPROTONOSUPPORT` from the event source now mean "unavailable", like `ErrUnavailable` (`rdmaEventsUnavailable`): never reopened, and `reducer.rdmaEventsUnsupported` lets fresh polled RDMA state satisfy `countReady` and `publicationHealth`. Polled state still expires at 45 s, so a stalled poller stays unhealthy. The gap stays visible as `rdma_events` collector support `unsupported` on `/metrics/collection`, so no new gauge. `TestRDMAEventUnsupportedKernel`, `TestCountReadyRDMAEvents`, new `TestRDMAHealth` rows; `TestRDMAEnabledLifecycle/native` now expects health on polled state.
+- [x] **F3:** a kernel without events is reported once, not every 30 s, because the source is no longer reopened (`TestRDMAEventUnsupportedKernel` counts reports). Hosts without RDMA devices still log it once at startup.
+- [ ] **Learn deadline (proposed, needs a decision).** Nothing bounds the wait in `lifecycle.learn` for `countReady`, so any condition that never clears (a stuck RDMA port, a permission error) blocks the baseline, and every alert on the host, forever. Proposal: `LearnDeadline` (default 5 min, 0 = today's behaviour). After it, given at least one complete resync, record a provisional baseline from the visible up links, with `"provisional": true` in the file and a `baseline_provisional` gauge; normal learning replaces it once the count is ready.
+- [ ] Once the F2 fixes ship, re-run the fleet check (`nix run .#check-xtcp2-v2` in fleet-snapshots) and expect a baseline on every host.
+- [ ] Ubuntu VM coverage for F2: see TODO-SOON §29.
 - [ ] Reconfigure re-exec and standalone-coexist cases have no automated test. The first is covered by the late-bound attach/detach unit rows and the baseline lock's release on `Run` return; the second by distinct default files.

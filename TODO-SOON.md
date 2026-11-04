@@ -2404,3 +2404,39 @@ main, so a finding like these shows on the PR that adds it. Only the ratchet
 runs there; see CONTRIBUTING.md "Linting" for why not `nix flake check`.
 Making the job a required status check is a branch-protection setting, not
 yet done.
+
+## 29. No Ubuntu guest: the prod link-monitor failures were invisible to the VM checks — OPEN
+
+**What.** Every microVM check boots a NixOS guest on a nixpkgs kernel. Prod
+runs `runpodinc/xtcp2` under Docker on Ubuntu 22.04/24.04 with kernel
+6.8.0-147, mostly the stock in-tree `ib_core`, some hosts the DOCA/OFED dkms
+one. The 2026-11-04 fleet check found the link-monitor baseline missing on 78
+of 105 hosts for two reasons no NixOS guest could show (see
+`docs/status-linkmonitor-in-xtcp2.md`, F2):
+
+- the stock 6.8 `ib_core` answers the RDMA NLDEV monitor subscription with
+  `EOPNOTSUPP`;
+- with the bonding module loaded, `/sys/class/net/bonding_masters` (a regular
+  file) broke the RDMA netdev walk.
+
+Both are fixed with unit tables, but only against fixtures.
+
+**Fix.** Vagrant-based tests on Ubuntu, wrapped as flake apps like the
+microVM ones (`nix run .#test-ubuntu-<name>`), libvirt provider so they run on
+`l`:
+
+| Box | Setup | Expected |
+|---|---|---|
+| Ubuntu 24.04, stock 6.8 | `modprobe bonding`, a bond over two virtio NICs | baseline written; `up_links` counts the bond's links |
+| Ubuntu 24.04, stock 6.8 | soft-RoCE (`rdma link add rxe0 type rxe netdev eth1`) | events reported unsupported once; baseline written on polled state; `collection_healthy 1` |
+| Ubuntu 24.04, stock 6.8 | rxe plus bonding | both of the above |
+| Ubuntu 24.04, stock 6.8 | rxe, then `ip link set eth1 down` | `up_links_delta -1` within a poll interval, back to 0 on up |
+| Ubuntu 22.04, 5.15 | rxe | same as the 24.04 rxe row (older `ib_core`) |
+| Ubuntu 24.04, no RDMA | none | baseline written, no RDMA warning after the first |
+
+Each box runs the released OCI image the way prod does (Docker, `/var/lib/xtcp2`
+bind-mounted, the read token) and checks the baseline file and `/metrics/link`
+with the same commands as fleet-snapshots' `xtcp2-spot-check.sh`. Open
+questions: whether the OFED dkms `ib_core` can be installed in a box to cover
+the supported-events path, and whether the boxes need nested virtualisation on
+`l`.
