@@ -283,6 +283,7 @@ All are in `xtcp_counts`.
 | `xtcp_counts` | `Run` | `start` | counter | the daemon started |
 | `xtcp_gauge` | | | | namespaces tracked, set by `mapCountReporter` |
 | `xtcp_gauges` | `InitPromethus` | `compiledInEnrichers` | enricher name | 1 if the enricher is built into this binary, 0 if not |
+| `xtcp_gauges` | `checkNetnsPropagation` | `private` | netns dir | 1 if the dir is a private mount, so namespaces created after startup are invisible (mount it `rslave`); 0 if it receives them |
 
 ## Link monitor
 
