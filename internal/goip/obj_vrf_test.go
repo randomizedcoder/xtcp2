@@ -564,16 +564,17 @@ func TestVrfShowName(t *testing.T) {
 			wantExit:    ExitMinusOne,
 		},
 		{
-			// The family changes only the request's ifi_family byte on this
-			// form, but no capture grounds those bytes, so the form stays refused
-			// (decision 8) and nothing is sent.
-			description: "corner: -4 vrf show goipvrf",
-			expected:    "refused, rc 1, nothing sent",
+			// The family flag is no longer refused (vrf-family-forms.md VF1):
+			// the byte reaches the request and the answer is the plain form's
+			// own, so the fake source answers it the same way.
+			description: "positive: -4 vrf show goipvrf",
+			expected:    "goipvrf 100\n, rc 0 — the family byte reaches the request, the answer is the plain form's",
 			args:        []string{"show", "goipvrf"},
 			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
 			family:      unix.AF_INET,
-			wantErrSub:  "vrf show NAME with -4/-6",
-			wantExit:    ExitUsage,
+			wantStdout:  "goipvrf 100\n",
+			wantTalks:   1,
+			wantExit:    ExitOK,
 		},
 	}
 	for _, tc := range tests {
@@ -637,6 +638,32 @@ func TestVrfShowNameReplay(t *testing.T) {
 			expected:    "the same, from the one recorded answer",
 			pcap:        corpus730Dir + "netlink_route_getnexthop_vrf.pcap",
 			args:        []string{"vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
+		{
+			// The family forms (VF1): under replay the dump fallback answers, and
+			// it is family-blind — the fallback's dump finds each capture's one
+			// recorded RTM_NEWLINK answer, the get's own, exactly as the nexthop
+			// row above does. The family byte reaches the request only live; the
+			// VF0 pin holds it.
+			description: "positive: -4 vrf show goipvrf over the -4 capture",
+			expected:    "goipvrf 100\n through the family-blind dump fallback",
+			pcap:        corpus730Dir + "netlink_route_getvrf_name_v4.pcap",
+			args:        []string{"-4", "vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
+		{
+			description: "positive: -6 vrf show goipvrf over the -6 capture",
+			expected:    "the same with AF_INET6",
+			pcap:        corpus730Dir + "netlink_route_getvrf_name_v6.pcap",
+			args:        []string{"-6", "vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
+		{
+			description: "corner: -0 vrf show goipvrf over the -0 capture",
+			expected:    "the same with AF_PACKET, the byte no other vrf request carries",
+			pcap:        corpus730Dir + "netlink_route_getvrf_name_0.pcap",
+			args:        []string{"-0", "vrf", "show", "goipvrf"},
 			wantStdout:  "goipvrf 100\n",
 		},
 	}
