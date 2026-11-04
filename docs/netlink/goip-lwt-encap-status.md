@@ -16,7 +16,7 @@
 - LE4-T01 is done: 23 `gw_lwt*` goip-parity write rows, one per form and ip rc, picked by `TestGwLwtMatrixRows` from the `lwt` rows: the 21 rc 0 forms, and implicit null and geneve's 3 data bytes at rc 2. nlparity now compares `RTA_MULTIPATH` hop by hop past each hop's padding, since the captures show `ip`'s stack bytes after a hop's `RTA_ENCAP_TYPE`. The rows stay ungated until LE4-T02 (V022–V024).
 - LE4-T02 is done, and LE4 and the plan are closed. The full run on the main merge, 5599e473, was clean (V025). On 84260fe2, two `--section route,nexthop` runs passed 124 of 124, all 23 `gw_lwt*` rows among them (V026). The full run with the rows gated passed 1330 of 1330 (V027). The 23 rows are in `gated_commands` and `TestAllowlistCommitted`'s earned list, and the GW matrix tables' gated check and `TestUngatedSurfaceIsNotVacuous` no longer skip `gw_lwt*` (V028–V029).
 
-**Next action:** none; the plan is closed. The other encap types (`seg6`, `seg6local`, `ioam6`, `rpl`, `ila`, `bpf`, `xfrm`) are the [follow-on](goip-lwt-encap.md#out-of-scope).
+**Next action:** none in this plan. The other encap types, all but `bpf`, are planned in [goip-lwt-srv6.md](goip-lwt-srv6.md) and tracked in [its status doc](goip-lwt-srv6-status.md).
 
 ## Contents
 
