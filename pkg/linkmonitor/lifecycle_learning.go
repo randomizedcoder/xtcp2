@@ -21,8 +21,12 @@ type lifecycle struct {
 	settleAt                 time.Duration
 	verifyAfter, resyncAfter uint64
 	rebaseline, resync       bool
-	completed                requestKind
-	retryAt, backoff         time.Duration
+	// provisional marks expected as taken at the learn deadline, in memory
+	// only; learnFrom is when learning began (learnStarted).
+	provisional, learnStarted bool
+	learnFrom                 time.Duration
+	completed                 requestKind
+	retryAt, backoff          time.Duration
 }
 
 func (l *lifecycle) control() error {
@@ -63,13 +67,17 @@ func (l *lifecycle) advance(now model.Stamp) error {
 		if now.Monotonic >= l.retryAt {
 			l.store.submit(*l.intended)
 		}
-	} else if l.rebaseline || !l.expected.Present {
+	} else if l.rebaseline || !l.expected.Present || l.provisional {
 		l.learn(now)
 	}
 	r.deadlines.cancel(deadlineKey{kind: deadlineLifecycle})
 	at := l.settleAt
 	if l.intended != nil {
 		at = l.retryAt
+	} else if d := l.monitor.cfg.LearnDeadline; d > 0 && l.learnStarted && !l.expected.Present {
+		if due := deadlineAfter(l.learnFrom, d); at == 0 || due < at {
+			at = due
+		}
 	}
 	if at > now.Monotonic && !l.store.busy {
 		r.deadlines.set(deadlineEntry{key: deadlineKey{kind: deadlineLifecycle}, at: at})
@@ -80,8 +88,12 @@ func (l *lifecycle) advance(now model.Stamp) error {
 func (l *lifecycle) learn(now model.Stamp) {
 	c := l.coordinator
 	r := c.scheduler.reducer
+	if !l.learnStarted {
+		l.learnStarted, l.learnFrom = true, now.Monotonic
+	}
 	if !r.countReady() || c.inbox.epoch.Load() != r.epoch {
 		l.settling, l.verifying, l.settleAt = false, false, 0
+		l.learnDeadline(now)
 		return
 	}
 	if l.verifying {
@@ -100,6 +112,20 @@ func (l *lifecycle) learn(now model.Stamp) {
 		l.settleAt = 0
 		l.beginVerification()
 	}
+}
+
+// learnDeadline takes the provisional baseline: past the deadline, with no
+// baseline yet and one complete inventory in this epoch, the visible up links
+// stand in for the unready count. It is published, never written.
+func (l *lifecycle) learnDeadline(now model.Stamp) {
+	r := l.coordinator.scheduler.reducer
+	d := l.monitor.cfg.LearnDeadline
+	if d <= 0 || l.expected.Present || !r.lastResync.Present || r.resyncEpoch != r.epoch ||
+		now.Monotonic < deadlineAfter(l.learnFrom, d) {
+		return
+	}
+	l.expected, l.provisional = presentValue(r.upCount), true
+	l.recordedAt = r.lastResync.Value.Wall
 }
 
 func (l *lifecycle) verify(now model.Stamp) {
@@ -129,6 +155,7 @@ func (l *lifecycle) saved(result model.SaveResult) error {
 	if result.Outcome == model.SaveDurable {
 		l.expected = presentValue(l.intended.Count)
 		l.recordedAt = l.intended.RecordedAt
+		l.provisional = false
 		l.intended = nil
 		if l.rebaseline {
 			l.completed |= rebaselineRequest
@@ -156,6 +183,7 @@ func (l *lifecycle) publish(now model.Stamp) error {
 	}
 	if err := l.coordinator.scheduler.reducer.publish(l.monitor, publicationState{
 		health: Health{Running: true}, expected: l.expected, recordedAt: l.recordedAt, now: now, baselineWriteErrors: l.writeErrors,
+		provisional: l.provisional,
 	}); err != nil {
 		return err
 	}

@@ -692,6 +692,15 @@ const LinkMonitorConfig$json = {
       '10': 'ipMaxBytes'
     },
     {'1': 'ip_listen', '3': 27, '4': 1, '5': 9, '8': {}, '10': 'ipListen'},
+    {
+      '1': 'learn_deadline',
+      '3': 28,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'learnDeadline'
+    },
   ],
   '8': [
     {'1': '_error_classes'},
@@ -732,9 +741,10 @@ final $typed_data.Uint8List linkMonitorConfigDescriptor = $convert.base64Decode(
     'GBcgASgISAJSFW1ldHJpY3NJbnRlcmZhY2VQYXRoc4gBARI3ChBtZXRyaWNzX2FsbF9wYXRoGB'
     'ggASgJQgi6SAVyAxiAAkgDUg5tZXRyaWNzQWxsUGF0aIgBARIZCghpcF9wYXRocxgZIAEoCFIH'
     'aXBQYXRocxItCgxpcF9tYXhfYnl0ZXMYGiABKA1CC7pICCoGGICAgIAEUgppcE1heEJ5dGVzEi'
-    'QKCWlwX2xpc3RlbhgbIAEoCUIHukgEcgIYQFIIaXBMaXN0ZW5CEAoOX2Vycm9yX2NsYXNzZXNC'
-    'FQoTX21ldHJpY3NfY2F0ZWdvcmllc0IaChhfbWV0cmljc19pbnRlcmZhY2VfcGF0aHNCEwoRX2'
-    '1ldHJpY3NfYWxsX3BhdGg=');
+    'QKCWlwX2xpc3RlbhgbIAEoCUIHukgEcgIYQFIIaXBMaXN0ZW4SUAoObGVhcm5fZGVhZGxpbmUY'
+    'HCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb25CDrpIC6oBCCIECICjBTIAUg1sZWFybk'
+    'RlYWRsaW5lQhAKDl9lcnJvcl9jbGFzc2VzQhUKE19tZXRyaWNzX2NhdGVnb3JpZXNCGgoYX21l'
+    'dHJpY3NfaW50ZXJmYWNlX3BhdGhzQhMKEV9tZXRyaWNzX2FsbF9wYXRo');
 
 @$core.Deprecated('Use xtcpConfigDescriptor instead')
 const XtcpConfig$json = {

@@ -60,7 +60,7 @@ func TestConfiguration(t *testing.T) {
 func TestDefaultConfig(t *testing.T) {
 	want := Config{
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
-		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
+		Settle:       30 * time.Second, LearnDeadline: 5 * time.Minute, Resync: time.Hour, StatsInterval: 15 * time.Second,
 		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*", IOBackend: IOBackendPoller,
 		ErrorWindow: 180 * time.Second, FlapWindow: 180 * time.Second, ErrorClasses: []string{"link", "rdma"},
 		CollectionMode: CollectionOnDemand, WatchInterval: time.Minute, SlowInterval: 5 * time.Minute,

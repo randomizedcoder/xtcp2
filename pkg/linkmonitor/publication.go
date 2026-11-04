@@ -45,6 +45,7 @@ type publicationState struct {
 	recordedAt          time.Time
 	now                 model.Stamp
 	baselineWriteErrors uint64
+	provisional         bool
 }
 
 // unixNanos keeps the zero time distinct. UnixNano is undefined outside years
@@ -77,8 +78,10 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 	}
 	r.expire(state.now.Monotonic)
 	pageCount := (len(r.slots) + devicesPerPage - 1) / devicesPerPage
+	health := r.publicationHealth(state.health.Running, state.expected.Present)
+	health.BaselineProvisional = state.expected.Present && state.provisional
 	next := &snapshotRoot{
-		version: version, namespace: r.namespace, health: r.publicationHealth(state.health.Running, state.expected.Present),
+		version: version, namespace: r.namespace, health: health,
 		lastResync:          r.lastResync,
 		baselineWriteErrors: state.baselineWriteErrors,
 		baselineRecordedAt:  unixNanos(state.recordedAt),

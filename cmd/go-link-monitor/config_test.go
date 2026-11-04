@@ -42,7 +42,7 @@ func TestOptions(t *testing.T) {
 
 func TestOptionsMapping(t *testing.T) {
 	t.Log("positive/boundary: every configurable field; expected: exact values including zero settle")
-	args := []string{"-metrics-addr=127.0.0.1:0", "-baseline-file=/tmp/example", "-settle=0", "-resync=2m",
+	args := []string{"-metrics-addr=127.0.0.1:0", "-baseline-file=/tmp/example", "-settle=0", "-learn-deadline=0", "-resync=2m",
 		"-stats-interval=2s", "-stats-include=rx", "-stats-exclude=queue", "--collector.netstat.fields=^Tcp_", "-io-backend=io_uring",
 		"-errors.window=0", "-flap-window=2s", "-errors.classes=", "-errors.exclude=.*@eno1"}
 	var output bytes.Buffer
@@ -54,6 +54,7 @@ func TestOptionsMapping(t *testing.T) {
 	want.BaselineFile, want.Settle, want.Resync, want.StatsInterval = "/tmp/example", 0, 2*time.Minute, 2*time.Second
 	want.StatsInclude, want.StatsExclude, want.NetstatFields, want.IOBackend = "rx", "queue", "^Tcp_", linkmonitor.IOBackendIOUring
 	want.ErrorWindow, want.FlapWindow, want.ErrorClasses, want.ErrorExclude = 0, 2*time.Second, []string{}, ".*@eno1"
+	want.LearnDeadline = 0
 	if opts.address != "127.0.0.1:0" || !reflect.DeepEqual(opts.monitor, want) {
 		t.Fatal(opts)
 	}
@@ -108,6 +109,7 @@ func TestCommandValidation(t *testing.T) {
 		{"positional", "negative", "trailing argument", "usage failure", []string{"foo"}, 2, "positional"},
 		{"duration", "negative", "unparseable duration", "usage failure", []string{"-resync=never"}, 2, "invalid command"},
 		{"negative", "boundary", "negative settle", "validation failure", []string{"-settle=-1s"}, 2, "nonnegative"},
+		{"learn-deadline", "negative", "negative learn deadline", "validation failure", []string{"-learn-deadline=-1ns"}, 2, "learn deadline must be nonnegative"},
 		{"zero", "boundary", "zero statistics interval", "validation failure", []string{"-stats-interval=0"}, 2, "positive"},
 		{"overflow", "boundary", "freshness arithmetic overflow", "validation failure", []string{"-resync=2562047h"}, 2, "representable"},
 		{"regexp", "negative", "malformed filter", "validation failure", []string{"-stats-include=[", "-max-speed-exceptions="}, 2, "regexp"},

@@ -71,6 +71,7 @@ compiledInEnrichers: {{compiledInEnrichers}}
 *linkMonitor: true
 *linkMonitorBaselineFile: linkMonitorBaselineFile-v
 *linkMonitorSettle: 141ms
+*linkMonitorLearnDeadline: 160ms
 *linkMonitorResync: 142ms
 *linkMonitorStatsInterval: 143ms
 *linkMonitorStatsInclude: linkMonitorStatsInclude-v

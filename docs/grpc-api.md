@@ -91,6 +91,7 @@ The service is always registered. When the daemon runs without the embedded moni
 | `-linkMonitor` | `LINK_MONITOR` | `true` | Run the embedded link monitor. |
 | `-linkMonitorBaselineFile` | `LINK_MONITOR_BASELINE_FILE` | `/var/lib/xtcp2/link-monitor-baseline.json` | Baseline file. |
 | `-linkMonitorSettle` | `LINK_MONITOR_SETTLE` | `30s` | How long link state must hold before the first baseline. |
+| `-linkMonitorLearnDeadline` | `LINK_MONITOR_LEARN_DEADLINE` | `5m` | If no baseline is learned by then, use the visible up count as a provisional, in-memory one (`baseline_provisional 1`); `0` waits forever. |
 | `-linkMonitorResync` | `LINK_MONITOR_RESYNC` | `1h` | Full resync interval. |
 | `-linkMonitorStatsInterval` | `LINK_MONITOR_STATS_INTERVAL` | `15s` | Statistics collection interval. |
 | `-linkMonitorStatsInclude`, `-linkMonitorStatsExclude` | `LINK_MONITOR_STATS_INCLUDE`, `LINK_MONITOR_STATS_EXCLUDE` | `.*`, `^$` | Interfaces whose statistics are collected. |

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Link monitor learn deadline.** `-linkMonitorLearnDeadline` (`LINK_MONITOR_LEARN_DEADLINE`, `link_monitor.learn_deadline`; go-link-monitor `-learn-deadline`), default 5m, 0 waits forever. If no baseline is learned by then, the visible up count becomes a provisional baseline, so `up_links_delta` still reports when the count never becomes ready (a stuck RDMA port, a hardware fault). It is kept in memory only, never written to the baseline file, and flagged by the sparse `go_link_monitor_baseline_provisional 1`; a normally learned baseline replaces it and is saved.
+
+### Fixes
+
+- **Link monitor baseline never written on most prod hosts.** Two causes, found on 78 of 105 hosts: the stock Ubuntu `ib_core` answers the RDMA netlink event subscription with `EOPNOTSUPP`, which was retried every 30 s and kept the count unready; and the bonding module's `/sys/class/net/bonding_masters`, a regular file, failed the RDMA netdev walk. A kernel without RDMA events now falls back to polled RDMA state (reported once, as `rdma_events` support `unsupported`), and non-netdev entries are skipped.
+
 ## 0.2.0 (2026-10)
 
 The first tagged release. These notes compare against `32a4fed4` (2026-08-17), the last revision most deployments built from; that tree also said `0.1.0` in `VERSION`.

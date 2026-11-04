@@ -9,8 +9,11 @@ import (
 const interfaceLabel = "interface"
 
 // Health describes the lifecycle and collection readiness of a snapshot.
+// BaselineProvisional marks a BaselineReady baseline taken at the learn
+// deadline from an unready count (Config.LearnDeadline).
 type Health struct {
 	Running, Ready, CollectionHealthy, BaselineReady bool
+	BaselineProvisional                              bool
 }
 
 // Snapshot retains immutable state. Its zero value is empty and not healthy.
