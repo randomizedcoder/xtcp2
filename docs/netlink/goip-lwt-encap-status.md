@@ -12,8 +12,9 @@
 - LE2-T02 is done, and LE2 is closed: a nexthop object's `encap ip` and `ip6` are built, no longer `ErrNotImplemented`, through `EncodeLwtEncapAs` with `NHA_ENCAP` and `NHA_ENCAP_TYPE`, under the same `addraw_l` bound as a route. `mpls`'s rows are unchanged (V010–V012).
 - LE3-T01 is done: `nlcapgen matrix -family lwt` writes 39 rows, the 27 forms (21 rc 0, 2 rc 2, 4 rc 255) and 12 duplicate adds, to `nix/microvms/workbench/lwt.rows.jsonl`. The plan's counts were corrected to these (V013–V015).
 - LE3-T02 is done: two fresh-boot batches agree on all 39 rows, every rc as written, and the first is the corpus in `pkg/xtcpnl/testdata/7_3_0/ws/lwt*` (V016–V018). The runs' only byte differences are `ip`'s unzeroed padding, in three places LE3-T03's O5 zeroing has to reach.
+- LE3-T03 is done, and LE3 is closed. O3 (`pkg/xtcpnl/xtcpnl_ws_lwt_test.go`) checks the 35 captured requests' encaps against their axes, and the 4 rc 255 rows send none. O5 has the four spaces: all 39 rows are `same`, and the two fibt rows moved from `differs` to `same`, now that `wsO5ZeroEncapPad` reaches a route's `RTA_ENCAP`, each hop's in `RTA_MULTIPATH`, and every nest inside them (V019–V021).
 
-**Next action:** LE3-T03, O3 in `pkg/xtcpnl/xtcpnl_ws_lwt_test.go` and O5's four spaces, with `wsO5ZeroEncapPad` widened.
+**Next action:** LE4-T01, the `gw_lwt*` goip-parity rows.
 
 ## Contents
 
@@ -36,7 +37,7 @@
 |---|---|---|---|---|
 | [LE1](goip-lwt-encap.md#le1--the-encoder) | the encoder | LE1-T02 | done | V001–V006 |
 | [LE2](goip-lwt-encap.md#le2--goips-three-places) | route, hop, nexthop | LE2-T02 | done | V007–V012 |
-| [LE3](goip-lwt-encap.md#le3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LE3-T03 | in progress | V013–V018 |
+| [LE3](goip-lwt-encap.md#le3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LE3-T03 | done | V013–V021 |
 | [LE4](goip-lwt-encap.md#le4--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LE4-T02 | not started | — |
 
 ## Task checklist
@@ -49,7 +50,7 @@
 | [x] | [LE2-T02](goip-lwt-encap.md#le2-t02-a-nexthop-object) | a nexthop object | done | V010–V012 |
 | [x] | [LE3-T01](goip-lwt-encap.md#le3-t01-the-lwt-family) | the `lwt` family | done | V013–V015 |
 | [x] | [LE3-T02](goip-lwt-encap.md#le3-t02-capture) | capture, twice | done | V016–V018 |
-| [ ] | [LE3-T03](goip-lwt-encap.md#le3-t03-o3-and-o5) | O3 and O5 | not started | — |
+| [x] | [LE3-T03](goip-lwt-encap.md#le3-t03-o3-and-o5) | O3 and O5 | done | V019–V021 |
 | [ ] | [LE4-T01](goip-lwt-encap.md#le4-t01-the-rows) | matrix rows | not started | — |
 | [ ] | [LE4-T02](goip-lwt-encap.md#le4-t02-the-vm-gate) | the VM gate | not started | — |
 
@@ -75,7 +76,10 @@
 | V015 | 2026-11-03 | LE3-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | b049bd16 |
 | V016 | 2026-11-03 | LE3-T02 | `nix run .#nlcap-ws -- up`, `batch nix/microvms/workbench/lwt.rows.jsonl --out <scratch>/lwt1`, `down` (guest 7.3.0, iproute2 7.2.0) | `NLCAP_BATCH_DONE rows=39 ok=39 not_ok=0`: every rc as written, so no expectation needed correcting. The refusals' messages: `Implicit NULL Label (3) can not be used in encapsulation.`; geneve's 3 data bytes a bare `Invalid argument` (no extack); `either "opts" is duplicate, or "vxlan_opts" is garbage.`; `"encap type" value is invalid` for a route's and a hop's `foo`; `argument "encap type" is required`; `File exists` for the 12 duplicates | — |
 | V017 | 2026-11-03 | LE3-T02 | the same on a second fresh boot into `lwt2`; each row's `ip.rc` and its `ip.pcap` message types compared with the first's, then each request's bytes with seq and pid blanked | 39 of 39 the same rc and types; 0 rows differ. The bytes differ in 6 requests, all in padding `ip` doesn't zero: after the second hop's `RTA_ENCAP_TYPE` (`lwthop/ec-002` and its duplicate), after `RTA_ENCAP_TYPE` on a route (`lwtroute6/ec-002` and its duplicate), and after geneve's `CLASS` and `TYPE` inside `NHA_ENCAP` (`lwtnh/ec-003` and its duplicate) | — |
-| V018 | 2026-11-03 | LE3-T02 | `lwt1` copied to `pkg/xtcpnl/testdata/7_3_0/ws/`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; lint-baseline and netlink-audit in a worktree with the captures | all pass; `TestWsCorpusRows` runs the 39 new rows (O1/O2). The captures are 1.0 MB | — |
+| V018 | 2026-11-03 | LE3-T02 | `lwt1` copied to `pkg/xtcpnl/testdata/7_3_0/ws/`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; lint-baseline and netlink-audit in a worktree with the captures | all pass; `TestWsCorpusRows` runs the 39 new rows (O1/O2). The captures are 1.0 MB | e536f98c |
+| V019 | 2026-11-03 | LE3-T03 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`, and O5's golden regenerated | all pass: `TestLwtProblem` (21 rows: mpls's stack and ttl, ttl 0, and ttl 0 not sent; ip's every scalar and flags; the flags and the id little-endian; the wrong encap type; two geneve options and a class little-endian; vxlan's gbp; erspan's ver and index, and its INDEX little-endian; an option kind not the axis; ip6's 16-byte dst; the second hop's encap; a hop's encap on the route; no second hop; a nexthop's id apart from the tunnel's; an axis with no check; a space not in the family; a body shorter than its header). `TestWsLwtCorpus`: 35 requests checked, the 4 rc 255 rows sent none. `TestWsO5ZeroEncapPad` (12 rows; 5 new: a route's encap and its type; a geneve option's padding two nests down; a hop's padding, its other bytes kept; a route's other attribute's padding left; a hop longer than `RTA_MULTIPATH`). O5's golden: the four spaces' summaries (18, 8, 7 and 6 `same`), fibt's two rows gone from `differs`, encap padding zeroed in 28 rows (from 4); no other row moved | — |
+| V020 | 2026-11-03 | LE3-T03 | mutation under `MemoryMax=6G`: the hop padding left; a route's `RTA_ENCAP` not zeroed; O3's flags check dropped; O3 reading erspan's `INDEX` little-endian | 4 of 4 killed (3, 5, 2 and 5 failing tests) | — |
+| V021 | 2026-11-03 | LE3-T03 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | — |
 
 ## Decision log
 
@@ -93,4 +97,5 @@
 - **A nexthop object's bound is a route's.** `ipnh_modify`'s encap is the same `buf[1024]` and `addraw_l(&req.n, 1024, …)`, so the header, the nhmsg and the attributes before `encap` count. `EncodeLwtEncapAs` gives the encoder the two `NHA_*` types, so the three places share one encoder.
 - **The plan's counts were off by the base-0 form.** Adding "`ip` `geneve_opts`, base 0" made 27 forms but moved the count to rc 2 rather than rc 0; the forms are 21 at rc 0, 2 at rc 2 (implicit null, geneve data of 3 bytes) and 4 at rc 255. `deriveDupGone` takes three duplicates from each of the four spaces, 12, not "up to 9".
 - **A tunnel's id is `tun_id` in the axes.** `LWTUNNEL_IP_ID` and a nexthop object's own id are both `id` on the command line. With both under `id`, `nhHasID` took the tunnel's 1 for the nexthop's and skipped `ip6`'s duplicate, which has no tunnel id. O3 reads `tun_id` and `hopN_tun_id`.
-- **O5's zeroing has to reach inside the options.** The second boot's bytes differ from the first's in the padding after geneve's `CLASS` (2 bytes) and `TYPE` (3 bytes), two nests below `NHA_ENCAP`, as well as after a route's and a hop's `RTA_ENCAP_TYPE`. So `wsO5ZeroEncapPad` walks every nest inside the encap, as `wsO5ZeroSubPad` does for a nexthop's, rather than only the top level.
+- **O5's zeroing has to reach inside the options.** The second boot's bytes differ from the first's in the padding after geneve's `CLASS` (2 bytes) and `TYPE` (3 bytes), two nests below `NHA_ENCAP`, as well as after a route's and a hop's `RTA_ENCAP_TYPE`. So `wsO5ZeroSubPad`, which walked one level, now recurses into every `NLA_F_NESTED` attribute inside the encap (LE3-T03).
+- **O5 calls an rc 255 encap refusal `same`.** `ip` exits 255 and goip 1 (`invargErr`), and neither sends a request, which is what O5 compares. So the four rc 255 forms can be O5 rows but not goip-parity picks, which need goip to exit 0.

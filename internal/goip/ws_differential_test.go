@@ -41,10 +41,11 @@ const wsO5Golden = "testdata/ws-differential.txt"
 
 // wsO5Spaces are the row directories O5 reads, in report order: the
 // matrix's, then those mined from the fib selftests, then the address,
-// neighbor and link matrices', then the kwlive keyword forms'.
+// neighbor and link matrices', then the kwlive keyword forms', then the
+// lwt encap forms'.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
 	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
-	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule"}
+	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -192,7 +193,9 @@ func wsO5ZeroPad(out []byte, from, to int) bool {
 }
 
 // wsO5ZeroSubPad zeroes the alignment padding after each attribute in
-// out[start:end], stopping at one that runs past end.
+// out[start:end], and inside each NLA_F_NESTED one, stopping at one that
+// runs past end. rta_nest sets the flag on every nest lwt_parse_encap opens,
+// down to a geneve option's.
 func wsO5ZeroSubPad(out []byte, start, end int) bool {
 	zeroed := false
 	for sub := start; sub+4 <= end; {
@@ -200,42 +203,81 @@ func wsO5ZeroSubPad(out []byte, start, end int) bool {
 		if sl < 4 || sub+sl > end {
 			break
 		}
+		if binary.LittleEndian.Uint16(out[sub+2:])&unix.NLA_F_NESTED != 0 {
+			zeroed = wsO5ZeroSubPad(out, sub+4, sub+sl) || zeroed
+		}
 		zeroed = wsO5ZeroPad(out, sub+sl, min(sub+(sl+3)&^3, end)) || zeroed
 		sub += (sl + 3) &^ 3
 	}
 	return zeroed
 }
 
-// wsO5ZeroEncapPad is a nexthop write with the alignment padding inside
-// NHA_ENCAP and after NHA_ENCAP_TYPE zeroed, and whether any of it wasn't
-// zero. ipnexthop_modify has lwt_parse_encap build both in an
-// uninitialized stack buffer (ip/ipnexthop.c:1102) and copies them with
-// their padding (addraw_l); rta_addattr_l doesn't clear it, so a ttl's
-// three pad bytes and NHA_ENCAP_TYPE's two can be stack bytes. goip
-// writes zeros.
+// wsO5ZeroEncapPad is a nexthop or route write with the alignment padding
+// inside each encap and after each encap type zeroed, and whether any of
+// it wasn't zero: NHA_ENCAP and NHA_ENCAP_TYPE on a nexthop, RTA_ENCAP and
+// RTA_ENCAP_TYPE on a route and in each hop of its RTA_MULTIPATH.
+// lwt_parse_encap builds them in an uninitialized stack buffer
+// (ip/ipnexthop.c:1096, ip/iproute.c:1518, parse_nexthops' at :1103), and
+// rta_addattr_l doesn't clear the padding, so a ttl's three pad bytes and
+// the encap type's two can be stack bytes. goip writes zeros.
 func wsO5ZeroEncapPad(msg []byte) ([]byte, bool) {
-	if len(msg) < xtcpnl.NlMsgHdrSizeCst+xtcpnl.NhMsgSizeCst {
+	if len(msg) < xtcpnl.NlMsgHdrSizeCst {
 		return msg, false
 	}
-	if binary.LittleEndian.Uint16(msg[4:6]) != unix.RTM_NEWNEXTHOP {
+	hdr, encap, typ := 0, uint16(0), uint16(0)
+	switch binary.LittleEndian.Uint16(msg[4:6]) {
+	case unix.RTM_NEWNEXTHOP:
+		hdr, encap, typ = xtcpnl.NhMsgSizeCst, xtcpnl.NhaEncap, xtcpnl.NhaEncapType
+	case unix.RTM_NEWROUTE, unix.RTM_DELROUTE:
+		hdr, encap, typ = xtcpnl.RtMsgSizeCst, unix.RTA_ENCAP, unix.RTA_ENCAP_TYPE
+	default:
+		return msg, false
+	}
+	if len(msg) < xtcpnl.NlMsgHdrSizeCst+hdr {
 		return msg, false
 	}
 	out := slices.Clone(msg)
+	return out, wsO5ZeroEncapAttrs(out, xtcpnl.NlMsgHdrSizeCst+hdr, len(out), encap, typ)
+}
+
+// wsO5ZeroEncapAttrs is wsO5ZeroEncapPad over the attributes in
+// out[start:end], a message's or a hop's. A route's RTA_MULTIPATH is
+// walked hop by hop, each hop's attributes after its struct rtnexthop.
+func wsO5ZeroEncapAttrs(out []byte, start, end int, encap, typ uint16) bool {
 	zeroed := false
-	for off := xtcpnl.NlMsgHdrSizeCst + xtcpnl.NhMsgSizeCst; off+4 <= len(out); {
+	for off := start; off+4 <= end; {
 		l := int(binary.LittleEndian.Uint16(out[off:]))
-		if l < 4 || off+l > len(out) {
+		if l < 4 || off+l > end {
 			break
 		}
 		switch binary.LittleEndian.Uint16(out[off+2:]) &^ (unix.NLA_F_NESTED | unix.NLA_F_NET_BYTEORDER) {
-		case xtcpnl.NhaEncap:
+		case encap:
 			zeroed = wsO5ZeroSubPad(out, off+4, off+l) || zeroed
-		case xtcpnl.NhaEncapType:
-			zeroed = wsO5ZeroPad(out, off+l, min(off+(l+3)&^3, len(out))) || zeroed
+		case typ:
+			zeroed = wsO5ZeroPad(out, off+l, min(off+(l+3)&^3, end)) || zeroed
+		case unix.RTA_MULTIPATH:
+			if encap == unix.RTA_ENCAP {
+				zeroed = wsO5ZeroHops(out, off+4, off+l) || zeroed
+			}
 		}
 		off += (l + 3) &^ 3
 	}
-	return out, zeroed
+	return zeroed
+}
+
+// wsO5ZeroHops walks RTA_MULTIPATH's struct rtnexthops in out[start:end].
+func wsO5ZeroHops(out []byte, start, end int) bool {
+	const rtnhLen = 8
+	zeroed := false
+	for hop := start; hop+rtnhLen <= end; {
+		l := int(binary.LittleEndian.Uint16(out[hop:]))
+		if l < rtnhLen || hop+l > end {
+			break
+		}
+		zeroed = wsO5ZeroEncapAttrs(out, hop+rtnhLen, hop+l, unix.RTA_ENCAP, unix.RTA_ENCAP_TYPE) || zeroed
+		hop += (l + 3) &^ 3
+	}
+	return zeroed
 }
 
 func TestWsO5HdrLen(t *testing.T) {
@@ -534,7 +576,7 @@ func TestWsGoipDifferential(t *testing.T) {
 			sp, c[o5Same], c[o5Refuses], c[o5Sends], c[o5Differs], c["lookups"], c["n/a"]))
 	}
 	head = append(head, fmt.Sprintf("# metrics padding: %d rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing", padRows))
-	head = append(head, fmt.Sprintf("# encap padding: %d rows: ip sends stack bytes in a nexthop's NHA_ENCAP or after NHA_ENCAP_TYPE; zeroed before comparing", encapPadRows))
+	head = append(head, fmt.Sprintf("# encap padding: %d rows: ip sends stack bytes in an encap or after its type, on a nexthop, a route or a hop; zeroed before comparing", encapPadRows))
 	for _, n := range slices.Sorted(maps.Keys(lookupNotes)) {
 		head = append(head, fmt.Sprintf("# lookups: %d rows: %s", lookupNotes[n], n))
 	}
@@ -829,7 +871,28 @@ func TestWsO5ZeroEncapPad(t *testing.T) {
 		return []byte{20, 0, 8, 0x80, 8, 0, 1, 0, 0, 6, 0x51, 0, 5, 0, 2, 0, 10, p, p, p, 6, 0, 7, 0, 1, 0, q, q}
 	}
 	other := nh(encap(0x7f, 0x9b)...)
-	binary.LittleEndian.PutUint16(other[4:6], unix.RTM_NEWROUTE)
+	binary.LittleEndian.PutUint16(other[4:6], unix.RTM_NEWLINK)
+	// route is an RTM_NEWROUTE with an rtmsg and the attributes after it.
+	route := func(attrs ...byte) []byte {
+		m := make([]byte, xtcpnl.NlMsgHdrSizeCst+xtcpnl.RtMsgSizeCst, 96)
+		binary.LittleEndian.PutUint16(m[4:6], unix.RTM_NEWROUTE)
+		return append(m, attrs...)
+	}
+	// ttl is RTA_ENCAP holding LWTUNNEL_IP_TTL 64 with pad bytes p, then
+	// RTA_ENCAP_TYPE ip with pad bytes q.
+	ttl := func(p, q byte) []byte {
+		return []byte{12, 0, 0x16, 0x80, 5, 0, 4, 0, 64, p, p, p, 6, 0, 21, 0, 2, 0, q, q}
+	}
+	// geneve is RTA_ENCAP holding LWTUNNEL_IP_OPTS, a GENEVE option, and
+	// its CLASS and TYPE with pad bytes p, two nests below the encap.
+	geneve := func(p byte) []byte {
+		return []byte{28, 0, 0x16, 0x80, 24, 0, 8, 0x80, 20, 0, 1, 0x80,
+			6, 0, 1, 0, 1, 2, p, p, 5, 0, 2, 0, 0x80, p, p, p, 6, 0, 21, 0, 2, 0, 0, 0}
+	}
+	// hop is RTA_MULTIPATH with one rtnexthop: ttl(p, q), then a gateway.
+	hop := func(p, q byte) []byte {
+		return append([]byte{40, 0, 9, 0, 36, 0, 0, 0, 2, 0, 0, 0}, append(ttl(p, q), 8, 0, 5, 0, 192, 0, 2, 1)...)
+	}
 	tests := []struct {
 		description string
 		msg         []byte
@@ -840,7 +903,14 @@ func TestWsO5ZeroEncapPad(t *testing.T) {
 		{"positive: only the encap type's pad", nh(encap(0, 0x17)...), nh(encap(0, 0)...), true},
 		{"positive: a zero pad is left and not reported", nh(encap(0, 0)...), nh(encap(0, 0)...), false},
 		{"negative: padding after another attribute is left", nh(5, 0, 1, 0, 9, 0xff, 0xff, 0xff), nh(5, 0, 1, 0, 9, 0xff, 0xff, 0xff), false},
-		{"negative: a route write is left", other, other, false},
+		{"negative: another message type is left", other, other, false},
+		{"positive: a route's encap and its type", route(ttl(0x7f, 0x9b)...), route(ttl(0, 0)...), true},
+		{"positive: a geneve option's padding, two nests down", route(geneve(0x7f)...), route(geneve(0)...), true},
+		{"positive: a hop's padding zeroed, its other bytes kept", route(hop(0x7f, 0x9b)...), route(hop(0, 0)...), true},
+		{"negative: padding after a route's other attribute is left", route(5, 0, 20, 0, 1, 0xff, 0xff, 0xff),
+			route(5, 0, 20, 0, 1, 0xff, 0xff, 0xff), false},
+		{"corner: a hop longer than RTA_MULTIPATH stops the walk", route(12, 0, 9, 0, 9, 0, 0, 0, 2, 0, 0, 0),
+			route(12, 0, 9, 0, 9, 0, 0, 0, 2, 0, 0, 0), false},
 		{"corner: a sub-attribute longer than its nest stops the walk", nh(8, 0, 8, 0x80, 9, 0, 1, 0), nh(8, 0, 8, 0x80, 9, 0, 1, 0), false},
 		{"boundary: shorter than an nhmsg", []byte{1, 2, 3}, []byte{1, 2, 3}, false},
 	}
