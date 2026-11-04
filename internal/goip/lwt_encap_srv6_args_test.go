@@ -142,6 +142,8 @@ func TestLwtEncapArgsSrv6(t *testing.T) {
 			expected: local(nil, act(1), flv(xtcpnl.Seg6LocalFlavorSet{Ops: csid, LcnodeFnBits: 16, HasLcnodeFn: true})), last: 7},
 		{description: "boundary: next-csid last, where ip reads past argv", args: "encap seg6local action End flavors next-csid",
 			err: ErrInvalidArgument, errText: "Command line is not complete"},
+		{description: "boundary: next-csid's lblen value last, where ip reads past argv for nflen", args: "encap seg6local action End flavors next-csid lblen 32",
+			err: ErrInvalidArgument, errText: "Command line is not complete"},
 		{description: "corner: seg6local next-csid alone stops before dev", args: "encap seg6local action End flavors next-csid dev d0",
 			expected: local(nil, act(1), flv(xtcpnl.Seg6LocalFlavorSet{Ops: csid})), last: 5},
 		{description: "corner: seg6local's flavors by strcasecmp", args: "encap seg6local action End flavors PSP dev d0",
