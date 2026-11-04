@@ -6,7 +6,9 @@
 - The design and the task plan are in [goip-lwt-encap.md](goip-lwt-encap.md). This document tracks progress against them.
 - The plan is written (DOC001). It follows [goip-live-forms.md](goip-live-forms.md), which is closed ([its status](goip-live-forms-status.md)). goip builds `encap` `mpls`, `ip` and `ip6`, with the tunnel options, for a route, a hop and a nexthop object. A 26-form `lwt` workbench family checks it, followed by goip-parity rows and a VM gate.
 
-**Next action:** LE1-T01, the `ip` and `ip6` encodings in `pkg/xtcpnl/xtcpnl_lwt_ip.go`.
+- LE1-T01 is done: `pkg/xtcpnl/xtcpnl_lwt_ip.go` encodes `encap ip` and `ip6`, with the geneve, vxlan and erspan options. `PutLwtEncap` covers it and `mpls`, and `EncodeLwtEncap` gives a route's or a hop's two `RouteAttr`s. The tunnel flags go out big-endian. `TestPutIPEncap`'s goldens are hand-built from the uapi numbers (V001–V003).
+
+**Next action:** LE1-T02, `lwtEncapArgs` in `internal/goip/lwt_encap_args.go`.
 
 ## Contents
 
@@ -27,7 +29,7 @@
 
 | Phase | Work | Closed by | State | Evidence |
 |---|---|---|---|---|
-| [LE1](goip-lwt-encap.md#le1--the-encoder) | the encoder | LE1-T02 | not started | — |
+| [LE1](goip-lwt-encap.md#le1--the-encoder) | the encoder | LE1-T02 | in progress | V001–V003 |
 | [LE2](goip-lwt-encap.md#le2--goips-three-places) | route, hop, nexthop | LE2-T02 | not started | — |
 | [LE3](goip-lwt-encap.md#le3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LE3-T03 | not started | — |
 | [LE4](goip-lwt-encap.md#le4--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LE4-T02 | not started | — |
@@ -36,7 +38,7 @@
 
 | Done | Task | Work | State | Evidence |
 |---|---|---|---|---|
-| [ ] | [LE1-T01](goip-lwt-encap.md#le1-t01-the-ip-and-ip6-encodings) | `ip`/`ip6` encodings | not started | — |
+| [x] | [LE1-T01](goip-lwt-encap.md#le1-t01-the-ip-and-ip6-encodings) | `ip`/`ip6` encodings | done | V001–V003 |
 | [ ] | [LE1-T02](goip-lwt-encap.md#le1-t02-lwtencapargs) | `lwtEncapArgs` | not started | — |
 | [ ] | [LE2-T01](goip-lwt-encap.md#le2-t01-a-route-and-a-hop) | a route and a hop | not started | — |
 | [ ] | [LE2-T02](goip-lwt-encap.md#le2-t02-a-nexthop-object) | a nexthop object | not started | — |
@@ -50,7 +52,10 @@
 
 | ID | Date | Task | Check | Result | Commit |
 |---|---|---|---|---|---|
-| DOC001 | 2026-11-03 | plan | The plan and this status doc, from O5's two `refuses` rows and `ip` 7.2.0's `lwt_parse_encap`, `parse_encap_{mpls,ip,ip6}`, the option parsers, and the kernel's `ip_tun_build_state` and `nla_get_labels`. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | — |
+| DOC001 | 2026-11-03 | plan | The plan and this status doc, from O5's two `refuses` rows and `ip` 7.2.0's `lwt_parse_encap`, `parse_encap_{mpls,ip,ip6}`, the option parsers, and the kernel's `ip_tun_build_state` and `nla_get_labels`. doccheck | task IDs one to one, the graph acyclic, no broken link or anchor | ee4bfcaa |
+| V001 | 2026-11-03 | LE1-T01 | `go vet ./pkg/xtcpnl/`, `go test -count=1 ./pkg/xtcpnl/` | all pass: `TestPutIPEncap` (15 rows: `id` and `dst`; every scalar, then `FLAGS` bytes `00 0d`; IPv6's types; two geneve nests; vxlan; erspan's two and four fields; no flags; four refusals that write nothing; geneve with no data, no class, an empty `DATA`), `TestPutLwtEncap` (7 rows: each type, neither, both, the exact buffer, one byte short and room for the nest alone, which write nothing), `TestEncodeLwtEncap` (5 rows) | — |
+| V002 | 2026-11-03 | LE1-T01 | mutation under `MemoryMax=6G`, `-run 'TestPutIPEncap\|TestPutLwtEncap\|TestEncodeLwtEncap'`: the flags written before the items; the flags little-endian; `INDEX` little-endian; `NLA_F_NESTED` dropped from an option nest | 4 of 4 killed (1, 1, 2 and 7 failing subtests) | — |
+| V003 | 2026-11-03 | LE1-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | — |
 
 ## Decision log
 
