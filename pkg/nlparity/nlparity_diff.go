@@ -556,6 +556,9 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 		if bytes.Equal(rs[0], ss[0]) {
 			continue
 		}
+		if a.Nested() && samePastPadding(rs[0], ss[0]) {
+			continue
+		}
 
 		// IFLA_AF_SPEC is descended into rather than reported as one blob,
 		// because a locus has to be narrow enough to allowlist. Normalization
@@ -582,6 +585,38 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 	}
 
 	return out
+}
+
+// samePastPadding reports whether two NLA_F_NESTED payloads hold the same
+// attributes once the alignment padding between them is set aside, descending
+// into the nests inside them.
+//
+// A top-level attribute's value already stops at its nla_len, so its padding
+// is never compared; inside a nest the payload is one value, padding and all.
+// The kernel's nla_parse skips that padding unread, and ip does not always
+// zero it: ipnexthop.c builds an MPLS encap in an uninitialised stack buffer,
+// so the three bytes after MPLS_IPTUNNEL_TTL are whatever was there
+// (goip-live-forms-status.md, LF3-T02). Two payloads that do not both parse
+// to the end, or differ in any attribute's type, order or value, are not the
+// same.
+func samePastPadding(ref, sub []byte) bool {
+	ra, rrem := SubAttrs(ref)
+	sa, srem := SubAttrs(sub)
+	if len(rrem) != 0 || len(srem) != 0 || len(ra) != len(sa) {
+		return false
+	}
+	for i := range ra {
+		if ra[i].Type != sa[i].Type {
+			return false
+		}
+		if bytes.Equal(ra[i].Val, sa[i].Val) {
+			continue
+		}
+		if !ra[i].Nested() || !samePastPadding(ra[i].Val, sa[i].Val) {
+			return false
+		}
+	}
+	return true
 }
 
 // diffAFSpec compares two IFLA_AF_SPEC payloads one address family at a time,

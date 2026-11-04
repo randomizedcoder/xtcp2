@@ -15,8 +15,9 @@
 - **LF2 is closed.**
 
 - LF3-T01 is done: 23 `gw_kw*` goip-parity write rows, one per form and ip rc, picked by the GW5 tables from the `kwlive` rows; every form GW5 left with no row has one at rc 0, and `tos`, `dsfield`, `pref`, `index` and single-nexthop `hw_stats off` one at rc 2 as well. They stay ungated until LF3-T02 (V013–V015).
+- LF3-T02 is in progress. The first `--section route,link,nexthop,rule` run passes 926 of 927 rows; `gw_kwnh_ec_003` diverges on the three pad bytes after `MPLS_IPTUNNEL_TTL` that `ip` takes from its stack (V016). nlparity now compares an `NLA_F_NESTED` attribute past its inner padding, as it already does a top-level attribute (V017, V018).
 
-**Next action:** LF3-T02, the VM gate: a `--section route,link,nexthop,rule` run, then the full run.
+**Next action:** LF3-T02: the section run again on this commit, then the full run; then the 23 rows are gated.
 
 ## Contents
 
@@ -50,7 +51,7 @@
 | [x] | [LF2-T02](goip-live-forms.md#lf2-t02-o3-for-kwlive) | O3 | done | V007–V009 |
 | [x] | [LF2-T03](goip-live-forms.md#lf2-t03-o5-over-kwlive) | O5 | done | V010–V012 |
 | [x] | [LF3-T01](goip-live-forms.md#lf3-t01-the-rows) | matrix rows | done | V013–V015 |
-| [ ] | [LF3-T02](goip-live-forms.md#lf3-t02-the-vm-gate) | the VM gate | not started | |
+| [ ] | [LF3-T02](goip-live-forms.md#lf3-t02-the-vm-gate) | the VM gate | in progress | V016– |
 
 ## Verification ledger
 
@@ -69,9 +70,12 @@
 | V010 | 2026-11-03 | LF2-T03 | `kwroute4`, `kwroute6`, `kwlink`, `kwnh`, `kwrule` added to `wsO5Spaces`; `go test ./internal/goip/ -run TestWsGoipDifferential` | first run: 32 `same`, and `kwnh/ec-002`, `ec-003`, `dup-2`, `dup-3` `differs`: `ip`'s two bytes after `NHA_ENCAP_TYPE` were `9b 17`, and its three after `MPLS_IPTUNNEL_TTL` `7f 00 00`, where goip's are zero. With `wsO5ZeroEncapPad` the golden gains the five spaces (13, 9, 5, 8 and 1 `same`, 0 otherwise) and `# encap padding: 4 rows`; every other space's line is unchanged, and the lookup notes are the known `IFLA_EXT_MASK` alone | 1332e184 |
 | V011 | 2026-11-03 | LF2-T03 | `TestWsO5ZeroEncapPad` (7 rows); mutation under `MemoryMax=6G`: `NLA_F_NESTED` not masked off `NHA_ENCAP`; `NHA_ENCAP_TYPE`'s padding left | all pass; 2 of 2 killed (5 and 6 failures: the table's positive rows and the four corpus rows) | 1332e184 |
 | V012 | 2026-11-03 | LF2-T03 | `go vet ./internal/goip/`, `go test -count=1 -race ./internal/goip/... ./pkg/xtcpnl/`; lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | 1332e184 |
-| V013 | 2026-11-03 | LF3-T01 | `go vet ./internal/goipparity/`, `go test -count=1 -race ./internal/goipparity/ ./pkg/nlparity/` | all pass. The three forms tables read the `kwlive` spaces too: the 20 forms with no row now pick 23 `kwlive` rows (13 route, 4 link, 5 nexthop, 1 rule); the two-hop form's rc 0 moves from `route4/pw-004` to `kwroute4/ec-007`, and `pw-004` stays as the weights form's. Each row's argv, setup and floor (the `ip.pcap` record count: 4, 6 for a vrf row, 2 for a rule or a set by group) is the capture's | this commit |
-| V014 | 2026-11-03 | LF3-T01 | mutation under `MemoryMax=6G`, `-run TestGw`: a vrf row's floor one short; `link set vrf1 up` dropped from `gwWsSetupVrf`; the repeated-argv pass-over dropped; the over-255 vrf form's cmd back to `\bvrf \S+` | 4 of 4 killed (2, 2, 14 and 3 failures) | this commit |
-| V015 | 2026-11-03 | LF3-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell over the added lines | all pass first time | this commit |
+| V013 | 2026-11-03 | LF3-T01 | `go vet ./internal/goipparity/`, `go test -count=1 -race ./internal/goipparity/ ./pkg/nlparity/` | all pass. The three forms tables read the `kwlive` spaces too: the 20 forms with no row now pick 23 `kwlive` rows (13 route, 4 link, 5 nexthop, 1 rule); the two-hop form's rc 0 moves from `route4/pw-004` to `kwroute4/ec-007`, and `pw-004` stays as the weights form's. Each row's argv, setup and floor (the `ip.pcap` record count: 4, 6 for a vrf row, 2 for a rule or a set by group) is the capture's | 04bb6059 |
+| V014 | 2026-11-03 | LF3-T01 | mutation under `MemoryMax=6G`, `-run TestGw`: a vrf row's floor one short; `link set vrf1 up` dropped from `gwWsSetupVrf`; the repeated-argv pass-over dropped; the over-255 vrf form's cmd back to `\bvrf \S+` | 4 of 4 killed (2, 2, 14 and 3 failures) | 04bb6059 |
+| V015 | 2026-11-03 | LF3-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell over the added lines | all pass first time | 04bb6059 |
+| V016 | 2026-11-03 | LF3-T02 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section route,link,nexthop,rule` at 04bb6059 | 927 rows: 926 `GOIP_PARITY_PASS`, `GOIP_PARITY_OVERALL_PASS`, but `GOIP_PARITY_UNGATED_DIVERGENCES 1`: `gw_kwnh_ec_003`'s `NHA_ENCAP`, `ip=0800010000065100050002000a7f0000 goip=…0a000000`, the decision's watched padding. The other 22 `gw_kw` rows pass | 04bb6059 |
+| V017 | 2026-11-03 | LF3-T02 | `samePastPadding` in `diffAttrs`; `go test -count=1 ./pkg/nlparity/ ./internal/goipparity/ ./internal/goip/`, `go vet ./pkg/nlparity/` | all pass: `TestSamePastPadding` (13 rows: V016's two payloads the same; a value, a label, a missing attribute, the order, the `NLA_F_NESTED` bit, a non-nested inner attribute and a short tail each not), `TestDiffAttrsNestedPadding` (4 rows) | this commit |
+| V018 | 2026-11-03 | LF3-T02 | mutation under `MemoryMax=6G`, `-run 'TestSamePastPadding\|TestDiffAttrsNestedPadding'`: the `Nested` guard in `diffAttrs` dropped; the call dropped; the remainder check, the count check, the type check, the inner `Nested` guard, the recursion each dropped. Then lint-baseline and netlink-audit in a worktree of the diff | 7 of 7 killed; both checks pass first time | this commit |
 
 ## Decision log
 
@@ -84,5 +88,6 @@
 - **The vrf forms name their VRF.** Both vrf rows' setup makes `vrf0` (table 100) and `vrf1` (table 1111), so a pre pattern on the table alone matched both; each form now matches `vrf vrfN` in the cmd and `vrfN type vrf table` in the pre.
 - **The one-label MPLS form excludes `ttl`.** `\bencap mpls \d+ ` matched the ttl row's duplicate at rc 2, whose argv then barred `kwnh/ec-003` from the ttl form; the form is now `\bencap mpls \d+ via `.
 - **`kwroute6/dup-2` is the `pref` form's rc 2 row.** GW5's rule passes a duplicate over only where a pick has its argv; `pref 2`'s add isn't a pick, so its duplicate is a row, as `route6/gone-3` was.
+- **nlparity compares a nest past its padding, rather than holding `gw_kwnh_ec_003` back.** V016 is the watched divergence: `ip`'s three bytes after `MPLS_IPTUNNEL_TTL` are its stack's. A top-level attribute's value already stops at `nla_len`, so its padding never reached a comparison; inside an `NLA_F_NESTED` attribute the payload was one value, padding and all. `samePastPadding` makes the two agree: two nested payloads that parse to the end into the same attributes, in the same order, with the same types and values (descending into inner nests), are the same. Anything else is still the one value finding it was. Only flagged nests: `IFLA_AF_SPEC` and the other unflagged nests stay compared whole. An allowlist entry would instead have suppressed any value difference in `NHA_ENCAP`.
 - **Watch `kwnh/ec-003` in the VM.** nlparity compares `NHA_ENCAP` as one value, padding inside it included, and the workbench's `ip` put `7f 00 00` after `MPLS_IPTUNNEL_TTL`. If the VM's does too, the row diverges for `ip`'s stack bytes (LF2-T03's decision), and LF3-T02 decides it.
 - **A separate family.** Adding the forms as axis values to `route`, `link`, `nexthop` or `rule` would change those spaces' pairwise rows and force a recapture of every row in them. `kwlive` leaves them byte for byte.
