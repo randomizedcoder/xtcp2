@@ -239,14 +239,27 @@ func putErspanOpt(ab *AttrBuilder, s *ErspanOpt) error {
 	})
 }
 
-// LwtEncap is one encap goip builds: MPLS or IP, exactly one set.
+// LwtEncap is one encap goip builds, exactly one field set.
 type LwtEncap struct {
-	MPLS *MplsEncap
-	IP   *IPEncap
+	MPLS      *MplsEncap
+	IP        *IPEncap
+	Seg6      *Seg6Encap
+	Seg6Local *Seg6LocalEncap
 }
 
-// ErrLwtEncap is an LwtEncap with neither or both of MPLS and IP set.
-var ErrLwtEncap = errors.New("xtcpnl: an lwt encap is one of mpls or ip")
+// ErrLwtEncap is an LwtEncap with no field set, or more than one.
+var ErrLwtEncap = errors.New("xtcpnl: an lwt encap is exactly one of its types")
+
+// set is how many of e's types are set.
+func (e *LwtEncap) set() int {
+	n := 0
+	for _, p := range []bool{e.MPLS != nil, e.IP != nil, e.Seg6 != nil, e.Seg6Local != nil} {
+		if p {
+			n++
+		}
+	}
+	return n
+}
 
 // PutLwtEncap appends lwt_parse_encap's encapAttr|NLA_F_NESTED and typeAttr
 // u16 for e. A failure leaves ab as it was.
@@ -254,12 +267,18 @@ func PutLwtEncap(ab *AttrBuilder, encapAttr, typeAttr uint16, e LwtEncap) error 
 	start := ab.Len()
 	var err error
 	switch {
-	case e.MPLS != nil && e.IP == nil:
-		err = PutMplsEncap(ab, encapAttr, typeAttr, *e.MPLS)
-	case e.IP != nil && e.MPLS == nil:
-		err = putIPEncap(ab, encapAttr, typeAttr, e.IP)
-	default:
+	case e.set() != 1:
 		err = ErrLwtEncap
+	case e.MPLS != nil:
+		err = PutMplsEncap(ab, encapAttr, typeAttr, *e.MPLS)
+	case e.IP != nil:
+		err = putIPEncap(ab, encapAttr, typeAttr, e.IP)
+	case e.Seg6 != nil:
+		err = putLwtNest(ab, encapAttr, typeAttr, unix.LWTUNNEL_ENCAP_SEG6, func() error { return putSeg6Encap(ab, e.Seg6) })
+	default:
+		err = putLwtNest(ab, encapAttr, typeAttr, unix.LWTUNNEL_ENCAP_SEG6_LOCAL, func() error {
+			return putSeg6LocalEncap(ab, e.Seg6Local)
+		})
 	}
 	if err != nil {
 		ab.n = start
