@@ -106,7 +106,7 @@ One new family, `lwt`, in a new `tools/nlcapgen/matrix_lwt.go`, built as `kwlive
 | `lwtnh` | `ip6` | `nexthop add id 62 encap ip6 dst 2001:db8:9::1 via 2001:db8:1::1 dev d0` | 0 | `NHA_ENCAP_TYPE` 4 |
 | `lwtnh` | `ip` `geneve_opts` | `nexthop add id 63 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233 via 192.0.2.1 dev d0` | 0 | the options nest inside `NHA_ENCAP` |
 
-That makes 27 forms (20 rc 0, 3 rc 2, 4 rc 255), plus up to 9 duplicates.
+That makes 27 forms (21 rc 0, 2 rc 2, 4 rc 255), plus 12 duplicates: `deriveDupGone`'s three per space, over four spaces.
 
 ## Out of scope
 
@@ -219,7 +219,7 @@ In `internal/goip`, a new `lwt_encap_args.go`:
 
 #### LE3-T01 the `lwt` family
 
-As [LF1-T01](goip-live-forms.md#lf1-t01-the-kwlive-family), for the forms table. `TestLwtSpaces` checks each row's cmd and rc, the 27 forms and up to 9 duplicates, every setup step `ip`, the modules, and the same bytes twice.
+As [LF1-T01](goip-live-forms.md#lf1-t01-the-kwlive-family), for the forms table. `TestLwtSpaces` checks each row's cmd and rc, the 27 forms and 12 duplicates, every setup step `ip`, the modules, and the same bytes twice.
 
 #### LE3-T02 capture
 

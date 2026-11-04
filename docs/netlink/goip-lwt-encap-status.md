@@ -10,8 +10,9 @@
 - LE1-T02 is done, and LE1 is closed: `lwtEncapArgs` in `internal/goip/lwt_encap_args.go` reads `encap mpls`, `ip` and `ip6` as `lwt_parse_encap` does, and the nexthop object's `encap` uses it (`ip`/`ip6` there still refuse until LE2-T02). `dst any` and `dst all` send an empty address, as `get_addr` gives them (V004–V006).
 - LE2-T01 is done: a route's `encap` (`routeArmEncap`) and a hop's (`parseOneNh`) go where the keyword is, from `internal/goip/route_write_encap.go`. ip's two buffer bounds are refusals. O5's two fibt rows moved from `refuses` to `differs`, and the only difference is `ip`'s stack padding after a hop's `RTA_ENCAP_TYPE`, which LE3-T03 zeroes (V007–V009).
 - LE2-T02 is done, and LE2 is closed: a nexthop object's `encap ip` and `ip6` are built, no longer `ErrNotImplemented`, through `EncodeLwtEncapAs` with `NHA_ENCAP` and `NHA_ENCAP_TYPE`, under the same `addraw_l` bound as a route. `mpls`'s rows are unchanged (V010–V012).
+- LE3-T01 is done: `nlcapgen matrix -family lwt` writes 39 rows, the 27 forms (21 rc 0, 2 rc 2, 4 rc 255) and 12 duplicate adds, to `nix/microvms/workbench/lwt.rows.jsonl`. The plan's counts were corrected to these (V013–V015).
 
-**Next action:** LE3-T01, the `lwt` family in `tools/nlcapgen/matrix_lwt.go`.
+**Next action:** LE3-T02, two fresh-boot `nlcap-ws` batches of `lwt.rows.jsonl` that agree.
 
 ## Contents
 
@@ -34,7 +35,7 @@
 |---|---|---|---|---|
 | [LE1](goip-lwt-encap.md#le1--the-encoder) | the encoder | LE1-T02 | done | V001–V006 |
 | [LE2](goip-lwt-encap.md#le2--goips-three-places) | route, hop, nexthop | LE2-T02 | done | V007–V012 |
-| [LE3](goip-lwt-encap.md#le3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LE3-T03 | not started | — |
+| [LE3](goip-lwt-encap.md#le3--the-rows-the-captures-and-the-oracles) | rows, captures, O3, O5 | LE3-T03 | in progress | V013–V015 |
 | [LE4](goip-lwt-encap.md#le4--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LE4-T02 | not started | — |
 
 ## Task checklist
@@ -45,7 +46,7 @@
 | [x] | [LE1-T02](goip-lwt-encap.md#le1-t02-lwtencapargs) | `lwtEncapArgs` | done | V004–V006 |
 | [x] | [LE2-T01](goip-lwt-encap.md#le2-t01-a-route-and-a-hop) | a route and a hop | done | V007–V009 |
 | [x] | [LE2-T02](goip-lwt-encap.md#le2-t02-a-nexthop-object) | a nexthop object | done | V010–V012 |
-| [ ] | [LE3-T01](goip-lwt-encap.md#le3-t01-the-lwt-family) | the `lwt` family | not started | — |
+| [x] | [LE3-T01](goip-lwt-encap.md#le3-t01-the-lwt-family) | the `lwt` family | done | V013–V015 |
 | [ ] | [LE3-T02](goip-lwt-encap.md#le3-t02-capture) | capture, twice | not started | — |
 | [ ] | [LE3-T03](goip-lwt-encap.md#le3-t03-o3-and-o5) | O3 and O5 | not started | — |
 | [ ] | [LE4-T01](goip-lwt-encap.md#le4-t01-the-rows) | matrix rows | not started | — |
@@ -67,7 +68,10 @@
 | V009 | 2026-11-03 | LE2-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | 41e07d2d |
 | V010 | 2026-11-03 | LE2-T02 | `go vet`, `go test -count=1 -race ./internal/goip/... ./pkg/xtcpnl/ ./internal/goipparity/` | all pass: `TestNexthopWriteEncapIP` (10 rows: ip's id and dst with the gateway and dev; ip6's tc, hoplimit and key with the flags last; the encap after the gateway; an erspan option; tos twice; an IPv4 dst in ip6; seg6 not implemented; an encap filling `addraw_l`'s 1024 bytes and one 4 bytes over; an id before the encap counting to the bound). `TestNexthopWriteEncapMpls` keeps its mpls rows; its other-type row, and `TestParseNexthopWriteArgs`' and `TestNexthopShowRefusals`' refusal rows, now use `seg6`. `TestEncodeLwtEncap` has a 6th row, a nexthop's two types. O5's golden unchanged | — |
 | V011 | 2026-11-03 | LE2-T02 | mutation under `MemoryMax=6G`, `-run 'TestNexthopWriteEncap\|TestParseNexthopWriteArgs'`: the attributes before the encap left out of its bound; the header left out; `NHA_ENCAP` and `NHA_ENCAP_TYPE` swapped | 3 of 3 killed (1, 2 and 15 failing rows) | — |
-| V012 | 2026-11-03 | LE2-T02 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | — |
+| V012 | 2026-11-03 | LE2-T02 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | 0dc0d9a0 |
+| V013 | 2026-11-03 | LE3-T01 | `go vet ./tools/nlcapgen/`, `go test -count=1 ./tools/nlcapgen/`; `nlcapgen matrix -family lwt -seed 1 -random 0` | all pass: `TestLwtSpaces` (30 rows and 5 checks: each of the 27 forms' cmd and rc, and three duplicates; the 27 forms and 12 duplicates, with 21, 2 and 4 forms at rc 0, 2 and 255; every setup step `ip` with no tolerated status; every row's `kwNhModules`; a nexthop's `id` apart from the tunnel's `tun_id`; the same bytes twice). The rows file regenerates to the committed bytes, and `TestWsCorpus*` is unchanged with no captures yet | — |
+| V014 | 2026-11-03 | LE3-T01 | mutation under `MemoryMax=6G`, `-run TestLwtSpaces`: the modules dropped; the base-0 geneve form written in hex; a nexthop's id under another fact name; the type-last form's rc 2 | 4 of 4 killed | — |
+| V015 | 2026-11-03 | LE3-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell | all pass first time | — |
 
 ## Decision log
 
@@ -83,3 +87,5 @@
 - **A hop's bound is what is left of `parse_nexthops`' 4096 bytes.** The `RTA_MULTIPATH` header, the earlier hops, this hop's `rtnexthop` and its attributes so far count. Over it, `parse_one_nh` fails and `ip` exits 255 with "Error: cannot parse nexthop"; goip refuses with the same text, and exits 1 as its other refusals do.
 - **LE2's capture rows wait for LE3.** The plan's "each `lwtroute4`, `lwtroute6`, `lwthop` form" (LE2-T01) and "each `lwtnh` form" (LE2-T02), byte for byte, need the captures LE3-T02 makes, so LE3-T03's O5 rows check those forms, and `TestRouteWriteEncap`'s and `TestNexthopWriteEncapIP`'s expected bytes are hand-built.
 - **A nexthop object's bound is a route's.** `ipnh_modify`'s encap is the same `buf[1024]` and `addraw_l(&req.n, 1024, …)`, so the header, the nhmsg and the attributes before `encap` count. `EncodeLwtEncapAs` gives the encoder the two `NHA_*` types, so the three places share one encoder.
+- **The plan's counts were off by the base-0 form.** Adding "`ip` `geneve_opts`, base 0" made 27 forms but moved the count to rc 2 rather than rc 0; the forms are 21 at rc 0, 2 at rc 2 (implicit null, geneve data of 3 bytes) and 4 at rc 255. `deriveDupGone` takes three duplicates from each of the four spaces, 12, not "up to 9".
+- **A tunnel's id is `tun_id` in the axes.** `LWTUNNEL_IP_ID` and a nexthop object's own id are both `id` on the command line. With both under `id`, `nhHasID` took the tunnel's 1 for the nexthop's and skipped `ip6`'s duplicate, which has no tunnel id. O3 reads `tun_id` and `hopN_tun_id`.
