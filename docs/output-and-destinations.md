@@ -112,7 +112,7 @@ sudo ./result/bin/xtcp2 -dest tcp:127.0.0.1:9000 -marshal jsonl -d 1
 sudo ./result/bin/xtcp2 -dest http://127.0.0.1:8080/ingest -marshal jsonl -d 1
 ```
 
-**In Docker** (mount the host namespace dirs so the daemon sees real sockets; records on `stdout`/`stderr` appear in `docker logs`):
+**In Docker** (mount the host namespace dirs so the daemon sees real sockets; `rslave` so it also sees namespaces created after it starts; records on `stdout`/`stderr` appear in `docker logs`):
 
 ```sh
 # one-time: expose the host root netns as a named netns
@@ -121,7 +121,7 @@ sudo mkdir -p /run/netns && sudo ip netns attach xtcp2host 1
 # CSV to docker logs
 docker run -d --name xtcp2 \
   --cap-add NET_ADMIN --cap-add SYS_ADMIN \
-  -v /run/netns:/run/netns:ro -v /run/docker/netns:/run/docker/netns:ro \
+  -v /run/netns:/run/netns:ro,rslave -v /run/docker/netns:/run/docker/netns:ro,rslave \
   xtcp2:min -dest stdout -marshal csv -d 1 -columns hostname,inetDiagMsgSocketSource,inetDiagMsgState
 docker logs xtcp2            # header + humanized rows
 ```

@@ -40,7 +40,7 @@ func TestLinkMonitorSettings(t *testing.T) {
 				if c.CollectionMode != linkmonitor.CollectionPoll {
 					return fmt.Errorf("collection mode %q, want poll", c.CollectionMode)
 				}
-				if c.BaselineFile != DefaultLinkMonitorBaseline || c.Settle != defaults.Settle ||
+				if c.BaselineFile != DefaultLinkMonitorBaseline || c.Settle != defaults.Settle || c.LearnDeadline != defaults.LearnDeadline ||
 					c.Resync != defaults.Resync || c.StatsInterval != defaults.StatsInterval ||
 					c.StatsInclude != defaults.StatsInclude || c.NetstatFields != defaults.NetstatFields {
 					return fmt.Errorf("got %+v", c)
@@ -144,6 +144,18 @@ func TestLinkMonitorSettings(t *testing.T) {
 			check: func(c linkmonitor.Config) error {
 				if c.Settle != 0 {
 					return fmt.Errorf("settle = %s", c.Settle)
+				}
+				return nil
+			},
+			exposure: "summary",
+		},
+		{
+			category: "boundary", description: "a zero learn deadline is applied, not treated as unset",
+			expected: "learn deadline 0: wait forever",
+			config:   &xtcp_config.LinkMonitorConfig{LearnDeadline: durationpb.New(0)},
+			check: func(c linkmonitor.Config) error {
+				if c.LearnDeadline != 0 {
+					return fmt.Errorf("learn deadline = %s", c.LearnDeadline)
 				}
 				return nil
 			},

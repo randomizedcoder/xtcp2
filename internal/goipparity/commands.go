@@ -2374,6 +2374,38 @@ var commands = withArgs([]Command{
 		// against ip_vrf_json; gated on runs 8 and 9 with its text twin.
 		Floor: 2, Implemented: true,
 	},
+	{
+		Name: "vrf show goipvrf", Slug: "vrf_show_name",
+		// Two, the single-get floor: ipvrf_show's argc==1 branch (ip/ipvrf.c
+		// :590-600) is ipvrf_get_table's one RTM_GETLINK get by name
+		// (iplink_vrf.c:102-166) — the same 44 bytes name_is_vrf sends, no
+		// ll_init_map, no IFLA_EXT_MASK — answered by the vrf link itself, and
+		// both sides print `goipvrf 100`. Grounded over both corpora's
+		// netlink_route_getnexthop_vrf.pcap (VS0) and VS3's
+		// netlink_route_getvrf_name.pcap; the object's tests are VS2's
+		// TestVrfShowName and TestVrfShowNameReplay.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "vrf show default", Slug: "vrf_show_default",
+		// Two, the ENODEV arm: no namespace builds a vrf named default, so the
+		// kernel answers the get with NLMSG_ERROR ENODEV and iplink_vrf.c
+		// :136-142 resolves it to the main table — both sides print `default
+		// 254`, ip without sending anything else. The errno reply is the
+		// transaction's whole second half, so the floor is the get's own.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "vrf show goip0", Slug: "vrf_show_novrf",
+		// Two, the kind-check arm: goip0 exists (the clean dummy), so the
+		// kernel answers the get with its own link message, kind dummy, and
+		// ipvrf_get_table's kind != "vrf" returns a zero table — the Invalid
+		// VRF both sides print on stderr and exit 1. Read rows drop stderr,
+		// so what the comparator holds is the shared 44-byte get and the
+		// silence on stdout, the reply-driven refusal the ENODEV rows cannot
+		// ground.
+		Floor: 2, Implemented: true,
+	},
 	// The link write rows (link-write-path.md phase 7): the 21 rows of the
 	// committed corpus in pkg/xtcpnl/testdata/7_1_4/link-write/write/, with
 	// the same preconditions and floors as capture-link-writes.exp. All 21

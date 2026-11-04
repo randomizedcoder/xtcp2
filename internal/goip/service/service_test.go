@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
@@ -85,6 +86,26 @@ func altNamedLinkBody(index int32, name, altName string) []byte {
 	inner := testServiceAttr(uint16(unix.IFLA_ALT_IFNAME), append([]byte(altName), 0))
 	b = append(b, testServiceAttr(uint16(unix.IFLA_PROP_LIST)|unix.NLA_F_NESTED, inner)...)
 	return b
+}
+
+// vrfTableBody extends a link body with the IFLA_LINKINFO nest a VRF
+// device's answer carries: IFLA_INFO_KIND kind and, when withTable is set,
+// IFLA_INFO_DATA holding the IFLA_VRF_TABLE u32 — the shape the recorded
+// answer to ipvrf_get_table has (netlink_route_getnexthop_vrf.pcap: name
+// "goipvrf", kind "vrf", table 100). kind "" reproduces the 7.3 kernel's
+// NAME_ONLY answer, which carries no nest at all.
+func vrfTableBody(b []byte, kind string, table uint32, withTable bool) []byte {
+	if kind == "" {
+		return b
+	}
+	info := testServiceAttr(uint16(unix.IFLA_INFO_KIND), append([]byte(kind), 0))
+	if withTable {
+		t := make([]byte, 4)
+		binary.LittleEndian.PutUint32(t, table)
+		data := testServiceAttr(xtcpnl.IflaVrfTable, t)
+		info = append(info, testServiceAttr(uint16(unix.IFLA_INFO_DATA)|unix.NLA_F_NESTED, data)...)
+	}
+	return append(b, testServiceAttr(uint16(unix.IFLA_LINKINFO)|unix.NLA_F_NESTED, info)...)
 }
 
 func testServiceAttr(typ uint16, value []byte) []byte {
@@ -725,6 +746,177 @@ func TestLinkByIndex(t *testing.T) {
 			}
 			if name != tc.wantName {
 				t.Errorf("name = %q, want %q", name, tc.wantName)
+			}
+		})
+	}
+}
+
+// TestVrfTableByName drives ipvrf_get_table's service half (VS1,
+// docs/netlink/vrf-show-name.md): the talk-or-fallback spine over
+// req.VrfCheckByName, the kind and table read off the reply, and the two
+// error shapes the object's outcome ladder keys off — a kernel errno
+// reaching the caller as-is, and the dump fallback's miss normalized to
+// ENODEV so the `default` rule behaves under GOIP_REPLAY as it does live.
+//
+// The request bytes are not retested here: TestVrfShowNameRequestIsNameIsVrf
+// pins them byte for byte against both corpora, and the builder is req_test's
+// subject.
+//
+// go test ./internal/goip/service/ -run TestVrfTableByName
+func TestVrfTableByName(t *testing.T) {
+	tests := []struct {
+		description string
+		expected    string
+		talkBody    []byte   // non-nil selects a TalkSource
+		talkErr     error    // a TalkSource whose get fails
+		dumpBodies  [][]byte // used when talkBody is nil
+		name        string
+		wantTable   uint32
+		wantErrIs   error  // errors.Is against the returned error
+		wantErrSub  string // a substring of the returned error's text
+		wantTalks   int
+		wantDumps   int
+	}{
+		{
+			description: "positive: a talk answer of kind vrf, table 100",
+			expected:    "(100, nil), one single-get and no dump",
+			talkBody:    vrfTableBody(namedLinkBody(4, "goipvrf"), "vrf", 100, true),
+			name:        "goipvrf",
+			wantTable:   100,
+			wantTalks:   1,
+		},
+		{
+			// The GOIP_REPLAY shape: a source with no Talk falls back to one
+			// dump and filters exactly, the same spine LinkByName takes.
+			description: "positive: the dump fallback finds the vrf in a dump-only source",
+			expected:    "(100, nil), one dump and no single-get",
+			dumpBodies: [][]byte{
+				namedLinkBody(1, "lo"),
+				vrfTableBody(namedLinkBody(4, "goipvrf"), "vrf", 100, true),
+			},
+			name:      "goipvrf",
+			wantTable: 100,
+			wantDumps: 1,
+		},
+		{
+			// The kernel answers the get; the device exists and is not a VRF.
+			// That is `ip`'s Invalid VRF, and it is the object's to print, so
+			// the error is nil and the table is zero.
+			description: "negative: a talk answer of kind dummy",
+			expected:    "(0, nil) — ip's Invalid VRF, the object's to print",
+			talkBody:    vrfTableBody(namedLinkBody(2, "goip0"), "dummy", 0, false),
+			name:        "goip0",
+			wantTalks:   1,
+		},
+		{
+			// The kernel's own ENODEV for a name it does not hold, the answer
+			// ipvrf_get_table's `default` rule keys off. It reaches the caller
+			// unchanged, the IsVRF precedent.
+			description: "negative: the talk fails with ENODEV",
+			expected:    "(0, err) wrapping unix.ENODEV; the object applies the default rule",
+			talkErr:     unix.ENODEV,
+			name:        "nosuchvrf",
+			wantErrIs:   unix.ENODEV,
+			wantTalks:   1,
+		},
+		{
+			// The fallback stands in for the get, so its miss is normalized to
+			// the kernel's ENODEV — otherwise the `default` rule would fire live
+			// and not under GOIP_REPLAY.
+			description: "negative: the fallback finds no matching link",
+			expected:    "(0, err) wrapping unix.ENODEV, the same shape as live",
+			dumpBodies:  [][]byte{namedLinkBody(1, "lo")},
+			name:        "nosuchvrf",
+			wantErrIs:   unix.ENODEV,
+			wantDumps:   1,
+		},
+		{
+			// iplink_vrf.c:161-165's BUG line: a vrf device with no table id,
+			// which no kernel creates. Documented, not printed (decision 1).
+			description: "boundary: kind vrf with no IFLA_VRF_TABLE",
+			expected:    "(0, nil) — the documented BUG case (decision 1)",
+			talkBody:    vrfTableBody(namedLinkBody(4, "goipvrf"), "vrf", 0, false),
+			name:        "goipvrf",
+			wantTalks:   1,
+		},
+		{
+			// A single-get that answers with the wrong link is a kernel- or
+			// replay-level surprise; linkFromGet's identity check names it in
+			// full rather than handing back some other device's table.
+			description: "boundary: the reply names a different link",
+			expected:    "an error naming the mismatch — linkFromGet's identity check, goip hardening",
+			talkBody:    vrfTableBody(namedLinkBody(2, "goip0"), "vrf", 100, true),
+			name:        "goipvrf",
+			wantErrSub:  "does not match",
+			wantTalks:   1,
+		},
+		{
+			// The kernel resolves altnames itself, so a reply carrying the
+			// asked-for name in IFLA_PROP_LIST is the device asked for — the
+			// matchName rule LinkByName and IsVRF already share.
+			description: "corner: the answer carries the asked name in IFLA_PROP_LIST",
+			expected:    "(100, nil); the kernel's own lookup covers altnames",
+			talkBody:    vrfTableBody(altNamedLinkBody(4, "goip", "goipvrf"), "vrf", 100, true),
+			name:        "goipvrf",
+			wantTable:   100,
+			wantTalks:   1,
+		},
+		{
+			// ipvrf_get_table never validates the name; goip's builder does,
+			// and the object maps ErrBadIfName onto the ENODEV arm so the
+			// transaction count still matches `ip` (decision 6). Here the
+			// builder's error is simply handed back, nothing sent.
+			description: "corner: an empty name",
+			expected:    "the builder's error propagates; VS2 maps it (decision 6)",
+			name:        "",
+			wantErrIs:   xtcpnl.ErrBadIfName,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("expected: %s", tc.expected)
+			var (
+				table uint32
+				err   error
+				talks int
+				dumps int
+			)
+			if tc.talkBody != nil || tc.talkErr != nil {
+				f := &fakeTalkSource{body: tc.talkBody, err: tc.talkErr}
+				table, err = newService(f).VrfTableByName(unix.AF_UNSPEC, tc.name)
+				talks, dumps = f.talks, len(f.types)
+			} else {
+				f := &fakeSource{bodies: map[uint16][][]byte{uint16(unix.RTM_NEWLINK): tc.dumpBodies}}
+				table, err = newService(f).VrfTableByName(unix.AF_UNSPEC, tc.name)
+				dumps = len(f.types)
+			}
+			if talks != tc.wantTalks {
+				t.Errorf("Talk calls = %d, want %d", talks, tc.wantTalks)
+			}
+			if dumps != tc.wantDumps {
+				t.Errorf("Dump calls = %d, want %d", dumps, tc.wantDumps)
+			}
+			if tc.wantErrIs != nil {
+				if err == nil {
+					t.Fatalf("VrfTableByName = %d, want an error wrapping %v", table, tc.wantErrIs)
+				}
+				if !errors.Is(err, tc.wantErrIs) {
+					t.Fatalf("err = %v, want one wrapping %v", err, tc.wantErrIs)
+				}
+				return
+			}
+			if tc.wantErrSub != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrSub) {
+					t.Fatalf("err = %v, want one containing %q", err, tc.wantErrSub)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("VrfTableByName(%q): %v", tc.name, err)
+			}
+			if table != tc.wantTable {
+				t.Errorf("table = %d, want %d", table, tc.wantTable)
 			}
 		})
 	}

@@ -335,6 +335,26 @@ proc capture_set {ns subdir dev} {
     # ip_vrf_json replays this pcap; -j never reaches the wire.
     capio $ns $subdir netlink_route_getvrf 2 "ip vrf show" ip_vrf
 
+    # The NAME form - ipvrf_show's argc==1 branch (ip/ipvrf.c:590-600) - is one
+    # RTM_GETLINK get by name, ipvrf_get_table's (iplink_vrf.c:102-166), the
+    # same request name_is_vrf sends and no dump at all: no ll_init_map, no
+    # IFLA_EXT_MASK, floor 2. The three rows hold every answer shape the kernel
+    # gives this get. `_name` asks for the base topology's goipvrf: base's
+    # answer is the vrf link itself and stdout "goipvrf 100"; mesh/tunnel hold
+    # no goipvrf, so the kernel answers NLMSG_ERROR ENODEV and stdout is empty.
+    # `_default` asks for a name no namespace has: ENODEV everywhere, which
+    # iplink_vrf.c:136-142 resolves to the main table - "default 254" in all
+    # three. `_novrf` asks for $dev, which exists everywhere but is no VRF: the
+    # kernel answers the get with the device's own link message, kind != "vrf",
+    # so ip prints "Invalid VRF" on stderr and exits 1 - the one row whose
+    # answer is a full link message rather than an error, grounding the kind
+    # check a reply-driven Invalid VRF needs. capio keeps stdout only, so the
+    # rc and the stderr line stay unit assertions (VS2); these rows ground the
+    # request and answer bytes.
+    capio $ns $subdir netlink_route_getvrf_name    2 "ip vrf show goipvrf" ip_vrf_name
+    capio $ns $subdir netlink_route_getvrf_default 2 "ip vrf show default" ip_vrf_default
+    capio $ns $subdir netlink_route_getvrf_novrf   2 "ip vrf show $dev"    ip_vrf_novrf
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"

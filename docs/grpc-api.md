@@ -2,6 +2,8 @@
 
 xtcp2 exposes a gRPC server (default port `8889`) with three services: one to read and change daemon configuration at runtime, one to stream live TCP records, and one to inspect and administer the embedded link monitor. gRPC server reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without the `.proto` files.
 
+For protection defaults, read/admin credential setup, TTL/UDS tradeoffs, and recommended deployments, see the [listener security guide](security.md). Auth is disabled by default, and the server and built-in clients do not provide native TLS.
+
 ## Table of contents
 
 - [The server](#the-server)
@@ -89,6 +91,7 @@ The service is always registered. When the daemon runs without the embedded moni
 | `-linkMonitor` | `LINK_MONITOR` | `true` | Run the embedded link monitor. |
 | `-linkMonitorBaselineFile` | `LINK_MONITOR_BASELINE_FILE` | `/var/lib/xtcp2/link-monitor-baseline.json` | Baseline file. |
 | `-linkMonitorSettle` | `LINK_MONITOR_SETTLE` | `30s` | How long link state must hold before the first baseline. |
+| `-linkMonitorLearnDeadline` | `LINK_MONITOR_LEARN_DEADLINE` | `5m` | If no baseline is learned by then, use the visible up count as a provisional, in-memory one (`baseline_provisional 1`); `0` waits forever. |
 | `-linkMonitorResync` | `LINK_MONITOR_RESYNC` | `1h` | Full resync interval. |
 | `-linkMonitorStatsInterval` | `LINK_MONITOR_STATS_INTERVAL` | `15s` | Statistics collection interval. |
 | `-linkMonitorStatsInclude`, `-linkMonitorStatsExclude` | `LINK_MONITOR_STATS_INCLUDE`, `LINK_MONITOR_STATS_EXCLUDE` | `.*`, `^$` | Interfaces whose statistics are collected. |
@@ -249,14 +252,14 @@ Clients keep their existing `-auth-*` flags and `XTCP2_GRPC_AUTH_TOKEN[_FILE]` /
 | `-grpcPort` | `8889` | Port the gRPC server listens on. |
 | `-grpcListenNetwork` | `tcp` | Listener network: `tcp` or `unix` (`GRPC_LISTEN_NETWORK`). |
 | `-grpcListenAddress` | — | Full listener address. For UDS, the socket path (`GRPC_LISTEN_ADDRESS`). For TCP, overrides `-grpcPort` when set. |
-| `-grpcUnixSocketMode` | `0600` | UDS permission bits after bind (`GRPC_UNIX_SOCKET_MODE`, decimal value). |
+| `-grpcUnixSocketMode` | `0600` | UDS permission bits after bind (`GRPC_UNIX_SOCKET_MODE`: octal with a leading `0`, e.g. `0660`, or decimal; above `0777` is ignored). |
 | `-grpcUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`GRPC_UNLINK_STALE_UNIX_SOCKET`). |
 
 Example:
 
 ```sh
 xtcp2 -grpcListenNetwork unix -grpcListenAddress /run/xtcp2/grpc.sock -grpcUnixSocketMode 432
-xtcp2ctl -network unix -unixSocket /run/xtcp2/grpc.sock get
+xtcp2ctl get -network unix -unixSocket /run/xtcp2/grpc.sock
 ```
 
 `432` is decimal for `0660`; use `384` for `0600`. The socket parent directory must already exist and should be owned so only trusted local users can traverse it.

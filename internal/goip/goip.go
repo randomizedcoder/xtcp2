@@ -153,7 +153,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // ll_name_to_index does not find, an SA check_sa_args refuses and a dump
 // it cannot finish. xfrm exits 255 for what ip/xfrm*.c ends with exit(-1),
 // 1 for an SPI the protocol cannot take, an answer it cannot print and a
-// dump it cannot finish, and 2 for a kernel refusal.
+// dump it cannot finish, and 2 for a kernel refusal. vrf exits 255 for
+// what ipvrf.c ends with usage's exit(-1) — `vrf help`, two or more names
+// — and 1 for an Invalid VRF, ipvrf_show's NAME branch with a zero table.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
@@ -161,7 +163,8 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage),
 		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
 		errors.Is(err, ErrFouDumpTerminated), errors.Is(err, ErrIlaUsage), errors.Is(err, ErrIlaDumpTerminated),
-		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage):
+		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage),
+		errors.Is(err, ErrVrfUsage):
 		return ExitMinusOne
 	case errors.Is(err, ErrLinkUsage):
 		// Ahead of ErrInvalidArgument, which its refusals wrap.
@@ -182,7 +185,7 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrMptcpReply), errors.Is(err, ErrFouRefused), errors.Is(err, ErrIlaShowArgs),
 		errors.Is(err, ErrL2tpDumpTerminated), errors.Is(err, ErrMacsecRefused),
 		errors.Is(err, ErrMacsecDumpTerminated), errors.Is(err, ErrXfrmRefused),
-		errors.Is(err, ErrXfrmDumpTerminated):
+		errors.Is(err, ErrXfrmDumpTerminated), errors.Is(err, ErrVrfInvalid):
 		return ExitUsage
 	}
 	return ExitFailure

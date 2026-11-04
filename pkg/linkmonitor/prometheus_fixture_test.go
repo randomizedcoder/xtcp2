@@ -129,6 +129,17 @@ func (f *PrometheusFixture) Publish(expected uint64) {
 	}
 }
 
+// PublishProvisional publishes a learn-deadline baseline; known false
+// publishes the provisional flag with no baseline at all.
+func (f *PrometheusFixture) PublishProvisional(expected uint64, known bool) {
+	f.t.Helper()
+	stamp := model.Stamp{Wall: time.Unix(10, 500000000), Monotonic: f.now}
+	state := publicationState{expected: model.Optional[uint64]{Value: expected, Present: known}, provisional: true, now: stamp}
+	if err := f.r.publish(f.Monitor, state); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
 // Expire advances only the owner's monotonic time, never scrape-time policy.
 func (f *PrometheusFixture) Expire(at time.Duration) { f.now = at; f.r.expire(at) }
 

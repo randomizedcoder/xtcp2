@@ -23,6 +23,7 @@ func defineLinkMonitorFlags(f *mainFlags) {
 	f.linkMonitor = flag.Bool("linkMonitor", true, "run the embedded link monitor: link counts against a baseline, per-interface and RDMA checks and collector health on the Prometheus listener, its detail paths beside -promPath, plus LinkMonitorService on the gRPC listener. Falls back to LINK_MONITOR env.")
 	f.linkMonitorBaselineFile = flag.String("linkMonitorBaselineFile", xtcp.DefaultLinkMonitorBaseline, "link monitor baseline file; locked, so it must differ from any standalone go-link-monitor's. Falls back to LINK_MONITOR_BASELINE_FILE env.")
 	f.linkMonitorSettle = flag.Duration("linkMonitorSettle", d.Settle, "how long link state must hold before the first baseline is recorded. Falls back to LINK_MONITOR_SETTLE env.")
+	f.linkMonitorLearnDeadline = flag.Duration("linkMonitorLearnDeadline", d.LearnDeadline, "if no baseline is learned this long after start, take the visible up count as a provisional, in-memory one (baseline_provisional 1); 0 waits forever. Falls back to LINK_MONITOR_LEARN_DEADLINE env.")
 	f.linkMonitorResync = flag.Duration("linkMonitorResync", d.Resync, "full link resync interval (positive). Falls back to LINK_MONITOR_RESYNC env.")
 	f.linkMonitorStatsInterval = flag.Duration("linkMonitorStatsInterval", d.StatsInterval, "interface statistics collection interval (positive). Falls back to LINK_MONITOR_STATS_INTERVAL env.")
 	f.linkMonitorStatsInclude = flag.String("linkMonitorStatsInclude", d.StatsInclude, "regexp of interfaces whose statistics are collected. Falls back to LINK_MONITOR_STATS_INCLUDE env.")
@@ -44,8 +45,9 @@ func defineLinkMonitorFlags(f *mainFlags) {
 	f.linkMonitorMetricsCategories = flag.String("linkMonitorMetricsCategories", strings.Join(monitorprom.Categories(), ","), "comma-separated detail categories served at -promPath/<category>; empty serves none. Falls back to LINK_MONITOR_METRICS_CATEGORIES env.")
 	f.linkMonitorInterfacePaths = flag.Bool("linkMonitorMetricsInterfacePaths", true, "serve -promPath/<category>/<interface> and -linkMonitorMetricsAllPath/<interface>. Falls back to LINK_MONITOR_METRICS_INTERFACE_PATHS env.")
 	f.linkMonitorMetricsAllPath = flag.String("linkMonitorMetricsAllPath", xtcp.DefaultLinkMonitorAllPath, "path serving every link monitor metric on the Prometheus listener; empty serves none. Falls back to LINK_MONITOR_METRICS_ALL_PATH env.")
-	f.linkMonitorIPPaths = flag.Bool("linkMonitorIPPaths", false, "serve the read-only `ip ... show` paths under /ip and /i on the Prometheus listener; they expose host addresses. Falls back to LINK_MONITOR_IP_PATHS env.")
+	f.linkMonitorIPPaths = flag.Bool("linkMonitorIPPaths", false, "serve the read-only `ip ... show` paths under /ip and /i on the Prometheus listener, or on -linkMonitorIPListen; they expose host addresses. Falls back to LINK_MONITOR_IP_PATHS env.")
 	f.linkMonitorIPMaxBytes = flag.Uint("linkMonitorIPMaxBytes", goiphttp.DefaultMaxBytes, "largest /ip response body in bytes. Falls back to LINK_MONITOR_IP_MAX_BYTES env.")
+	f.linkMonitorIPListen = flag.String("linkMonitorIPListen", "", "loopback host:port, such as 127.0.0.1:9089, serving /ip and /i on a listener of their own, without listener auth, instead of on the Prometheus listener; needs -linkMonitorIPPaths. Connections from non-loopback addresses are closed. Empty keeps one listener. Falls back to LINK_MONITOR_IP_LISTEN env.")
 }
 
 // buildLinkMonitorConfig maps the flags onto XtcpConfig.link_monitor.
@@ -54,6 +56,7 @@ func buildLinkMonitorConfig(f *mainFlags) *xtcp_config.LinkMonitorConfig {
 		Enable:                *f.linkMonitor,
 		BaselineFile:          *f.linkMonitorBaselineFile,
 		Settle:                durationpb.New(*f.linkMonitorSettle),
+		LearnDeadline:         durationpb.New(*f.linkMonitorLearnDeadline),
 		Resync:                durationpb.New(*f.linkMonitorResync),
 		StatsInterval:         durationpb.New(*f.linkMonitorStatsInterval),
 		StatsInclude:          *f.linkMonitorStatsInclude,
@@ -77,6 +80,7 @@ func buildLinkMonitorConfig(f *mainFlags) *xtcp_config.LinkMonitorConfig {
 		MetricsAllPath:        proto.String(*f.linkMonitorMetricsAllPath),
 		IpPaths:               *f.linkMonitorIPPaths,
 		IpMaxBytes:            uint32(min(*f.linkMonitorIPMaxBytes, maxLinkMonitorIPMaxBytes)),
+		IpListen:              *f.linkMonitorIPListen,
 	}
 }
 
@@ -86,11 +90,12 @@ func buildLinkMonitorConfig(f *mainFlags) *xtcp_config.LinkMonitorConfig {
 const maxLinkMonitorIPMaxBytes = 1 << 30
 
 // printLinkMonitorFlags prints the link monitor run, linkMonitor through
-// linkMonitorIPMaxBytes, and pairs with defineLinkMonitorFlags.
+// linkMonitorIPListen, and pairs with defineLinkMonitorFlags.
 func printLinkMonitorFlags(f *mainFlags) {
 	fmt.Println("*linkMonitor:", *f.linkMonitor)
 	fmt.Println("*linkMonitorBaselineFile:", *f.linkMonitorBaselineFile)
 	fmt.Println("*linkMonitorSettle:", *f.linkMonitorSettle)
+	fmt.Println("*linkMonitorLearnDeadline:", *f.linkMonitorLearnDeadline)
 	fmt.Println("*linkMonitorResync:", *f.linkMonitorResync)
 	fmt.Println("*linkMonitorStatsInterval:", *f.linkMonitorStatsInterval)
 	fmt.Println("*linkMonitorStatsInclude:", *f.linkMonitorStatsInclude)
@@ -114,6 +119,7 @@ func printLinkMonitorFlags(f *mainFlags) {
 	fmt.Println("*linkMonitorMetricsAllPath:", *f.linkMonitorMetricsAllPath)
 	fmt.Println("*linkMonitorIPPaths:", *f.linkMonitorIPPaths)
 	fmt.Println("*linkMonitorIPMaxBytes:", *f.linkMonitorIPMaxBytes)
+	fmt.Println("*linkMonitorIPListen:", *f.linkMonitorIPListen)
 }
 
 // envOverrideLinkMonitor applies the LINK_MONITOR_* variables. Like the other
@@ -159,6 +165,7 @@ func envOverrideLinkMonitor(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		{"LINK_MONITOR_METRICS_CORE_EXCLUDE", &m.MetricsCoreExclude},
 		{"LINK_MONITOR_COLLECTION_MODE", &m.CollectionMode},
 		{"LINK_MONITOR_ERRORS_EXCLUDE", &m.ErrorExclude},
+		{"LINK_MONITOR_IP_LISTEN", &m.IpListen},
 	} {
 		if v, ok := envString(s.key); ok {
 			*s.target = v
@@ -188,6 +195,7 @@ func envOverrideLinkMonitor(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		target **durationpb.Duration
 	}{
 		{"LINK_MONITOR_SETTLE", &m.Settle},
+		{"LINK_MONITOR_LEARN_DEADLINE", &m.LearnDeadline},
 		{"LINK_MONITOR_RESYNC", &m.Resync},
 		{"LINK_MONITOR_STATS_INTERVAL", &m.StatsInterval},
 		{"LINK_MONITOR_WATCH_INTERVAL", &m.WatchInterval},
@@ -210,6 +218,7 @@ func printLinkMonitorConfig(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.LinkMonitor.Enable:", m.GetEnable())
 	fmt.Println("c.LinkMonitor.BaselineFile:", m.GetBaselineFile())
 	fmt.Println("c.LinkMonitor.Settle:", m.GetSettle().AsDuration().String())
+	fmt.Println("c.LinkMonitor.LearnDeadline:", m.GetLearnDeadline().AsDuration().String())
 	fmt.Println("c.LinkMonitor.Resync:", m.GetResync().AsDuration().String())
 	fmt.Println("c.LinkMonitor.StatsInterval:", m.GetStatsInterval().AsDuration().String())
 	fmt.Println("c.LinkMonitor.MaxSpeedExceptions:", m.GetMaxSpeedExceptions())
@@ -227,4 +236,5 @@ func printLinkMonitorConfig(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.LinkMonitor.MetricsAllPath:", m.GetMetricsAllPath())
 	fmt.Println("c.LinkMonitor.IpPaths:", m.GetIpPaths())
 	fmt.Println("c.LinkMonitor.IpMaxBytes:", m.GetIpMaxBytes())
+	fmt.Println("c.LinkMonitor.IpListen:", m.GetIpListen())
 }

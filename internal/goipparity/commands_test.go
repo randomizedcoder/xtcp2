@@ -867,6 +867,27 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			floor:       2,
 			implemented: true,
 		},
+		{
+			description: "positive: vrf show goipvrf, the ipvrf_get_table single get, answered by the vrf link itself",
+			name:        "vrf show goipvrf",
+			slug:        "vrf_show_name",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: vrf show default, the ENODEV arm both sides resolve to the main table",
+			name:        "vrf show default",
+			slug:        "vrf_show_default",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "corner: vrf show goip0, a device that exists but is no vrf, so the reply itself carries the refusal",
+			name:        "vrf show goip0",
+			slug:        "vrf_show_novrf",
+			floor:       2,
+			implemented: true,
+		},
 	}
 
 	for _, tt := range rows {
@@ -4653,6 +4674,50 @@ func TestXfrmPolicyWriteRows(t *testing.T) {
 					floor: c.Floor, slug: c.Slug, topology: slices.Equal(steps, corpus)}
 			}
 			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestVrfShowNameRowsGated pins VS4's three `vrf show NAME` rows: implemented,
+// on no Setup (the topology's clean dummy and goipvrf are all they need), each
+// floor 2 — the one RTM_GETLINK get by name and its answer — and gated with no
+// allowlist entry after two clean runs. The dump twin they sit beside stays
+// gated beside them.
+//
+// go test ./internal/goipparity/ -run TestVrfShowNameRowsGated
+func TestVrfShowNameRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, setup bool
+		floor, entries            int
+	}
+	gated := want{implemented: true, gated: true, floor: 2}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the vrf's own name, goipvrf 100 on stdout", "vrf show goipvrf", gated},
+		{"positive: default, the ENODEV arm resolved to the main table", "vrf show default", gated},
+		{"corner: goip0, a real device that is no vrf, prints nothing on stdout", "vrf show goip0", gated},
+		{"boundary: the dump twin stays gated with no Setup either", "vrf show", want{implemented: true, gated: true, floor: 2}},
+		{"boundary: the -j dump twin likewise", "-j vrf show", want{implemented: true, gated: true, floor: 2}},
+		{"negative: a vrf name the topology never builds is not in the matrix", "vrf show nosuchvrf", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.setup, got.floor = c.Implemented, len(c.Setup) > 0, c.Floor
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
 			if got != r.expected {
 				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
 			}

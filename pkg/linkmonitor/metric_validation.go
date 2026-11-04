@@ -11,7 +11,7 @@ import (
 
 // Policy names cannot be supplied by a source. Policy owns these families.
 var policyMetricNames = strings.Fields(`baseline_up_links up_links up_links_delta
-baseline_ready baseline_write_errors_total collection_healthy
+baseline_ready baseline_provisional baseline_write_errors_total collection_healthy
 last_successful_resync_timestamp_seconds resyncs_total interface_up interface_check
 interface_classification interface_max_speed_exception interface_expected_speed_bits_per_second
 max_speed_exception_match

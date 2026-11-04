@@ -27,6 +27,7 @@ let
       "-linkMonitorCollectionMode=${lm.collectionMode}"
       "-linkMonitorIPPaths=${lib.boolToString lm.ipPaths}"
     ]
+    ++ lib.optional (lm.ipListen != null) "-linkMonitorIPListen=${lm.ipListen}"
     ++ lm.extraArgs
   );
 in
@@ -111,8 +112,21 @@ in
         default = false;
         description = ''
           Serve the read-only `ip … show` paths under /ip and /i on the
-          Prometheus listener. They expose host addresses, so they are off by
-          default.
+          Prometheus listener, or on `ipListen`. They expose host addresses,
+          so they are off by default.
+        '';
+      };
+
+      ipListen = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "127.0.0.1:9089";
+        description = ''
+          A loopback host:port serving /ip and /i on a listener of their own,
+          without listener auth, instead of on the Prometheus listener. Needs
+          `ipPaths`. xtcp2 refuses a host that is not a loopback IP literal,
+          and closes connections from non-loopback source addresses. null
+          keeps one listener.
         '';
       };
 

@@ -1,6 +1,6 @@
 # Multi-namespace visibility
 
-A netlink socket only sees the network namespace it was created in. To observe TCP sockets inside containers and Kubernetes pods — not just the host — xtcp2 discovers every network namespace on the box, enters each one with `setns(CLONE_NEWNET)`, and runs a dedicated netlink reader there. Namespaces come and go constantly under container churn, so xtcp2 watches the filesystem and reconciles its set of active readers in real time. This is the headline capability that distinguishes xtcp2 from the original xtcp.
+A netlink socket only sees the network namespace it was created in. To observe TCP sockets inside containers and Kubernetes pods, xtcp2 discovers accessible namespaces, enters each one with `setns(CLONE_NEWNET)`, and opens a dedicated socket there. Reconciliation follows container churn, by default before each poll. Discovery is limited by process/mount visibility and permissions; it cannot observe namespaces the deployment does not expose.
 
 ## Table of contents
 
@@ -15,27 +15,27 @@ A netlink socket only sees the network namespace it was created in. To observe T
 
 ## Where namespaces come from
 
-Linux exposes named network namespaces as bind-mounted files. xtcp2 watches two standard locations (defined in `pkg/xtcp/xtcp.go`):
+xtcp2 discovers namespaces through live processes under `/proc/<pid>/ns/net` and through bind-mounted namespace files in two standard locations:
 
 - `/run/netns/` — namespaces created by `ip netns add` (`linuxNetNSDirCst`).
 - `/run/docker/netns/` — namespaces created by Docker (`dockerNetNsDirCst`).
 
-Both are scanned and watched simultaneously (`netNsCandidateDirs` in `pkg/xtcp/init.go`).
+The process scan covers anonymous container/pod namespaces with no bind mount. The bind-mount scan covers namespaces without a visible host PID, including deployments without host PID sharing.
 
 ## Discovery
 
-At startup, `pkg/xtcp/ns_discover.go` scans the candidate directories for namespaces that already exist and creates a reader for each. This seeds the active set before the watcher takes over for ongoing changes.
+`pkg/xtcp/ns_discover.go` combines both scans, deduplicating by namespace inode. A process entry supplies a representative PID; a bind-mount entry supplies a path that can be opened directly. Where both identify the same inode, the process entry wins. Bind mounts also supply friendly names. The startup reconciliation seeds the active set, and later passes repeat discovery.
 
 ## Watching for churn
 
-`pkg/xtcp/ns_watch.go` installs an inotify watch on the namespace directories. When a namespace bind-mount appears or disappears, the watcher dispatches the filesystem event to the add or delete handler:
+Namespace discovery uses repeated scans, not an inotify watcher. The reconciler dispatches changes to:
 
 - `pkg/xtcp/ns_add.go` — handles a newly observed namespace.
 - `pkg/xtcp/ns_delete.go` — handles a namespace that has gone away.
 
 ## Reconciliation
 
-`pkg/xtcp/ns_reconcile.go` periodically reconciles the watcher's view of the world against the set of active netlink readers, so the daemon converges on the correct set even if an individual inotify event is missed. The active namespaces and their reader counts are tracked in `pkg/xtcp/ns_map_count.go`, and readers are created and stored via `pkg/xtcp/ns_createNetlinkersAndStore.go`.
+`pkg/xtcp/ns_reconcile.go` compares the discovered inode set with active readers, adds new namespaces, and cancels readers for vanished namespaces. The daemon's own namespace remains tracked. Reconciliation runs at startup and, by default, immediately before each poll. A background ticker provides a fallback when polling is idle or disabled; setting its interval to zero disables that ticker, not startup or enabled pre-poll reconciliation.
 
 ## Entering a namespace
 
@@ -44,9 +44,9 @@ The per-namespace reader lives in `pkg/xtcp/ns_net_namespace.go`. Because `setns
 1. Calls `runtime.LockOSThread()` to pin the goroutine to its OS thread.
 2. Snapshots the original namespace, then `setns(CLONE_NEWNET)` into the target.
 3. Opens a netlink socket — now scoped to that namespace — and runs the [netlinkers](netlink/collection.md#netlinkers).
-4. On exit, restores the original namespace and releases the thread.
+4. On exit, restores the original namespace and releases the thread only if restoration succeeds; otherwise the runtime terminates the locked thread.
 
-Entering a namespace requires `CAP_SYS_ADMIN`; without it every `setns` fails with `EPERM`. **Discovering** namespaces requires `CAP_SYS_PTRACE`: Method B enumerates live namespaces by reading `/proc/<pid>/ns/net`, and the kernel gates that readlink/open behind `ptrace_may_access`, which denies non-dumpable targets (system daemons, `ip netns exec` children) even to root. Without `CAP_SYS_PTRACE` the `/proc` scan sees only xtcp2's own namespace — the daemon starts (with a soft-capability warning) but discovers nothing to enter. See [observability](observability.md#capability-checks).
+Entering namespaces requires `CAP_SYS_ADMIN`. Access to protected `/proc/<pid>/ns/net` entries also requires `CAP_SYS_PTRACE`; the kernel applies `ptrace_may_access` checks even to root. Missing that capability produces a startup warning and reduces process-based discovery. Accessible bind-mounted namespaces remain discoverable without host PID visibility. Container deployments must expose the relevant namespace mounts and/or host processes. See [observability](observability.md#capability-checks).
 
 ## Thread-leak avoidance
 
@@ -56,13 +56,15 @@ Rapid namespace churn (e.g. Kubernetes pods cycling) is the hard case: each `set
 
 | Flag | Default | Purpose |
 |---|---|---|
+| `-reconcileBeforePoll` | `true` | Refresh the namespace set before each poll cycle. |
+| `-reconcileFrequency` | `6h` | Background reconcile fallback; `0` disables the ticker. |
 | `-maxThreads` | `2000` | Cap on Go runtime OS threads (`debug.SetMaxThreads`); `0` = Go default (10000). |
 
-The watched directories (`/run/netns/`, `/run/docker/netns/`) are built in, not flags.
+The bind-mount directories (`/run/netns/`, `/run/docker/netns/`) are built in, not flags.
 
 ## See also
 
 - [Netlink collection](netlink/collection.md) — what each per-namespace reader does.
 - [Performance](performance.md) — thread and parallelism tuning.
 - [Integration testing](integration-testing.md) — the microVM namespace-lifecycle, tcp-stress, and discovery-bench tests that exercise this path.
-- [Design: namespace discovery & reconciliation](design-namespace-discovery-and-reconcile.md) — proposed pull-based reconcile and the dir-scan vs `/proc`-scan discovery analysis.
+- [Design: namespace discovery & reconciliation](design-namespace-discovery-and-reconcile.md) — design history and the directory-scan vs `/proc`-scan discovery analysis.

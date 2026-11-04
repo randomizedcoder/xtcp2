@@ -77,7 +77,11 @@ every record on the hot path (they dictionary-compress to ~nothing downstream).
 
 Topology is modeled as **two fixed uplink slots** (`uplink1_*`, `uplink2_*`) since
 hosts are dual-homed. Uplinks default to the interfaces on the default IPv4/IPv6
-routes (`nicinfo.DefaultUplinks`), overridable with `-uplinkInterfaces`.
+routes (`nicinfo.DefaultUplinks`), overridable with `-uplinkInterfaces`. Only
+usable routes count (up, not reject, not on `lo`: every host has the kernel's
+`unreachable ::/0 dev lo`), and a virtual device holding the route (bond, vlan,
+bridge) is replaced by the physical NICs under its `lower_*` sysfs links, since
+those carry the NIC attributes and the LLDP neighbours.
 
 ## 3. Config: flags / env / config protobuf
 
@@ -95,11 +99,19 @@ Precedence: **defaults < flags < env < `XTCP_CONFIG_JSON`** (`cmd/xtcp2/xtcp2.go
 | `-uplinkInterfaces` | `UPLINK_INTERFACES` (CSV) | `uplink_interfaces` | auto (default routes) |
 | `-populateNsid` | `POPULATE_NSID` | `populate_nsid` | false |
 | `-enrichAsn` | `ENRICH_ASN` | `enrich_asn_enable` | false |
-| `-asnDbPath` | `ASN_DB_PATH` | `asn_db_path` | "" (required when enabled) |
+| `-asnDbPath` | `ASN_DB_PATH` | `asn_db_path` | "" (live artifact; optional when a usable cache/bootstrap is available) |
 | `-asnRefreshInterval` | `ASN_REFRESH_INTERVAL` | `asn_refresh_interval` | 1h (0 = load once; a missing artifact is retried on this cadence) |
+| `-ipmetaBootstrapPath` | `IPMETA_BOOTSTRAP_PATH` | `ipmeta_bootstrap_path` | `/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst` |
+| `-ipmetaCachePath` | `IPMETA_CACHE_PATH` | `ipmeta_cache_path` | `/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst` |
 | `-enrichLocality` | `ENRICH_LOCALITY` | `enrich_locality_enable` | false |
 | `-localityRefreshInterval` | `LOCALITY_REFRESH_INTERVAL` | `locality_refresh_interval` | 60s |
 | `-localityEvents` | `LOCALITY_EVENTS` | `locality_events_enable` | false (needs `-enrichLocality`) |
+
+ASN startup tries current cache, previous cache, bootstrap, then the live
+`asn_db_path`. A configured live path can refresh in the background; a rejected
+update preserves the active table. See [bootstrap/cache status](status-embedded-ipmeta-bootstrap.md)
+for artifact requirements and packaging status. Current ASNs are representative
+provider mappings, not per-prefix BGP origins; see [ASN enrichment](ipfeed-asn-enrichment.md).
 
 ## 4. ClickHouse
 
@@ -116,6 +128,14 @@ Runtime config lives in `ansible-host/ansible/roles/monitoring/xtcp2/`. The
 current deploy **already** mounts `/run/netns:ro` and `/run/docker/netns:ro`, so
 the discovery fix (§1) restores `netns`/`container_id` with **no deploy change**
 once the new image ships.
+
+Those mounts must be `ro,rslave`, not Docker's default `rprivate`: a pod's netns
+is a bind mount made under them after xtcp2 starts, and a private mount never
+shows it. On prod v2.0.0 one host's xtcp2 saw 10 of its 17 netns; the newer
+pods' sockets went uncollected (setns EINVAL on the stale file) and their
+container name/image was empty. xtcp2 warns at startup and sets
+`xtcp_gauges{function="checkNetnsPropagation",variable="private"}` to 1 for
+each such dir.
 
 To enable the *new* enrichers, add (recommended as **opt-in** ansible vars,
 default off, mirroring `xtcp2_resolve_container_id`):

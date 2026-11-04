@@ -334,7 +334,7 @@ func TestFastly(t *testing.T) {
 func TestM365(t *testing.T) {
 	meta := SourceMeta{
 		Name: "m365-worldwide", Provider: "microsoft",
-		URL:        "https://endpoints.office.com/endpoints/worldwide?clientrequestid=00000000-0000-0000-0000-000000000000",
+		URL:        "https://endpoints.office.com/endpoints/worldwide?clientrequestid=773c9cc6-300c-4513-8a53-c304eb2bbac4",
 		SourceType: "provider_api", Confidence: "authoritative",
 		Defaults: Defaults{NetworkOwner: "microsoft", ServiceOperator: "microsoft", Product: "microsoft-365"},
 	}
@@ -527,7 +527,29 @@ func TestSalesforce(t *testing.T) {
 				mk("2600:1f14:4f7:2000::/56", "us-west-2", "outbound", created),
 			},
 		},
+		{
+			description: "positive: the 2026-10 shape, a prefix list per region with no direction; provider is ignored",
+			in: `{"syncToken":"1792125179","createDate":"` + created + `",
+			  "prefixes":[{"region":"af-south-1","provider":"aws","ip_prefix":["145.224.193.0/24","145.224.217.0/24"]}],
+			  "ipv6_prefixes":[{"region":"us-east-2","provider":"aws","ipv6_prefix":["2a03:5d67:feb8::/45","2a03:5d67:fed0::/45"]}]}`,
+			expected: []model.Record{
+				mk("145.224.193.0/24", "af-south-1", "", created),
+				mk("145.224.217.0/24", "af-south-1", "", created),
+				mk("2a03:5d67:feb8::/45", "us-east-2", "", created),
+				mk("2a03:5d67:fed0::/45", "us-east-2", "", created),
+			},
+		},
 		// negative
+		{
+			description: "negative: a number inside an ip_prefix list errors",
+			in:          `{"prefixes":[{"ip_prefix":["1.0.0.0/24",7]}]}`,
+			expectedErr: "salesforce:",
+		},
+		{
+			description: "negative: ip_prefix as a number errors",
+			in:          `{"prefixes":[{"ip_prefix":7}]}`,
+			expectedErr: "salesforce:",
+		},
 		{
 			description: "negative: malformed JSON errors with the parser prefix",
 			in:          `{"prefixes":[{"ip_prefix":`,
@@ -569,7 +591,27 @@ func TestSalesforce(t *testing.T) {
 			in:          `{"prefixes":[{"ip_prefix":"13.108.0.1","region":"GLOBAL","direction":"inbound"}]}`,
 			expected:    []model.Record{mk("13.108.0.1", "GLOBAL", "inbound", "")},
 		},
+		{
+			description: "boundary: an empty ip_prefix list yields no records for that region",
+			in:          `{"prefixes":[{"ip_prefix":[],"region":"r"},{"ip_prefix":["1.0.0.0/24"],"region":"s"}]}`,
+			expected:    []model.Record{mk("1.0.0.0/24", "s", "", "")},
+		},
+		{
+			description: "boundary: a one-element list matches the string form",
+			in:          `{"prefixes":[{"ip_prefix":["1.0.0.0/24"],"region":"r","direction":"inbound"}]}`,
+			expected:    []model.Record{mk("1.0.0.0/24", "r", "inbound", "")},
+		},
 		// corner
+		{
+			description: "corner: string and list entries mixed in one document",
+			in:          `{"prefixes":[{"ip_prefix":"1.0.0.0/24","region":"r","direction":"inbound"},{"ip_prefix":["2.0.0.0/24","3.0.0.0/24"],"region":"s"}]}`,
+			expected:    []model.Record{mk("1.0.0.0/24", "r", "inbound", ""), mk("2.0.0.0/24", "s", "", ""), mk("3.0.0.0/24", "s", "", "")},
+		},
+		{
+			description: "corner: a null ip_prefix yields one empty prefix, as a missing key does",
+			in:          `{"prefixes":[{"ip_prefix":null,"region":"r"}]}`,
+			expected:    []model.Record{mk("", "r", "", "")},
+		},
 		{
 			description: "corner: the same prefix listed inbound and outbound yields two records",
 			in:          `{"prefixes":[{"ip_prefix":"1.0.0.0/24","region":"r","direction":"inbound"},{"ip_prefix":"1.0.0.0/24","region":"r","direction":"outbound"}]}`,

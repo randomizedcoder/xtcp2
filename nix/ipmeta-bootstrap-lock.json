@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "artifact": {
+    "path": "./ipmeta/bootstrap.lookup.parquet.zst"
+  }
+}

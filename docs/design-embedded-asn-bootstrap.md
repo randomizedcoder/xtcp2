@@ -2,15 +2,17 @@
 
 ## Status
 
-Investigation / design proposal. No code change yet.
+The loader, startup fallback, cache rotation, and bootstrap packaging have been
+implemented. The repository now includes the fleet bootstrap snapshot and lock
+file, plus a refresh app and snapshot checks. See
+[implementation status](status-embedded-ipmeta-bootstrap.md) and
+[ASN enrichment](ipfeed-asn-enrichment.md) for current behavior.
 
-This document captures the cold-start and fleet-scale concerns around xtcp2's
-destination IP metadata enrichment path and lays out options for embedding
-bootstrap lookup data in Nix-built OCI images. Today that lookup yields both the
-representative ASN and the general network-owner/name metadata for a destination
-prefix. The document deliberately does **not** choose a final implementation.
-The goal is to make the tradeoffs explicit before changing the daemon, the
-artifact format, or the image matrix.
+The remainder preserves the original investigation and design options for
+cold-start and fleet-scale destination metadata enrichment. Its measurements,
+"current state," and proposed alternatives describe that investigation, not
+the final implementation. Lookup values remain representative provider ASNs
+and network-owner labels, not observed per-prefix BGP origins.
 
 ## Problem
 
@@ -402,8 +404,9 @@ data to all ASN-capable images. Daemon image attrs and Docker tags append
 makes the data-bearing images easy to audit. Only daemon images get bootstrap
 variants; client-only and collector images do not need the runtime lookup file.
 
-A future `nix run .#update-ipmeta-bootstrap-lock` helper can refresh the source
-artifact and lock file as an explicit operator/developer action. The name should
+`nix run .#update-ipmeta-bootstrap-lock` refreshes the checked-in snapshot
+(`nix/ipmeta/bootstrap.lookup.parquet.zst`) and the lock file as an explicit
+developer action, reviewed as a commit. The name should
 stay `ipmeta` rather than `asn`, because the same artifact feeds both ASN and
 network-owner enrichment.
 

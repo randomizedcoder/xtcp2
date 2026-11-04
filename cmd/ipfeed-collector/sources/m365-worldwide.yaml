@@ -1,6 +1,8 @@
+# The endpoints service refuses the all-zero clientrequestid with HTTP 400
+# (seen 2026-09-28 and 2026-10-22); any other fixed GUID is accepted.
 name: m365-worldwide
 provider: microsoft
-url: https://endpoints.office.com/endpoints/worldwide?clientrequestid=00000000-0000-0000-0000-000000000000
+url: https://endpoints.office.com/endpoints/worldwide?clientrequestid=773c9cc6-300c-4513-8a53-c304eb2bbac4
 parser: m365
 source_type: provider_api
 confidence: authoritative

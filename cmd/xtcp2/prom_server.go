@@ -123,24 +123,31 @@ func newPromServer(handler http.Handler) *http.Server {
 // live invokes fatalf: without the listener there are no health checks, so
 // the daemon must not keep running unobserved.
 func servePromHandler(ctx context.Context, wg *sync.WaitGroup, srv *http.Server, ln net.Listener, grace time.Duration) {
+	serveHTTP(ctx, wg, "prometheus", srv, ln, grace, func(err error) { fatalf("prometheus error: %v", err) })
+}
+
+// serveHTTP serves ln until ctx ends, then drains in-flight requests for at
+// most grace before closing what remains. A serve failure while ctx is live
+// calls failed. name prefixes the shutdown logs.
+func serveHTTP(ctx context.Context, wg *sync.WaitGroup, name string, srv *http.Server, ln net.Listener, grace time.Duration, failed func(error)) {
 	defer wg.Done()
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 	select {
 	case err := <-served:
-		fatalf("prometheus error: %v", err)
+		failed(err)
 		return
 	case <-ctx.Done():
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), grace)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("prometheus shutdown: %v; closing", err)
+		log.Printf("%s shutdown: %v; closing", name, err)
 		if err := srv.Close(); err != nil {
-			log.Printf("prometheus close: %v", err)
+			log.Printf("%s close: %v", name, err)
 		}
 	}
 	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
-		log.Printf("prometheus serve: %v", err)
+		log.Printf("%s serve: %v", name, err)
 	}
 }
