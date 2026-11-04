@@ -2440,3 +2440,36 @@ with the same commands as fleet-snapshots' `xtcp2-spot-check.sh`. Open
 questions: whether the OFED dkms `ib_core` can be installed in a box to cover
 the supported-events path, and whether the boxes need nested virtualisation on
 `l`.
+
+## 30. Prod v2.0.0 records: UPLINK2 `lo`, empty NIC/LLDP and container columns — PARTLY FIXED 2026-11-03
+
+**What.** The xtcp-status review of the first v2.0.0 data (2026-11-03) found
+four daemon-side gaps. Root causes, from the fleet check
+(`fleet-snapshots/xtcp2-v2-check`):
+
+| Symptom | Cause | Status |
+|---|---|---|
+| `UPLINK2_IFNAME` = `lo` | `DefaultUplinks` took every `::/0` in `/proc/net/ipv6_route`, including the kernel's `unreachable ::/0 dev lo` (RTF_REJECT, not RTF_UP) | FIXED: up, non-reject, non-`lo` routes only |
+| NIC and LLDP columns empty | the default route is on `bond0`, which has no `device` entry; LLDP neighbours are keyed by the member ports | FIXED: a virtual uplink expands to the NICs under its `lower_*` links |
+| container name/image empty, `CONTAINER_RUNTIME` = `cgroupfs` | ansible-host mounted `/run/netns` and `/run/docker/netns` with Docker's default `rprivate`, so pods started after xtcp2 were invisible (setns EINVAL, stale inode, dockermeta miss); one host saw 10 of 17 netns | deploy fix in runpod/ansible-host#1120 (`ro,rslave`); xtcp2 now warns at startup and sets `xtcp_gauges{function="checkNetnsPropagation",variable="private"}` |
+| those pods' sockets missing entirely | same as above | same as above |
+
+**Still open.**
+
+- **Link monitor panic isolation.** `runLinkMonitor` turns an error into
+  `xtcp_gauges{function="linkMonitor",variable="up"} 0` and collection carries
+  on (fleet data: uploads were unaffected by the baseline bug), but a panic in
+  the link-monitor goroutines takes the whole daemon down. Recover at the
+  goroutine roots, count it, and mark the link monitor down.
+- **AI098 veth churn.** On a host with heavy pod churn the link-monitor
+  reconcile fails transiently: a veth removed mid-walk, "RDMA topology
+  changed", "interrupted dump". Each retry recovers, but the warn rate is
+  high. Treat a vanished netdev during the walk as a normal retry, not a
+  warning, and add a churn row to the reconcile tables.
+- **gRPC Health has no provisional flag.** `baseline_provisional` (the learn
+  deadline, PR #284) is in `/metrics` but not in the admin gRPC Health
+  response.
+- **Ubuntu guest rows.** Add to §29's Vagrant table: a bonded uplink with
+  lldpd (expect UPLINK1/2 = the member NICs with NIC and LLDP columns set),
+  and the container started before a new netns, once with `ro` (gauge 1,
+  netns missed) and once with `ro,rslave` (gauge 0, netns collected).

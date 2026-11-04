@@ -5,10 +5,12 @@
 ### New
 
 - **Link monitor learn deadline.** `-linkMonitorLearnDeadline` (`LINK_MONITOR_LEARN_DEADLINE`, `link_monitor.learn_deadline`; go-link-monitor `-learn-deadline`), default 5m, 0 waits forever. If no baseline is learned by then, the visible up count becomes a provisional baseline, so `up_links_delta` still reports when the count never becomes ready (a stuck RDMA port, a hardware fault). It is kept in memory only, never written to the baseline file, and flagged by the sparse `go_link_monitor_baseline_provisional 1`; a normally learned baseline replaces it and is saved.
+- **Netns mount propagation check.** In a container, `/run/netns` and `/run/docker/netns` must be mounted `rslave` (`-v /run/netns:/run/netns:ro,rslave`). With Docker's default `rprivate`, namespaces created after xtcp2 starts are invisible: their sockets aren't collected and their container name/image stays empty. xtcp2 now logs a warning at startup and sets `xtcp_gauges{function="checkNetnsPropagation",variable="private",type="<dir>"}` to 1 for each such dir.
 
 ### Fixes
 
 - **Link monitor baseline never written on most prod hosts.** Two causes, found on 78 of 105 hosts: the stock Ubuntu `ib_core` answers the RDMA netlink event subscription with `EOPNOTSUPP`, which was retried every 30 s and kept the count unready; and the bonding module's `/sys/class/net/bonding_masters`, a regular file, failed the RDMA netdev walk. A kernel without RDMA events now falls back to polled RDMA state (reported once, as `rdma_events` support `unsupported`), and non-netdev entries are skipped.
+- **Uplink columns: `lo` as UPLINK2, empty NIC and LLDP columns.** Automatic uplink detection took the kernel's `unreachable ::/0 dev lo`, which every host has, as a default route, and used a bond itself as the uplink, which has no NIC attributes and no LLDP neighbour. Only up, non-reject default routes off `lo` count now, and a bond, vlan or bridge holding the route is replaced by the physical NICs beneath it. `-uplinkInterfaces` is unchanged.
 
 ## 0.2.0 (2026-10)
 
