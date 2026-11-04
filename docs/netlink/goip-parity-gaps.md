@@ -109,7 +109,19 @@ G4 delivered all six: goip runs `mroute`, `mrule`, `token`, `netns list-id` and 
 | monitor | Every NEW/DEL notification, across the multicast groups at `ip/ipmonitor.c:267-367` | `ip/ipmonitor.c:194` | each subsystem's notifier | The 10 decoded event types (`IsRtnetlinkEventType`, `RTM_NEWRULE`/`RTM_DELRULE` among them since G4-T05) were not rendered; `goip monitor` renders every type `accept_msg` prints since G4-T06 |
 | prefix (in monitor) | `RTM_NEWPREFIX` (`prefixmsg`) | `ip/ipprefix.c:33` | `net/ipv6/addrconf.c` | Emitted only when a router advertisement is received |
 
-**maddress depends on the version.** At the pin, `ip maddress show` reads `/proc/net/{dev_mcast,igmp,igmp6}` (`ip/ipmaddr.c:95-179`), and add/del are ioctls, so it is class F at 7.1.0. The 7.2 checkout dumps `RTM_GETMULTICAST` instead *(7.2: `ip/ipmaddr.c:276`)*, so maddress moves to this class at the next pin bump.
+**maddress depends on the version.** `ip maddress show` reads
+`/proc/net/{dev_mcast,igmp,igmp6}` (`ip/ipmaddr.c:95-179`) at the 7.2.0
+pin, and add/del are ioctls, so it is class F there. Commit b8cdda55
+("ipmaddr: use RTM_GETMULTICAST to list multicast addresses"), first
+released in **v7.3.0**, switches the read to an `RTM_GETMULTICAST` dump —
+so maddress moves to this class at the 7.3.0 pin bump. (This note
+originally said the move was "the 7.2 checkout", citing `ipmaddr.c:276` —
+written against a post-7.3.0 dev snapshot misread as 7.2. At 7.2.0
+every form reads /proc, family-filtered included: a capture run on
+2026-11-04 recorded zero netlink datagrams for `ip -4/-6 maddress show`,
+which is what the rows' floors are for.) The reply is already grounded
+either way: the addr plan's self-sent mcdump captures are the corpus's
+only `IFA_MULTICAST`/`IFA_MC_USERS` holders ([addr-write-path.md](addr-write-path.md), table 6).
 
 ### D. Generic-netlink objects goip does not run
 
@@ -144,7 +156,7 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 |---|---|
 | `tunnel`/`tunl6` parameters and add/change/del/prl/6rd | ioctls `SIOC{GET,ADD,CHG,DEL}TUNNEL`, `SIOC{ADD,DEL}PRL`, `SIOC{ADD,DEL}6RD` (`ip/tunnel.c:63`) |
 | `tuntap` add/del, and its flags, owner and group | `/dev/net/tun` plus `TUNSETIFF` and related ioctls (`ip/iptuntap.c:62`), and sysfs |
-| `maddress` at 7.1.0 | `/proc` reads and `SIOCADDMULTI`/`SIOCDELMULTI` |
+| `maddress` through the 7.2.0 pin | `/proc` reads and `SIOCADDMULTI`/`SIOCDELMULTI`; b8cdda55 (v7.3.0) moves `show` to an `RTM_GETMULTICAST` dump |
 | `netns add/del/exec` | `unshare`, bind mount, `setns` |
 | `vrf exec/identify/pids` | cgroup2 plus `bpf(BPF_PROG_LOAD)` (`ip/ipvrf.c:55`, `:288`) |
 | `route flush cache` | a write to `/proc/sys/net/ipv4/route/flush` (`ip/iproute.c:1649`) |
