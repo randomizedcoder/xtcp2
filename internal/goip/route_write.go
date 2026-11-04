@@ -90,6 +90,7 @@ const (
 	routeArmRealms
 	routeArmVrf
 	routeArmNexthop
+	routeArmEncap
 	routeArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -163,7 +164,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: devKeywordCst, arm: routeArmDev},
 	{keyword: oifKeywordCst, arm: routeArmDev},
 	{keyword: "pref", prefix: true, arm: routeArmPref},
-	{keyword: tnlKeyEncap, arm: routeArmUnsupported},
+	{keyword: tnlKeyEncap, arm: routeArmEncap},
 	{keyword: "ttl-propagate", arm: routeArmUnsupported},
 	{keyword: "fastopen_no_cookie", prefix: true, arm: routeArmBool,
 		rtax: unix.RTAX_FASTOPEN_NO_COOKIE, name: "fastopen_no_cookie"},
@@ -218,6 +219,9 @@ type routeParseState struct {
 	// hops is argv from the first `nexthop` on, which parse_nexthops reads
 	// after RTA_OIF; nil when there is none (nhs_ok).
 	hops []string
+	// hopsLen is the hops parse_nexthops has written to its buffer, each
+	// rtnexthop and its attributes, so a hop's encap is bounded as ip's is.
+	hopsLen int
 }
 
 // parseRouteWriteArgs is iproute_modify up to rtnl_talk: the loop, then the
@@ -283,6 +287,8 @@ func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int,
 		// The loop's break: the rest of argv is the hops.
 		st.hops = args[i:]
 		return len(args), nil
+	case routeArmEncap:
+		return st.encap(args, i)
 	default:
 		// Every other arm takes a value, read by NEXT_ARG below.
 	}
@@ -624,14 +630,14 @@ func (st *routeParseState) parseNexthops(resolve linkResolver) error {
 			return err
 		}
 		st.w.Nexthops = append(st.w.Nexthops, h)
+		st.hopsLen += routeNexthopLen(&h)
 	}
 	return nil
 }
 
 // parseOneNh is parse_one_nh (ip/iproute.c:1019): the words after
 // `nexthop` up to one it doesn't know, which it returns the index of.
-// Every keyword is strcmp but realms. `encap` and `as` are refused, as at
-// the top level.
+// Every keyword is strcmp but realms. `as` is refused, as at the top level.
 func (st *routeParseState) parseOneNh(h *xtcpnl.RouteNexthop, args []string, i int,
 	resolve linkResolver) (int, error) {
 	var err error
@@ -657,7 +663,9 @@ func (st *routeParseState) parseOneNh(h *xtcpnl.RouteNexthop, args []string, i i
 				}
 				h.Attrs = append(h.Attrs, xtcpnl.RouteAttrU32(unix.RTA_FLOW, r))
 			}
-		case w == tnlKeyEncap || w == "as":
+		case w == tnlKeyEncap:
+			i, err = st.nhEncap(h, args, i)
+		case w == "as":
 			return i, fmt.Errorf("route nexthop %q: %w", w, ErrNotImplemented)
 		default:
 			return i, nil
