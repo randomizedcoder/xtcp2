@@ -257,7 +257,7 @@ func TestParseNexthopWriteArgs(t *testing.T) {
 			result{err: ErrInvalidArgument}},
 		{"negative: an unknown protocol name", 0, "protocol bogus", result{err: ErrInvalidArgument}},
 		{"negative: an unknown keyword", 0, "bogus", result{err: ErrInvalidArgument}},
-		{"negative: encap ip is not implemented", 0, "encap ip dst 10.0.0.1", result{err: ErrNotImplemented}},
+		{"negative: encap seg6 is not implemented", 0, "encap seg6 mode encap segs 2001:db8::1", result{err: ErrNotImplemented}},
 		{"negative: help is not implemented", 0, "help", result{err: ErrNotImplemented}},
 	}
 	resolve := func(name string) (int32, error) {

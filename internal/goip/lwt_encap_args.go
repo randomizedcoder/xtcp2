@@ -78,14 +78,6 @@ func lwtEncapArgs(args []string, i int) (xtcpnl.LwtEncap, int, error) {
 	return xtcpnl.LwtEncap{}, i, fmt.Errorf("encap %s: %w", typ, ErrNotImplemented)
 }
 
-// ipEncapTypeName is the encap type word for e's family.
-func ipEncapTypeName(e *xtcpnl.IPEncap) string {
-	if e != nil && e.Family == unix.AF_INET6 {
-		return lwtEncapIP6Cst
-	}
-	return lwtEncapIPCst
-}
-
 // mplsEncapArgs is parse_encap_mpls (ip/iproute_lwtunnel.c:1590) from the
 // label stack at args[i]: get_addr in AF_MPLS, which exits 1 on a bad one,
 // then any number of `ttl N` (get_u8 base 0, duparg2 on a second). It

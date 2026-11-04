@@ -184,18 +184,29 @@ func (w *nexthopWrite) u32Arg(args []string, i int, typ uint16, msg string) (int
 	return i, w.attrs.PutU32(typ, v)
 }
 
-// encap is lwt_parse_encap (ip/iproute_lwtunnel.c:2278) into NHA_ENCAP and
-// NHA_ENCAP_TYPE. Only mpls is built here yet; lwtEncapArgs reads ip and
-// ip6 too.
+// encap is ipnh_modify's encap (ip/ipnexthop.c:1095): lwt_parse_encap into
+// NHA_ENCAP and NHA_ENCAP_TYPE in buf[1024], then addraw_l into the
+// request, whose bound counts the request so far, as a route's does.
 func (w *nexthopWrite) encap(args []string, i int) (int, error) {
 	e, i, err := lwtEncapArgs(args, i)
 	if err != nil {
 		return i, err
 	}
-	if e.MPLS == nil {
-		return i, fmt.Errorf("nexthop encap %s: %w", ipEncapTypeName(e.IP), ErrNotImplemented)
+	room := min(routeEncapBufCst-xtcpnl.RTAttrSizeCst,
+		routeEncapBufCst-xtcpnl.NlMsgHdrSizeCst-xtcpnl.NhMsgSizeCst-w.attrs.Len())
+	as, err := xtcpnl.EncodeLwtEncapAs(e, xtcpnl.NhaEncap, xtcpnl.NhaEncapType, room)
+	if errors.Is(err, xtcpnl.ErrAttrNoSpace) {
+		return i, fmt.Errorf("%w: addraw_l ERROR: message exceeded bound of %d", ErrInvalidArgument, routeEncapBufCst)
 	}
-	return i, xtcpnl.PutLwtEncap(&w.attrs, xtcpnl.NhaEncap, xtcpnl.NhaEncapType, e)
+	if err != nil {
+		return i, err
+	}
+	for k := range as {
+		if err := w.attrs.PutBytes(as[k].Type, as[k].Payload); err != nil {
+			return i, err
+		}
+	}
+	return i, nil
 }
 
 // hwStats is hw_stats: parse_on_off, whose error ipnh_modify returns, into

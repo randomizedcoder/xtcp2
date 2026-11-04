@@ -291,8 +291,14 @@ func putIPEncap(ab *AttrBuilder, encapAttr, typeAttr uint16, e *IPEncap) error {
 // header, so a route's bound is 1020 (ip/iproute.c:1518's buf[1024]) and a
 // hop's what is left of parse_nexthops' buf[4096].
 func EncodeLwtEncap(e LwtEncap, bound int) ([]RouteAttr, error) {
+	return EncodeLwtEncapAs(e, uint16(unix.RTA_ENCAP), uint16(unix.RTA_ENCAP_TYPE), bound)
+}
+
+// EncodeLwtEncapAs is EncodeLwtEncap with the two attribute types given, as
+// a nexthop object's NHA_ENCAP and NHA_ENCAP_TYPE.
+func EncodeLwtEncapAs(e LwtEncap, encapAttr, typeAttr uint16, bound int) ([]RouteAttr, error) {
 	ab := NewAttrBuilder(make([]byte, max(bound, 0)))
-	if err := PutLwtEncap(&ab, uint16(unix.RTA_ENCAP), uint16(unix.RTA_ENCAP_TYPE), e); err != nil {
+	if err := PutLwtEncap(&ab, encapAttr, typeAttr, e); err != nil {
 		return nil, err
 	}
 	b := ab.Bytes()

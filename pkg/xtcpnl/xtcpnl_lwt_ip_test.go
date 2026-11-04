@@ -188,6 +188,7 @@ func TestEncodeLwtEncap(t *testing.T) {
 		description string
 		e           LwtEncap
 		bound       int
+		nh          bool // EncodeLwtEncapAs with NHA_ENCAP and NHA_ENCAP_TYPE
 		expected    []RouteAttr
 		err         error
 	}{
@@ -202,6 +203,13 @@ func TestEncodeLwtEncap(t *testing.T) {
 			e:           LwtEncap{IP: &IPEncap{Family: unix.AF_INET, Items: []IPEncapItem{{Kind: LwtunnelIPTTL, U8: 1}}}},
 			bound:       1020,
 			expected:    []RouteAttr{{encap, []byte{5, 0, 4, 0, 1, 0, 0, 0}}, {encapType, []byte{2, 0}}},
+		},
+		{
+			description: "positive: a nexthop object's two types",
+			e:           LwtEncap{IP: &IPEncap{Family: unix.AF_INET, Items: []IPEncapItem{{Kind: LwtunnelIPTTL, U8: 1}}}},
+			bound:       1020,
+			nh:          true,
+			expected:    []RouteAttr{{NhaEncap | unix.NLA_F_NESTED, []byte{5, 0, 4, 0, 1, 0, 0, 0}}, {NhaEncapType, []byte{2, 0}}},
 		},
 		{
 			description: "negative: no encap",
@@ -226,6 +234,9 @@ func TestEncodeLwtEncap(t *testing.T) {
 		tt := &tests[i]
 		t.Run(tt.description, func(t *testing.T) {
 			got, err := EncodeLwtEncap(tt.e, tt.bound)
+			if tt.nh {
+				got, err = EncodeLwtEncapAs(tt.e, NhaEncap, NhaEncapType, tt.bound)
+			}
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("err = %v, want %v", err, tt.err)
 			}
