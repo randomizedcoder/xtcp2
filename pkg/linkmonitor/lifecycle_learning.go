@@ -75,7 +75,9 @@ func (l *lifecycle) advance(now model.Stamp) error {
 	if l.intended != nil {
 		at = l.retryAt
 	} else if d := l.monitor.cfg.LearnDeadline; d > 0 && l.learnStarted && !l.expected.Present {
-		if due := deadlineAfter(l.learnFrom, d); at == 0 || due < at {
+		// A deadline already past has had its turn; it must not displace a
+		// later settle wake.
+		if due := deadlineAfter(l.learnFrom, d); due > now.Monotonic && (at == 0 || due < at) {
 			at = due
 		}
 	}
@@ -116,12 +118,15 @@ func (l *lifecycle) learn(now model.Stamp) {
 
 // learnDeadline takes the provisional baseline: past the deadline, with no
 // baseline yet and one complete inventory in this epoch, the visible up links
-// stand in for the unready count. It is published, never written.
+// stand in for the unready count. It is published, never written. An event
+// loss still queued in the inbox has already ended this epoch, so it waits for
+// the loss to be reduced and a new inventory.
 func (l *lifecycle) learnDeadline(now model.Stamp) {
-	r := l.coordinator.scheduler.reducer
+	c := l.coordinator
+	r := c.scheduler.reducer
 	d := l.monitor.cfg.LearnDeadline
 	if d <= 0 || l.expected.Present || !r.lastResync.Present || r.resyncEpoch != r.epoch ||
-		now.Monotonic < deadlineAfter(l.learnFrom, d) {
+		c.inbox.epoch.Load() != r.epoch || now.Monotonic < deadlineAfter(l.learnFrom, d) {
 		return
 	}
 	l.expected, l.provisional = presentValue(r.upCount), true

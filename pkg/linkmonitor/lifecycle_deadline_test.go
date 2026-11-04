@@ -24,19 +24,20 @@ func TestLifecycleLearnDeadline(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		deadline, elapsed                            time.Duration
-		stuck, dump, lose                            bool
+		stuck, dump, lose, pending                   bool
 		loaded                                       model.Optional[uint64]
 		provisional                                  bool
 		expected                                     model.Optional[uint64]
 	}{
-		{"stuck", "positive", "count stuck not ready, an hour after start", "provisional baseline of the two visible up links", 5 * time.Minute, time.Hour, true, true, false, model.Optional[uint64]{}, true, presentValue(uint64(2))},
-		{"disabled", "negative", "deadline 0, count stuck for an hour", "no baseline, as before the deadline existed", 0, time.Hour, true, true, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
-		{"no-resync", "negative", "no complete inventory, past the deadline", "no baseline: nothing honest to report", 5 * time.Minute, time.Hour, true, false, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
-		{"events-lost", "negative", "count stuck, then the event source lost: the inventory is from an old epoch", "no baseline until a new complete inventory", 5 * time.Minute, time.Hour, true, true, true, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
-		{"just-before", "boundary", "count stuck, 1 ns before the deadline", "no baseline yet", 5 * time.Minute, 5*time.Minute - time.Nanosecond, true, true, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
-		{"at-deadline", "boundary", "count stuck, exactly at the deadline", "provisional baseline", 5 * time.Minute, 5 * time.Minute, true, true, false, model.Optional[uint64]{}, true, presentValue(uint64(2))},
-		{"ready", "corner", "count ready, past the deadline", "normal learning owns it; nothing provisional", 5 * time.Minute, time.Hour, false, true, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
-		{"loaded", "corner", "durable baseline loaded from disk, count stuck", "the loaded baseline stands; nothing provisional", 5 * time.Minute, time.Hour, true, true, false, presentValue(uint64(3)), false, presentValue(uint64(3))},
+		{"stuck", "positive", "count stuck not ready, an hour after start", "provisional baseline of the two visible up links", 5 * time.Minute, time.Hour, true, true, false, false, model.Optional[uint64]{}, true, presentValue(uint64(2))},
+		{"disabled", "negative", "deadline 0, count stuck for an hour", "no baseline, as before the deadline existed", 0, time.Hour, true, true, false, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
+		{"no-resync", "negative", "no complete inventory, past the deadline", "no baseline: nothing honest to report", 5 * time.Minute, time.Hour, true, false, false, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
+		{"events-lost", "negative", "count stuck, then the event source lost: the inventory is from an old epoch", "no baseline until a new complete inventory", 5 * time.Minute, time.Hour, true, true, true, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
+		{"loss-pending", "negative", "count stuck, an event loss queued but not yet reduced: the count is from the old epoch", "no baseline until the loss is reduced and a new inventory completes", 5 * time.Minute, time.Hour, true, true, false, true, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
+		{"just-before", "boundary", "count stuck, 1 ns before the deadline", "no baseline yet", 5 * time.Minute, 5*time.Minute - time.Nanosecond, true, true, false, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
+		{"at-deadline", "boundary", "count stuck, exactly at the deadline", "provisional baseline", 5 * time.Minute, 5 * time.Minute, true, true, false, false, model.Optional[uint64]{}, true, presentValue(uint64(2))},
+		{"ready", "corner", "count ready, past the deadline", "normal learning owns it; nothing provisional", 5 * time.Minute, time.Hour, false, true, false, false, model.Optional[uint64]{}, false, model.Optional[uint64]{}},
+		{"loaded", "corner", "durable baseline loaded from disk, count stuck", "the loaded baseline stands; nothing provisional", 5 * time.Minute, time.Hour, true, true, false, false, presentValue(uint64(3)), false, presentValue(uint64(3))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
@@ -51,6 +52,9 @@ func TestLifecycleLearnDeadline(t *testing.T) {
 				if err := l.coordinator.scheduler.reducer.loseEvents(); err != nil {
 					t.Fatal(err)
 				}
+			}
+			if tc.pending {
+				l.coordinator.inbox.lose(l.coordinator.inbox.epoch.Load())
 			}
 			advanceClock(t, clock, tc.elapsed)
 			tickLifecycle(t, l)
@@ -190,6 +194,44 @@ func TestLearnDeadlineConfig(t *testing.T) {
 			cfg.LearnDeadline = tc.deadline
 			if _, err := validateConfig(cfg); (err == nil) != tc.valid {
 				t.Fatalf("%s: %v", tc.expectedOutcome, err)
+			}
+		})
+	}
+}
+
+// TestLearnDeadlineExpiredKeepsSettle: a deadline already past (no provisional
+// taken, for want of a complete inventory) must not replace a later settle
+// wake, or learning stalls until some unrelated wake.
+func TestLearnDeadlineExpiredKeepsSettle(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		deadline, before                             time.Duration
+	}{
+		{"expired", "negative", "deadline passed with no inventory, then the count becomes ready", "wake at the settle time", 5 * time.Minute, time.Hour},
+		{"at-deadline", "boundary", "deadline reached exactly, no inventory, then the count becomes ready", "wake at the settle time", 5 * time.Minute, 5 * time.Minute},
+		{"pending", "positive", "deadline still ahead of the settle time", "wake at the deadline", 5 * time.Minute, 4*time.Minute + 50*time.Second},
+		{"disabled", "corner", "no deadline", "wake at the settle time", 0, time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			l, clock := testLifecycle(t, 30*time.Second)
+			l.monitor.cfg.LearnDeadline = tc.deadline
+			start := clock.Now().Monotonic
+			tickLifecycle(t, l)
+			advanceClock(t, clock, tc.before)
+			tickLifecycle(t, l)
+			lifecycleDump(t, l, deadlineRecords(l, false)...)
+			if l.expected.Present || !l.settling {
+				t.Fatalf("setup: expected=%v settling=%v", l.expected.Present, l.settling)
+			}
+			want := l.settleAt
+			if due := start + tc.deadline; tc.deadline > 0 && due > clock.Now().Monotonic && due < want {
+				want = due
+			}
+			q := &l.coordinator.scheduler.reducer.deadlines
+			i, ok := q.index[deadlineKey{kind: deadlineLifecycle}]
+			if !ok || q.entries[i].at != want {
+				t.Fatalf("%s: wake=%v want at %v", tc.expectedOutcome, ok, want)
 			}
 		})
 	}
