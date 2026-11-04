@@ -1060,9 +1060,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	}
 	ungated := map[string]bool{}
 	for _, c := range Commands() {
-		// LE4-T01's lwt rows wait for LE4-T02's runs, which gate them and
-		// take this exception out (goip-lwt-encap.md).
-		if !gated[c.Name] && !strings.HasPrefix(c.Slug, gwLwtSlugPrefixCst) {
+		if !gated[c.Name] {
 			ungated[c.Name] = true
 		}
 	}

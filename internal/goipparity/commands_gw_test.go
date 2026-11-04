@@ -20,10 +20,8 @@ const (
 	gwWsDirCst      = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 	gwO5GoldenCst   = "../goip/testdata/ws-differential.txt"
 	gwSlugPrefixCst = "gw_"
-	// gwLwtSlugPrefixCst is the lwt rows' (goip-lwt-encap.md, LE4-T01).
-	gwLwtSlugPrefixCst = "gw_lwt"
-	gwIPPrefixCst      = "ip "
-	gwStepSepCst       = " && "
+	gwIPPrefixCst   = "ip "
+	gwStepSepCst    = " && "
 )
 
 // gwRcs are the ip exit statuses a GW row takes: 0, and 2 for a request the
@@ -310,10 +308,6 @@ func runGwMatrix(t *testing.T, families []string, forms []gwForm) {
 			t.Fatalf("EmbeddedAllowlist: %v", err)
 		}
 		for i := range mine {
-			// LE4-T02's runs gate the lwt rows and take this out.
-			if strings.HasPrefix(mine[i].Slug, gwLwtSlugPrefixCst) {
-				continue
-			}
 			if !al.IsGated(mine[i].Name) {
 				t.Errorf("%s (%q) is not gated", mine[i].Slug, mine[i].Name)
 			}

@@ -1796,6 +1796,32 @@ func TestAllowlistCommitted(t *testing.T) {
 		"nexthop add id 52 encap mpls 101/102 via 192.0.2.1 dev d0",
 		"nexthop add id 53 encap mpls 101 ttl 10 via 192.0.2.1 dev d0",
 		"nexthop add id 54 encap mpls 101 via 2001:db8:1::1 dev d0",
+		// goip-lwt-encap.md's 23 lwt rows, 17 route, 3 hop and 3 nexthop,
+		// gated on two `--section route,nexthop` runs, each row
+		// GOIP_PARITY_PASS both times (goip-lwt-encap-status.md, LE4-T02).
+		"-4 route add 198.51.100.0/24 encap mpls 100 via 192.0.2.1 dev d0",
+		"-4 route add 198.51.100.0/24 encap mpls 3 via 192.0.2.1 dev d0",
+		"-4 route add 198.51.100.0/24 encap mpls 100/200 ttl 10 via 192.0.2.1 dev d0",
+		"-4 route add 198.51.100.0/24 encap mpls 100 ttl 0 via 192.0.2.1 dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 src 192.0.2.10 tos 0x10 ttl 64 key csum seq dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233 dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:001122 dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0102:80:00112233 dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233,0x0102:0x81:44556677 dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 vxlan_opts 0x800 dev d0",
+		"-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 erspan_opts 1:0x1234:: dev d0",
+		"-6 route add 2001:db8:2::/64 encap ip6 id 1 dst 2001:db8:9::1 dev d0",
+		"-6 route add 2001:db8:2::/64 encap ip6 id 1 dst 2001:db8:9::1 src 2001:db8:1::10 tc 0x10 hoplimit 64 key csum seq dev d0",
+		"-6 route add 2001:db8:2::/64 encap ip6 id 1 dst 2001:db8:9::1 geneve_opts 0x0102:0x80:00112233 dev d0",
+		"-6 route add 2001:db8:2::/64 encap mpls 100 via 2001:db8:1::1 dev d0",
+		"-6 route add 2001:db8:2::/64 encap ip id 1 dst 203.0.113.5 dev d0",
+		"-4 route add 198.51.100.0/24 nexthop encap mpls 100 via 192.0.2.1 dev d0 nexthop via 192.0.2.2 dev d0",
+		"-4 route add 198.51.100.0/24 nexthop encap ip id 1 dst 203.0.113.5 via 192.0.2.1 dev d0 nexthop encap ip id 2 dst 203.0.113.6 via 192.0.2.2 dev d0",
+		"-6 route add 2001:db8:2::/64 nexthop encap ip6 dst 2001:db8:9::1 via 2001:db8:1::1 dev d0 nexthop via 2001:db8:1::2 dev d0",
+		"nexthop add id 61 encap ip id 1 dst 203.0.113.5 via 192.0.2.1 dev d0",
+		"nexthop add id 62 encap ip6 dst 2001:db8:9::1 via 2001:db8:1::1 dev d0",
+		"nexthop add id 63 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233 via 192.0.2.1 dev d0",
 	}
 
 	tests := []struct {

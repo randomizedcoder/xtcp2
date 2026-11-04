@@ -2,9 +2,10 @@
 
 ## Status
 
-**Last updated:** 2026-11-03
+**Last updated:** 2026-11-04
 
 **Summary:**
+- **Closed, 2026-11-04.** goip builds `encap` `mpls`, `ip` and `ip6`, with the tunnel options, on a route, in a hop and on a nexthop object. The `lwt` workbench family's 39 rows are O3- and O5-checked, and 23 goip-parity rows are gated ([status](goip-lwt-encap-status.md), V025–V029). The rest of this section is the state the plan started from.
 - [goip-live-forms.md](goip-live-forms.md) is finished. What still sends nothing from goip where `ip` sends a write is `encap`, apart from `netns` and `xdp` programs, which goip refuses by design:
   - **a route's `encap`** (`ip route add … encap TYPE …`) is `routeArmUnsupported` (`internal/goip/route_write.go:166`);
   - **a hop's `encap`** (`nexthop encap TYPE …`) is refused in `parseOneNh` (`route_write.go:660`). These are O5's two `refuses` rows, `fibt/fib_notify_test-001` and `fibt/fib6_notify_test-001` (`internal/goip/testdata/ws-differential.txt`);
