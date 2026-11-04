@@ -363,3 +363,77 @@ func TestRDMAEventUnavailable(t *testing.T) {
 		})
 	}
 }
+
+// TestRDMAEventUnsupportedKernel is the stock Ubuntu 6.8 ib_core case from the
+// 2026-11-04 prod fleet check: the NLDEV monitor subscription answers
+// EOPNOTSUPP. That can't change while the process runs, so it must be treated
+// like ErrUnavailable: reported once, never reopened (each reopen invalidated
+// every RDMA port and forced a resync), and flagged on the reducer so polled
+// RDMA state can stand in for events.
+func TestRDMAEventUnsupportedKernel(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		failure                                      error
+		step                                         time.Duration
+		cycles                                       int
+		newIdentity                                  bool
+		reopened, reports                            int
+		unsupported                                  bool
+		support                                      model.Support
+	}{
+		{"eopnotsupp", "positive", "kernel answers EOPNOTSUPP, five retry windows", "reported once, never reopened, reducer flagged", syscall.EOPNOTSUPP, time.Minute, 5, false, 0, 1, true, model.Unsupported},
+		{"eprotonosupport", "positive", "kernel answers EPROTONOSUPPORT", "reported once, never reopened, reducer flagged", syscall.EPROTONOSUPPORT, time.Minute, 5, false, 0, 1, true, model.Unsupported},
+		{"no-source", "positive", "no RDMA event source (ErrUnavailable), as before", "reported once, never reopened, reducer flagged", rdmaevents.ErrUnavailable, time.Minute, 5, false, 0, 1, true, model.Unsupported},
+		{"permission", "negative", "permission denied, five retry windows", "reopened and reported each window, not flagged", syscall.EACCES, time.Minute, 5, false, 5, 6, false, model.SupportUnknown},
+		{"lost", "negative", "event stream lost, five retry windows", "reopened and reported each window, not flagged", rdmaevents.ErrLost, time.Minute, 5, false, 5, 6, false, model.SupportUnknown},
+		{"eopnotsupp-at-retry", "boundary", "EOPNOTSUPP, exactly at the 1 s retry deadline", "not reopened", syscall.EOPNOTSUPP, time.Second, 1, false, 0, 1, true, model.Unsupported},
+		{"permission-at-retry", "boundary", "permission denied, exactly at the 1 s retry deadline", "reopened once", syscall.EACCES, time.Second, 1, false, 1, 2, false, model.SupportUnknown},
+		{"wrapped", "corner", "EOPNOTSUPP wrapped with context by the source", "treated as unsupported", errors.Join(errors.New("join RDMA NLDEV monitor group"), syscall.EOPNOTSUPP), time.Minute, 5, false, 0, 1, true, model.Unsupported},
+		{"new-identity", "corner", "EOPNOTSUPP, then a new RDMA port is committed", "still not reopened or re-reported; flag kept", syscall.EOPNOTSUPP, time.Minute, 5, true, 0, 1, true, model.Unsupported},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			s, p := eventScheduleFixture(t)
+			reports := 0
+			s.report = func(error) { reports++ }
+			s.w.status <- rdmaEventStatus{generation: s.generation, err: tc.failure}
+			if err := s.before(); err != nil {
+				t.Fatal(err)
+			}
+			if tc.newIdentity {
+				other := p
+				other.Device, other.Hardware = p.Device+"-new", p.Hardware+"-new"
+				s.committed([]model.RDMAPort{p, other}, nil, s.barrier+1)
+			}
+			reopened := 0
+			for i := 1; i <= tc.cycles; i++ {
+				if err := s.advance(model.Stamp{Monotonic: time.Duration(i) * tc.step}); err != nil {
+					t.Fatal(err)
+				}
+				select {
+				case request := <-s.w.requests:
+					reopened++
+					s.w.status <- rdmaEventStatus{generation: request.generation, err: tc.failure}
+					if err := s.before(); err != nil {
+						t.Fatal(err)
+					}
+				default:
+				}
+			}
+			if reopened != tc.reopened || reports != tc.reports {
+				t.Fatalf("%s: reopened=%d reports=%d, want %d and %d", tc.expectedOutcome, reopened, reports, tc.reopened, tc.reports)
+			}
+			r := s.c.scheduler.reducer
+			if r.rdmaEventsUnsupported != tc.unsupported || r.rdmaEvents {
+				t.Fatalf("%s: unsupported=%v events=%v", tc.expectedOutcome, r.rdmaEventsUnsupported, r.rdmaEvents)
+			}
+			state, _, err := r.collector(model.JobKey{Namespace: 1, Device: p.Canonical, Collector: model.CollectorRDMAEvents})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.support != tc.support || state.fresh {
+				t.Fatal(tc.expectedOutcome, state)
+			}
+		})
+	}
+}

@@ -25,9 +25,10 @@ type rdmaEventSchedule struct {
 	interrupt                      context.CancelFunc
 	generation, barrier            uint64
 	busy, ready, reconciled, dirty bool
-	// unavailable is set once the source reports no RDMA event support. That
-	// cannot change while the process runs, so the source is not reopened:
-	// each retry would invalidate every RDMA port and force a resync.
+	// unavailable is set once the source reports no RDMA event support, or the
+	// kernel refuses the subscription (stock Ubuntu 6.8 ib_core: EOPNOTSUPP).
+	// That cannot change while the process runs, so the source is not
+	// reopened: each retry would invalidate every RDMA port and force a resync.
 	unavailable                bool
 	retryAt, deadline, backoff time.Duration
 	report                     func(error)
@@ -196,7 +197,8 @@ func (s *rdmaEventSchedule) failed(err error) {
 	}
 	s.failureGeneration = s.generation
 	s.sourceFailure = err
-	s.unavailable = errors.Is(err, rdmaevents.ErrUnavailable)
+	s.unavailable = rdmaEventsUnavailable(err)
+	s.c.scheduler.reducer.rdmaEventsUnsupported = s.unavailable
 	s.invalidate()
 	s.diagnostics(err)
 	if s.interrupt != nil && !s.delayedRestart {
