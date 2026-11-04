@@ -15,9 +15,10 @@
 - **LF2 is closed.**
 
 - LF3-T01 is done: 23 `gw_kw*` goip-parity write rows, one per form and ip rc, picked by the GW5 tables from the `kwlive` rows; every form GW5 left with no row has one at rc 0, and `tos`, `dsfield`, `pref`, `index` and single-nexthop `hw_stats off` one at rc 2 as well. They stay ungated until LF3-T02 (V013–V015).
-- LF3-T02 is in progress. The first `--section route,link,nexthop,rule` run passes 926 of 927 rows; `gw_kwnh_ec_003` diverges on the three pad bytes after `MPLS_IPTUNNEL_TTL` that `ip` takes from its stack (V016). nlparity now compares an `NLA_F_NESTED` attribute past its inner padding, as it already does a top-level attribute (V017, V018).
+- LF3-T02 is done. The first `--section route,link,nexthop,rule` run passed 926 of 927 rows; `gw_kwnh_ec_003` diverged on the three pad bytes after `MPLS_IPTUNNEL_TTL` that `ip` takes from its stack (V016). nlparity now compares an `NLA_F_NESTED` attribute past its inner padding, as it already did a top-level attribute (V017, V018). On that, the section run passes 927 of 927 and the full run, with the 23 rows gated, 1304 of 1304 (V019, V020); the rows are in `gated_commands` (V021).
+- **LF3 is closed, and with it the plan.**
 
-**Next action:** LF3-T02: the section run again on this commit, then the full run; then the 23 rows are gated.
+**Next action:** none in this plan. The next push needs the whole-repo `test-go-race` check and an explicit OK.
 
 ## Contents
 
@@ -40,7 +41,7 @@
 |---|---|---|---|---|
 | [LF1](goip-live-forms.md#lf1--the-rows) | the rows | LF1-T01 | done | V001–V003 |
 | [LF2](goip-live-forms.md#lf2--the-captures-and-the-oracles) | captures, O3, O5 | LF2-T03 | done | V004–V012 |
-| [LF3](goip-live-forms.md#lf3--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LF3-T02 | in progress | V013– |
+| [LF3](goip-live-forms.md#lf3--the-matrix-rows-and-the-vm-gate) | matrix rows, VM gate | LF3-T02 | done | V013–V021 |
 
 ## Task checklist
 
@@ -51,7 +52,7 @@
 | [x] | [LF2-T02](goip-live-forms.md#lf2-t02-o3-for-kwlive) | O3 | done | V007–V009 |
 | [x] | [LF2-T03](goip-live-forms.md#lf2-t03-o5-over-kwlive) | O5 | done | V010–V012 |
 | [x] | [LF3-T01](goip-live-forms.md#lf3-t01-the-rows) | matrix rows | done | V013–V015 |
-| [ ] | [LF3-T02](goip-live-forms.md#lf3-t02-the-vm-gate) | the VM gate | in progress | V016– |
+| [x] | [LF3-T02](goip-live-forms.md#lf3-t02-the-vm-gate) | the VM gate | done | V016–V021 |
 
 ## Verification ledger
 
@@ -74,8 +75,11 @@
 | V014 | 2026-11-03 | LF3-T01 | mutation under `MemoryMax=6G`, `-run TestGw`: a vrf row's floor one short; `link set vrf1 up` dropped from `gwWsSetupVrf`; the repeated-argv pass-over dropped; the over-255 vrf form's cmd back to `\bvrf \S+` | 4 of 4 killed (2, 2, 14 and 3 failures) | 04bb6059 |
 | V015 | 2026-11-03 | LF3-T01 | lint-baseline, then netlink-audit, in a worktree of the task's diff; codespell over the added lines | all pass first time | 04bb6059 |
 | V016 | 2026-11-03 | LF3-T02 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section route,link,nexthop,rule` at 04bb6059 | 927 rows: 926 `GOIP_PARITY_PASS`, `GOIP_PARITY_OVERALL_PASS`, but `GOIP_PARITY_UNGATED_DIVERGENCES 1`: `gw_kwnh_ec_003`'s `NHA_ENCAP`, `ip=0800010000065100050002000a7f0000 goip=…0a000000`, the decision's watched padding. The other 22 `gw_kw` rows pass | 04bb6059 |
-| V017 | 2026-11-03 | LF3-T02 | `samePastPadding` in `diffAttrs`; `go test -count=1 ./pkg/nlparity/ ./internal/goipparity/ ./internal/goip/`, `go vet ./pkg/nlparity/` | all pass: `TestSamePastPadding` (13 rows: V016's two payloads the same; a value, a label, a missing attribute, the order, the `NLA_F_NESTED` bit, a non-nested inner attribute and a short tail each not), `TestDiffAttrsNestedPadding` (4 rows) | this commit |
-| V018 | 2026-11-03 | LF3-T02 | mutation under `MemoryMax=6G`, `-run 'TestSamePastPadding\|TestDiffAttrsNestedPadding'`: the `Nested` guard in `diffAttrs` dropped; the call dropped; the remainder check, the count check, the type check, the inner `Nested` guard, the recursion each dropped. Then lint-baseline and netlink-audit in a worktree of the diff | 7 of 7 killed; both checks pass first time | this commit |
+| V017 | 2026-11-03 | LF3-T02 | `samePastPadding` in `diffAttrs`; `go test -count=1 ./pkg/nlparity/ ./internal/goipparity/ ./internal/goip/`, `go vet ./pkg/nlparity/` | all pass: `TestSamePastPadding` (13 rows: V016's two payloads the same; a value, a label, a missing attribute, the order, the `NLA_F_NESTED` bit, a non-nested inner attribute and a short tail each not), `TestDiffAttrsNestedPadding` (4 rows) | 3f4b7049 |
+| V018 | 2026-11-03 | LF3-T02 | mutation under `MemoryMax=6G`, `-run 'TestSamePastPadding\|TestDiffAttrsNestedPadding'`: the `Nested` guard in `diffAttrs` dropped; the call dropped; the remainder check, the count check, the type check, the inner `Nested` guard, the recursion each dropped. Then lint-baseline and netlink-audit in a worktree of the diff | 7 of 7 killed; both checks pass first time | 3f4b7049 |
+| V019 | 2026-11-03 | LF3-T02 | the section run again, at 3f4b7049 | 927 of 927 `GOIP_PARITY_PASS`, `GOIP_PARITY_OVERALL_PASS`, `GOIP_PARITY_UNGATED_CLEAN`; all 23 `gw_kw` rows pass, `gw_kwnh_ec_003` among them | 3f4b7049 |
+| V020 | 2026-11-03 | LF3-T02 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000`, the full run, at 3f4b7049 with this commit's gating applied, so the 23 rows run gated | 1304 of 1304 `GOIP_PARITY_PASS`, `GOIP_PARITY_OVERALL_PASS`, `GOIP_PARITY_UNGATED_CLEAN` (`GOIP_PARITY_CONTROL_NOISY` as every run). With V019 each section has two consecutive clean runs | this commit |
+| V021 | 2026-11-03 | LF3-T02 | the 23 rows in `gated_commands` and `TestAllowlistCommitted`'s earned list; the `gw_kw` exceptions out of the GW matrix tables' gated check and `TestUngatedSurfaceIsNotVacuous`; `go test -count=1 ./internal/goipparity/ ./pkg/nlparity/`; mutation: `link set d0 xdpoffload off` dropped from `gated_commands`; lint-baseline, then netlink-audit, in a worktree of the diff | all pass; the mutant killed by `TestGwLinkMatrixRows`, `TestUngatedSurfaceIsNotVacuous` and `TestAllowlistCommitted`; both checks pass first time | this commit |
 
 ## Decision log
 
@@ -89,5 +93,5 @@
 - **The one-label MPLS form excludes `ttl`.** `\bencap mpls \d+ ` matched the ttl row's duplicate at rc 2, whose argv then barred `kwnh/ec-003` from the ttl form; the form is now `\bencap mpls \d+ via `.
 - **`kwroute6/dup-2` is the `pref` form's rc 2 row.** GW5's rule passes a duplicate over only where a pick has its argv; `pref 2`'s add isn't a pick, so its duplicate is a row, as `route6/gone-3` was.
 - **nlparity compares a nest past its padding, rather than holding `gw_kwnh_ec_003` back.** V016 is the watched divergence: `ip`'s three bytes after `MPLS_IPTUNNEL_TTL` are its stack's. A top-level attribute's value already stops at `nla_len`, so its padding never reached a comparison; inside an `NLA_F_NESTED` attribute the payload was one value, padding and all. `samePastPadding` makes the two agree: two nested payloads that parse to the end into the same attributes, in the same order, with the same types and values (descending into inner nests), are the same. Anything else is still the one value finding it was. Only flagged nests: `IFLA_AF_SPEC` and the other unflagged nests stay compared whole. An allowlist entry would instead have suppressed any value difference in `NHA_ENCAP`.
-- **Watch `kwnh/ec-003` in the VM.** nlparity compares `NHA_ENCAP` as one value, padding inside it included, and the workbench's `ip` put `7f 00 00` after `MPLS_IPTUNNEL_TTL`. If the VM's does too, the row diverges for `ip`'s stack bytes (LF2-T03's decision), and LF3-T02 decides it.
+- **Watch `kwnh/ec-003` in the VM.** nlparity compared `NHA_ENCAP` as one value, padding inside it included, and the workbench's `ip` put `7f 00 00` after `MPLS_IPTUNNEL_TTL`. The VM's did too (V016); the decision above settles it.
 - **A separate family.** Adding the forms as axis values to `route`, `link`, `nexthop` or `rule` would change those spaces' pairwise rows and force a recapture of every row in them. `kwlive` leaves them byte for byte.

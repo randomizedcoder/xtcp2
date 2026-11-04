@@ -1039,9 +1039,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	}
 	ungated := map[string]bool{}
 	for _, c := range Commands() {
-		// LF3-T01's kwlive rows wait for LF3-T02's runs, which gate them
-		// and take this exception out (goip-live-forms.md).
-		if !gated[c.Name] && !strings.HasPrefix(c.Slug, gwKwSlugPrefixCst) {
+		if !gated[c.Name] {
 			ungated[c.Name] = true
 		}
 	}

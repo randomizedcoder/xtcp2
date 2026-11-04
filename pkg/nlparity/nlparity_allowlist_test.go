@@ -1758,6 +1758,33 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-6 route del blackhole default table 256 metric 4294967295 proto 255 pref low expires 60 dev d0",
 		"-4 route add multicast 198.51.100.6/31 table 256 preference 7 scope global mtu lock 1400 src 192.0.2.10 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256",
 		"-4 route del multicast 198.51.100.6/31 table 256 preference 7 nexthop via 192.0.2.1 dev d0 weight 1 nexthop via 192.0.2.2 dev d0 weight 256",
+		// goip-live-forms.md's 23 kwlive rows, 13 route, 4 link, 5 nexthop
+		// and 1 rule, gated on a `--section route,link,nexthop,rule` run and
+		// the full run after it, each row GOIP_PARITY_PASS both times
+		// (goip-live-forms-status.md, LF3-T02).
+		"-4 route add 198.51.100.0/24 dev d0 tos 0x10",
+		"-4 route add 198.51.100.0/24 dev d0 tos 0x01",
+		"-4 route add 198.51.100.0/24 dev d0 dsfield 0x10",
+		"-6 route add 2001:db8:2::/64 dev d0 dsfield 0x10",
+		"-4 route add 198.51.100.0/24 dev d0 realms 5",
+		"-4 route add 198.51.100.0/24 dev d0 realms 1/2",
+		"-4 route add 198.51.100.0/24 dev d0 vrf vrf0",
+		"-4 route add 198.51.100.0/24 dev d0 vrf vrf1",
+		"-4 route add 198.51.100.0/24 nexthop via 203.0.113.1 dev d0 onlink nexthop via 192.0.2.1 dev d0",
+		"-4 route add 198.51.100.0/24 nexthop via inet6 2001:db8:1::1 dev d0 nexthop via 192.0.2.1 dev d0",
+		"-4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 realms 3 nexthop via 192.0.2.2 dev d0",
+		"-6 route add 2001:db8:2::/64 dev d0 pref 1",
+		"-6 route add 2001:db8:2::/64 dev d0 pref 2",
+		"link set group 5 mtu 1400",
+		"link set d0 xdpoffload off",
+		"link add d7 index 77 type dummy",
+		"link add d8 index 1 type dummy",
+		"-4 rule add pref 200 realms 1/2 table 100",
+		"nexthop add id 55 via 192.0.2.1 dev d0 hw_stats off",
+		"nexthop add id 51 encap mpls 101 via 192.0.2.1 dev d0",
+		"nexthop add id 52 encap mpls 101/102 via 192.0.2.1 dev d0",
+		"nexthop add id 53 encap mpls 101 ttl 10 via 192.0.2.1 dev d0",
+		"nexthop add id 54 encap mpls 101 via 2001:db8:1::1 dev d0",
 	}
 
 	tests := []struct {
