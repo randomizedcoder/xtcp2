@@ -18,7 +18,7 @@ const (
 
 var fixedLabels = map[string][]string{
 	"baseline_up_links": nil, "up_links": nil, "up_links_delta": nil,
-	"baseline_ready": nil, "baseline_write_errors_total": nil, "collection_healthy": nil,
+	"baseline_ready": nil, "baseline_provisional": nil, "baseline_write_errors_total": nil, "collection_healthy": nil,
 	"last_successful_resync_timestamp_seconds": nil,
 	"resyncs_total": {reasonLabel, "result"},
 	"interface_up":  {interfaceLabel}, "interface_check": {interfaceLabel, "check", statusLabel},
@@ -86,6 +86,9 @@ func (e emitter) policy(s linkmonitor.Snapshot, devices bool) {
 		e.gauge("up_links_delta", value)
 	}
 	e.gauge("baseline_ready", boolean(health.BaselineReady))
+	if health.BaselineProvisional {
+		e.gauge("baseline_provisional", 1)
+	}
 	e.gauge("collection_healthy", boolean(health.CollectionHealthy))
 	e.counter("baseline_write_errors_total", s.BaselineWriteErrors())
 	if stamp, ok := s.LastSuccessfulResync(); ok {

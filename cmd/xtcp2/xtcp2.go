@@ -322,6 +322,7 @@ type mainFlags struct {
 	linkMonitor                   *bool
 	linkMonitorBaselineFile       *string
 	linkMonitorSettle             *time.Duration
+	linkMonitorLearnDeadline      *time.Duration
 	linkMonitorResync             *time.Duration
 	linkMonitorStatsInterval      *time.Duration
 	linkMonitorStatsInclude       *string

@@ -189,7 +189,11 @@ Alert and dashboard PromQL is in
 
 - **Baseline.** The first stable up count, after `-settle` (30s), is saved to
   `-baseline-file`. `go-link-monitor ctl rebaseline -reason TEXT` replaces it
-  after an intended change; SIGUSR1 does the same.
+  after an intended change; SIGUSR1 does the same. If none is learned within
+  `-learn-deadline` (5m; 0 waits forever), for example because an RDMA port
+  never settles, the visible up count becomes a provisional baseline, kept in
+  memory only and flagged by `baseline_provisional 1`, so `up_links_delta`
+  still reports. A normally learned baseline replaces it and is saved.
 - **Admin gRPC.** `-admin.address` (for example
   `/run/go-link-monitor/admin.sock`) serves `LinkMonitorService`, used by
   `go-link-monitor ctl status|interfaces|collectors|rebaseline|resync`. See

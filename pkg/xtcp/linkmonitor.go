@@ -146,6 +146,9 @@ func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, 
 	if c.GetSettle() != nil {
 		cfg.Settle = c.GetSettle().AsDuration()
 	}
+	if c.GetLearnDeadline() != nil {
+		cfg.LearnDeadline = c.GetLearnDeadline().AsDuration()
+	}
 	if c.GetResync() != nil {
 		cfg.Resync = c.GetResync().AsDuration()
 	}

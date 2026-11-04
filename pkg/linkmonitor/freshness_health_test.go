@@ -141,16 +141,22 @@ func TestRDMAHealth(t *testing.T) {
 	for _, tc := range []struct {
 		name, description, expected         string
 		native, state, capabilities, events bool
+		unsupported                         bool
 		elapsed                             time.Duration
 		healthy                             bool
 	}{
-		{"native ready", "native state and events healthy, capabilities unavailable", "ready with unknown speed and inapplicable duplex", true, true, false, true, 0, true},
-		{"RoCE ready", "Ethernet up plus fresh RDMA state", "ready without a second counted link", false, true, false, true, 0, true},
-		{"no state", "capabilities present but required state missing", "unhealthy", true, false, true, true, 0, false},
-		{"no events", "fresh state without required RDMA subscription", "unhealthy", true, true, true, false, 0, false},
-		{"just before expiry", "required state age just under 45s", "healthy", true, true, true, true, 45*time.Second - 1, true},
-		{"state expires", "required state reaches 45s", "unhealthy with unknown speed/width/readiness", true, true, true, true, 45 * time.Second, false},
-		{"RoCE expires", "RDMA state expires while Ethernet remains up", "unhealthy but preserve Ethernet up count", false, true, true, true, 45 * time.Second, false},
+		{"native ready", "native state and events healthy, capabilities unavailable", "ready with unknown speed and inapplicable duplex", true, true, false, true, false, 0, true},
+		{"RoCE ready", "Ethernet up plus fresh RDMA state", "ready without a second counted link", false, true, false, true, false, 0, true},
+		{"no state", "capabilities present but required state missing", "unhealthy", true, false, true, true, false, 0, false},
+		{"no events", "fresh state, RDMA subscription not (yet) established", "unhealthy: only a kernel without events falls back", true, true, true, false, false, 0, false},
+		{"just before expiry", "required state age just under 45s", "healthy", true, true, true, true, false, 45*time.Second - 1, true},
+		{"state expires", "required state reaches 45s", "unhealthy with unknown speed/width/readiness", true, true, true, true, false, 45 * time.Second, false},
+		{"RoCE expires", "RDMA state expires while Ethernet remains up", "unhealthy but preserve Ethernet up count", false, true, true, true, false, 45 * time.Second, false},
+		{"RoCE events unsupported", "fresh RDMA state, kernel without RDMA events (stock ib_core)", "healthy on polled state", false, true, false, false, true, 0, true},
+		{"native events unsupported", "fresh native state, kernel without RDMA events", "healthy on polled state", true, true, true, false, true, 0, true},
+		{"unsupported no state", "kernel without RDMA events and no RDMA state", "unhealthy: the fallback needs fresh state", false, false, false, false, true, 0, false},
+		{"unsupported just before expiry", "kernel without RDMA events, state age just under 45s", "healthy", false, true, false, false, true, 45*time.Second - 1, true},
+		{"unsupported state expires", "kernel without RDMA events, state reaches 45s", "unhealthy: a stalled poller is not hidden", false, true, false, false, true, 45 * time.Second, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("positive/negative/boundary: %s; expected: %s", tc.description, tc.expected)
@@ -175,6 +181,7 @@ func TestRDMAHealth(t *testing.T) {
 				}
 			}
 			subscriptions(t, r, true, tc.events)
+			r.rdmaEventsUnsupported = tc.unsupported
 			resynced(t, r, c)
 			advance(t, c, tc.elapsed)
 			s := publishNow(t, r, m, c, true)
@@ -198,6 +205,44 @@ func TestRDMAHealth(t *testing.T) {
 			}
 			if r.requiredRDMA != 0 || r.missingRDMA != 0 {
 				t.Fatal("retired RDMA device remained in health accounting")
+			}
+		})
+	}
+}
+
+// TestCountReadyRDMAEvents is the gate on recording the baseline. Before the
+// fix a kernel without RDMA events held it closed for good, so 68 prod hosts
+// never wrote link-monitor-baseline.json.
+func TestCountReadyRDMAEvents(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		rdma, events, unsupported, resync            bool
+		rdmaUncertain                                uint64
+		ready                                        bool
+	}{
+		{"no-rdma", "positive", "no RDMA device, no RDMA events", "ready", false, false, false, true, 0, true},
+		{"events", "positive", "RDMA device with RDMA events", "ready", true, true, false, true, 0, true},
+		{"unsupported", "positive", "RDMA device, kernel without RDMA events", "ready on polled state", true, false, true, true, 0, true},
+		{"not-subscribed", "negative", "RDMA device, events not (yet) subscribed", "not ready", true, false, false, true, 0, false},
+		{"unsupported-no-resync", "boundary", "kernel without RDMA events, before the first complete resync", "not ready", true, false, true, false, 0, false},
+		{"unsupported-uncertain", "corner", "kernel without RDMA events and an uncertain RDMA association", "not ready: uncertainty still blocks", true, false, true, true, 1, false},
+		{"unsupported-and-events", "corner", "flag set while events are also live", "ready", true, true, true, true, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			c := testkit.NewClock(time.Unix(1000, 0))
+			r := newReducer(1)
+			o := observed(r, 1, true)
+			o.Device.RDMA = tc.rdma
+			mustObserve(t, r, o)
+			subscriptions(t, r, true, tc.events)
+			r.rdmaEventsUnsupported = tc.unsupported
+			r.rdmaUncertain = tc.rdmaUncertain
+			if tc.resync {
+				resynced(t, r, c)
+			}
+			if got := r.countReady(); got != tc.ready {
+				t.Fatalf("%s: countReady=%v requiredRDMA=%d", tc.expectedOutcome, got, r.requiredRDMA)
 			}
 		})
 	}

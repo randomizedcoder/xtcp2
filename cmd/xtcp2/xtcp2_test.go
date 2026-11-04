@@ -1051,6 +1051,7 @@ func TestPrintFlags(t *testing.T) {
 	f.linkMonitor = &b
 	f.linkMonitorBaselineFile = &s
 	f.linkMonitorSettle = &d
+	f.linkMonitorLearnDeadline = &d
 	f.linkMonitorResync = &d
 	f.linkMonitorStatsInterval = &d
 	f.linkMonitorStatsInclude = &s
@@ -1168,6 +1169,7 @@ func TestBuildConfig(t *testing.T) {
 	lmCoreInclude, lmCoreExclude := "go_link_monitor_up_links", "go_link_monitor_build_info"
 	lmMode := "on-demand"
 	lmWatch, lmSlow, lmTTL := 20*time.Second, 40*time.Second, 5*time.Second
+	lmDeadline := 11 * time.Minute
 	lmWait, lmErrWindow, lmFlapWindow := 3*time.Second, 4*time.Minute, 5*time.Minute
 	lmClasses, lmErrExclude, lmCategories, lmAllPath := "link,drop", "^eth9/.*", "link,rdma", "/all"
 	lmIfacePaths, lmIPPaths, lmIPMax := false, true, uint(4096)
@@ -1224,7 +1226,8 @@ func TestBuildConfig(t *testing.T) {
 		ipmetaBootstrapPath: &ipmetaBootstrap, ipmetaCachePath: &ipmetaCache,
 		enrichLocality: &iu, localityRefreshInterval: &rf, localityEvents: &iu,
 		linkMonitor: &iu, linkMonitorBaselineFile: &lmBaseline, linkMonitorSettle: &rf,
-		linkMonitorResync: &subc, linkMonitorStatsInterval: &pf, linkMonitorStatsInclude: &lmInclude,
+		linkMonitorLearnDeadline: &lmDeadline,
+		linkMonitorResync:        &subc, linkMonitorStatsInterval: &pf, linkMonitorStatsInclude: &lmInclude,
 		linkMonitorStatsExclude: &lmExclude, linkMonitorNetstatFields: &lmNetstat,
 		linkMonitorMaxSpeedExceptions: &lmExceptions, linkMonitorMetricsCoreInclude: &lmCoreInclude,
 		linkMonitorMetricsCoreExclude: &lmCoreExclude, linkMonitorMetricsAll: &iu,
@@ -1282,6 +1285,7 @@ func TestBuildConfig(t *testing.T) {
 		{"LinkMonitor.Enable", c.LinkMonitor.GetEnable(), true},
 		{"LinkMonitor.BaselineFile", c.LinkMonitor.GetBaselineFile(), lmBaseline},
 		{"LinkMonitor.Settle", c.LinkMonitor.GetSettle().AsDuration(), 3 * time.Minute},
+		{"LinkMonitor.LearnDeadline", c.LinkMonitor.GetLearnDeadline().AsDuration(), lmDeadline},
 		{"LinkMonitor.Resync", c.LinkMonitor.GetResync().AsDuration(), 90 * time.Second},
 		{"LinkMonitor.StatsInterval", c.LinkMonitor.GetStatsInterval().AsDuration(), 7 * time.Second},
 		{"LinkMonitor.StatsInclude", c.LinkMonitor.GetStatsInclude(), lmInclude},

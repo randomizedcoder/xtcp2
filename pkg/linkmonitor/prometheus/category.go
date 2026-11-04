@@ -31,7 +31,7 @@ var categoryNames = map[string]string{
 	"build_info": CategoryShared, "collection_healthy": CategoryShared,
 
 	"problems": CategorySummary, "interface_problem": CategorySummary, "host_problem": CategorySummary,
-	"up_links_delta": CategorySummary, "baseline_ready": CategorySummary,
+	"up_links_delta": CategorySummary, "baseline_ready": CategorySummary, "baseline_provisional": CategorySummary,
 
 	"up_links": CategoryLink, "baseline_up_links": CategoryLink, "interface_up": CategoryLink,
 	"interface_check": CategoryLink, "interface_classification": CategoryLink,

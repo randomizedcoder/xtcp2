@@ -158,7 +158,7 @@ func (r *reducer) setSubscriptions(route, rdma bool) error {
 
 func (r *reducer) publicationHealth(running, baseline bool) Health {
 	healthy := r.lastResync.Present && r.resyncEpoch == r.epoch && !r.resyncOverdue &&
-		r.routeEvents && r.uncertain == 0 && r.rdmaUncertain == 0 && r.missingRDMA == 0 && (r.requiredRDMA == 0 || r.rdmaEvents)
+		r.routeEvents && r.uncertain == 0 && r.rdmaUncertain == 0 && r.missingRDMA == 0 && (r.requiredRDMA == 0 || r.rdmaEvents || r.rdmaEventsUnsupported)
 	return Health{Running: running, BaselineReady: baseline,
 		CollectionHealthy: running && healthy, Ready: running && baseline && healthy}
 }

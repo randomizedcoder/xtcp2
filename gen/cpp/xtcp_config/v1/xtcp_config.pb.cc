@@ -1751,12 +1751,12 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
     {
       PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_._has_bits_),
       0, // no _extensions_
-      27, 248,  // max_field_number, fast_idx_mask
+      28, 248,  // max_field_number, fast_idx_mask
       offsetof(ParseTableT_, field_lookup_table),
-      4160749568,  // skipmap
+      4026531840,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      27,  // num_field_entries
-      9,  // num_aux_entries
+      28,  // num_field_entries
+      10,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
       nullptr,  // post_loop_handler
@@ -1767,8 +1767,8 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
     }, {{
       {::_pbi::TcParser::MiniParse, {}},
       // bool enable = 1 [json_name = "enable"];
-      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(LinkMonitorConfig, _impl_.enable_), 22>(),
-       {8, 22, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(LinkMonitorConfig, _impl_.enable_), 23>(),
+       {8, 23, 0,
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.enable_)}},
       // string baseline_file = 2 [json_name = "baselineFile", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS1,
@@ -1811,8 +1811,8 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
        {90, 6, 0,
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_core_exclude_)}},
       // bool metrics_all = 12 [json_name = "metricsAll"];
-      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(LinkMonitorConfig, _impl_.metrics_all_), 23>(),
-       {96, 23, 0,
+      {::_pbi::TcParser::SingularVarintNoZag1<bool, offsetof(LinkMonitorConfig, _impl_.metrics_all_), 24>(),
+       {96, 24, 0,
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_all_)}},
       // string collection_mode = 13 [json_name = "collectionMode", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS1,
@@ -1856,7 +1856,7 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_categories_)}},
       // optional bool metrics_interface_paths = 23 [json_name = "metricsInterfacePaths"];
       {::_pbi::TcParser::FastV8S2,
-       {440, 24, 0,
+       {440, 25, 0,
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_interface_paths_)}},
       // optional string metrics_all_path = 24 [json_name = "metricsAllPath", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS2,
@@ -1864,17 +1864,20 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_all_path_)}},
       // bool ip_paths = 25 [json_name = "ipPaths"];
       {::_pbi::TcParser::FastV8S2,
-       {456, 25, 0,
+       {456, 26, 0,
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_paths_)}},
       // uint32 ip_max_bytes = 26 [json_name = "ipMaxBytes", (.buf.validate.field) = {
       {::_pbi::TcParser::FastV32S2,
-       {464, 26, 0,
+       {464, 27, 0,
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_max_bytes_)}},
       // string ip_listen = 27 [json_name = "ipListen", (.buf.validate.field) = {
       {::_pbi::TcParser::FastUS2,
        {474, 12, 0,
         PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_listen_)}},
-      {::_pbi::TcParser::MiniParse, {}},
+      // .google.protobuf.Duration learn_deadline = 28 [json_name = "learnDeadline", (.buf.validate.field) = {
+      {::_pbi::TcParser::FastMtS2,
+       {482, 22, 9,
+        PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.learn_deadline_)}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
       {::_pbi::TcParser::MiniParse, {}},
@@ -1882,7 +1885,7 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
       65535, 65535
     }}, {{
       // bool enable = 1 [json_name = "enable"];
-      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.enable_), _Internal::kHasBitsOffset + 22, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.enable_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string baseline_file = 2 [json_name = "baselineFile", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.baseline_file_), _Internal::kHasBitsOffset + 1, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // .google.protobuf.Duration settle = 3 [json_name = "settle", (.buf.validate.field) = {
@@ -1904,7 +1907,7 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
       // string metrics_core_exclude = 11 [json_name = "metricsCoreExclude", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_core_exclude_), _Internal::kHasBitsOffset + 6, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // bool metrics_all = 12 [json_name = "metricsAll"];
-      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_all_), _Internal::kHasBitsOffset + 23, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_all_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string collection_mode = 13 [json_name = "collectionMode", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.collection_mode_), _Internal::kHasBitsOffset + 7, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // .google.protobuf.Duration watch_interval = 14 [json_name = "watchInterval", (.buf.validate.field) = {
@@ -1926,17 +1929,24 @@ constexpr LinkMonitorConfig::ParseTableT_ LinkMonitorConfig::InternalGeneratePar
       // optional string metrics_categories = 22 [json_name = "metricsCategories", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_categories_), _Internal::kHasBitsOffset + 10, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // optional bool metrics_interface_paths = 23 [json_name = "metricsInterfacePaths"];
-      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_interface_paths_), _Internal::kHasBitsOffset + 24, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_interface_paths_), _Internal::kHasBitsOffset + 25, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // optional string metrics_all_path = 24 [json_name = "metricsAllPath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.metrics_all_path_), _Internal::kHasBitsOffset + 11, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // bool ip_paths = 25 [json_name = "ipPaths"];
-      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_paths_), _Internal::kHasBitsOffset + 25, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_paths_), _Internal::kHasBitsOffset + 26, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // uint32 ip_max_bytes = 26 [json_name = "ipMaxBytes", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_max_bytes_), _Internal::kHasBitsOffset + 26, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_max_bytes_), _Internal::kHasBitsOffset + 27, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // string ip_listen = 27 [json_name = "ipListen", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.ip_listen_), _Internal::kHasBitsOffset + 12, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
+      // .google.protobuf.Duration learn_deadline = 28 [json_name = "learnDeadline", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(LinkMonitorConfig, _impl_.learn_deadline_), _Internal::kHasBitsOffset + 22, 9, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     }},
     {{
+        #ifndef PROTOBUF_MESSAGE_GLOBALS
+        {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
+        #else
+        {::_pbi::FieldAuxMessageGlobals(), &::google::protobuf::Duration_globals_},
+        #endif
         #ifndef PROTOBUF_MESSAGE_GLOBALS
         {::_pbi::TcParser::GetTable<::google::protobuf::Duration>()},
         #else
@@ -2057,6 +2067,7 @@ inline constexpr LinkMonitorConfig::Impl_::Impl_(
         on_demand_wait_{nullptr},
         error_window_{nullptr},
         flap_window_{nullptr},
+        learn_deadline_{nullptr},
         enable_{false},
         metrics_all_{false},
         metrics_interface_paths_{false},
@@ -3939,7 +3950,7 @@ const ::uint32_t
         3,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_._has_bits_),
-        30, // hasbit index offset
+        31, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_.enable_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_.baseline_file_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_.settle_),
@@ -3967,7 +3978,8 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_.ip_paths_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_.ip_max_bytes_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_.ip_listen_),
-        22,
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::LinkMonitorConfig, _impl_.learn_deadline_),
+        23,
         1,
         13,
         14,
@@ -3978,7 +3990,7 @@ const ::uint32_t
         0,
         5,
         6,
-        23,
+        24,
         7,
         16,
         17,
@@ -3989,11 +4001,12 @@ const ::uint32_t
         8,
         9,
         10,
-        24,
-        11,
         25,
+        11,
         26,
+        27,
         12,
+        22,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_._has_bits_),
         83, // hasbit index offset
@@ -4190,9 +4203,9 @@ static const ::_pbi::MigrationSchema
         {68, sizeof(::xtcp_config::v1::ListenerEndpoint)},
         {85, sizeof(::xtcp_config::v1::ListenerAuth)},
         {100, sizeof(::xtcp_config::v1::LinkMonitorConfig)},
-        {157, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {320, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {327, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {159, sizeof(::xtcp_config::v1::XtcpConfig)},
+        {322, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {329, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -4294,7 +4307,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "s.failure_jitter_min) || !has(this.failu"
     "re_jitter_max) || this.failure_jitter_ma"
     "x >= this.failure_jitter_minB\034\n\032_signed_"
-    "token_skew_minutes\"\310\r\n\021LinkMonitorConfig"
+    "token_skew_minutes\"\232\016\n\021LinkMonitorConfig"
     "\022\026\n\006enable\030\001 \001(\010R\006enable\022-\n\rbaseline_fil"
     "e\030\002 \001(\tB\010\272H\005r\003\030\200 R\014baselineFile\022A\n\006settl"
     "e\030\003 \001(\0132\031.google.protobuf.DurationB\016\272H\013\252"
@@ -4335,167 +4348,169 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     " \001(\tB\010\272H\005r\003\030\200\002H\003R\016metricsAllPath\210\001\001\022\031\n\010i"
     "p_paths\030\031 \001(\010R\007ipPaths\022-\n\014ip_max_bytes\030\032"
     " \001(\rB\013\272H\010*\006\030\200\200\200\200\004R\nipMaxBytes\022$\n\tip_list"
-    "en\030\033 \001(\tB\007\272H\004r\002\030@R\010ipListenB\020\n\016_error_cl"
-    "assesB\025\n\023_metrics_categoriesB\032\n\030_metrics"
-    "_interface_pathsB\023\n\021_metrics_all_path\"\213%"
-    "\n\nXtcpConfig\022F\n\027nl_timeout_milliseconds\030"
-    "\n \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMillisec"
-    "onds\022S\n\016poll_frequency\030\013 \001(\0132\031.google.pr"
-    "otobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\rpoll"
-    "Frequency\022O\n\014poll_timeout\030\014 \001(\0132\031.google"
-    ".protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\013p"
-    "ollTimeout\0222\n\017poll_jitter_pct\030\r \001(\rB\n\272H\007"
-    "*\002\030d\310\001\000R\rpollJitterPct\022+\n\tmax_loops\030\016 \001("
-    "\004B\016\272H\0132\006\030\240\215\006(\000\310\001\000R\010maxLoops\022,\n\nnetlinker"
-    "s\030\017 \001(\rB\014\272H\t*\004\030d(\001\310\001\001R\nnetlinkers\022H\n\031net"
-    "linkers_done_chan_size\030\020 \001(\rB\r\272H\n*\005\030\350\007(\001"
-    "\310\001\001R\026netlinkersDoneChanSize\022*\n\tnlmsg_seq"
-    "\030\021 \001(\rB\r\272H\n*\005\030\220N(\000\310\001\001R\010nlmsgSeq\022/\n\013packe"
-    "t_size\030\022 \001(\004B\016\272H\0132\006\030\300\204=(\000\310\001\000R\npacketSize"
-    "\0226\n\020packet_size_mply\030\023 \001(\rB\014\272H\t*\004\030d(\000\310\001\000"
-    "R\016packetSizeMply\022(\n\007modulus\030\024 \001(\004B\016\272H\0132\006"
-    "\030\300\204=(\001\310\001\001R\007modulus\022a\n\025enabled_deserializ"
-    "ers\030\025 \001(\0132$.xtcp_config.v1.EnabledDeseri"
-    "alizersB\006\272H\003\310\001\000R\024enabledDeserializers\022!\n"
-    "\010io_uring\030\026 \001(\010B\006\272H\003\310\001\000R\007ioUring\022E\n\030io_u"
-    "ring_recv_batch_size\030\027 \001(\rB\r\272H\n*\005\030\200 (\001\310\001"
-    "\000R\024ioUringRecvBatchSize\022C\n\027io_uring_cqe_"
-    "batch_size\030\030 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUring"
-    "CqeBatchSize\022W\n\023reconcile_frequency\030( \001("
-    "\0132\031.google.protobuf.DurationB\013\272H\010\252\001\0022\000\310\001"
-    "\000R\022reconcileFrequency\0222\n\025reconcile_befor"
-    "e_poll\030) \001(\010R\023reconcileBeforePoll\022.\n\013wri"
-    "te_files\0302 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\nwriteFile"
-    "s\022/\n\014capture_path\0303 \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R\013c"
-    "apturePath\0227\n\020dest_write_files\0304 \001(\rB\r\272H"
-    "\n*\005\030\350\007(\000\310\001\000R\016destWriteFiles\022.\n\013debug_lev"
-    "el\0305 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLevel\0221\n\020d"
-    "ebug_prometheus\0306 \001(\010B\006\272H\003\310\001\000R\017debugProm"
-    "etheus\022!\n\004dest\030< \001(\tB\r\272H\nr\005\020\004\030\200\004\310\001\001R\004des"
-    "t\022+\n\nmarshal_to\030= \001(\tB\014\272H\tr\004\020\003\030(\310\001\001R\tmar"
-    "shalTo\022\'\n\013csv_columns\030> \001(\tB\006\272H\003\310\001\000R\ncsv"
-    "Columns\0224\n\017xtcp_proto_file\030\? \001(\tB\014\272H\tr\004\020"
-    "\001\030P\310\001\000R\rxtcpProtoFile\022K\n\036envelope_flush_"
-    "threshold_bytes\030@ \001(\rB\006\272H\003\310\001\000R\033envelopeF"
-    "lushThresholdBytes\022I\n\035envelope_flush_thr"
-    "eshold_rows\030A \001(\rB\006\272H\003\310\001\000R\032envelopeFlush"
-    "ThresholdRows\022\"\n\005topic\030P \001(\tB\014\272H\tr\004\020\001\030(\310"
-    "\001\000R\005topic\0226\n\020kafka_schema_url\030Q \001(\tB\014\272H\t"
-    "r\004\020\001\030<\310\001\000R\016kafkaSchemaUrl\022_\n\025kafka_produ"
-    "ce_timeout\030R \001(\0132\031.google.protobuf.Durat"
-    "ionB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceTimeo"
-    "ut\0223\n\021kafka_compression\030S \001(\tB\006\272H\003\310\001\000R\020k"
-    "afkaCompression\022\'\n\013s3_endpoint\030d \001(\tB\006\272H"
-    "\003\310\001\000R\ns3Endpoint\022#\n\ts3_region\030e \001(\tB\006\272H\003"
-    "\310\001\000R\010s3Region\022#\n\ts3_bucket\030f \001(\tB\006\272H\003\310\001\000"
-    "R\010s3Bucket\022#\n\ts3_prefix\030g \001(\tB\006\272H\003\310\001\000R\010s"
-    "3Prefix\022*\n\rs3_access_key\030h \001(\tB\006\272H\003\310\001\000R\013"
-    "s3AccessKey\022*\n\rs3_secret_key\030i \001(\tB\006\272H\003\310"
-    "\001\000R\013s3SecretKey\0227\n\024s3_skip_bucket_probe\030"
-    "j \001(\010B\006\272H\003\310\001\000R\021s3SkipBucketProbe\022N\n s3_p"
-    "arquet_flush_threshold_bytes\030n \001(\rB\006\272H\003\310"
-    "\001\000R\034s3ParquetFlushThresholdBytes\022R\n\021s3_f"
-    "lush_interval\030o \001(\0132\031.google.protobuf.Du"
-    "rationB\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval\0229\n\023"
-    "s3_flush_jitter_pct\030p \001(\rB\n\272H\007*\002\030d\310\001\000R\020s"
-    "3FlushJitterPct\022L\n\035s3_flush_threshold_ji"
-    "tter_pct\030q \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushThres"
-    "holdJitterPct\022A\n\026s3_upload_max_attempts\030"
-    "r \001(\rB\014\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAttempts"
-    "\022Y\n\025s3_upload_backoff_cap\030s \001(\0132\031.google"
-    ".protobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3Uploa"
-    "dBackoffCap\022(\n\010hostname\030\202\001 \001(\tB\013\272H\010r\003\030\375\001"
-    "\310\001\000R\010hostname\022(\n\010location\030\203\001 \001(\tB\013\272H\010r\003\030"
-    "\375\001\310\001\000R\010location\022!\n\005label\030\204\001 \001(\tB\n\272H\007r\002\030("
-    "\310\001\000R\005label\022\035\n\003tag\030\205\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003ta"
-    "g\0223\n\016daemon_version\030\206\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R"
-    "\rdaemonVersion\022\'\n\010ipv4_ttl\030\226\001 \001(\rB\013\272H\010*\003"
-    "\030\377\001\310\001\000R\007ipv4Ttl\0222\n\016ipv6_hop_limit\030\227\001 \001(\r"
-    "B\013\272H\010*\003\030\377\001\310\001\000R\014ipv6HopLimit\022J\n\rlistener_"
-    "auth\030\230\001 \001(\0132\034.xtcp_config.v1.ListenerAut"
-    "hB\006\272H\003\310\001\000R\014listenerAuth\022Z\n\023prometheus_li"
-    "stener\030\231\001 \001(\0132 .xtcp_config.v1.ListenerE"
-    "ndpointB\006\272H\003\310\001\000R\022prometheusListener\022U\n\023a"
-    "dmin_listener_auth\030\232\001 \001(\0132\034.xtcp_config."
-    "v1.ListenerAuthB\006\272H\003\310\001\000R\021adminListenerAu"
-    "th\022,\n\tgrpc_port\030\240\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010"
-    "grpcPort\022N\n\rgrpc_listener\030\241\001 \001(\0132 .xtcp_"
-    "config.v1.ListenerEndpointB\006\272H\003\310\001\000R\014grpc"
-    "Listener\022,\n\rpyroscope_url\030\252\001 \001(\tB\006\272H\003\310\001\000"
-    "R\014pyroscopeUrl\0225\n\022pyroscope_app_name\030\253\001 "
-    "\001(\tB\006\272H\003\310\001\000R\020pyroscopeAppName\0227\n\023pyrosco"
-    "pe_sample_hz\030\254\001 \001(\rB\006\272H\003\310\001\000R\021pyroscopeSa"
-    "mpleHz\022J\n\035pyroscope_upload_interval_sec\030"
-    "\255\001 \001(\rB\006\272H\003\310\001\000R\032pyroscopeUploadIntervalS"
-    "ec\0229\n\024resolve_container_id\030\310\001 \001(\010B\006\272H\003\310\001"
-    "\000R\022resolveContainerId\0227\n\027enrich_containe"
-    "r_enable\030\311\001 \001(\010R\025enrichContainerEnable\0227"
-    "\n\022docker_socket_path\030\312\001 \001(\tB\010\272H\005r\003\030\377\001R\020d"
-    "ockerSocketPath\022-\n\022enrich_lldp_enable\030\322\001"
-    " \001(\010R\020enrichLldpEnable\0225\n\021lldpd_socket_p"
-    "ath\030\323\001 \001(\tB\010\272H\005r\003\030\377\001R\017lldpdSocketPath\0226\n"
-    "\022lldpd_version_hint\030\324\001 \001(\tB\007\272H\004r\002\030\020R\020lld"
-    "pdVersionHint\022+\n\021enrich_nic_enable\030\334\001 \001("
-    "\010R\017enrichNicEnable\022+\n\014uplink_count\030\335\001 \001("
-    "\rB\007\272H\004*\002\030\002R\013uplinkCount\0226\n\021uplink_interf"
-    "aces\030\336\001 \003(\tB\010\272H\005\222\001\002\020\002R\020uplinkInterfaces\022"
-    "$\n\rpopulate_nsid\030\346\001 \001(\010R\014populateNsid\022+\n"
-    "\021enrich_asn_enable\030\360\001 \001(\010R\017enrichAsnEnab"
-    "le\022)\n\013asn_db_path\030\361\001 \001(\tB\010\272H\005r\003\030\377\001R\tasnD"
-    "bPath\022L\n\024asn_refresh_interval\030\362\001 \001(\0132\031.g"
-    "oogle.protobuf.DurationR\022asnRefreshInter"
-    "val\022=\n\025ipmeta_bootstrap_path\030\363\001 \001(\tB\010\272H\005"
-    "r\003\030\377\001R\023ipmetaBootstrapPath\0225\n\021ipmeta_cac"
-    "he_path\030\364\001 \001(\tB\010\272H\005r\003\030\377\001R\017ipmetaCachePat"
-    "h\0225\n\026enrich_locality_enable\030\365\001 \001(\010R\024enri"
-    "chLocalityEnable\022V\n\031locality_refresh_int"
-    "erval\030\366\001 \001(\0132\031.google.protobuf.DurationR"
-    "\027localityRefreshInterval\0225\n\026locality_eve"
-    "nts_enable\030\367\001 \001(\010R\024localityEventsEnable\022"
-    "E\n\014link_monitor\030\372\001 \001(\0132!.xtcp_config.v1."
-    "LinkMonitorConfigR\013linkMonitor:s\272Hp\032n\n\017X"
-    "tcpConfig.poll\0222Poll timeout must be les"
-    "s than poll poll_frequency\032\'this.poll_fr"
-    "equency > this.poll_timeout\"\237\001\n\024EnabledD"
-    "eserializers\022K\n\007enabled\030\001 \003(\01321.xtcp_con"
-    "fig.v1.EnabledDeserializers.EnabledEntry"
-    "R\007enabled\032:\n\014EnabledEntry\022\020\n\003key\030\001 \001(\tR\003"
-    "key\022\024\n\005value\030\002 \001(\010R\005value:\0028\001*h\n\017Listene"
-    "rNetwork\022 \n\034LISTENER_NETWORK_UNSPECIFIED"
-    "\020\000\022\030\n\024LISTENER_NETWORK_TCP\020\001\022\031\n\025LISTENER"
-    "_NETWORK_UNIX\020\002*\241\001\n\020ListenerAuthMode\022\"\n\036"
-    "LISTENER_AUTH_MODE_UNSPECIFIED\020\000\022\037\n\033LIST"
-    "ENER_AUTH_MODE_DISABLED\020\001\022 \n\034LISTENER_AU"
-    "TH_MODE_RAW_TOKEN\020\002\022&\n\"LISTENER_AUTH_MOD"
-    "E_HMAC_UTC_MINUTE\020\0032\245\007\n\rConfigService\022a\n"
-    "\003Get\022\032.xtcp_config.v1.GetRequest\032\033.xtcp_"
-    "config.v1.GetResponse\"!\310\363\030\001\202\323\344\223\002\027\032\022/Conf"
-    "igService/Get:\001*\022a\n\003Set\022\032.xtcp_config.v1"
-    ".SetRequest\032\033.xtcp_config.v1.SetResponse"
-    "\"!\310\363\030\002\202\323\344\223\002\027\032\022/ConfigService/Set:\001*\022\225\001\n\020"
-    "SetPollFrequency\022\'.xtcp_config.v1.SetPol"
-    "lFrequencyRequest\032(.xtcp_config.v1.SetPo"
-    "llFrequencyResponse\".\310\363\030\002\202\323\344\223\002$\032\037/Config"
-    "Service/SetPollFrequency:\001*\022\201\001\n\013TriggerP"
-    "oll\022\".xtcp_config.v1.TriggerPollRequest\032"
-    "#.xtcp_config.v1.TriggerPollResponse\")\310\363"
-    "\030\002\202\323\344\223\002\037\032\032/ConfigService/TriggerPoll:\001*\022"
-    "\225\001\n\020TriggerPollBurst\022\'.xtcp_config.v1.Tr"
-    "iggerPollBurstRequest\032(.xtcp_config.v1.T"
-    "riggerPollBurstResponse\".\310\363\030\002\202\323\344\223\002$\032\037/Co"
-    "nfigService/TriggerPollBurst:\001*\022\201\001\n\013SetS"
-    "3Upload\022\".xtcp_config.v1.SetS3UploadRequ"
-    "est\032#.xtcp_config.v1.SetS3UploadResponse"
-    "\")\310\363\030\002\202\323\344\223\002\037\032\032/ConfigService/SetS3Upload"
-    ":\001*\022\225\001\n\020SetEnvelopeFlush\022\'.xtcp_config.v"
-    "1.SetEnvelopeFlushRequest\032(.xtcp_config."
-    "v1.SetEnvelopeFlushResponse\".\310\363\030\002\202\323\344\223\002$\032"
-    "\037/ConfigService/SetEnvelopeFlush:\001*B\257\001\n\022"
-    "com.xtcp_config.v1B\017XtcpConfigProtoP\001Z3g"
-    "ithub.com/randomizedcoder/xtcp2/gen/go/x"
-    "tcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtcpC"
-    "onfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetadata\352\002\016X"
-    "tcpConfig::V1b\006proto3"
+    "en\030\033 \001(\tB\007\272H\004r\002\030@R\010ipListen\022P\n\016learn_dea"
+    "dline\030\034 \001(\0132\031.google.protobuf.DurationB\016"
+    "\272H\013\252\001\010\"\004\010\200\243\0052\000R\rlearnDeadlineB\020\n\016_error_"
+    "classesB\025\n\023_metrics_categoriesB\032\n\030_metri"
+    "cs_interface_pathsB\023\n\021_metrics_all_path\""
+    "\213%\n\nXtcpConfig\022F\n\027nl_timeout_millisecond"
+    "s\030\n \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMillis"
+    "econds\022S\n\016poll_frequency\030\013 \001(\0132\031.google."
+    "protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\rpo"
+    "llFrequency\022O\n\014poll_timeout\030\014 \001(\0132\031.goog"
+    "le.protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R"
+    "\013pollTimeout\0222\n\017poll_jitter_pct\030\r \001(\rB\n\272"
+    "H\007*\002\030d\310\001\000R\rpollJitterPct\022+\n\tmax_loops\030\016 "
+    "\001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\000R\010maxLoops\022,\n\nnetlink"
+    "ers\030\017 \001(\rB\014\272H\t*\004\030d(\001\310\001\001R\nnetlinkers\022H\n\031n"
+    "etlinkers_done_chan_size\030\020 \001(\rB\r\272H\n*\005\030\350\007"
+    "(\001\310\001\001R\026netlinkersDoneChanSize\022*\n\tnlmsg_s"
+    "eq\030\021 \001(\rB\r\272H\n*\005\030\220N(\000\310\001\001R\010nlmsgSeq\022/\n\013pac"
+    "ket_size\030\022 \001(\004B\016\272H\0132\006\030\300\204=(\000\310\001\000R\npacketSi"
+    "ze\0226\n\020packet_size_mply\030\023 \001(\rB\014\272H\t*\004\030d(\000\310"
+    "\001\000R\016packetSizeMply\022(\n\007modulus\030\024 \001(\004B\016\272H\013"
+    "2\006\030\300\204=(\001\310\001\001R\007modulus\022a\n\025enabled_deserial"
+    "izers\030\025 \001(\0132$.xtcp_config.v1.EnabledDese"
+    "rializersB\006\272H\003\310\001\000R\024enabledDeserializers\022"
+    "!\n\010io_uring\030\026 \001(\010B\006\272H\003\310\001\000R\007ioUring\022E\n\030io"
+    "_uring_recv_batch_size\030\027 \001(\rB\r\272H\n*\005\030\200 (\001"
+    "\310\001\000R\024ioUringRecvBatchSize\022C\n\027io_uring_cq"
+    "e_batch_size\030\030 \001(\rB\r\272H\n*\005\030\200 (\001\310\001\000R\023ioUri"
+    "ngCqeBatchSize\022W\n\023reconcile_frequency\030( "
+    "\001(\0132\031.google.protobuf.DurationB\013\272H\010\252\001\0022\000"
+    "\310\001\000R\022reconcileFrequency\0222\n\025reconcile_bef"
+    "ore_poll\030) \001(\010R\023reconcileBeforePoll\022.\n\013w"
+    "rite_files\0302 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\000R\nwriteFi"
+    "les\022/\n\014capture_path\0303 \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R"
+    "\013capturePath\0227\n\020dest_write_files\0304 \001(\rB\r"
+    "\272H\n*\005\030\350\007(\000\310\001\000R\016destWriteFiles\022.\n\013debug_l"
+    "evel\0305 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLevel\0221\n"
+    "\020debug_prometheus\0306 \001(\010B\006\272H\003\310\001\000R\017debugPr"
+    "ometheus\022!\n\004dest\030< \001(\tB\r\272H\nr\005\020\004\030\200\004\310\001\001R\004d"
+    "est\022+\n\nmarshal_to\030= \001(\tB\014\272H\tr\004\020\003\030(\310\001\001R\tm"
+    "arshalTo\022\'\n\013csv_columns\030> \001(\tB\006\272H\003\310\001\000R\nc"
+    "svColumns\0224\n\017xtcp_proto_file\030\? \001(\tB\014\272H\tr"
+    "\004\020\001\030P\310\001\000R\rxtcpProtoFile\022K\n\036envelope_flus"
+    "h_threshold_bytes\030@ \001(\rB\006\272H\003\310\001\000R\033envelop"
+    "eFlushThresholdBytes\022I\n\035envelope_flush_t"
+    "hreshold_rows\030A \001(\rB\006\272H\003\310\001\000R\032envelopeFlu"
+    "shThresholdRows\022\"\n\005topic\030P \001(\tB\014\272H\tr\004\020\001\030"
+    "(\310\001\000R\005topic\0226\n\020kafka_schema_url\030Q \001(\tB\014\272"
+    "H\tr\004\020\001\030<\310\001\000R\016kafkaSchemaUrl\022_\n\025kafka_pro"
+    "duce_timeout\030R \001(\0132\031.google.protobuf.Dur"
+    "ationB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceTim"
+    "eout\0223\n\021kafka_compression\030S \001(\tB\006\272H\003\310\001\000R"
+    "\020kafkaCompression\022\'\n\013s3_endpoint\030d \001(\tB\006"
+    "\272H\003\310\001\000R\ns3Endpoint\022#\n\ts3_region\030e \001(\tB\006\272"
+    "H\003\310\001\000R\010s3Region\022#\n\ts3_bucket\030f \001(\tB\006\272H\003\310"
+    "\001\000R\010s3Bucket\022#\n\ts3_prefix\030g \001(\tB\006\272H\003\310\001\000R"
+    "\010s3Prefix\022*\n\rs3_access_key\030h \001(\tB\006\272H\003\310\001\000"
+    "R\013s3AccessKey\022*\n\rs3_secret_key\030i \001(\tB\006\272H"
+    "\003\310\001\000R\013s3SecretKey\0227\n\024s3_skip_bucket_prob"
+    "e\030j \001(\010B\006\272H\003\310\001\000R\021s3SkipBucketProbe\022N\n s3"
+    "_parquet_flush_threshold_bytes\030n \001(\rB\006\272H"
+    "\003\310\001\000R\034s3ParquetFlushThresholdBytes\022R\n\021s3"
+    "_flush_interval\030o \001(\0132\031.google.protobuf."
+    "DurationB\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval\0229"
+    "\n\023s3_flush_jitter_pct\030p \001(\rB\n\272H\007*\002\030d\310\001\000R"
+    "\020s3FlushJitterPct\022L\n\035s3_flush_threshold_"
+    "jitter_pct\030q \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushThr"
+    "esholdJitterPct\022A\n\026s3_upload_max_attempt"
+    "s\030r \001(\rB\014\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAttemp"
+    "ts\022Y\n\025s3_upload_backoff_cap\030s \001(\0132\031.goog"
+    "le.protobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3Upl"
+    "oadBackoffCap\022(\n\010hostname\030\202\001 \001(\tB\013\272H\010r\003\030"
+    "\375\001\310\001\000R\010hostname\022(\n\010location\030\203\001 \001(\tB\013\272H\010r"
+    "\003\030\375\001\310\001\000R\010location\022!\n\005label\030\204\001 \001(\tB\n\272H\007r\002"
+    "\030(\310\001\000R\005label\022\035\n\003tag\030\205\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003"
+    "tag\0223\n\016daemon_version\030\206\001 \001(\tB\013\272H\010r\003\030\375\001\310\001"
+    "\000R\rdaemonVersion\022\'\n\010ipv4_ttl\030\226\001 \001(\rB\013\272H\010"
+    "*\003\030\377\001\310\001\000R\007ipv4Ttl\0222\n\016ipv6_hop_limit\030\227\001 \001"
+    "(\rB\013\272H\010*\003\030\377\001\310\001\000R\014ipv6HopLimit\022J\n\rlistene"
+    "r_auth\030\230\001 \001(\0132\034.xtcp_config.v1.ListenerA"
+    "uthB\006\272H\003\310\001\000R\014listenerAuth\022Z\n\023prometheus_"
+    "listener\030\231\001 \001(\0132 .xtcp_config.v1.Listene"
+    "rEndpointB\006\272H\003\310\001\000R\022prometheusListener\022U\n"
+    "\023admin_listener_auth\030\232\001 \001(\0132\034.xtcp_confi"
+    "g.v1.ListenerAuthB\006\272H\003\310\001\000R\021adminListener"
+    "Auth\022,\n\tgrpc_port\030\240\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001"
+    "R\010grpcPort\022N\n\rgrpc_listener\030\241\001 \001(\0132 .xtc"
+    "p_config.v1.ListenerEndpointB\006\272H\003\310\001\000R\014gr"
+    "pcListener\022,\n\rpyroscope_url\030\252\001 \001(\tB\006\272H\003\310"
+    "\001\000R\014pyroscopeUrl\0225\n\022pyroscope_app_name\030\253"
+    "\001 \001(\tB\006\272H\003\310\001\000R\020pyroscopeAppName\0227\n\023pyros"
+    "cope_sample_hz\030\254\001 \001(\rB\006\272H\003\310\001\000R\021pyroscope"
+    "SampleHz\022J\n\035pyroscope_upload_interval_se"
+    "c\030\255\001 \001(\rB\006\272H\003\310\001\000R\032pyroscopeUploadInterva"
+    "lSec\0229\n\024resolve_container_id\030\310\001 \001(\010B\006\272H\003"
+    "\310\001\000R\022resolveContainerId\0227\n\027enrich_contai"
+    "ner_enable\030\311\001 \001(\010R\025enrichContainerEnable"
+    "\0227\n\022docker_socket_path\030\312\001 \001(\tB\010\272H\005r\003\030\377\001R"
+    "\020dockerSocketPath\022-\n\022enrich_lldp_enable\030"
+    "\322\001 \001(\010R\020enrichLldpEnable\0225\n\021lldpd_socket"
+    "_path\030\323\001 \001(\tB\010\272H\005r\003\030\377\001R\017lldpdSocketPath\022"
+    "6\n\022lldpd_version_hint\030\324\001 \001(\tB\007\272H\004r\002\030\020R\020l"
+    "ldpdVersionHint\022+\n\021enrich_nic_enable\030\334\001 "
+    "\001(\010R\017enrichNicEnable\022+\n\014uplink_count\030\335\001 "
+    "\001(\rB\007\272H\004*\002\030\002R\013uplinkCount\0226\n\021uplink_inte"
+    "rfaces\030\336\001 \003(\tB\010\272H\005\222\001\002\020\002R\020uplinkInterface"
+    "s\022$\n\rpopulate_nsid\030\346\001 \001(\010R\014populateNsid\022"
+    "+\n\021enrich_asn_enable\030\360\001 \001(\010R\017enrichAsnEn"
+    "able\022)\n\013asn_db_path\030\361\001 \001(\tB\010\272H\005r\003\030\377\001R\tas"
+    "nDbPath\022L\n\024asn_refresh_interval\030\362\001 \001(\0132\031"
+    ".google.protobuf.DurationR\022asnRefreshInt"
+    "erval\022=\n\025ipmeta_bootstrap_path\030\363\001 \001(\tB\010\272"
+    "H\005r\003\030\377\001R\023ipmetaBootstrapPath\0225\n\021ipmeta_c"
+    "ache_path\030\364\001 \001(\tB\010\272H\005r\003\030\377\001R\017ipmetaCacheP"
+    "ath\0225\n\026enrich_locality_enable\030\365\001 \001(\010R\024en"
+    "richLocalityEnable\022V\n\031locality_refresh_i"
+    "nterval\030\366\001 \001(\0132\031.google.protobuf.Duratio"
+    "nR\027localityRefreshInterval\0225\n\026locality_e"
+    "vents_enable\030\367\001 \001(\010R\024localityEventsEnabl"
+    "e\022E\n\014link_monitor\030\372\001 \001(\0132!.xtcp_config.v"
+    "1.LinkMonitorConfigR\013linkMonitor:s\272Hp\032n\n"
+    "\017XtcpConfig.poll\0222Poll timeout must be l"
+    "ess than poll poll_frequency\032\'this.poll_"
+    "frequency > this.poll_timeout\"\237\001\n\024Enable"
+    "dDeserializers\022K\n\007enabled\030\001 \003(\01321.xtcp_c"
+    "onfig.v1.EnabledDeserializers.EnabledEnt"
+    "ryR\007enabled\032:\n\014EnabledEntry\022\020\n\003key\030\001 \001(\t"
+    "R\003key\022\024\n\005value\030\002 \001(\010R\005value:\0028\001*h\n\017Liste"
+    "nerNetwork\022 \n\034LISTENER_NETWORK_UNSPECIFI"
+    "ED\020\000\022\030\n\024LISTENER_NETWORK_TCP\020\001\022\031\n\025LISTEN"
+    "ER_NETWORK_UNIX\020\002*\241\001\n\020ListenerAuthMode\022\""
+    "\n\036LISTENER_AUTH_MODE_UNSPECIFIED\020\000\022\037\n\033LI"
+    "STENER_AUTH_MODE_DISABLED\020\001\022 \n\034LISTENER_"
+    "AUTH_MODE_RAW_TOKEN\020\002\022&\n\"LISTENER_AUTH_M"
+    "ODE_HMAC_UTC_MINUTE\020\0032\245\007\n\rConfigService\022"
+    "a\n\003Get\022\032.xtcp_config.v1.GetRequest\032\033.xtc"
+    "p_config.v1.GetResponse\"!\310\363\030\001\202\323\344\223\002\027\032\022/Co"
+    "nfigService/Get:\001*\022a\n\003Set\022\032.xtcp_config."
+    "v1.SetRequest\032\033.xtcp_config.v1.SetRespon"
+    "se\"!\310\363\030\002\202\323\344\223\002\027\032\022/ConfigService/Set:\001*\022\225\001"
+    "\n\020SetPollFrequency\022\'.xtcp_config.v1.SetP"
+    "ollFrequencyRequest\032(.xtcp_config.v1.Set"
+    "PollFrequencyResponse\".\310\363\030\002\202\323\344\223\002$\032\037/Conf"
+    "igService/SetPollFrequency:\001*\022\201\001\n\013Trigge"
+    "rPoll\022\".xtcp_config.v1.TriggerPollReques"
+    "t\032#.xtcp_config.v1.TriggerPollResponse\")"
+    "\310\363\030\002\202\323\344\223\002\037\032\032/ConfigService/TriggerPoll:\001"
+    "*\022\225\001\n\020TriggerPollBurst\022\'.xtcp_config.v1."
+    "TriggerPollBurstRequest\032(.xtcp_config.v1"
+    ".TriggerPollBurstResponse\".\310\363\030\002\202\323\344\223\002$\032\037/"
+    "ConfigService/TriggerPollBurst:\001*\022\201\001\n\013Se"
+    "tS3Upload\022\".xtcp_config.v1.SetS3UploadRe"
+    "quest\032#.xtcp_config.v1.SetS3UploadRespon"
+    "se\")\310\363\030\002\202\323\344\223\002\037\032\032/ConfigService/SetS3Uplo"
+    "ad:\001*\022\225\001\n\020SetEnvelopeFlush\022\'.xtcp_config"
+    ".v1.SetEnvelopeFlushRequest\032(.xtcp_confi"
+    "g.v1.SetEnvelopeFlushResponse\".\310\363\030\002\202\323\344\223\002"
+    "$\032\037/ConfigService/SetEnvelopeFlush:\001*B\257\001"
+    "\n\022com.xtcp_config.v1B\017XtcpConfigProtoP\001Z"
+    "3github.com/randomizedcoder/xtcp2/gen/go"
+    "/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtc"
+    "pConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetadata\352\002"
+    "\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[4] = {
@@ -4508,7 +4523,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    11061,
+    11143,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -7986,6 +8001,11 @@ void LinkMonitorConfig::clear_flap_window() {
   if (_impl_.flap_window_ != nullptr) _impl_.flap_window_->Clear();
   ClearHasBit(_impl_._has_bits_[0], 0x00200000U);
 }
+void LinkMonitorConfig::clear_learn_deadline() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.learn_deadline_ != nullptr) _impl_.learn_deadline_->Clear();
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+}
 LinkMonitorConfig::LinkMonitorConfig(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
     : Super_(arena, LinkMonitorConfig_get_class_data()) {
@@ -8062,6 +8082,9 @@ LinkMonitorConfig::LinkMonitorConfig(
   _impl_.flap_window_ = (CheckHasBit(cached_has_bits, 0x00200000U))
                  ? Super_::CopyConstruct(arena, *from._impl_.flap_window_)
                  : nullptr;
+  _impl_.learn_deadline_ = (CheckHasBit(cached_has_bits, 0x00400000U))
+                 ? Super_::CopyConstruct(arena, *from._impl_.learn_deadline_)
+                 : nullptr;
   ::memcpy(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, enable_),
            reinterpret_cast<const char*>(&from._impl_) +
@@ -8134,6 +8157,7 @@ inline void LinkMonitorConfig::SharedDtor(MessageLite& self) {
   delete this_._impl_.on_demand_wait_;
   delete this_._impl_.error_window_;
   delete this_._impl_.flap_window_;
+  delete this_._impl_.learn_deadline_;
   this_._impl_.~Impl_();
 }
 
@@ -8225,7 +8249,7 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
       this_._impl_.stats_interval_->Clear();
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x003f0000U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x007f0000U)) {
     if (CheckHasBit(cached_has_bits, 0x00010000U)) {
       ABSL_DCHECK(this_._impl_.watch_interval_ != nullptr);
       this_._impl_.watch_interval_->Clear();
@@ -8250,19 +8274,17 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
       ABSL_DCHECK(this_._impl_.flap_window_ != nullptr);
       this_._impl_.flap_window_->Clear();
     }
+    if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      ABSL_DCHECK(this_._impl_.learn_deadline_ != nullptr);
+      this_._impl_.learn_deadline_->Clear();
+    }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00c00000U)) {
-    ::memset(&this_._impl_.enable_, 0,
-             static_cast<::size_t>(
-                 reinterpret_cast<char*>(&this_._impl_.metrics_all_) -
-                 reinterpret_cast<char*>(&this_._impl_.enable_)) +
-                 sizeof(_impl_.metrics_all_));
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x07000000U)) {
-    ::memset(&this_._impl_.metrics_interface_paths_, 0,
+  this_._impl_.enable_ = false;
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    ::memset(&this_._impl_.metrics_all_, 0,
              static_cast<::size_t>(
                  reinterpret_cast<char*>(&this_._impl_.ip_max_bytes_) -
-                 reinterpret_cast<char*>(&this_._impl_.metrics_interface_paths_)) +
+                 reinterpret_cast<char*>(&this_._impl_.metrics_all_)) +
                  sizeof(_impl_.ip_max_bytes_));
   }
   _impl_._has_bits_.Clear();
@@ -8289,7 +8311,7 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[0];
   // bool enable = 1 [json_name = "enable"];
-  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
     if (this_._internal_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -8389,7 +8411,7 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
   }
 
   // bool metrics_all = 12 [json_name = "metricsAll"];
-  if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
     if (this_._internal_metrics_all() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -8476,7 +8498,7 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
   }
 
   // optional bool metrics_interface_paths = 23 [json_name = "metricsInterfacePaths"];
-  if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
     target = stream->EnsureSpace(target);
     target = ::_pbi::WireFormatLite::WriteBoolToArray(
         23, this_._internal_metrics_interface_paths(), target);
@@ -8491,7 +8513,7 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
   }
 
   // bool ip_paths = 25 [json_name = "ipPaths"];
-  if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
     if (this_._internal_ip_paths() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -8500,7 +8522,7 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
   }
 
   // uint32 ip_max_bytes = 26 [json_name = "ipMaxBytes", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+  if (CheckHasBit(cached_has_bits, 0x08000000U)) {
     if (this_._internal_ip_max_bytes() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -8516,6 +8538,13 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
           _s.data(), static_cast<int>(_s.length()), ::google::protobuf::internal::WireFormatLite::SERIALIZE, "xtcp_config.v1.LinkMonitorConfig.ip_listen");
       target = stream->WriteStringMaybeAliased(27, _s, target);
     }
+  }
+
+  // .google.protobuf.Duration learn_deadline = 28 [json_name = "learnDeadline", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+    target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+        28, *this_._impl_.learn_deadline_, this_._impl_.learn_deadline_->GetCachedSize(), target,
+        stream);
   }
 
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
@@ -8541,7 +8570,7 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
   cached_has_bits = this_._impl_._has_bits_[0];
-  total_size += static_cast<bool>(0x01000000U & cached_has_bits) * 3;
+  total_size += static_cast<bool>(0x02000000U & cached_has_bits) * 3;
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     // repeated string max_speed_exceptions = 9 [json_name = "maxSpeedExceptions", (.buf.validate.field) = {
     if (CheckHasBit(cached_has_bits, 0x00000001U)) {
@@ -8679,28 +8708,33 @@ PROTOBUF_NOINLINE void LinkMonitorConfig::Clear() {
       total_size += 2 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.flap_window_);
     }
-    // bool enable = 1 [json_name = "enable"];
+    // .google.protobuf.Duration learn_deadline = 28 [json_name = "learnDeadline", (.buf.validate.field) = {
     if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      total_size += 2 +
+                    ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.learn_deadline_);
+    }
+    // bool enable = 1 [json_name = "enable"];
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (this_._internal_enable() != 0) {
         total_size += 2;
       }
     }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0d000000U)) {
     // bool metrics_all = 12 [json_name = "metricsAll"];
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (this_._internal_metrics_all() != 0) {
         total_size += 2;
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x06000000U)) {
     // bool ip_paths = 25 [json_name = "ipPaths"];
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
       if (this_._internal_ip_paths() != 0) {
         total_size += 3;
       }
     }
     // uint32 ip_max_bytes = 26 [json_name = "ipMaxBytes", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (this_._internal_ip_max_bytes() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_ip_max_bytes());
@@ -8898,26 +8932,34 @@ void LinkMonitorConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00400000U)) {
+      ABSL_DCHECK(from._impl_.learn_deadline_ != nullptr);
+      if (_this->_impl_.learn_deadline_ == nullptr) {
+        _this->_impl_.learn_deadline_ = Super_::CopyConstruct(arena, *from._impl_.learn_deadline_);
+      } else {
+        _this->_impl_.learn_deadline_->MergeFrom(*from._impl_.learn_deadline_);
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
       if (from._internal_enable() != 0) {
         _this->_impl_.enable_ = from._impl_.enable_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00800000U)) {
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0f000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
       if (from._internal_metrics_all() != 0) {
         _this->_impl_.metrics_all_ = from._impl_.metrics_all_;
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x07000000U)) {
-    if (CheckHasBit(cached_has_bits, 0x01000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
       _this->_impl_.metrics_interface_paths_ = from._impl_.metrics_interface_paths_;
     }
-    if (CheckHasBit(cached_has_bits, 0x02000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
       if (from._internal_ip_paths() != 0) {
         _this->_impl_.ip_paths_ = from._impl_.ip_paths_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x04000000U)) {
+    if (CheckHasBit(cached_has_bits, 0x08000000U)) {
       if (from._internal_ip_max_bytes() != 0) {
         _this->_impl_.ip_max_bytes_ = from._impl_.ip_max_bytes_;
       }

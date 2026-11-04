@@ -2610,6 +2610,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
     kOnDemandWaitFieldNumber = 17,
     kErrorWindowFieldNumber = 18,
     kFlapWindowFieldNumber = 19,
+    kLearnDeadlineFieldNumber = 28,
     kEnableFieldNumber = 1,
     kMetricsAllFieldNumber = 12,
     kMetricsInterfacePathsFieldNumber = 23,
@@ -2960,6 +2961,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
   ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_flap_window();
 
   public:
+  // .google.protobuf.Duration learn_deadline = 28 [json_name = "learnDeadline", (.buf.validate.field) = {
+  [[nodiscard]] bool has_learn_deadline() const;
+  void clear_learn_deadline() ;
+  [[nodiscard]] const ::google::protobuf::Duration& learn_deadline() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_learn_deadline();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_learn_deadline();
+  void set_allocated_learn_deadline(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_learn_deadline(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_learn_deadline();
+
+  private:
+  const ::google::protobuf::Duration& _internal_learn_deadline() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_learn_deadline();
+
+  public:
   // bool enable = 1 [json_name = "enable"];
   void clear_enable() ;
   [[nodiscard]] bool enable() const;
@@ -3015,8 +3031,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<5, 27,
-                          9, 262,
+      ::google::protobuf::internal::TcParseTable<5, 28,
+                          10, 262,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -3066,6 +3082,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
     ::google::protobuf::Duration* PROTOBUF_NULLABLE on_demand_wait_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE error_window_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE flap_window_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE learn_deadline_;
     bool enable_;
     bool metrics_all_;
     bool metrics_interface_paths_;
@@ -7720,7 +7737,7 @@ inline void ListenerAuth::set_allocated_failure_jitter_max(::google::protobuf::D
 inline void LinkMonitorConfig::clear_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enable_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
 }
 inline bool LinkMonitorConfig::enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.enable)
@@ -7728,7 +7745,7 @@ inline bool LinkMonitorConfig::enable() const {
 }
 inline void LinkMonitorConfig::set_enable(bool value) {
   _internal_set_enable(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.enable)
 }
 inline bool LinkMonitorConfig::_internal_enable() const {
@@ -8479,7 +8496,7 @@ inline void LinkMonitorConfig::set_allocated_metrics_core_exclude(::std::string*
 inline void LinkMonitorConfig::clear_metrics_all() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.metrics_all_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00800000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
 }
 inline bool LinkMonitorConfig::metrics_all() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.metrics_all)
@@ -8487,7 +8504,7 @@ inline bool LinkMonitorConfig::metrics_all() const {
 }
 inline void LinkMonitorConfig::set_metrics_all(bool value) {
   _internal_set_metrics_all(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00800000U);
+  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.metrics_all)
 }
 inline bool LinkMonitorConfig::_internal_metrics_all() const {
@@ -9323,13 +9340,13 @@ inline void LinkMonitorConfig::set_allocated_metrics_categories(::std::string* P
 
 // optional bool metrics_interface_paths = 23 [json_name = "metricsInterfacePaths"];
 inline bool LinkMonitorConfig::has_metrics_interface_paths() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x01000000U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x02000000U);
   return value;
 }
 inline void LinkMonitorConfig::clear_metrics_interface_paths() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.metrics_interface_paths_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x01000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
 }
 inline bool LinkMonitorConfig::metrics_interface_paths() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.metrics_interface_paths)
@@ -9337,7 +9354,7 @@ inline bool LinkMonitorConfig::metrics_interface_paths() const {
 }
 inline void LinkMonitorConfig::set_metrics_interface_paths(bool value) {
   _internal_set_metrics_interface_paths(value);
-  SetHasBit(_impl_._has_bits_[0], 0x01000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.metrics_interface_paths)
 }
 inline bool LinkMonitorConfig::_internal_metrics_interface_paths() const {
@@ -9421,7 +9438,7 @@ inline void LinkMonitorConfig::set_allocated_metrics_all_path(::std::string* PRO
 inline void LinkMonitorConfig::clear_ip_paths() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ip_paths_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x02000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
 }
 inline bool LinkMonitorConfig::ip_paths() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.ip_paths)
@@ -9429,7 +9446,7 @@ inline bool LinkMonitorConfig::ip_paths() const {
 }
 inline void LinkMonitorConfig::set_ip_paths(bool value) {
   _internal_set_ip_paths(value);
-  SetHasBit(_impl_._has_bits_[0], 0x02000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.ip_paths)
 }
 inline bool LinkMonitorConfig::_internal_ip_paths() const {
@@ -9445,7 +9462,7 @@ inline void LinkMonitorConfig::_internal_set_ip_paths(bool value) {
 inline void LinkMonitorConfig::clear_ip_max_bytes() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.ip_max_bytes_ = 0u;
-  ClearHasBit(_impl_._has_bits_[0], 0x04000000U);
+  ClearHasBit(_impl_._has_bits_[0], 0x08000000U);
 }
 inline ::uint32_t LinkMonitorConfig::ip_max_bytes() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.ip_max_bytes)
@@ -9453,7 +9470,7 @@ inline ::uint32_t LinkMonitorConfig::ip_max_bytes() const {
 }
 inline void LinkMonitorConfig::set_ip_max_bytes(::uint32_t value) {
   _internal_set_ip_max_bytes(value);
-  SetHasBit(_impl_._has_bits_[0], 0x04000000U);
+  SetHasBit(_impl_._has_bits_[0], 0x08000000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.ip_max_bytes)
 }
 inline ::uint32_t LinkMonitorConfig::_internal_ip_max_bytes() const {
@@ -9527,6 +9544,99 @@ inline void LinkMonitorConfig::set_allocated_ip_listen(::std::string* PROTOBUF_N
     _impl_.ip_listen_.Set("", GetArena());
   }
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.LinkMonitorConfig.ip_listen)
+}
+
+// .google.protobuf.Duration learn_deadline = 28 [json_name = "learnDeadline", (.buf.validate.field) = {
+inline bool LinkMonitorConfig::has_learn_deadline() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00400000U);
+  PROTOBUF_ASSUME(!value || _impl_.learn_deadline_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::_internal_learn_deadline() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.learn_deadline_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::learn_deadline() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.learn_deadline)
+  return _internal_learn_deadline();
+}
+inline void LinkMonitorConfig::unsafe_arena_set_allocated_learn_deadline(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.learn_deadline_);
+  }
+  _impl_.learn_deadline_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.LinkMonitorConfig.learn_deadline)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::release_learn_deadline() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ::google::protobuf::Duration* released = _impl_.learn_deadline_;
+  _impl_.learn_deadline_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::unsafe_arena_release_learn_deadline() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.learn_deadline)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ::google::protobuf::Duration* temp = _impl_.learn_deadline_;
+  _impl_.learn_deadline_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::_internal_mutable_learn_deadline() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.learn_deadline_ == nullptr) {
+    auto* p = Super_::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.learn_deadline_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.learn_deadline_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::mutable_learn_deadline()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_learn_deadline();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.learn_deadline)
+  return _msg;
+}
+inline void LinkMonitorConfig::set_allocated_learn_deadline(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.learn_deadline_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00400000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00400000U);
+  }
+
+  _impl_.learn_deadline_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.LinkMonitorConfig.learn_deadline)
 }
 
 // -------------------------------------------------------------------

@@ -23,6 +23,7 @@ func defineLinkMonitorFlags(f *mainFlags) {
 	f.linkMonitor = flag.Bool("linkMonitor", true, "run the embedded link monitor: link counts against a baseline, per-interface and RDMA checks and collector health on the Prometheus listener, its detail paths beside -promPath, plus LinkMonitorService on the gRPC listener. Falls back to LINK_MONITOR env.")
 	f.linkMonitorBaselineFile = flag.String("linkMonitorBaselineFile", xtcp.DefaultLinkMonitorBaseline, "link monitor baseline file; locked, so it must differ from any standalone go-link-monitor's. Falls back to LINK_MONITOR_BASELINE_FILE env.")
 	f.linkMonitorSettle = flag.Duration("linkMonitorSettle", d.Settle, "how long link state must hold before the first baseline is recorded. Falls back to LINK_MONITOR_SETTLE env.")
+	f.linkMonitorLearnDeadline = flag.Duration("linkMonitorLearnDeadline", d.LearnDeadline, "if no baseline is learned this long after start, take the visible up count as a provisional, in-memory one (baseline_provisional 1); 0 waits forever. Falls back to LINK_MONITOR_LEARN_DEADLINE env.")
 	f.linkMonitorResync = flag.Duration("linkMonitorResync", d.Resync, "full link resync interval (positive). Falls back to LINK_MONITOR_RESYNC env.")
 	f.linkMonitorStatsInterval = flag.Duration("linkMonitorStatsInterval", d.StatsInterval, "interface statistics collection interval (positive). Falls back to LINK_MONITOR_STATS_INTERVAL env.")
 	f.linkMonitorStatsInclude = flag.String("linkMonitorStatsInclude", d.StatsInclude, "regexp of interfaces whose statistics are collected. Falls back to LINK_MONITOR_STATS_INCLUDE env.")
@@ -55,6 +56,7 @@ func buildLinkMonitorConfig(f *mainFlags) *xtcp_config.LinkMonitorConfig {
 		Enable:                *f.linkMonitor,
 		BaselineFile:          *f.linkMonitorBaselineFile,
 		Settle:                durationpb.New(*f.linkMonitorSettle),
+		LearnDeadline:         durationpb.New(*f.linkMonitorLearnDeadline),
 		Resync:                durationpb.New(*f.linkMonitorResync),
 		StatsInterval:         durationpb.New(*f.linkMonitorStatsInterval),
 		StatsInclude:          *f.linkMonitorStatsInclude,
@@ -93,6 +95,7 @@ func printLinkMonitorFlags(f *mainFlags) {
 	fmt.Println("*linkMonitor:", *f.linkMonitor)
 	fmt.Println("*linkMonitorBaselineFile:", *f.linkMonitorBaselineFile)
 	fmt.Println("*linkMonitorSettle:", *f.linkMonitorSettle)
+	fmt.Println("*linkMonitorLearnDeadline:", *f.linkMonitorLearnDeadline)
 	fmt.Println("*linkMonitorResync:", *f.linkMonitorResync)
 	fmt.Println("*linkMonitorStatsInterval:", *f.linkMonitorStatsInterval)
 	fmt.Println("*linkMonitorStatsInclude:", *f.linkMonitorStatsInclude)
@@ -192,6 +195,7 @@ func envOverrideLinkMonitor(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		target **durationpb.Duration
 	}{
 		{"LINK_MONITOR_SETTLE", &m.Settle},
+		{"LINK_MONITOR_LEARN_DEADLINE", &m.LearnDeadline},
 		{"LINK_MONITOR_RESYNC", &m.Resync},
 		{"LINK_MONITOR_STATS_INTERVAL", &m.StatsInterval},
 		{"LINK_MONITOR_WATCH_INTERVAL", &m.WatchInterval},
@@ -214,6 +218,7 @@ func printLinkMonitorConfig(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.LinkMonitor.Enable:", m.GetEnable())
 	fmt.Println("c.LinkMonitor.BaselineFile:", m.GetBaselineFile())
 	fmt.Println("c.LinkMonitor.Settle:", m.GetSettle().AsDuration().String())
+	fmt.Println("c.LinkMonitor.LearnDeadline:", m.GetLearnDeadline().AsDuration().String())
 	fmt.Println("c.LinkMonitor.Resync:", m.GetResync().AsDuration().String())
 	fmt.Println("c.LinkMonitor.StatsInterval:", m.GetStatsInterval().AsDuration().String())
 	fmt.Println("c.LinkMonitor.MaxSpeedExceptions:", m.GetMaxSpeedExceptions())
