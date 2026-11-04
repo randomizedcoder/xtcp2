@@ -20,8 +20,10 @@ const (
 	gwWsDirCst      = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 	gwO5GoldenCst   = "../goip/testdata/ws-differential.txt"
 	gwSlugPrefixCst = "gw_"
-	gwIPPrefixCst   = "ip "
-	gwStepSepCst    = " && "
+	// gwLwtSlugPrefixCst is the lwt rows' (goip-lwt-encap.md, LE4-T01).
+	gwLwtSlugPrefixCst = "gw_lwt"
+	gwIPPrefixCst      = "ip "
+	gwStepSepCst       = " && "
 )
 
 // gwRcs are the ip exit statuses a GW row takes: 0, and 2 for a request the
@@ -308,6 +310,10 @@ func runGwMatrix(t *testing.T, families []string, forms []gwForm) {
 			t.Fatalf("EmbeddedAllowlist: %v", err)
 		}
 		for i := range mine {
+			// LE4-T02's runs gate the lwt rows and take this out.
+			if strings.HasPrefix(mine[i].Slug, gwLwtSlugPrefixCst) {
+				continue
+			}
 			if !al.IsGated(mine[i].Name) {
 				t.Errorf("%s (%q) is not gated", mine[i].Slug, mine[i].Name)
 			}
@@ -482,5 +488,39 @@ func TestGwNexthopRuleMatrixRows(t *testing.T) {
 		{"corner: rule realms TO; rc 2's gone-1 repeats ec-002's argv", `^ip .*rule .*\brealms [^/ ]+( |$)`, "",
 			[2]string{"rule4/ec-002", ""}},
 		{"positive: rule realms FROM/TO, rc 0 alone", `^ip .*rule .*\brealms \S+/\S+`, "", [2]string{"kwrule/ec-001", ""}},
+	})
+}
+
+// TestGwLwtMatrixRows pins LE4-T01's rows (goip-lwt-encap.md, "LE4-T01 the
+// rows"): one per encap form and ip rc, from the lwt family. A dup row
+// repeats its form's argv and is passed over; the rc 255 forms send
+// nothing, so they have no row.
+//
+// go test ./internal/goipparity/ -run TestGwLwtMatrixRows
+func TestGwLwtMatrixRows(t *testing.T) {
+	runGwMatrix(t, []string{"lwtroute4", "lwtroute6", "lwthop", "lwtnh"}, []gwForm{
+		{"positive: mpls, one label; implicit null at rc 2", `^ip -4 route add \S+ encap mpls \d+ via`, "",
+			[2]string{"lwtroute4/ec-001", "lwtroute4/ng-001"}},
+		{"positive: mpls, a stack and ttl", `^ip -4 route add \S+ encap mpls \d+/\d+ ttl`, "", [2]string{"lwtroute4/ec-002", ""}},
+		{"boundary: mpls ttl 0", `^ip -4 route add \S+ encap mpls \d+ ttl 0 `, "", [2]string{"lwtroute4/ec-003", ""}},
+		{"positive: ip, id and dst", `^ip -4 route add \S+ encap ip id \d+ dst \S+ dev d0$`, "", [2]string{"lwtroute4/ec-004", ""}},
+		{"positive: ip, every scalar", `^ip -4 route add \S+ encap ip .*\bkey csum seq\b`, "", [2]string{"lwtroute4/ec-005", ""}},
+		{"positive: ip geneve_opts; 3 data bytes at rc 2", `^ip -4 route add \S+ encap ip .*geneve_opts 0x[^, ]+ dev`, "",
+			[2]string{"lwtroute4/ec-006", "lwtroute4/ng-002"}},
+		{"corner: ip geneve_opts, base 0", `^ip -4 route add \S+ encap ip .*geneve_opts 0[0-7]+:`, "", [2]string{"lwtroute4/ec-007", ""}},
+		{"positive: ip, two geneve options", `^ip -4 route add \S+ encap ip .*geneve_opts \S+,\S+`, "", [2]string{"lwtroute4/ec-008", ""}},
+		{"positive: ip vxlan_opts", `^ip -4 route add \S+ encap ip .*vxlan_opts`, "", [2]string{"lwtroute4/ec-009", ""}},
+		{"positive: ip erspan_opts", `^ip -4 route add \S+ encap ip .*erspan_opts`, "", [2]string{"lwtroute4/ec-010", ""}},
+		{"positive: ip6, id and dst", `^ip -6 route add \S+ encap ip6 id \d+ dst \S+ dev d0$`, "", [2]string{"lwtroute6/ec-001", ""}},
+		{"positive: ip6, every scalar", `^ip -6 route add \S+ encap ip6 .*\bhoplimit\b`, "", [2]string{"lwtroute6/ec-002", ""}},
+		{"positive: ip6 geneve_opts", `^ip -6 route add \S+ encap ip6 .*geneve_opts`, "", [2]string{"lwtroute6/ec-003", ""}},
+		{"positive: mpls on IPv6", `^ip -6 route add \S+ encap mpls`, "", [2]string{"lwtroute6/ec-004", ""}},
+		{"corner: ip on an IPv6 route", `^ip -6 route add \S+ encap ip id`, "", [2]string{"lwtroute6/ec-005", ""}},
+		{"positive: a hop's mpls", `nexthop encap mpls`, "", [2]string{"lwthop/ec-001", ""}},
+		{"positive: both hops ip", `nexthop encap ip id .*nexthop encap ip id`, "", [2]string{"lwthop/ec-002", ""}},
+		{"positive: a hop's ip6", `nexthop encap ip6`, "", [2]string{"lwthop/ec-003", ""}},
+		{"positive: a nexthop's ip", `^ip nexthop add id \d+ encap ip id \d+ dst \S+ via`, "", [2]string{"lwtnh/ec-001", ""}},
+		{"positive: a nexthop's ip6", `^ip nexthop add id \d+ encap ip6`, "", [2]string{"lwtnh/ec-002", ""}},
+		{"positive: a nexthop's geneve_opts", `^ip nexthop add .*geneve_opts`, "", [2]string{"lwtnh/ec-003", ""}},
 	})
 }

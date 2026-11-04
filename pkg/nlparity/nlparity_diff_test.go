@@ -2147,6 +2147,75 @@ func TestSamePastPadding(t *testing.T) {
 	}
 }
 
+// hopHex is one rtnexthop of RTA_MULTIPATH, rtnh_hops weight-1 and ifindex
+// 2: RTA_ENCAP holding LWTUNNEL_IP_TTL 64 with pad bytes encapPad (6 hex
+// digits), RTA_ENCAP_TYPE ip with pad bytes typePad (4), then RTA_GATEWAY
+// gw, as parse_one_nh writes lwthop's.
+func hopHex(weight, encapPad, typePad, gw string) string {
+	return "2400" + "00" + weight + "02000000" + "0c001680" + "05000400" + "40" + encapPad +
+		"06001500" + "0200" + typePad + "08000500" + gw
+}
+
+// go test ./pkg/nlparity/ -run TestSameHopsPastPadding
+func TestSameHopsPastPadding(t *testing.T) {
+	const gw1, gw2 = "c0000201", "c0000202"
+	ip := hopHex("00", "000000", "4086", gw1)
+	goip := hopHex("00", "000000", "0000", gw1)
+	cases := []struct {
+		description string
+		ref, sub    string
+		expected    bool
+	}{
+		{"positive: only the encap type's padding differs, as lwthop/ec-002 does", ip, goip, true},
+		{"positive: padding inside the hop's encap nest", hopHex("00", "7f7f7f", "0000", gw1), goip, true},
+		{"positive: the second hop's padding", goip + ip, goip + goip, true},
+		{"negative: the gateway differs", ip, hopHex("00", "000000", "0000", gw2), false},
+		{"negative: the weight differs", ip, hopHex("01", "000000", "0000", gw1), false},
+		{"negative: the ifindex differs", ip, strings.Replace(goip, "02000000", "03000000", 1), false},
+		{"negative: a hop more on one side", goip, goip + goip, false},
+		{"negative: a hop's attributes in the other order", goip,
+			"2400000002000000" + "08000500" + gw1 + "0c001680050004004" + "0000000" + "0600150002000000", false},
+		{"boundary: two empty payloads", "", "", true},
+		{"corner: an rtnh_len past the payload", "2800000002000000", "2800000002000000", false},
+		{"corner: the same rtnh_len, one side shorter", goip, goip[:len(goip)-8], false},
+		{"corner: bytes too short for an rtnexthop", "240000", "240000", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := sameHopsPastPadding(hexBytes(t, tc.ref), hexBytes(t, tc.sub)); got != tc.expected {
+				t.Errorf("sameHopsPastPadding(%s, %s) = %v, expected %v", tc.ref, tc.sub, got, tc.expected)
+			}
+		})
+	}
+}
+
+// go test ./pkg/nlparity/ -run TestDiffAttrsHopPadding
+func TestDiffAttrsHopPadding(t *testing.T) {
+	route := Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWROUTE}}
+	link := Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWLINK}}
+	hop := func(typePad, gw string) []byte { return hexBytes(t, hopHex("00", "000000", typePad, gw)) }
+	cases := []struct {
+		description string
+		m           Msg
+		ref, sub    []byte
+		expected    int // findings
+	}{
+		{"positive: a route's hops differing only in padding are the same", route, hop("4086", "c0000201"), hop("0000", "c0000201"), 0},
+		{"negative: a route's hop differing in a value is a finding", route, hop("4086", "c0000201"), hop("0000", "c0000202"), 1},
+		{"negative: the same type in a link message is compared whole", link, hop("4086", "c0000201"), hop("0000", "c0000201"), 1},
+		{"boundary: identical hops", route, hop("4086", "c0000201"), hop("4086", "c0000201"), 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			got := diffAttrs("route add", LevelRequest, 1, "", "request", "", tc.m,
+				[]Attr{{Type: unix.RTA_MULTIPATH, Val: tc.ref}}, []Attr{{Type: unix.RTA_MULTIPATH, Val: tc.sub}})
+			if len(got) != tc.expected {
+				t.Errorf("%d findings %v, expected %d", len(got), got, tc.expected)
+			}
+		})
+	}
+}
+
 // go test ./pkg/nlparity/ -run TestDiffAttrsNestedPadding
 func TestDiffAttrsNestedPadding(t *testing.T) {
 	const nhaEncap = 8 | unix.NLA_F_NESTED

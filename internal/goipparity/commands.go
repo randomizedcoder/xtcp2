@@ -6419,6 +6419,127 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 
+	// The lwt rows (goip-lwt-encap.md, LE4-T01): as the kwlive rows, for
+	// the encap forms, from the workbench's lwt family, whose setups are
+	// GW5's d0. They follow the kwnh rows, whose encap mpls has autoloaded
+	// mpls_router and mpls_iptunnel by then. The four rc 255 forms are
+	// refusals goip exits 1 for, so they are O5's alone.
+	{
+		Name: "-4 route add 198.51.100.0/24 encap mpls 100 via 192.0.2.1 dev d0", Slug: "gw_lwtroute4_ec_001",
+		// lwtroute4/ec-001: mpls (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap mpls 3 via 192.0.2.1 dev d0", Slug: "gw_lwtroute4_ng_001",
+		// lwtroute4/ng-001: mpls-implicit-null (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap mpls 100/200 ttl 10 via 192.0.2.1 dev d0", Slug: "gw_lwtroute4_ec_002",
+		// lwtroute4/ec-002: mpls-stack-ttl (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap mpls 100 ttl 0 via 192.0.2.1 dev d0", Slug: "gw_lwtroute4_ec_003",
+		// lwtroute4/ec-003: mpls-ttl-0 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 dev d0", Slug: "gw_lwtroute4_ec_004",
+		// lwtroute4/ec-004: ip (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 src 192.0.2.10 tos 0x10 ttl 64 key csum seq dev d0", Slug: "gw_lwtroute4_ec_005",
+		// lwtroute4/ec-005: ip-every (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233 dev d0", Slug: "gw_lwtroute4_ec_006",
+		// lwtroute4/ec-006: ip-geneve (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:001122 dev d0", Slug: "gw_lwtroute4_ng_002",
+		// lwtroute4/ng-002: geneve-data-3 (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0102:80:00112233 dev d0", Slug: "gw_lwtroute4_ec_007",
+		// lwtroute4/ec-007: ip-geneve-base0 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233,0x0102:0x81:44556677 dev d0", Slug: "gw_lwtroute4_ec_008",
+		// lwtroute4/ec-008: ip-geneve-two (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 vxlan_opts 0x800 dev d0", Slug: "gw_lwtroute4_ec_009",
+		// lwtroute4/ec-009: ip-vxlan (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap ip id 1 dst 203.0.113.5 erspan_opts 1:0x1234:: dev d0", Slug: "gw_lwtroute4_ec_010",
+		// lwtroute4/ec-010: ip-erspan (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ip6 id 1 dst 2001:db8:9::1 dev d0", Slug: "gw_lwtroute6_ec_001",
+		// lwtroute6/ec-001: ip6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ip6 id 1 dst 2001:db8:9::1 src 2001:db8:1::10 tc 0x10 hoplimit 64 key csum seq dev d0", Slug: "gw_lwtroute6_ec_002",
+		// lwtroute6/ec-002: ip6-every (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ip6 id 1 dst 2001:db8:9::1 geneve_opts 0x0102:0x80:00112233 dev d0", Slug: "gw_lwtroute6_ec_003",
+		// lwtroute6/ec-003: ip6-geneve (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap mpls 100 via 2001:db8:1::1 dev d0", Slug: "gw_lwtroute6_ec_004",
+		// lwtroute6/ec-004: mpls (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ip id 1 dst 203.0.113.5 dev d0", Slug: "gw_lwtroute6_ec_005",
+		// lwtroute6/ec-005: ip-on-v6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 nexthop encap mpls 100 via 192.0.2.1 dev d0 nexthop via 192.0.2.2 dev d0", Slug: "gw_lwthop_ec_001",
+		// lwthop/ec-001: hop-mpls (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 nexthop encap ip id 1 dst 203.0.113.5 via 192.0.2.1 dev d0 nexthop encap ip id 2 dst 203.0.113.6 via 192.0.2.2 dev d0", Slug: "gw_lwthop_ec_002",
+		// lwthop/ec-002: hops-ip (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 nexthop encap ip6 dst 2001:db8:9::1 via 2001:db8:1::1 dev d0 nexthop via 2001:db8:1::2 dev d0", Slug: "gw_lwthop_ec_003",
+		// lwthop/ec-003: hop-ip6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 61 encap ip id 1 dst 203.0.113.5 via 192.0.2.1 dev d0", Slug: "gw_lwtnh_ec_001",
+		// lwtnh/ec-001: ip (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 62 encap ip6 dst 2001:db8:9::1 via 2001:db8:1::1 dev d0", Slug: "gw_lwtnh_ec_002",
+		// lwtnh/ec-002: ip6 (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "nexthop add id 63 encap ip id 1 dst 203.0.113.5 geneve_opts 0x0102:0x80:00112233 via 192.0.2.1 dev d0", Slug: "gw_lwtnh_ec_003",
+		// lwtnh/ec-003: ip-geneve (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+
 	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
 	// preconditions (genl-write-corpus.exp). The connections' entries carry
 	// each side's own RTTs and ages, which nlparity normalizes, and a dump's
