@@ -25,6 +25,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 | 2026-10-21 | After #275: signals routed before flag parsing; `TestSignalProcess` sends real signals to a child (Go drops an early SIGUSR1; an early SIGTERM skipped the graceful shutdown) | `go test -race -count=30 -run TestSignalProcess ./cmd/xtcp2` and `go test ./cmd/xtcp2` pass |
 | 2026-10-21 | `BenchmarkPromScrapeLinkMonitor` | [F1](#findings) |
 | 2026-10-21 | Nix gates | `checks.{go-vet,lint-baseline,go-sec,xtcp2-exec,test-linkmonitor}` pass (lint-baseline after one misspelling fix) |
+| 2026-11-04 | Prod fleet check of `runpodinc/xtcp2:v2.0.0` (upstream v0.2.0, 0a4c8a26): 105 hosts, all running and healthy, 0 errors. Baseline file written on 27; `up_links_delta` in VictoriaMetrics on the same 27, all 0 | [F2](#findings), [F3](#findings); fleet-snapshots `analysis/xtcp2/xtcp2-v2-health-check.md` |
 
 ## Deviations from the plan
 
@@ -68,7 +69,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 
 ## Findings
 
-Performance, appended as measured.
+Performance and production findings, appended as measured.
 
 **F1. promPath scrape cost, `BenchmarkPromScrapeLinkMonitor` (2026-10-21).**
 - **Command:** `go test -ldflags=-checklinkname=0 -run '^$' -bench BenchmarkPromScrapeLinkMonitor -benchtime=1s -count=10 -cpu 1 ./pkg/xtcp/`
@@ -87,6 +88,28 @@ Performance, appended as measured.
 - **Guard:** the benchmark stays in `pkg/xtcp`; rerun it on any change to the summary or to promPath registration.
 - **Detail paths:** their cost is go-link-monitor's, already measured by `BenchmarkSummaryHTTP`, `BenchmarkCategoryCollect`, `BenchmarkInterfaceHTTP` and `BenchmarkOnDemand*` in `pkg/linkmonitor`.
 
+**F2. Baseline missing on 78 of 105 prod hosts (2026-11-04).**
+- **Check:** `/var/lib/xtcp2/link-monitor-baseline.json` and `/metrics/link` on every v2 host, via fleet-snapshots `scripts/fleet-xtcp2/xtcp2-spot-check.sh`. Where the file exists it was written 30–31 s after the container start (the settle window), mode 0600, and `up_links` equals `baseline_up_links`. One host's file predates its container, kept across a re-create as designed.
+- **What is broken:** with no baseline there is no `up_links_delta`, so a link going down can't alert on 78 hosts; `collection_healthy` and `baseline_ready` stay 0. Every one of the 78 has RDMA devices.
+
+| Hosts | RDMA | `ib_core` | bonding loaded | `up_links` | Baseline |
+|---|---|---|---|---|---|
+| 22 | none | stock | 16 yes, 6 no | yes | written |
+| 5 | `mlx5_N` | OFED 25.10 dkms | no | yes | written |
+| 26 | `rocep*`, `irdma*`, `roceo*` | stock | no | yes | missing |
+| 42 | `irdma*`, `rocep*`, `ibp*` | stock | yes | absent | missing |
+| 10 | `mlx5_N`, `mlx5_bond_N` | OFED 25.10 dkms | yes | absent | missing |
+
+- **Cause 1, RDMA events (68 hosts):** the stock Ubuntu 6.8.0-147 `ib_core` answers the RDMA netlink event subscription with `operation not supported`; the OFED dkms `ib_core` supports it. `countReady` (`pkg/linkmonitor/lifecycle_counts.go`) and `publicationHealth` (`freshness.go`) require RDMA events whenever an RDMA device is required, so the count is never ready and the baseline is never recorded.
+- **Cause 2, `bonding_masters` (52 hosts):** `rdmaFilesystem.netdevices` (`rdma_association_linux.go`) treats every `/sys/class/net` entry as a netdev. With the bonding module loaded, `bonding_masters` is a regular file, `ifindex` fails with `not a directory`, and the whole inventory reconciliation fails, so not even `up_links` is published. Hosts without RDMA never run this path, which is why 16 of them have bonding and are healthy.
+- **Fixing:** cause 2 alone heals the 10 OFED hosts; the other 68 need cause 1 fixed as well.
+
+**F3. Log noise on the fleet (2026-11-04, 6 h of logs on 104 hosts).**
+- `RDMA event coverage unavailable error="operation not supported"`: 63k lines on 89 hosts, every 30 s. It also fires on hosts without RDMA devices, where it changes nothing.
+- `link inventory reconciliation failed error="open /sys/class/net/bonding_masters/ifindex: not a directory"`: 36k lines on 52 hosts (F2 cause 2).
+- `linuxio: interrupted dump`: 3k lines on 52 hosts; `RDMA topology changed during inventory`: 2.6k on 30.
+- **Detail paths are large on RDMA hosts:** `/metrics/driver` 13,481 series and `/metrics-all` 14,833 on one RoCE host, against 4,815 on an InfiniBand host and 733 without RDMA. vmagent scrapes only `/metrics` (the summary), so this is cost on demand only.
+
 ## TODO
 
 - [ ] **User:** boot `vm-all` on `l`. `vm-xtcp2-linkmonitor` passed 8 sentinels (VC023). The default-on monitor changes every lifecycle guest's xtcp2 and `vm-linkmonitor-embedding`'s xtcp2 stage; watch for extra series in metric audits and for log lines from a monitor in a guest without links or a writable `/var/lib/xtcp2`.
@@ -97,4 +120,8 @@ Performance, appended as measured.
 - [ ] `/metrics-all`: when [design-summary-metrics.md](design-summary-metrics.md) is implemented, merge xtcp2's full registry into the same path (see the design's forward note).
 - [ ] A `link_monitor` config block without `collection_mode` keeps `poll`; consider making the library default `on-demand` too, so every entry point agrees.
 - [ ] Load test: point `nix/tests/linkmonitor_http.py --url` at xtcp2's listener in a guest, as was done for go-link-monitor.
+- [ ] **F2 cause 2:** skip `/sys/class/net` entries that aren't netdevs (`bonding_masters` is a regular file) in `rdmaFilesystem.netdevices`; table rows for a regular file, a dangling link, and a real netdev beside them.
+- [ ] **F2 cause 1:** when the kernel can't deliver RDMA events (`EOPNOTSUPP`, `EPROTONOSUPPORT`), fall back to polling RDMA state and let the count become ready, rather than holding the baseline forever. Mark the coverage in a gauge (e.g. `rdma_events_supported 0`) so the gap stays visible.
+- [ ] **F3:** log `RDMA event coverage unavailable` once per state change, not every retry, and not at all when no RDMA device is required.
+- [ ] Once both F2 fixes ship, re-run the fleet check (`nix run .#check-xtcp2-v2` in fleet-snapshots) and expect a baseline on every host.
 - [ ] Reconfigure re-exec and standalone-coexist cases have no automated test. The first is covered by the late-bound attach/detach unit rows and the baseline lock's release on `Run` return; the second by distinct default files.
