@@ -1,0 +1,6 @@
+2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+2001:db8:2::/64  encap ip6 id 1 src :: dst 2001:db8:9::1 hoplimit 0 tc 0 
+	geneve_opts 258:128:00112233 dev d0 metric 1024 pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local 2001:db8:1::10 dev d0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium
