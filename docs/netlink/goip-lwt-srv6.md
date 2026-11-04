@@ -150,7 +150,7 @@ One new family, `lwtx`, in a new `tools/nlcapgen/matrix_lwtx.go`, built as `lwt`
 | `lwtxnh` | `seg6` | `-6 nexthop add id 71 encap seg6 mode encap segs S1 dev d0` | 0 | `NHA_ENCAP`{`SRH`}, `NHA_ENCAP_TYPE` 5 |
 | `lwtxnh` | `seg6local` | `-6 nexthop add id 72 encap seg6local action End dev d0` | 0 | `NHA_ENCAP_TYPE` 7 |
 
-That is 56 forms: 32 at rc 0, 11 at rc 2, 1 at rc 1 and 12 at rc 255. `deriveDupGone` adds up to three duplicates in each of the nine spaces, so up to 27 more.
+That is 56 forms: 32 at rc 0, 11 at rc 2, 1 at rc 1 and 12 at rc 255. The `ioam6` and `rpl` forms share one space, `lwtxreq`, so there are eight spaces. `deriveDupGone` adds up to three duplicates in each space with rc 0 forms, which comes to 17.
 
 ## Out of scope
 
@@ -279,7 +279,7 @@ As [LE3-T02](goip-lwt-encap.md#le3-t02-capture): two fresh-boot batches that agr
 #### LX3-T03 O3 and O5
 
 - **O3:** `pkg/xtcpnl/xtcpnl_ws_lwtx_test.go` decodes each row's request and checks the encap against the row's `axes`: the type, the SRH's header and segments, `seg6local`'s attributes and nests, `ila`'s and `xfrm`'s scalars, and `ioam6`'s trace header.
-- **O5:** the nine spaces go in `wsO5Spaces`.
+- **O5:** the eight spaces go in `wsO5Spaces`.
 
 | description | input | expected |
 |---|---|---|
