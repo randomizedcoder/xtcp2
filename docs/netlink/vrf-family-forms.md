@@ -2,8 +2,8 @@
 
 ## Status
 
-**Last updated:** 2026-11-04. VF0 has landed (VF001); VF1 and VF2 are
-open. This document is the plan and its own status.
+**Last updated:** 2026-11-04. VF0 and VF1 have landed (VF001–VF002); VF2
+is open. This document is the plan and its own status.
 
 [vrf-show-name.md](vrf-show-name.md) parked the family forms in its
 decision 8: "-4/-6 changes only the request's `ifi_family` byte on this
@@ -35,7 +35,7 @@ the 7.3.0 pin bump).
 | Done | Task | Work | State | Evidence |
 |---|---|---|---|---|
 | [x] | [VF0-T01](#vf0--the-captures-and-the-family-byte-pin) | the captures and the family-byte pin | done | VF001 |
-| [ ] | [VF1-T01](#vf1--the-object) | delete the guard, pass the family | not started | — |
+| [x] | [VF1-T01](#vf1--the-object) | delete the guard, pass the family | done | VF002 |
 | [ ] | [VF2-T01](#vf2--the-matrix-rows-and-gating) | matrix rows and gating | not started | — |
 
 ```
@@ -203,6 +203,7 @@ test-shape review, and a mutation check in a scratch worktree.
 | Evidence ID | Date | Tasks / scope | Command or check and environment | Result | Evidence location |
 |---|---|---|---|---|---|
 | VF001 | 2026-11-04 | VF0-T01 | `nix run .#microvm-x86_64-netlink-dump-capture -- --out /tmp/vf0-cap/dumps` on the host: `NLCAP_DRIVER_PASS`, all nine new rows `datagrams=2 floor=2` — base stdout 12 bytes (`goipvrf 100\n`), mesh and tunnel 0 (`Invalid VRF` is stderr, which read rows drop). `go test ./internal/goip/ -count=1` and `go vet`: green, `TestVrfFamilyFormsRequestIsTheNameGet` 9/9 subtests — each recorded get byte-identical to `req.VrfCheckByName(<family>, goipvrf)` with seq/pid zeroed, the family byte the only delta from the plain form's built request, base's reply `RTM_NEWLINK` and mesh/tunnel's `NLMSG_ERROR` `-ENODEV`. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.vm-lib-exp`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`, and the nix-fmt, statix and deadnix checks: green. Mutation check in a scratch worktree, removed after — `VrfCheckByName`'s family parameter overwritten to hardcode AF_UNSPEC — killed exactly the nine byte-compare subtests and nothing else (`TestVrfShowNameRequestIsNameIsVrf`, `TestVrfShowName`, `TestVrfShowNameReplay` and `TestCorpus730MatchesSidecarsAt720` stayed green), and was reverted. | Passed: 9/9 rows and 9/9 subtests; the gates green; the mutant caught | the three capio rows in `nix/microvms/scripts/capture-netlink-dumps.exp`; the 18 new files under `pkg/xtcpnl/testdata/7_3_0/dumps/{,mesh/,tunnel/}`; `TestVrfFamilyFormsRequestIsTheNameGet` in `internal/goip/obj_vrf_test.go` |
+| VF002 | 2026-11-04 | VF1-T01 | The guard deleted from `vrfShowName` (`obj_vrf.go`), the doc comment amended to name the family pass-through and the dump form's distinct refusal. `go test ./internal/goip/... -count=1` and `go vet`: green — `TestVrfShowName`'s `-4` corner row flipped to a positive row (`goipvrf 100\n`, rc 0, one Talk); three family rows in `TestVrfShowNameReplay` (the planned `TestVrfShowNameFamilyReplay` folded into the existing table instead — one table, one walk), each replaying its own capture through the family-blind dump fallback; three `cleanOnly` corpus rows in `corpus_7_3_0_test.go`, mesh and tunnel refusing with `Invalid VRF` as the plain NAME row does. `nix build --no-link` of `.#test-focused-goip`, `.#checks.x86_64-linux.netlink-audit`, `.#checks.x86_64-linux.lint-baseline`, `.#quality-report`, and the nix-fmt, statix and deadnix checks: green. Mutation check in a scratch worktree, removed after: the guard restored verbatim failed exactly the seven family rows — `TestVrfShowName`'s flipped positive row, the three `TestVrfShowNameReplay` family rows and the three `TestCorpus730MatchesSidecarsAt720` clean-namespace subtests — and nothing else, and was reverted. No VM runs; no `.exp` change. | Passed: the flipped row, 3/3 replay rows, 3/3 corpus rows; the gates green; the mutant caught | `vrfShowName` in `internal/goip/obj_vrf.go`; the flipped row and the family replay rows in `internal/goip/obj_vrf_test.go`; the three corpus rows in `internal/goip/corpus_7_3_0_test.go` |
 
 ## Out of scope
 
