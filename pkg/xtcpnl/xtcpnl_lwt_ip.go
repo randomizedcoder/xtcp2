@@ -245,6 +245,10 @@ type LwtEncap struct {
 	IP        *IPEncap
 	Seg6      *Seg6Encap
 	Seg6Local *Seg6LocalEncap
+	ILA       *IlaEncap
+	Xfrm      *XfrmEncap
+	Ioam6     *Ioam6Encap
+	Rpl       *RplEncap
 }
 
 // ErrLwtEncap is an LwtEncap with no field set, or more than one.
@@ -253,7 +257,10 @@ var ErrLwtEncap = errors.New("xtcpnl: an lwt encap is exactly one of its types")
 // set is how many of e's types are set.
 func (e *LwtEncap) set() int {
 	n := 0
-	for _, p := range []bool{e.MPLS != nil, e.IP != nil, e.Seg6 != nil, e.Seg6Local != nil} {
+	for _, p := range []bool{
+		e.MPLS != nil, e.IP != nil, e.Seg6 != nil, e.Seg6Local != nil,
+		e.ILA != nil, e.Xfrm != nil, e.Ioam6 != nil, e.Rpl != nil,
+	} {
 		if p {
 			n++
 		}
@@ -273,17 +280,32 @@ func PutLwtEncap(ab *AttrBuilder, encapAttr, typeAttr uint16, e LwtEncap) error 
 		err = PutMplsEncap(ab, encapAttr, typeAttr, *e.MPLS)
 	case e.IP != nil:
 		err = putIPEncap(ab, encapAttr, typeAttr, e.IP)
-	case e.Seg6 != nil:
-		err = putLwtNest(ab, encapAttr, typeAttr, unix.LWTUNNEL_ENCAP_SEG6, func() error { return putSeg6Encap(ab, e.Seg6) })
 	default:
-		err = putLwtNest(ab, encapAttr, typeAttr, unix.LWTUNNEL_ENCAP_SEG6_LOCAL, func() error {
-			return putSeg6LocalEncap(ab, e.Seg6Local)
-		})
+		typ, body := e.other(ab)
+		err = putLwtNest(ab, encapAttr, typeAttr, typ, body)
 	}
 	if err != nil {
 		ab.n = start
 	}
 	return err
+}
+
+// other is the LWTUNNEL_ENCAP_* and the sub-attribute writer for the one
+// type set that isn't mpls or ip.
+func (e *LwtEncap) other(ab *AttrBuilder) (uint16, func() error) {
+	switch {
+	case e.Seg6 != nil:
+		return unix.LWTUNNEL_ENCAP_SEG6, func() error { return putSeg6Encap(ab, e.Seg6) }
+	case e.Seg6Local != nil:
+		return unix.LWTUNNEL_ENCAP_SEG6_LOCAL, func() error { return putSeg6LocalEncap(ab, e.Seg6Local) }
+	case e.ILA != nil:
+		return unix.LWTUNNEL_ENCAP_ILA, func() error { return putIlaEncap(ab, e.ILA) }
+	case e.Xfrm != nil:
+		return unix.LWTUNNEL_ENCAP_XFRM, func() error { return putXfrmEncap(ab, e.Xfrm) }
+	case e.Ioam6 != nil:
+		return unix.LWTUNNEL_ENCAP_IOAM6, func() error { return putIoam6Encap(ab, e.Ioam6) }
+	}
+	return unix.LWTUNNEL_ENCAP_RPL, func() error { return putRplEncap(ab, e.Rpl) }
 }
 
 func putIPEncap(ab *AttrBuilder, encapAttr, typeAttr uint16, e *IPEncap) error {
