@@ -18,7 +18,7 @@
 - LF3-T02 is done. The first `--section route,link,nexthop,rule` run passed 926 of 927 rows; `gw_kwnh_ec_003` diverged on the three pad bytes after `MPLS_IPTUNNEL_TTL` that `ip` takes from its stack (V016). nlparity now compares an `NLA_F_NESTED` attribute past its inner padding, as it already did a top-level attribute (V017, V018). On that, the section run passes 927 of 927 and the full run, with the 23 rows gated, 1304 of 1304 (V019, V020); the rows are in `gated_commands` (V021).
 - **LF3 is closed, and with it the plan.**
 
-**Next action:** none in this plan. The next push needs the whole-repo `test-go-race` check and an explicit OK.
+**Next action:** none in this plan. The ip→goip work continues in [goip-lwt-encap.md](goip-lwt-encap.md) ([its status](goip-lwt-encap-status.md)). The next push needs the whole-repo `test-go-race` check, a clean full VM run and an explicit OK.
 
 ## Contents
 

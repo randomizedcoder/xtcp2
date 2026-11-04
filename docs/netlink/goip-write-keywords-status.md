@@ -48,7 +48,7 @@
 - GW5-T04 is done: a `--section route,link,nexthop,rule` run (904 of 904 rows `PASS`) and then the full run (1281 of 1281) are clean, so the 35 GW rows are gated, and `TestUngatedSurfaceIsNotVacuous`' exception is gone (V058–V060).
 - **GW5 is closed, and with it the plan** (DOC006). The 29 rows left `refuses` in the O5 golden are the ones the decision log lists.
 
-**Next action:** none in this plan. The whole-repo `test-go-race` check, then the push, which waits for an explicit OK.
+**Next action:** none in this plan. The ip→goip work continues in [goip-lwt-encap.md](goip-lwt-encap.md) ([its status](goip-lwt-encap-status.md)). The next push needs the whole-repo `test-go-race` check, a clean full VM run and an explicit OK.
 
 ## Contents
 
