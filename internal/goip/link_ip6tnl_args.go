@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -152,7 +153,7 @@ func (p *ip6tnlParse) value(canon, v string) error {
 		if idx <= 0 {
 			return nodevExitErr(v)
 		}
-		p.add(xtcpnl.IptunOptionLink, uint64(idx))
+		p.add(xtcpnl.IptunOptionLink, uint64(cint.Bits(idx)))
 	case kindKeyTTL:
 		n := uint64(0)
 		if v != kindInheritCst {

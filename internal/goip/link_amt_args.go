@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -101,7 +102,7 @@ func (p *amtParse) word(word, v string) error {
 			// INT_MAX, which ip sends.
 			return nodevExitErr(v)
 		}
-		s = xtcpnl.AmtSetting{Option: xtcpnl.AmtOptionLink, Value: uint64(idx)}
+		s = xtcpnl.AmtSetting{Option: xtcpnl.AmtOptionLink, Value: uint64(cint.Bits(idx))}
 	default: // local, discovery
 		return p.addr(word, v)
 	}

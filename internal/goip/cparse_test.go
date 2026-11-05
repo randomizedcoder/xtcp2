@@ -376,3 +376,71 @@ func TestCStrcaseEq(t *testing.T) {
 		})
 	}
 }
+
+// TestCStrtoulBase: strtoul's bases. One goip doesn't use converts nothing
+// rather than reading decimal.
+//
+// go test ./internal/goip/ -run TestCStrtoulBase
+func TestCStrtoulBase(t *testing.T) {
+	type result struct {
+		val uint64
+		end int
+	}
+	tests := []struct {
+		description string
+		arg         string
+		base        int
+		expected    result
+	}{
+		{description: "positive: base 10", arg: "17", base: 10, expected: result{17, 2}},
+		{description: "positive: base 16 takes a 0x prefix", arg: "0x11", base: 16, expected: result{17, 4}},
+		{description: "positive: base 8", arg: "21", base: 8, expected: result{17, 2}},
+		{description: "positive: base 0 reads a leading 0 as octal", arg: "021", base: 0, expected: result{17, 3}},
+		{description: "negative: base 2 converts nothing", arg: "101", base: 2},
+		{description: "negative: base 36 converts nothing", arg: "z", base: 36},
+		{description: "negative: a negative base converts nothing", arg: "17", base: -1},
+		{description: "boundary: base 1 converts nothing", arg: "17", base: 1},
+		{description: "corner: base 37 converts nothing", arg: "17", base: 37},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			r := cStrtoul(tc.arg, tc.base)
+			if got := (result{r.val, r.end}); got != tc.expected {
+				t.Errorf("cStrtoul(%q, %d) = %+v, want %+v", tc.arg, tc.base, got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestLLProtoA2N is ll_proto_a2n: names fold only ASCII case, as
+// strcasecmp does, and anything else is get_be16's base-0 number.
+//
+// go test ./internal/goip/ -run TestLLProtoA2N
+func TestLLProtoA2N(t *testing.T) {
+	type result struct {
+		id uint16
+		ok bool
+	}
+	tests := []struct {
+		description string
+		arg         string
+		expected    result
+	}{
+		{description: "positive: a name", arg: "ipv6", expected: result{0x86dd, true}},
+		{description: "positive: upper case folds", arg: "SNAP", expected: result{0x0005, true}},
+		{description: "positive: a number", arg: "0x88cc", expected: result{0x88cc, true}},
+		{description: "negative: an unknown name", arg: "nosuch"},
+		{description: "boundary: 0xffff is the largest number", arg: "0xffff", expected: result{0xffff, true}},
+		{description: "boundary: 0x10000 is past it", arg: "0x10000"},
+		{description: "corner: U+017F does not fold to s", arg: "ſnap"},
+		{description: "corner: the Kelvin sign does not fold to k", arg: "atalK"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			id, ok := llProtoA2N(tc.arg)
+			if got := (result{id, ok}); got != tc.expected {
+				t.Errorf("llProtoA2N(%q) = %+v, want %+v", tc.arg, got, tc.expected)
+			}
+		})
+	}
+}

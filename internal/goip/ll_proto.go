@@ -1,10 +1,6 @@
 package goip
 
-import (
-	"strings"
-
-	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-)
+import "github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 
 // llProtoA2N is ll_proto_a2n: a name from xtcpnl.LLProtoNames, compared
 // without case (proto_a2n's strcasecmp), or else get_be16's base-0 number.
@@ -12,7 +8,7 @@ import (
 // order.
 func llProtoA2N(arg string) (uint16, bool) {
 	for _, p := range xtcpnl.LLProtoNames {
-		if strings.EqualFold(p.Name, arg) {
+		if cStrcaseEq(p.Name, arg) {
 			return p.ID, true
 		}
 	}

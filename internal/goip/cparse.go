@@ -53,8 +53,16 @@ type cStrtoulResult struct {
 	neg      bool
 }
 
-// cStrtoul is glibc's strtoul on a 64-bit long. base is 0, 10 or 16.
+// cStrtoul is glibc's strtoul on a 64-bit long. base is 0, 8, 10 or 16;
+// any other base converts nothing (end 0), as strtoul does for a base it
+// refuses with EINVAL, so a caller's bad base fails rather than reads
+// decimal.
 func cStrtoul(s string, base int) cStrtoulResult {
+	switch base {
+	case 0, 8, 10, 16:
+	default:
+		return cStrtoulResult{}
+	}
 	i := 0
 	for i < len(s) && cIsSpace(s[i]) {
 		i++

@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -272,7 +273,7 @@ func (p *vxlanParse) dev(v string) error {
 		// INT_MAX, is refused here too, where ip sends it.
 		return nodevExitErr(v)
 	}
-	p.out = append(p.out, xtcpnl.VxlanSetting{Option: xtcpnl.VxlanOptionLink, Value: uint64(idx)})
+	p.out = append(p.out, xtcpnl.VxlanSetting{Option: xtcpnl.VxlanOptionLink, Value: uint64(cint.Bits(idx))})
 	return nil
 }
 

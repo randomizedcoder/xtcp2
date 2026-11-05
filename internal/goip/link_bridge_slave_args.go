@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -112,7 +113,7 @@ func readBridgeSlaveValue(spec *xtcpnl.BridgeOptionSpec, v string, resolve linkR
 		if idx <= 0 {
 			return 0, linkUsage(invargErr("Device does not exist\n", v))
 		}
-		return uint64(idx), nil
+		return uint64(cint.Bits(idx)), nil
 	default:
 		n, ok := readBridgeUint(v, spec.Wire)
 		if !ok {

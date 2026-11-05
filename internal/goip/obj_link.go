@@ -468,7 +468,7 @@ func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 			idx uint32
 		}{{h.HasSlave1, h.Slave1}, {h.HasSlave2, h.Slave2}, {h.HasInterlink, h.Interlink}} {
 			if s.has && s.idx <= math.MaxInt32 {
-				resolveIndexName(c, svc, int32(s.idx))
+				resolveIndexName(c, svc, cint.Int(s.idx))
 			}
 		}
 	}
@@ -497,5 +497,5 @@ func kindLowerIndex(li xtcpnl.LinkInfo) (int32, bool) {
 	if idx > math.MaxInt32 {
 		return 0, false
 	}
-	return int32(idx), true
+	return cint.Int(idx), true
 }

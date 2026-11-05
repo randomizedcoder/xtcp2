@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strconv"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -132,7 +133,7 @@ func kindLinkName(names NameTab, idx uint32) string {
 	if idx > math.MaxInt32 {
 		return "if" + strconv.FormatUint(uint64(idx), 10)
 	}
-	return names.IndexToName(int32(idx))
+	return names.IndexToName(cint.Int(idx))
 }
 
 // noPrefix is print_bool_opt's "no" for a false bool.

@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -125,7 +126,7 @@ func resolveDev(v string, resolve linkResolver) (uint64, error) {
 	if idx <= 0 {
 		return 0, nodevExitErr(v)
 	}
-	return uint64(idx), nil
+	return uint64(cint.Bits(idx)), nil
 }
 
 // vtiData is vti's and vti6's parse_opt: the prefetch on a set, the

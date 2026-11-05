@@ -949,7 +949,7 @@ func (st *linkParseState) finish() error {
 		if idx <= 0 {
 			return nodevErr(st.link)
 		}
-		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_LINK, uint32(idx)))
+		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_LINK, cint.Bits(idx)))
 	}
 	st.out.index = st.index
 	if haveDev {
