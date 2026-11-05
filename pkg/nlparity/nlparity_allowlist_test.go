@@ -404,6 +404,17 @@ func TestAllowlistCommitted(t *testing.T) {
 		"vrf show goipvrf",
 		"vrf show default",
 		"vrf show goip0",
+		// The three `vrf show NAME` family rows (VF2 of
+		// docs/netlink/vrf-family-forms.md, the parked decision-8 increment)
+		// - gated on two consecutive clean ungated runs measured 2026-11-04,
+		// both GOIP_PARITY_PASS 513/513 with GOIP_PARITY_UNGATED_CLEAN, txns
+		// 1/1, control nl=0 stdout=0, the answer and stdout the plain NAME
+		// row's own — the family byte is the whole difference the rows carry
+		// (iplink_vrf.c:110-113; the kernel resolves the name without
+		// consulting the family, rtnetlink.c:4346-4355).
+		"-4 vrf show goipvrf",
+		"-6 vrf show goipvrf",
+		"-0 vrf show goipvrf",
 		// nexthop and addrlabel, gated on runs 10 and 11 - the first live
 		// grounding of those two objects, which were replay-grounded only.
 		// Both runs GOIP_PARITY_PASS with stdout=0 and no unsuppressed findings,

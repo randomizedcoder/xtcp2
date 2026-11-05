@@ -352,6 +352,15 @@ proc capture_set {ns subdir dev} {
     # rc and the stderr line stay unit assertions (VS2); these rows ground the
     # request and answer bytes.
     capio $ns $subdir netlink_route_getvrf_name    2 "ip vrf show goipvrf" ip_vrf_name
+    # The family forms of the NAME get (vrf-family-forms.md VF0): -4/-6/-0
+    # changes only the request's ifi_family byte (iplink_vrf.c:110-113) — the
+    # kernel resolves the name without consulting the family
+    # (rtnetlink.c:4346-4355), so every answer here is the plain row's own:
+    # goipvrf 100 in base, ENODEV in mesh and tunnel, and the family byte is
+    # all the rows add. Floor 2, the get and its answer.
+    capio $ns $subdir netlink_route_getvrf_name_v4 2 "ip -4 vrf show goipvrf" ip_vrf_name_v4
+    capio $ns $subdir netlink_route_getvrf_name_v6 2 "ip -6 vrf show goipvrf" ip_vrf_name_v6
+    capio $ns $subdir netlink_route_getvrf_name_0  2 "ip -0 vrf show goipvrf" ip_vrf_name_0
     capio $ns $subdir netlink_route_getvrf_default 2 "ip vrf show default" ip_vrf_default
     capio $ns $subdir netlink_route_getvrf_novrf   2 "ip vrf show $dev"    ip_vrf_novrf
 

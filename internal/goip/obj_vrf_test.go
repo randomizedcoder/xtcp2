@@ -564,16 +564,17 @@ func TestVrfShowName(t *testing.T) {
 			wantExit:    ExitMinusOne,
 		},
 		{
-			// The family changes only the request's ifi_family byte on this
-			// form, but no capture grounds those bytes, so the form stays refused
-			// (decision 8) and nothing is sent.
-			description: "corner: -4 vrf show goipvrf",
-			expected:    "refused, rc 1, nothing sent",
+			// The family flag is no longer refused (vrf-family-forms.md VF1):
+			// the byte reaches the request and the answer is the plain form's
+			// own, so the fake source answers it the same way.
+			description: "positive: -4 vrf show goipvrf",
+			expected:    "goipvrf 100\n, rc 0 — the family byte reaches the request, the answer is the plain form's",
 			args:        []string{"show", "goipvrf"},
 			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
 			family:      unix.AF_INET,
-			wantErrSub:  "vrf show NAME with -4/-6",
-			wantExit:    ExitUsage,
+			wantStdout:  "goipvrf 100\n",
+			wantTalks:   1,
+			wantExit:    ExitOK,
 		},
 	}
 	for _, tc := range tests {
@@ -639,6 +640,32 @@ func TestVrfShowNameReplay(t *testing.T) {
 			args:        []string{"vrf", "show", "goipvrf"},
 			wantStdout:  "goipvrf 100\n",
 		},
+		{
+			// The family forms (VF1): under replay the dump fallback answers, and
+			// it is family-blind — the fallback's dump finds each capture's one
+			// recorded RTM_NEWLINK answer, the get's own, exactly as the nexthop
+			// row above does. The family byte reaches the request only live; the
+			// VF0 pin holds it.
+			description: "positive: -4 vrf show goipvrf over the -4 capture",
+			expected:    "goipvrf 100\n through the family-blind dump fallback",
+			pcap:        corpus730Dir + "netlink_route_getvrf_name_v4.pcap",
+			args:        []string{"-4", "vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
+		{
+			description: "positive: -6 vrf show goipvrf over the -6 capture",
+			expected:    "the same with AF_INET6",
+			pcap:        corpus730Dir + "netlink_route_getvrf_name_v6.pcap",
+			args:        []string{"-6", "vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
+		{
+			description: "corner: -0 vrf show goipvrf over the -0 capture",
+			expected:    "the same with AF_PACKET, the byte no other vrf request carries",
+			pcap:        corpus730Dir + "netlink_route_getvrf_name_0.pcap",
+			args:        []string{"-0", "vrf", "show", "goipvrf"},
+			wantStdout:  "goipvrf 100\n",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -652,5 +679,107 @@ func TestVrfShowNameReplay(t *testing.T) {
 				t.Errorf("stdout = %q, want %q", stdout.String(), tc.wantStdout)
 			}
 		})
+	}
+}
+
+// TestVrfFamilyFormsRequestIsTheNameGet pins VF0's three family rows: -4/-6/-0
+// changes only the request's ifi_family byte (iplink_vrf.c:110-113), so each
+// recorded get must be req.VrfCheckByName's bytes for its family, and the
+// plain form's built request in every other byte. The kernel resolves the name
+// without consulting the family (rtnetlink.c:4346-4355): base's answer is the
+// vrf link itself, mesh's and tunnel's an NLMSG_ERROR ENODEV, and the family
+// byte is the whole difference the rows carry. No hand bytes: every row is a
+// capture or the builder.
+//
+// go test ./internal/goip/ -run TestVrfFamilyFormsRequestIsTheNameGet
+func TestVrfFamilyFormsRequestIsTheNameGet(t *testing.T) {
+	tests := []struct {
+		name, file, category, description, expected string
+		family                                      uint8
+	}{
+		{name: "v4", file: "v4", category: "positive",
+			description: "the -4 get, ifi_family AF_INET",
+			expected:    "byte-identical to req.VrfCheckByName(AF_INET, goipvrf); the plain form's bytes elsewhere",
+			family:      unix.AF_INET},
+		{name: "v6", file: "v6", category: "positive",
+			description: "the -6 get, ifi_family AF_INET6",
+			expected:    "the same with AF_INET6",
+			family:      unix.AF_INET6},
+		{name: "af0", file: "0", category: "corner",
+			description: "the -0 get, ifi_family AF_PACKET, the byte no other vrf request carries",
+			expected:    "the same with AF_PACKET",
+			family:      unix.AF_PACKET},
+	}
+	for _, tc := range tests {
+		for _, ns := range corpus730Namespaces {
+			name := strings.TrimSuffix(ns.subdir, "/")
+			if name == "" {
+				name = "clean"
+			}
+			t.Run(tc.name+"/"+name, func(t *testing.T) {
+				t.Logf("%s: %s in the %s namespace; expected: %s", tc.category, tc.description, name, tc.expected)
+				pcap := corpus730Dir + ns.subdir + "netlink_route_getvrf_name_" + tc.file + ".pcap"
+				capt, err := nlparity.ParseRouteCaptureFile(pcap)
+				if err != nil {
+					t.Fatal(err)
+				}
+				msgs := capt.Msgs()
+				var gets []int
+				for i, m := range msgs {
+					if m.IsRequest() && m.Hdr.Type == unix.RTM_GETLINK {
+						gets = append(gets, i)
+					}
+				}
+				if len(gets) != 1 {
+					t.Fatalf("%s: %d RTM_GETLINK requests, want the one get", name, len(gets))
+				}
+				captured := capturedRequest(msgs[gets[0]])
+				if len(captured) != 44 {
+					t.Errorf("%s: recorded get is %d bytes, want 44", name, len(captured))
+				}
+				built, err := req.VrfCheckByName(tc.family, "goipvrf", 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := zeroSeqPidCopy(built); !bytes.Equal(got, captured) {
+					t.Errorf("%s: %s get differs\n got %x\nwant %x", name, tc.name, got, captured)
+				}
+				if captured[16] != tc.family {
+					t.Errorf("%s: family byte at offset 16 is %d, want %d", name, captured[16], tc.family)
+				}
+				// The family is the only delta: the plain form's built request,
+				// which VS0 pinned byte for byte, equals this one elsewhere.
+				plain, err := req.VrfCheckByName(unix.AF_UNSPEC, "goipvrf", 1)
+				if err != nil {
+					t.Fatal(err)
+				}
+				zeroed := zeroSeqPidCopy(plain)
+				for i := range captured {
+					if captured[i] != zeroed[i] && i != 16 {
+						t.Errorf("%s: byte %d is %d, want the plain form's %d — the family is the only delta",
+							name, i, captured[i], zeroed[i])
+					}
+				}
+				// rtnl_talk is synchronous: the reply follows the get. The
+				// kernel answers the vrf link in the clean namespace and
+				// ENODEV in mesh and tunnel, which hold no goipvrf.
+				reply := msgs[gets[0]+1]
+				if reply.IsRequest() {
+					t.Fatalf("%s: the datagram after the get is a request", name)
+				}
+				if ns.subdir == "" {
+					if reply.Hdr.Type != unix.RTM_NEWLINK {
+						t.Errorf("%s: reply type %d, want RTM_NEWLINK", name, reply.Hdr.Type)
+					}
+					return
+				}
+				if reply.Hdr.Type != unix.NLMSG_ERROR {
+					t.Fatalf("%s: reply type %d, want NLMSG_ERROR", name, reply.Hdr.Type)
+				}
+				if errno := int32(binary.LittleEndian.Uint32(reply.Body[0:4])); errno != -int32(unix.ENODEV) {
+					t.Errorf("%s: NLMSG_ERROR errno %d, want -ENODEV", name, errno)
+				}
+			})
+		}
 	}
 }
