@@ -215,7 +215,7 @@ func (c *xtcpConfigService) Set(
 		c.pC.WithLabelValues("Set", "clone", "error").Inc()
 		return nil, status.Error(codes.Internal, "config clone failed")
 	}
-	redactSecrets(resp)
+	RedactSecrets(resp)
 
 	// The restart carries resp's JSON, the same config with the same secrets
 	// blanked, in the environment; refuse one execve could not carry while
@@ -249,13 +249,14 @@ func (c *xtcpConfigService) redactedConfig() (*xtcp_config.XtcpConfig, error) {
 	if !ok {
 		return nil, status.Error(codes.Internal, "config clone failed")
 	}
-	redactSecrets(redacted)
+	RedactSecrets(redacted)
 	return redacted, nil
 }
 
-// redactSecrets blanks secrets in place. Set treats empty secret fields as
-// "unchanged", so a Get → edit → Set round-trip preserves them.
-func redactSecrets(cfg *xtcp_config.XtcpConfig) {
+// RedactSecrets blanks secrets in place. Set treats empty secret fields as
+// "unchanged", so a Get → edit → Set round-trip preserves them. It is the one
+// list of secret fields: the soft restart's splitSecrets blanks with it too.
+func RedactSecrets(cfg *xtcp_config.XtcpConfig) {
 	cfg.S3SecretKey = ""
 	cfg.S3AccessKey = ""
 	for _, a := range []*xtcp_config.ListenerAuth{cfg.ListenerAuth, cfg.AdminListenerAuth} {

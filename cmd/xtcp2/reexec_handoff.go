@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -42,25 +43,21 @@ const (
 
 var errReconfigureSecrets = errors.New("reconfigure secrets")
 
-// splitSecrets returns cfg with its secrets blanked, the fields
-// ConfigService's redactSecrets blanks, and a config holding only them.
-// mergeSecrets is its inverse.
+// splitSecrets returns cfg with its secrets blanked by ConfigService's
+// xtcp.RedactSecrets, and a config holding only them. mergeSecrets is its
+// inverse. TestSplitSecretsMatchesRedactSecrets fails if the fields carried
+// here and the fields RedactSecrets blanks drift apart.
 func splitSecrets(cfg *xtcp_config.XtcpConfig) (redacted, secrets *xtcp_config.XtcpConfig) {
 	redacted, ok := proto.Clone(cfg).(*xtcp_config.XtcpConfig)
 	if !ok {
 		redacted = &xtcp_config.XtcpConfig{}
 	}
+	xtcp.RedactSecrets(redacted)
 	secrets = &xtcp_config.XtcpConfig{
 		S3SecretKey:       cfg.GetS3SecretKey(),
 		S3AccessKey:       cfg.GetS3AccessKey(),
 		ListenerAuth:      authSecrets(cfg.GetListenerAuth()),
 		AdminListenerAuth: authSecrets(cfg.GetAdminListenerAuth()),
-	}
-	redacted.S3SecretKey, redacted.S3AccessKey = "", ""
-	for _, a := range []*xtcp_config.ListenerAuth{redacted.ListenerAuth, redacted.AdminListenerAuth} {
-		if a != nil {
-			a.RawToken, a.HmacSharedKey = "", ""
-		}
 	}
 	return redacted, secrets
 }
@@ -94,8 +91,12 @@ func mergeAuthSecrets(a, s *xtcp_config.ListenerAuth) *xtcp_config.ListenerAuth 
 
 // secretsMemfd writes b to a sealed memfd the exec'd image inherits: it is
 // made without MFD_CLOEXEC, and syscall.Exec closes only close-on-exec
-// descriptors.
+// descriptors. b past reconfigureSecretsMaxBytes is refused here, since
+// the exec'd image would refuse it after this one is gone.
 func secretsMemfd(b []byte) (f *os.File, fd int, err error) {
+	if len(b) > reconfigureSecretsMaxBytes {
+		return nil, -1, fmt.Errorf("%w: %d bytes, past %d", errReconfigureSecrets, len(b), reconfigureSecretsMaxBytes)
+	}
 	fd, err = unix.MemfdCreate(reconfigureMemfdName, unix.MFD_ALLOW_SEALING)
 	if err != nil {
 		return nil, -1, fmt.Errorf("%w: memfd_create: %w", errReconfigureSecrets, err)
@@ -113,7 +114,8 @@ func secretsMemfd(b []byte) (f *os.File, fd int, err error) {
 // loadReconfigureSecrets reads the secrets a soft restart carried in a
 // memfd into cfg, and closes it. It does nothing when the restart carried
 // none. The descriptor must be a memfd with every seal secretsMemfd adds,
-// so an inherited stdin or a stray file is refused rather than read.
+// so an inherited stdin or a stray file is refused rather than read; a
+// memfd that is refused is closed too.
 func loadReconfigureSecrets(cfg *xtcp_config.XtcpConfig) (err error) {
 	v, present := os.LookupEnv(reconfigureMemfdFDKey)
 	if !present || v == "" {
@@ -127,13 +129,15 @@ func loadReconfigureSecrets(cfg *xtcp_config.XtcpConfig) (err error) {
 	if err != nil {
 		return fmt.Errorf("%w: descriptor %d is not a memfd: %w", errReconfigureSecrets, fd, err)
 	}
-	if seals&reconfigureSecretSeals != reconfigureSecretSeals {
-		return fmt.Errorf("%w: descriptor %d is not sealed (seals %#x)", errReconfigureSecrets, fd, seals)
-	}
+	// A memfd named by the key is the carry's, so it is closed from here
+	// on, read or refused.
 	f := os.NewFile(uintptr(fd), reconfigureMemfdName)
 	defer func() {
 		err = errors.Join(err, f.Close())
 	}()
+	if seals&reconfigureSecretSeals != reconfigureSecretSeals {
+		return fmt.Errorf("%w: descriptor %d is not sealed (seals %#x)", errReconfigureSecrets, fd, seals)
+	}
 	st, err := f.Stat()
 	if err != nil {
 		return fmt.Errorf("%w: %w", errReconfigureSecrets, err)

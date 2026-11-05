@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // The six secrets, each distinct so a leak names its field.
@@ -143,6 +144,129 @@ func TestSecretsMemfd(t *testing.T) {
 	}
 }
 
+// TestSecretsMemfdBound: the parent refuses a payload the exec'd image
+// would refuse, so a soft restart that can't carry its secrets keeps the
+// running process.
+func TestSecretsMemfdBound(t *testing.T) {
+	tests := []struct {
+		category    string
+		description string
+		size        int
+		expected    bool // refused
+	}{
+		{"positive", "a small payload is carried", 64, false},
+		{"boundary", "a payload at the bound is carried", reconfigureSecretsMaxBytes, false},
+		{"boundary", "a payload one byte past the bound is refused", reconfigureSecretsMaxBytes + 1, true},
+		{"negative", "a payload twice the bound is refused", 2 * reconfigureSecretsMaxBytes, true},
+		{"corner", "an empty payload is carried", 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected refused: %v", tc.category, tc.description, tc.expected)
+			f, fd, err := secretsMemfd(make([]byte, tc.size))
+			if got := err != nil; got != tc.expected {
+				t.Fatalf("refused = %v (%v), want %v", got, err, tc.expected)
+			}
+			if tc.expected {
+				if !errors.Is(err, errReconfigureSecrets) || f != nil || fd != -1 {
+					t.Errorf("refusal: f=%v fd=%d err=%v, want nil, -1 and an errReconfigureSecrets", f, fd, err)
+				}
+				return
+			}
+			closeFile(t, f)
+		})
+	}
+}
+
+// TestSplitSecretsMatchesRedactSecrets fills every string field of a config
+// and checks the two secret lists agree: whatever xtcp.RedactSecrets blanks
+// is carried back by splitSecrets and mergeSecrets, and nothing carried as a
+// secret is left in the redacted JSON that goes in the environment.
+func TestSplitSecretsMatchesRedactSecrets(t *testing.T) {
+	tests := []struct {
+		category    string
+		description string
+		cfg         func() *xtcp_config.XtcpConfig
+		expected    int // secret values carried
+	}{
+		{"positive", "every string field set", func() *xtcp_config.XtcpConfig {
+			c := &xtcp_config.XtcpConfig{}
+			fillStrings(c.ProtoReflect(), "v", 0)
+			return c
+		}, 6},
+		{"boundary", "an empty config carries nothing", func() *xtcp_config.XtcpConfig { return &xtcp_config.XtcpConfig{} }, 0},
+		{"corner", "only the auth blocks filled", func() *xtcp_config.XtcpConfig {
+			c := &xtcp_config.XtcpConfig{ListenerAuth: &xtcp_config.ListenerAuth{}, AdminListenerAuth: &xtcp_config.ListenerAuth{}}
+			fillStrings(c.ListenerAuth.ProtoReflect(), "r", 0)
+			fillStrings(c.AdminListenerAuth.ProtoReflect(), "a", 0)
+			return c
+		}, 4},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected secret values: %d", tc.category, tc.description, tc.expected)
+			cfg := tc.cfg()
+			orig := proto.Clone(cfg)
+			redacted, secrets := splitSecrets(cfg)
+			carried := stringValues(secrets.ProtoReflect())
+			if len(carried) != tc.expected {
+				t.Errorf("carried %d secret values %q, want %d", len(carried), carried, tc.expected)
+			}
+			js, err := protojson.Marshal(redacted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, v := range carried {
+				if strings.Contains(string(js), `"`+v+`"`) {
+					t.Errorf("secret %q is carried but not redacted, so it would be in the environment", v)
+				}
+			}
+			mergeSecrets(redacted, secrets)
+			if !proto.Equal(redacted, orig) {
+				t.Errorf("RedactSecrets blanks a field splitSecrets doesn't carry:\n got %v\nwant %v", redacted, orig)
+			}
+		})
+	}
+}
+
+// fillStrings sets every singular string field of m, and of the messages
+// under it, to a value naming the field.
+func fillStrings(m protoreflect.Message, prefix string, depth int) {
+	if depth > 4 {
+		return
+	}
+	fields := m.Descriptor().Fields()
+	for i := range fields.Len() {
+		fd := fields.Get(i)
+		if fd.IsList() || fd.IsMap() || fd.ContainingOneof() != nil {
+			continue
+		}
+		switch fd.Kind() {
+		case protoreflect.StringKind:
+			m.Set(fd, protoreflect.ValueOfString(prefix+"-"+string(fd.FullName())))
+		case protoreflect.MessageKind:
+			fillStrings(m.Mutable(fd).Message(), prefix, depth+1)
+		default:
+		}
+	}
+}
+
+// stringValues lists the non-empty singular strings set in m and under it.
+func stringValues(m protoreflect.Message) []string {
+	var out []string
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.IsList() || fd.IsMap():
+		case fd.Kind() == protoreflect.StringKind && v.String() != "":
+			out = append(out, v.String())
+		case fd.Kind() == protoreflect.MessageKind:
+			out = append(out, stringValues(v.Message())...)
+		}
+		return true
+	})
+	return out
+}
+
 // TestLoadReconfigureSecrets: only a sealed memfd is read, and one that is
 // read is closed and its key unset.
 func TestLoadReconfigureSecrets(t *testing.T) {
@@ -166,18 +290,28 @@ func TestLoadReconfigureSecrets(t *testing.T) {
 		t.Cleanup(func() { closeFile(t, f) })
 		return strconv.Itoa(int(f.Fd()))
 	}
-	memfd := func(t *testing.T, seals int) string {
+	// memfd returns a dup of a memfd holding b and carrying seals, for
+	// loadReconfigureSecrets to take and close.
+	memfd := func(t *testing.T, seals int, b string) string {
 		fd, err := unix.MemfdCreate("handoff-test", unix.MFD_ALLOW_SEALING|unix.MFD_CLOEXEC)
 		if err != nil {
 			t.Fatal(err)
 		}
 		f := os.NewFile(uintptr(fd), "handoff-test")
+		defer closeFile(t, f)
+		if _, err := f.WriteString(b); err != nil {
+			t.Fatal(err)
+		}
 		if seals != 0 {
 			if _, err := unix.FcntlInt(f.Fd(), unix.F_ADD_SEALS, seals); err != nil {
 				t.Fatal(err)
 			}
 		}
-		return owned(t, f)
+		dup, err := unix.Dup(int(f.Fd()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strconv.Itoa(dup)
 	}
 	tests := []struct {
 		category    string
@@ -213,15 +347,15 @@ func TestLoadReconfigureSecrets(t *testing.T) {
 			}
 			return owned(t, f)
 		}, false, true, "descriptor"},
-		{"negative", "an unsealed memfd", func(t *testing.T) string { return memfd(t, 0) }, false, true, "is not sealed"},
-		{"negative", "a memfd sealed against writes but not against unsealing", func(t *testing.T) string {
-			return memfd(t, unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_WRITE)
-		}, false, true, "is not sealed"},
+		{"negative", "an unsealed memfd is refused and closed", func(t *testing.T) string { return memfd(t, 0, "") }, true, true, "is not sealed"},
+		{"negative", "a memfd sealed against writes but not against unsealing is refused and closed", func(t *testing.T) string {
+			return memfd(t, unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_WRITE, "")
+		}, true, true, "is not sealed"},
 		{"negative", "a sealed memfd holding malformed JSON", func(t *testing.T) string {
 			return sealed(t, `{"s3SecretKey":`)
 		}, true, true, "reconfigure secrets"},
 		{"boundary", "a sealed memfd one byte past the bound", func(t *testing.T) string {
-			return sealed(t, strings.Repeat(" ", reconfigureSecretsMaxBytes+1))
+			return memfd(t, reconfigureSecretSeals, strings.Repeat(" ", reconfigureSecretsMaxBytes+1))
 		}, true, true, "past"},
 	}
 	for _, tc := range tests {
