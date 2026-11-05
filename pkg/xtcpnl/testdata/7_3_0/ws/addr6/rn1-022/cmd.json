@@ -1,0 +1,49 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "4",
+  "label": "d0:1",
+  "local": "2001:db8:1::1",
+  "metric": "0",
+  "preferred": "60",
+  "prefixlen": "64",
+  "proto": "2",
+  "valid": "60",
+  "verb": "change"
+ },
+ "cmd": "ip -6 address change 2001:db8:1::1/64 label d0:1 metric 0 valid_lft 60 preferred_lft 60 optimistic proto kernel_ra dev d0",
+ "desc": "corner: verb=change local=64 peer=absent brd=absent label=alias scope=absent metric=0 lft=equal flags=optimistic proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/rn1-022",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -6 address add 2001:db8:1::1/64 label d0:1 metric 0 valid_lft 60 preferred_lft 60 optimistic proto kernel_ra dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 label d0:1 metric 0 valid_lft 60 preferred_lft 60 optimistic proto kernel_ra dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

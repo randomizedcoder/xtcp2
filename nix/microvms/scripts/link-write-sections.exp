@@ -1,0 +1,85 @@
+###############################################################################
+# link-write-sections.exp - which sections of capture-link-writes.exp run
+#
+# Sourced by capture-link-writes.exp and link-write-sections-test.exp. The
+# full corpus takes hours on a loaded host, so the runner's --only picks
+# sections: `--only brmpls` reruns the bridge FDB, bridge VLAN and MPLS rows
+# alone, without the LACP states and every other row in front of them.
+#
+# A section runs alone with the same bytes it has in a full run. Every write
+# row rebuilds its namespace (write_row, ns-add), so its ifindexes do not
+# depend on what ran before it. The one shared step, late setup (the late
+# modules, the fallback-tunnel sysctl and the kinds probe), runs whenever a
+# section after it is picked, as it does in a full run.
+#
+#   lacp     the three LACP states (lacp_no_partner, lacp_converged,
+#            lacp_partner_down) and the base topology transcript
+#   addr     the address states and rows: addr-show/, addr/, addr-flush/,
+#            addr-save/, the mcdump and the monitor
+#   write    the link and route write rows: write/, route/
+#   rtnl     rtnl-write-corpus.exp's rows: rtnl/
+#   genl     genl-write-corpus.exp's rows: genl/
+#   xfrm     xfrm-write-corpus.exp's rows: xfrm/
+#   kinds    kind-write-corpus.exp's rows: kinds/
+#   brmpls   brmpls-write-corpus.exp's rows: brmpls/
+###############################################################################
+
+namespace eval lwsections {
+    # In run order. parse returns its picks in this order too, so a spec's
+    # order does not reorder the run.
+    variable ALL {lacp addr write rtnl genl xfrm kinds brmpls}
+
+    # The sections that run after late setup and need it.
+    variable LATE {genl xfrm kinds brmpls}
+
+    # parse <spec> - the sections a comma-separated spec names, in run order.
+    # "" and "all" are every section. An unknown, empty or repeated name is
+    # an error, so a typo can't quietly capture nothing.
+    proc parse {spec} {
+        variable ALL
+        if {$spec eq "" || $spec eq "all"} {
+            return $ALL
+        }
+        set picked {}
+        foreach name [split $spec ,] {
+            if {$name eq ""} {
+                error "lwsections: an empty section name in \"$spec\""
+            }
+            if {$name ni $ALL} {
+                error "lwsections: unknown section \"$name\" (one of: [join $ALL {, }], or all)"
+            }
+            if {$name in $picked} {
+                error "lwsections: section \"$name\" named twice"
+            }
+            lappend picked $name
+        }
+        set out {}
+        foreach name $ALL {
+            if {$name in $picked} {
+                lappend out $name
+            }
+        }
+        return $out
+    }
+
+    # want <sections> <name> - 1 if <name> is picked. <name> must be a
+    # section, so a misspelled gate in the driver fails rather than skips.
+    proc want {sections name} {
+        variable ALL
+        if {$name ni $ALL} {
+            error "lwsections: unknown section \"$name\""
+        }
+        return [expr {$name in $sections}]
+    }
+
+    # needs_late <sections> - 1 if any picked section runs after late setup.
+    proc needs_late {sections} {
+        variable LATE
+        foreach name $sections {
+            if {$name in $LATE} {
+                return 1
+            }
+        }
+        return 0
+    }
+}

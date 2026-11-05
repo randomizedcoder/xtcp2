@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "512",
+  "local": "2001:db8:1::1",
+  "prefixlen": "0",
+  "proto": "99",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add 2001:db8:1::1/0 noprefixroute proto 99 dev d0",
+ "desc": "boundary: verb=add local=0 peer=absent brd=absent label=absent scope=absent metric=absent lft=absent flags=noprefixroute proto=99",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-052",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

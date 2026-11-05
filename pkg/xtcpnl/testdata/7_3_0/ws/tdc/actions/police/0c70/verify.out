@@ -1,0 +1,6 @@
+total acts 1
+
+	action order 0:  police 0x4 rate 3Mbit burst 250Kb mtu 2Kb action pass/reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled

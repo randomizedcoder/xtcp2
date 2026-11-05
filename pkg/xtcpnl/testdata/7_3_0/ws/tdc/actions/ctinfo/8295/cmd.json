@@ -1,0 +1,49 @@
+{
+ "cmd": "tc action add action ctinfo zone 20 index 4294967296",
+ "desc": "negative: Add ctinfo action with invalid index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: ctinfo",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/ctinfo/8295",
+ "modules": [
+  "act_ctinfo"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ctinfo",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc action ls action ctinfo",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ctinfo",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8295",
+  "tdc": "actions/ctinfo.json"
+ }
+}

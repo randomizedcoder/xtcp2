@@ -58,7 +58,7 @@ func TestResolveShow(t *testing.T) {
 			inputs: [][]string{
 				{"-stat", "-de", "-j", "a"},
 				{"-s", "-details", "-json", "address"},
-				{"--json", "-statistics", "-d", "-d", "address"},
+				{"--json", "-statistics", "-d", "address"},
 			},
 			wantArgv: "-stats -details -json address show",
 		},
@@ -155,6 +155,11 @@ func TestResolveShow(t *testing.T) {
 			name: "stats_two", category: "boundary",
 			description: "-s -s is refused with Run's message",
 			inputs:      [][]string{{"-s", "-s", "link"}}, wantErr: ErrInvalidArgument, wantMsg: "`-s -s`",
+		},
+		{
+			name: "details_two", category: "boundary",
+			description: "-d -d is refused: vxlan reads the count, and a ShowRequest holds a bool",
+			inputs:      [][]string{{"-d", "-d", "link"}, {"-details", "-d", "address"}}, wantErr: ErrInvalidArgument, wantMsg: "`-d -d`",
 		},
 		{
 			name: "no_object", category: "boundary",

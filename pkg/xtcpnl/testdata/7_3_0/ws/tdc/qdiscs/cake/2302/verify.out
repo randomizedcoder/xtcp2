@@ -1,0 +1,1 @@
+qdisc cake 1: root refcnt 2 bandwidth unlimited diffserv3 flowblind nonat nowash no-ack-filter no-split-gso rtt 100ms raw overhead 0 

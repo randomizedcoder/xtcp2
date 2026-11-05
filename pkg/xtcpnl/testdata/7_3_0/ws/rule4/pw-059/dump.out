@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from 198.51.100.0/24 tos 0x08 iif nosuch [detached] ipproto udp sport 1 dport 80 goto 40000 [unresolved] proto static
+32766:	from all lookup main
+32767:	from all lookup default

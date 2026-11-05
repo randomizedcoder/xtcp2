@@ -1,0 +1,256 @@
+{
+ "cmd": "ip ro flush 172.16.104.0/24",
+ "desc": "corner: a step (fib_tests.sh ipv4_route_test) does not check: ip ro flush 172.16.104.0/24",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibt/ipv4_route_test-007",
+ "modules": [
+  "dummy",
+  "veth"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  [
+   "ip li del red",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip li del dummy1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip li del veth1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip li del veth3",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip link del dev dummy0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 198.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  "ip li add veth1 type veth peer name veth2",
+  "ip li add veth3 type veth peer name veth4",
+  "ip li set veth1 up",
+  "ip li set veth3 up",
+  "ip li set veth2 up",
+  "ip li set veth4 up",
+  "ip -6 addr add 2001:db8:101::1/64 dev veth1 nodad",
+  "ip -6 addr add 2001:db8:103::1/64 dev veth3 nodad",
+  "ip addr add 172.16.101.1/24 dev veth1",
+  "ip addr add 172.16.103.1/24 dev veth3",
+  [
+   "ip ro flush 172.16.104.0/24",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro add 172.16.104.0/24 via 172.16.101.2",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro add 172.16.104.0/24 via 172.16.103.2",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro flush 172.16.104.0/24",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro add 172.16.104.0/24 via 172.16.101.2",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro add 172.16.104.0/24 dev veth3",
+   [
+    1,
+    2,
+    255
+   ]
+  ]
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li del red",
+    "rc": 1
+   },
+   {
+    "cmd": "ip li del dummy1",
+    "rc": 1
+   },
+   {
+    "cmd": "ip li del veth1",
+    "rc": 1
+   },
+   {
+    "cmd": "ip li del veth3",
+    "rc": 1
+   },
+   {
+    "cmd": "ip link del dev dummy0",
+    "rc": 1
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 198.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add veth1 type veth peer name veth2",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add veth3 type veth peer name veth4",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth3 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth2 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth4 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 addr add 2001:db8:101::1/64 dev veth1 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 addr add 2001:db8:103::1/64 dev veth3 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 172.16.101.1/24 dev veth1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 172.16.103.1/24 dev veth3",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro flush 172.16.104.0/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add 172.16.104.0/24 via 172.16.101.2",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add 172.16.104.0/24 via 172.16.103.2",
+    "rc": 2
+   },
+   {
+    "cmd": "ip ro flush 172.16.104.0/24",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add 172.16.104.0/24 via 172.16.101.2",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add 172.16.104.0/24 dev veth3",
+    "rc": 2
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_tests.sh:1660 add_route"
+ }
+}

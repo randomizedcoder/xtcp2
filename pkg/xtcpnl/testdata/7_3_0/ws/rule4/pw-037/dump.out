@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from all tos 0x10 ipproto icmp sport 1000-2000 dport 80 lookup 100 realms 10
+32766:	from all lookup main
+32767:	from all lookup default

@@ -38,6 +38,8 @@ var parityMayImport = map[string]string{
 	modulePath + "/pkg/nlparity": "the comparator: the tolerant walker, the segmenter, the differ, " +
 		"the normalizer and the embedded allowlist. This is the only thing goip-parity needs, " +
 		"and it is a pure function of bytes.",
+	modulePath + "/pkg/cint": "compare_write_test.go's attribute builder narrows a length to a " +
+		"u32 with a check; stdlib only, so it opens nothing",
 }
 
 // forbiddenFirstParty are the first-party packages whose presence anywhere in
@@ -158,6 +160,8 @@ func TestParityCannotOpenASocket(t *testing.T) {
 			modulePath + "/pkg/xtcpnl":          "reached through pkg/nlparity, which decodes attributes with it",
 			modulePath + "/gen/go/xtcp_flat_record": "reached through pkg/xtcpnl's inet_diag decoders, which " +
 				"write into the generated proto",
+			modulePath + "/pkg/cint": "reached through pkg/xtcpnl, which converts C ints with it; " +
+				"stdlib only",
 		}
 		for pkg := range closure {
 			if _, ok := want[pkg]; !ok {

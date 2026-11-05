@@ -65,6 +65,20 @@ const (
 // Reference: https://github.com/torvalds/linux/blob/master/include/uapi/linux/neighbour.h
 const NdaFlagsExt uint16 = 15
 
+// NdaProtocol is NDA_PROTOCOL, the entry's originator (an RTPROT_* byte),
+// 12 by the same count as NdaFlagsExt.
+const NdaProtocol uint16 = 12
+
+// NdaNhID and NdaFdbExtAttrs are NDA_NH_ID 13 and NDA_FDB_EXT_ATTRS 14, by
+// the same count; NfeaActivityNotify and NfeaDontRefresh are the two
+// attributes nested in NDA_FDB_EXT_ATTRS.
+const (
+	NdaNhID            uint16 = 13
+	NdaFdbExtAttrs     uint16 = 14
+	NfeaActivityNotify uint16 = 1
+	NfeaDontRefresh    uint16 = 2
+)
+
 // NTF_EXT_* are the NDA_FLAGS_EXT bits. They share no numbering with the
 // ndm_flags NTF_* constants — both sets start at bit 0 — so the two must never
 // be tested against the same word. That is the whole reason NeighInfo keeps
@@ -181,6 +195,47 @@ type NeighInfo struct {
 	// different outputs for two different wire states.
 	Probes    uint32 // NDA_PROBES
 	HasProbes bool   // NDA_PROBES present
+
+	// Master and Vlan are an AF_BRIDGE (FDB) entry's NDA_MASTER, the
+	// bridge's ifindex, and NDA_VLAN, the VID the entry is in. Both carry
+	// presence bits: an entry with no VLAN is not one in VLAN 0, and BIRD's
+	// nl_parse_fdb keys on whether each attribute exists. As with NDA_PROBES,
+	// a short attribute leaves its presence bit false.
+	Master    uint32 // NDA_MASTER
+	HasMaster bool   // NDA_MASTER present
+	Vlan      uint16 // NDA_VLAN
+	HasVlan   bool   // NDA_VLAN present
+
+	// The VXLAN FDB attributes (drivers/net/vxlan/vxlan_core.c
+	// vxlan_fdb_parse, and bridge/fdb.c fdb_modify, which sends them).
+	// Each has a presence bit, as an absent one means "the device's own":
+	// vxlan_fdb_parse falls back to the config's port and VNI. Port is
+	// NDA_PORT in host order; the wire carries it big-endian. Via is
+	// NDA_IFINDEX, the device to send out of, which `bridge fdb` spells
+	// `via`. As above, a short attribute leaves its presence bit false.
+	Port      uint16 // NDA_PORT
+	HasPort   bool   // NDA_PORT present
+	Vni       uint32 // NDA_VNI
+	HasVni    bool   // NDA_VNI present
+	SrcVni    uint32 // NDA_SRC_VNI
+	HasSrcVni bool   // NDA_SRC_VNI present
+	Via       uint32 // NDA_IFINDEX
+	HasVia    bool   // NDA_IFINDEX present
+	NhID      uint32 // NDA_NH_ID
+	HasNhID   bool   // NDA_NH_ID present
+
+	// FdbNotify and FdbDontRefresh are NDA_FDB_EXT_ATTRS's NFEA_ACTIVITY_NOTIFY
+	// (FDB_NOTIFY_BIT 1, FDB_NOTIFY_INACTIVE_BIT 2) and NFEA_DONT_REFRESH, a
+	// flag. HasFdbNotify tells a notify byte of 0 from none.
+	FdbNotify      uint8 // NFEA_ACTIVITY_NOTIFY
+	HasFdbNotify   bool  // NFEA_ACTIVITY_NOTIFY present
+	FdbDontRefresh bool  // NFEA_DONT_REFRESH present
+
+	// Protocol is NDA_PROTOCOL, the RTPROT_* that made the entry. It has a
+	// presence bit because print_neigh prints the token whenever the
+	// attribute exists, and ip sends it only when `protocol` is given.
+	Protocol    uint8 // NDA_PROTOCOL
+	HasProtocol bool  // NDA_PROTOCOL present
 }
 
 // nudStateNames maps each single NUD_* bit to its kernel name. ndm_state is a
@@ -278,6 +333,35 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 				ni.Probes = binary.LittleEndian.Uint32(val[0:4])
 				ni.HasProbes = true
 			}
+		case uint16(unix.NDA_MASTER):
+			if len(val) >= 4 {
+				ni.Master = binary.LittleEndian.Uint32(val[0:4])
+				ni.HasMaster = true
+			}
+		case uint16(unix.NDA_VLAN):
+			if len(val) >= 2 {
+				ni.Vlan = binary.LittleEndian.Uint16(val[0:2])
+				ni.HasVlan = true
+			}
+		case uint16(unix.NDA_PORT):
+			if len(val) >= 2 {
+				ni.Port = binary.BigEndian.Uint16(val[0:2])
+				ni.HasPort = true
+			}
+		case uint16(unix.NDA_VNI):
+			ni.Vni, ni.HasVni = neighU32(val)
+		case uint16(unix.NDA_SRC_VNI):
+			ni.SrcVni, ni.HasSrcVni = neighU32(val)
+		case uint16(unix.NDA_IFINDEX):
+			ni.Via, ni.HasVia = neighU32(val)
+		case NdaNhID:
+			ni.NhID, ni.HasNhID = neighU32(val)
+		case NdaFdbExtAttrs:
+			parseFdbExtAttrs(val, &ni)
+		case NdaProtocol:
+			if len(val) >= 1 {
+				ni.Protocol, ni.HasProtocol = val[0], true
+			}
 		case NdaFlagsExt:
 			// The length guard is this package's convention for a u32
 			// attribute and it is stricter than iproute2, which reaches
@@ -294,4 +378,34 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 		return NeighInfo{}, err
 	}
 	return ni, nil
+}
+
+// neighU32 reads a u32 attribute, reporting false for a short one.
+func neighU32(val []byte) (uint32, bool) {
+	if len(val) < 4 {
+		return 0, false
+	}
+	return binary.LittleEndian.Uint32(val[0:4]), true
+}
+
+// parseFdbExtAttrs decodes NDA_FDB_EXT_ATTRS's nest. A malformed nest is
+// skipped whole, as a short attribute is, rather than failing the entry. A
+// repeated attribute's last copy wins, as in nla_parse and parse_rtattr.
+func parseFdbExtAttrs(nest []byte, ni *NeighInfo) {
+	var notify uint8
+	var hasNotify, dontRefresh bool
+	err := WalkRTAttrsNested(nest, func(atype uint16, val []byte) {
+		switch atype {
+		case NfeaActivityNotify:
+			if len(val) >= 1 {
+				notify, hasNotify = val[0], true
+			}
+		case NfeaDontRefresh:
+			dontRefresh = true
+		}
+	})
+	if err != nil {
+		return
+	}
+	ni.FdbNotify, ni.HasFdbNotify, ni.FdbDontRefresh = notify, hasNotify, dontRefresh
 }

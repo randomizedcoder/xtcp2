@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all tos 0x08 fwmark 0xffffffff iif d0 uidrange 1000-2000 ipproto udp sport 80 dport 65534 lookup local
+32766:	from all lookup main
+32767:	from all lookup default

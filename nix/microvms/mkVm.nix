@@ -319,6 +319,30 @@ let
   isLacpA = sink == "lacp-a";
   isLacpB = sink == "lacp-b";
   isLacpPair = isLacpA || isLacpB;
+  # nlcap-workbench = the quiet root guest kept up and driven over ssh, for
+  # capturing generated rows of iproute2 commands in seconds instead of a
+  # rebuild and a cold boot per change (docs/netlink/coverage-status.md,
+  # "Workbench and generated rows"; the host side is
+  # nix/microvms/workbench/xtcp2-nlcap-ws.nix).
+  #
+  # Two things make it cheap to keep up, and both are load-bearing:
+  #
+  #   - It does NOT get xtcp2AllPackage. Every other guest does, and that
+  #     package is built from the whole repository, so any edit to a test, a
+  #     doc or a fixture rebuilds ~35 Go derivations and changes the VM's
+  #     closure. This guest's closure depends only on nixpkgs and this file.
+  #
+  #   - The capture helper and the batch runner are NOT in its closure
+  #     either. The guest mounts the host's /nix/store over 9p (`shares`
+  #     below), so the host CLI builds them and runs them by store path. A
+  #     change to either is a host build of one small derivation, picked up
+  #     by the next ssh call, with no reboot.
+  #
+  # Its ssh key is ephemeral and never enters the store: the host CLI writes
+  # a fresh public key to ./authorized_keys in the directory it starts qemu
+  # from, qemu hands it over as a fw_cfg blob, and nlcap-ws-authorized-keys
+  # below installs it before sshd starts.
+  isNlcapWorkbench = sink == "nlcap-workbench";
   # The flavors that load the bonding module (see boot.kernelModules).
   needsBonding = isLinkWriteCapture || isGoipParity || isLacpPair;
   # The driven/quiet netlink flavors, which share a guest shape: no xtcp2
@@ -329,7 +353,12 @@ let
   # the guest shape alone: it captures nothing, but a daemon on the partner
   # would be one more thing that is not the switch it stands in for.
   isNetlinkQuiet =
-    isNlmonCapture || isNetlinkDumpCapture || isGoipParity || isLinkWriteCapture || isLacpPair;
+    isNlmonCapture
+    || isNetlinkDumpCapture
+    || isGoipParity
+    || isLinkWriteCapture
+    || isLacpPair
+    || isNlcapWorkbench;
   # The ones that are driven over the serial console by an expect script, as
   # opposed to nlmon-capture's baked-in oneshot. These are the ones that need
   # `xtcp2-nlcap` on the guest PATH.
@@ -346,6 +375,10 @@ let
       }
     else if isLacpB then
       cfg.lacpB
+    else if isNlcapWorkbench then
+      {
+        inherit (cfg.nlcapWs) hostname serialPort virtioPort;
+      }
     else
       {
         inherit (cfg) hostname serialPort virtioPort;
@@ -2629,8 +2662,11 @@ in
 
         microvm = {
           hypervisor = "qemu";
-          mem = effectiveMem;
-          inherit (cfg) vcpu;
+          mem = if isNlcapWorkbench then cfg.nlcapWs.mem else effectiveMem;
+          # The workbench runs `-j N` rows at once, each a tcpdump, the
+          # command and the helper's filtering; at 2 vCPUs -j 4 measured
+          # 0.95 s a row. See constants.nix nlcapWs.
+          vcpu = if isNlcapWorkbench then cfg.nlcapWs.vcpu else cfg.vcpu;
           cpu = if cfg.useKvm then null else cfg.qemuCpu;
           # Default: no disk. /var/lib/docker lives on the root tmpfs.
           # For clickhouse-pipeline this proved a problem at hour ~1
@@ -2820,6 +2856,16 @@ in
                 guest.port = 9090;
               }
             ]
+            ++ lib.optionals isNlcapWorkbench [
+              # The workbench's sshd, on loopback only: the key is the only
+              # credential, and nothing off this host has any business here.
+              {
+                from = "host";
+                host.address = "127.0.0.1";
+                host.port = cfg.nlcapWs.sshPort;
+                guest.port = 22;
+              }
+            ]
             ++ lib.optionals isClickPipeParquet [
               # Second xtcp2 instance's prom + grpc — the secondary
               # parquet-writing instance binds these (encoded in
@@ -2873,7 +2919,14 @@ in
               ))
             ]
             # The lacp pair's two dgram links; empty for every other flavor.
-            ++ lacpNicArgs;
+            ++ lacpNicArgs
+            # The workbench's ephemeral ssh key. A relative path, resolved in
+            # the directory the host CLI starts qemu from (its state dir), so
+            # the key is chosen at `up` time and never baked into the runner.
+            ++ lib.optionals isNlcapWorkbench [
+              "-fw_cfg"
+              "name=opt/xtcp2/authorized_keys,file=authorized_keys"
+            ];
           };
         };
 
@@ -4057,7 +4110,57 @@ in
           ]
           ++ lib.optional isNetlinkDumpCapture "bridge"
           ++ lib.optional needsBonding "bonding"
+          # The workbench's ssh key arrives as a fw_cfg blob; see
+          # nlcap-ws-authorized-keys.
+          ++ lib.optional isNlcapWorkbench "qemu_fw_cfg"
         );
+
+        # The workbench execs thousands of short processes (tcpdump, ip, tc,
+        # the helper's coreutils) out of the 9p /nix/store, and microvm.nix
+        # mounts it with no cache option, i.e. cache=none: every open, stat
+        # and page is a round trip to the host. Measured: `ip -V` 0.4 s, one
+        # write row 10 s. cache=loose lets the guest keep dentries, inodes and
+        # pages. That is safe for a store, whose paths never change once
+        # built; a path the host builds after boot has a name the guest has
+        # never looked up, so no stale entry can hide it.
+        fileSystems."/nix/store".options = lib.mkIf isNlcapWorkbench [ "cache=loose" ];
+
+        # The workbench is driven over ssh rather than the serial console.
+        # Keys only, root only: the guest is a throwaway with nothing on it,
+        # and the host side is a loopback hostfwd.
+        services.openssh = lib.mkIf isNlcapWorkbench {
+          enable = true;
+          settings = {
+            PermitRootLogin = "prohibit-password";
+            PasswordAuthentication = false;
+            KbdInteractiveAuthentication = false;
+          };
+        };
+
+        # Install the host CLI's ephemeral public key before sshd can accept
+        # a connection. qemu_fw_cfg exposes the blob under by_name; it is
+        # root-only, which is why this is a oneshot rather than an
+        # AuthorizedKeysCommand (sshd refuses to run that as root).
+        systemd.services.nlcap-ws-authorized-keys = lib.mkIf isNlcapWorkbench {
+          description = "nlcap workbench: install the host's ephemeral ssh key";
+          wantedBy = [ "multi-user.target" ];
+          before = [ "sshd.service" ];
+          requiredBy = [ "sshd.service" ];
+          path = [ pkgs.kmod ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          script = ''
+            set -eu
+            modprobe qemu_fw_cfg 2>/dev/null || true
+            src=/sys/firmware/qemu_fw_cfg/by_name/opt/xtcp2/authorized_keys/raw
+            [ -r "$src" ] || { echo "NLCAP_WS_NOKEY $src" >&2; exit 1; }
+            install -d -m 700 /root/.ssh
+            install -m 600 "$src" /root/.ssh/authorized_keys
+            echo "NLCAP_WS_KEY_OK"
+          '';
+        };
 
         # `bonding` is for link-write-capture, for goip-parity's write rows
         # (link-write-path.md phase 7) and for both VMs of the lacp pair
@@ -4236,7 +4339,24 @@ in
               rdmaNativeCapture
             ]
           )
-          ++ [ xtcp2AllPackage ];
+          # The workbench's tools for the families the generated rows cover.
+          # The capture helper and batch runner are deliberately absent: the
+          # host CLI runs them by store path (see isNlcapWorkbench).
+          ++ lib.optionals isNlcapWorkbench (
+            with pkgs;
+            [
+              kmod
+              gzip
+              gnutar
+              ethtool
+              conntrack-tools
+              ipset
+              python3
+            ]
+          )
+          # Every flavor but the workbench, which must not depend on the
+          # repository's source (see isNlcapWorkbench).
+          ++ lib.optionals (!isNlcapWorkbench) [ xtcp2AllPackage ];
       }
     )
   ];

@@ -210,21 +210,32 @@ func extractFieldsFromProto(path string, contents []byte) []field {
 	return fields
 }
 
-func collectProtoFields(root string) ([]field, error) {
-	var fields []field
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+func collectProtoFields(root string) (fields []field, err error) {
+	// Walking and reading through an os.Root keeps every open inside root,
+	// even if a path the walk returned is swapped for a symlink before it
+	// is read.
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if cerr := r.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	fsys := r.FS()
+	err = fs.WalkDir(fsys, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".proto") {
+		if d.IsDir() || !strings.HasSuffix(rel, ".proto") {
 			return nil
 		}
-		// #nosec G122 -- this tool runs in CI against trusted local repo source; TOCTOU on .proto files is not a real threat vector
-		b, readErr := os.ReadFile(path) //nolint:gosec // mirrored by the #nosec annotation above for the standalone gosec run
+		b, readErr := fs.ReadFile(fsys, rel)
 		if readErr != nil {
 			return readErr
 		}
-		fields = append(fields, extractFieldsFromProto(path, b)...)
+		fields = append(fields, extractFieldsFromProto(filepath.Join(root, rel), b)...)
 		return nil
 	})
 	return fields, err

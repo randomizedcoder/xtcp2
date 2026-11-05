@@ -1,0 +1,49 @@
+{
+ "axes": {
+  "brd": "192.0.2.127",
+  "family": "4",
+  "flags": "512",
+  "label": "d0:abcdefghijkl",
+  "local": "192.0.2.0",
+  "preferred": "0",
+  "prefixlen": "31",
+  "scope": "254",
+  "valid": "4294967295",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 192.0.2.0/31 bro 192.0.2.127 label d0:abcdefghijkl scope host preferred_lft 0 noprefixroute dev d0",
+ "desc": "corner: verb=del local=31 peer=absent brd=abbrev label=15 scope=host metric=absent lft=deprecated flags=noprefixroute proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-008",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 192.0.2.0/31 bro 192.0.2.127 label d0:abcdefghijkl scope host preferred_lft 0 noprefixroute dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 192.0.2.0/31 bro 192.0.2.127 label d0:abcdefghijkl scope host preferred_lft 0 noprefixroute dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

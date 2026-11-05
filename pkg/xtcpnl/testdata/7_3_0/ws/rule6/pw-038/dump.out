@@ -1,0 +1,3 @@
+0:	from all lookup local
+32766:	from all lookup main
+4294967295:	from all iif lo lookup [l3mdev-table] ipproto ipv6-icmp sport 1000-2000 dscp 63

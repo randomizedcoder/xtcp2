@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "dev": "br0",
+  "lladdr": "02:00:00:00:00:01",
+  "ntf": "1",
+  "state": "192",
+  "target": "2",
+  "verb": "replace",
+  "vlan": "4094"
+ },
+ "cmd": "bridge fdb replace 02:00:00:00:00:01 dev br0 self local use vlan 4094",
+ "desc": "negative: verb=replace mac=uni dev=bridge target=self state=local flags=use vlan=4094 ext=absent: a VLAN the device lacks (RTM_NEWNEIGH with unconfigured vlan)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "fdbbr/rn1-020",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev br0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

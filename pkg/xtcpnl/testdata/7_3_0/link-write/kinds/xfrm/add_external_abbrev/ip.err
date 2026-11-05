@@ -1,0 +1,4 @@
+Usage: ... xfrm dev [ PHYS_DEV ] [ if_id IF-ID ]
+		[ external ]
+
+Where: IF-ID := { 0x1..0xffffffff }

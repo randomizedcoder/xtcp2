@@ -1,0 +1,6 @@
+ok    [lacpa] ip link add d0 address 02:00:00:00:d0:00 type dummy
+ok    [lacpa] ip link set d0 addrgenmode eui64
+ok    [lacpa] ip link set d0 up
+ok    [lacpa] ip addr add 192.0.2.1/24 dev d0
+ok    [lacpa] ip addr add 198.51.100.1/24 dev d0
+ok    [lacpa] ip -6 addr add 2001:db8::1/64 nodad dev d0

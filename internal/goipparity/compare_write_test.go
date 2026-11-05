@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 )
 
@@ -115,7 +116,11 @@ const (
 	xfrmMsgDelPolicyCst = 20
 	tdAddrSave          = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
-	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
+	tdRtnl = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
+	// tdRtnl730 is the 7.3.0 rtnetlink corpus, KC1-T01's inet rows among it.
+	tdRtnl730 = "../../pkg/xtcpnl/testdata/7_3_0/link-write/rtnl"
+	// tdKinds730 is the 7.3.0 link kind corpus, KC2's to KC4's rows among it.
+	tdKinds730       = "../../pkg/xtcpnl/testdata/7_3_0/link-write/kinds"
 	pcapGlobalHdrCst = 24
 	pcapRecordHdrCst = 16
 	// nlmonHdrCst is the cooked header LINKTYPE_NETLINK puts before each
@@ -300,6 +305,15 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		strings.HasPrefix(c.Slug, linkAltnameSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, tokenWriteSlugPrefixCst) {
 		dir = filepath.Join(tdRtnl, c.Slug)
+	}
+	if slug, ok := strings.CutPrefix(c.Slug, inetSlugPrefixCst); ok {
+		dir = filepath.Join(tdRtnl730, "inet_"+slug)
+	}
+	if kind, slug, ok := kindRowKind(c.Slug); ok {
+		dir = filepath.Join(tdKinds730, kind, slug)
+	}
+	if strings.HasPrefix(c.Slug, gwSlugPrefixCst) {
+		dir = gwCorpusDir(t, c.Slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
@@ -587,7 +601,11 @@ func corpusRestoreRow(t *testing.T, c Command, dir string, typ uint16) writeRowF
 // with its own seq.
 func writeRequest(m nlparity.Msg, seq uint32) []byte {
 	req := make([]byte, nlMsgHdrCst+len(m.Body))
-	binary.LittleEndian.PutUint32(req[0:4], uint32(len(req))) //nolint:gosec // a captured message
+	n, ok := cint.U32(len(req))
+	if !ok {
+		panic("a captured message past 4 GiB")
+	}
+	binary.LittleEndian.PutUint32(req[0:4], n)
 	binary.LittleEndian.PutUint16(req[4:6], m.Hdr.Type)
 	binary.LittleEndian.PutUint16(req[6:8], m.Hdr.Flags)
 	binary.LittleEndian.PutUint32(req[8:12], seq)

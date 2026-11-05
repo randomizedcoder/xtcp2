@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "advmss": "1300",
+  "dst": "default",
+  "dst_len": "0",
+  "family": "4",
+  "gw": "192.0.2.1",
+  "proto": "4",
+  "scope": "253",
+  "table": "256",
+  "type": "unicast",
+  "verb": "del"
+ },
+ "cmd": "ip -4 route del unicast default table 256 proto static scope link advmss 1300 via 192.0.2.1",
+ "desc": "negative: verb=del dst=default type=unicast table=256 metric=absent proto=static scope=link mtu=advmss src=absent nh=via: deletes a route whose add is refused (a link-scope route's gateway must be local (Nexthop has invalid gateway))",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ESRCH",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "route4/rn1-006",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

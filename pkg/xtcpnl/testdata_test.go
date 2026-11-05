@@ -195,6 +195,16 @@ const (
 	// netlink in between and are the oracle the decode tests are written from.
 	tdLinkWrite_7_1_4 = tdBase + "/7_1_4/link-write"
 
+	// The same runner at the iproute2 7.2.0 pin, on the 7.3.0 kernel, with
+	// the kind corpus under kinds/ (docs/netlink/goip-link-kinds.md, KC2 to
+	// KC6): the corpus the kind gate and the kind parsers read.
+	tdLinkWrite_7_3_0 = tdBase + "/7_3_0/link-write"
+
+	// The bridge FDB, bridge VLAN and MPLS rows of the same runner
+	// (scripts/brmpls-write-corpus.exp; coverage-status.md, "Plan: B1-B3"):
+	// the captures BIRD's netlink parser needs, one directory per row.
+	tdBrMpls_7_3_0 = tdLinkWrite_7_3_0 + "/brmpls"
+
 	// 7.1.4 RDMA nldev captures, produced in the microVM by
 	// `nix run .#microvm-x86_64-rdma-capture` (scripts/capture-rdma.exp).
 	// nlmon cannot tap NETLINK_RDMA, so each row is an strace of one `rdma`

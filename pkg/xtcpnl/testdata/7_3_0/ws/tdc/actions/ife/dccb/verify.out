@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1: ife decode action pipe type 0 
+	allow mark allow tcindex allow prio 
+	 index 1 ref 1 bind 0
+	not_in_hw

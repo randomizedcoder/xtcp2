@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "bare": "1",
+  "brd": "+",
+  "family": "4",
+  "label": "d0:abcdefghijkl",
+  "local": "192.0.2.1",
+  "metric": "7",
+  "preferred": "50",
+  "prefixlen": "32",
+  "proto": "0",
+  "valid": "100",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 address replace 192.0.2.1 brd + label d0:abcdefghijkl preference 7 valid_lft 100 preferred_lft 50 nodad proto unspec dev d0",
+ "desc": "corner: verb=replace local=bare peer=absent brd=plus label=15 scope=absent metric=preference lft=finite flags=nodad proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-030",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

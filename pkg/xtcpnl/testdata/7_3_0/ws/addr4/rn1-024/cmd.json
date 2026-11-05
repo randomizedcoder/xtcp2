@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "brd": "192.0.2.127",
+  "family": "4",
+  "label": "foo",
+  "local": "127.0.0.2",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "preferred": "4294967295",
+  "prefixlen": "8",
+  "scope": "255",
+  "valid": "4294967295",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 127.0.0.2/8 peer 198.51.100.1/32 bro 192.0.2.127 label foo scope 255 valid_lft forever preferred_lft forever dev d0",
+ "desc": "corner: verb=del local=loopback peer=32 brd=abbrev label=other scope=255 metric=absent lft=forever flags=absent proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-024",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 127.0.0.2/8 peer 198.51.100.1/32 bro 192.0.2.127 label foo scope 255 valid_lft forever preferred_lft forever dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 127.0.0.2/8 peer 198.51.100.1/32 bro 192.0.2.127 label foo scope 255 valid_lft forever preferred_lft forever dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

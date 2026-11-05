@@ -1,0 +1,58 @@
+{
+ "cmd": "tc filter replace dev v0p1 parent 10: handle 1 prio 1 fw action drop",
+ "desc": "positive: Replace fw classid with nil",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)fw chain 0 handle 0x1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/fw/ec1a",
+ "modules": [
+  "cls_fw"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 parent root handle 10: drr",
+  "tc class add dev v0p1 parent root classid 1 drr",
+  "tc filter add dev v0p1 parent 10: handle 1 prio 1 fw classid 10:1 action ok"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1 parent 10:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 parent root handle 10: drr",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev v0p1 parent root classid 1 drr",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10: handle 1 prio 1 fw classid 10:1 action ok",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ec1a",
+  "tdc": "filters/fw.json"
+ }
+}

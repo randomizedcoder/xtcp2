@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "brd": "192.0.2.127",
+  "family": "4",
+  "label": "foo",
+  "local": "192.0.2.1",
+  "metric": "0",
+  "peer": "198.51.100.0",
+  "peer_len": "24",
+  "preferred": "4294967295",
+  "prefixlen": "32",
+  "proto": "0",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 192.0.2.1/32 remote 198.51.100.0/24 bro 192.0.2.127 label foo scope link metric 0 valid_lft forever preferred_lft forever proto unspec dev d0",
+ "desc": "negative: verb=del local=32 peer=remote brd=abbrev label=other scope=link metric=0 lft=forever flags=absent proto=unspec: deleted but never added (EADDRNOTAVAIL)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr4/gone-2",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

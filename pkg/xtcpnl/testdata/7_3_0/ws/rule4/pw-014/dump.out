@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	not from all tos 0x08 iif lo oif nosuch [detached] uidrange 0-4294967294 ipproto icmp sport 80 dport 80 blackhole proto 255
+32766:	from all lookup main
+32767:	from all lookup default

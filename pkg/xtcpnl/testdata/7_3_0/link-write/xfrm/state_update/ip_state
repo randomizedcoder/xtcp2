@@ -1,0 +1,17 @@
+src 192.0.2.1 dst 192.0.2.2
+	proto esp spi 0x00000100(256) reqid 1(0x00000001) mode transport
+	replay-window 0 seq 0x00000000 flag  (0x00000000)
+	auth-trunc hmac(sha256) 0x1111111111111111111111111111111111111111111111111111111111111111 (256 bits) 96
+	enc cbc(aes) 0x22222222222222222222222222222222 (128 bits)
+	anti-replay context: seq 0x0, oseq 0x0, bitmap 0x00000000
+	sel src 0.0.0.0/0 dst 0.0.0.0/0 uid 0
+	lifetime config:
+	  limit: soft (INF)(bytes), hard (INF)(bytes)
+	  limit: soft (INF)(packets), hard (INF)(packets)
+	  expire add: soft 0(sec), hard 3600(sec)
+	  expire use: soft 0(sec), hard 0(sec)
+	lifetime current:
+	  0(bytes), 0(packets)
+	  add 2026-10-25 13:42:01 use -
+	stats:
+	  replay-window 0 replay 0 failed 0

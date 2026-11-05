@@ -1,0 +1,41 @@
+total acts 8
+
+	action order 0:  police 0x1 rate 1Mbit burst 100Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1:  police 0x2 rate 2Mbit burst 200Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2:  police 0x3 rate 3Mbit burst 300Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3:  police 0x4 rate 4Mbit burst 400Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 4:  police 0x5 rate 5Mbit burst 500Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 5:  police 0x6 rate 6Mbit burst 600Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 6:  police 0x7 rate 7Mbit burst 700Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 7:  police 0x8 rate 8Mbit burst 800Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled

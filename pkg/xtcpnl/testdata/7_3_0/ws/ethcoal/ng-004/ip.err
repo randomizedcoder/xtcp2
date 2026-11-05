@@ -1,0 +1,1 @@
+ethtool (-C): invalid value 'bogus' for parameter 'adaptive-rx'

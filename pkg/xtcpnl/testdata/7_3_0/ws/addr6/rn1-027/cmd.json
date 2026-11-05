@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "flags": "4",
+  "label": "d0:1",
+  "local": "2001:db8:1::1",
+  "metric": "4294967295",
+  "peer": "2001:db8:9::1",
+  "peer_len": "128",
+  "preferred": "60",
+  "prefixlen": "128",
+  "proto": "0",
+  "valid": "60",
+  "verb": "replace"
+ },
+ "cmd": "ip -6 address replace 2001:db8:1::1/128 peer 2001:db8:9::1/128 broadcast 2001:db8:1::ff label d0:1 metric 4294967295 valid_lft 60 preferred_lft 60 optimistic proto unspec dev d0",
+ "desc": "corner: verb=replace local=128 peer=128 brd=addr label=alias scope=absent metric=max lft=equal flags=optimistic proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/rn1-027",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

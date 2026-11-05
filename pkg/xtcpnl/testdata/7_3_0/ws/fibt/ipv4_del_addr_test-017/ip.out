@@ -1,0 +1,2 @@
+172.16.104.0/24 dev dummy1 proto kernel scope link src 172.16.104.1 
+198.51.100.0/24 dev dummy0 proto kernel scope link src 198.51.100.1 

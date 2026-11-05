@@ -1,0 +1,235 @@
+{
+ "cmd": "ip nexthop add id 82 via 2001:db8:92::2 dev veth3",
+ "desc": "corner: a step (fib_nexthops.sh ipv6_fcnal_runtime) does not check: ip nexthop add id 82 via 2001:db8:92::2 dev veth3",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibnh/ipv6_fcnal_runtime-005",
+ "modules": [
+  "veth"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv4.fib_multipath_use_neigh=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv4.conf.default.ignore_routes_with_linkdown=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.keep_addr_on_down=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.default.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.default.ignore_routes_with_linkdown=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.accept_dad=0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.default.accept_dad=0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip li add veth1 type veth peer name veth2",
+  "ip li set veth1 up",
+  "ip addr add 172.16.1.1/24 dev veth1",
+  "ip -6 addr add 2001:db8:91::1/64 dev veth1 nodad",
+  "ip li add veth3 type veth peer name veth4",
+  "ip li set veth3 up",
+  "ip addr add 172.16.2.1/24 dev veth3",
+  "ip -6 addr add 2001:db8:92::1/64 dev veth3 nodad",
+  "ip li set veth2 up",
+  "ip li set veth4 up",
+  [
+   "ip nexthop add id 81 via 2001:db8:91::2 dev veth1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro add 2001:db8:101::1/128 nhid 81",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro delete 2001:db8:101::1/128 nhid 81",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip ro add 2001:db8:101::1/128 nhid 81",
+   [
+    1,
+    2,
+    255
+   ]
+  ]
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.fib_multipath_use_neigh=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.conf.default.ignore_routes_with_linkdown=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.keep_addr_on_down=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.default.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.default.ignore_routes_with_linkdown=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.accept_dad=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.default.accept_dad=0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add veth1 type veth peer name veth2",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 172.16.1.1/24 dev veth1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 addr add 2001:db8:91::1/64 dev veth1 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add veth3 type veth peer name veth4",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth3 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 172.16.2.1/24 dev veth3",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 addr add 2001:db8:92::1/64 dev veth3 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth2 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set veth4 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 81 via 2001:db8:91::2 dev veth1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add 2001:db8:101::1/128 nhid 81",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro delete 2001:db8:101::1/128 nhid 81",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add 2001:db8:101::1/128 nhid 81",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_nexthops.sh:1228 ipv6_fcnal_runtime"
+ }
+}

@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	not from 198.51.100.7 iif lo oif nosuch [detached] uidrange 0-4294967294 dport 1 realms 10 goto 40000 [unresolved] proto 255 dscp 0
+32766:	from all lookup main
+32767:	from all lookup default

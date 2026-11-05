@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter del dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv6 matchall",
+ "desc": "positive: Delete single ingress matchall filter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^filter protocol ipv6 pref 1 matchall.*handle 0x1.*flowid 1:2.*gact action pass.*ref 1 bind 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/matchall/eaf8",
+ "modules": [
+  "cls_matchall"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress",
+  "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv6 matchall classid 1:2 action pass"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv6 matchall",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv6 matchall classid 1:2 action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "eaf8",
+  "tdc": "filters/matchall.json"
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "action": "2",
+  "dport": "1-65534",
+  "dscp": "46",
+  "dst": "2001:db8:3::9",
+  "dst_len": "128",
+  "family": "6",
+  "fwmark": "16",
+  "goto": "40000",
+  "iif": "nosuch",
+  "ipproto": "58",
+  "oif": "d0",
+  "priority": "0",
+  "protocol": "4",
+  "sport": "1000-2000",
+  "src": "2001:db8:2::",
+  "src_len": "64",
+  "sup_pl": "0",
+  "tun_id": "7",
+  "uidrange": "0-0",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from 2001:db8:2::/64 to 2001:db8:3::9/128 pref 0 fwmark 0x10 iif nosuch oif d0 dscp 46/0x3f ipproto ipv6-icmp sport 1000-2000 dport 1-65534 uidrange 0-0 suppress_prefixlength 0 protocol static tun_id 7 goto 40000",
+ "desc": "corner: verb=add not=absent from=64 to=128 pref=0 fwmark=16 iif=nosuch oif=d0 ds=dscp-fullmask ipproto=icmp sport=range dport=full uidrange=0 suppress=pl0 protocol=static extra=tun_id action=goto",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/rn1-037",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

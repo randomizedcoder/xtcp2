@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "action": "2",
+  "dport": "1000-2000",
+  "dst": "203.0.113.0",
+  "dst_len": "24",
+  "family": "4",
+  "goto": "40000",
+  "invert": "1",
+  "ipproto": "255",
+  "oif": "d0",
+  "protocol": "2",
+  "sport": "1-65534",
+  "sup_group": "5",
+  "tos": "16",
+  "uidrange": "1000-2000",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del not to 203.0.113.0/24 oif d0 tos 0x10 ipproto 255 sport 1-65534 dport 1000-2000 uidrange 1000-2000 suppress_ifgroup 5 protocol kernel goto 40000",
+ "desc": "corner: verb=del not=not from=absent to=24 pref=absent fwmark=absent iif=absent oif=d0 ds=tos ipproto=255 sport=full dport=range uidrange=1000 suppress=group protocol=kernel extra=absent action=goto",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-026",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add not to 203.0.113.0/24 oif d0 tos 0x10 ipproto 255 sport 1-65534 dport 1000-2000 uidrange 1000-2000 suppress_ifgroup 5 protocol kernel goto 40000"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add not to 203.0.113.0/24 oif d0 tos 0x10 ipproto 255 sport 1-65534 dport 1000-2000 uidrange 1000-2000 suppress_ifgroup 5 protocol kernel goto 40000",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,55 @@
+{
+ "axes": {
+  "action": "3",
+  "dport": "1-65534",
+  "dscp": "0",
+  "dst": "203.0.113.9",
+  "dst_len": "32",
+  "family": "4",
+  "iif": "d0",
+  "invert": "1",
+  "oif": "d0",
+  "protocol": "4",
+  "sport": "65534-65534",
+  "src": "0.0.0.0",
+  "src_len": "0",
+  "sup_pl": "0",
+  "tun_id": "7",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del not from 0.0.0.0/0 to 203.0.113.9/32 dev d0 oif d0 dscp 0 sport 65534 dport 1-65534 suppress_prefixlength 0 protocol static tun_id 7 nop",
+ "desc": "corner: verb=del not=not from=0 to=32 pref=absent fwmark=absent iif=dev oif=d0 ds=dscp-0 ipproto=absent sport=65534 dport=full uidrange=absent suppress=pl0 protocol=static extra=tun_id action=nop",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-007",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add not from 0.0.0.0/0 to 203.0.113.9/32 dev d0 oif d0 dscp 0 sport 65534 dport 1-65534 suppress_prefixlength 0 protocol static tun_id 7 nop"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add not from 0.0.0.0/0 to 203.0.113.9/32 dev d0 oif d0 dscp 0 sport 65534 dport 1-65534 suppress_prefixlength 0 protocol static tun_id 7 nop",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "family": "4",
+  "fdb": "1",
+  "gw": "192.0.2.1",
+  "id": "10",
+  "protocol": "3",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 nexthop replace id 10 via 192.0.2.1 fdb proto boot",
+ "desc": "corner: verb=replace id=10 kind=fdb protocol=proto",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "nh4/rn1-033",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip nexthop show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

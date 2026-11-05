@@ -8,15 +8,9 @@
 #   G115 — integer overflow conversions: netlink length fields and io_uring
 #          batch indices, all bounds-checked.
 #   G204 — subprocess with variable: cmd/ns and cmd/nsTest invoke
-#          `ip netns exec ...` by design.
+#          `ip netns exec ...` by design, and cmd/xtcp2's soft restart execs
+#          os.Executable(), a path no constant can name.
 #   G304 — file path from variable: register_schema reads .proto paths from CLI.
-#   G702 — command injection via syscall.Exec (cmd/xtcp2): the soft restart
-#          re-execs THIS binary (os.Executable) in place with our own os.Args +
-#          a config we protovalidate'd and serialized ourselves — not an
-#          attacker-chosen command. No clean code fix exists (any syscall.Exec
-#          carrying os.Args trips G702), and re-execing without os.Args would
-#          drop CLI-only flags across the restart. gosec honours #nosec, not the
-#          golangci //nolint already on that line, so it must be excluded here.
 #
 # Path-scoped exclusions (-exclude-rules; the rule still runs everywhere else):
 #   G705 in internal/goip/goiphttp/handler.go — XSS taint: go-link-monitor's
@@ -53,7 +47,7 @@ pkgs.runCommand "xtcp2-gosec"
     export HOME=$(mktemp -d)
     export CGO_ENABLED=0
     export GOFLAGS=-mod=vendor
-    gosec -exclude=G103,G115,G204,G304,G702 \
+    gosec -exclude=G103,G115,G204,G304 \
       -exclude-rules='internal/goip/goiphttp/handler\.go:G705' \
       -fmt=text ./... > $out 2>&1 || {
       rc=$?

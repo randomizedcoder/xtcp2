@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1: skbmod reclassify set smac 00:01:02:03:04:01 
+	 index 1 ref 1 bind 0
+	cookie ddeeffaabb11cc22
+	not_in_hw

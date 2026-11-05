@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action connmark zone 555 pipe index 5 cookie aabbccddeeff112233445566778800a1",
+ "desc": "positive: Add valid connmark action with cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: connmark zone 555 pipe.*index 5 ref.*cookie aabbccddeeff112233445566778800a1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/connmark/5f8f",
+ "modules": [
+  "act_connmark"
+ ],
+ "pre": [
+  [
+   "tc actions flush action connmark",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action connmark index 5",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action connmark",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "5f8f",
+  "tdc": "actions/connmark.json"
+ }
+}

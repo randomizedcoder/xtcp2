@@ -1,0 +1,48 @@
+{
+ "cmd": "tc qdisc change dev dummy1 handle 1: root hhf hh_limit 2048",
+ "desc": "positive: HHF hh_limit accepts boundary value 2048 (2*HH_FLOWS_CNT)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc hhf 1: root refcnt [0-9]+.*hh_limit 2048",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/hhf_flows_limit/223d",
+ "modules": [
+  "sch_hhf"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 handle 1: root hhf hh_limit 100"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root hhf hh_limit 100",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "223d",
+  "tdc": "qdiscs/hhf_flows_limit.json"
+ }
+}

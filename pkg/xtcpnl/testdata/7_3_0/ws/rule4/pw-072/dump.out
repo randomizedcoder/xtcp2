@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from all fwmark 0xffffffff iif nosuch [detached] ipproto tcp sport 1 blackhole
+32766:	from all lookup main
+32767:	from all lookup default

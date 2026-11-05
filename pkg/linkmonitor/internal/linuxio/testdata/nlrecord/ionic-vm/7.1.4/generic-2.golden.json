@@ -17,41 +17,41 @@
   {
     "call": "GetEthtool(linkinfo, 2)",
     "values": 1,
-    "digest": "7926284387f230db"
+    "digest": "38f2fa42927dbd7c"
   },
   {
     "call": "GetEthtool(linkmodes, 2)",
     "values": 1,
-    "digest": "2b89f35c1520dc97"
+    "digest": "e2a7a3a041311f67"
   },
   {
     "call": "GetEthtool(linkstate, 2)",
     "values": 1,
-    "digest": "05e0b278dd45511d"
+    "digest": "71da62b6224ee5de"
   },
   {
     "call": "GetEthtool(rings, 2)",
     "values": 1,
-    "digest": "b8e1250318b4117a"
+    "digest": "e6fbeec755f1cc32"
   },
   {
     "call": "GetEthtool(channels, 2)",
     "values": 1,
-    "digest": "c57aa0bc31aeb878"
+    "digest": "77506123839dde04"
   },
   {
     "call": "GetEthtool(pause, 2)",
     "values": 1,
-    "digest": "900c0d74c90c2b63"
+    "digest": "d19f54f2b78ed476"
   },
   {
     "call": "GetEthtool(fec, 2)",
     "values": 1,
-    "digest": "88e704a0f9695e8f"
+    "digest": "ca9405575f2daa46"
   },
   {
     "call": "DumpDevlinkPorts",
     "values": 1,
-    "digest": "0315098c4ea3778e"
+    "digest": "ed7c3352cdbfe766"
   }
 ]

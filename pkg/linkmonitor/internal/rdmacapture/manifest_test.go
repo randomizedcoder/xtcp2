@@ -200,15 +200,23 @@ func addFile(t *testing.T, dir, rel string) {
 
 func rewriteManifest(t *testing.T, dir, from, to string) {
 	t.Helper()
-	p := filepath.Join(dir, ManifestName)
-	data, err := os.ReadFile(p) // #nosec G304 -- test temp dir
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if cerr := root.Close(); cerr != nil {
+			t.Error(cerr)
+		}
+	}()
+	data, err := root.ReadFile(ManifestName)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(data), from) {
 		t.Fatalf("manifest has no %q", from)
 	}
-	if err := os.WriteFile(p, []byte(strings.Replace(string(data), from, to, 1)), 0o600); err != nil { // #nosec G703 -- test temp dir
+	if err := root.WriteFile(ManifestName, []byte(strings.Replace(string(data), from, to, 1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

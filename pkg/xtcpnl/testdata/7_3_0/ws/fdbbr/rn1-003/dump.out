@@ -1,0 +1,5 @@
+ce:3e:18:b6:a7:13 vlan 10 master br0 permanent
+ce:3e:18:b6:a7:13 vlan 1 master br0 permanent
+ce:3e:18:b6:a7:13 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

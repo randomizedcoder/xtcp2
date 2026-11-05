@@ -1,0 +1,2 @@
+Not enough total bands to cover all the strict bands and quanta
+Usage: ... ets [bands NUMBER] [strict NUMBER] [quanta Q1 Q2...] [priomap P1 P2...]

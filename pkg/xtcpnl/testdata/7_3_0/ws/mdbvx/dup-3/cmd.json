@@ -1,0 +1,53 @@
+{
+ "axes": {
+  "bport": "vx0",
+  "dev": "vx0",
+  "dport": "0",
+  "dst": "2001:db8::1",
+  "grp": "239.1.1.1",
+  "mode": "0",
+  "proto": "186",
+  "srclist": "192.0.2.5",
+  "state": "1",
+  "verb": "add",
+  "via": "d1",
+  "vid": "0",
+  "vni": "16777215"
+ },
+ "cmd": "bridge mdb add dev vx0 port vx0 grp 239.1.1.1 permanent dst 2001:db8::1 dst_port 0 vni 16777215 via d1 filter_mode exclude source_list 192.0.2.5 proto bgp",
+ "desc": "negative: verb=add dev=vx0 bport=vx0 grp=v4 state=permanent vid=absent dst=v6 dport=0 vni=max srcvni=absent via=d1 src=absent mode=exclude srclist=one proto=bgp: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "mdbvx/dup-3",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up",
+  "bridge mdb add dev vx0 port vx0 grp 239.1.1.1 permanent dst 2001:db8::1 dst_port 0 vni 16777215 via d1 filter_mode exclude source_list 192.0.2.5 proto bgp"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge mdb add dev vx0 port vx0 grp 239.1.1.1 permanent dst 2001:db8::1 dst_port 0 vni 16777215 via d1 filter_mode exclude source_list 192.0.2.5 proto bgp",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

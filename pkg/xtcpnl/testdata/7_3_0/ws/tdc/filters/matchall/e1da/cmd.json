@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 65535 protocol ipv4 matchall action pass",
+ "desc": "positive: Add ingress matchall filter for protocol ipv4 and action PASS with priority at 16-bit maximum",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)^filter parent ffff: protocol ip pref 65535 matchall.*handle 0x1.*gact action pass.*ref 1 bind 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/matchall/e1da",
+ "modules": [
+  "cls_matchall"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev dummy1 parent ffff: handle 1 prio 65535 protocol ipv4 matchall",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "e1da",
+  "tdc": "filters/matchall.json"
+ }
+}

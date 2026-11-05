@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "dev": "vx0",
+  "dst": "192.0.2.1",
+  "lladdr": "00:00:00:00:00:00",
+  "port": "4790",
+  "src_vni": "100",
+  "state": "2",
+  "target": "2",
+  "verb": "add",
+  "via": "d1",
+  "vni": "16777215"
+ },
+ "cmd": "bridge fdb add 00:00:00:00:00:00 dst 192.0.2.1 port 0x12b6 vni 16777215 src_vni 100 via d1 dynamic dev vx0",
+ "desc": "corner: verb=add mac=zero remote=dst4 port=hex vni=max srcvni=own via=d1 state=dynamic",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "fdbvx/pw-027",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up && ip nexthop add id 1 via 192.0.2.1 fdb && ip nexthop add id 10 group 1 fdb && ip nexthop add id 2 via 192.0.2.1 dev d1"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up && ip nexthop add id 1 via 192.0.2.1 fdb && ip nexthop add id 10 group 1 fdb && ip nexthop add id 2 via 192.0.2.1 dev d1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

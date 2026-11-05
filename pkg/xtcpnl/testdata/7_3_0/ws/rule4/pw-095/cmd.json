@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "family": "4",
+  "sport": "1000-2000",
+  "sup_group": "0",
+  "table": "256",
+  "tos": "8",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add dsfield 0x08 sport 1000-2000 sup_group default table 256",
+ "desc": "corner: verb=add not=absent from=absent to=absent pref=absent fwmark=absent iif=absent oif=absent ds=dsfield ipproto=absent sport=range dport=absent uidrange=absent suppress=group-default protocol=absent extra=absent action=256",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-095",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

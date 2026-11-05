@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge ip6 dst set 2001:0db8:0:f101::1 retain 0xff0000",
+ "desc": "negative: Add pedit action with LAYERED_OP ip6 dst retain value (INVALID)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm) ",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/pedit/6d34",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "true",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6d34",
+  "tdc": "actions/pedit.json"
+ }
+}

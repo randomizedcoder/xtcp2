@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	not from all iif lo oif d0 sport 1-65534 dport 1-65534 lookup 1 realms 10 proto static dscp 0x20/0x30
+32766:	from all lookup main
+32767:	from all lookup default

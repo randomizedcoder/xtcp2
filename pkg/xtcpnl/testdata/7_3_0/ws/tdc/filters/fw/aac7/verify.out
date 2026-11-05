@@ -1,0 +1,5 @@
+filter parent ffff: protocol all pref 3 fw chain 0 handle 0x4 
+
+	action order 1:  police 0x8 rate 2Mbit burst 200Kb mtu 2Kb action reclassify overhead 0b linklayer atm 
+	ref 1 bind 1 
+

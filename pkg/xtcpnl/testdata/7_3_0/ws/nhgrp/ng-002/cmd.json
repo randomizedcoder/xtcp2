@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "fdb": "1",
+  "group": "21/1;22/1",
+  "id": "100",
+  "verb": "add"
+ },
+ "cmd": "ip nexthop add id 100 group 21/22 fdb",
+ "desc": "negative: verb=add fam=absent id=100 members=two type=absent fdb=fdb hw_stats=absent protocol=absent: a non-fdb member in an fdb group (FDB nexthop group can only have fdb nexthops)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "nhgrp/ng-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip nexthop add id 21 via 192.0.2.1 dev d0 && ip nexthop add id 22 via 192.0.2.2 dev d0 && ip nexthop add id 23 dev d0 && ip -6 nexthop add id 26 via 2001:db8:1::1 dev d0 && ip nexthop add id 29 blackhole && ip nexthop add id 31 via 192.0.2.1 fdb && ip nexthop add id 32 via 192.0.2.2 fdb"
+ ],
+ "readback": [
+  {
+   "cmd": "ip nexthop show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 21 via 192.0.2.1 dev d0 && ip nexthop add id 22 via 192.0.2.2 dev d0 && ip nexthop add id 23 dev d0 && ip -6 nexthop add id 26 via 2001:db8:1::1 dev d0 && ip nexthop add id 29 blackhole && ip nexthop add id 31 via 192.0.2.1 fdb && ip nexthop add id 32 via 192.0.2.2 fdb",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

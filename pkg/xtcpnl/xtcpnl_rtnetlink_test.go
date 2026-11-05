@@ -924,6 +924,30 @@ func TestParseNewLink(t *testing.T) {
 			},
 		},
 		{
+			description: "positive: IFLA_IFALIAS as the kernel dumps it, NUL-terminated",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, 0),
+				rtattr(unix.IFLA_IFALIAS, append([]byte("uplink"), 0)),
+			),
+			want: LinkInfo{Index: 2, Type: 1, IfAlias: "uplink"},
+		},
+		{
+			description: "corner: IFLA_IFALIAS as ip sends it, with no NUL",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, 0),
+				rtattr(unix.IFLA_IFALIAS, []byte("uplink")),
+			),
+			want: LinkInfo{Index: 2, Type: 1, IfAlias: "uplink"},
+		},
+		{
+			description: "boundary: an empty IFLA_IFALIAS leaves IfAlias empty",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, 0),
+				rtattr(unix.IFLA_IFALIAS, nil),
+			),
+			want: LinkInfo{Index: 2, Type: 1},
+		},
+		{
 			// This row and the next are a pair, and they are the reason
 			// HasTxQLen exists. A present-but-zero IFLA_TXQLEN is a real case
 			// — three of the eleven links in the committed dump carry one —

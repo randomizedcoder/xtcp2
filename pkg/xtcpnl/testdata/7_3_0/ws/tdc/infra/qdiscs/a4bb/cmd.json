@@ -1,0 +1,74 @@
+{
+ "cmd": "tc -s qdisc show dev ifbtdc0",
+ "desc": "positive: Test FQ_CODEL with HTB parent - force packet drop with empty queue",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/a4bb",
+ "modules": [
+  "ifb"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "ip link add ifbtdc0 type ifb && ip link set ifbtdc0 up",
+  "tc qdisc add dev ifbtdc0 handle 1: root htb default 10",
+  "tc class add dev ifbtdc0 parent 1: classid 1:10 htb rate 1kbit",
+  "tc qdisc add dev ifbtdc0 parent 1:10 handle 10: fq_codel memory_limit 1 flows 1 target 0.1ms interval 1ms",
+  "tc filter add dev ifbtdc0 parent 1: protocol ip prio 1 u32 match ip protocol 1 0xff flowid 1:10",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 ingress protocol ip prio 1 u32 match ip protocol 1 0xff action mirred egress mirror dev ifbtdc0"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s qdisc show dev ifbtdc0 | grep -A 5 'qdisc fq_codel'",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add ifbtdc0 type ifb && ip link set ifbtdc0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev ifbtdc0 handle 1: root htb default 10",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev ifbtdc0 parent 1: classid 1:10 htb rate 1kbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev ifbtdc0 parent 1:10 handle 10: fq_codel memory_limit 1 flows 1 target 0.1ms interval 1ms",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev ifbtdc0 parent 1: protocol ip prio 1 u32 match ip protocol 1 0xff flowid 1:10",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 ingress protocol ip prio 1 u32 match ip protocol 1 0xff action mirred egress mirror dev ifbtdc0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a4bb",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "the pattern counts scapy traffic, which is not replayed"
+ }
+}

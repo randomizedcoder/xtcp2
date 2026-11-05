@@ -1,0 +1,2 @@
+Error: Cannot flush filters with protocol, handle or kind set.
+We have an error talking to the kernel

@@ -1,0 +1,56 @@
+{
+ "cmd": "tc qdisc del dev eth0 root handle 1: mqprio",
+ "desc": "negative: Delete nonexistent mqprio Qdisc",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)qdisc mqprio 1: root",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/qdiscs/mqprio/453a",
+ "modules": [
+  "sch_mqprio",
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 4\" > /sys/bus/netdevsim/new_device"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev eth0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "453a",
+  "tdc": "qdiscs/mqprio.json"
+ }
+}

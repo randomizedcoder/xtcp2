@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "bport": "br0",
+  "dev": "br0",
+  "grp": "ff0e::1",
+  "mode": "1",
+  "proto": "200",
+  "src": "192.0.2.1",
+  "state": "1",
+  "verb": "del",
+  "vid": "1"
+ },
+ "cmd": "bridge mdb del dev br0 port br0 grp ff0e::1 permanent vid 1 src 192.0.2.1 filter_mode include proto 200",
+ "desc": "negative: verb=del dev=br0 bport=br0 grp=v6 state=permanent vid=1 src=v4 mode=include srclist=absent proto=200: a delete of an entry its add could not create (__br_mdb_del finds nothing: EINVAL)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "mdbbr/rn1-036",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self && ip link add d9 type dummy && ip link add br1 type bridge && ip link add d2 type dummy && ip link set d2 master br1 && ip link set d2 up && ip link set br1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev br0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self && ip link add d9 type dummy && ip link add br1 type bridge && ip link add d2 type dummy && ip link set d2 master br1 && ip link set d2 up && ip link set br1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

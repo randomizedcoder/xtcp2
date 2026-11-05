@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge ip6 src set 2001:0db8:0:f101::1 munge ip6 dst set 2001:0db8:0:f101::1",
+ "desc": "positive: Add pedit action with LAYERED_OP ip6 set src & dst",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)ipv6\\+8: val 20010db8 mask 00000000.*ipv6\\+12: val 0000f101 mask 00000000.*ipv6\\+16: val 00000000 mask 00000000.*ipv6\\+20: val 00000001 mask 00000000.*ipv6\\+24: val 20010db8 mask 00000000.*ipv6\\+28: val 0000f101 mask 00000000.*ipv6\\+32: val 00000000 mask 00000000.*ipv6\\+36: val 00000001 mask 00000000",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/fc1f",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "fc1f",
+  "tdc": "actions/pedit.json"
+ }
+}

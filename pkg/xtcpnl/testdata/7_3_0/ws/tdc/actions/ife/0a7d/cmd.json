@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ife encode allow prio dst 00.111-22:33:44:aa pipe index 4",
+ "desc": "negative: Create ife encode action with invalid mac dst argument",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: ife encode action pipe.*allow prio.*index 4",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/ife/0a7d",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action ife index 4",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "0a7d",
+  "tdc": "actions/ife.json"
+ }
+}

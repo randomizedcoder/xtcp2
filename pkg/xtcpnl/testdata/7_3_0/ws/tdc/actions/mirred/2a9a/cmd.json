@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions replace action mirred ingress mirror dev lo goto chain 42 index 90 cookie c1a0c1a0",
+ "desc": "negative: Replace mirred action with invalid goto chain control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: mirred \\(Ingress Mirror to device lo\\) drop.*index 90 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/mirred/2a9a",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action mirred ingress mirror dev lo drop index 90"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action mirred index 90",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action mirred ingress mirror dev lo drop index 90",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2a9a",
+  "tdc": "actions/mirred.json"
+ }
+}

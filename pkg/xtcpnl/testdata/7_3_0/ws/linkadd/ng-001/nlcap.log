@@ -1,0 +1,3 @@
+NLCAP_NS_OK ws3
+NLCAP_WRITE_OK linkadd/ng-001/ip datagrams=2 floor=0 rc=2
+NLCAP_CAP_OK linkadd/ng-001/netlink_route_dump datagrams=2 floor=0 stdout=linkadd/ng-001/dump.out bytes=0

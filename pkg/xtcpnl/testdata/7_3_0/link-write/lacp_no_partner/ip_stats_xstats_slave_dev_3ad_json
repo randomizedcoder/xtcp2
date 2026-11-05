@@ -1,0 +1,18 @@
+[ {
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats_slave",
+        "subgroup": "bond",
+        "suite": "802.3ad",
+        "802.3ad": {
+            "lacpdu_rx": 0,
+            "lacpdu_tx": 7,
+            "lacpdu_unknown_rx": 0,
+            "lacpdu_illegal_rx": 0,
+            "marker_rx": 0,
+            "marker_tx": 0,
+            "marker_response_rx": 0,
+            "marker_response_tx": 0,
+            "marker_unknown_rx": 0
+        }
+    } ]

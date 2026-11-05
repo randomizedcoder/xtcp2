@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all to 203.0.113.9 fwmark 0x10 iif d0 uidrange 0-4294967294 ipproto udp dport 80 blackhole dscp 4
+32766:	from all lookup main
+32767:	from all lookup default

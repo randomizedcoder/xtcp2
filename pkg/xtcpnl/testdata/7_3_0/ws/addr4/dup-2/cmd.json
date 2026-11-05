@@ -1,0 +1,51 @@
+{
+ "axes": {
+  "bare": "1",
+  "brd": "192.0.2.127",
+  "family": "4",
+  "local": "192.0.2.1",
+  "metric": "5",
+  "preferred": "60",
+  "prefixlen": "32",
+  "proto": "255",
+  "scope": "255",
+  "valid": "60",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.1 bro 192.0.2.127 scope 255 priority 5 valid_lft 60 preferred_lft 60 proto 255 dev d0",
+ "desc": "negative: verb=add local=bare peer=absent brd=abbrev label=absent scope=255 metric=priority lft=equal flags=absent proto=255: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr4/dup-2",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 192.0.2.1 bro 192.0.2.127 scope 255 priority 5 valid_lft 60 preferred_lft 60 proto 255 dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 192.0.2.1 bro 192.0.2.127 scope 255 priority 5 valid_lft 60 preferred_lft 60 proto 255 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

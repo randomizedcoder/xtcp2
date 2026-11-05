@@ -1,0 +1,85 @@
+{
+ "cmd": "tc actions flush action gact",
+ "desc": "positive: Try to flush actions when last one is referenced by filter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)total acts 1.*action order [0-9]*: gact action drop.*index 3 ref 2 bind 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/ae1e",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc qdisc add dev v0p1 ingress",
+  [
+   "tc actions add action pass index 1",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action reclassify index 2",
+  "tc actions add action drop index 3",
+  "tc filter add dev v0p1 protocol all ingress prio 1 handle 0x1234 matchall action gact index 3"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action pass index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action reclassify index 2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action drop index 3",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 protocol all ingress prio 1 handle 0x1234 matchall action gact index 3",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ae1e",
+  "tdc": "actions/gact.json"
+ }
+}

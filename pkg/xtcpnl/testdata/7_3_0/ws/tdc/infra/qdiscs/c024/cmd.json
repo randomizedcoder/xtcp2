@@ -1,0 +1,85 @@
+{
+ "cmd": "tc -s qdisc show dev dummy1",
+ "desc": "positive: Test TBF with SKBPRIO - catch qlen corner cases",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)dropped [1-9][0-9]*",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/c024",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.10.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 handle 1: root tbf rate 100bit burst 2000 limit 1000",
+  "tc qdisc add dev dummy1 parent 1: handle 10: skbprio limit 1",
+  "ping -c 1 -W 0.1 -Q 0x00 -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+  "ping -c 1 -W 0.1 -Q 0x1c -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+  "ping -c 1 -W 0.1 -Q 0x00 -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+  "ping -c 1 -W 0.1 -Q 0x1c -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+  "sleep 0.5"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s qdisc show dev dummy1 | grep -A 5 'qdisc skbprio'",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.10.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root tbf rate 100bit burst 2000 limit 1000",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1: handle 10: skbprio limit 1",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 -W 0.1 -Q 0x00 -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 -W 0.1 -Q 0x1c -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 -W 0.1 -Q 0x00 -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 -W 0.1 -Q 0x1c -s 1400 -I dummy1 10.10.10.1 > /dev/null || true",
+    "rc": 0
+   },
+   {
+    "cmd": "sleep 0.5",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "c024",
+  "tdc": "infra/qdiscs.json"
+ }
+}

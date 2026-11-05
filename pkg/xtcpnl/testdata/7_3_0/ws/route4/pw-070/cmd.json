@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "dst": "128.0.0.0",
+  "dst_len": "1",
+  "family": "4",
+  "gw": "192.0.2.1",
+  "table": "256",
+  "verb": "add"
+ },
+ "cmd": "ip -4 route add 128.0.0.0/1 table 256 via 192.0.2.1",
+ "desc": "boundary: verb=add dst=1 type=absent table=256 metric=absent proto=absent scope=absent mtu=absent src=absent nh=via",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "route4/pw-070",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

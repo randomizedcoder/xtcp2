@@ -1,0 +1,27 @@
+{
+ "cmd": "ip link add d0 type dummy",
+ "desc": "negative: a second link of the same name is refused by the kernel",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "selftest/link-add-dup",
+ "pre": [
+  "ip link add d0 type dummy"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

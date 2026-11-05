@@ -1,0 +1,8 @@
+total acts 1
+
+	action order 0:  pedit action pass keys 2
+ 	 index 1 ref 1 bind 0
+	 key #0  at eth+0: val 11223344 mask 00000000
+	 key #1  at eth+4: val 55660000 mask 0000ffff
+	not_in_hw
+	used_hw_stats disabled

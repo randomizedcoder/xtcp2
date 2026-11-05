@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 loss gemodel p 1% r 99% 1-h 100% 1-k 0% seed 6361620539844514060

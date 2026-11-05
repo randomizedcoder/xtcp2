@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "dst": "::ffff:198.51.100.0",
+  "dst_len": "120",
+  "family": "6",
+  "gw": "2001:db8:1::1",
+  "metric": "1024",
+  "mtu": "1280",
+  "oif": "d0",
+  "pref": "1",
+  "prefsrc": "2001:db8:1::10",
+  "type": "blackhole",
+  "verb": "prepend"
+ },
+ "cmd": "ip -6 route prepend blackhole ::ffff:198.51.100.0/120 metric 1024 pref high mtu 1280 src 2001:db8:1::10 via 2001:db8:1::1 dev d0",
+ "desc": "corner: verb=prepend dst=mapped type=blackhole table=absent metric=1024 proto=absent pref=high expires=absent mtu=1280 src=local nh=via-dev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "route6/pw-027",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

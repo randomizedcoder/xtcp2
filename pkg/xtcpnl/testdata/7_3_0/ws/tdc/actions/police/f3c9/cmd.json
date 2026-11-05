@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action police rate 10mbit burst 10k index 1 cookie a1b1c1d1e1f12233bb",
+ "desc": "positive: Add police action with cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*:  police 0x1 rate 10Mbit burst 10Kb mtu 2Kb.*cookie a1b1c1d1e1f12233bb",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/police/f3c9",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action police index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "f3c9",
+  "tdc": "actions/police.json"
+ }
+}

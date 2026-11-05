@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	from all to 203.0.113.9 fwmark 0xffffffff iif nosuch [detached] oif nosuch [detached] ipproto icmp sport 1-65534 lookup main suppress_prefixlength 0 proto 255 dscp 63
+32766:	from all lookup main
+32767:	from all lookup default

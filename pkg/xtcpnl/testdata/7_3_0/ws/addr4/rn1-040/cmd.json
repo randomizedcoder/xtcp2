@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "family": "4",
+  "label": "d0:1",
+  "local": "0.0.0.0",
+  "metric": "0",
+  "noop": "1",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "prefixlen": "24",
+  "proto": "2",
+  "scope": "254",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 address replace 0.0.0.0/24 peer 198.51.100.1/32 label d0:1 scope host metric 0 nodad proto kernel_ra dev d0",
+ "desc": "corner: verb=replace local=zero peer=32 brd=absent label=alias scope=host metric=0 lft=absent flags=nodad proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-040",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

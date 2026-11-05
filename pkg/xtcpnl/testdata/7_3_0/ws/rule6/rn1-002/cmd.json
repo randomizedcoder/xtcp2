@@ -1,0 +1,56 @@
+{
+ "axes": {
+  "action": "6",
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "dscp": "4",
+  "dst": "2001:db8:3::9",
+  "dst_len": "128",
+  "family": "6",
+  "flowlabel": "74565",
+  "flowlabel_mask": "1048575",
+  "iif": "d0",
+  "ipproto": "17",
+  "protocol": "4",
+  "src": "2001:db8:2::",
+  "src_len": "64",
+  "sup_pl": "2147483647",
+  "uidrange": "0-0",
+  "verb": "del"
+ },
+ "cmd": "ip -6 rule del from 2001:db8:2::/64 to 2001:db8:3::9/128 dev d0 dscp 4 ipproto udp dport 0x50/0xfff0 uidrange 0-0 suppress_prefixlength 2147483647 protocol static flowlabel 0x12345 blackhole",
+ "desc": "corner: verb=del not=absent from=64 to=128 pref=absent fwmark=absent iif=dev oif=absent ds=dscp ipproto=udp sport=absent dport=mask uidrange=0 suppress=pl-max protocol=static extra=flowlabel action=blackhole",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/rn1-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add from 2001:db8:2::/64 to 2001:db8:3::9/128 dev d0 dscp 4 ipproto udp dport 0x50/0xfff0 uidrange 0-0 suppress_prefixlength 2147483647 protocol static flowlabel 0x12345 blackhole"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add from 2001:db8:2::/64 to 2001:db8:3::9/128 dev d0 dscp 4 ipproto udp dport 0x50/0xfff0 uidrange 0-0 suppress_prefixlength 2147483647 protocol static flowlabel 0x12345 blackhole",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

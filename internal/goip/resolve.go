@@ -103,7 +103,7 @@ var familyOptions = map[uint8]string{
 // The errors are ErrRefusedOption (-netns, -batch, -force, -rcvbuf, -loops,
 // -help), ErrUnknownObject, ErrWriteVerb, ErrNotImplemented (an object,
 // option or read verb goip does not serve) and ErrInvalidArgument (an
-// unknown option or verb, no object, or `-s -s`).
+// unknown option or verb, no object, `-s -s` or `-d -d`).
 func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 	o, rest, err := parseOptions(tokens)
 	if err != nil {
@@ -115,6 +115,9 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 		}
 	}
 	if msg := statsCountMsg(o.showStats); msg != "" {
+		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
+	}
+	if msg := detailsCountMsg(o.showDetails); msg != "" {
 		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
 	}
 	if len(rest) == 0 {

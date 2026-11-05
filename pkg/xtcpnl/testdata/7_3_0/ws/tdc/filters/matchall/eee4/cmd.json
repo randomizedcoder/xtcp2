@@ -1,0 +1,58 @@
+{
+ "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv4 matchall skip_sw action police index 199",
+ "desc": "negative: Validate flags of the matchall filter with skip_sw and police action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^filter parent ffff: protocol ip pref 1 matchall.*handle 0x1.*",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/filters/matchall/eee4",
+ "modules": [
+  "cls_matchall"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress",
+  "tc actions flush action police",
+  "tc actions add action police rate 1mbit burst 100k index 199"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev dummy1 parent ffff: handle 1 prio 1 protocol ipv4 matchall",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 1mbit burst 100k index 199",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "eee4",
+  "tdc": "filters/matchall.json"
+ }
+}

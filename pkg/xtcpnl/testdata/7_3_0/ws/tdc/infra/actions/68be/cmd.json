@@ -1,0 +1,50 @@
+{
+ "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol ip matchall action sample index 1",
+ "desc": "positive: Reference sample action object in filter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)^filter parent ffff: protocol ip pref 1 matchall.*handle 0x1.*",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/infra/actions/68be",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress",
+  "tc actions add action sample rate 10 group 1 index 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev dummy1 parent ffff: handle 1 prio 1 protocol ip matchall",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action sample rate 10 group 1 index 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "68be",
+  "tdc": "infra/actions.json"
+ }
+}

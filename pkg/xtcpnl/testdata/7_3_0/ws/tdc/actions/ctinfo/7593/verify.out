@@ -1,0 +1,5 @@
+total acts 1
+
+	action order 0: ctinfo zone 0 drop
+	 index 1000 ref 1 bind 0
+	not_in_hw

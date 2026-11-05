@@ -1,0 +1,8 @@
+2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/netlink 
+4: v0@v1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 02:00:00:00:a0:00 brd ff:ff:ff:ff:ff:ff
+    inet6 2001:db8::5/64 scope global optimistic tentative 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::ff:fe00:a000/64 scope link optimistic tentative proto kernel_ll 
+       valid_lft forever preferred_lft forever

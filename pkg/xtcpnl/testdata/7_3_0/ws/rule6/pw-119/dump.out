@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from all tos EF lookup [l3mdev-table]
+32766:	from all lookup main

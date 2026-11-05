@@ -1,0 +1,1 @@
+[{"kind":"red","handle":"2:","parent":"1:","options":{"limit":757,"min":16,"max":24,"ecn":false,"harddrop":false,"adaptive":false,"nodrop":false},"bytes":98,"packets":1,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0,"marked":0,"early":0,"pdrop":0,"other":0}]

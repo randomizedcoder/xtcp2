@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from all tos 0x10 iif d0 sport 1000-2000 dport 0x50/0xfff0 lookup main suppress_prefixlength 2147483647
+32766:	from all lookup main
+32767:	from all lookup default

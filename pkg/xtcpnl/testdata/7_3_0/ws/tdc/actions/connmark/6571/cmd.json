@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action connmark index 20",
+ "desc": "positive: Delete connmark action with valid index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: connmark zone 0 pass.*index 20 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/connmark/6571",
+ "modules": [
+  "act_connmark"
+ ],
+ "pre": [
+  [
+   "tc actions flush action connmark",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action connmark pass index 20"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action connmark index 20",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action connmark",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action connmark pass index 20",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6571",
+  "tdc": "actions/connmark.json"
+ }
+}

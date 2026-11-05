@@ -1,0 +1,3 @@
+0:	from all lookup local
+300:	from all fwmark 0xffffffff iif nosuch [detached] oif d0 ipproto udp sport 0x50/0xfff0 dport 80 goto 40000 [unresolved] dscp EF
+32766:	from all lookup main

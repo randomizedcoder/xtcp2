@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "kind": "dummy",
+  "name": "abcdefghijklmnop"
+ },
+ "cmd": "ip link add abcdefghijklmnop type dummy",
+ "desc": "negative: name=long up=absent mtu=absent txqlen=absent address=absent queues=absent kind=dummy: a bare name of IFNAMSIZ characters",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ERANGE",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkadd/ng-001",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

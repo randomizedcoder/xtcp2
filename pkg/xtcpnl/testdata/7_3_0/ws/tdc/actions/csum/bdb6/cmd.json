@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action csum udp xor iph index 3",
+ "desc": "negative: Add csum udp xor iph action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: csum \\(udp xor iph\\) action pass.*index 3 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/csum/bdb6",
+ "modules": [
+  "act_csum"
+ ],
+ "pre": [
+  [
+   "tc actions flush action csum",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action csum",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action csum",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "bdb6",
+  "tdc": "actions/csum.json"
+ }
+}

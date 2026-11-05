@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "dport": "65534-65534",
+  "dscp": "0",
+  "family": "6",
+  "flowlabel": "74565",
+  "flowlabel_mask": "1048575",
+  "l3mdev": "1",
+  "priority": "300",
+  "protocol": "2",
+  "sport": "80-80",
+  "sport_mask": "65520",
+  "src": "2001:db8:2::7",
+  "src_len": "128",
+  "sup_pl": "0",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from 2001:db8:2::7/128 priority 300 dscp 0 sport 0x50/0xfff0 dport 65534 suppress_prefixlength 0 protocol kernel flowlabel 0x12345 l3mdev",
+ "desc": "corner: verb=add not=absent from=128 to=absent pref=priority fwmark=absent iif=absent oif=absent ds=dscp-0 ipproto=absent sport=mask dport=65534 uidrange=absent suppress=pl0 protocol=kernel extra=flowlabel action=l3mdev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/rn1-028",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

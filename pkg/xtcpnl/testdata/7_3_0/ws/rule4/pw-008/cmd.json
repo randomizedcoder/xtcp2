@@ -1,0 +1,57 @@
+{
+ "axes": {
+  "action": "6",
+  "dport": "80-80",
+  "dscp": "63",
+  "dst": "203.0.113.0",
+  "dst_len": "24",
+  "family": "4",
+  "fwmark": "16",
+  "fwmask": "255",
+  "invert": "1",
+  "ipproto": "255",
+  "priority": "300",
+  "protocol": "4",
+  "src": "198.51.100.7",
+  "src_len": "32",
+  "sup_group": "5",
+  "tun_id": "7",
+  "uidrange": "0-0",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del not from 198.51.100.7/32 to 203.0.113.0/24 priority 300 fwmark 0x10/0xff dscp 63 ipproto 255 dport 80 uidrange 0-0 suppress_ifgroup 5 protocol static tun_id 7 blackhole",
+ "desc": "corner: verb=del not=not from=32 to=24 pref=priority fwmark=mask iif=absent oif=absent ds=dscp-63 ipproto=255 sport=absent dport=80 uidrange=0 suppress=group protocol=static extra=tun_id action=blackhole",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-008",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add not from 198.51.100.7/32 to 203.0.113.0/24 priority 300 fwmark 0x10/0xff dscp 63 ipproto 255 dport 80 uidrange 0-0 suppress_ifgroup 5 protocol static tun_id 7 blackhole"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add not from 198.51.100.7/32 to 203.0.113.0/24 priority 300 fwmark 0x10/0xff dscp 63 ipproto 255 dport 80 uidrange 0-0 suppress_ifgroup 5 protocol static tun_id 7 blackhole",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

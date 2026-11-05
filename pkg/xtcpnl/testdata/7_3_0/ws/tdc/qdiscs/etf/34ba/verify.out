@@ -1,0 +1,1 @@
+qdisc etf 1: root refcnt 2 clockid TAI delta 0 offload off deadline_mode off skip_sock_check off

@@ -280,6 +280,11 @@ type LinkInfo struct {
 	Qdisc       string // IFLA_QDISC
 	Kind        string // IFLA_LINKINFO -> IFLA_INFO_KIND
 
+	// IfAlias is IFLA_IFALIAS, `ip link set alias`'s text and ip's
+	// "alias %s" line. The kernel dumps it NUL-terminated and only when
+	// set (rtnl_fill_ifinfo); iproute2 sends it without the NUL.
+	IfAlias string
+
 	// SlaveKind is IFLA_LINKINFO -> IFLA_INFO_SLAVE_KIND: what this link is to
 	// its master, rather than what it is in itself. print_linktype emits it as
 	// a second continuation line under -d (ip/ipaddress.c:250-258), so a
@@ -299,10 +304,11 @@ type LinkInfo struct {
 	// The contents are decoded kind by kind, never wholesale: they are the
 	// per-kind blob iproute2 hands to one of forty print_opt implementations,
 	// and each kind is admitted only with a captured fixture to ground it.
-	// Two are decoded today, vrf (VrfTable) and bond (Bond, BondSlave); every
-	// other kind's blob stays opaque. The PRESENCE is in scope because it is exactly the
-	// condition under which a -d render that stopped at the kind token would be
-	// WRONG rather than merely short — print_linktype prints the kind and then
+	// The decoded kinds each have a field below (VrfTable, Bond, Bridge, Vlan,
+	// and on through Netkit); every other kind's blob stays opaque. The
+	// PRESENCE is in scope because it is exactly the condition under which a
+	// -d render that stopped at the kind token would be WRONG rather than
+	// merely short — print_linktype prints the kind and then
 	// the whole of print_opt's output on the same line. render.LinkDetailView
 	// reads these to refuse instead of truncating.
 	//
@@ -319,12 +325,10 @@ type LinkInfo struct {
 	// SlaveKind being empty cannot tell those two apart.
 	HasLinkInfo bool
 
-	// VrfTable and VrfPortTable are the one per-kind blob goip decodes: the VRF
-	// routing table id. VrfTable is IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is
-	// "vrf" (vrf_print_opt, ip/iplink_vrf.c:55); VrfPortTable is
-	// IFLA_INFO_SLAVE_DATA -> IFLA_VRF_PORT_TABLE when SlaveKind is "vrf"
-	// (vrf_slave_print_opt, :67). Decoded only for the vrf kind; every other
-	// kind's blob stays undecoded and its HasInfoData refuses the -d render.
+	// VrfTable and VrfPortTable are the VRF routing table id. VrfTable is
+	// IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is "vrf" (vrf_print_opt,
+	// ip/iplink_vrf.c:55); VrfPortTable is IFLA_INFO_SLAVE_DATA ->
+	// IFLA_VRF_PORT_TABLE when SlaveKind is "vrf" (vrf_slave_print_opt, :67).
 	VrfTable     U32Attr
 	VrfPortTable U32Attr
 
@@ -333,6 +337,43 @@ type LinkInfo struct {
 	// nil otherwise. See xtcpnl_bond.go.
 	Bond      *BondInfo
 	BondSlave *BondSlaveInfo
+
+	// Bridge is IFLA_INFO_DATA decoded when Kind is "bridge"; BridgeSlave is
+	// IFLA_INFO_SLAVE_DATA decoded when SlaveKind is "bridge" — a port of
+	// one. nil otherwise. See xtcpnl_bridge.go and xtcpnl_bridge_slave.go.
+	Bridge      *BridgeInfo
+	BridgeSlave *BridgeSlaveInfo
+	// Vlan is IFLA_INFO_DATA decoded when Kind is "vlan".
+	Vlan *VlanInfo
+	// Macvlan is IFLA_INFO_DATA decoded when Kind is "macvlan" or
+	// "macvtap", which share the attributes.
+	Macvlan *MacvlanInfo
+	// Ipvlan is IFLA_INFO_DATA decoded when Kind is "ipvlan" or "ipvtap".
+	Ipvlan *IpvlanInfo
+	// Vxlan is IFLA_INFO_DATA decoded when Kind is "vxlan".
+	Vxlan *VxlanInfo
+	// Geneve is IFLA_INFO_DATA decoded when Kind is "geneve".
+	Geneve *GeneveInfo
+	// Bareudp is IFLA_INFO_DATA decoded when Kind is "bareudp".
+	Bareudp *BareudpInfo
+	// Amt is IFLA_INFO_DATA decoded when Kind is "amt".
+	Amt *AmtInfo
+	// Gtp is IFLA_INFO_DATA decoded when Kind is "gtp".
+	Gtp *GtpInfo
+	// Gre is IFLA_INFO_DATA decoded when Kind is "gre", "gretap",
+	// "erspan", "ip6gre", "ip6gretap" or "ip6erspan".
+	Gre *GreInfo
+	// Iptun is IFLA_INFO_DATA decoded when Kind is "ipip", "sit" or
+	// "ip6tnl".
+	Iptun *IptunInfo
+	// Vti is IFLA_INFO_DATA decoded when Kind is "vti" or "vti6".
+	Vti *VtiInfo
+	// Xfrm is IFLA_INFO_DATA decoded when Kind is "xfrm".
+	Xfrm *XfrmLinkInfo
+	// Hsr is IFLA_INFO_DATA decoded when Kind is "hsr".
+	Hsr *HsrInfo
+	// Netkit is IFLA_INFO_DATA decoded when Kind is "netkit".
+	Netkit *NetkitInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -732,6 +773,8 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		li.PermAddress = CopyBytes(val)
 	case uint16(unix.IFLA_QDISC):
 		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_IFALIAS):
+		li.IfAlias = string(bytes.TrimRight(val, "\x00"))
 	case uint16(unix.IFLA_LINKINFO):
 		li.HasLinkInfo = true
 		setLinkInfoNest(li, val)
@@ -941,8 +984,9 @@ func setAddrGenMode(d *LinkDetail, val []byte) {
 // This is the first production caller of WalkRTAttrsNested, closing
 // TODO-SOON.md §12. The descent is one level for every kind but the ones
 // goip decodes: IFLA_INFO_DATA is the per-kind blob `ip` hands to one of
-// forty print_opt implementations, and only vrf and bond are opened. The
-// presence of the rest is recorded — see LinkInfo.HasInfoData.
+// forty print_opt implementations, and only the kinds with a LinkInfo field
+// are opened. The presence of the rest is recorded — see
+// LinkInfo.HasInfoData.
 //
 // A walk error inside the nest is swallowed rather than failing the whole
 // message. That is the same tolerance WalkRTAttrs already applies to a short
@@ -969,7 +1013,7 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 			slaveData = inner
 		}
 	})
-	// Decode the one per-kind blob goip renders, once the kind is known. The
+	// Decode the per-kind blobs goip renders, once the kind is known. The
 	// kernel sends IFLA_INFO_KIND before IFLA_INFO_DATA, but this is done after
 	// the walk so it does not rely on that order.
 	if li.Kind == vrfKindCst {
@@ -983,6 +1027,50 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.SlaveKind == bondKindCst {
 		li.BondSlave = ParseBondSlaveData(slaveData)
+	}
+	if li.Kind == bridgeKindCst {
+		li.Bridge = ParseBridgeInfoData(infoData)
+	}
+	if li.SlaveKind == bridgeKindCst {
+		li.BridgeSlave = ParseBridgeSlaveData(slaveData)
+	}
+	if li.Kind == vlanKindCst {
+		li.Vlan = ParseVlanInfoData(infoData)
+	}
+	if li.Kind == macvlanKindCst || li.Kind == macvtapKindCst {
+		li.Macvlan = ParseMacvlanInfoData(infoData)
+	}
+	if li.Kind == ipvlanKindCst || li.Kind == ipvtapKindCst {
+		li.Ipvlan = ParseIpvlanInfoData(infoData)
+	}
+	if li.Kind == vxlanKindCst {
+		li.Vxlan = ParseVxlanInfoData(infoData)
+	}
+	if li.Kind == geneveKindCst {
+		li.Geneve = ParseGeneveInfoData(infoData)
+	}
+	if li.Kind == bareudpKindCst {
+		li.Bareudp = ParseBareudpInfoData(infoData)
+	}
+	if li.Kind == amtKindCst {
+		li.Amt = ParseAmtInfoData(infoData)
+	}
+	if li.Kind == gtpKindCst {
+		li.Gtp = ParseGtpInfoData(infoData)
+	}
+	switch li.Kind {
+	case greKindCst, gretapKindCst, erspanKindCst, ip6greKindCst, ip6gretapKindCst, ip6erspanKindCst:
+		li.Gre = ParseGreInfoData(infoData)
+	case ipipKindCst, sitKindCst, ip6tnlKindCst:
+		li.Iptun = ParseIptunInfoData(infoData)
+	case vtiKindCst, vti6KindCst:
+		li.Vti = ParseVtiInfoData(infoData)
+	case xfrmKindCst:
+		li.Xfrm = ParseXfrmLinkInfoData(infoData)
+	case hsrKindCst:
+		li.Hsr = ParseHsrInfoData(infoData)
+	case netkitKindCst:
+		li.Netkit = ParseNetkitInfoData(infoData)
 	}
 }
 

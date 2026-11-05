@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action nat ingress 192.168.1.1 200.200.200.1",
+ "desc": "positive: Add nat action on ingress with default control action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+:  nat ingress 192.168.1.1/32 200.200.200.1 pass",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/nat/7565",
+ "modules": [
+  "act_nat"
+ ],
+ "pre": [
+  [
+   "tc actions flush action nat",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action nat",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action nat",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7565",
+  "tdc": "actions/nat.json"
+ }
+}

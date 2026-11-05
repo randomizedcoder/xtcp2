@@ -1,0 +1,5 @@
+Tunnel 1, encap UDP
+  From 192.0.2.1 to 192.0.2.2
+  Peer tunnel 2
+  UDP source / dest ports: 5000/6000
+  UDP checksum: disabled

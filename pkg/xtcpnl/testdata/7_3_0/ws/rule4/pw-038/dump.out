@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	from all iif nosuch [detached] ipproto ipproto-255 dport 1000-2000 lookup 4294967295 proto static dscp 0
+32766:	from all lookup main
+32767:	from all lookup default

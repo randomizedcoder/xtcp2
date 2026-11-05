@@ -1,0 +1,2 @@
+qdisc cbs 1: root refcnt 2 hicredit 0 locredit 0 sendslope 0 idleslope 0 offload 0 
+qdisc pfifo 0: parent 1: limit 1000p

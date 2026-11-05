@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "address": "02:00:00:00:00:aa",
+  "alias": "hello",
+  "group": "0",
+  "gso_ipv4_max_size": "32768",
+  "mtu": "65535",
+  "operstate": "5",
+  "txqlen": "100",
+  "up": "0"
+ },
+ "cmd": "ip link set dev d0 down mtu 65535 txq 100 group default alias hello address 02:00:00:00:00:aa gso_ipv4_max_size 32768 state dormant",
+ "desc": "corner: updown=down mtu=65535 txqlen=abbrev group=default alias=word address=mac flag=absent gso=gso_v4 mode=state name=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkset/pw-027",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

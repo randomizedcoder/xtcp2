@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action csum udp pipe index 7 cookie 12345678",
+ "desc": "positive: Add csum udp action with cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: csum \\(udp\\) action pipe.*index 7.*cookie 12345678",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/csum/ce92",
+ "modules": [
+  "act_csum"
+ ],
+ "pre": [
+  [
+   "tc actions flush action csum",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action csum index 7",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action csum",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ce92",
+  "tdc": "actions/csum.json"
+ }
+}

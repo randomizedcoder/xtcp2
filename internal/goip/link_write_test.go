@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -141,13 +142,7 @@ func TestBuildLinkWrite(t *testing.T) {
 	dev127 := strings.Repeat("x", altIfNameSizeCst-1)
 	dev128 := strings.Repeat("x", altIfNameSizeCst)
 
-	tests := []struct {
-		description string
-		verb        string
-		family      uint8
-		args        []string
-		expected    linkWriteExpected
-	}{
+	tests := []linkWriteRow{
 		// Addressing and the header.
 		{description: "positive: add addresses by name, index 0", verb: "add",
 			args:     []string{"d0", "type", "dummy"},
@@ -297,8 +292,6 @@ func TestBuildLinkWrite(t *testing.T) {
 				ifname("d0")), "dummy")}},
 		{description: "negative: an unparseable address", verb: "add", args: []string{"d0", "address", "zz", "type", "dummy"},
 			expected: invalid(`"zz" is invalid lladdr`)},
-		{description: "negative: address on set needs a length lookup goip does not do", verb: "set",
-			args: []string{"d0", "address", "02:00:00:00:00:01"}, expected: notImpl("address-length")},
 
 		// Flag keywords.
 		{description: "positive: promisc on", verb: "set", args: []string{"d0", "promisc", "on"},
@@ -315,12 +308,10 @@ func TestBuildLinkWrite(t *testing.T) {
 			expected: invalid(`argument of "promisc" must be "on" or "off", not "On"`)},
 
 		// Keywords goip does not implement are refused, never read as a device.
-		{description: "negative: l is link, not a device", verb: "set", args: []string{"d0", "l", "x"},
-			expected: notImpl(`"link"`)},
-		{description: "negative: index", verb: "add", args: []string{"d0", "index", "5", "type", "dummy"},
-			expected: notImpl(`"index"`)},
-		{description: "negative: group", verb: "set", args: []string{"d0", "group", "1"},
-			expected: notImpl(`"group"`)},
+		{description: "negative: netns", verb: "add", args: []string{"d0", "netns", "ns1", "type", "dummy"},
+			expected: notImpl(`"netns"`)},
+		{description: "negative: vf", verb: "set", args: []string{"d0", "vf", "0", "mac", "02:00:00:00:00:01"},
+			expected: notImpl(`"vf"`)},
 
 		// Kinds.
 		{description: "positive: a kind with no arguments has no data nest, implemented or not", verb: "add",
@@ -335,7 +326,7 @@ func TestBuildLinkWrite(t *testing.T) {
 		{description: "negative: dummy has no options", verb: "set", args: []string{"d0", "type", "dummy", "foo"},
 			expected: invalid(`Garbage instead of arguments "foo ...".`, "d0")},
 		{description: "negative: options of a kind goip does not implement", verb: "add",
-			args: []string{"br0", "type", "bridge", "stp_state", "1"}, expected: notImpl(`"bridge"`)},
+			args: []string{"ib0", "type", "ipoib", "pkey", "0x8001"}, expected: notImpl(`"ipoib"`)},
 		{description: "positive: bond options", verb: "add",
 			args: []string{"bond0", "type", "bond", "mode", "802.3ad"},
 			expected: linkWriteExpected{write: withData(add(attrs(ifname("bond0")), ""), "bond",
@@ -382,14 +373,33 @@ func TestBuildLinkWrite(t *testing.T) {
 			args:     []string{"v0", "type", "veth", "peer", "name", "v1", "type", "dummy"},
 			expected: invalid(`duplicate "type": "dummy" is the second value`)},
 	}
-	for _, tc := range tests {
+	runLinkWriteRows(t, tests)
+}
+
+// linkWriteRow is one argv after the verb and the LinkWrite, lookups or
+// error it parses to.
+type linkWriteRow struct {
+	description string
+	verb        string
+	family      uint8
+	args        []string
+	expected    linkWriteExpected
+}
+
+// runLinkWriteRows builds each row with the fake links and their fake get
+// by index, whose calls are listed as "get N" (and its family, when set)
+// beside the names.
+func runLinkWriteRows(t *testing.T, rows []linkWriteRow) {
+	t.Helper()
+	for i := range rows {
+		tc := &rows[i]
 		t.Run(tc.description, func(t *testing.T) {
 			verb := lookupLinkWriteVerb(tc.verb)
 			if verb == nil {
 				t.Fatalf("no verb %q", tc.verb)
 			}
 			links := newFakeLinks()
-			got, err := buildLinkWrite(verb, tc.family, tc.args, links.resolve)
+			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve, nil, links.fetch)
 			if !slices.Equal(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}
@@ -407,6 +417,82 @@ func TestBuildLinkWrite(t *testing.T) {
 			}
 			if _, err := xtcpnl.BuildLinkWriteRequest(got, 1); err != nil {
 				t.Fatalf("BuildLinkWriteRequest: %v", err)
+			}
+		})
+	}
+}
+
+// fakeAddrLens are the fake get by index's answers: d0 (2) has a 6-byte
+// address, la1 (3) none, la2 (5) is refused ENODEV, and v0 (6) fails.
+var fakeAddrLens = map[int32]int{2: 6}
+
+func (f *fakeLinks) fetch(family uint8, index int32) (service.LinkInfoData, error) {
+	call := fmt.Sprintf("get %d", index)
+	if family != unix.AF_UNSPEC {
+		call += fmt.Sprintf(" family %d", family)
+	}
+	f.calls = append(f.calls, call)
+	switch index {
+	case 5:
+		return service.LinkInfoData{}, unix.ENODEV
+	case 6:
+		return service.LinkInfoData{}, errFakeResolve
+	}
+	n, ok := fakeAddrLens[index]
+	return service.LinkInfoData{HasAddress: ok, AddrLen: n}, nil
+}
+
+// TestParseLinkLower is iplink_parse's `link` keyword (KG2-T01): stored, last
+// one winning, and resolved into IFLA_LINK before IFLA_IFNAME on a create
+// only.
+func TestParseLinkLower(t *testing.T) {
+	ifname := xtcpnl.LinkAttrString(unix.IFLA_IFNAME, "x0")
+	lower := xtcpnl.LinkAttrU32(unix.IFLA_LINK, 2)
+	addF := uint16(unix.NLM_F_CREATE | unix.NLM_F_EXCL | unix.NLM_F_ACK)
+	add := xtcpnl.LinkWrite{MsgType: unix.RTM_NEWLINK, Flags: addF, Attrs: []xtcpnl.LinkAttr{lower, ifname}, Kind: kindDummyCst}
+	tests := []struct {
+		description string
+		verb        string
+		args        []string
+		expected    linkWriteExpected
+	}{
+		{description: "positive: a lower device on an add", verb: "add",
+			args:     []string{"link", "d0", "name", "x0", "type", "dummy"},
+			expected: linkWriteExpected{write: add, resolved: []string{"d0"}}},
+		{description: "negative: a lower device that does not exist", verb: "add",
+			args:     []string{"link", "nosuch", "name", "x0", "type", "dummy"},
+			expected: linkWriteExpected{err: ErrInvalidArgument, errMsg: `Cannot find device "nosuch"`, resolved: []string{"nosuch"}}},
+		{description: "negative: no value", verb: "add", args: []string{"name", "x0", "link"},
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: "Command line is not complete"}},
+		{description: "boundary: the last link wins", verb: "add",
+			args:     []string{"link", "nosuch", "link", "d0", "name", "x0", "type", "dummy"},
+			expected: linkWriteExpected{write: add, resolved: []string{"d0"}}},
+		{description: "corner: a set drops it", verb: "set", args: []string{"d0", "l", "x"},
+			expected: linkWriteExpected{
+				write:    xtcpnl.LinkWrite{MsgType: unix.RTM_NEWLINK, Flags: unix.NLM_F_ACK, Index: 2},
+				resolved: []string{"d0"}}},
+		{description: "corner: l is link on an add", verb: "add",
+			args:     []string{"l", "d0", "name", "x0", "type", "dummy"},
+			expected: linkWriteExpected{write: add, resolved: []string{"d0"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			links := newFakeLinks()
+			got, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb(tc.verb), unix.AF_UNSPEC, tc.args, links.resolve, nil, nil)
+			if !slices.Equal(links.calls, tc.expected.resolved) {
+				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
+			}
+			if tc.expected.err != nil {
+				if !errors.Is(err, tc.expected.err) || !strings.Contains(fmt.Sprint(err), tc.expected.errMsg) {
+					t.Fatalf("err = %v, want %v containing %q", err, tc.expected.err, tc.expected.errMsg)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.expected.write) {
+				t.Fatalf("LinkWrite mismatch\n got  %+v\n want %+v", got, tc.expected.write)
 			}
 		})
 	}

@@ -1,0 +1,6 @@
+src 192.0.2.1 dst 192.0.2.4
+	proto esp spi 0x00000103 reqid 0 mode transport
+	replay-window 0 
+	enc cbc(aes) 0x22222222222222222222222222222222
+	anti-replay context: seq 0x0, oseq 0x0, bitmap 0x00000000
+	sel src 0.0.0.0/0 dst 0.0.0.0/0 

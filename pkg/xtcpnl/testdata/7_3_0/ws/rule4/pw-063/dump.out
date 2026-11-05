@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all fwmark 0x10 iif lo ipproto tcp sport 1000-2000 lookup 4294967295 suppress_prefixlength 2147483647
+32766:	from all lookup main
+32767:	from all lookup default

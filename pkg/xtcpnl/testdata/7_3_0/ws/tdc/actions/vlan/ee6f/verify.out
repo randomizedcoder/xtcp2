@@ -1,0 +1,6 @@
+total acts 1
+
+	action order 0: vlan  pop pipe
+	 index 4294967295 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled

@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "family": "4",
+  "local": "192.0.2.1",
+  "metric": "5",
+  "preferred": "50",
+  "prefixlen": "32",
+  "scope": "0",
+  "valid": "100",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 address replace 192.0.2.1/32 scope global priority 5 valid_lft 100 preferred_lft 50 nodad dev d0",
+ "desc": "corner: verb=replace local=32 peer=absent brd=absent label=absent scope=global metric=priority lft=finite flags=nodad proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-010",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

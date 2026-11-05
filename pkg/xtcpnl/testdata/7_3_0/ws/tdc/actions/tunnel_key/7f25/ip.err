@@ -1,0 +1,14 @@
+set needs tunnel_key parameters
+Usage: tunnel_key unset
+       tunnel_key set <TUNNEL_KEY>
+Where TUNNEL_KEY is a combination of:
+id <TUNNELID>
+src_ip <IP> (mandatory)
+dst_ip <IP> (mandatory)
+dst_port <UDP_PORT>
+geneve_opts | vxlan_opts | erspan_opts <OPTIONS>
+csum | nocsum (default is "csum")
+nofrag
+bad action parsing
+parse_action: bad value (6:tunnel_key)!
+Illegal "action"

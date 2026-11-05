@@ -1,0 +1,4 @@
+0:	from all lookup local
+32766:	from all lookup main
+32767:	from all lookup default
+4294967295:	from all to 203.0.113.9 iif d0 uidrange 0-0 ipproto udp sport 1 dport 80 lookup 1 suppress_prefixlength 0 realms 10 proto 255 dscp 0x20/0x30

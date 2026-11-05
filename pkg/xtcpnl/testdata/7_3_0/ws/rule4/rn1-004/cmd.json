@@ -1,0 +1,55 @@
+{
+ "axes": {
+  "dport": "1000-2000",
+  "dst": "203.0.113.9",
+  "dst_len": "32",
+  "family": "4",
+  "fwmark": "16",
+  "fwmask": "255",
+  "iif": "d0",
+  "oif": "nosuch",
+  "priority": "4294967295",
+  "sport": "1-65534",
+  "src": "198.51.100.0",
+  "src_len": "24",
+  "table": "256",
+  "tos": "8",
+  "uidrange": "0-0",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del from 198.51.100.0/24 to 203.0.113.9/32 pref 4294967295 fwmark 0x10/0xff dev d0 oif nosuch dsfield 0x08 sport 1-65534 dport 1000-2000 uidrange 0-0 table 256",
+ "desc": "corner: verb=del not=absent from=24 to=32 pref=max fwmark=mask iif=dev oif=nosuch ds=dsfield ipproto=absent sport=full dport=range uidrange=0 suppress=absent protocol=absent extra=absent action=256",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/rn1-004",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add from 198.51.100.0/24 to 203.0.113.9/32 pref 4294967295 fwmark 0x10/0xff dev d0 oif nosuch dsfield 0x08 sport 1-65534 dport 1000-2000 uidrange 0-0 table 256"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add from 198.51.100.0/24 to 203.0.113.9/32 pref 4294967295 fwmark 0x10/0xff dev d0 oif nosuch dsfield 0x08 sport 1-65534 dport 1000-2000 uidrange 0-0 table 256",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

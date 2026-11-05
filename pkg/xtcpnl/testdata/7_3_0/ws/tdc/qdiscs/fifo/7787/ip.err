@@ -1,0 +1,2 @@
+pfifo: unknown parameter "foorbar"
+Usage: ... <[p|b]fifo | pfifo_head_drop> [ limit NUMBER ]

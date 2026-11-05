@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge tcp sport set -200",
+ "desc": "negative: Add pedit action with LAYERED_OP tcp sport set (INVALID)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm) ",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/pedit/b7ac",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "true",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "b7ac",
+  "tdc": "actions/pedit.json"
+ }
+}

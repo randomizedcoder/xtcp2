@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "family": "4",
+  "label": "d0:abcdefghijklm",
+  "local": "192.0.2.1",
+  "prefixlen": "24",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.1/24 label d0:abcdefghijklm dev d0",
+ "desc": "negative: verb=add local=24 peer=absent brd=absent label=16 scope=absent metric=absent lft=absent flags=absent proto=absent: a label of IFNAMSIZ characters, past ifa_ipv4_policy's IFNAMSIZ - 1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ERANGE",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr4/ng-008",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

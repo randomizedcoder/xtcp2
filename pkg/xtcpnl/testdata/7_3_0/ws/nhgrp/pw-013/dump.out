@@ -1,0 +1,8 @@
+id 1 group 21/22 proto static 
+id 21 via 192.0.2.1 dev d0 scope link 
+id 22 via 192.0.2.2 dev d0 scope link 
+id 23 dev d0 scope host 
+id 26 via 2001:db8:1::1 dev d0 scope link 
+id 29 blackhole 
+id 31 via 192.0.2.1 scope link fdb
+id 32 via 192.0.2.2 scope link fdb

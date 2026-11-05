@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action connmark",
+ "desc": "positive: Add valid connmark action with defaults",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: connmark zone 0 pipe",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/connmark/2002",
+ "modules": [
+  "act_connmark"
+ ],
+ "pre": [
+  [
+   "tc actions flush action connmark",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action connmark",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action connmark",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2002",
+  "tdc": "actions/connmark.json"
+ }
+}

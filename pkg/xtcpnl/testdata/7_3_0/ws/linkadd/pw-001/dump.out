@@ -1,0 +1,3 @@
+4: n0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1400 qdisc mq state UNKNOWN mode DEFAULT group default qlen 100
+    link/ether 02:00:00:00:01:01 brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 
+    ifb addrgenmode eui64 numtxqueues 4 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 524280 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 

@@ -1,0 +1,3 @@
+dev br0 port d0 grp 239.1.1.1 temp vid 4094
+dev br0 port br0 grp ff02::6a temp vid 1
+dev br0 port br0 grp ff02::1:ff29:e3d temp vid 1

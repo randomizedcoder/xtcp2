@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	not from all to 203.0.113.9 fwmark 0x10 iif nosuch [detached] sport 1-65534 dport 1-65534 lookup 256 suppress_ifgroup 5 dscp EF
+32766:	from all lookup main
+32767:	from all lookup default

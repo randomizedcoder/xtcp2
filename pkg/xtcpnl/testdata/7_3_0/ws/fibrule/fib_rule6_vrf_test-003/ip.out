@@ -1,0 +1,1 @@
+2001:db8:1::2 from :: via 2001:db8:1::2 dev dummy0 table 100 src fe80::cca0:1ff:fe7b:3bbf metric 1024 pref medium

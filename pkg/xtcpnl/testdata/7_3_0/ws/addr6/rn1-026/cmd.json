@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "flags": "1024",
+  "local": "2001:db8:1::1",
+  "metric": "0",
+  "prefixlen": "128",
+  "proto": "2",
+  "verb": "change"
+ },
+ "cmd": "ip -6 address change 2001:db8:1::1/128 broadcast 2001:db8:1::ff metric 0 autojoin proto kernel_ra dev d0",
+ "desc": "negative: verb=change local=128 peer=absent brd=addr label=absent scope=absent metric=0 lft=absent flags=autojoin proto=kernel_ra: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr6/rn1-026",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

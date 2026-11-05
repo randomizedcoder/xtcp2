@@ -1,0 +1,6 @@
+42:74:31:e5:b1:9c vlan 10 master br0 permanent
+42:74:31:e5:b1:9c vlan 1 master br0 permanent
+42:74:31:e5:b1:9c master br0 permanent
+02:00:00:00:00:01 self permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

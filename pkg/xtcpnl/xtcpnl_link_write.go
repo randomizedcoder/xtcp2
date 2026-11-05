@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
@@ -45,7 +46,7 @@ var (
 )
 
 // LinkAttr is one generic IFLA_* attribute of a link write, payload already
-// encoded. The constructors below are the three shapes iplink_parse writes.
+// encoded. The constructors below are the shapes iplink_parse writes.
 type LinkAttr struct {
 	Type    uint16
 	Payload []byte
@@ -58,6 +59,11 @@ func LinkAttrU32(atype uint16, v uint32) LinkAttr {
 	return LinkAttr{Type: atype, Payload: p}
 }
 
+// LinkAttrU8 is addattr8: IFLA_PROTO_DOWN.
+func LinkAttrU8(atype uint16, v uint8) LinkAttr {
+	return LinkAttr{Type: atype, Payload: []byte{v}}
+}
+
 // LinkAttrString is addattr_l with strlen+1: the NUL is part of the payload.
 // IFLA_IFNAME is written this way.
 func LinkAttrString(atype uint16, s string) LinkAttr {
@@ -68,6 +74,64 @@ func LinkAttrString(atype uint16, s string) LinkAttr {
 // the one string iplink_parse writes without a NUL (strlen, not strlen+1).
 func LinkAttrBytes(atype uint16, b []byte) LinkAttr {
 	return LinkAttr{Type: atype, Payload: b}
+}
+
+// addrGenModeAfSpecCst is IFLA_AF_SPEC's payload for `addrgenmode`: the
+// AF_INET6 nest header and one u8 attribute padded to four bytes.
+const addrGenModeAfSpecCst = 2*RTAttrSizeCst + 4
+
+// LinkAttrAddrGenMode is iplink_parse's `addrgenmode`:
+// IFLA_AF_SPEC{AF_INET6{IFLA_INET6_ADDR_GEN_MODE u8}}. Like the other link
+// nests it has no NLA_F_NESTED, because addattr_nest does not set it.
+func LinkAttrAddrGenMode(mode uint8) (LinkAttr, error) {
+	ab := NewAttrBuilder(make([]byte, addrGenModeAfSpecCst))
+	af, err := ab.BeginNest(unix.AF_INET6)
+	if err != nil {
+		return LinkAttr{}, err
+	}
+	if err := ab.PutU8(unix.IFLA_INET6_ADDR_GEN_MODE, mode); err != nil {
+		return LinkAttr{}, err
+	}
+	if err := ab.EndNest(af); err != nil {
+		return LinkAttr{}, err
+	}
+	return LinkAttr{Type: unix.IFLA_AF_SPEC, Payload: ab.Bytes()}, nil
+}
+
+// protoDownReasonCst is IFLA_PROTO_DOWN_REASON's payload: two u32s.
+const protoDownReasonCst = 2 * (RTAttrSizeCst + 4)
+
+// LinkAttrProtoDownReason is iplink_parse's `protodown_reason`:
+// IFLA_PROTO_DOWN_REASON{MASK u32, VALUE u32}. Unlike the other link nests
+// it carries NLA_F_NESTED, because iplink_parse ORs it in.
+func LinkAttrProtoDownReason(mask, value uint32) (LinkAttr, error) {
+	ab := NewAttrBuilder(make([]byte, protoDownReasonCst))
+	if err := ab.PutU32(unix.IFLA_PROTO_DOWN_REASON_MASK, mask); err != nil {
+		return LinkAttr{}, err
+	}
+	if err := ab.PutU32(unix.IFLA_PROTO_DOWN_REASON_VALUE, value); err != nil {
+		return LinkAttr{}, err
+	}
+	return LinkAttr{Type: unix.IFLA_PROTO_DOWN_REASON | unix.NLA_F_NESTED, Payload: ab.Bytes()}, nil
+}
+
+// linkXdpCst is IFLA_XDP's payload at its largest: the fd and the flags.
+const linkXdpCst = 2 * (RTAttrSizeCst + 4)
+
+// LinkAttrXdp is xdp_ebpf_cb's IFLA_XDP{IFLA_XDP_FD s32, IFLA_XDP_FLAGS u32},
+// the flags only when they're not zero. `xdp off` is fd -1. Like the other
+// link nests it has no NLA_F_NESTED.
+func LinkAttrXdp(fd int32, flags uint32) (LinkAttr, error) {
+	ab := NewAttrBuilder(make([]byte, linkXdpCst))
+	if err := ab.PutS32(unix.IFLA_XDP_FD, fd); err != nil {
+		return LinkAttr{}, err
+	}
+	if flags != 0 {
+		if err := ab.PutU32(unix.IFLA_XDP_FLAGS, flags); err != nil {
+			return LinkAttr{}, err
+		}
+	}
+	return LinkAttr{Type: unix.IFLA_XDP, Payload: ab.Bytes()}, nil
 }
 
 // LinkWrite is one link write as iplink_modify assembles it.
@@ -118,7 +182,7 @@ func EncodeIfInfomsg(family uint8, index int32, flags, change uint32) []byte {
 	// family, pad, ifi_type, then index, flags and change.
 	b := make([]byte, 0, IfInfomsgSizeCst)
 	b = append(b, family, 0, 0, 0)
-	b = binary.LittleEndian.AppendUint32(b, uint32(index)) //nolint:gosec // the wire int, reinterpreted
+	b = binary.LittleEndian.AppendUint32(b, cint.Bits(index))
 	b = binary.LittleEndian.AppendUint32(b, flags)
 	return binary.LittleEndian.AppendUint32(b, change)
 }
@@ -219,6 +283,11 @@ func EncodeBondSlaveData(settings []BondSetting) ([]byte, error) {
 // which the kernel reports and no keyword sets, or a nil row.
 var ErrBondSettingWire = errors.New("xtcpnl: bond option has no write encoding")
 
+// ErrBondSettingRange is a u8 or u16 setting whose value does not fit its
+// attribute. The parser bounds each value first, so only a hand-built
+// setting reaches it.
+var ErrBondSettingRange = errors.New("xtcpnl: bond option value past its attribute's width")
+
 func encodeBondSettings(settings []BondSetting) ([]byte, error) {
 	var raw [linkWriteBufCst]byte
 	ab := NewAttrBuilder(raw[:])
@@ -237,9 +306,17 @@ func putBondSetting(ab *AttrBuilder, s BondSetting) error {
 	id := s.Spec.ID
 	switch s.Spec.Wire {
 	case BondWireU8:
-		return ab.PutU8(id, uint8(s.Value)) //nolint:gosec // range checked by the parser
+		v, ok := cint.U8From64(uint64(s.Value))
+		if !ok {
+			return ErrBondSettingRange
+		}
+		return ab.PutU8(id, v)
 	case BondWireU16:
-		return ab.PutU16(id, uint16(s.Value)) //nolint:gosec // range checked by the parser
+		v, ok := cint.U16From64(uint64(s.Value))
+		if !ok {
+			return ErrBondSettingRange
+		}
+		return ab.PutU16(id, v)
 	case BondWireU32, BondWireS32:
 		return ab.PutU32(id, s.Value)
 	case BondWireMAC:
@@ -273,7 +350,11 @@ func putBondTargets(ab *AttrBuilder, s BondSetting) error {
 			b := a.As16()
 			p = b[:]
 		}
-		if err := ab.PutBytes(uint16(i), p); err != nil { //nolint:gosec // i < 16
+		typ, ok := cint.U16(i)
+		if !ok {
+			return ErrAttrTooLong
+		}
+		if err := ab.PutBytes(typ, p); err != nil {
 			return err
 		}
 	}
@@ -307,20 +388,26 @@ const VethInfoPeer uint16 = 1
 func EncodeVethPeer(p VethPeer) ([]byte, error) {
 	var raw [linkWriteBufCst]byte
 	ab := NewAttrBuilder(raw[:])
-	m, err := ab.BeginNest(VethInfoPeer)
-	if err != nil {
-		return nil, err
-	}
-	if err := putRaw(&ab, EncodeIfInfomsg(unix.AF_UNSPEC, p.Index, p.IfFlags, p.IfChange)); err != nil {
-		return nil, err
-	}
-	for _, a := range p.Attrs {
-		if err := ab.PutBytes(a.Type, a.Payload); err != nil {
-			return nil, err
-		}
-	}
-	if err := ab.EndNest(m); err != nil {
+	if err := putPeerNest(&ab, VethInfoPeer, p); err != nil {
 		return nil, err
 	}
 	return append([]byte(nil), ab.Bytes()...), nil
+}
+
+// putPeerNest writes the peer half veth, netkit and vxcan share: a nest of
+// atype holding the peer's raw ifinfomsg and then its attributes.
+func putPeerNest(ab *AttrBuilder, atype uint16, p VethPeer) error {
+	m, err := ab.BeginNest(atype)
+	if err != nil {
+		return err
+	}
+	if err := putRaw(ab, EncodeIfInfomsg(unix.AF_UNSPEC, p.Index, p.IfFlags, p.IfChange)); err != nil {
+		return err
+	}
+	for _, a := range p.Attrs {
+		if err := ab.PutBytes(a.Type, a.Payload); err != nil {
+			return err
+		}
+	}
+	return ab.EndNest(m)
 }

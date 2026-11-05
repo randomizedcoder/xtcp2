@@ -1,0 +1,8 @@
+02:00:00:00:00:01 vlan 10 sticky master br0 static
+02:00:00:00:00:01 vlan 1 sticky master br0 static
+02:00:00:00:00:01 sticky master br0 static
+de:f1:32:3a:08:e8 vlan 10 master br0 permanent
+de:f1:32:3a:08:e8 vlan 1 master br0 permanent
+de:f1:32:3a:08:e8 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

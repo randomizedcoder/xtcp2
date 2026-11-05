@@ -1,0 +1,58 @@
+{
+ "cmd": "tc filter del dev dummy1 parent ffff: chain 2",
+ "desc": "positive: Delete ingress matchall filter by chain ID",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)^filter protocol all pref 1 matchall chain 1 handle 0x1 flowid 1:1.*gact action pass",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/matchall/6d63",
+ "modules": [
+  "cls_matchall"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress",
+  "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol all chain 1 matchall classid 1:1 action pass",
+  "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv4 chain 2 matchall classid 1:3 action continue"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev dummy1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol all chain 1 matchall classid 1:1 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv4 chain 2 matchall classid 1:3 action continue",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6d63",
+  "tdc": "filters/matchall.json"
+ }
+}

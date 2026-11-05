@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1: ife encode action pipe type 0XED3E 
+	allow mark src 00:11:22:33:44:55 
+	 index 1 ref 1 bind 0
+	not_in_hw

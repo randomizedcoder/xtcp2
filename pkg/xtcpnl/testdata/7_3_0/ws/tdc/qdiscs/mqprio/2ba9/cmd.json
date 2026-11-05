@@ -1,0 +1,56 @@
+{
+ "cmd": "tc qdisc add dev eth0 root handle 1: mqprio num_tc 8 map 0 1 2 3 4 5 6 7 queues 1@0 1@1 1@2 1@3 1@4 1@5 1@6 1@7 hw 0",
+ "desc": "positive: Show mqprio class",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 16,
+   "pattern": "(?sm)class mqprio 1:",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/mqprio/2ba9",
+ "modules": [
+  "sch_mqprio",
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 8\" > /sys/bus/netdevsim/new_device"
+ ],
+ "readback": [
+  {
+   "cmd": "tc class show dev eth0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 8\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "2ba9",
+  "tdc": "qdiscs/mqprio.json"
+ }
+}

@@ -1,0 +1,61 @@
+{
+ "cmd": "tc qdisc add dev eth0 root ets quanta 4294967294 1 1",
+ "desc": "positive: ETS offload with out-of-range quanta clamped",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc ets .*bands 3 quanta 1048576 256 256",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/ets/41f5",
+ "modules": [
+  "sch_ets",
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+  "ethtool -K eth0 hw-tc-offload on"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev eth0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   },
+   {
+    "cmd": "ethtool -K eth0 hw-tc-offload on",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "41f5",
+  "tdc": "qdiscs/ets.json"
+ }
+}

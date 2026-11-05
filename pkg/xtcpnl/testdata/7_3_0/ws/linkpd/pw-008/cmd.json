@@ -1,0 +1,39 @@
+{
+ "axes": {
+  "pd_mask": "1",
+  "pd_value": "1",
+  "protodown": "0",
+  "up": "1"
+ },
+ "cmd": "ip link set dev m0 protodown off protodown_reason 0 on up",
+ "desc": "negative: protodown=off reason=0-on updown=up: protodown off with a reason on (Cannot clear protodown, active reasons)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EBUSY",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkpd/pw-008",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add m0 link d0 type macvlan mode bridge"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev m0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add m0 link d0 type macvlan mode bridge",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

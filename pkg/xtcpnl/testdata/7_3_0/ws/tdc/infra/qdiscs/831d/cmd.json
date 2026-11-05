@@ -1,0 +1,76 @@
+{
+ "cmd": "tc -s qdisc show dev v0p1",
+ "desc": "positive: Test HFSC qlen accounting with DRR/NETEM/BLACKHOLE chain",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/831d",
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "ip link set dev v0p1 up || true",
+  "tc qdisc add dev v0p1 root handle 1: drr",
+  "tc filter add dev v0p1 parent 1: basic classid 1:1",
+  "tc class add dev v0p1 parent 1: classid 1:1 drr",
+  "tc qdisc add dev v0p1 parent 1:1 handle 2: hfsc def 1",
+  "tc class add dev v0p1 parent 2: classid 2:1 hfsc rt m1 8 d 1 m2 0",
+  "tc qdisc add dev v0p1 parent 2:1 handle 3: netem",
+  "tc qdisc add dev v0p1 parent 3:1 handle 4: blackhole"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s qdisc show dev v0p1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev v0p1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 root handle 1: drr",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 1: basic classid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev v0p1 parent 1: classid 1:1 drr",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 parent 1:1 handle 2: hfsc def 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev v0p1 parent 2: classid 2:1 hfsc rt m1 8 d 1 m2 0",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 parent 2:1 handle 3: netem",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 parent 3:1 handle 4: blackhole",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "831d",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "the pattern counts scapy traffic, which is not replayed"
+ }
+}

@@ -1,0 +1,4 @@
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+nlmon0           UNKNOWN        
+v1@v0            UP             fe80::ff:fe00:b000/64 
+v0@v1            UP             2001:db8::5/64 fe80::ff:fe00:a000/64 

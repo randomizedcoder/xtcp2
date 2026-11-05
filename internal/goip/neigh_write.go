@@ -168,7 +168,7 @@ func parseNeighWriteArgs(family uint8, args []string) (neighWrite, error) {
 			if i, err = nextArg(args, i); err != nil {
 				return neighWrite{}, err
 			}
-			p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint32)
+			p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint8)
 			if !ok {
 				return neighWrite{}, invargErr(`"protocol" value is invalid`, args[i])
 			}

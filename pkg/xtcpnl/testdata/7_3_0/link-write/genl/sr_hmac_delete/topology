@@ -1,0 +1,2 @@
+ok    [lacpa] sr hmac set 1 sha256
+ok    [lacpa] sr hmac set 2 sha1

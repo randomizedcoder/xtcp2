@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "get": "15",
+  "rx": "4097",
+  "set": "16"
+ },
+ "cmd": "ethtool -G eth0 rx 4097",
+ "desc": "negative: dev=eth0 rx=4097 tx=absent rxmini=absent rxjumbo=absent tds=absent hds=absent other=absent: one more RX descriptor than rx_max_pending",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "extack": "requested ring size exceeds maximum",
+  "rc": 81,
+  "refused_by": "kernel"
+ },
+ "id": "ethring/ng-003",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null"
+ ],
+ "proto": "generic",
+ "readback": [
+  {
+   "cmd": "ethtool -g eth0",
+   "name": "show",
+   "proto": "generic"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null",
+    "rc": 0
+   }
+  ],
+  "rc": 81,
+  "status": "OK"
+ }
+}

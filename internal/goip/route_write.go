@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -82,6 +83,14 @@ const (
 	routeArmProtocol
 	routeArmTable
 	routeArmDev
+	routeArmNhid
+	routeArmPref
+	routeArmExpires
+	routeArmTos
+	routeArmRealms
+	routeArmVrf
+	routeArmNexthop
+	routeArmEncap
 	routeArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -106,6 +115,9 @@ const (
 	routeMetricKeywordCst     = "metric"
 	routePriorityKeywordCst   = "priority"
 	routePreferenceKeywordCst = "preference"
+	// routeOnlinkKeywordCst is RTNH_F_ONLINK's word, on the route and in a
+	// hop.
+	routeOnlinkKeywordCst = "onlink"
 )
 
 // routeParseKeywords is iproute_modify's if/else chain in its order
@@ -118,11 +130,11 @@ const (
 var routeParseKeywords = []routeKeyword{
 	{keyword: "src", arm: routeArmSrc},
 	{keyword: "as", arm: routeArmUnsupported},
-	{keyword: "via", arm: routeArmVia},
+	{keyword: nexthopViaKeyCst, arm: routeArmVia},
 	{keyword: fromKeywordCst, arm: routeArmFrom},
-	{keyword: tosKeywordCst, arm: routeArmUnsupported},
-	{keyword: dsfieldKeywordCst, prefix: true, arm: routeArmUnsupported},
-	{keyword: "expires", arm: routeArmUnsupported},
+	{keyword: tosKeywordCst, arm: routeArmTos},
+	{keyword: dsfieldKeywordCst, prefix: true, arm: routeArmTos},
+	{keyword: "expires", arm: routeArmExpires},
 	{keyword: routeMetricKeywordCst, prefix: true, arm: routeArmPriority},
 	{keyword: routePriorityKeywordCst, prefix: true, arm: routeArmPriority},
 	{keyword: routePreferenceKeywordCst, arm: routeArmPriority},
@@ -142,17 +154,17 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "congctl", prefix: true, arm: routeArmCongctl, rtax: unix.RTAX_CC_ALGO},
 	{keyword: "rttvar", prefix: true, arm: routeArmTime, rtax: unix.RTAX_RTTVAR, name: "rttvar", scale: 4},
 	{keyword: "ssthresh", prefix: true, arm: routeArmMetric, rtax: unix.RTAX_SSTHRESH, name: "ssthresh"},
-	{keyword: "realms", prefix: true, arm: routeArmUnsupported},
-	{keyword: "onlink", arm: routeArmOnlink},
-	{keyword: "nexthop", arm: routeArmUnsupported},
-	{keyword: "nhid", arm: routeArmUnsupported},
+	{keyword: "realms", prefix: true, arm: routeArmRealms},
+	{keyword: routeOnlinkKeywordCst, arm: routeArmOnlink},
+	{keyword: objNexthopCst, arm: routeArmNexthop},
+	{keyword: "nhid", arm: routeArmNhid},
 	{keyword: "protocol", prefix: true, arm: routeArmProtocol},
 	{keyword: "table", prefix: true, arm: routeArmTable},
-	{keyword: vrfKeywordCst, prefix: true, arm: routeArmUnsupported},
+	{keyword: vrfKeywordCst, prefix: true, arm: routeArmVrf},
 	{keyword: devKeywordCst, arm: routeArmDev},
 	{keyword: oifKeywordCst, arm: routeArmDev},
-	{keyword: "pref", prefix: true, arm: routeArmUnsupported},
-	{keyword: "encap", arm: routeArmUnsupported},
+	{keyword: "pref", prefix: true, arm: routeArmPref},
+	{keyword: tnlKeyEncap, arm: routeArmEncap},
 	{keyword: "ttl-propagate", arm: routeArmUnsupported},
 	{keyword: "fastopen_no_cookie", prefix: true, arm: routeArmBool,
 		rtax: unix.RTAX_FASTOPEN_NO_COOKIE, name: "fastopen_no_cookie"},
@@ -187,16 +199,32 @@ func routeHelpErr() error {
 	return fmt.Errorf("%w: ip route help is not implemented by goip", ErrNotImplemented)
 }
 
+// vrfTabler is ipvrf_get_table: a VRF device's table, or 0.
+type vrfTabler func(name string) (uint32, error)
+
 // routeParseState is iproute_modify's locals.
 type routeParseState struct {
-	w       xtcpnl.RouteWrite
-	del     bool
-	dev     string
-	devSet  bool
-	gwOK    bool
-	dstOK   bool
-	scopeOK bool
-	tableOK bool
+	w        xtcpnl.RouteWrite
+	vrfTable vrfTabler
+	del      bool
+	dev      string
+	devSet   bool
+	gwOK     bool
+	dstOK    bool
+	scopeOK  bool
+	tableOK  bool
+	// nhid is iproute_modify's nhid local: the last id read, so `nhid 0`
+	// is absent to the scope default.
+	nhid uint32
+	// hops is argv from the first `nexthop` on, which parse_nexthops reads
+	// after RTA_OIF; nil when there is none (nhs_ok).
+	hops []string
+	// hopsLen is the hops parse_nexthops has written to its buffer, each
+	// rtnexthop and its attributes, so a hop's encap is bounded as ip's is.
+	hopsLen int
+	// resolve is ll_name_to_index for the encap's devices, which
+	// lwt_parse_encap looks up as it reads them, inside the loop.
+	resolve linkResolver
 }
 
 // parseRouteWriteArgs is iproute_modify up to rtnl_talk: the loop, then the
@@ -205,9 +233,11 @@ type routeParseState struct {
 // Attributes go out in argv order, RTA_OIF after the loop, RTA_METRICS last;
 // metrics in argv order with no dedup, RTAX_LOCK after them. resolve is
 // ll_name_to_index, called once, after the whole argv has parsed, so an
-// argument error never costs a lookup.
-func parseRouteWriteArgs(verb *routeWriteVerb, family uint8, args []string, resolve linkResolver) (xtcpnl.RouteWrite, error) {
-	st := routeParseState{del: verb.msgType == unix.RTM_DELROUTE}
+// argument error never costs a lookup. vrfTable is ipvrf_get_table, which
+// the vrf arm calls in the loop, so its get goes out before dev's.
+func parseRouteWriteArgs(verb *routeWriteVerb, family uint8, args []string, resolve linkResolver,
+	vrfTable vrfTabler) (xtcpnl.RouteWrite, error) {
+	st := routeParseState{del: verb.msgType == unix.RTM_DELROUTE, vrfTable: vrfTable, resolve: resolve}
 	st.w = xtcpnl.RouteWrite{
 		MsgType: verb.msgType,
 		Flags:   verb.flags | unix.NLM_F_ACK,
@@ -256,6 +286,12 @@ func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int,
 		return st.features(args, i)
 	case routeArmVia:
 		return st.via(args, i)
+	case routeArmNexthop:
+		// The loop's break: the rest of argv is the hops.
+		st.hops = args[i:]
+		return len(args), nil
+	case routeArmEncap:
+		return st.encap(args, i)
 	default:
 		// Every other arm takes a value, read by NEXT_ARG below.
 	}
@@ -298,7 +334,7 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 		if len(p.data) > 0 {
 			st.attr(unix.RTA_SRC, p.data)
 		}
-		st.w.SrcLen = uint8(p.bitlen) //nolint:gosec // bitlen <= 128
+		st.w.SrcLen = p.prefixLen()
 	case routeArmPriority:
 		m, ok := getU32(v, 0)
 		if !ok {
@@ -306,22 +342,55 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 		}
 		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_PRIORITY, m))
 	case routeArmScope:
-		s, ok := rtnlNameA2N(routeScopeNames, v, math.MaxUint8)
+		s, ok := rtnlNameA2N8(routeScopeNames, v)
 		if !ok {
 			return invargErr(`invalid "scope" value`, v)
 		}
-		st.w.Scope = uint8(s) //nolint:gosec // bounded by rtnlNameA2N
+		st.w.Scope = s
 		st.scopeOK = true
 	case routeArmProtocol:
-		p, ok := rtnlNameA2N(routeProtoNames, v, math.MaxUint8)
+		p, ok := rtnlNameA2N8(routeProtoNames, v)
 		if !ok {
 			return invargErr(`"protocol" value is invalid`, v)
 		}
-		st.w.Protocol = uint8(p) //nolint:gosec // bounded by rtnlNameA2N
+		st.w.Protocol = p
 	case routeArmTable:
 		return st.table(v)
 	case routeArmDev:
 		st.dev, st.devSet = v, true
+	case routeArmNhid:
+		id, ok := getU32(v, 0)
+		if !ok {
+			return invargErr(`"id" value is invalid`, v)
+		}
+		st.nhid = id
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(xtcpnl.RtaNhID, id))
+	case routeArmPref:
+		pref, ok := routePrefA2N(v)
+		if !ok {
+			return invargErr(`"pref" value is invalid`, v)
+		}
+		st.attr(unix.RTA_PREF, []byte{pref})
+	case routeArmTos:
+		tos, ok := rtnlDsfieldA2N(v)
+		if !ok {
+			return invargErr(`"tos" value is invalid`, v)
+		}
+		st.w.Tos = tos
+	case routeArmRealms:
+		r, ok := getRtRealmsOrRaw(v)
+		if !ok {
+			return invargErr(`"realm" value is invalid`, v)
+		}
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_FLOW, r))
+	case routeArmVrf:
+		return st.vrf(v)
+	case routeArmExpires:
+		e, ok := getU32(v, 0)
+		if !ok {
+			return invargErr(`"expires" value is invalid`, v)
+		}
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_EXPIRES, e))
 	default:
 		return st.metric(kw, v)
 	}
@@ -436,6 +505,13 @@ func (st *routeParseState) table(v string) error {
 	if !ok {
 		return invargErr(`"table" value is invalid`, v)
 	}
+	st.putTable(id)
+	return nil
+}
+
+// putTable is the table and vrf arms' common tail: rtm_table under 256,
+// else RT_TABLE_UNSPEC and RTA_TABLE, and table_ok.
+func (st *routeParseState) putTable(id uint32) {
 	if id < 256 {
 		st.w.Table = uint8(id)
 	} else {
@@ -443,7 +519,6 @@ func (st *routeParseState) table(v string) error {
 		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_TABLE, id))
 	}
 	st.tableOK = true
-	return nil
 }
 
 // destination is the else-arm: an optional "to", an optional route type,
@@ -476,7 +551,7 @@ func (st *routeParseState) destination(args []string, i int) (int, error) {
 		return i, err
 	}
 	st.adoptFamily(p.family)
-	st.w.DstLen = uint8(p.bitlen) //nolint:gosec // bitlen <= 128
+	st.w.DstLen = p.prefixLen()
 	st.dstOK = true
 	if len(p.data) > 0 {
 		st.attr(unix.RTA_DST, p.data)
@@ -497,7 +572,12 @@ func (st *routeParseState) finish(resolve linkResolver) error {
 		if idx == 0 {
 			return nodevErr(st.dev)
 		}
-		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_OIF, uint32(idx))) //nolint:gosec // an ifindex
+		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_OIF, cint.Bits(idx)))
+	}
+	if st.hops != nil {
+		if err := st.parseNexthops(resolve); err != nil {
+			return err
+		}
 	}
 	if st.w.Family == unix.AF_UNSPEC {
 		st.w.Family = unix.AF_INET
@@ -526,12 +606,205 @@ func (st *routeParseState) defaultScope() {
 	case t == unix.RTN_UNICAST || t == unix.RTN_UNSPEC:
 		if st.del {
 			st.w.Scope = unix.RT_SCOPE_NOWHERE
-		} else if !st.gwOK {
-			// nexthop and nhid would also keep universe; both are refused.
+		} else if !st.gwOK && st.hops == nil && st.nhid == 0 {
 			st.w.Scope = unix.RT_SCOPE_LINK
 		}
 	}
 }
+
+// parseNexthops is parse_nexthops (ip/iproute.c:1101): each `nexthop` and
+// the hop after it, until argv ends. Every error is exit(-1), and one from
+// parse_one_nh is followed by "Error: cannot parse nexthop".
+func (st *routeParseState) parseNexthops(resolve linkResolver) error {
+	args := st.hops
+	for i := 0; i < len(args); {
+		if args[i] != objNexthopCst {
+			return fmt.Errorf("%w: Error: %q or end of line is expected instead of %q",
+				ErrInvalidArgument, objNexthopCst, args[i])
+		}
+		if i == len(args)-1 {
+			return fmt.Errorf("%w: Error: unexpected end of line after %q", ErrInvalidArgument, objNexthopCst)
+		}
+		var (
+			h   xtcpnl.RouteNexthop
+			err error
+		)
+		if i, err = st.parseOneNh(&h, args, i, resolve); err != nil {
+			return err
+		}
+		st.w.Nexthops = append(st.w.Nexthops, h)
+		st.hopsLen += routeNexthopLen(&h)
+	}
+	return nil
+}
+
+// parseOneNh is parse_one_nh (ip/iproute.c:1019): the words after
+// `nexthop` up to one it doesn't know, which it returns the index of.
+// Every keyword is strcmp but realms. `as` is refused, as at the top level.
+func (st *routeParseState) parseOneNh(h *xtcpnl.RouteNexthop, args []string, i int,
+	resolve linkResolver) (int, error) {
+	var err error
+	for i++; i < len(args); i++ {
+		switch w := args[i]; {
+		case w == nexthopViaKeyCst:
+			i, err = st.nhVia(h, args, i)
+		case w == devKeywordCst:
+			if i, err = nextArg(args, i); err == nil {
+				h.Ifindex, err = nhDev(resolve, args[i])
+			}
+		case w == "weight":
+			if i, err = nextArg(args, i); err == nil {
+				h.Hops, err = nhWeight(args[i])
+			}
+		case w == routeOnlinkKeywordCst:
+			h.Flags |= unix.RTNH_F_ONLINK
+		case matchesPrefix(w, "realms"):
+			if i, err = nextArg(args, i); err == nil {
+				r, ok := getRtRealmsOrRaw(args[i])
+				if !ok {
+					return i, invargErr(`"realm" value is invalid`, args[i])
+				}
+				h.Attrs = append(h.Attrs, xtcpnl.RouteAttrU32(unix.RTA_FLOW, r))
+			}
+		case w == tnlKeyEncap:
+			i, err = st.nhEncap(h, args, i, resolve)
+		case w == "as":
+			return i, fmt.Errorf("route nexthop %q: %w", w, ErrNotImplemented)
+		default:
+			return i, nil
+		}
+		if err != nil {
+			return i, err
+		}
+	}
+	return i, nil
+}
+
+// nhVia is parse_one_nh's via: the top-level via's family and address
+// rules, into the hop, with no check for a second via.
+func (st *routeParseState) nhVia(h *xtcpnl.RouteNexthop, args []string, i int) (int, error) {
+	i, err := nextArg(args, i)
+	if err != nil {
+		return i, err
+	}
+	family := readFamily(args[i])
+	if family == unix.AF_UNSPEC {
+		family = st.w.Family
+	} else if i, err = nextArg(args, i); err != nil {
+		return i, err
+	}
+	a, err := routeGetAddr(args[i], family)
+	if err != nil {
+		return i, err
+	}
+	st.adoptFamily(a.family)
+	if a.family == st.w.Family {
+		h.Attrs = append(h.Attrs, xtcpnl.RouteAttrBytes(unix.RTA_GATEWAY, a.data))
+		return i, nil
+	}
+	p := binary.LittleEndian.AppendUint16(nil, uint16(a.family))
+	h.Attrs = append(h.Attrs, xtcpnl.RouteAttrBytes(unix.RTA_VIA, append(p, a.data...)))
+	return i, nil
+}
+
+// nhDev is a hop's ll_name_to_index, looked up as it is read; a miss is
+// nodev, then parse_nexthops' message.
+func nhDev(resolve linkResolver, name string) (int32, error) {
+	idx, err := resolve(name)
+	if err != nil {
+		return 0, err
+	}
+	if idx == 0 {
+		return 0, fmt.Errorf("%w\nError: cannot parse nexthop", nodevErr(name))
+	}
+	return idx, nil
+}
+
+// nhWeight is a hop's weight: get_unsigned in base 0, 1 to 256, sent as
+// rtnh_hops, the weight less one.
+func nhWeight(v string) (uint8, error) {
+	w, ok := cGetUnsigned(v, 0, math.MaxUint32)
+	if !ok || w == 0 || w > 256 {
+		return 0, invargErr(`"weight" is invalid`, v)
+	}
+	hops, ok := cint.U8From64(w - 1)
+	if !ok {
+		return 0, invargErr(`"weight" is invalid`, v)
+	}
+	return hops, nil
+}
+
+// vrf is the vrf arm: the VRF's table, then table's path into rtm_table or
+// RTA_TABLE.
+func (st *routeParseState) vrf(v string) error {
+	id, err := st.vrfTable(v)
+	if err != nil {
+		return err
+	}
+	if id == 0 {
+		return invargErr("Invalid VRF", v)
+	}
+	st.putTable(id)
+	return nil
+}
+
+// getRtRealmsOrRaw is get_rt_realms_or_raw (ip/rtm_map.c:118): [FROM/]TO,
+// each half a stock rt_realms name or 0 to 255 in base 0, FROM in the high
+// 16 bits; else get_unsigned in base 0 over the whole argument.
+func getRtRealmsOrRaw(arg string) (uint32, bool) {
+	if r, ok := getRtRealms(arg); ok {
+		return r, true
+	}
+	v, ok := cGetUnsigned(arg, 0, math.MaxUint32)
+	if !ok {
+		return 0, false
+	}
+	return cint.U32From64(v)
+}
+
+func getRtRealms(arg string) (uint32, bool) {
+	var realms uint32
+	if from, to, ok := strings.Cut(arg, "/"); ok {
+		f, ok := rtnlNameA2N(routeRealmNames, from, math.MaxUint8)
+		if !ok {
+			return 0, false
+		}
+		realms, arg = f<<16, to
+	}
+	if arg == "" {
+		return realms, true
+	}
+	r, ok := rtnlNameA2N(routeRealmNames, arg, math.MaxUint8)
+	if !ok {
+		return 0, false
+	}
+	return realms | r, true
+}
+
+// routeRealmNames is iproute2 7.2.0's stock etc/iproute2/rt_realms: one
+// name, the rest of the file commented out.
+var routeRealmNames = map[string]uint32{"cosmos": 0}
+
+// routePrefA2N is the pref arm's value: ICMPV6_ROUTER_PREF_LOW, MEDIUM and
+// HIGH by strcmp, else get_u8 in base 0.
+func routePrefA2N(v string) (uint8, bool) {
+	switch v {
+	case "low":
+		return icmpv6RouterPrefLow, true
+	case "medium":
+		return icmpv6RouterPrefMedium, true
+	case "high":
+		return icmpv6RouterPrefHigh, true
+	}
+	return getU8(v, 0)
+}
+
+// The router preferences of include/uapi/linux/icmpv6.h.
+const (
+	icmpv6RouterPrefLow    = 0x3
+	icmpv6RouterPrefMedium = 0x0
+	icmpv6RouterPrefHigh   = 0x1
+)
 
 // adoptFamily is `if (req.r.rtm_family == AF_UNSPEC) req.r.rtm_family =
 // addr.family`, which every address arm does.
@@ -549,7 +822,8 @@ func (st *routeParseState) attr(atype uint16, b []byte) {
 // request to GOIP_WRITE_OUT instead of the kernel.
 func routeWrite(c *runCtx, verb *routeWriteVerb, args []string) error {
 	svc := service.New(c.src, c.nextSeq)
-	w, err := parseRouteWriteArgs(verb, c.family, args, newLinkNameResolver(svc))
+	w, err := parseRouteWriteArgs(verb, c.family, args, newLinkNameResolver(svc),
+		func(name string) (uint32, error) { return svc.VRFTable(c.family, name) })
 	if err != nil {
 		return err
 	}
@@ -578,6 +852,12 @@ type inetPrefix struct {
 	family uint8
 	data   []byte
 	bitlen int
+}
+
+// prefixLen is bitlen as the one-byte rtm_dst_len or rtm_src_len.
+// routeGetPrefix leaves it in [0, 128], so the clamp never applies.
+func (p inetPrefix) prefixLen() uint8 {
+	return uint8(max(min(p.bitlen, math.MaxUint8), 0))
 }
 
 // afBitLen is af_bit_len; af_byte_len is it over 8.
@@ -609,7 +889,7 @@ func familyNameVerbose(f uint8) string {
 	case unix.AF_PACKET:
 		return familyLinkCst
 	case unix.AF_MPLS:
-		return "mpls"
+		return mplsKeywordCst
 	case unix.AF_BRIDGE:
 		return "bridge"
 	}
@@ -625,7 +905,7 @@ func readFamily(name string) uint8 {
 		return unix.AF_INET6
 	case familyLinkCst:
 		return unix.AF_PACKET
-	case "mpls":
+	case mplsKeywordCst:
 		return unix.AF_MPLS
 	case "bridge":
 		return unix.AF_BRIDGE
@@ -714,7 +994,7 @@ func routeGetPrefix(arg string, family uint8) (inetPrefix, error) {
 			return inetPrefix{}, refused
 		}
 		plen, ok := getNetmask(mask)
-		if !ok || uint64(plen) > uint64(bitlen) { //nolint:gosec // bitlen >= 0
+		if !ok || int64(plen) > int64(bitlen) {
 			return inetPrefix{}, refused
 		}
 		bitlen = int(plen)
@@ -748,7 +1028,7 @@ func mask2bits(mask uint32) (uint32, bool) {
 	if host&(host+1) != 0 {
 		return 0, false
 	}
-	return uint32(bits.OnesCount32(mask)), true //nolint:gosec // at most 32
+	return cint.U32(bits.OnesCount32(mask))
 }
 
 // getTimeRtt is get_time_rtt (lib/utils.c:260): a number, then an optional
@@ -877,7 +1157,20 @@ func rtnlNameA2N(names map[string]uint32, arg string, maxVal uint64) (uint32, bo
 		return v, true
 	}
 	v, ok := cGetUnsigned(arg, 0, maxVal)
-	return uint32(v), ok //nolint:gosec // maxVal <= MaxUint32
+	if !ok {
+		return 0, false
+	}
+	return cint.U32From64(v)
+}
+
+// rtnlNameA2N8 is rtnlNameA2N at most 255, for the one-byte rtm_scope and
+// rtm_protocol.
+func rtnlNameA2N8(names map[string]uint32, arg string) (uint8, bool) {
+	v, ok := rtnlNameA2N(names, arg, math.MaxUint8)
+	if !ok {
+		return 0, false
+	}
+	return cint.U8From64(uint64(v))
 }
 
 // rtnlRtntypeA2N is rtnl_rtntype_a2n (ip/rtm_map.c:59-93), in its order:

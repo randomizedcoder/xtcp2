@@ -222,8 +222,16 @@ func TestCaptureToFileIfEnabled_payloadLength(t *testing.T) {
 		t.Fatal("expected one capture file, found none")
 	}
 	first := entries[0]
-	full := filepath.Join(filepath.Dir(x.config.CapturePath), first.Name())
-	data, err := os.ReadFile(full) //nolint:gosec // test code under t.TempDir
+	root, err := os.OpenRoot(filepath.Dir(x.config.CapturePath))
+	if err != nil {
+		t.Fatalf("open capture dir: %v", err)
+	}
+	t.Cleanup(func() {
+		if cerr := root.Close(); cerr != nil {
+			t.Errorf("close capture dir: %v", cerr)
+		}
+	})
+	data, err := root.ReadFile(first.Name())
 	if err != nil {
 		t.Fatalf("read capture: %v", err)
 	}

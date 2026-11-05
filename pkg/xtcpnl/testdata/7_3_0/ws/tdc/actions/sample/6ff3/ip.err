@@ -1,0 +1,10 @@
+Illegal truncation size 112233445566
+Usage: sample SAMPLE_CONF
+where:
+	SAMPLE_CONF := SAMPLE_PARAMS | SAMPLE_INDEX
+	SAMPLE_PARAMS := rate RATE group GROUP [trunc SIZE] [SAMPLE_INDEX]
+	SAMPLE_INDEX := index INDEX
+	RATE := The ratio of packets observed at the data source to the samples generated.
+	GROUP := the psample sampling group
+	SIZE := the truncation size
+	INDEX := integer index of the sample action

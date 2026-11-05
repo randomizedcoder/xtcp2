@@ -1,0 +1,32 @@
+{
+ "cmd": "ip link set dev d0 carrier maybe",
+ "desc": "negative: master=absent addrgenmode=absent carrier=maybe netns=absent xdp=absent: a carrier that isn't on or off",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 22,
+  "refused_by": "iproute2"
+ },
+ "id": "linkattr/ng-005",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10",
+    "rc": 0
+   }
+  ],
+  "rc": 22,
+  "status": "OK"
+ }
+}

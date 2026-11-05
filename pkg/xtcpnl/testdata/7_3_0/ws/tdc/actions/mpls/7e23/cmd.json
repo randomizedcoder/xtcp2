@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mpls pop",
+ "desc": "negative: Add mpls pop action with no protocol (invalid)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: mpls.*pop.*pipe",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/mpls/7e23",
+ "modules": [
+  "act_mpls"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mpls",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mpls",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mpls",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7e23",
+  "tdc": "actions/mpls.json"
+ }
+}

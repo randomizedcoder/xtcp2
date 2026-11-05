@@ -1,0 +1,44 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root teql0",
+ "desc": "positive: Create TEQL with default setting",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc teql0 1: root refcnt",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/teql/84a0",
+ "modules": [
+  "sch_teql"
+ ],
+ "pre": [
+  "ip link add dev dummy1 type dummy"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dev dummy1 type dummy",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "84a0",
+  "tdc": "qdiscs/teql.json"
+ }
+}

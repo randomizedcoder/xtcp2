@@ -1,0 +1,331 @@
+{
+ "cmd": "ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5",
+ "desc": "positive: required to succeed under set -e (fib_tests.sh fib6_gc_test)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "fibt/fib6_gc_test-030",
+ "modules": [
+  "dummy"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 198.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  [
+   "sysctl -wq net.ipv6.route.gc_interval=5",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip link add dummy_10 type dummy",
+  "ip link set dev dummy_10 up",
+  "ip -6 address add 2001:10::1/64 dev dummy_10",
+  [
+   "sysctl -wq net.ipv6.route.flush=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5",
+  [
+   "sysctl -wq net.ipv6.route.flush=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip link del dev dummy_10",
+  "ip link add dummy_10 type dummy",
+  "ip link set dev dummy_10 up",
+  "ip -6 address add 2001:10::1/64 dev dummy_10",
+  "ip -6 route add 2001:30::1 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:30::2 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:30::3 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:30::4 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:30::5 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5",
+  "ip link del dev dummy_10",
+  "ip link add dummy_10 type dummy",
+  "ip link set dev dummy_10 up",
+  "ip -6 address add 2001:10::1/64 dev dummy_10",
+  "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10",
+  "ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10",
+  "ip -6 route replace 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route replace 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route replace 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route replace 2001:20::4 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route replace 2001:20::5 via 2001:10::2 dev dummy_10 expires 5",
+  "ip link del dev dummy_10",
+  "ip link add dummy_10 type dummy",
+  "ip link set dev dummy_10 up",
+  "ip -6 address add 2001:10::1/64 dev dummy_10",
+  "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+  "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 198.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -wq net.ipv6.route.gc_interval=5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy_10 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy_10 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:10::1/64 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -wq net.ipv6.route.flush=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -wq net.ipv6.route.flush=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link del dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy_10 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy_10 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:10::1/64 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:30::1 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:30::2 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:30::3 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:30::4 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:30::5 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link del dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy_10 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy_10 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:10::1/64 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::5 via 2001:10::2 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route replace 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route replace 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route replace 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route replace 2001:20::4 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route replace 2001:20::5 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link del dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy_10 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy_10 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:10::1/64 dev dummy_10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::1 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::2 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::3 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:20::4 via 2001:10::2 dev dummy_10 expires 5",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_tests.sh:832 fib6_gc_test"
+ }
+}

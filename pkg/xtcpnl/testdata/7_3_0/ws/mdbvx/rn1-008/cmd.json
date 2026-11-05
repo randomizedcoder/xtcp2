@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "bport": "vx0",
+  "dev": "vx0",
+  "dport": "4790",
+  "grp": "239.1.1.1",
+  "mode": "0",
+  "proto": "186",
+  "src": "192.0.2.1",
+  "src_vni": "300",
+  "state": "0",
+  "verb": "add",
+  "vid": "0",
+  "vni": "200"
+ },
+ "cmd": "bridge mdb add dev vx0 port vx0 grp 239.1.1.1 dst_port 4790 vni 200 src_vni 300 src 192.0.2.1 filter_mode exclude proto bgp",
+ "desc": "negative: verb=add dev=vx0 bport=vx0 grp=v4 state=absent vid=absent dst=absent dport=4790 vni=200 srcvni=other via=absent src=v4 mode=exclude srclist=absent proto=bgp: an entry that is not permanent (MDB entry must be permanent)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "mdbvx/rn1-008",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

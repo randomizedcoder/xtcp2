@@ -140,8 +140,7 @@ func (w *ruleWrite) parseArg(args []string, i int) (int, error) {
 	case a == "fwmark":
 		return w.fwmark(args, i)
 	case matchesPrefix(a, "realms"):
-		return i, fmt.Errorf("rule realms: iproute2 reads realm names from rt_realms and goip reads "+
-			"no config files: %w", ErrNotImplemented)
+		return w.realms(args, i)
 	case matchesPrefix(a, "protocol"):
 		return w.protocol(args, i)
 	case matchesPrefix(a, "tun_id"):
@@ -256,12 +255,25 @@ func (w *ruleWrite) fwmark(args []string, i int) (int, error) {
 }
 
 // protocol is rtnl_rtprot_a2n, FRA_PROTOCOL its low byte.
+// realms is get_rt_realms_or_raw, route realms' parse, into FRA_FLOW u32.
+func (w *ruleWrite) realms(args []string, i int) (int, error) {
+	i, err := nextArg(args, i)
+	if err != nil {
+		return i, err
+	}
+	r, ok := getRtRealmsOrRaw(args[i])
+	if !ok {
+		return i, invargErr("invalid realms\n", args[i])
+	}
+	return i, w.attrs.PutU32(unix.FRA_FLOW, r)
+}
+
 func (w *ruleWrite) protocol(args []string, i int) (int, error) {
 	i, err := nextArg(args, i)
 	if err != nil {
 		return i, err
 	}
-	p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint32)
+	p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint8)
 	if !ok {
 		return i, invargErr(`"protocol" value is invalid`+"\n", args[i])
 	}

@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions get action police",
+ "desc": "negative: Get single police action without specifying index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*:  police",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/police/aa43",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action police rate 1mbit burst 100k index 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action police",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action police rate 1mbit burst 100k index 1",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "aa43",
+  "tdc": "actions/police.json"
+ }
+}

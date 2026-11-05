@@ -1,0 +1,55 @@
+{
+ "axes": {
+  "dport": "1-1",
+  "dscp": "32",
+  "dscp_mask": "48",
+  "family": "6",
+  "fwmark": "4294967295",
+  "fwmask": "4294967295",
+  "iif": "d0",
+  "ipproto": "255",
+  "priority": "200",
+  "sport": "1-1",
+  "src": "all",
+  "src_len": "0",
+  "sup_group": "5",
+  "table": "256",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from all order 200 fwmark 0xffffffff/0xffffffff dev d0 dscp 32/0x30 ipproto 255 sport 1 dport 1 suppress_ifgroup 5 table 256",
+ "desc": "negative: verb=add not=absent from=all to=absent pref=order fwmark=max iif=dev oif=absent ds=dscp-mask ipproto=255 sport=1 dport=1 uidrange=absent suppress=group protocol=absent extra=absent action=256: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "rule6/dup-3",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add from all order 200 fwmark 0xffffffff/0xffffffff dev d0 dscp 32/0x30 ipproto 255 sport 1 dport 1 suppress_ifgroup 5 table 256"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add from all order 200 fwmark 0xffffffff/0xffffffff dev d0 dscp 32/0x30 ipproto 255 sport 1 dport 1 suppress_ifgroup 5 table 256",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

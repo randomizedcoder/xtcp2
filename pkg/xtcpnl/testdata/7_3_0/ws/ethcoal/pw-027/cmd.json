@@ -1,0 +1,49 @@
+{
+ "axes": {
+  "adaptive-rx": "0",
+  "adaptive-tx": "1",
+  "cqe-mode-rx": "0",
+  "get": "19",
+  "pkt-rate-low": "100",
+  "rt.tx-aggr-max-bytes": "0",
+  "rx-usecs-irq": "5",
+  "set": "20",
+  "tx-aggr-max-bytes": "4096",
+  "tx-usecs-high": "7"
+ },
+ "cmd": "ethtool -C eth0 adaptive-rx off adaptive-tx on rx-usecs-irq 5 pkt-rate-low 100 tx-usecs-high 7 cqe-mode-rx off tx-aggr-max-bytes 4096",
+ "desc": "corner: dev=eth0 arx=off atx=on rxu=absent rxf=absent txu=absent txf=absent irq=rx-usecs-irq rate=pkt-rate-low lowhigh=tx-usecs-high cqe=rxoff aggr=bytes rxcqe=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "ethcoal/pw-027",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null"
+ ],
+ "proto": "generic",
+ "readback": [
+  {
+   "cmd": "ethtool -c eth0",
+   "name": "show",
+   "proto": "generic"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

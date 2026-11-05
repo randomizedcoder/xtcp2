@@ -1,0 +1,5 @@
+2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+prohibit default nhid 10 via 2001:db8:1::1 dev d0 src 2001:db8:1::10 metric 4294967295 mtu lock 1400 pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local 2001:db8:1::10 dev d0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium

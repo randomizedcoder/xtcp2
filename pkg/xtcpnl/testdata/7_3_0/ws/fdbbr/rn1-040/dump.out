@@ -1,0 +1,8 @@
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:6a self permanent
+33:33:00:00:00:6a self permanent
+01:00:5e:00:00:01 self permanent
+33:33:ff:23:02:f5 self permanent
+01:00:5e:00:00:01 vlan 10 master br0 permanent
+01:00:5e:00:00:01 vlan 1 master br0 permanent
+01:00:5e:00:00:01 master br0 permanent

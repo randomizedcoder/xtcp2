@@ -20,6 +20,7 @@ const (
 	EthtoolChannelsKind  EthtoolKind = "channels"
 	EthtoolPauseKind     EthtoolKind = "pause"
 	EthtoolFECKind       EthtoolKind = "fec"
+	EthtoolCoalesceKind  EthtoolKind = "coalesce"
 	EthtoolSpeedUnknown  uint32      = 0xffffffff
 	EthtoolDuplexUnknown uint8       = 0xff
 )
@@ -68,6 +69,23 @@ type EthtoolFEC struct {
 	Active *uint32 // link-mode bit index, not a bitmap
 }
 
+// EthtoolCoalesce is interrupt coalescing, ETHTOOL_A_COALESCE_* in
+// attribute order. The adaptive and CQE modes are u8 booleans; the rest are
+// u32 counts. The RX and TX DIM profiles (nests 29 and 30) are left in
+// EthtoolMessage.Attributes.
+type EthtoolCoalesce struct {
+	RXUsecs, RXMaxFrames, RXUsecsIRQ, RXMaxFramesIRQ              *uint32
+	TXUsecs, TXMaxFrames, TXUsecsIRQ, TXMaxFramesIRQ              *uint32
+	StatsBlockUsecs                                               *uint32
+	UseAdaptiveRX, UseAdaptiveTX                                  *uint8
+	PktRateLow, RXUsecsLow, RXMaxFramesLow, TXUsecsLow            *uint32
+	TXMaxFramesLow, PktRateHigh, RXUsecsHigh, RXMaxFramesHigh     *uint32
+	TXUsecsHigh, TXMaxFramesHigh, RateSampleInterval              *uint32
+	UseCQEModeTX, UseCQEModeRX                                    *uint8
+	TXAggrMaxBytes, TXAggrMaxFrames, TXAggrTimeUsecs, RXCQEFrames *uint32
+	RXCQENsecs                                                    *uint32
+}
+
 type EthtoolMessage struct {
 	GenericNetlinkMessage
 	Kind                  EthtoolKind
@@ -80,6 +98,7 @@ type EthtoolMessage struct {
 	Channels              *EthtoolChannels
 	Pause                 *EthtoolPause
 	FEC                   *EthtoolFEC
+	Coalesce              *EthtoolCoalesce
 }
 
 // ParseEthtool decodes a generic-netlink body AFTER the caller has resolved
@@ -120,6 +139,7 @@ func classifyEthtoolCommand(command uint8, request bool) (EthtoolKind, bool) {
 		{EthtoolLinkStateKind, 6, 0, 6, 0},
 		{EthtoolRingsKind, 15, 16, 16, 17},
 		{EthtoolChannelsKind, 17, 18, 18, 19},
+		{EthtoolCoalesceKind, 19, 20, 20, 21},
 		{EthtoolPauseKind, 21, 22, 22, 23},
 		{EthtoolFECKind, 29, 30, 30, 31},
 	}
@@ -205,6 +225,8 @@ func decodeEthtoolPayload(m *EthtoolMessage) error {
 		m.Pause = d.decodePause()
 	case EthtoolFECKind:
 		m.FEC = d.decodeFEC()
+	case EthtoolCoalesceKind:
+		m.Coalesce = d.decodeCoalesce()
 	}
 	return d.err
 }
@@ -410,5 +432,29 @@ func (d *ethtoolPayloadDecoder) decodeChannels() *EthtoolChannels {
 	d.u32(7, &v.TX)
 	d.u32(8, &v.Other)
 	d.u32(9, &v.Combined)
+	return v
+}
+
+func (d *ethtoolPayloadDecoder) decodeCoalesce() *EthtoolCoalesce {
+	v := &EthtoolCoalesce{}
+	for _, f := range []struct {
+		id  uint16
+		dst **uint32
+	}{
+		{2, &v.RXUsecs}, {3, &v.RXMaxFrames}, {4, &v.RXUsecsIRQ}, {5, &v.RXMaxFramesIRQ},
+		{6, &v.TXUsecs}, {7, &v.TXMaxFrames}, {8, &v.TXUsecsIRQ}, {9, &v.TXMaxFramesIRQ},
+		{10, &v.StatsBlockUsecs}, {13, &v.PktRateLow}, {14, &v.RXUsecsLow},
+		{15, &v.RXMaxFramesLow}, {16, &v.TXUsecsLow}, {17, &v.TXMaxFramesLow},
+		{18, &v.PktRateHigh}, {19, &v.RXUsecsHigh}, {20, &v.RXMaxFramesHigh},
+		{21, &v.TXUsecsHigh}, {22, &v.TXMaxFramesHigh}, {23, &v.RateSampleInterval},
+		{26, &v.TXAggrMaxBytes}, {27, &v.TXAggrMaxFrames}, {28, &v.TXAggrTimeUsecs},
+		{31, &v.RXCQEFrames}, {32, &v.RXCQENsecs},
+	} {
+		d.u32(f.id, f.dst)
+	}
+	d.u8(11, &v.UseAdaptiveRX)
+	d.u8(12, &v.UseAdaptiveTX)
+	d.u8(24, &v.UseCQEModeTX)
+	d.u8(25, &v.UseCQEModeRX)
 	return v
 }

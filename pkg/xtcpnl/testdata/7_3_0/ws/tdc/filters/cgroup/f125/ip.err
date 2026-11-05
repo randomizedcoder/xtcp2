@@ -1,0 +1,8 @@
+u32: invalid mask, must be numeric
+... >>u32(u32 0x11223344 mask at 0)<< ...
+... u32(u32 0x11223344 >>mask<< at 0)...
+Usage: u32(ALIGN VALUE MASK at [ nexthdr+ ] OFFSET)
+where: ALIGN  := { u8 | u16 | u32 }
+
+Example: u32(u16 0x1122 0xffff at nexthdr+4)
+Illegal "ematch"

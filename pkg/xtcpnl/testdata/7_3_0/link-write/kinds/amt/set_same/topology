@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link add a0 type amt mode relay dev d0 local 10.0.0.1

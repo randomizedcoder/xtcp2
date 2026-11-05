@@ -1,0 +1,9 @@
+Recv-Q Send-Q      Local Address:Port        Peer Address:Port                                                                                                                                                                                                                                                                                                                            
+0      0               127.0.0.1:8080           127.0.0.1:45000
+	 cubic wscale:9,9 rto:201 rtt:0.021/0.01 mss:32768 pmtu:65535 rcvmss:536 advmss:65483 cwnd:10 segs_in:2 send 124830476190bps lastsnd:507 lastrcv:507 lastack:507 pacing_rate 249660952376bps delivered:1 app_limited rcv_space:65483 rcv_ssthresh:65483 minrtt:0.021 snd_wnd:65536 rcv_wnd:65483                          
+0      0               127.0.0.1:45000          127.0.0.1:443
+	 cubic wscale:9,9 rto:201 rtt:0.009/0.004 mss:32741 pmtu:65535 rcvmss:536 advmss:65483 cwnd:10 bytes_acked:1 segs_out:2 segs_in:1 send 291031111111bps lastsnd:507 lastrcv:507 lastack:507 pacing_rate 582062222216bps delivered:1 app_limited rcv_space:65495 rcv_ssthresh:65495 minrtt:0.009 snd_wnd:65483 rcv_wnd:65536
+0      0               127.0.0.1:45000          127.0.0.1:8080
+	 cubic wscale:9,9 rto:201 rtt:0.039/0.019 mss:32741 pmtu:65535 rcvmss:536 advmss:65483 cwnd:10 bytes_acked:1 segs_out:2 segs_in:1 send 67161025641bps lastsnd:507 lastrcv:507 lastack:507 pacing_rate 134322051280bps delivered:1 app_limited rcv_space:65495 rcv_ssthresh:65495 minrtt:0.039 snd_wnd:65483 rcv_wnd:65536 
+0      0      [::ffff:127.0.0.1]:443   [::ffff:127.0.0.1]:45000
+	 cubic wscale:9,9 rto:201 rtt:0.01/0.005 mss:32768 pmtu:65535 rcvmss:536 advmss:65483 cwnd:10 segs_in:2 send 262144000000bps lastsnd:508 lastrcv:508 lastack:508 pacing_rate 524288000000bps delivered:1 app_limited rcv_space:65483 rcv_ssthresh:65483 minrtt:0.01 snd_wnd:65536 rcv_wnd:65483                           

@@ -138,6 +138,21 @@ func TestLinkShowDetailMatchesSidecar(t *testing.T) {
 			sidecar:     guestDumpsDir + "ip_link_n",
 		},
 		{
+			// The tunnel topology: fourteen devices, the twelve IP tunnel
+			// kinds' print_opts among them, and the widest print_opt runs in
+			// the corpus (KG4-T07, KG4-T08).
+			description: "positive: the tunnel topology reproduces tunnel/ip_link_n",
+			args:        []string{"-d", "link", "show"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getlink.pcap",
+			sidecar:     guestDumpsDir + "tunnel/ip_link_n",
+		},
+		{
+			description: "positive: the tunnel topology's addr object reproduces tunnel/ip_addr_n",
+			args:        []string{"-d", "addr", "show"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr.pcap",
+			sidecar:     guestDumpsDir + "tunnel/ip_addr_n",
+		},
+		{
 			// `-d addr show` is the same stanza minus two things, and the
 			// second is the interesting one: no `mode DEFAULT`, because
 			// do_link is unset, and no `addrgenmode`, for exactly the same
@@ -210,20 +225,12 @@ func TestAddrShowDetailFamilyMatchesSidecars(t *testing.T) {
 			dropIoctlQlen: true,
 		},
 		{
-			// The other two namespaces, and they are here for a reason that
-			// the clean row cannot carry: `-d -4 addr show` is REFUSED in
-			// both of them, because the AF_INET link dump brings
-			// IFLA_LINKINFO and a bridge's or a tunnel's per-kind nest with
-			// it (TestDetailRefusedForPerKindData). The v6 form renders in
-			// the same namespace, off the same devices, because
+			// The other two namespaces. Their AF_INET link dumps bring
+			// IFLA_LINKINFO and a bridge's or a tunnel's per-kind nest, which
+			// `-d -4 addr show` refused until KG1-T03 and KG4-T08 rendered
+			// them; the v6 form never needed them, because
 			// inet6_dump_ifinfo sends no IFLA_LINKINFO at all.
-			//
-			// So the two families split on whether goip can render -d AT ALL,
-			// within one topology. That is the sharpest statement in the
-			// corpus of the fact the -6 row above makes mildly: the detail
-			// run is a function of the attributes, and here it decides
-			// whether there is any output to compare.
-			description:   "corner: -d -6 addr show renders the mesh topology, where -d -4 addr show is refused outright",
+			description:   "corner: -d -6 addr show renders the mesh topology, with no IFLA_LINKINFO",
 			args:          []string{"-d", "-6", "addr", "show"},
 			pcap:          guestDumpsDir + "mesh/netlink_route_getaddr_v6.pcap",
 			sidecar:       guestDumpsDir + "mesh/ip_addr_v6_n",
@@ -233,11 +240,19 @@ func TestAddrShowDetailFamilyMatchesSidecars(t *testing.T) {
 			// And the tunnel namespace, whose five configured devices put the
 			// widest v6 listing in the corpus through this path — ten lines
 			// where the clean set has eight.
-			description:   "corner: the same for the tunnel topology, whose -d -4 form is refused on tunl0",
+			description:   "corner: the same for the tunnel topology",
 			args:          []string{"-d", "-6", "addr", "show"},
 			pcap:          guestDumpsDir + "tunnel/netlink_route_getaddr_v6.pcap",
 			sidecar:       guestDumpsDir + "tunnel/ip_addr_v6_n",
 			dropIoctlQlen: true,
+		},
+		{
+			// The tunnel namespace's -4 arm: its only IPv4 link with kind
+			// data is gre1, whose print_opt renders since KG4-T07.
+			description: "corner: -d -4 addr show renders the tunnel topology, whose only IPv4 tunnel is gre1",
+			args:        []string{"-d", "-4", "addr", "show"},
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr_v4.pcap",
+			sidecar:     guestDumpsDir + "tunnel/ip_addr_v4_n",
 		},
 	}
 
@@ -580,32 +595,35 @@ func TestNeighShowIgnoresDetails(t *testing.T) {
 	}
 }
 
-// TestDetailRefusedForPerKindData drives the refusal against the two corpora
-// that trigger it.
+// TestDetailRefusedForPerKindData holds the topologies that used to trigger
+// the refusal; TestDetailRefusedForUnrenderedKind drives it.
 //
 // # What is being defended
 //
 // print_linktype prints the kind token and then print_opt's whole output ON
 // THE SAME LINE, so a renderer that stopped at the kind would emit a line that
-// says something different from `ip`'s rather than a shorter one. The tunnel
-// sidecar shows the size of the gap directly — tunnel/ip_link_n:3 reads
+// says something different from `ip`'s rather than a shorter one. The hsr
+// readback shows the size of the gap directly — hsr/add_default's
+// ip_getlink_detail reads
 //
-//	ipip any remote any local any ttl inherit nopmtudisc numtxqueues 1 …
+//	hsr slave1 d0 slave2 d1 sequence 64511 … version 0 addrgenmode eui64 …
 //
-// and everything between "ipip" and "numtxqueues" comes out of a print_opt
-// goip does not have. Emitting "ipip numtxqueues 1" would reach the parity
-// harness as a rendering bug with nothing to say a subsystem was absent.
+// and everything between "hsr" and "addrgenmode" comes out of a print_opt
+// goip does not have. Emitting "hsr addrgenmode eui64" would reach the parity
+// harness as a rendering bug with nothing to say a subsystem was absent. The
+// tunnel topology made the same case until KG4-T07 and KG4-T08 rendered its
+// twelve kinds.
 //
 // # What it costs
 //
-// The refusal is per-COMMAND, not per-link: one bridge in a namespace means
+// The refusal is per-COMMAND, not per-link: one tunnel in a namespace means
 // `-d link show` prints nothing there. That is deliberate and it follows the
 // `-s -s` precedent — goip is a coverage test for pkg/xtcpnl, so "I cannot
 // reproduce this output" is a more useful answer than most of it.
 //
 // # The sidecars are read, not cited
 //
-// The four `_n` sidecars for the refused commands are the only committed
+// The `_n` sidecars for the refused commands are the only committed
 // evidence of what goip is declining to render, and wantSidecarTokens asserts
 // the tokens are there. That direction matters: the refusal is justified by
 // the claim "`ip` prints per-kind data here", and if an iproute2 ever stopped
@@ -628,14 +646,16 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 		wantSidecarTokens []string
 	}{
 		{
-			// br0's IFLA_INFO_DATA is 800-odd bytes of bridge parameters that
-			// `ip` prints in full.
-			description: "negative: -d link show refuses the mesh topology, naming the bridge and its kind",
+			// br0's IFLA_INFO_DATA renders since KG1-T03 and its ports'
+			// IFLA_INFO_SLAVE_DATA since KG1-T04. The text differs from
+			// mesh/ip_link_n in nlmon0's promiscuity (the capture's own
+			// tap), gc_timer, which moved, and stp_mode, which the 7.1 `ip`
+			// that wrote the sidecar doesn't print and 7.2.0 does; the
+			// bridge_slave lines are the sidecar's.
+			description: "positive: -d link show renders the mesh topology, the bridge and its ports",
 			args:        []string{"-d", "link", "show"},
 			pcap:        guestDumpsDir + "mesh/netlink_route_getlink.pcap",
-			wantCode:    ExitUsage,
-			wantErr:     true,
-			wantStderr:  []string{"br0", `"bridge"`, "IFLA_INFO_DATA"},
+			wantCode:    ExitOK,
 			// mesh/ip_link_n is not among the unread fixtures — the link
 			// table reads it — so the tokens are asserted here without a
 			// second reader being claimed for it.
@@ -645,15 +665,13 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 			wantSidecarTokens: []string{"bridge forward_delay", "bridge_id", "designated_root"},
 		},
 		{
-			// And it refuses on tunl0, the FIRST link with data rather than
-			// the first link overall, which is what says the check walks the
-			// dump.
-			description: "negative: -d link show refuses the tunnel topology, naming the ipip fallback device",
+			// tunl0 was the first link with data the refusal named; since
+			// KG4-T08 every kind there renders
+			// (TestLinkShowDetailMatchesSidecar holds the text).
+			description: "positive: -d link show renders the tunnel topology",
 			args:        []string{"-d", "link", "show"},
 			pcap:        guestDumpsDir + "tunnel/netlink_route_getlink.pcap",
-			wantCode:    ExitUsage,
-			wantErr:     true,
-			wantStderr:  []string{"tunl0", `"ipip"`},
+			wantCode:    ExitOK,
 			sidecar:     guestDumpsDir + "tunnel/ip_link_n",
 			// The widest print_opt run in the corpus, and the one quoted in
 			// this test's own doc comment: everything between "ipip" and
@@ -666,49 +684,43 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 		{
 			// The addr object reaches the same check, because it renders the
 			// same link stanza through the same detail view.
-			description: "negative: -d addr show refuses the mesh topology for the same reason",
+			description: "positive: -d addr show renders the mesh topology too",
 			args:        []string{"-d", "addr", "show"},
 			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr.pcap",
-			wantCode:    ExitUsage,
-			wantErr:     true,
-			wantStderr:  []string{"IFLA_INFO_DATA"},
+			wantCode:    ExitOK,
 		},
 		{
-			// Same for the tunnel namespace's addr dump, and this is the row
-			// that makes tunnel/ip_addr_n evidence: 51 lines, fourteen
+			// Same for the tunnel namespace's addr dump: 51 lines, fourteen
 			// devices, every one of them carrying a print_opt run.
-			description:       "negative: -d addr show refuses the tunnel topology, and tunnel/ip_addr_n is what it declines to print",
+			description:       "positive: -d addr show renders the tunnel topology",
 			args:              []string{"-d", "addr", "show"},
 			pcap:              guestDumpsDir + "tunnel/netlink_route_getaddr.pcap",
-			wantCode:          ExitUsage,
-			wantErr:           true,
-			wantStderr:        []string{"IFLA_INFO_DATA", `"ipip"`},
+			wantCode:          ExitOK,
 			sidecar:           guestDumpsDir + "tunnel/ip_addr_n",
 			wantSidecarTokens: []string{"ipip any remote any local any ttl inherit"},
 		},
 		{
-			// The -4 arm, in both namespaces. It is refused where the -6 arm
-			// of the SAME command renders in full
-			// (TestAddrShowDetailFamilyMatchesSidecars), because
-			// inet6_dump_ifinfo sends no IFLA_LINKINFO — so these two rows
-			// and those two are one fact stated from both sides: the refusal
-			// tracks the attributes on the wire, not the option.
-			description:       "corner: -d -4 addr show is refused in the mesh namespace where -d -6 addr show renders",
+			// The -4 arm, in both namespaces. In the mesh namespace only lo
+			// and br0 have an IPv4 address, and br0's bridge data renders
+			// since KG1-T03, so the arm renders; its text differs from
+			// mesh/ip_addr_v4_n only in gc_timer, which moved between the
+			// capture and the sidecar, and stp_mode, which the 7.1 `ip`
+			// that wrote the sidecar doesn't print and 7.2.0 does
+			// (TestLinkShowDetailBridgeMatchesSidecar holds the text).
+			description:       "corner: -d -4 addr show renders the mesh namespace, whose only IPv4 link with kind data is the bridge",
 			args:              []string{"-d", "-4", "addr", "show"},
 			pcap:              guestDumpsDir + "mesh/netlink_route_getaddr_v4.pcap",
-			wantCode:          ExitUsage,
-			wantErr:           true,
-			wantStderr:        []string{"IFLA_INFO_DATA", `"bridge"`},
+			wantCode:          ExitOK,
 			sidecar:           guestDumpsDir + "mesh/ip_addr_v4_n",
 			wantSidecarTokens: []string{"bridge forward_delay"},
 		},
 		{
-			description:       "corner: and refused in the tunnel namespace, for the same reason on a different kind",
+			// gre1 renders since KG4-T07 (TestAddrShowDetailFamilyMatchesSidecars
+			// holds the text); tunl0 has no IPv4 address, so no refusal is left.
+			description:       "corner: -d -4 addr show renders the tunnel namespace, whose only IPv4 tunnel is gre",
 			args:              []string{"-d", "-4", "addr", "show"},
 			pcap:              guestDumpsDir + "tunnel/netlink_route_getaddr_v4.pcap",
-			wantCode:          ExitUsage,
-			wantErr:           true,
-			wantStderr:        []string{"IFLA_INFO_DATA"},
+			wantCode:          ExitOK,
 			sidecar:           guestDumpsDir + "tunnel/ip_addr_v4_n",
 			wantSidecarTokens: []string{"gre remote 198.51.100.3 local 192.0.2.3"},
 		},
@@ -832,11 +844,12 @@ func TestRunDetailsOption(t *testing.T) {
 			wantStderr:  "is unknown",
 		},
 		{
-			// show_details is only ever tested for truth — nine sites, all
-			// `show_details` or `show_details > 0`, none for a second one.
-			// So -d -d is -d, which is the OPPOSITE of -s -s, and the
-			// contrast is why both are tested.
-			description: "corner: -d -d is accepted and means the same as -d, unlike -s -s",
+			// show_details is tested for a second one at one site,
+			// vxlan_print_opt's bools, and only for truth everywhere else.
+			// So -d -d is accepted, the OPPOSITE of -s -s, and is -d for
+			// every link without a vxlan; the contrast is why both are
+			// tested.
+			description: "corner: -d -d is accepted and, with no vxlan, means the same as -d, unlike -s -s",
 			args:        []string{"-d", "-d", "link", "show"},
 			wantCode:    ExitOK,
 			wantDetail:  true,
@@ -969,4 +982,49 @@ func mustDecodeHex(t *testing.T, s string) []byte {
 		t.Fatalf("bad hex %q: %v", s, err)
 	}
 	return b
+}
+
+// TestDetailRefusedForUnrenderedKind is the refusal on a kind whose
+// print_opt goip doesn't have, over built links (every kind KC captured now
+// renders): -d fails with ErrNotImplemented, naming the device and the kind.
+//
+// go test ./internal/goip/ -run TestDetailRefusedForUnrenderedKind
+func TestDetailRefusedForUnrenderedKind(t *testing.T) {
+	tests := []struct {
+		description string
+		link        xtcpnl.LinkInfo
+		details     int
+		expected    []string
+	}{
+		{"negative: wireguard's data", xtcpnl.LinkInfo{Name: "wg0", Kind: "wireguard", HasInfoData: true}, 1,
+			[]string{`"wireguard"`, "IFLA_INFO_DATA", "wg0"}},
+		{"negative: a slave kind with no slave print_opt",
+			xtcpnl.LinkInfo{Name: "d0", Kind: "dummy", SlaveKind: "team", HasInfoSlaveData: true}, 1,
+			[]string{`"team"`, "IFLA_INFO_SLAVE_DATA", "d0"}},
+		{"positive: hsr renders", xtcpnl.LinkInfo{Name: "hs0", Kind: render.HsrKindCst, HasInfoData: true}, 1, nil},
+		{"positive: netkit renders", xtcpnl.LinkInfo{Name: "nt0", Kind: render.NetkitKindCst, HasInfoData: true}, 1, nil},
+		{"positive: ipip renders", xtcpnl.LinkInfo{Name: "ip0", Kind: render.IpipKindCst, HasInfoData: true}, 1, nil},
+		{"corner: no data, nothing to refuse", xtcpnl.LinkInfo{Name: "wg0", Kind: "wireguard"}, 1, nil},
+		{"corner: without -d nothing is refused", xtcpnl.LinkInfo{Name: "wg0", Kind: "wireguard", HasInfoData: true}, 0, nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			c := &runCtx{showDetails: tc.details}
+			err := checkDetailSupported(c, []xtcpnl.LinkInfo{tc.link})
+			if tc.expected == nil {
+				if err != nil {
+					t.Fatalf("err %v, want none", err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrNotImplemented) {
+				t.Fatalf("err %v, want ErrNotImplemented", err)
+			}
+			for _, w := range tc.expected {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("%q not in %v", w, err)
+				}
+			}
+		})
+	}
 }

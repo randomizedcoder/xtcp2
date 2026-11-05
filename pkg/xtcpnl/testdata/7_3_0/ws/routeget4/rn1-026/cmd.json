@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "dport": "65535",
+  "dst": "198.51.100.7",
+  "family": "4",
+  "fibmatch": "1",
+  "ipproto": "6",
+  "mark": "4294967295",
+  "oif": "d0",
+  "src": "192.0.2.10",
+  "uid": "1000"
+ },
+ "cmd": "ip -4 route get 198.51.100.7 from 192.0.2.10 oif d0 mark 4294967295 uid 1000 ipproto tcp dport 65535 fibmatch",
+ "desc": "boundary: dst=default from=local dev=oif mark=max uid=1000 ipproto=tcp ports=dport-max tos=absent flags=fibmatch",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "routeget4/rn1-026",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

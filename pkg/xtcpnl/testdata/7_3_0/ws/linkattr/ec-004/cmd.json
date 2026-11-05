@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "addrgenmode": "3",
+  "master": "",
+  "xdp_flags": "5"
+ },
+ "cmd": "ip link set dev d0 nomaster addrgenmode random xdpdrv off",
+ "desc": "corner: master=nomaster addrgenmode=random carrier=absent netns=absent xdp=drv",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkattr/ec-004",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

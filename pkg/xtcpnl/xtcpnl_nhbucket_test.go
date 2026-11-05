@@ -186,9 +186,9 @@ func TestParseNexthopBucketCorpus(t *testing.T) {
 			expected:    "1025 decoded, 0 errors, 1025 complete, 1024 distinct indexes",
 		},
 		{
-			description: "corner: ip's two requests decode, the get naming index 0 and the dump no bucket",
+			description: "corner: ip's nine requests decode, the four gets naming index 0 or 999 and the five dumps no bucket",
 			got:         tally(unix.RTM_GETNEXTHOPBUCKET, true),
-			expected:    "2 decoded, 0 errors, 0 complete, 1 distinct indexes",
+			expected:    "9 decoded, 0 errors, 0 complete, 2 distinct indexes",
 		},
 		{
 			description: "negative: ip sends no NEWNEXTHOPBUCKET",

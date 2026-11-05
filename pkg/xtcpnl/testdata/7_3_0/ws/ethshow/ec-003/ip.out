@@ -1,0 +1,8 @@
+Pause parameters for eth0:
+Autonegotiate:	off
+RX:		off
+TX:		off
+Statistics:
+  tx_pause_frames: 2
+  rx_pause_frames: 1
+

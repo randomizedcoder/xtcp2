@@ -1,0 +1,60 @@
+{
+ "cmd": "tc action delete action gate index 302",
+ "desc": "positive: Delete gate action with valid index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: .*base-time 200s.*index 302 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gate/d821",
+ "modules": [
+  "act_gate"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gate",
+   [
+    1,
+    255
+   ]
+  ],
+  [
+   "tc action add action gate base-time 200000000000ns sched-entry open 200000000ns -1 8000000b index 302",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc action get action bpf index 302",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gate",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action gate base-time 200000000000ns sched-entry open 200000000ns -1 8000000b index 302",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d821",
+  "tdc": "actions/gate.json"
+ }
+}
