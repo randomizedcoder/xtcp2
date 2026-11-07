@@ -84,16 +84,11 @@ let
 
       Tests:
         go test ./...                           Unit tests
-        go test -ldflags=-checklinkname=0 ./pkg/xtcp/ ./cmd/xtcp2/
-                                                Local workaround when the toolchain
-                                                rejects giouring's syscall linkname
-                                                ("invalid reference to syscall.munmap")
         go test -tags 'enrich_asn enrich_locality' ./pkg/xtcp/ ./cmd/xtcp2/
                                                 The gated enrichers. Untagged runs
                                                 skip enrich_{asn,locality}.go
                                                 entirely, so their tests never
-                                                compile without this. Combine with
-                                                -ldflags=-checklinkname=0 above.
+                                                compile without this.
                                                 Same for dest_* — see
                                                 nix/tests/go-test-flavors.nix,
                                                 which nix flake check runs for you.

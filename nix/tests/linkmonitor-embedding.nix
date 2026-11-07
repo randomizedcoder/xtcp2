@@ -28,16 +28,15 @@ pkgs.runCommand "xtcp2-test-linkmonitor-embedding"
     printf '%s\n' '${src}' > "$out/source.txt"
     go version > "$out/go-version.txt"
     uname -srmo > "$out/kernel.txt"
-    # Match the existing xtcp test targets: its giouring dependency uses linkname.
     echo 'Running complete xtcp unit suite'
-    go test -ldflags=-checklinkname=0 -json -count=1 -timeout=5m ./pkg/xtcp > "$out/xtcp.jsonl" 2>&1 || { cat "$out/xtcp.jsonl"; exit 1; }
+    go test -json -count=1 -timeout=5m ./pkg/xtcp > "$out/xtcp.jsonl" 2>&1 || { cat "$out/xtcp.jsonl"; exit 1; }
     # One build since R4-T02 removed the cgo rdma variant.
     echo "Running embedding race suite and building guest executable"
-    go test -ldflags=-checklinkname=0 -race -json -count=10 -timeout=5m \
+    go test -race -json -count=10 -timeout=5m \
       ./pkg/xtcp ./pkg/linkmonitor/... -run 'Test(LinkmonitorEmbedding|Embedding|RunFailures|LifecycleIncompleteShutdown)' > "$out/core-race.jsonl" 2>&1 || { cat "$out/core-race.jsonl"; exit 1; }
     CGO_ENABLED=0 go test -tags embedding_vm -c -o "$out/bin/core.test" ./pkg/linkmonitor
     # TestLinkMonitorOnDemandScrape skips here (no /sys); the embedding VM runs it.
-    CGO_ENABLED=0 go test -ldflags=-checklinkname=0 -c -o "$out/bin/xtcp.test" ./pkg/xtcp
+    CGO_ENABLED=0 go test -c -o "$out/bin/xtcp.test" ./pkg/xtcp
     echo 'Running embedding vet and comprehensive lint'
     go vet ./pkg/xtcp > "$out/vet.log" 2>&1 || { cat "$out/vet.log"; exit 1; }
     golangci-lint run --config .golangci-comprehensive.yml ./pkg/xtcp > "$out/lint.log" 2>&1 || { cat "$out/lint.log"; exit 1; }

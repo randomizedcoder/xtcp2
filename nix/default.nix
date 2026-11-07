@@ -6,7 +6,6 @@
   pkgs,
   lib,
   src,
-  giouring,
   microvm,
   nixpkgs,
   xdp2,
@@ -25,7 +24,7 @@ let
     src = goSrc;
     inherit
       (import ./lib/goModules.nix {
-        inherit pkgs giouring;
+        inherit pkgs;
         src = goSrc;
         vendorHash = versions.goVendorHash;
       })
@@ -38,7 +37,6 @@ let
     inherit
       pkgs
       lib
-      giouring
       ;
     src = goSrc;
   };
@@ -48,7 +46,6 @@ let
     inherit
       pkgs
       src
-      giouring
       ;
     vendorHash = versions.goVendorHash;
   };

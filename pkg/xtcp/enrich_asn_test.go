@@ -69,7 +69,7 @@ func writeLookupCacheArtifact(t *testing.T, path string, rows []model.Record) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestInitAsnEnricher
+// go test ./pkg/xtcp/ -run TestInitAsnEnricher
 func TestInitAsnEnricher(t *testing.T) {
 	const tick = 20 * time.Millisecond
 
@@ -306,7 +306,7 @@ func summaryCount(t *testing.T, x *XTCP, function, variable string) uint64 {
 	return m.GetSummary().GetSampleCount()
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestLoadAsnMetrics
+// go test ./pkg/xtcp/ -run TestLoadAsnMetrics
 func TestLoadAsnMetrics(t *testing.T) {
 	tests := []struct {
 		description string

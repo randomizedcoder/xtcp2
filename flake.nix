@@ -74,9 +74,6 @@
 #   Each takes --dry-run (the VM runners with --native-out DIR) to write
 #   placeholder contents and a manifest without a device.
 #
-# Overriding the giouring source (local fork):
-#   nix develop --override-input giouring path:/home/das/Downloads/giouring
-#
 {
   description = "xtcp2 — TCP socket introspection via netlink";
 
@@ -87,13 +84,6 @@
     microvm = {
       url = "github:astro/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # Local fork of iceber/iouring-go. Pin rev — overridable via
-    # `--override-input giouring path:/path/to/local`.
-    giouring = {
-      url = "github:randomizedcoder/giouring/9e96b7216bf07ce3c97281092444e85311f7b2e4";
-      flake = false;
     };
 
     # xdp2 provides `proto-audit`, the netlink layout oracle. It normalises the
@@ -143,7 +133,6 @@
       nixpkgs,
       flake-utils,
       microvm,
-      giouring,
       xdp2,
       rocm-ernic,
     }:
@@ -161,7 +150,6 @@
             lib
             microvm
             nixpkgs
-            giouring
             xdp2
             ;
           rocmErnic = rocm-ernic;
