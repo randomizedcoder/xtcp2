@@ -12,12 +12,10 @@
 {
   pkgs,
   src,
-  giouring,
   vendorHash,
 }:
 
 let
-  patchGoMod = import ./patchGoMod.nix { inherit giouring; };
   versions = import ../versions.nix { inherit pkgs; };
 
   # buildGoModule exposes `goModules` — a derivation containing the populated
@@ -32,7 +30,6 @@ let
     pname = "xtcp2";
     version = "vendored";
     inherit src vendorHash;
-    postPatch = patchGoMod;
     env.CGO_ENABLED = "0";
     doCheck = false;
   };
@@ -44,7 +41,5 @@ in
     cp -r ${src}/. $out
     chmod -R +w $out
     cp -r ${parent.goModules} $out/vendor
-    cd $out
-    ${patchGoMod}
   '';
 }

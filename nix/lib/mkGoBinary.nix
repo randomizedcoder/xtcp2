@@ -23,12 +23,10 @@
 {
   pkgs,
   lib,
-  giouring,
 }:
 
 let
   versions = import ../versions.nix { inherit pkgs; };
-  patchGoMod = import ./patchGoMod.nix { inherit giouring; };
 
   # Build with the pinned Go toolchain (versions.go = go_1_27), not pkgs'
   # default `go` — otherwise the compiled binary uses whatever pkgs.go
@@ -121,8 +119,6 @@ buildGoModule {
     ;
 
   subPackages = [ subPath ];
-
-  postPatch = patchGoMod;
 
   env = {
     CGO_ENABLED = if versions.cgoEnabled then "1" else "0";

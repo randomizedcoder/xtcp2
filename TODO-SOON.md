@@ -1339,7 +1339,14 @@ load-bearing for a second package.
 
 ---
 
-## 16. `cmd/ns` and `cmd/xtcp2` do not link outside nix — `giouring` / `syscall.munmap` — OPEN
+## 16. `cmd/ns` and `cmd/xtcp2` do not link outside nix — `giouring` / `syscall.munmap` — DONE 2026-11-07
+
+**Resolved:** the fork replaced the linkname with direct mmap/munmap syscalls
+(randomizedcoder/giouring ab1091f, in v1.0.1). xtcp2 now requires the fork's
+`main` as `github.com/randomizedcoder/giouring v1.1.2`, with no `replace`, so
+a plain `go build ./...` links and `-ldflags=-checklinkname=0` is gone.
+nix builds from the same module, which drops `nix/lib/patchGoMod.nix` and the
+`giouring` flake input. The original notes follow.
 
 A plain `go build ./cmd/...` in a working tree fails:
 
