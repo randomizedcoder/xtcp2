@@ -78,11 +78,11 @@ func parseVrfShowArgs(args []string) (string, error) {
 // typed. The branch returns before new_json_obj is ever called, so -j, -br and
 // -o change nothing here — the plain line is printed under every output mode
 // (decision 4, docs/netlink/vrf-show-name.md). The family flag passes through
-// to the request's ifi_family byte (decision 1, docs/netlink/
-// vrf-family-forms.md): the kernel resolves the name without consulting the
-// family (net/core/rtnetlink.c:4346-4355), so -4, -6 and -0 print the same
-// line the plain form does, and the dump form's family refusal stays distinct
-// (the family changes the dump's shape).
+// to the request's ifi_family byte (decision 1,
+// docs/netlink/vrf-family-forms.md): the kernel resolves the name without
+// consulting the family (net/core/rtnetlink.c:4346-4355), so -4, -6 and -0
+// print the same line the plain form does, and the dump form's family refusal
+// stays distinct (the family changes the dump's shape).
 func vrfShowName(c *runCtx, name string) error {
 	svc := service.New(c.src, c.nextSeq)
 	table, err := svc.VrfTableByName(c.family, name)

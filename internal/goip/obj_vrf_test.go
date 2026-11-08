@@ -435,8 +435,8 @@ func (v *vrfNameSource) Talk(request []byte, _ uint16) ([]byte, error) {
 // TestVrfShowName runs ipvrf_show's NAME branch (VS2,
 // docs/netlink/vrf-show-name.md) at the object level over a Talk source: the
 // `NAME table` line, the Invalid VRF line and rc 1, the usage block and rc
-// 255, and the family refusal — each against what the branch's one request
-// and zero dumps leave on the wire.
+// 255, and the family forms' byte pass-through (VF1) — each against what the
+// branch's one request and zero dumps leave on the wire.
 //
 // The stdout rows are byte exact because `ip`'s NAME branch is a single
 // printf, and the -j row pins decision 4: the branch returns before
@@ -457,6 +457,11 @@ func TestVrfShowName(t *testing.T) {
 		wantExit    int
 		wantTalks   int
 		wantDumps   int
+		// wantTalkFamily, when set, is the ifi_family byte the one Talk request
+		// must carry — the family flag's pass-through asserted on the object's
+		// own wire, where the replay tests cannot see it (their dump fallback is
+		// family-blind).
+		wantTalkFamily uint8
 	}{
 		{
 			description: "positive: vrf show goipvrf",
@@ -567,14 +572,50 @@ func TestVrfShowName(t *testing.T) {
 			// The family flag is no longer refused (vrf-family-forms.md VF1):
 			// the byte reaches the request and the answer is the plain form's
 			// own, so the fake source answers it the same way.
-			description: "positive: -4 vrf show goipvrf",
-			expected:    "goipvrf 100\n, rc 0 — the family byte reaches the request, the answer is the plain form's",
-			args:        []string{"show", "goipvrf"},
+			description:    "positive: -4 vrf show goipvrf",
+			expected:       "goipvrf 100\n, rc 0 — the family byte reaches the request, the answer is the plain form's",
+			args:           []string{"show", "goipvrf"},
+			links:          map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			family:         unix.AF_INET,
+			wantStdout:     "goipvrf 100\n",
+			wantTalks:      1,
+			wantExit:       ExitOK,
+			wantTalkFamily: unix.AF_INET,
+		},
+		{
+			description:    "positive: -6 vrf show goipvrf, the AF_INET6 byte",
+			expected:       "the same line; the request carries AF_INET6",
+			args:           []string{"show", "goipvrf"},
+			links:          map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			family:         unix.AF_INET6,
+			wantStdout:     "goipvrf 100\n",
+			wantTalks:      1,
+			wantExit:       ExitOK,
+			wantTalkFamily: unix.AF_INET6,
+		},
+		{
+			description:    "corner: -0 vrf show goipvrf, the AF_PACKET byte",
+			expected:       "the same line; the request carries AF_PACKET, the byte no other vrf request holds",
+			args:           []string{"show", "goipvrf"},
+			links:          map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
+			family:         unix.AF_PACKET,
+			wantStdout:     "goipvrf 100\n",
+			wantTalks:      1,
+			wantExit:       ExitOK,
+			wantTalkFamily: unix.AF_PACKET,
+		},
+		{
+			// Decision 6 (VS2) composes with the family flag: a name the
+			// builder refuses takes the ENODEV arm — Invalid VRF, rc 1 — and
+			// nothing is sent, the family byte included.
+			description: "boundary: -4 vrf show of a 16-character name",
+			expected:    "Invalid VRF\n, rc 1 — the ErrBadIfName arm, family flag set, and nothing sent",
+			args:        []string{"show", "aaaaaaaaaaaaaaaa"},
 			links:       map[string]vrfNameLink{"goipvrf": {kind: "vrf", table: 100}},
 			family:      unix.AF_INET,
-			wantStdout:  "goipvrf 100\n",
-			wantTalks:   1,
-			wantExit:    ExitOK,
+			wantStderr:  "Invalid VRF\n",
+			wantErrSub:  "vrf invalid",
+			wantExit:    ExitUsage,
 		},
 	}
 	for _, tc := range tests {
@@ -590,6 +631,16 @@ func TestVrfShowName(t *testing.T) {
 			}
 			if len(f.talks) != tc.wantTalks {
 				t.Errorf("Talk calls = %d, want %d", len(f.talks), tc.wantTalks)
+			}
+			if tc.wantTalkFamily != 0 {
+				if len(f.talks) != 1 {
+					t.Fatalf("%d talk requests to read the family byte from, want 1", len(f.talks))
+				}
+				// ifi_family is the first byte of the ifinfomsg, straight after
+				// the 16-byte nlmsghdr — offset 16, the VF0 pin's byte.
+				if got := f.talks[0][unix.NLMSG_HDRLEN]; got != tc.wantTalkFamily {
+					t.Errorf("the request's ifi_family is %d, want %d", got, tc.wantTalkFamily)
+				}
 			}
 			if len(f.dumps) != tc.wantDumps {
 				t.Errorf("Dump calls = %d, want %d", len(f.dumps), tc.wantDumps)
@@ -706,6 +757,8 @@ func TestVrfFamilyFormsRequestIsTheNameGet(t *testing.T) {
 			expected:    "the same with AF_INET6",
 			family:      unix.AF_INET6},
 		{name: "af0", file: "0", category: "corner",
+			// file is the pcap stem's suffix — 0, not af0, because the slug
+			// netlink_route_getvrf_name_0 spells the flag, not this row's name.
 			description: "the -0 get, ifi_family AF_PACKET, the byte no other vrf request carries",
 			expected:    "the same with AF_PACKET",
 			family:      unix.AF_PACKET},
