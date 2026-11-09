@@ -24,7 +24,7 @@
 
 ## Scope
 
-Phase 1 is pure code and build changes — no new processes, no kernel confinement (Phase 2), no deployment-topology changes (Phase 3). It closes issues I1–I8 and I15 at the validation and binary level:
+Phase 1 is pure code and build changes — no new processes, no kernel confinement (Phase 2), no deployment-topology changes (Phase 3). It closes issues I1–I8 and I14 at the validation and binary level:
 
 | Layer | Effect after Phase 1 |
 |---|---|

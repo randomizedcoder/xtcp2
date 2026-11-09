@@ -78,14 +78,15 @@ Frame: little-endian `[len u32]`, then one protobuf `Request`; reply frame `[len
 // proto/xtcp_writer/v1/writer.proto — message-only, no service definition.
 message WriteBaselineRequest {
   uint64 seq     = 1 [(buf.validate.field).uint64.gte = 1];
-  bytes   payload = 2 [(buf.validate.field).bytes.max_len = 65536];   // == baseline.MaxFileBytes
+  bytes   payload = 2 [(buf.validate.field).bytes = {min_len: 1, max_len: 65536}];   // == baseline.MaxFileBytes
 }
 message WriteIpmetaRequest {
   uint64 seq     = 1 [(buf.validate.field).uint64.gte = 1];
-  bytes   payload = 2 [(buf.validate.field).bytes.max_len = 67108864]; // == -ipmetaMaxBytes default
+  bytes   payload = 2 [(buf.validate.field).bytes = {min_len: 1, max_len: 67108864}]; // == -ipmetaMaxBytes default
 }
 message Request {
   oneof op {
+    option (buf.validate.oneof).required = true;
     PingRequest          ping           = 1;
     WriteBaselineRequest write_baseline = 2;
     WriteIpmetaRequest   write_ipmeta   = 3;
@@ -155,18 +156,18 @@ Harness: `pkg/writerd` mirrors the injectable-`operations` seam from `baseline/f
 | A13 | B | ipmeta payload exactly at the cap | `len == ipmetaMaxBytes` | accepted |
 | A14 | N | ipmeta payload cap+1 | `len == ipmetaMaxBytes+1` | rejected `invalid` at `.Validate()` (`max_len`) |
 | A15 | C | bootstrap: target exists, no sidecar | writer-init run first | init imports (sidecar `0`), writer starts, write at seq 1 accepted |
-| A16 | N | zero-length payload | op 1, `payloadLen 0` | rejected `malformed` |
+| A16 | N | zero-length payload | `WriteBaselineRequest{seq: 1, payload: <empty>}` | rejected `invalid` at `.Validate()` (`min_len 1`) |
 
 ### Test B — framing (`TestWriterdFraming`)
 
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
 | B1 | P | encode/decode round trip | valid frame with payload | parsed fields identical |
-| B2 | N | truncated header | 16 of 17 header bytes | `malformed`, connection closed, no write attempted |
-| B3 | N | unknown op | op `0xFF` | error reply `unknown_op` |
-| B4 | N | payload length lies huge | `payloadLen 0xFFFFFFFF` | rejected against the global cap **before allocation** (no OOM), connection closed |
-| B5 | C | payload shorter than declared, then EOF | header says 100 B, sender sends 50 and closes | `malformed`; no partial file written |
-| B6 | C | trailing bytes after payload | valid frame + 4 junk bytes | `malformed` (strict framing) |
+| B2 | N | truncated length prefix | 3 of the 4 `len` bytes, then EOF | `malformed`, connection closed, no write attempted |
+| B3 | N | no op set | `Request` with an empty oneof (the oneof arm is the op; there is no op byte) | rejected `invalid` at `.Validate()` (`oneof required`) |
+| B4 | N | frame length lies huge | `len 0xFFFFFFFF` | rejected against the global cap **before allocation** (no OOM), connection closed |
+| B5 | C | payload shorter than declared, then EOF | `len` says 100 B, sender sends 50 and closes | `malformed`; no partial file written |
+| B6 | C | trailing bytes after the envelope | valid frame + 4 junk bytes before the next `len` | `malformed` (strict framing) |
 | B7 | P | empty-payload op | `GET_STATS` frame | valid, stats reply |
 | B8 | B | error reply at max size | err text 1024 B | encoded fine; collector decodes it |
 | B9 | N | envelope violates protovalidate: seq 0 | `WriteBaselineRequest{seq: 0}` | rejected `invalid` at `.Validate()` (writer side; the collector side rejected it before send — same rules, both ends) |

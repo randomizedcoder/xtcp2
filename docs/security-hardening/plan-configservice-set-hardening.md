@@ -62,7 +62,7 @@
 | I11 | No quota on `/var/lib/xtcp2` → host-rootfs disk-fill | ansible role | Medium | W7 |
 | I12 | No audit trail of applied `Set` calls | `Set` handler | Medium | W6 |
 | I13 | Collector holds write access it does not need (state-integrity/persistence risk under RCE) | architecture | Medium | W4, W5 |
-| I15 | `file:` destination (stdlib, no build tag) and the netlink capture writer (no build gate) are compiled into **every** production image | `pkg/xtcp/destinations_file.go`, `pkg/xtcp/netlinker.go:70`, [build-flavors.md](../build-flavors.md) | High | W0 |
+| I14 | `file:` destination (stdlib, no build tag) and the netlink capture writer (no build gate) are compiled into **every** production image | `pkg/xtcp/destinations_file.go`, `pkg/xtcp/netlinker.go:70`, [build-flavors.md](../build-flavors.md) | High | W0 |
 
 ## Workstreams
 
@@ -70,14 +70,14 @@
 
 Advisory §5.7. Primitives #1/#2 live in code production never uses; remove it from the production binary. Fits the existing flavor axes ([build-flavors.md](../build-flavors.md)) — the `dest_<scheme>` build-tag convention and the "not compiled in" error path already exist (`pkg/xtcp/destinations_core.go`).
 
-- [ ] Move the `file` destination behind a `dest_file` build tag: `destinations_file.go`'s `init()` registration becomes tag-gated; `knownSchemes` keeps `file` so the error path can say "not compiled into this binary; rebuild with `-tags dest_file`" (a config naming an uncompiled scheme is a **fatal startup error**, `destinationLookupError` — a restart loop, never a write)
+- [ ] Move the `file` destination behind a `dest_file` build tag: `destinations_file.go`'s `init()` registration becomes tag-gated; `knownSchemes` keeps `file` so the error path can say "not compiled into this binary; rebuild with `-tags dest_file`" (a config naming an uncompiled scheme is a **fatal startup error**, `destinationLookupError`; `Set` pre-checks compiled-in schemes and returns `FailedPrecondition` instead of soft-restarting — never a write, never a restart loop)
 - [ ] Gate the netlink capture writer behind a `capture` build tag (`netlinker.go` `captureToFileIfEnabled` + the `write_files`/`capture_path` wiring); `write_files > 0` without the tag = fatal startup error, mirroring the enricher convention
 - [ ] Update `nix/versions.nix` flavor matrix + [build-flavors.md](../build-flavors.md): the production `s3parquet` flavor excludes both tags; `full`/`-debug` keep them; `xtcp2-min` per [OD-8](#open-decisions)
 - [ ] Decide (OD-9) whether the production flavor also drops the network stdlib destinations (`tcp`, `udp`, `http`, `https`, `unix`, `unixgram`) — production needs `s3parquet` + `null`/`stdout`; makes the DEST-repoint exfil class structurally impossible
 - [ ] Image repo: build + publish the new production flavor; deployment repo pin bump; fleet-gate test asserts the flavor rejects `dest file:` and `write_files`
 - [ ] Docs: [output-and-destinations.md](../output-and-destinations.md) (`file:` now debug-flavor only), [build-flavors.md](../build-flavors.md), [grpc-api.md](../grpc-api.md) (`Set` behavior on uncompiled schemes)
 
-**Acceptance**: on the production image, `Set` with `dest = "file:/tmp/pwn"` is a fatal startup error — no file is ever created; `write_files = 1` likewise; debug flavors unchanged.
+**Acceptance**: on the production image, `Set` with `dest = "file:/tmp/pwn"` returns `FailedPrecondition` and the daemon keeps running; the same config at startup is a fatal error — no file is ever created; `write_files = 1` likewise; debug flavors unchanged.
 **Estimate**: 2–3 days (tags + nix matrix + image + role bump). **Risk**: a legitimate `file:`/`write_files` production use (none known — fleet uses `s3parquet`); golden-config gate (W8) catches any fleet config that breaks.
 
 ### W1 — protovalidate path rules (L1)
@@ -89,7 +89,7 @@ Belt layer 1: shape validation in `proto/xtcp_config/v1/xtcp_config.proto`, enfo
   - [ ] `link_monitor.baseline_file` (LinkMonitorConfig field 2)
   - [ ] `ipmeta_cache_path` (244), `ipmeta_bootstrap_path` (243), `asn_db_path` (241)
   - [ ] `docker_socket_path` (202), `lldpd_socket_path` (211)
-- [ ] `dest` (60): scheme allowlist pattern mirroring `knownSchemes` (`pkg/xtcp/destinations_core.go:70`): `^(null|stdout|stderr|file|tcp|http|https|udp|unix|unixgram|kafka|nats|nsq|valkey|s3parquet)://[^[:cntrl:]]+$`
+- [ ] `dest` (60): scheme allowlist pattern mirroring `knownSchemes` (`pkg/xtcp/destinations_core.go:70`): `^(null|stdout|stderr|(tcp|udp|unix|unixgram|file|http|https|kafka|nats|nsq|valkey|s3parquet):[^[:cntrl:]]+)$` — one colon, not `://` (`file:/x`, `kafka:h:9092`; see [Phase 1 PR-2](phase-1-code-hardening.md))
 - [ ] `ListenerEndpoint`: charset pattern on `address`; message-level CEL cross-rule — when `network == unix`, address must match the path pattern
 - [ ] Replace `unix_socket_mode` `lte 511` with the allowlist `in: [0, 384]` (default/0600) — not `lte 384`, which accepts world-writable 0577 — pending [OD-1](#open-decisions)
 - [ ] Regenerate all targets (`gen/go`, `gen/dart`, …) via the existing make/nix protobuf targets
@@ -150,7 +150,7 @@ Belt layer 5: the collector ends up with zero write rules; the two legitimate wr
 - [ ] New daemon mode `xtcp2 -writer` (`cmd/xtcp2/writer.go`):
   - [ ] gRPC server on UDS `/run/xtcp2/writer.sock`; `SO_PEERCRED` on accept, reject unexpected uids
   - [ ] Fixed targets inside its root: `link-monitor-baseline.json`, `ipmeta/current.lookup.parquet.zst` (+ previous)
-  - [ ] Size caps (baseline ≤ 64 KiB = `baseline.MaxFileBytes`; cache ≤ 192 MiB), per-RPC rate limits, monotonic version numbers (reject rollback/replay), mode 0640 group `xtcp2-state` (the collector, uid 0 without `CAP_DAC_OVERRIDE`, reads via the group)
+  - [ ] Size caps (baseline ≤ 64 KiB = `baseline.MaxFileBytes`; cache ≤ `-ipmetaMaxBytes`, default 64 MiB), per-RPC rate limits, monotonic version numbers (reject rollback/replay), mode 0640 group `xtcp2-state` (the collector, uid 0 without `CAP_DAC_OVERRIDE`, reads via the group)
   - [ ] Reuse the existing atomic-write discipline (`pkg/linkmonitor/internal/baseline/files.go`): `CreateTemp` → write → `fsync` → `rename` → dir fsync; baseline `flock` moves inside the writer
 - [ ] Collector side:
   - [ ] `baseline` store: new RPC-backed implementation behind the existing injectable `temporary`/`rename` seam (`pkg/linkmonitor/internal/baseline/files.go:46`); collector reads the file directly through the ro mount
@@ -181,6 +181,7 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 - [ ] I11: state-dir guard — minimum: node-level alert on `/var/lib/xtcp2` usage (vmagent); preferred: XFS project quota (or systemd quota for bare metal) sized to ~2× the ASN cache (~200 MiB headroom)
 - [ ] Egress pinning: restrict the collector's egress to the per-DC S3 endpoints (nftables rule on its cgroup — host netns, so not container network policy; not host-wide SG/UFW, which would hit co-located workloads); pair with W2's frozen `s3_endpoint`
 - [ ] W5 deployment: second container + `:ro` collector state dir + shared socket dir; canary via the existing fleet-gate mechanism; revert via `xtcp2_revert.yml`
+- [ ] Regression-guard the load-bearing container defaults in the fleet-gate test (`docker inspect`): `HostConfig.PidMode` not `host`, `ReadonlyRootfs` true, `AppArmorProfile` == `docker-default` (not `unconfined`), every bind except the state dir `:ro`, and a probe that `mount -o remount,bind,rw` on a `:ro` bind fails `EACCES` inside the container
 - [ ] Pin the new image tag in the image repo; bump the deployment repo role defaults in lockstep (role gate test asserts image↔config compatibility)
 
 **Estimate**: 3–5 days spread across phases. **Owner**: infra.
@@ -208,7 +209,7 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 
 ```
 Phase 0 (today):          the v2.0.x auth merge (I10) — ops action, no release needed
-Phase 1 (release vNext):  W0 (image rebuild) + W1 ─▶ W2 ─▶ W3   (pure code/build; closes I1-I6, I8, I15)
+Phase 1 (release vNext):  W0 (image rebuild) + W1 ─▶ W2 ─▶ W3   (pure code/build; closes I1-I6, I8, I14)
                              └──▶ W8 (hostile-path + golden-config gates) ──▶ W9
 Phase 2:                  W4 (Landlock, optional pivot_root) ──▶ W6 (Set audit) ──▶ W7 quota + audit ship
 Phase 3:                  W5 (writer split) ──▶ W7 (second container, :ro flip) ──▶ W9
@@ -251,7 +252,7 @@ With admin token in hand on a canary host, every item must fail safely:
 |---|---|---|
 | OD-1 | `unix_socket_mode` cap: 0600 or allow 0660 (shared-group socket)? | 0600 (`in: [0, 384]`); add 432 (0660) to the list only if a consumer needs group access — never a `lte` bound |
 | OD-2 | Landlock-absent kernel behavior: warn-and-continue vs refuse to start | Warn + `xtcp2_sandbox_active 0` + alert; fleet is ≥6.8 so this is a bare-metal edge case |
-| OD-3 | `file:` destination: keep behind `-allowFileDest` or remove entirely in the s3parquet build flavor | Keep behind flag (build flavors already gate schemes) |
+| OD-3 | `file:` destination: keep behind `-allowFileDest` or remove entirely in the s3parquet build flavor | Both: the `dest_file` build tag removes it from the production flavor (W0); flavors that compile it still require `-allowFileDest` (W2) |
 | OD-4 | Writer transport: UDS gRPC (chosen) vs loopback TCP | UDS — peer credentials, no port surface; loopback TCP rejected because every host process shares it |
 | OD-5 | Does the ipfeed sidecar adopt the writer? | No — out of scope; it is already uid 65534, single subdirectory, no caps |
 | OD-6 | Frozen-field escape hatch lifetime | Time-boxed to one migration window, then remove the flag |

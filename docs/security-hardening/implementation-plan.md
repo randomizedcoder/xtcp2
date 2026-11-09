@@ -123,7 +123,7 @@ PRs (repo `xtcp2` unless noted; each lands with its tests and doc updates from W
 | I11 no state-dir quota | Phase 2 (alert) → Phase 4 (quota per OD-7) | L6 |
 | I12 no `Set` audit trail | Phase 1 (PR-5) | L6 |
 | I13 collector holds needless write access | Phase 3 | L4, L5 |
-| I15 debug writers in production image | Phase 1 (PR-1) | L0 |
+| I14 debug writers in production image | Phase 1 (PR-1) | L0 |
 
 ## Timeline and effort
 
