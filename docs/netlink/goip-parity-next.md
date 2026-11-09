@@ -170,20 +170,26 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 
 #### NC1-T01 the netns forms
 
-- **The new rows.** The `linkattr` space (`tools/nlcapgen/matrix_linkattr.go:45-78`) keeps its 26 `netns $$` rows and adds:
+- **The new rows.** The `linkattr` space (`tools/nlcapgen/matrix_linkattr.go:45-78`) keeps its 26 `netns $$` rows. A new `linkns` space in the same family holds 12 rows, captured into `testdata/7_3_1/ws/linkns` (the workbench's kernel is now 7.3.1). They are a space of their own because two of them break `linkattr`'s O3 model: one is a create, and one moves d0 away.
 
-| description | cmd (in the row's netns) | expected rc |
+| description | cmd (in the row's netns) | expected |
 |---|---|---|
-| positive: by name | pre `ip netns add n1`; `ip link set dev d0 netns n1` | 0; d0 moves |
-| positive: by path | `ip link set dev d0 netns /proc/self/ns/net` | 0 |
-| positive: `add` with `netns` and `index` | `ip link add d9 netns $$ index 100 type dummy` | 0 |
-| negative: pid 0 | `ip link set dev d0 netns 0` | 255, `Invalid "netns" value` |
-| negative: no such name | `ip link set dev d0 netns nosuchns` | 255 |
-| negative: a duplicate | `ip link set dev d0 netns $$ netns $$` | duparg rc |
-| corner: `netns` with `link-netnsid` | `ip link set dev d0 netns $$ link-netnsid 5` | as `ip` answers |
+| positive: by pid | `ip link set dev d0 netns $$` | 0 |
+| corner: by name, the row's own `ws<slot>` | `ip link set dev d0 netns $(ip netns identify $$)` | 0 |
+| corner: by path | `ip link set dev d0 netns /proc/self/ns/net` | 0 |
+| positive: by a pid's path | `ip link set dev d0 netns /proc/$$/ns/net` | 0 |
+| corner: the one real move, serial | `ip link set dev d0 netns 1` | 0; d0 leaves the dump |
+| positive: `add` with `netns` and `index` | `ip link add d9 netns $$ index 100 type dummy` | 0; index 100 in `ifi_index` |
+| boundary: pid 0 | `ip link set dev d0 netns 0` | 255, `Invalid "netns" value` |
+| boundary: a negative pid | `ip link set dev d0 netns -1` | 255, the same |
+| negative: a path that doesn't exist | `ip link set dev d0 netns /nonexistent` | 255, the same |
+| negative: a file that isn't a namespace | `ip link set dev d0 netns /proc/self/stat` | 2, kernel EINVAL |
+| negative: a duplicate | `ip link set dev d0 netns $$ netns $$` | 255, `duplicate "netns"` |
+| corner: `netns` with `link-netnsid` | `ip link set dev d0 netns $$ link-netnsid 5` | 2, kernel EINVAL, `Unknown network namespace id` |
 
+- **Not a row: a name that a pre step adds.** A pre step runs under `ip netns exec`, whose mount namespace is private. The bind mount `ip netns add` makes is gone when the row runs. `ip` then opens the empty file under `/var/run/netns`, and the kernel refuses it with EINVAL, as for `/proc/self/stat`. "No such name" is the existing `linkattr` negative `netns nosuch`.
 - **The capture.** Then capture, with the gate.
-- **What to record:** where `IFLA_NET_NS_FD` sits in each request, its value, and whether a named or path form changes it from fd 4.
+- **What was recorded:** in every form, `IFLA_NET_NS_FD` is the request's first attribute, and its value is 4. On a create, `index` is `ifi_index`; `IFLA_NEW_IFINDEX` goes only with a move (`netns $$ index 100` on a set).
 
 ### NC2 — MPLS-family routes
 

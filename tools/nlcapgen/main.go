@@ -111,7 +111,7 @@ var families = map[string]func() []*space{
 	"addr":     func() []*space { return []*space{addr4Space(), addr6Space()} },
 	"neigh":    func() []*space { return []*space{neigh4Space(), neigh6Space()} },
 	"link":     func() []*space { return []*space{linkSetSpace(), linkAddSpace()} },
-	"linkattr": func() []*space { return []*space{linkAttrSpace(), linkPDSpace(), linkPropSpace()} },
+	"linkattr": func() []*space { return []*space{linkAttrSpace(), linkPDSpace(), linkPropSpace(), linkNSSpace()} },
 	"routeget": func() []*space { return []*space{routeGet4Space(), routeGet6Space()} },
 	"fdb":      func() []*space { return []*space{fdbBrSpace(), fdbVxSpace()} },
 	"mdb":      func() []*space { return []*space{mdbBrSpace(), mdbVxSpace()} },
