@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Plan — not yet implemented; checkboxes track progress. Execution order, PR-level steps, and phase gates: [implementation-plan.md](implementation-plan.md) |
-| **Tracks** | [security-vulnerability-configservice-set-fs-write.md](security-vulnerability-configservice-set-fs-write.md) (advisory, layers L1–L6) |
+| **Tracks** | [security-vulnerability-configservice-set-fs-write.md](security-vulnerability-configservice-set-fs-write.md) (advisory, layers L0–L7) |
 | **Repos** | `randomizedcoder/xtcp2` (this repo), the image repo (image), the deployment repo (deployment), the infra repo (SSM/IAM) |
 | **Owner / review** | TBD |
 
@@ -22,6 +22,9 @@
   - [W7 — deployment guardrails (L6)](#w7--deployment-guardrails-l6)
   - [W8 — tests, CI, and fleet-config gates](#w8--tests-ci-and-fleet-config-gates)
   - [W9 — documentation](#w9--documentation)
+  - [W10 — netlink broker and collector de-privilege (L7)](#w10--netlink-broker-and-collector-de-privilege-l7)
+  - [W11 — Docker broker (L7)](#w11--docker-broker-l7)
+  - [W12 — syscall profiles (L7)](#w12--syscall-profiles-l7)
 - [Sequencing and dependencies](#sequencing-and-dependencies)
 - [Fleet rollout runbook](#fleet-rollout-runbook)
 - [End-state verification checklist](#end-state-verification-checklist)
@@ -38,10 +41,11 @@
 4. Runtime config changes cannot repoint egress (`dest`, `s3_endpoint`) or listeners/auth without a redeploy.
 5. Every applied `Set` is auditable.
 6. The collector process ends up with **zero** filesystem write capability.
+7. The collector holds no capabilities, no `docker.sock` and no namespace handles. The privileged reads it needs go through two brokers, each enforced by validators on both ends, broker-side filtering, and a syscall profile.
 
 **Non-goals** (tracked in the advisory's [honest limits](security-vulnerability-configservice-set-fs-write.md#7-honest-limits--what-this-does-not-fix))
 
-- Containing the collector's `NET_ADMIN`/`SYS_ADMIN`/`setns` powers or the `docker.sock` mount — inherent to the product's function; a Docker-API proxy is a separate future design.
+- Removing the brokers' own privilege (W10/W11): the netlink broker keeps `CAP_SYS_ADMIN`, limited by seccomp to `setns(CLONE_NEWNET)`, and the Docker broker stays in the docker group. Their APIs bound the residual ([Phase 5](phase-5-privilege-brokers.md)).
 - Network egress confinement at the L7 layer (only the *config* surface is frozen here).
 - The ipfeed sidecar's write path (it already runs as uid 65534 into one subdirectory; adopting the writer is optional follow-up).
 
@@ -63,6 +67,10 @@
 | I12 | No audit trail of applied `Set` calls | `Set` handler | Medium | W6 |
 | I13 | Collector holds write access it does not need (state-integrity/persistence risk under RCE) | architecture | Medium | W4, W5 |
 | I14 | `file:` destination (stdlib, no build tag) and the netlink capture writer (no build gate) are compiled into **every** production image | `pkg/xtcp/destinations_file.go`, `pkg/xtcp/netlinker.go:70`, [build-flavors.md](../build-flavors.md) | High | W0 |
+| I15 | `/run/docker.sock` mounted in the collector: Docker API access = host root after an RCE, and dockerd writes bypass W4/W5 | deployment role, `pkg/dockermeta` | Critical (post-RCE) | W11 |
+| I16 | `CAP_NET_ADMIN` in the host netns: host firewall/route rewrite (defeats W7 egress pinning), `SOCK_DESTROY` of any socket, TCP-MD5 keys in inet_diag dumps | `pkg/xtcp/init_capabilities.go`, deployment role | High (post-RCE) | W10 |
+| I17 | `CAP_SYS_ADMIN` under Docker's default seccomp profile: `bpf`, `perf_event_open`, `unshare`, `setns` of any type; `mount` held back only by AppArmor | deployment role | High (post-RCE) | W10, W12 |
+| I18 | The collector receives full container inspect documents (tenant `Env`, mounts, labels) though it uses four fields | `pkg/dockermeta` | Medium (confidentiality) | W11 |
 
 ## Workstreams
 
@@ -179,7 +187,7 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 - [ ] Retire the v1.x revision: make `LISTENER_AUTH_MODE` impossible to disable via role defaults; add a `test_xtcp2_fleet_gate.py` assertion that auth env is present
 - [ ] Bind guidance: prefer UDS for the control plane (`xtcp2ctl` workflow documented), else loopback + `tasks/firewall.yml` rules for 8889 with TTL 3
 - [ ] I11: state-dir guard — minimum: node-level alert on `/var/lib/xtcp2` usage (vmagent); preferred: XFS project quota (or systemd quota for bare metal) sized to ~2× the ASN cache (~200 MiB headroom)
-- [ ] Egress pinning: restrict the collector's egress to the per-DC S3 endpoints (nftables rule on its cgroup — host netns, so not container network policy; not host-wide SG/UFW, which would hit co-located workloads); pair with W2's frozen `s3_endpoint`
+- [ ] Egress pinning: restrict the collector's egress to the per-DC S3 endpoints (nftables rule on its cgroup — host netns, so not container network policy; not host-wide SG/UFW, which would hit co-located workloads); pair with W2's frozen `s3_endpoint`. This holds against a stolen admin token. Against a collector RCE it holds only once W10 removes `CAP_NET_ADMIN` from the collector, which can otherwise delete the rule
 - [ ] W5 deployment: second container + `:ro` collector state dir + shared socket dir; canary via the existing fleet-gate mechanism; revert via `xtcp2_revert.yml`
 - [ ] Regression-guard the load-bearing container defaults in the fleet-gate test (`docker inspect`): `HostConfig.PidMode` not `host`, `ReadonlyRootfs` true, `AppArmorProfile` == `docker-default` (not `unconfined`), every bind except the state dir `:ro`, and a probe that `mount -o remount,bind,rw` on a `:ro` bind fails `EACCES` inside the container
 - [ ] Pin the new image tag in the image repo; bump the deployment repo role defaults in lockstep (role gate test asserts image↔config compatibility)
@@ -205,6 +213,75 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 - [ ] [README.md](../README.md): link this plan from the advisory entry
 - [ ] Update the advisory's layer table with ✅ per workstream as they land
 
+### W10 — netlink broker and collector de-privilege (L7)
+
+Advisory §5.8, [Phase 5](phase-5-privilege-brokers.md#the-netlink-broker). Moves `setns` and both capabilities out of the collector.
+
+- [ ] Spike (PR-18):
+  - confirm on fleet kernels that a capability-less process using a broker-opened netlink fd gets unprivileged semantics (`__netlink_ns_capable` checks opener **and** sender);
+  - run every collector feature with zero capabilities;
+  - classify the link-monitor reads.
+- [ ] `proto/xtcp_nlbroker/v1/nlbroker.proto` — message-only, with protovalidate rules:
+  - `NetnsId{dev, inode}` with `gt 0`;
+  - `NetlinkProtocol` enum `in: [SOCK_DIAG, ROUTE]`;
+  - oneof required;
+  - `ListNetns` paginated at ≤ 256 entries per datagram.
+- [ ] `xtcp2 -nlbroker` (`pkg/nlbroker`):
+  - `SOCK_SEQPACKET` UDS, replies carrying the fd in `SCM_RIGHTS`;
+  - a discovery table the broker owns;
+  - `fstat` + `NS_GET_NSTYPE` re-check before `setns`;
+  - rate and single-connection limits;
+  - `SO_PEERCRED` must equal the collector uid.
+- [ ] Collector seams:
+  - `netNamespaceInstance`/`attemptOpenAndSetns` and `nsLocalitySnapshot` → `OpenSocket`;
+  - `ns_discover.go` → `ListNetns`;
+  - new `-nlBrokerSock` flag.
+- [ ] De-privilege (PR-22):
+  - collector runs as uid `xtcp2` with `cap_drop ALL`;
+  - token and secret files group `xtcp2`, `0440`;
+  - capability check per mode;
+  - new `xtcp2_collector_excess_caps` gauge.
+
+**Acceptance**: P1–P10, Q1–Q17, R1–R10, U1–U5 ([Phase 5 tests](phase-5-privilege-brokers.md#tests)).
+**Estimate**: 8–12 days. **Risk**: a link-monitor read that genuinely needs `CAP_NET_ADMIN` → typed broker op via the admission checklist.
+
+### W11 — Docker broker (L7)
+
+Advisory §5.8, [Phase 5](phase-5-privilege-brokers.md#the-docker-broker). Replaces the collector's `docker.sock` mount with a typed API.
+
+- [ ] `proto/xtcp_dockerbroker/v1/dockerbroker.proto`:
+  - `DockerMetaService { ListContainers; WatchContainers (server stream) }`;
+  - a `Container` projection with charset patterns on `id` (64 hex), `name` and `image`, and `netns_inode gt 0`.
+- [ ] `xtcp2 -dockerbroker` (`pkg/dockerbroker`):
+  - a fixed outbound request set: `/version`, `/containers/json`, `/containers/{id}/json`, and `/events` with a constant filter;
+  - body caps, no redirects, strict projection decoding;
+  - outbound protovalidate — tenant entries that fail are dropped and counted;
+  - `SandboxKey` must be a direct child of `/run/docker/netns/`.
+- [ ] gRPC hardening:
+  - UDS only, `MaxRecvMsgSize` 4 KiB;
+  - no reflection, health or compression;
+  - one watch stream per peer;
+  - peer-credential, rate-limit and validating interceptors.
+- [ ] Collector:
+  - `dockermeta` replaced by a List+Watch mirror (lookups stay in-memory);
+  - `docker.sock` mount removed from the collector container.
+
+**Acceptance**: S1–S18, T1–T3, U6. **Estimate**: 5–8 days.
+
+### W12 — syscall profiles (L7)
+
+Advisory §5.8, [Phase 5](phase-5-privilege-brokers.md#syscall-profiles-for-every-process). The v1 collector profile has no dependencies and ships with Phase 2.
+
+- [ ] Per-process seccomp allowlists (collector v1/v2, netlink broker, Docker broker, writer):
+  - generated from the test matrix and committed as Docker seccomp JSON;
+  - `setns` only with `CLONE_NEWNET` (none at all in collector v2);
+  - `bpf`, `perf_event_open`, the mount family, `unshare`, `ptrace`, `keyctl` and the `chmod`/`chown`/`xattr` families denied.
+- [ ] Per-process AppArmor profiles replacing `docker-default` (extends W7's regression guard to assert the profile names).
+- [ ] CI runs the suite under each profile (deny + log); the fleet-gate rejects `unconfined` or a missing profile.
+- [ ] Bare metal: matching `SystemCallFilter=`/`RestrictNamespaces=net` in the systemd units.
+
+**Acceptance**: R1–R10, T4–T6, U9. **Estimate**: 3–5 days.
+
 ## Sequencing and dependencies
 
 ```
@@ -214,11 +291,13 @@ Phase 1 (release vNext):  W0 (image rebuild) + W1 ─▶ W2 ─▶ W3   (pure co
 Phase 2:                  W4 (Landlock, optional pivot_root) ──▶ W6 (Set audit) ──▶ W7 quota + audit ship
 Phase 3:                  W5 (writer split) ──▶ W7 (second container, :ro flip) ──▶ W9
 Phase 4:                  W7 egress pinning + v1.x retirement; W8 end-to-end advisory regression as a standing gate
+Phase 5:                  W12 profiles (ship with Phase 2) ─▶ W10 netlink broker ∥ W11 Docker broker ─▶ collector de-privilege
 ```
 
 - W1, W2, W3 are independent of each other — parallelizable; W2 needs W1's pattern only for shared test fixtures.
 - W4 should land **before** W5 (fleet already kernel-protected while the split is built).
-- W5 is the only workstream that changes deployment topology; it is also fully reversible until the collector's `:ro` flip.
+- W5 and W10/W11 change deployment topology. W5 is fully reversible until the collector's `:ro` flip; W10/W11 until the collector drops its capabilities (Phase 5 rollout step 5).
+- W10/W11 can start once Phase 2 lands and run alongside Phase 3. W7's egress rule only holds against a collector RCE after W10.
 - Every phase ships independently; no phase requires the next.
 
 ## Fleet rollout runbook
@@ -244,6 +323,9 @@ With admin token in hand on a canary host, every item must fail safely:
 - [ ] Direct process check: as the collector uid, `os.WriteFile("/tmp/x")` fails (zero write rules, post-W5); the writer still publishes a fresh ASN cache
 - [ ] `kill -9` the writer mid-baseline-write: old baseline intact, monitor degrades-not-exits, counter increments
 - [ ] `/var/lib/xtcp2` fill attempt (legal writes within quota bounds) trips the size alert
+- [ ] Collector (W10–W12): `CapEff 0` as uid `xtcp2`, no `docker.sock`. On a crippled build, an RCE probe cannot change the firewall or routes, load BPF, `setns`, mount, kill sockets, or reach the Docker API
+- [ ] Netlink broker: `setns` with any type other than `CLONE_NEWNET`, and any socket other than netlink `SOCK_DIAG`/`ROUTE` → `EPERM` (seccomp)
+- [ ] Docker broker: the only Docker requests ever issued are the four fixed GETs; responses carry no `Env`/mounts/labels
 - [ ] Production image (W0): `Set` with `dest = "file:/tmp/pwn"` → fatal startup error, no file ever created (the code is absent from the binary); `write_files = 1` → fatal startup error
 
 ## Open decisions
@@ -258,11 +340,15 @@ With admin token in hand on a canary host, every item must fail safely:
 | OD-6 | Frozen-field escape hatch lifetime | Time-boxed to one migration window, then remove the flag |
 | OD-7 | State-dir quota mechanism (alert-only vs XFS project quota) | Alert-only in Phase 2 (cheap), quota when a host survives to Phase 3 |
 | OD-8 | Does `xtcp2-min` keep `file:` (it is the stdlib-only flavor)? | Drop it there too; only `full`/`-debug` carry the tag |
+| OD-10 | Netlink broker: pass fds vs run the dumps in the broker | Pass fds over `SOCK_SEQPACKET`. The kernel checks the sender's capabilities as well as the opener's, so the fd carries no privilege, and the hot path stays zero-copy |
+| OD-11 | Docker access: typed gRPC broker vs a filtering HTTP proxy in front of `docker.sock` | Typed broker — the projection and the fixed request set are then structural, not pattern-matched |
+| OD-12 | Bound the Docker broker further with dockerd TCP+mTLS and an authz plugin (GET-only for the broker's cert) | Deferred until W11 lands |
 | OD-9 | Drop the network stdlib destinations (`tcp`/`udp`/`http`/`https`/`unix`/`unixgram`) from the production flavor? | Yes — production needs `s3parquet` only; kills the DEST-repoint exfil class structurally |
 
 ## References
 
 - Advisory: [security-vulnerability-configservice-set-fs-write.md](security-vulnerability-configservice-set-fs-write.md) — primitives, reachability, container analysis, layer rationale
+- Broker design: [phase-5-privilege-brokers.md](phase-5-privilege-brokers.md) — kernel facts, protocols, filtering pipelines, syscall profiles, test matrices
 - Code touchpoints: `pkg/xtcp/grpc_configService.go`, `pkg/xtcp/destinations_core.go` + `destinations_file.go`, `pkg/xtcp/netlinker.go`, `pkg/xtcp/input_validation.go`, `pkg/linkmonitor/config.go` + `internal/baseline/`, `pkg/ipasn/ipasn.go`, `pkg/listener/listener.go`, `pkg/listenerauth/policy.go`, `cmd/xtcp2/xtcp2.go` (flags, `loadReconfigureConfig:1199`, `execSelfWithConfig:1211`)
 - Deployment: the deployment repo → `ansible/roles/monitoring/xtcp2/` (defaults, tasks, firewall, fleet-gate test); the image repo (flake, settings docs)
 - Upstream: [Landlock](https://docs.kernel.org/userspace-api/landlock.html), [go-landlock](https://github.com/landlock-lsm/go-landlock), [buf protovalidate](https://github.com/bufbuild/protovalidate)

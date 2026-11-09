@@ -30,7 +30,7 @@ Phase 1 made hostile `Set` inputs **invalid**. Phase 2 assumes Phase 1 is bypass
 | State-dir fill detected + alerted | `xtcp2_state_dir_bytes` gauge + alert rules | — |
 | Stolen-token probing visible | `FailedPrecondition` rate alert on PR-5's `xtcp2_set_applied_total` | — |
 
-Not in scope: network confinement (Landlock v4 network rules are a possible future layer — TCP bind/connect scoping — tracked as an open question, not planned here); capability reduction (the daemon keeps `NET_ADMIN`+`SYS_ADMIN` by design, see advisory §4.3).
+Not in scope: network confinement (Landlock v4 network rules are a possible future layer — TCP bind/connect scoping — tracked as an open question, not planned here); capability reduction ([Phase 5](phase-5-privilege-brokers.md): netlink and Docker brokers; its PR-19 syscall profiles can ship alongside this phase).
 
 ## PR map and branches
 

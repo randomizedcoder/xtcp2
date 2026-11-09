@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Active — checkboxes track execution; supersedes the sequencing section of the [hardening plan](plan-configservice-set-hardening.md) |
 | **Repos** | `randomizedcoder/xtcp2` (code), the image repo (image), the deployment repo (deploy), the infra repo (SSM/IAM/network) |
-| **Docs** | [Advisory](security-vulnerability-configservice-set-fs-write.md) — the problem (primitives, permission model, escape idioms). [Hardening plan](plan-configservice-set-hardening.md) — workstreams W0–W9 with design detail, estimates, and open decisions. **This doc** — execution order, PR-level steps, phase gates, and rollback. |
+| **Docs** | [Advisory](security-vulnerability-configservice-set-fs-write.md) — the problem (primitives, permission model, escape idioms). [Hardening plan](plan-configservice-set-hardening.md) — workstreams W0–W12 with design detail, estimates, and open decisions. **This doc** — execution order, PR-level steps, phase gates, and rollback. |
 
 Reading order for an implementer: skim the advisory's §2 (primitives) and §4 (permission model), then execute the phases below, dipping into the workstream sections of the hardening plan as each PR needs detail.
 
@@ -15,6 +15,7 @@ Reading order for an implementer: skim the advisory's §2 (primitives) and §4 (
 - [Phase 2 — Kernel self-confinement](#phase-2--kernel-self-confinement)
 - [Phase 3 — Privilege separation (writer split)](#phase-3--privilege-separation-writer-split)
 - [Phase 4 — Egress and fleet lockdown](#phase-4--egress-and-fleet-lockdown)
+- [Phase 5 — Privilege brokers](#phase-5--privilege-brokers)
 - [Issue → phase tracking](#issue--phase-tracking)
 - [Timeline and effort](#timeline-and-effort)
 - [Gates and rollback](#gates-and-rollback)
@@ -110,6 +111,29 @@ PRs (repo `xtcp2` unless noted; each lands with its tests and doc updates from W
 
 ---
 
+## Phase 5 — Privilege brokers
+
+> Drill-down with the broker protocols, filtering pipelines, syscall profiles and full test matrices: [phase-5-privilege-brokers.md](phase-5-privilege-brokers.md).
+
+**Goal:** a compromised collector holds no capability, no `docker.sock` and no namespace handle; the privileged reads go through two brokers whose APIs can express nothing else.
+
+- [ ] **PR-18 — spike** ([W10](plan-configservice-set-hardening.md#w10--netlink-broker-and-collector-de-privilege-l7)): kernel fd-semantics proofs and a zero-capability feature run.
+- [ ] **PR-19 — syscall profiles** ([W12](plan-configservice-set-hardening.md#w12--syscall-profiles-l7)): per-process seccomp and AppArmor; the v1 collector profile ships with Phase 2.
+- [ ] **PR-20 — netlink broker** (W10): `xtcp2 -nlbroker`, proto over `SOCK_SEQPACKET` with `SCM_RIGHTS`, collector seams.
+- [ ] **PR-21 — Docker broker** ([W11](plan-configservice-set-hardening.md#w11--docker-broker-l7)): `xtcp2 -dockerbroker`, typed gRPC, fixed outbound request set, projection.
+- [ ] **PR-22 — collector de-privilege** (W10): non-root uid, `cap_drop ALL`, broker mode as the fleet default.
+- [ ] **PR-23 — deployment** (the deployment repo): broker containers, profiles, the five-step rollout, alerts.
+
+**Exit criteria:**
+- the collector runs as `xtcp2` with `CapEff 0` and no `docker.sock`;
+- RCE probes fail;
+- monitoring output matches direct mode;
+- Phase 4's egress rule survives a collector RCE.
+
+**Effort:** ~3–4 weeks (PR-19 ~1 week, alongside Phase 2).
+
+---
+
 ## Issue → phase tracking
 
 | Issue | Fixed in | Layer(s) |
@@ -124,6 +148,10 @@ PRs (repo `xtcp2` unless noted; each lands with its tests and doc updates from W
 | I12 no `Set` audit trail | Phase 1 (PR-5) | L6 |
 | I13 collector holds needless write access | Phase 3 | L4, L5 |
 | I14 debug writers in production image | Phase 1 (PR-1) | L0 |
+| I15 `docker.sock` in the collector | Phase 5 (PR-21, PR-23) | L7 |
+| I16 `CAP_NET_ADMIN` in the collector | Phase 5 (PR-20, PR-22) | L7 |
+| I17 `CAP_SYS_ADMIN` under the default seccomp profile | Phase 5 (PR-19, PR-22) | L7 |
+| I18 full inspect documents in the collector | Phase 5 (PR-21) | L7 |
 
 ## Timeline and effort
 
@@ -134,8 +162,9 @@ PRs (repo `xtcp2` unless noted; each lands with its tests and doc updates from W
 | 2 | weeks 3–4 | Landlock (+ optional pivot_root), quota/alert, audit ship |
 | 3 | weeks 4–7 | writer split, `:ro` flip, systemd units |
 | 4 | weeks 7–8 | egress pinning, v1.x retirement, standing gates |
+| 5 | weeks 4–9 (profiles from week 3) | syscall profiles, netlink + Docker brokers, collector de-privilege |
 
-Phases 1 and 2 partially overlap (Landlock PR-8 can start as soon as PR-3's `-writableDir` lands); Phase 3's proto work can start during Phase 2. Nothing later is required for anything earlier to ship.
+Phases 1 and 2 partially overlap (Landlock PR-8 can start as soon as PR-3's `-writableDir` lands); Phase 3's proto work can start during Phase 2. Phase 5 starts once Phase 2 lands and runs alongside Phase 3; its PR-19 profiles ship with Phase 2. Nothing later is required for anything earlier to ship.
 
 ## Gates and rollback
 
@@ -148,5 +177,6 @@ Phases 1 and 2 partially overlap (Landlock PR-8 can start as soon as PR-3's `-wr
 | 2 | previous image tag (Landlock ruleset gone); quota/alert are additive |
 | 3 | `xtcp2_revert.yml` + restore the collector's `:rw` state mount (writer container can stay, unused) |
 | 4 | network policy rules (per-DC, reversible); `-setAllowFrozenFields` restoration if a genuine migration is blocked |
+| 5 | per rollout step: drop the `security_opt` (profiles); unset the broker flags (collector back to direct mode); restore the previous collector container spec (capabilities + mounts) |
 
-- **Success definition (end state):** with the admin token in hand on a canary host, nothing in the [end-state verification checklist](plan-configservice-set-hardening.md#end-state-verification-checklist) succeeds in writing outside `/var/lib/xtcp2`, changing egress, or naming any path — and `/var/lib/xtcp2` itself is quota-guarded, audited, and (post-Phase 3) writable only by the capability-less writer.
+- **Success definition (end state):** with the admin token in hand on a canary host, nothing in the [end-state verification checklist](plan-configservice-set-hardening.md#end-state-verification-checklist) succeeds in writing outside `/var/lib/xtcp2`, changing egress, or naming any path — and `/var/lib/xtcp2` itself is quota-guarded, audited, and (post-Phase 3) writable only by the capability-less writer — and the collector itself holds no capability and no `docker.sock` (post-Phase 5).

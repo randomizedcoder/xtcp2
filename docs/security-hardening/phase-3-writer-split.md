@@ -33,7 +33,7 @@ The daemon has exactly two legitimate writes (advisory §2): the link-monitor ba
 | Collector RCE **as root** wants to poison state | — | must speak the writer's fixed 3-op API: two named targets, one size cap each, monotonic seq — no paths, no arbitrary bytes past schema checks; schema-valid poison at the next `seq` still lands, and `docker.sock` bypasses the writer entirely |
 | Writer itself compromised | — | unprivileged uid, no capabilities, no network (container `network_mode: none`), Landlock write rules only on its two target dirs |
 
-What this phase does **not** fix: the collector keeps `docker.sock`, so an RCE can have dockerd write any host path (the state dir included) without touching the writer; the collector can still reach network egress (Phase 4); and the writer accepts a well-formed request from uid 0 (or a stolen shared secret — see [decisions](#decisions-to-close-during-phase-3)) and will overwrite its two fixed targets with schema-valid data; that bounded surface is the accepted residual.
+What this phase does **not** fix: the collector keeps `docker.sock` (until [Phase 5](phase-5-privilege-brokers.md)), so an RCE can have dockerd write any host path (the state dir included) without touching the writer; the collector can still reach network egress (Phase 4); and the writer accepts a well-formed request from uid 0 (or a stolen shared secret — see [decisions](#decisions-to-close-during-phase-3)) and will overwrite its two fixed targets with schema-valid data; that bounded surface is the accepted residual.
 
 ## PR map and branches
 
@@ -255,7 +255,7 @@ Container pair (deployment role, mirroring the existing `ipfeed` second-containe
 
 | | `xtcp2` (collector) | `xtcp2_writer` (writer) |
 |---|---|---|
-| uid | 0 (unchanged — keeps `NET_ADMIN`/`SYS_ADMIN`); `group_add: xtcp2-state` | 65534, primary group `xtcp2-state` |
+| uid | 0 (unchanged — keeps `NET_ADMIN`/`SYS_ADMIN` until Phase 5 makes it a non-root uid with no capabilities); `group_add: xtcp2-state` | 65534, primary group `xtcp2-state` |
 | capabilities | `cap_drop ALL` + NET_ADMIN, SYS_ADMIN (unchanged) | `cap_drop ALL` — **none added** |
 | network | host (unchanged, ports 9088/8889/9089) | `network_mode: none` — no interfaces, no egress at all |
 | mounts | as today, **minus** the rw state dir (kept `ro` for loads) + socket volume | `/var/lib/xtcp2:rw` (the only writable mount), socket volume, nothing else — no docker.sock, no netns, no S3 secret |
