@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "address": "02:00:00:00:01:01",
+  "kind": "ifb",
+  "mtu": "1400",
+  "name": "n0",
+  "numtxqueues": "4",
+  "txqlen": "100",
+  "up": "1"
+ },
+ "cmd": "ip link add dev n0 up mtu 1400 txqueuelen 100 address 02:00:00:00:01:01 numtxqueues 4 type ifb",
+ "desc": "negative: name=dev up=up mtu=1400 txqlen=100 address=mac queues=tx kind=ifb: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkadd/dup-2",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip link add dev n0 up mtu 1400 txqueuelen 100 address 02:00:00:00:01:01 numtxqueues 4 type ifb"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dev n0 up mtu 1400 txqueuelen 100 address 02:00:00:00:01:01 numtxqueues 4 type ifb",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

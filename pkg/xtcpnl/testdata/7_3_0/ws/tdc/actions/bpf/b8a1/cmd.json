@@ -1,0 +1,55 @@
+{
+ "cmd": "tc action replace action bpf bytecode '1,6 0 0 4294967295' goto chain 42 index 90 cookie c1a0c1a0",
+ "desc": "negative: Replace bpf action with invalid goto_chain control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: bpf.* default-action pass.*index 90",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/bpf/b8a1",
+ "modules": [
+  "act_bpf"
+ ],
+ "pre": [
+  [
+   "tc actions flush action bpf",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc action add action bpf bytecode '1,6 0 0 4294967295' pass index 90"
+ ],
+ "readback": [
+  {
+   "cmd": "tc action list action bpf",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action bpf",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action bpf bytecode '1,6 0 0 4294967295' pass index 90",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "b8a1",
+  "tdc": "actions/bpf.json"
+ }
+}

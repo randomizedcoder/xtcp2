@@ -1,0 +1,53 @@
+{
+ "cmd": "tc class add dev dummy1 parent 1:1 classid 1:2 hfsc rt rate 8",
+ "desc": "positive: HFSC rt inner class upgrade to sc",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)class hfsc 1:1 parent 1: sc m1 0bit d 0us m2 8bit.*rt m1 0bit d 0us m2 8bit",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/hfsc/bef4",
+ "modules": [
+  "sch_hfsc"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 handle 1: root hfsc default 1",
+  "tc class add dev dummy1 parent 1: classid 1:1 hfsc rt rate 8"
+ ],
+ "readback": [
+  {
+   "cmd": "tc class show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root hfsc default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1: classid 1:1 hfsc rt rate 8",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "bef4",
+  "tdc": "qdiscs/hfsc.json"
+ }
+}

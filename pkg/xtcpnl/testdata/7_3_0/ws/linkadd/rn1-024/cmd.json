@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "kind": "macvlan",
+  "link": "d0",
+  "macvlan_mode": "4",
+  "mtu": "1500",
+  "name": "n0",
+  "numtxqueues": "4",
+  "txqlen": "100",
+  "up": "1"
+ },
+ "cmd": "ip link add dev n0 up mtu 1500 txqueuelen 100 numtxqueues 4 link d0 type macvlan mode bridge",
+ "desc": "corner: name=dev up=up mtu=1500 txqlen=100 address=absent queues=tx kind=macvlan",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkadd/rn1-024",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

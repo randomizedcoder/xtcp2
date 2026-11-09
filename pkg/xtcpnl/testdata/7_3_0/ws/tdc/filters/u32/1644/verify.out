@@ -1,0 +1,8 @@
+filter protocol ip pref 98 u32 chain 0 
+filter protocol ip pref 98 u32 chain 0 fh 801: ht divisor 1 
+filter protocol ip pref 98 u32 chain 0 fh 801::800 order 2048 key ht 801 bkt 0 link 43: not_in_hw 
+  match c0a80000/ffff0000 at 12
+    hash mask 0000ff00 at 12 
+filter protocol all pref 99 u32 chain 0 
+filter protocol all pref 99 u32 chain 0 fh 43: ht divisor 256 
+filter protocol all pref 99 u32 chain 0 fh 800: ht divisor 1 

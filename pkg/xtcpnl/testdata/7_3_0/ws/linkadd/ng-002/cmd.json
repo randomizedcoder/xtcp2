@@ -1,0 +1,39 @@
+{
+ "axes": {
+  "kind": "vlan",
+  "link": "d0",
+  "name": "n0",
+  "vlan_id": "4095"
+ },
+ "cmd": "ip link add n0 link d0 type vlan id 4095",
+ "desc": "negative: name=bare up=absent mtu=absent txqlen=absent address=absent queues=absent kind=vlan-4095: VLAN id 4095, past VLAN_VID_MASK - 1 (Invalid VLAN id)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ERANGE",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkadd/ng-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

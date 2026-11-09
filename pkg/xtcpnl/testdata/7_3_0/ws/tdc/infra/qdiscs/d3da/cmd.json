@@ -1,0 +1,111 @@
+{
+ "cmd": "ping -c 1 -I dummy1 10.10.10.1 -W0.01",
+ "desc": "negative: Verify dualpi2 won't mistakenly deactivate QFQ parent class during peek",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1
+ },
+ "id": "tdc/infra/qdiscs/d3da",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.10.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 root handle 1: qfq",
+  "tc class add dev dummy1 parent 1: classid 1:1 qfq weight 1 maxpkt 1000",
+  "tc class add dev dummy1 parent 1: classid 1:2 qfq weight 1 maxpkt 1000",
+  "tc qdisc add dev dummy1 parent 1:1 handle 2:0 plug limit 1024",
+  "tc qdisc add dev dummy1 parent 1:2 handle 10: dualpi2 step_thresh 500ms",
+  "tc filter add dev dummy1 parent 10: protocol ip prio 1 matchall classid 10:1 action ok",
+  "tc filter add dev dummy1 parent 1: protocol ip prio 1 u32 match ip dst 10.10.10.1/32 flowid 1:1",
+  "tc filter add dev dummy1 parent 1: protocol ip prio 2 u32 match ip dst 10.10.10.2/32 flowid 1:2",
+  "ping -c 1 -I dummy1 10.10.10.1 -W0.01 || true",
+  "ping -c 3 -i 0.1 -I dummy1 10.10.10.2 -W0.01 || true",
+  "sleep 0.7",
+  "ping -c 1 -I dummy1 10.10.10.2 -W0.01 || true",
+  "tc qdisc change dev dummy1 handle 2:0 plug release_indefinite"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s -j qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.10.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: qfq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1: classid 1:1 qfq weight 1 maxpkt 1000",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1: classid 1:2 qfq weight 1 maxpkt 1000",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1:1 handle 2:0 plug limit 1024",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1:2 handle 10: dualpi2 step_thresh 500ms",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 10: protocol ip prio 1 matchall classid 10:1 action ok",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 1: protocol ip prio 1 u32 match ip dst 10.10.10.1/32 flowid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 1: protocol ip prio 2 u32 match ip dst 10.10.10.2/32 flowid 1:2",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 -I dummy1 10.10.10.1 -W0.01 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 3 -i 0.1 -I dummy1 10.10.10.2 -W0.01 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "sleep 0.7",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 -I dummy1 10.10.10.2 -W0.01 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc change dev dummy1 handle 2:0 plug release_indefinite",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d3da",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

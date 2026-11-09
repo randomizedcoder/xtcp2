@@ -1,0 +1,21 @@
+geneve: unknown command "loc"?
+Usage: ... geneve id VNI
+		remote ADDR
+		[ local ADDR ]
+		[ ttl TTL ]
+		[ tos TOS ]
+		[ df DF ]
+		[ flowlabel LABEL ]
+		[ dstport PORT ]
+		[ [no]external ]
+		[ [no]udpcsum ]
+		[ [no]udp6zerocsumtx ]
+		[ [no]udp6zerocsumrx ]
+		[ innerprotoinherit ]
+
+Where:	VNI   := 0-16777215
+	ADDR  := IP_ADDRESS
+	TOS   := { NUMBER | inherit }
+	TTL   := { 1..255 | auto | inherit }
+	DF    := { unset | set | inherit }
+	LABEL := 0-1048575

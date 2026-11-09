@@ -1,0 +1,16 @@
+[ {
+        "ifname": "eth0",
+        "rx-max": 4096,
+        "rx-mini-max": 4096,
+        "rx-jumbo-max": 4096,
+        "tx-max": 4096,
+        "hds-thresh-max": 1024,
+        "rx": 512,
+        "rx-mini": 0,
+        "rx-jumbo": 0,
+        "tx": 512,
+        "tx-push": false,
+        "rx-push": false,
+        "tcp-data-split": "on",
+        "hds-thresh": 0
+    } ]

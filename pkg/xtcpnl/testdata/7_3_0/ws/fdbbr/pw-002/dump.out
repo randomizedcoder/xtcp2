@@ -1,0 +1,6 @@
+01:00:5e:00:00:01 vlan 10 extern_learn master br0 
+ba:82:ae:b6:e3:71 vlan 10 master br0 permanent
+ba:82:ae:b6:e3:71 vlan 1 master br0 permanent
+ba:82:ae:b6:e3:71 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

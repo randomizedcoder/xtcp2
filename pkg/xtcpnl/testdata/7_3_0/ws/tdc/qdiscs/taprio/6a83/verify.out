@@ -1,0 +1,17 @@
+qdisc taprio 8001: root tc 8 map 0 1 2 3 4 5 6 7 0 0 0 0 0 0 0 0
+queues offset 0 count 1 offset 1 count 1 offset 2 count 1 offset 3 count 1 offset 4 count 1 offset 5 count 1 offset 6 count 1 offset 7 count 1
+ flags 0x2	base-time 0 cycle-time 20000000 cycle-time-extension 0
+	index 0 cmd S gatemask 0xff interval 20000000
+max-sdu 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+fp E E E E E E E E E E E E E E E E
+
+ overhead 24 
+qdisc pfifo 0: parent 8002: limit 1000p
+qdisc pfifo 0: parent 8001:7 refcnt 2 limit 1000p
+qdisc pfifo 0: parent 8001:6 refcnt 2 limit 1000p
+qdisc pfifo 0: parent 8001:5 refcnt 2 limit 1000p
+qdisc pfifo 0: parent 8001:4 refcnt 2 limit 1000p
+qdisc pfifo 0: parent 8001:3 refcnt 2 limit 1000p
+qdisc pfifo 0: parent 8001:2 refcnt 2 limit 1000p
+qdisc pfifo 0: parent 8001:1 refcnt 2 limit 1000p
+qdisc cbs 8002: parent 8001:8 refcnt 2 hicredit 30 locredit -1470 sendslope -980000 idleslope 20000 offload 0 

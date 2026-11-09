@@ -1,0 +1,55 @@
+{
+ "cmd": "tc filter add block 21 prio 1 protocol ip matchall action ct index 42",
+ "desc": "positive: Attach act_ct to a shared block",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/actions/ct/4f60",
+ "modules": [
+  "act_ct"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  [
+   "tc actions flush action ct",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc qdisc add dev v0p1 ingress_block 21 clsact"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j filter ls block 21 prio 1 protocol ip",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions flush action ct",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress_block 21 clsact",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4f60",
+  "tdc": "actions/ct.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

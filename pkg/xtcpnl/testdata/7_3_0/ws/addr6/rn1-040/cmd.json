@@ -1,0 +1,51 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "4",
+  "local": "2001:db8:1::1",
+  "metric": "0",
+  "peer": "2001:db8:9::",
+  "peer_len": "64",
+  "preferred": "60",
+  "prefixlen": "128",
+  "proto": "0",
+  "scope": "253",
+  "valid": "60",
+  "verb": "del"
+ },
+ "cmd": "ip -6 address del 2001:db8:1::1 peer 2001:db8:9::/64 scope link metric 0 valid_lft 60 preferred_lft 60 optimistic proto unspec dev d0",
+ "desc": "corner: verb=del local=bare peer=64 brd=absent label=absent scope=link metric=0 lft=equal flags=optimistic proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/rn1-040",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -6 address add 2001:db8:1::1 peer 2001:db8:9::/64 scope link metric 0 valid_lft 60 preferred_lft 60 optimistic proto unspec dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1 peer 2001:db8:9::/64 scope link metric 0 valid_lft 60 preferred_lft 60 optimistic proto unspec dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

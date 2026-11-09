@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action mirred index 5",
+ "desc": "positive: Delete mirred mirror action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: mirred \\(Egress Mirror to device lo\\).*index 5 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mirred/a70e",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action mirred egress mirror index 5 dev lo"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mirred",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action mirred egress mirror index 5 dev lo",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a70e",
+  "tdc": "actions/mirred.json"
+ }
+}

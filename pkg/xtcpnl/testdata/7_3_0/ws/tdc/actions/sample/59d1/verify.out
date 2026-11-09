@@ -1,0 +1,6 @@
+total acts 1
+
+	action order 0: sample rate 1/1024 group 7 pipe
+	 index 4 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled

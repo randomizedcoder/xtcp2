@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action nat egress 10.10.10.1 20.20.20.1 reclassify",
+ "desc": "positive: Add nat action on egress with reclassify control action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+:  nat egress 10.10.10.1/32 20.20.20.1 reclassify",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/nat/6d4a",
+ "modules": [
+  "act_nat"
+ ],
+ "pre": [
+  [
+   "tc actions flush action nat",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action nat",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action nat",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6d4a",
+  "tdc": "actions/nat.json"
+ }
+}

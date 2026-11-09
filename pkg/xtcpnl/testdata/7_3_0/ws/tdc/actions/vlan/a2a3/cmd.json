@@ -1,0 +1,69 @@
+{
+ "cmd": "tc actions flush action vlan",
+ "desc": "positive: Flush vlan actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: vlan.*push id 4 protocol 802.1ad",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/vlan/a2a3",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action vlan push id 4 protocol 802.1ad index 10",
+  "tc actions add action vlan push id 4 protocol 802.1ad index 11",
+  "tc actions add action vlan push id 4 protocol 802.1ad index 12",
+  "tc actions add action vlan push id 4 protocol 802.1ad index 13"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action vlan",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action vlan push id 4 protocol 802.1ad index 10",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action vlan push id 4 protocol 802.1ad index 11",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action vlan push id 4 protocol 802.1ad index 12",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action vlan push id 4 protocol 802.1ad index 13",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a2a3",
+  "tdc": "actions/vlan.json"
+ }
+}

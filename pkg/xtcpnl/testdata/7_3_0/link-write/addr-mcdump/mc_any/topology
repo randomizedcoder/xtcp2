@@ -1,0 +1,5 @@
+ok    [addra] sysctl net.ipv6.conf.default.forwarding=1
+ok    [addra] ip link add d0 type dummy
+ok    [addra] ip link set d0 up
+ok    [addra] ip -6 addr add 2001:db8:1::1/64 dev d0 nodad
+ok    [addra] ip addr add 224.0.0.251/32 dev d0 autojoin

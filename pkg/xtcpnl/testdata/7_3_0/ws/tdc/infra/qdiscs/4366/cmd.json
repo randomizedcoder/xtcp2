@@ -1,0 +1,70 @@
+{
+ "cmd": "ping -Idummy1 -f -c1 -s64 -W1 10.10.10.1 || true",
+ "desc": "positive: CAKE with QFQ Parent - CAKE enqueue with packets dropping",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc qfq 1:",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/4366",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 handle 1: root qfq",
+  "tc class add dev dummy1 parent 1: classid 1:1 qfq maxpkt 1024",
+  "tc qdisc add dev dummy1 parent 1:1 handle 2: cake memlimit 9",
+  "tc filter add dev dummy1 protocol ip parent 1: prio 1 u32 match ip protocol 1 0xff flowid 1:1",
+  "ping -Idummy1 -f -c1 -s64 -W1 10.10.10.1 || true",
+  "tc qdisc replace dev dummy1 parent 1:1 handle 3: netem delay 0ms"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root qfq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1: classid 1:1 qfq maxpkt 1024",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1:1 handle 2: cake memlimit 9",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 protocol ip parent 1: prio 1 u32 match ip protocol 1 0xff flowid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -Idummy1 -f -c1 -s64 -W1 10.10.10.1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc replace dev dummy1 parent 1:1 handle 3: netem delay 0ms",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4366",
+  "tdc": "infra/qdiscs.json"
+ }
+}

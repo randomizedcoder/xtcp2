@@ -1,0 +1,3 @@
+0:	from all lookup local
+100:	from all to 2001:db8:3::9 fwmark 0xffffffff iif d0 oif nosuch [detached] uidrange 0-0 ipproto tcp sport 0x50/0xfff0 dport 0x50/0xfff0 goto 40000 [unresolved] dscp 63 flowlabel 0x12345
+32766:	from all lookup main

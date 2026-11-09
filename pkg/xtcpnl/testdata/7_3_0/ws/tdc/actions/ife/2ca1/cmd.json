@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ife encode use prio 4294967298 pipe index 99",
+ "desc": "negative: Create ife encode action with prio value exceeding 32-bit maximum",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: ife encode action pipe.*type 0[xX]ED3E.*use prio 4294967298.*index 99",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/ife/2ca1",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action ife index 99",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2ca1",
+  "tdc": "actions/ife.json"
+ }
+}

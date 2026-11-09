@@ -1,0 +1,33 @@
+{
+ "axes": {
+  "dport": "65535",
+  "dst": "192.0.2.1",
+  "family": "4",
+  "notify": "1",
+  "tos": "16"
+ },
+ "cmd": "ip -4 route get 192.0.2.1 mark 0 dport 65535 tos 0x10 notify",
+ "desc": "corner: dst=connected from=absent dev=absent mark=0 uid=absent ipproto=absent ports=dport-max tos=0x10 flags=notify",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "routeget4/rn1-037",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

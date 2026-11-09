@@ -1,0 +1,6 @@
+	 key #0  at eth+4: val 00001122 mask ffff0000
+	 key #1  at eth+8: val 33445566 mask 00000000
+	 key #2  at ipv4+8: val ff000000 mask 00ffffff
+	 key #3  at tcp+12: val 00000000 mask ff00ffff
+	 key #4  at 12: add 00000020 mask ffffff0f
+	 key #5  at udp+0: add 00000001 mask ffff0000

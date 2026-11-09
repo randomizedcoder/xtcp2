@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	from 198.51.100.7 to 203.0.113.9 tos 0x10 fwmark 0x10 iif d0 oif nosuch [detached] ipproto tcp sport 1000-2000 dport 80 realms 10 unreachable proto 255
+32766:	from all lookup main
+32767:	from all lookup default

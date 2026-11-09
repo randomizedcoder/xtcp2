@@ -1,0 +1,5 @@
+total acts 1
+
+	action order 0: ctinfo zone 0 pipe
+	 index 100 ref 1 bind 0 dscp 0xfc000000 0x01000000
+	not_in_hw

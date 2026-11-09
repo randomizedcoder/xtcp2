@@ -1,0 +1,6 @@
+qdisc tbf 1: root refcnt 2 rate 96bit burst 1999b limit 1000b 
+ Sent 1442 bytes 1 pkt (dropped 2, overlimits 3 requeues 0) 
+ backlog 1442b 1p requeues 0
+qdisc skbprio 10: parent 1: limit 1 
+ Sent 2884 bytes 2 pkt (dropped 2, overlimits 0 requeues 0) 
+ backlog 1442b 1p requeues 0

@@ -1,0 +1,3 @@
+0:	from all lookup local
+300:	not from all to 2001:db8:3::9 tos 0x10 fwmark 0xffffffff iif lo oif nosuch [detached] uidrange 1000-2000 ipproto tcp sport 80 dport 1000-2000 nop proto static flowlabel 0x1/0x1
+32766:	from all lookup main

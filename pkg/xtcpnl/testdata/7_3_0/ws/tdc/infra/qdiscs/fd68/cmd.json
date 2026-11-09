@@ -1,0 +1,75 @@
+{
+ "cmd": "tc qdisc del dev dummy1 handle 2: parent 1:1",
+ "desc": "positive: Test TBF with CODEL Backlog Accounting in gso_skb case against underflow",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)backlog 0b 0p",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/fd68",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.11.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 root handle 1: tbf rate 8bit burst 100b latency 100ms",
+  "tc qdisc replace dev dummy1 handle 2: parent 1:1 codel limit 1000",
+  [
+   "ping -I dummy1 -c2 10.10.11.11",
+   [
+    1
+   ]
+  ],
+  "tc qdisc change dev dummy1 handle 2: parent 1:1 codel limit 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.11.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: tbf rate 8bit burst 100b latency 100ms",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc replace dev dummy1 handle 2: parent 1:1 codel limit 1000",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -I dummy1 -c2 10.10.11.11",
+    "rc": 1
+   },
+   {
+    "cmd": "tc qdisc change dev dummy1 handle 2: parent 1:1 codel limit 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "fd68",
+  "tdc": "infra/qdiscs.json"
+ }
+}

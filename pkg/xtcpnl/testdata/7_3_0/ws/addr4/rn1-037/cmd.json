@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "bare": "1",
+  "brd": "192.0.2.127",
+  "family": "4",
+  "flags": "1024",
+  "label": "foo",
+  "local": "192.0.2.1",
+  "metric": "7",
+  "preferred": "4294967295",
+  "prefixlen": "32",
+  "proto": "99",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 192.0.2.1 bro 192.0.2.127 label foo scope link preference 7 valid_lft forever preferred_lft forever autojoin proto 99 dev d0",
+ "desc": "negative: verb=del local=bare peer=absent brd=abbrev label=other scope=link metric=preference lft=forever flags=autojoin proto=99: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr4/rn1-037",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

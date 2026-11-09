@@ -1,0 +1,5 @@
+[ {
+        "ifname": "eth0",
+        "config": [ "None" ],
+        "active": [ "None" ]
+    } ]

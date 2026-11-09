@@ -1,0 +1,3 @@
+	 key #0  at ipv6+4: val ffff0000 mask 0000ffff
+	 key #1  at ipv6+4: val 0000ff00 mask ffff00ff
+	 key #2  at ipv6+4: val 000000ff mask ffffff00

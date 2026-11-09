@@ -1,0 +1,5 @@
+src 192.0.2.1 dst 192.0.2.2
+	proto esp spi 0x00000200 reqid 0 mode transport
+	replay-window 0 
+	anti-replay context: seq 0x0, oseq 0x0, bitmap 0x00000000
+	sel src 192.0.2.1/32 dst 192.0.2.2/32 

@@ -1,0 +1,65 @@
+{
+ "cmd": "ip -6 rule add oif dummy0 table 100",
+ "desc": "corner: a step (fib_rule_tests.sh fib_rule6_vrf_test) does not check: ip -6 rule add oif dummy0 table 100",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibrule/fib_rule6_vrf_test-002",
+ "modules": [
+  "dummy",
+  "vrf"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 192.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  "ip link add name vrf0 up type vrf table 102",
+  "ip link set dev dummy0 master vrf0",
+  "ip -6 route add table 100 default via 2001:db8:1::2 dev dummy0 onlink"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 192.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add name vrf0 up type vrf table 102",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 master vrf0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add table 100 default via 2001:db8:1::2 dev dummy0 onlink",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_rule_tests.sh:139 fib_rule6_test_match_n_redirect"
+ }
+}

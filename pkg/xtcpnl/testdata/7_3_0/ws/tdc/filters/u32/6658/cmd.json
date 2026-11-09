@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter replace dev v0p1 ingress prio 99 handle 42:42 u32 divisor 256",
+ "desc": "negative: Add/Replace u32 with custom hash table and invalid handle",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)pref 99 u32 chain 0",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/filters/u32/6658",
+ "modules": [
+  "cls_u32"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1 ingress",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6658",
+  "tdc": "filters/u32.json"
+ }
+}

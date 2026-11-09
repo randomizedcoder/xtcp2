@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "512",
+  "local": "::",
+  "metric": "4294967295",
+  "preferred": "50",
+  "prefixlen": "64",
+  "scope": "253",
+  "valid": "100",
+  "verb": "del"
+ },
+ "cmd": "ip -6 address del ::/64 scope link metric 4294967295 valid_lft 100 preferred_lft 50 noprefixroute dev d0",
+ "desc": "negative: verb=del local=any peer=absent brd=absent label=absent scope=link metric=max lft=finite flags=noprefixroute proto=absent: a delete of an address its add could not store",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/rn1-037",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

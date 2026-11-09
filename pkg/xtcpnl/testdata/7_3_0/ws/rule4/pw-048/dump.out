@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from all ipproto ipproto-255 sport 1-65534 dport 65534 tun_id 7 lookup 256 suppress_prefixlength 24 dscp 4
+32766:	from all lookup main
+32767:	from all lookup default

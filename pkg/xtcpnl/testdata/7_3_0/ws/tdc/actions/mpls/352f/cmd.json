@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mpls dec_ttl tc 3",
+ "desc": "negative: Add mpls dec_ttl action with tc (invalid)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: mpls.*dec_ttl.*tc.*3.*pipe",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/mpls/352f",
+ "modules": [
+  "act_mpls"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mpls",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mpls",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mpls",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "352f",
+  "tdc": "actions/mpls.json"
+ }
+}

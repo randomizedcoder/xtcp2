@@ -1,0 +1,24 @@
+{
+ "cmd": "ip link add d0 type dummy",
+ "desc": "positive: a dummy link is created and acknowledged",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none",
+  "sent": 1
+ },
+ "id": "selftest/link-add",
+ "readback": [
+  {
+   "cmd": "ip -d link show d0",
+   "name": "getlink"
+  }
+ ],
+ "result": {
+  "rc": 0,
+  "status": "OK"
+ }
+}

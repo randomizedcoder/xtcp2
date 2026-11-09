@@ -1,0 +1,36 @@
+{
+ "axes": {
+  "family": "4",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.1/33 dev d0",
+ "desc": "negative: verb=add local=33 peer=absent brd=absent label=absent scope=absent metric=absent lft=absent flags=absent proto=absent: a prefix length past 32 (get_prefix exits 1)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "iproute2"
+ },
+ "id": "addr4/ng-007",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

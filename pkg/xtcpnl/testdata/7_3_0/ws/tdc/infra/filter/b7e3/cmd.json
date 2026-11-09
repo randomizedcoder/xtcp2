@@ -1,0 +1,45 @@
+{
+ "cmd": "tc filter add block 1 protocol ip prio 1 fw",
+ "desc": "negative: Empty fw filter on shared block - rejected at config time",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)fw",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/infra/filter/b7e3",
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 egress_block 1 clsact"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show block 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 egress_block 1 clsact",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "b7e3",
+  "tdc": "infra/filter.json"
+ }
+}

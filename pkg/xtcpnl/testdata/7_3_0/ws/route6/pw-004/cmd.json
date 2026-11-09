@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "dst": "2001:db8:2::",
+  "dst_len": "127",
+  "family": "6",
+  "metric": "7",
+  "mp": "2001:db8:1::1/1;2001:db8:1::2/256",
+  "mtu": "1280",
+  "pref": "3",
+  "table": "256",
+  "type": "multicast",
+  "verb": "add"
+ },
+ "cmd": "ip -6 route add multicast 2001:db8:2::/127 table 256 preference 7 pref low mtu 1280 nexthop via 2001:db8:1::1 dev d0 weight 1 nexthop via 2001:db8:1::2 dev d0 weight 256",
+ "desc": "corner: verb=add dst=127 type=multicast table=256 metric=preference proto=absent pref=low expires=absent mtu=1280 src=absent nh=multipath",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "route6/pw-004",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

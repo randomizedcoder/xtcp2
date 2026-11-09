@@ -1,0 +1,8 @@
+ok    [lacpa] ip link add la1 address 02:00:00:00:0a:01 type veth peer name lb1 address 02:00:00:00:0b:01 netns lacpb
+ok    [lacpa] ip link add la2 address 02:00:00:00:0a:02 type veth peer name lb2 address 02:00:00:00:0b:02 netns lacpb
+ok    [lacpa] ip link add bond0 address 02:00:00:00:0a:00 type bond mode 802.3ad lacp_rate fast miimon 100 ad_actor_system 02:00:00:00:00:0a
+ok    [lacpa] ip link set la1 master bond0
+ok    [lacpa] ip link set la2 master bond0
+ok    [lacpa] ip link set bond0 up
+ok    [lacpb] ip link set lb1 up
+ok    [lacpb] ip link set lb2 up

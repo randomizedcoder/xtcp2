@@ -1,0 +1,61 @@
+{
+ "cmd": "tc -s qdisc show dev v0p1",
+ "desc": "positive: Test HTB with FQ_CODEL - basic functionality",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/62c4",
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 root handle 1: htb default 11",
+  "tc class add dev v0p1 parent 1: classid 1:1 htb rate 10kbit",
+  "tc class add dev v0p1 parent 1:1 classid 1:11 htb rate 10kbit prio 0 quantum 1486",
+  "tc qdisc add dev v0p1 parent 1:11 fq_codel quantum 300 noecn",
+  "sleep 0.5"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s qdisc show dev v0p1 | grep -A 5 'qdisc fq_codel'",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 root handle 1: htb default 11",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev v0p1 parent 1: classid 1:1 htb rate 10kbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev v0p1 parent 1:1 classid 1:11 htb rate 10kbit prio 0 quantum 1486",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 parent 1:11 fq_codel quantum 300 noecn",
+    "rc": 0
+   },
+   {
+    "cmd": "sleep 0.5",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "62c4",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "the pattern counts scapy traffic, which is not replayed"
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "dscp": "63",
+  "family": "4",
+  "fwmark": "4294967295",
+  "fwmask": "4294967295",
+  "iif": "d0",
+  "oif": "nosuch",
+  "priority": "200",
+  "protocol": "4",
+  "src": "198.51.100.7",
+  "src_len": "32",
+  "table": "100",
+  "uidrange": "1000-2000",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del from 198.51.100.7/32 order 200 fwmark 0xffffffff/0xffffffff iif d0 oif nosuch dscp 63 dport 0x50/0xfff0 uidrange 1000-2000 protocol static table 100",
+ "desc": "corner: verb=del not=absent from=32 to=absent pref=order fwmark=max iif=d0 oif=nosuch ds=dscp-63 ipproto=absent sport=absent dport=mask uidrange=1000 suppress=absent protocol=static extra=absent action=100",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/rn1-020",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add from 198.51.100.7/32 order 200 fwmark 0xffffffff/0xffffffff iif d0 oif nosuch dscp 63 dport 0x50/0xfff0 uidrange 1000-2000 protocol static table 100"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add from 198.51.100.7/32 order 200 fwmark 0xffffffff/0xffffffff iif d0 oif nosuch dscp 63 dport 0x50/0xfff0 uidrange 1000-2000 protocol static table 100",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

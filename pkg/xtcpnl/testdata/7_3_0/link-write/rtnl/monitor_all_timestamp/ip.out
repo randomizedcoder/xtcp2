@@ -1,0 +1,55 @@
+Timestamp: Sun Oct 25 13:36:03 2026 666607 usec
+[ADDR]Deleted 3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sun Oct 25 13:36:03 2026 666821 usec
+[ADDR]Deleted 3: c0    inet 224.0.0.250/32 scope global autojoin c0
+       valid_lft forever preferred_lft forever
+Timestamp: Sun Oct 25 13:36:03 2026 666967 usec
+[ROUTE]Deleted local 224.0.0.250 dev c0 table local proto kernel scope host src 224.0.0.250 
+Timestamp: Sun Oct 25 13:36:03 2026 668966 usec
+[NEIGH]Deleted 224.0.0.22 dev c0 lladdr 01:00:5e:00:00:16 NOARP 
+Timestamp: Sun Oct 25 13:36:03 2026 678945 usec
+[ADDR]3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sun Oct 25 13:36:03 2026 678957 usec
+[ADDR]3: c0    inet 224.0.0.250/32 scope global autojoin c0
+       valid_lft forever preferred_lft forever
+Timestamp: Sun Oct 25 13:36:03 2026 678963 usec
+[ROUTE]local 224.0.0.250 dev c0 table local proto kernel scope host src 224.0.0.250 
+Timestamp: Sun Oct 25 13:36:03 2026 754886 usec
+[LINK]4: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default 
+    link/ether a6:70:08:1e:d4:b2 brd ff:ff:ff:ff:ff:ff
+Timestamp: Sun Oct 25 13:36:03 2026 756125 usec
+[ADDR]4: d0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sun Oct 25 13:36:03 2026 756136 usec
+[ROUTE]multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium
+Timestamp: Sun Oct 25 13:36:03 2026 767529 usec
+[ROUTE]2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+Timestamp: Sun Oct 25 13:36:03 2026 767545 usec
+[ADDR]4: d0    inet6 2001:db8:1::1/64 scope global nodad 
+       valid_lft forever preferred_lft forever
+Timestamp: Sun Oct 25 13:36:03 2026 767553 usec
+[ROUTE]local 2001:db8:1::1 dev d0 table local proto kernel metric 0 pref medium
+Timestamp: Sun Oct 25 13:36:03 2026 767560 usec
+[ROUTE]anycast 2001:db8:1:: dev d0 table local proto kernel metric 0 pref medium
+Timestamp: Sun Oct 25 13:36:03 2026 767566 usec
+[ADDR]4: d0    inet6 any 2001:db8:1:: scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Sun Oct 25 13:36:03 2026 768258 usec
+[NETCONF]inet d0 forwarding on 
+Timestamp: Sun Oct 25 13:36:03 2026 781106 usec
+[RULE]100:	from 192.0.2.0/24 lookup 100
+Timestamp: Sun Oct 25 13:36:03 2026 793447 usec
+[NEXTHOP]id 1 blackhole 
+Timestamp: Sun Oct 25 13:36:03 2026 806050 usec
+[STATS]4: d0:
+    l3_stats on used off
+Timestamp: Sun Oct 25 13:36:03 2026 831509 usec
+[NSID]nsid 9 (iproute2 netns name: c4p)
+Timestamp: Sun Oct 25 13:36:03 2026 844282 usec
+[NSID]Deleted nsid 9 (iproute2 netns name: c4p)
+Timestamp: Sun Oct 25 13:36:04 2026 25864 usec
+[ROUTE]2001:db8:5::/64 dev r0 proto kernel metric 256 expires 600sec pref medium
+Timestamp: Sun Oct 25 13:36:04 2026 25955 usec
+[PREFIX]prefix 2001:db8:5::/64dev r0 valid 600 preferred 300 

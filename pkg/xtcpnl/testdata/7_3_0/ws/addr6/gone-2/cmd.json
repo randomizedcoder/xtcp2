@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "4",
+  "label": "d0:1",
+  "local": "2001:db8:1::1",
+  "metric": "7",
+  "preferred": "0",
+  "prefixlen": "64",
+  "proto": "2",
+  "valid": "4294967295",
+  "verb": "del"
+ },
+ "cmd": "ip -6 address del 2001:db8:1::1/64 label d0:1 preference 7 preferred_lft 0 optimistic proto kernel_ra dev d0",
+ "desc": "negative: verb=del local=64 peer=absent brd=absent label=alias scope=absent metric=preference lft=deprecated flags=optimistic proto=kernel_ra: deleted but never added (EADDRNOTAVAIL)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/gone-2",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

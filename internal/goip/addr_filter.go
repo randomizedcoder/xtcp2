@@ -7,6 +7,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -223,7 +224,7 @@ func addrFilterTo(f *addrFilter, v string, _ addrLookups) error {
 
 func addrFilterScope(f *addrFilter, v string, _ addrLookups) error {
 	f.scopemask = -1
-	scope, ok := rtnlNameA2N(routeScopeNames, v, math.MaxUint8)
+	scope, ok := rtnlNameA2N8(routeScopeNames, v)
 	if !ok {
 		if v != addrNameAllCst {
 			return invargErr(`invalid "scope"`, v)
@@ -231,7 +232,7 @@ func addrFilterScope(f *addrFilter, v string, _ addrLookups) error {
 		scope = unix.RT_SCOPE_NOWHERE
 		f.scopemask = 0
 	}
-	f.scope = uint8(scope) //nolint:gosec // rtnlNameA2N's maxVal is 255
+	f.scope = scope
 	return nil
 }
 
@@ -346,18 +347,17 @@ func groupA2N(arg string) (int32, bool) {
 	if r.end == 0 || r.end != len(arg) {
 		return 0, false
 	}
-	var l int64
-	switch {
-	case r.neg && (r.overflow || -r.val > 1<<63):
+	// strtol clamps to the long range.
+	l := int64(math.MaxInt64)
+	if r.neg {
 		l = math.MinInt64
-	case r.neg:
-		l = -int64(-r.val-1) - 1 //nolint:gosec // -r.val <= 1<<63, checked above
-	case r.overflow || r.val > math.MaxInt64:
-		l = math.MaxInt64
-	default:
-		l = int64(r.val) //nolint:gosec // r.val <= MaxInt64, checked above
+		if n, ok := cint.NegInt64(-r.val); ok && !r.overflow {
+			l = n
+		}
+	} else if n, ok := cint.Int64(r.val); ok && !r.overflow {
+		l = n
 	}
-	g := int32(l) //nolint:gosec // C's long-to-int conversion keeps the low 32 bits
+	g := cint.LongToInt(l)
 	if g < 0 {
 		return 0, false
 	}
@@ -379,7 +379,7 @@ func (f *addrFilter) extMask(base uint32) uint32 {
 // 0xffffffff.
 func (f *addrFilter) linkFilter() req.AddrShowLinkFilter {
 	return req.AddrShowLinkFilter{
-		Master:  uint32(f.master), //nolint:gosec // addattr32 of an int: -1 is 0xffffffff on the wire
+		Master:  cint.Bits(f.master),
 		Kind:    f.kind,
 		HasKind: f.haveKind,
 	}
@@ -416,7 +416,7 @@ func (f *addrFilter) linkMode(li *xtcpnl.LinkInfo) addrLinkMode {
 		return addrLinkSkip
 	case f.haveLabel:
 		return addrLinkHeaderless
-	case li.HasGroup && f.group != -1 && int32(li.Group) != f.group, //nolint:gosec // rta_getattr_u32 stored in an int
+	case li.HasGroup && f.group != -1 && cint.Int(li.Group) != f.group, // rta_getattr_u32 stored in an int
 		f.master > 0 && li.Master != f.master,
 		f.haveKind && !linkKindMatches(li, f.kind, false),
 		f.haveSlaveKind && !linkKindMatches(li, f.slaveKind, true):
@@ -458,10 +458,11 @@ func addrLocal(ai *xtcpnl.AddrInfo) []byte {
 // IFA_PROTO, so `proto 99` keeps an address with none. devName is
 // ll_index_to_name, the label an address without IFA_LABEL is matched as.
 func (f *addrFilter) matchAddr(ai *xtcpnl.AddrInfo, li *xtcpnl.LinkInfo, devName func(int32) string) bool {
-	if int32(ai.Index) != li.Index { //nolint:gosec // ifa_index and ifi_index compare as C ints
+	// ifa_index and ifi_index compare as C ints.
+	if cint.Int(ai.Index) != li.Index {
 		return false
 	}
-	if f.ifindex != 0 && int32(ai.Index) != f.ifindex { //nolint:gosec // as above
+	if f.ifindex != 0 && cint.Int(ai.Index) != f.ifindex {
 		return false
 	}
 	if !f.matchCommon(ai, devName) {
@@ -498,7 +499,7 @@ func (f *addrFilter) matchCommon(ai *xtcpnl.AddrInfo, devName func(int32) string
 	if f.haveLabel {
 		label := ai.Label
 		if label == "" {
-			label = devName(int32(ai.Index)) //nolint:gosec // ifa_index as the C int ll_index_to_name takes
+			label = devName(cint.Int(ai.Index))
 		}
 		// The pattern was compiled when it was parsed, so it cannot fail here.
 		if ok, err := fnmatch0(f.label, label); err != nil || !ok {
@@ -526,7 +527,7 @@ func (f *addrFilter) keepLinks(links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo,
 		if filterAddrs && !f.linkHasAddr(&links[i], addrs, devName) {
 			continue
 		}
-		if f.group != -1 && links[i].HasGroup && int32(links[i].Group) != f.group { //nolint:gosec // as linkMode
+		if f.group != -1 && links[i].HasGroup && cint.Int(links[i].Group) != f.group {
 			continue
 		}
 		out = append(out, links[i])
@@ -537,7 +538,7 @@ func (f *addrFilter) keepLinks(links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo,
 func (f *addrFilter) linkHasAddr(li *xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo, devName func(int32) string) bool {
 	missingNetAddress := true
 	for j := range addrs {
-		if int32(addrs[j].Index) != li.Index { //nolint:gosec // as matchAddr
+		if cint.Int(addrs[j].Index) != li.Index {
 			continue
 		}
 		missingNetAddress = false

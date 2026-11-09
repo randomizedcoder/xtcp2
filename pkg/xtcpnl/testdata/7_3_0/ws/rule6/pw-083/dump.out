@@ -1,0 +1,3 @@
+0:	from all lookup local
+200:	from all tos 0x10 goto 40000 [unresolved]
+32766:	from all lookup main

@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ife decode drop index 1",
+ "desc": "positive: Create valid ife decode action with drop control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ife decode action drop.*type 0(x0)?.*allow mark allow tcindex allow prio.*index 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ife/d9ad",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action ife index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d9ad",
+  "tdc": "actions/ife.json"
+ }
+}

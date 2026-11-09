@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "br_stp": "1",
+  "kind": "bridge",
+  "mtu": "1500",
+  "name": "n0",
+  "numrxqueues": "4",
+  "txqlen": "0"
+ },
+ "cmd": "ip link add dev n0 mtu 1500 txqueuelen 0 numrxqueues 4 type bridge stp_state 1",
+ "desc": "corner: name=dev up=absent mtu=1500 txqlen=0 address=absent queues=rx kind=bridge-stp",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkadd/pw-028",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

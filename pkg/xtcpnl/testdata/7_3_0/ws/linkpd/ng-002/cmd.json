@@ -1,0 +1,32 @@
+{
+ "cmd": "ip link set dev m0 protodown maybe",
+ "desc": "negative: protodown=maybe reason=absent updown=absent: a protodown that isn't on or off",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 22,
+  "refused_by": "iproute2"
+ },
+ "id": "linkpd/ng-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add m0 link d0 type macvlan mode bridge"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev m0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add m0 link d0 type macvlan mode bridge",
+    "rc": 0
+   }
+  ],
+  "rc": 22,
+  "status": "OK"
+ }
+}

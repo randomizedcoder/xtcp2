@@ -1,0 +1,1 @@
+2001:db8:3::/64 via 2001:db8:2::2 dev dummy1 metric 1024 pref medium

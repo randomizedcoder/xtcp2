@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from all fwmark 0xffffffff dport 1-65534 lookup 4294967295 suppress_ifgroup 5 dscp 4
+32766:	from all lookup main
+32767:	from all lookup default

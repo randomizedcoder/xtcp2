@@ -1,0 +1,6 @@
+filter parent 1: protocol ip pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

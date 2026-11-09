@@ -1,0 +1,4 @@
+invalid push protocol "0x0800" - use mpls_(uc|mc)
+bad action parsing
+parse_action: bad value (6:mpls)!
+Illegal "action"

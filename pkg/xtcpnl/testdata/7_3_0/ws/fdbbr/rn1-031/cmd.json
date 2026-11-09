@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "dev": "d0",
+  "lladdr": "02:00:00:00:00:01",
+  "notify": "1",
+  "ntf": "64",
+  "state": "66",
+  "target": "4",
+  "verb": "append"
+ },
+ "cmd": "bridge fdb append 02:00:00:00:00:01 dev d0 master temp sticky activity_notify",
+ "desc": "corner: verb=append mac=uni dev=port target=master state=temp flags=sticky vlan=absent ext=notify",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "fdbbr/rn1-031",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: handle 1 prio 1 fw action gact index 1",
+ "desc": "positive: Add fw filter with action reclassify by reference",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)handle 0x1.*gact action reclassify.*index 1 ref 2 bind 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/fw/3bc2",
+ "modules": [
+  "cls_fw"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc actions add action gact reclassify index 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev v0p1 parent ffff: handle 1 prio 1 protocol all fw",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action gact reclassify index 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3bc2",
+  "tdc": "filters/fw.json"
+ }
+}

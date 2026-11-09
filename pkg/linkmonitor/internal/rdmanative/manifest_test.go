@@ -109,7 +109,7 @@ func syntheticCapture(t *testing.T) string {
 }
 
 func appendByte(p string) error {
-	f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0) // #nosec G304 -- test temp dir
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		return err
 	}

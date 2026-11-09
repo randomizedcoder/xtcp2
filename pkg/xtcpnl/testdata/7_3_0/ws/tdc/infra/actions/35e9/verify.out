@@ -1,0 +1,10 @@
+filter parent ffff: protocol ip pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1: 
+	priority 1       	clockid TAI	flags 0
+	base-time 0ns	cycle-time 100ms	cycle-time-ext 0ns
+	schedule:
+	 number    0	gate-state close 	interval 100ms	 ipv wildcard	 max-octets wildcard
+	pipe
+	 index 1 ref 2 bind 1
+

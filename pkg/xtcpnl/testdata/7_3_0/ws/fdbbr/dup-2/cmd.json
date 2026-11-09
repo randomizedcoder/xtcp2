@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "dev": "d0",
+  "lladdr": "01:00:5e:00:00:01",
+  "norefresh": "1",
+  "ntf": "64",
+  "state": "66",
+  "target": "4",
+  "verb": "add"
+ },
+ "cmd": "bridge fdb add 01:00:5e:00:00:01 dev d0 master temp sticky norefresh",
+ "desc": "negative: verb=add mac=mcast dev=port target=master state=temp flags=sticky vlan=absent ext=norefresh: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "fdbbr/dup-2",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self",
+  "bridge fdb add 01:00:5e:00:00:01 dev d0 master temp sticky norefresh"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 01:00:5e:00:00:01 dev d0 master temp sticky norefresh",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

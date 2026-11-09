@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mirred egress mirror index 20 dev eltoh",
+ "desc": "negative: Add mirred action with invalid device",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: mirred \\(.*to device eltoh\\).*index 20 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/mirred/2d89",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mirred",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2d89",
+  "tdc": "actions/mirred.json"
+ }
+}

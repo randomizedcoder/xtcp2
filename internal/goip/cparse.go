@@ -1,11 +1,15 @@
 package goip
 
 import (
+	"encoding/binary"
 	"errors"
 	"math"
 	"net/netip"
 	"strconv"
 	"strings"
+
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 // This file transcribes the libc and lib/utils.c number and address readers
@@ -27,16 +31,16 @@ func cIsSpace(c byte) bool {
 	return c == ' ' || (c >= '\t' && c <= '\r')
 }
 
-func cDigitVal(c byte) int {
+func cDigitVal(c byte) uint64 {
 	switch {
 	case c >= '0' && c <= '9':
-		return int(c - '0')
+		return uint64(c - '0')
 	case c >= 'a' && c <= 'z':
-		return int(c-'a') + 10
+		return uint64(c-'a') + 10
 	case c >= 'A' && c <= 'Z':
-		return int(c-'A') + 10
+		return uint64(c-'A') + 10
 	}
-	return math.MaxInt
+	return math.MaxUint64
 }
 
 // cStrtoulResult is what strtoul hands back: the value, how much of the input
@@ -49,8 +53,16 @@ type cStrtoulResult struct {
 	neg      bool
 }
 
-// cStrtoul is glibc's strtoul on a 64-bit long. base is 0, 10 or 16.
+// cStrtoul is glibc's strtoul on a 64-bit long. base is 0, 8, 10 or 16;
+// any other base converts nothing (end 0), as strtoul does for a base it
+// refuses with EINVAL, so a caller's bad base fails rather than reads
+// decimal.
 func cStrtoul(s string, base int) cStrtoulResult {
+	switch base {
+	case 0, 8, 10, 16:
+	default:
+		return cStrtoulResult{}
+	}
 	i := 0
 	for i < len(s) && cIsSpace(s[i]) {
 		i++
@@ -71,19 +83,27 @@ func cStrtoul(s string, base int) cStrtoulResult {
 	case base == 0:
 		base = 10
 	}
+	// base is 8, 10 or 16 here.
+	ubase := uint64(10)
+	switch base {
+	case 8:
+		ubase = 8
+	case 16:
+		ubase = 16
+	}
 
 	start := i
 	var r cStrtoulResult
 	for i < len(s) {
 		d := cDigitVal(s[i])
-		if d >= base {
+		if d >= ubase {
 			break
 		}
 		if !r.overflow {
-			if r.val > (math.MaxUint64-uint64(d))/uint64(base) {
+			if r.val > (math.MaxUint64-d)/ubase {
 				r.overflow = true
 			} else {
-				r.val = r.val*uint64(base) + uint64(d)
+				r.val = r.val*ubase + d
 			}
 		}
 		i++
@@ -118,17 +138,26 @@ func cGetUnsigned(arg string, base int, maxVal uint64) (uint64, bool) {
 
 func getU8(arg string, base int) (uint8, bool) {
 	v, ok := cGetUnsigned(arg, base, math.MaxUint8)
-	return uint8(v), ok
+	if !ok {
+		return 0, false
+	}
+	return cint.U8From64(v)
 }
 
 func getU16(arg string, base int) (uint16, bool) {
 	v, ok := cGetUnsigned(arg, base, math.MaxUint16)
-	return uint16(v), ok
+	if !ok {
+		return 0, false
+	}
+	return cint.U16From64(v)
 }
 
 func getU32(arg string, base int) (uint32, bool) {
 	v, ok := cGetUnsigned(arg, base, math.MaxUint32)
-	return uint32(v), ok
+	if !ok {
+		return 0, false
+	}
+	return cint.U32From64(v)
 }
 
 // getU64 is get_u64: strtoull, the whole argument, ULLONG_MAX with ERANGE
@@ -154,14 +183,38 @@ func getLong(arg string, base int) (int64, bool) {
 	switch {
 	case r.overflow:
 		return 0, false
-	case !r.neg && mag > math.MaxInt64:
-		return 0, false
-	case r.neg && mag > 1<<63:
-		return 0, false
 	case r.neg:
-		return -int64(mag-1) - 1, true //nolint:gosec // mag <= 1<<63, checked above
+		return cint.NegInt64(mag)
 	}
-	return int64(mag), true //nolint:gosec // mag <= MaxInt64, checked above
+	return cint.Int64(mag)
+}
+
+// cStrtol is glibc's strtol on a 64-bit long: strtoul's reading, clamped to
+// [LONG_MIN, LONG_MAX] as strtol clamps on ERANGE. end is cStrtoul's: 0 when
+// no digits were read.
+func cStrtol(s string, base int) (val int64, end int) {
+	r := cStrtoul(s, base)
+	if r.end == 0 {
+		return 0, 0
+	}
+	if r.overflow {
+		if r.neg {
+			return math.MinInt64, r.end
+		}
+		return math.MaxInt64, r.end
+	}
+	if r.neg {
+		v, ok := cint.NegInt64(-r.val)
+		if !ok {
+			return math.MinInt64, r.end
+		}
+		return v, r.end
+	}
+	v, ok := cint.Int64(r.val)
+	if !ok {
+		return math.MaxInt64, r.end
+	}
+	return v, r.end
 }
 
 // cAtoi is glibc's atoi: (int)strtol(s, NULL, 10). It reads the longest
@@ -308,27 +361,53 @@ func getAddrIPv6(name string) (netip.Addr, bool) {
 // A part count above maxLen makes ll_addr_a2n return maxLen+1 and the caller
 // copy past its buffer; that is refused here rather than reproduced.
 func llAddrA2N(arg string, maxLen int) ([]byte, bool) {
+	b, n, _ := llAddrA2NPart(arg, maxLen)
+	return b, n > 0 && n <= maxLen
+}
+
+// llAddrA2NPart is ll_addr_a2n with what it returns and prints: the bytes,
+// its return (the byte count; maxLen+1 when there are more parts than
+// that, the rest unread; -1 for a refusal), and the word its `"%s" is
+// invalid lladdr.` names, which is the failing part, or the whole argument
+// for an IPv4 address. It is "" when nothing was printed: a success, or
+// an IPv4 address that doesn't fit maxLen.
+func llAddrA2NPart(arg string, maxLen int) ([]byte, int, string) {
 	if strings.IndexByte(arg, '.') >= 0 {
 		a, ok := getAddrIPv4(arg)
-		if !ok || maxLen < 4 {
-			return nil, false
+		if !ok {
+			return nil, -1, arg
+		}
+		if maxLen < 4 {
+			return nil, -1, ""
 		}
 		b := a.As4()
-		return b[:], true
+		return b[:], 4, ""
 	}
-	parts := strings.Split(arg, ":")
-	if len(parts) > maxLen {
-		return nil, false
-	}
-	out := make([]byte, 0, len(parts))
-	for _, p := range parts {
-		v, ok := scanHexInt(p)
+	out := make([]byte, 0, max(maxLen, 0))
+	for rest := arg; len(out) < maxLen; {
+		part, next, more := strings.Cut(rest, ":")
+		v, ok := scanHexInt(part)
 		if !ok || v < 0 || v > 255 {
-			return nil, false
+			return nil, -1, part
 		}
 		out = append(out, byte(v))
+		if !more {
+			return out, len(out), ""
+		}
+		rest = next
 	}
-	return out, true
+	return nil, maxLen + 1, ""
+}
+
+// llAddrCut is the word ll_addr_a2n leaves in argv: it writes a NUL over
+// the first ':' before reading the first part, so a caller that PREV_ARGs
+// re-reads the word cut there. An IPv4 address is left whole.
+func llAddrCut(arg string) string {
+	if strings.IndexByte(arg, '.') >= 0 {
+		return arg
+	}
+	w, _, _ := strings.Cut(arg, ":")
+	return w
 }
 
 // scanHexInt is sscanf(s, "%x", &int) == 1: strtoul base 16 over a prefix,
@@ -338,5 +417,63 @@ func scanHexInt(s string) (int32, bool) {
 	if r.end == 0 {
 		return 0, false
 	}
-	return int32(uint32(r.val)), true //nolint:gosec // the C int truncation, on purpose
+	return cint.Int(cint.Low32(r.val)), true
+}
+
+// cIntBits is a C int's 32 bits, as ip copies an int into a u32 attribute
+// (addattr32). n comes from get_integer, so it is in an int32's range; a
+// value past it is clamped, which no caller passes.
+func cIntBits(n int) uint32 {
+	return cint.Bits(int32(max(min(n, math.MaxInt32), math.MinInt32)))
+}
+
+// cStrcaseEq is strcasecmp(a, b) == 0 in the C locale `ip` runs in: only
+// ASCII letters fold, byte by byte. strings.EqualFold folds Unicode too, so
+// it would take "ſ" (U+017F) for "s" where strcasecmp does not.
+func cStrcaseEq(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range len(a) {
+		if asciiLower(a[i]) != asciiLower(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiLower(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+	return c
+}
+
+// mplsLabelMaxCst is 1 << 20: an MPLS label is 20 bits.
+const mplsLabelMaxCst = 1 << 20
+
+// mplsPton is mpls_pton1 (lib/mpls_pton.c): up to xtcpnl.MplsLabelStackMax
+// labels split on '/', each strtoul in base 0 below 2^20, stored big-endian
+// as label << 12 with the bottom-of-stack bit (0x100) on the last. tooMany
+// is the stack running past the limit, where mpls_pton1 prints "too many
+// labels" before failing.
+func mplsPton(s string) (data []byte, tooMany, ok bool) {
+	for range xtcpnl.MplsLabelStackMax {
+		r := cStrtoul(s, 0)
+		label, fits := cint.U32From64(r.val)
+		if r.overflow || !fits || label >= mplsLabelMaxCst || r.end == 0 {
+			return nil, false, false
+		}
+		entry := label << 12
+		rest := s[r.end:]
+		if rest == "" {
+			return binary.BigEndian.AppendUint32(data, entry|1<<8), false, true
+		}
+		if rest[0] != '/' {
+			return nil, false, false
+		}
+		data = binary.BigEndian.AppendUint32(data, entry)
+		s = rest[1:]
+	}
+	return nil, true, false
 }

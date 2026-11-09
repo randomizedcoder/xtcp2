@@ -1,0 +1,3 @@
+0:	from all lookup local
+32766:	from all lookup main
+4294967295:	not from all to 2001:db8:3::9 fwmark 0x10 oif nosuch [detached] uidrange 0-4294967294 ipproto ipv6-icmp sport 1-65534 dport 0x50/0xfff0 blackhole dscp 63 flowlabel 0x1/0x1

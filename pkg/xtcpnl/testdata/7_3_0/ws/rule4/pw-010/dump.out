@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	not from all to 203.0.113.0/24 iif nosuch [detached] oif nosuch [detached] ipproto tcp sport 1000-2000 dport 65534 realms 10 prohibit dscp EF
+32766:	from all lookup main
+32767:	from all lookup default

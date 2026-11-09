@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	not from 198.51.100.7 to 203.0.113.9 tos 0x08 oif d0 uidrange 0-4294967294 ipproto udp sport 80 dport 1000-2000 tun_id 7 lookup 256 proto static
+32766:	from all lookup main
+32767:	from all lookup default

@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "dport": "1-65534",
+  "dscp": "32",
+  "dscp_mask": "48",
+  "family": "4",
+  "iif": "nosuch",
+  "priority": "200",
+  "sport": "1000-2000",
+  "table": "254",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add order 200 iif nosuch dscp 32/0x30 sport 1000-2000 dport 1-65534",
+ "desc": "corner: verb=add not=absent from=absent to=absent pref=order fwmark=absent iif=nosuch oif=absent ds=dscp-mask ipproto=absent sport=range dport=full uidrange=absent suppress=absent protocol=absent extra=absent action=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-080",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

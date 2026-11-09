@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "broadcast": "ff:ff:ff:ff:ff:fe",
+  "flag": "32",
+  "flag_on": "1",
+  "gso_max_segs": "100",
+  "mtu": "65535",
+  "name": "d9",
+  "txqlen": "0"
+ },
+ "cmd": "ip link set dev d0 mtu 65535 txqlen 0 broadcast ff:ff:ff:ff:ff:fe trailers off gso_max_segs 100 name d9",
+ "desc": "corner: updown=absent mtu=65535 txqlen=0 group=absent alias=absent address=broadcast flag=notrailers gso=gso_segs mode=absent name=rename",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkset/rn1-028",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

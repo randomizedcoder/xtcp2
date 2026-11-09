@@ -1,0 +1,49 @@
+{
+ "cmd": "tc action add action ctinfo cpmark 0x01000000 zone 1 index 1",
+ "desc": "positive: Add ctinfo action with valid cpmark and zone",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ctinfo zone 1 pipe.*index 1 ref.*cpmark 0x01000000",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ctinfo/4938",
+ "modules": [
+  "act_ctinfo"
+ ],
+ "pre": [
+  [
+   "tc action flush action ctinfo",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc action get action ctinfo index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc action flush action ctinfo",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4938",
+  "tdc": "actions/ctinfo.json"
+ }
+}

@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ct label 12312300000000000000000000000001/ffffffff000000000000000000000001 index 44",
+ "desc": "positive: Try ct with label with mask",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ct zone 0 label 12312300000000000000000000000001/ffffffff000000000000000000000001 pipe.*index 44 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ct/04d4",
+ "modules": [
+  "act_ct"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ct",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action ct",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ct",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "04d4",
+  "tdc": "actions/ct.json"
+ }
+}

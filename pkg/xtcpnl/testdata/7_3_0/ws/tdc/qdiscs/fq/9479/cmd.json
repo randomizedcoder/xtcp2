@@ -1,0 +1,44 @@
+{
+ "cmd": "tc qdisc change dev v0p1 handle 1: root fq limit 1",
+ "desc": "positive: FQ test qdisc limit trimming",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/fq/9479",
+ "modules": [
+  "sch_fq"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 handle 1: root fq limit 10"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev v0p1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 handle 1: root fq limit 10",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "9479",
+  "tdc": "qdiscs/fq.json",
+  "unchecked": "the pattern counts scapy traffic, which is not replayed"
+ }
+}

@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1: vlan  modify id 500 protocol 802.1ad reclassify
+	 index 12 ref 1 bind 0
+	not_in_hw

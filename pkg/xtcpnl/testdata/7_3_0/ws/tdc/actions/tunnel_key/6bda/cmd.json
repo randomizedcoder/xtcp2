@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions add action tunnel_key set src_ip 10.10.10.1 dst_ip 10.10.10.2 id 1111 nofrag index 222",
+ "desc": "positive: Add tunnel_key action with nofrag option",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: tunnel_key.*src_ip 10.10.10.1.*dst_ip 10.10.10.2.*key_id 1111.*csum.*nofrag pipe.*index 222",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/tunnel_key/6bda",
+ "modules": [
+  "act_tunnel_key"
+ ],
+ "pre": [
+  "tc actions add action tunnel_key help 2>&1 | grep -q nofrag",
+  [
+   "tc action flush action tunnel_key",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action tunnel_key index 222",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions add action tunnel_key help 2>&1 | grep -q nofrag",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action flush action tunnel_key",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6bda",
+  "tdc": "actions/tunnel_key.json"
+ }
+}

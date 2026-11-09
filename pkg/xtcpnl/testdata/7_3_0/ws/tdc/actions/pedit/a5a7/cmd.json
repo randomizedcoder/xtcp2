@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge eth src set 11:22:33:44:55:66",
+ "desc": "positive: Add pedit action with LAYERED_OP eth set src",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+:  pedit action pass keys 2.*key #0  at eth\\+4: val 00001122 mask ffff0000.*key #1  at eth\\+8: val 33445566 mask 00000000",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/a5a7",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a5a7",
+  "tdc": "actions/pedit.json"
+ }
+}

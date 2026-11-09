@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	from 198.51.100.0/24 to 203.0.113.9 fwmark 0x10/0xff iif lo uidrange 0-0 ipproto udp sport 65534 dport 1000-2000 lookup 256 suppress_ifgroup 5 proto 255
+32766:	from all lookup main
+32767:	from all lookup default

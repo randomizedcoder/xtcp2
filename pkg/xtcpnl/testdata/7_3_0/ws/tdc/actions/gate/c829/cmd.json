@@ -1,0 +1,54 @@
+{
+ "cmd": "tc action add action gate cycle-time 600000000000ns sched-entry open 600000000ns -1 8000000b index 4294967295",
+ "desc": "negative: Add gate action with duplicate index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: .*index 4294967295",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/gate/c829",
+ "modules": [
+  "act_gate"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gate",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc action add action gate cycle-time 600000000000ns sched-entry open 600000000ns -1 8000000b index 4294967295"
+ ],
+ "readback": [
+  {
+   "cmd": "tc action get action gate index 4294967295",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gate",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action gate cycle-time 600000000000ns sched-entry open 600000000ns -1 8000000b index 4294967295",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "c829",
+  "tdc": "actions/gate.json"
+ }
+}

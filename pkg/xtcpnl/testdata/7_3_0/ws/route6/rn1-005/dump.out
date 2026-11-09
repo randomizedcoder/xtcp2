@@ -1,0 +1,5 @@
+throw default nhid 10 via 2001:db8:1::1 dev d0 table 256 src 2001:db8:1::10 metric 1024 expires 59sec advmss 1300 pref low
+2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local 2001:db8:1::10 dev d0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium

@@ -107,7 +107,11 @@ var ErrNoCommands = errors.New("goipparity: no command produced a comparison")
 //
 // al may be nil, which suppresses nothing and gates nothing.
 func CompareDir(dir string, al *nlparity.Allowlist) []Result {
-	cmds := Commands()
+	return CompareCommands(dir, Commands(), al)
+}
+
+// CompareCommands is CompareDir over cmds, a -section run's rows.
+func CompareCommands(dir string, cmds []Command, al *nlparity.Allowlist) []Result {
 	out := make([]Result, 0, len(cmds))
 	for i := range cmds {
 		out = append(out, compareOne(dir, cmds[i], al))

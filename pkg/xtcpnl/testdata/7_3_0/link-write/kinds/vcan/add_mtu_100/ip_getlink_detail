@@ -1,0 +1,3 @@
+3: vn0: <NOARP> mtu 100 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/can  promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 
+    vcan numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 

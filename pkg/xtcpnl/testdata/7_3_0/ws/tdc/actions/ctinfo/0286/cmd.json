@@ -1,0 +1,49 @@
+{
+ "cmd": "tc action add action ctinfo dscp 0xfc000000 0x01000000 index 100",
+ "desc": "positive: Add ctinfo action with dscp",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ctinfo zone 0 pipe.*index 100 ref.*dscp 0xfc000000 0x01000000",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ctinfo/0286",
+ "modules": [
+  "act_ctinfo"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ctinfo",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc action ls action ctinfo",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ctinfo",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "0286",
+  "tdc": "actions/ctinfo.json"
+ }
+}

@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	not from all iif nosuch [detached] uidrange 0-4294967294 ipproto ipproto-255 sport 1-65534 dport 1000-2000 tun_id 7 lookup 256 suppress_prefixlength 24 proto 255
+32766:	from all lookup main
+32767:	from all lookup default

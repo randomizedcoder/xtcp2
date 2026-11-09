@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	from all sport 1-65534 dport 80 unreachable dscp 0x20/0x30
+32766:	from all lookup main
+32767:	from all lookup default

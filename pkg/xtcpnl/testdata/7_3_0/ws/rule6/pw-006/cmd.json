@@ -1,0 +1,52 @@
+{
+ "axes": {
+  "action": "2",
+  "dport": "1-65534",
+  "dscp": "0",
+  "family": "6",
+  "flowlabel": "1",
+  "flowlabel_mask": "1",
+  "fwmark": "16",
+  "goto": "40000",
+  "iif": "lo",
+  "ipproto": "6",
+  "priority": "300",
+  "protocol": "2",
+  "sport": "1-65534",
+  "src": "all",
+  "src_len": "0",
+  "sup_pl": "2147483647",
+  "uidrange": "0-0",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from all priority 300 fwmark 0x10 iif lo dscp 0 ipproto tcp sport 1-65534 dport 1-65534 uidrange 0-0 suppress_prefixlength 2147483647 protocol kernel flowlabel 0x1/0x1 goto 40000",
+ "desc": "corner: verb=add not=absent from=all to=absent pref=priority fwmark=16 iif=lo oif=absent ds=dscp-0 ipproto=tcp sport=full dport=full uidrange=0 suppress=pl-max protocol=kernel extra=flowlabel-mask action=goto",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-006",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

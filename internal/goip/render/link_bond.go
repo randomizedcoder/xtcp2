@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -124,7 +125,8 @@ func addBondScalar(k *KindData, spec *xtcpnl.BondOptionSpec, v uint32, names Nam
 		if v == 0 {
 			return
 		}
-		name := names.IndexToName(int32(v)) //nolint:gosec // an ifindex: the kernel's int, sent as u32
+		// An ifindex: the kernel's int, sent as a u32.
+		name := names.IndexToName(cint.Int(v))
 		k.add(key, spec.Keyword+" "+name+" ", name)
 	case bondOnOff[spec.ID]:
 		on := v != 0
@@ -224,7 +226,7 @@ func bondSlaveData(s *xtcpnl.BondSlaveInfo) *KindData {
 	}
 	if s.LinkFailureCount.Present {
 		// print_int of a u32: a count past 2^31 prints negative.
-		n := int32(s.LinkFailureCount.Value) //nolint:gosec // transcribing %d of an unsigned value
+		n := cint.Int(s.LinkFailureCount.Value)
 		k.add("link_failure_count", fmt.Sprintf("link_failure_count %d ", n), n)
 	}
 	if s.PermHwaddr != nil {

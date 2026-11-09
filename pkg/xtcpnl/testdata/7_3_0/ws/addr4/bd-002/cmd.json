@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "family": "4",
+  "label": "d0:abcdefghijkl",
+  "local": "192.0.2.0",
+  "metric": "4294967295",
+  "preferred": "60",
+  "prefixlen": "31",
+  "proto": "255",
+  "scope": "255",
+  "valid": "60",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.0/31 label d0:abcdefghijkl scope 255 metric 4294967295 valid_lft 60 preferred_lft 60 proto 255 dev d0",
+ "desc": "boundary: verb=add local=31 peer=absent brd=absent label=15 scope=255 metric=max lft=equal flags=absent proto=255",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/bd-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

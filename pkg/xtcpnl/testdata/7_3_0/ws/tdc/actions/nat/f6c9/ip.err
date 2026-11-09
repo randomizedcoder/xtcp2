@@ -1,0 +1,9 @@
+Illegal nat construct (ingress)
+Usage: ... nat NAT
+NAT := DIRECTION OLD NEW
+DIRECTION := { ingress | egress }
+OLD := PREFIX
+NEW := ADDRESS
+bad action parsing
+parse_action: bad value (6:nat)!
+Illegal "action"

@@ -1,0 +1,5 @@
+100 as to 200/300 via inet 192.0.2.10 dev d0 
+101 via inet 192.0.2.10 dev d0 
+102 
+	nexthop as to 201 via inet 192.0.2.10 dev d0 
+	nexthop as to 202 via inet 192.0.2.11 dev d0 

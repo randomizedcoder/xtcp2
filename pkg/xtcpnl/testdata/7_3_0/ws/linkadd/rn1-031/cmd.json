@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "address": "02:00:00:00:01:01",
+  "kind": "vlan",
+  "link": "d0",
+  "mtu": "1500",
+  "name": "n0",
+  "numtxqueues": "4",
+  "txqlen": "0",
+  "up": "1",
+  "vlan_id": "4094"
+ },
+ "cmd": "ip link add n0 up mtu 1500 txqueuelen 0 address 02:00:00:00:01:01 numtxqueues 4 link d0 type vlan id 4094",
+ "desc": "boundary: name=bare up=up mtu=1500 txqlen=0 address=mac queues=tx kind=vlan-4094",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkadd/rn1-031",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

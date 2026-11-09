@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "advmss": "1300",
+  "dst": "2001:db8:2::",
+  "dst_len": "127",
+  "expires": "60",
+  "family": "6",
+  "proto": "255",
+  "type": "prohibit",
+  "verb": "prepend"
+ },
+ "cmd": "ip -6 route prepend prohibit 2001:db8:2::/127 proto 255 expires 60 advmss 1300",
+ "desc": "boundary: verb=prepend dst=127 type=prohibit table=absent metric=absent proto=255 pref=absent expires=60 mtu=advmss src=absent nh=none",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "route6/pw-025",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

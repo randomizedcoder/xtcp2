@@ -1,0 +1,7 @@
+filter parent ffff: protocol ip pref 100 basic chain 0 handle 0x100 
+  cmp(u16 at 0 layer 1 mask 0xff00 lt 3)
+
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

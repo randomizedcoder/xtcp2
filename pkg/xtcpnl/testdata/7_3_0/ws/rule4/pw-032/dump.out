@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	from all fwmark 0x10/0xff uidrange 0-0 sport 1-65534 dport 0x50/0xfff0 tun_id 7 lookup local suppress_prefixlength 2147483647 proto static dscp EF
+32766:	from all lookup main
+32767:	from all lookup default

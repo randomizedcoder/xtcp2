@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from all fwmark 0xffffffff iif d0 ipproto ipproto-255 sport 1 dport 1 lookup 256 suppress_ifgroup 5 dscp 0x20/0x30
+32766:	from all lookup main
+32767:	from all lookup default

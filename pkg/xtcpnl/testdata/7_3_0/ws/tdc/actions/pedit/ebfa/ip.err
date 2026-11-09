@@ -1,0 +1,19 @@
+Bad pedit construct (0xffffffffffffffffffffffffffffffffffffffffff)
+Usage: ... pedit munge [ex] <MUNGE> [CONTROL]
+Where: MUNGE := <RAW>|<LAYERED>
+	<RAW>:= <OFFSETC>[ATC]<CMD>
+ 		OFFSETC:= offset <offval> <u8|u16|u32>
+		ATC:= at <atval> offmask <maskval> shift <shiftval>
+		NOTE: offval is byte offset, must be multiple of 4
+		NOTE: maskval is a 32 bit hex number
+ 		NOTE: shiftval is a shift value
+		CMD:= clear | invert | set <setval> | add <addval> | decrement | retain
+	<LAYERED>:= ip <ipdata> | ip6 <ip6data>
+ 		| udp <udpdata> | tcp <tcpdata> | icmp <icmpdata>
+	CONTROL:= reclassify | pipe | drop | continue | pass |
+	          goto chain <CHAIN_INDEX>
+	NOTE: if 'ex' is set, extended functionality will be supported (kernel >= 4.11)
+For Example usage look at the examples directory
+bad action parsing
+parse_action: bad value (7:pedit)!
+Illegal "action"

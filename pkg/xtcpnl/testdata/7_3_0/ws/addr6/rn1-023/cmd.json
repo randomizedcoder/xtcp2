@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "flags": "256",
+  "label": "d0:1",
+  "local": "ff0e::1:1",
+  "metric": "100",
+  "peer": "2001:db8:9::",
+  "peer_len": "64",
+  "prefixlen": "128",
+  "proto": "2",
+  "scope": "253",
+  "verb": "del"
+ },
+ "cmd": "ip -6 address del ff0e::1:1/128 peer 2001:db8:9::/64 broadcast 2001:db8:1::ff label d0:1 scope link metric 100 mngtmpaddr proto kernel_ra dev d0",
+ "desc": "negative: verb=del local=mcast peer=64 brd=addr label=alias scope=link metric=100 lft=absent flags=mngtmpaddr proto=kernel_ra: a delete of an address its add could not store",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/rn1-023",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add gt0 type gretap external

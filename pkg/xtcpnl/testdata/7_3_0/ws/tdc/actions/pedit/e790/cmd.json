@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit munge ip ce set 0xff munge ip df set 0xff munge ip mf set 0xff munge ip firstfrag set 0xff munge ip nofrag set 0xff",
+ "desc": "positive: Add pedit action with LAYERED_OP ip set ce, df, mf, firstfrag, nofrag fields",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm) 4: val 00008000 mask ffff7fff.* 4: val 00004000 mask ffffbfff.* 4: val 00002000 mask ffffdfff.* 4: val 00001f00 mask ffffe0ff.* 4: val 00003f00 mask ffffc0ff",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/e790",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "e790",
+  "tdc": "actions/pedit.json"
+ }
+}

@@ -1,0 +1,7 @@
+total acts 1
+
+	action order 0: mpls  pop protocol ip pipe
+	 index 1 ref 1 bind 0
+	cookie 12345678
+	not_in_hw
+	used_hw_stats disabled

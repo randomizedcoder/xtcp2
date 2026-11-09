@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	not from all to 203.0.113.9 fwmark 0xffffffff oif d0 uidrange 1000-2000 sport 1000-2000 dport 1 lookup main suppress_prefixlength 2147483647 dscp 0x20/0x30
+32766:	from all lookup main
+32767:	from all lookup default

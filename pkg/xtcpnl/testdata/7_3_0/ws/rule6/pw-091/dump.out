@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from all iif nosuch [detached] dport 80 prohibit dscp 0
+32766:	from all lookup main

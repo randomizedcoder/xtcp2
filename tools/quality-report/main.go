@@ -330,7 +330,7 @@ func readCoverageBaseline(path string) (float64, bool) {
 	if path == "" {
 		return 0, false
 	}
-	b, err := os.ReadFile(path) //nolint:gosec // operator-supplied path
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return 0, false
 	}
@@ -411,7 +411,7 @@ func regenerateCoverageArtifacts(rawDir, profile string) error {
 // dedupe per file:range and keep the max count seen, then aggregate
 // statements per package directory.
 func buildPerPackageTSV(profile string) (string, error) {
-	f, err := os.Open(profile) //nolint:gosec // operator-supplied path
+	f, err := os.Open(profile)
 	if err != nil {
 		return "", err
 	}
@@ -962,7 +962,7 @@ func finalizeTestResults(results map[string]*TestResult) []TestResult {
 }
 
 func parseGoTest(path string, known map[string]bool) ([]TestResult, bool) {
-	f, err := os.Open(path) //nolint:gosec // test report path is operator-supplied via -raw-dir flag
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, false
 	}

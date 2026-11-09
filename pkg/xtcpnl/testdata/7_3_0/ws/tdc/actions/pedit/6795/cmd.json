@@ -1,0 +1,50 @@
+{
+ "cmd": "tc actions add action pedit ex munge ip6 payload_len set 0xffff munge ip6 nexthdr set 0xff munge ip6 hoplimit set 0xff",
+ "desc": "positive: Add pedit action with LAYERED_OP ip6 set payload_len, nexthdr, hoplimit",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)ipv6\\+4: val ffff0000 mask 0000ffff.*ipv6\\+4: val 0000ff00 mask ffff00ff.*ipv6\\+4: val 000000ff mask ffffff00",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/6795",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "6795",
+  "tdc": "actions/pedit.json"
+ }
+}

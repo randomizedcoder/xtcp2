@@ -1,0 +1,51 @@
+{
+ "axes": {
+  "dport": "65534-65534",
+  "dscp": "63",
+  "dst": "203.0.113.9",
+  "dst_len": "32",
+  "family": "4",
+  "fwmark": "4294967295",
+  "fwmask": "4294967295",
+  "ipproto": "255",
+  "priority": "4294967295",
+  "protocol": "255",
+  "sport": "65534-65534",
+  "src": "198.51.100.7",
+  "src_len": "32",
+  "sup_pl": "2147483647",
+  "table": "256",
+  "uidrange": "0-4294967294",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add from 198.51.100.7/32 to 203.0.113.9/32 pref 4294967295 fwmark 0xffffffff/0xffffffff dscp 63 ipproto 255 sport 65534 dport 65534 uidrange 0-4294967294 suppress_prefixlength 2147483647 protocol 255 table 256",
+ "desc": "boundary: verb=add not=absent from=32 to=32 pref=max fwmark=max iif=absent oif=absent ds=dscp-63 ipproto=255 sport=65534 dport=65534 uidrange=max suppress=pl-max protocol=255 extra=absent action=256",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/bd-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

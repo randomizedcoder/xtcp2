@@ -39,7 +39,7 @@ let
   # (io_uring's IORING_SETUP_SINGLE_ISSUER — the submitter thread is fixed at
   # ring creation and the kernel rejects submissions from any other) is the
   # thing most likely to be broken by a change, so it gets its own cheap race
-  # run to reach for while iterating. The other eleven stay CGO_ENABLED=0 and
+  # run to reach for while iterating. The other twelve stay CGO_ENABLED=0 and
   # fast.
   packages = {
     "pkg-xtcp" = {
@@ -76,6 +76,10 @@ let
     };
     "tools-proto-field-audit" = {
       path = "./tools/proto-field-audit/...";
+      race = false;
+    };
+    "tools-nlcapgen" = {
+      path = "./tools/nlcapgen/...";
       race = false;
     };
     "cmd-xtcp2" = {

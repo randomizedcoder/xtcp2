@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "1024",
+  "label": "d0:1",
+  "local": "fe80::1",
+  "metric": "5",
+  "preferred": "4294967295",
+  "prefixlen": "64",
+  "proto": "0",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "change"
+ },
+ "cmd": "ip -6 address change fe80::1/64 label d0:1 scope link priority 5 valid_lft forever preferred_lft forever autojoin proto unspec dev d0",
+ "desc": "negative: verb=change local=ll peer=absent brd=absent label=alias scope=link metric=priority lft=forever flags=autojoin proto=unspec: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr6/rn1-036",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

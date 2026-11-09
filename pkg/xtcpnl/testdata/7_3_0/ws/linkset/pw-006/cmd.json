@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "address": "02:00:00:00:00:bb",
+  "alias": "hello",
+  "flag": "32768",
+  "flag_on": "1",
+  "gso_ipv4_max_size": "32768",
+  "mtu": "0",
+  "name": "d9",
+  "txqlen": "32767",
+  "up": "1"
+ },
+ "cmd": "ip link set dev d0 up mtu 0 qlen 32767 alias hello addr 02:00:00:00:00:bb dynamic on gso_ipv4_max_size 32768 name d9",
+ "desc": "corner: updown=up mtu=0 txqlen=32767 group=absent alias=word address=abbrev flag=dynamic gso=gso_v4 mode=absent name=rename",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkset/pw-006",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,5 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip addr add 192.0.2.1/24 dev d0
+ok    [lacpa] ip link set d0 up
+ok    [lacpa] ip xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222
+ok    [lacpa] ip xfrm policy add src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport

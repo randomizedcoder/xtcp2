@@ -1,0 +1,3 @@
+0:	from all lookup local
+100:	from 2001:db8:2::/64 to 2001:db8:3::/64 tos EF fwmark 0xffffffff iif d0 oif nosuch [detached] uidrange 0-0 ipproto ipv6-icmp sport 1-65534 dport 80 tun_id 7 nop
+32766:	from all lookup main

@@ -1,0 +1,311 @@
+{
+ "cmd": "ip route get 192.51.100.2 tos 0x20",
+ "desc": "corner: a step (fib_rule_tests.sh fib_rule4_vrf_test) does not check: ip route get 192.51.100.2 tos 0x20",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibrule/fib_rule4_vrf_test-022",
+ "modules": [
+  "dummy",
+  "vrf"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 192.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  "ip link add name vrf0 up type vrf table 102",
+  "ip link set dev dummy0 master vrf0",
+  "ip route add table 100 default via 192.51.100.2 dev dummy0 onlink",
+  "ip rule add oif dummy0 table 100",
+  [
+   "ip route get 192.51.100.2 oif dummy0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 oif lo",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add from 192.51.100.3 iif dummy0 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 from 192.51.100.3 iif dummy0",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 from 192.51.100.3 iif lo",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add dsfield 1 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add dsfield 2 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add dsfield 3 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add tos 0x10 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 tos 0x10",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 tos 0x20",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add tos 0x10 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 tos 0x11",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 tos 0x20",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add tos 0x10 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 tos 0x12",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 tos 0x20",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip rule add tos 0x10 table 100",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "ip route get 192.51.100.2 tos 0x13",
+   [
+    1,
+    2,
+    255
+   ]
+  ]
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 192.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add name vrf0 up type vrf table 102",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 master vrf0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add table 100 default via 192.51.100.2 dev dummy0 onlink",
+    "rc": 0
+   },
+   {
+    "cmd": "ip rule add oif dummy0 table 100",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 oif dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 oif lo",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip rule add from 192.51.100.3 iif dummy0 table 100",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 from 192.51.100.3 iif dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 from 192.51.100.3 iif lo",
+    "rc": 2
+   },
+   {
+    "cmd": "ip rule add dsfield 1 table 100",
+    "rc": 2
+   },
+   {
+    "cmd": "ip rule add dsfield 2 table 100",
+    "rc": 2
+   },
+   {
+    "cmd": "ip rule add dsfield 3 table 100",
+    "rc": 2
+   },
+   {
+    "cmd": "ip rule add tos 0x10 table 100",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 tos 0x10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 tos 0x20",
+    "rc": 2
+   },
+   {
+    "cmd": "ip rule add tos 0x10 table 100",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 tos 0x11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 tos 0x20",
+    "rc": 2
+   },
+   {
+    "cmd": "ip rule add tos 0x10 table 100",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 tos 0x12",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 tos 0x20",
+    "rc": 2
+   },
+   {
+    "cmd": "ip rule add tos 0x10 table 100",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route get 192.51.100.2 tos 0x13",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_rule_tests.sh:462 fib_rule4_test_match_n_redirect",
+  "unchecked": "the selftest checks its output with grep, not its rc; it follows line 447, which the miner skipped"
+ }
+}

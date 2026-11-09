@@ -1,0 +1,2 @@
+qdisc gred 1: root refcnt 2 vqs 10 default 1 limit 1514000b 
+ vq 1 prio 8 limit 60Kb min 15Kb max 25Kb 

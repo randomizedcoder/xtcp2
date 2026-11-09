@@ -1,0 +1,1 @@
+qdisc tbf 1: root refcnt 2 rate 20Kbit burst 1500b peakrate 30Kbit minburst 1509b limit 1000b 

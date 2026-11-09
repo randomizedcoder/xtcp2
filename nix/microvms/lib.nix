@@ -1358,14 +1358,18 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # One store directory for all ten .exp files, for the dump runner's
+      # One store directory for all thirteen .exp files, for the dump runner's
       # reason: the driver sources its siblings relative to itself.
       # netlink-topology.exp is here for nltopo::topo, which the LACP
       # topology builds through so its refusals land in the same list;
       # addr-topology.exp and addr-corpus.exp are the address states and
       # rows (docs/netlink/addr-write-path.md); rtnl-write-corpus.exp,
       # genl-write-corpus.exp and xfrm-write-corpus.exp are the C1, C2 and
-      # C3 rows (docs/netlink/goip-parity-gaps.md).
+      # C3 rows (docs/netlink/goip-parity-gaps.md); kind-write-corpus.exp is
+      # the link kinds' (docs/netlink/goip-link-kinds.md);
+      # brmpls-write-corpus.exp is the bridge FDB, bridge VLAN and MPLS rows
+      # (docs/netlink/coverage-status.md); link-write-sections.exp is what
+      # --only picks from.
       captureScripts =
         pkgs.runCommand "xtcp2-link-write-capture-scripts"
           {
@@ -1378,6 +1382,9 @@ rec {
             rtnlCorpus = ./scripts/rtnl-write-corpus.exp;
             genlCorpus = ./scripts/genl-write-corpus.exp;
             xfrmCorpus = ./scripts/xfrm-write-corpus.exp;
+            kindCorpus = ./scripts/kind-write-corpus.exp;
+            brmplsCorpus = ./scripts/brmpls-write-corpus.exp;
+            sections = ./scripts/link-write-sections.exp;
             driver = ./scripts/capture-link-writes.exp;
           }
           ''
@@ -1391,6 +1398,9 @@ rec {
             cp $rtnlCorpus $out/rtnl-write-corpus.exp
             cp $genlCorpus $out/genl-write-corpus.exp
             cp $xfrmCorpus $out/xfrm-write-corpus.exp
+            cp $kindCorpus $out/kind-write-corpus.exp
+            cp $brmplsCorpus $out/brmpls-write-corpus.exp
+            cp $sections $out/link-write-sections.exp
             cp $driver $out/capture-link-writes.exp
             chmod +x $out/capture-link-writes.exp
           '';
@@ -1415,14 +1425,17 @@ rec {
         # lacp_no_partner and again in lacp_converged.
         TIMEOUT_SEC=1800
         OUT_DIR=""
+        ONLY=all
         while [ $# -gt 0 ]; do
           case "$1" in
             --timeout)     TIMEOUT_SEC="$2"; shift 2 ;;
             --timeout=*)   TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
             --out)         OUT_DIR="$2"; shift 2 ;;
             --out=*)       OUT_DIR="''${1#--out=}"; shift ;;
+            --only)        ONLY="$2"; shift 2 ;;
+            --only=*)      ONLY="''${1#--only=}"; shift ;;
             -h|--help)
-              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>] [--only <sections>]"
               echo "  Boots the link-write-capture microvm and drives it over the"
               echo "  serial console with expect: builds an 802.3ad bond in netns"
               echo "  lacpa with a real LACP partner bond in netns lacpb, and"
@@ -1431,6 +1444,11 @@ rec {
               echo "  states: lacp_no_partner, lacp_converged, lacp_partner_down."
               echo "  Then the link, route and address write rows, and the address"
               echo "  readback states (addr-show/, addr/, addr-flush/, addr-save/)."
+              echo ""
+              echo "  --only runs some sections, comma-separated: lacp, addr, write,"
+              echo "  rtnl, genl, xfrm, kinds, brmpls (scripts/link-write-sections.exp)."
+              echo "  The default, all, is every one; the full set takes hours on a"
+              echo "  loaded host. Only the picked sections' directories are written."
               echo ""
               echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/link-write,"
               echo "  with the kernel derived from the guest's own uname sidecar."
@@ -1454,6 +1472,7 @@ rec {
         echo "================================================"
         echo " xtcp2 microvm link-write-capture — arch=${arch}"
         echo " timeout: $TIMEOUT_SEC s"
+        echo " sections: $ONLY"
         echo " transcript: $LOG"
         echo "================================================"
 
@@ -1484,7 +1503,7 @@ rec {
         rc=0
         timeout "$TIMEOUT_SEC" \
           expect ${captureScripts}/capture-link-writes.exp \
-            "$SERIAL_PORT" "$BLOB" 2>&1 \
+            "$SERIAL_PORT" "$BLOB" "$ONLY" 2>&1 \
           | tee "$LOG" || rc=$?
 
         if [ "$rc" -eq 124 ]; then
@@ -1519,8 +1538,13 @@ rec {
         # base topology transcript proves the bond was built. No pcap is
         # required here, unlike the dump runner: a run whose first LACP state
         # timed out legitimately has none, and the driver's exit status is
-        # what reports that.
-        for required in ip_version uname topology; do
+        # what reports that. The topology transcript is the lacp section's,
+        # so a run without that section isn't asked for it.
+        REQUIRED="ip_version uname"
+        case ",$ONLY," in
+          *,all,*|*,lacp,*) REQUIRED="$REQUIRED topology" ;;
+        esac
+        for required in $REQUIRED; do
           if [ ! -s "$STAGE/$required" ]; then
             echo "FATAL: extracted blob has no $required"
             echo "       staged files:"
@@ -1564,7 +1588,11 @@ rec {
           exit "$rc"
         fi
 
-        echo "PASS: bond / LACP readback, link, route and address capture complete"
+        if [ "$ONLY" = all ]; then
+          echo "PASS: bond / LACP readback, link, route and address capture complete"
+        else
+          echo "PASS: link-write capture complete for: $ONLY"
+        fi
         exit 0
       '';
     };
@@ -2157,6 +2185,7 @@ rec {
         # instead of an empty one.
         KEEP_GOING=()
         NO_ALLOWLIST=()
+        SECTION=()
         while [ $# -gt 0 ]; do
           case "$1" in
             --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
@@ -2165,8 +2194,10 @@ rec {
             --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
             --keep-going)   KEEP_GOING=(--keep-going); shift ;;
             --no-allowlist) NO_ALLOWLIST=(--no-allowlist); shift ;;
+            --section)   SECTION=(--section "$2"); shift 2 ;;
+            --section=*) SECTION=(--section "''${1#--section=}"); shift ;;
             -h|--help)
-              echo "usage: $0 [--timeout <sec>] [--out <dir>] [--keep-going] [--no-allowlist]"
+              echo "usage: $0 [--timeout <sec>] [--out <dir>] [--keep-going] [--no-allowlist] [--section <list>]"
               echo "  Boots the goip-parity microvm and drives it over the serial"
               echo "  console with expect: builds the dummy-only topology in a"
               echo "  throwaway netns, captures an ip/goip/ip triple per command"
@@ -2185,6 +2216,10 @@ rec {
               echo "  of suppressing it. Use it to review what the allowlist is"
               echo "  currently hiding."
               echo ""
+              echo "  --section link,addr runs only those ip objects' rows, for"
+              echo "  fast iteration on one area. The report says how many rows"
+              echo "  it left out; a run without it is the full gate."
+              echo ""
               echo "  --out saves the capture triples + the in-guest report to a"
               echo "  directory. Optional: unlike the dump-capture runner these"
               echo "  are evidence, not fixtures, so nothing is written by"
@@ -2197,6 +2232,13 @@ rec {
 
         SERIAL_PORT=${toString cfg.serialPort}
         VIRTCON_PORT=${toString cfg.virtioPort}
+        # Checked here as well as in the guest: the list is typed into a shell
+        # over the serial console, so nothing but names and commas goes in.
+        if [ ''${#SECTION[@]} -gt 0 ] && ! [[ "''${SECTION[1]}" =~ ^[a-z0-9_]+(,[a-z0-9_]+)*$ ]]; then
+          echo "bad --section: ''${SECTION[1]} (want names like link,addr)" >&2
+          exit 1
+        fi
+
         LOG=$(mktemp -t xtcp2-goip-parity-XXXX.log)
         BLOB=$(mktemp -t xtcp2-goip-parity-blob-XXXX.b64)
 
@@ -2241,7 +2283,8 @@ rec {
           expect ${parityScripts}/goip-parity.exp \
             "$SERIAL_PORT" "$BLOB" --save-blobs ${saveBlobs} \
             ''${KEEP_GOING[@]+"''${KEEP_GOING[@]}"} \
-            ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} 2>&1 \
+            ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} \
+            ''${SECTION[@]+"''${SECTION[@]}"} 2>&1 \
           | tee "$LOG" || rc=$?
 
         if [ "$rc" -eq 124 ]; then
@@ -2287,7 +2330,7 @@ rec {
         echo "================================================"
         # Re-printed from the transcript rather than tracked through the shell,
         # so what is summarized here is exactly what the comparator said.
-        grep -E '^GOIP_PARITY_(OVERALL|HYGIENE|CONTROL|UNGATED|NOTHING)' "$LOG" || true
+        grep -E '^GOIP_PARITY_(SECTION|OVERALL|HYGIENE|CONTROL|UNGATED|NOTHING)' "$LOG" || true
         echo ""
         echo "Driver transcript: $LOG"
         echo "Guest boot log:    $QEMU_LOG"
@@ -2315,7 +2358,11 @@ rec {
         fi
 
         echo ""
-        echo "PASS: goip netlink + stdout parity holds on this kernel"
+        if [ ''${#SECTION[@]} -gt 0 ]; then
+          echo "PASS: goip parity holds for section(s) ''${SECTION[1]} only; not the full gate"
+        else
+          echo "PASS: goip netlink + stdout parity holds on this kernel"
+        fi
         exit 0
       '';
     };

@@ -1,0 +1,43 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root sfq limit 2 depth 1 divisor 1",
+ "desc": "negative: Check that a derived limit of 1 is rejected (limit 2 depth 1 divisor 1)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)sfq",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/qdiscs/sfq/5168",
+ "modules": [
+  "sch_sfq"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "5168",
+  "tdc": "qdiscs/sfq.json"
+ }
+}

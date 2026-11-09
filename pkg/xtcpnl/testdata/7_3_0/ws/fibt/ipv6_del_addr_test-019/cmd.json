@@ -1,0 +1,392 @@
+{
+ "cmd": "ip -6 route show vrf red",
+ "desc": "corner: a step (fib_tests.sh ipv6_del_addr_test) does not check: ip -6 route show vrf red",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {},
+ "id": "fibt/ipv6_del_addr_test-019",
+ "modules": [
+  "dummy",
+  "vrf"
+ ],
+ "pre": [
+  "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+  [
+   "sysctl -qw net.ipv4.ip_forward=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  [
+   "sysctl -qw net.ipv6.conf.all.forwarding=1",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip link add dummy0 type dummy",
+  "ip link set dev dummy0 up",
+  "ip address add 198.51.100.1/24 dev dummy0",
+  "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+  "ip li add dummy1 up type dummy",
+  "ip li add dummy2 up type dummy",
+  "ip li add dummy3 up type dummy",
+  "ip li add dummy4 up type dummy",
+  "ip li add dummy5 up type dummy",
+  "ip li add dummy6 up type dummy",
+  "ip li add red up type vrf table 1111",
+  "ip ro add vrf red unreachable default",
+  "ip li set dummy4 vrf red",
+  "ip li set dummy5 vrf red",
+  "ip li set dummy6 vrf red",
+  "ip addr add dev dummy1 fe80::1/128",
+  "ip addr add dev dummy1 2001:db8:101::1/64",
+  "ip addr add dev dummy1 2001:db8:101::10/64",
+  "ip addr add dev dummy1 2001:db8:101::11/64",
+  "ip addr add dev dummy1 2001:db8:101::12/64",
+  "ip addr add dev dummy1 2001:db8:101::13/64",
+  "ip addr add dev dummy1 2001:db8:101::14/64",
+  "ip addr add dev dummy1 2001:db8:101::15/64",
+  "ip addr add dev dummy2 fe80::1/128",
+  "ip addr add dev dummy2 2001:db8:101::1/64",
+  "ip addr add dev dummy2 2001:db8:101::11/64",
+  "ip addr add dev dummy3 fe80::1/128",
+  "ip addr add dev dummy4 2001:db8:101::1/64",
+  "ip addr add dev dummy4 2001:db8:101::10/64",
+  "ip addr add dev dummy4 2001:db8:101::11/64",
+  "ip addr add dev dummy4 2001:db8:101::12/64",
+  "ip addr add dev dummy4 2001:db8:101::13/64",
+  "ip addr add dev dummy4 2001:db8:101::14/64",
+  "ip addr add dev dummy5 2001:db8:101::1/64",
+  "ip addr add dev dummy5 2001:db8:101::11/64",
+  "ip route add 2001:db8:110::/64 dev dummy3 src 2001:db8:101::10",
+  "ip route add 2001:db8:111::/64 dev dummy3 src 2001:db8:101::11",
+  "ip route add vrf red 2001:db8:110::/64 dev dummy6 src 2001:db8:101::10",
+  "ip route add vrf red 2001:db8:111::/64 dev dummy6 src 2001:db8:101::11",
+  "ip route add 2001:db8:112::/64 dev dummy3 src 2001:db8:101::12",
+  "ip route add vrf red 2001:db8:112::/64 dev dummy6 src 2001:db8:101::12",
+  "ip route add 2001:db8:113::/64 dev lo src 2001:db8:101::13",
+  "ip route add vrf red 2001:db8:113::/64 dev lo src 2001:db8:101::13",
+  "ip route add table 0 2001:db8:115::/64 via 2001:db8:101::2 src 2001:db8:101::15",
+  "ip route add 2001:db8:116::/64 dev dummy2 src fe80::1",
+  "ip route add 2001:db8:117::/64 dev dummy3 src fe80::1",
+  "ip addr del dev dummy1 2001:db8:101::10/64",
+  [
+   "ip -6 route show",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip addr del dev dummy1 2001:db8:101::11/64",
+  [
+   "ip -6 route show",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip addr del dev dummy2 2001:db8:101::11/64",
+  [
+   "ip -6 route show",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip addr del dev dummy4 2001:db8:101::10/64",
+  [
+   "ip -6 route show vrf red",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip addr del dev dummy4 2001:db8:101::11/64",
+  [
+   "ip -6 route show vrf red",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip addr del dev dummy5 2001:db8:101::11/64",
+  [
+   "ip -6 route show vrf red",
+   [
+    1,
+    2,
+    255
+   ]
+  ],
+  "ip addr del dev dummy4 2001:db8:101::12/64"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "sysctl -wq net.ipv4.conf.all.rp_filter=0 && sysctl -wq net.ipv4.conf.default.rp_filter=0",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv4.ip_forward=1",
+    "rc": 0
+   },
+   {
+    "cmd": "sysctl -qw net.ipv6.conf.all.forwarding=1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip address add 198.51.100.1/24 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev dummy0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy1 up type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy2 up type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy3 up type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy4 up type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy5 up type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add dummy6 up type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li add red up type vrf table 1111",
+    "rc": 0
+   },
+   {
+    "cmd": "ip ro add vrf red unreachable default",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set dummy4 vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set dummy5 vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip li set dummy6 vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 fe80::1/128",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 2001:db8:101::1/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 2001:db8:101::10/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 2001:db8:101::12/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 2001:db8:101::13/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 2001:db8:101::14/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy1 2001:db8:101::15/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy2 fe80::1/128",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy2 2001:db8:101::1/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy2 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy3 fe80::1/128",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy4 2001:db8:101::1/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy4 2001:db8:101::10/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy4 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy4 2001:db8:101::12/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy4 2001:db8:101::13/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy4 2001:db8:101::14/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy5 2001:db8:101::1/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add dev dummy5 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 2001:db8:110::/64 dev dummy3 src 2001:db8:101::10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 2001:db8:111::/64 dev dummy3 src 2001:db8:101::11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add vrf red 2001:db8:110::/64 dev dummy6 src 2001:db8:101::10",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add vrf red 2001:db8:111::/64 dev dummy6 src 2001:db8:101::11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 2001:db8:112::/64 dev dummy3 src 2001:db8:101::12",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add vrf red 2001:db8:112::/64 dev dummy6 src 2001:db8:101::12",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 2001:db8:113::/64 dev lo src 2001:db8:101::13",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add vrf red 2001:db8:113::/64 dev lo src 2001:db8:101::13",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add table 0 2001:db8:115::/64 via 2001:db8:101::2 src 2001:db8:101::15",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 2001:db8:116::/64 dev dummy2 src fe80::1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip route add 2001:db8:117::/64 dev dummy3 src fe80::1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy1 2001:db8:101::10/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route show",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy1 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route show",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy2 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route show",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy4 2001:db8:101::10/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route show vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy4 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route show vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy5 2001:db8:101::11/64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route show vrf red",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr del dev dummy4 2001:db8:101::12/64",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "selftest": "fib_tests.sh:2324 ipv6_del_addr_test",
+  "unchecked": "the selftest checks its output with grep, not its rc"
+ }
+}

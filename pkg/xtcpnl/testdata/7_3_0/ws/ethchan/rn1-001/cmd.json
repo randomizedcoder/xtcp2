@@ -1,0 +1,46 @@
+{
+ "axes": {
+  "combined": "1",
+  "get": "17",
+  "other": "0",
+  "rt.other": "absent",
+  "rt.tx": "absent",
+  "set": "18",
+  "tx": "0"
+ },
+ "cmd": "ethtool -L eth0 combined 1 tx 0 other 0",
+ "desc": "positive: dev=eth0 combined=1 rx=absent tx=0 other=0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "ethchan/rn1-001",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null"
+ ],
+ "proto": "generic",
+ "readback": [
+  {
+   "cmd": "ethtool -l eth0",
+   "name": "show",
+   "proto": "generic"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,6 @@
+filter parent ffff: protocol all pref 8 fw chain 0 handle 0x4 
+
+	action order 1: gact action continue
+	 random type none pass val 0
+	 index 5 ref 2 bind 2
+

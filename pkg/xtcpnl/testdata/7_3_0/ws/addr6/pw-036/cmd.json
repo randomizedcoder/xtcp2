@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "256",
+  "local": "2001:db8:1::1",
+  "metric": "4294967295",
+  "peer": "2001:db8:9::",
+  "peer_len": "64",
+  "prefixlen": "0",
+  "proto": "2",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add 2001:db8:1::1/0 peer 2001:db8:9::/64 metric 4294967295 mngtmpaddr proto kernel_ra dev d0",
+ "desc": "corner: verb=add local=0 peer=64 brd=absent label=absent scope=absent metric=max lft=absent flags=mngtmpaddr proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-036",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -311,17 +311,176 @@ func TestParseNeigh(t *testing.T) {
 		{
 			// NDA_PROBES used to be in this row as a second unknown type. It
 			// is decoded now, so keeping it here would have asserted the
-			// opposite of the rows further down. NDA_VLAN is still unread.
+			// opposite of the rows further down. NDA_VLAN was here too until
+			// the FDB fields; NDA_PORT is still unread.
 			description: "corner: unknown NDA attribute types are skipped, known ones still extracted",
 			body: concat(
 				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
-				rtattr(unix.NDA_VLAN, []byte{0x64, 0x00}),
+				rtattr(unix.NDA_LINK_NETNSID, le32(1)),
 				rtattr(unix.NDA_DST, v4b(10, 0, 0, 2)),
 			),
 			want: NeighInfo{
 				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
 				Dst: v4b(10, 0, 0, 2),
 			},
+		},
+		{
+			description: "positive: NDA_PROTOCOL lands in Protocol with its presence bit",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_PERMANENT, 0, 0),
+				rtattr(unix.NDA_DST, v4b(10, 0, 0, 2)),
+				rtattr(NdaProtocol, []byte{unix.RTPROT_STATIC}),
+			),
+			want: NeighInfo{
+				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_PERMANENT,
+				Dst: v4b(10, 0, 0, 2), Protocol: unix.RTPROT_STATIC, HasProtocol: true,
+			},
+		},
+		{
+			description: "boundary: NDA_PROTOCOL 0 is present and zero, not absent",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaProtocol, []byte{0}),
+			),
+			want: NeighInfo{Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_PERMANENT, HasProtocol: true},
+		},
+		{
+			description: "corner: a zero-length NDA_PROTOCOL leaves the presence bit false",
+			body: concat(
+				ndmsgHdr(unix.AF_INET, 2, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaProtocol, nil),
+			),
+			want: NeighInfo{Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_PERMANENT},
+		},
+		{
+			description: "positive: AF_BRIDGE FDB entry with NDA_MASTER and NDA_VLAN",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, unix.NTF_MASTER, 0),
+				rtattr(unix.NDA_LLADDR, macb(0x02, 0, 0, 0, 0, 0x10)),
+				rtattr(unix.NDA_MASTER, le32(3)),
+				rtattr(unix.NDA_VLAN, le16(100)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP, Flags: unix.NTF_MASTER,
+				LLAddr: macb(0x02, 0, 0, 0, 0, 0x10),
+				Master: 3, HasMaster: true, Vlan: 100, HasVlan: true,
+			},
+		},
+		{
+			description: "boundary: NDA_VLAN 0 is present and zero, not absent",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, le16(0)),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP, HasVlan: true},
+		},
+		{
+			description: "boundary: a one-byte NDA_VLAN and a three-byte NDA_MASTER leave both presence bits false",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, []byte{0x64}),
+				rtattr(unix.NDA_MASTER, []byte{3, 0, 0}),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP},
+		},
+		{
+			description: "corner: a duplicate NDA_VLAN and NDA_MASTER keep the first values",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, le16(100)),
+				rtattr(unix.NDA_MASTER, le32(3)),
+				rtattr(unix.NDA_VLAN, le16(200)),
+				rtattr(unix.NDA_MASTER, le32(9)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP,
+				Master: 3, HasMaster: true, Vlan: 100, HasVlan: true,
+			},
+		},
+		{
+			description: "positive: a VXLAN FDB entry's port, VNI, src VNI and via",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 5, unix.NUD_PERMANENT, unix.NTF_SELF, 0),
+				rtattr(unix.NDA_DST, v4b(192, 0, 2, 1)),
+				rtattr(unix.NDA_PORT, []byte{0x12, 0xb6}),
+				rtattr(unix.NDA_VNI, le32(200)),
+				rtattr(unix.NDA_SRC_VNI, le32(100)),
+				rtattr(unix.NDA_IFINDEX, le32(3)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_BRIDGE, Ifindex: 5, State: unix.NUD_PERMANENT, Flags: unix.NTF_SELF,
+				Dst:  v4b(192, 0, 2, 1),
+				Port: 4790, HasPort: true, Vni: 200, HasVni: true, SrcVni: 100, HasSrcVni: true, Via: 3, HasVia: true,
+			},
+		},
+		{
+			description: "positive: an nhid and both FDB extended attributes",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 5, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaNhID, le32(7)),
+				rtattr(NdaFdbExtAttrs|unix.NLA_F_NESTED, concat(rtattr(NfeaActivityNotify, []byte{3}), rtattr(NfeaDontRefresh, nil))),
+			),
+			want: NeighInfo{
+				Family: unix.AF_BRIDGE, Ifindex: 5, State: unix.NUD_PERMANENT,
+				NhID: 7, HasNhID: true, FdbNotify: 3, HasFdbNotify: true, FdbDontRefresh: true,
+			},
+		},
+		{
+			description: "boundary: NDA_PORT 0 and VNI 0 are present and zero; the port is big-endian, so 0xffff either way",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 5, unix.NUD_PERMANENT, 0, 0),
+				rtattr(unix.NDA_PORT, []byte{0, 0}),
+				rtattr(unix.NDA_VNI, le32(0)),
+				rtattr(unix.NDA_SRC_VNI, le32(0xffffff)),
+			),
+			want: NeighInfo{
+				Family: unix.AF_BRIDGE, Ifindex: 5, State: unix.NUD_PERMANENT,
+				HasPort: true, HasVni: true, SrcVni: 0xffffff, HasSrcVni: true,
+			},
+		},
+		{
+			description: "negative: short port, VNI, src VNI, via and nhid leave every presence bit false",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 5, unix.NUD_PERMANENT, 0, 0),
+				rtattr(unix.NDA_PORT, []byte{1}),
+				rtattr(unix.NDA_VNI, []byte{1, 0, 0}),
+				rtattr(unix.NDA_SRC_VNI, []byte{1, 0}),
+				rtattr(unix.NDA_IFINDEX, []byte{1}),
+				rtattr(NdaNhID, nil),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 5, State: unix.NUD_PERMANENT},
+		},
+		{
+			description: "corner: a notify of 0 is present; a zero-length notify and an overrunning nest are not",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 5, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaFdbExtAttrs, concat(rtattr(NfeaActivityNotify, nil), rtattr(NfeaActivityNotify, []byte{0}))),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 5, State: unix.NUD_PERMANENT, HasFdbNotify: true},
+		},
+		{
+			description: "corner: a repeated notify's last copy wins, as in nla_parse",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 5, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaFdbExtAttrs, concat(rtattr(NfeaActivityNotify, []byte{1}), rtattr(NfeaActivityNotify, []byte{3}))),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 5, State: unix.NUD_PERMANENT, FdbNotify: 3, HasFdbNotify: true},
+		},
+		{
+			description: "corner: a nest whose inner attribute overruns it is dropped whole",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 5, unix.NUD_PERMANENT, 0, 0),
+				rtattr(NdaFdbExtAttrs, concat(rtattr(NfeaDontRefresh, nil), []byte{9, 0, 1, 0})),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 5, State: unix.NUD_PERMANENT},
+		},
+		{
+			description: "corner: VID 4095 decodes as-is; ParseNeigh does not range-check the VID",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 4, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_VLAN, le16(4095)),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 4, State: unix.NUD_NOARP, Vlan: 4095, HasVlan: true},
 		},
 		{
 			description: "corner: nested-flagged NDA_DST is still matched (NLA_F_NESTED masked off)",
@@ -801,6 +960,11 @@ func TestNdaFlagsExtValue(t *testing.T) {
 		{
 			description: "corner: the skipped middle of the tail is NDA_PROTOCOL then NDA_NH_ID",
 			got:         NdaFlagsExt - 3,
+			want:        ndaProtocol,
+		},
+		{
+			description: "positive: NdaProtocol is NDA_PROTOCOL, one past NDA_SRC_VNI",
+			got:         NdaProtocol,
 			want:        ndaProtocol,
 		},
 		{

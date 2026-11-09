@@ -1,0 +1,1 @@
+[{"ifname":"lo","operstate":"UNKNOWN","addr_info":[{"local":"127.0.0.1","prefixlen":8},{"local":"::1","prefixlen":128}]},{"ifname":"nlmon0","operstate":"UNKNOWN","addr_info":[]},{"ifname":"d0","operstate":"UNKNOWN","addr_info":[{"local":"fe80::c764:67be:9f7a:f3f3","prefixlen":64}]}]

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -872,7 +873,7 @@ func TestRunLinkArgs(t *testing.T) {
 			// do_iplink tries `set` before `show` (ip/iplink.c:1519-1530), so
 			// `s` is a set with no device. goip used to read it as a show.
 			description: "corner: `l s` is `set`, not `show`, because set is tried first",
-			args:        []string{"l", "s"}, wantCode: ExitUsage,
+			args:        []string{"l", "s"}, wantCode: ExitMinusOne, // exit(-1), as ip
 			wantStderrSubstr: `Not enough information: "dev" argument is required`,
 		},
 		{
@@ -1863,7 +1864,7 @@ func (s *linkReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
 			// A refused get (ENODEV for a name that does not exist) is
 			// what the live socket hands back as the errno.
 			if r.Hdr.Type == unix.NLMSG_ERROR && len(r.Body) >= 4 {
-				if e := int32(binary.LittleEndian.Uint32(r.Body)); e < 0 { //nolint:gosec // the wire int
+				if e := cint.Int(binary.LittleEndian.Uint32(r.Body)); e < 0 {
 					return nil, syscall.Errno(-e)
 				}
 			}

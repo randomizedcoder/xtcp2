@@ -1,0 +1,2 @@
+Error: act_ct: Attaching ct to a non ingress/clsact qdisc is unsupported.
+We have an error talking to the kernel

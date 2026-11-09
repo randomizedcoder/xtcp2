@@ -48,6 +48,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -228,6 +229,14 @@ func linkModeName(mode uint8) string {
 	}
 	return strconv.FormatUint(uint64(mode), 10)
 }
+
+// OperStateNames is a copy of the operstate table, indexed by
+// IFLA_OPERSTATE: get_operstate's names for `link set state`.
+func OperStateNames() []string { return slices.Clone(operStates[:]) }
+
+// LinkModeNames is a copy of the link mode table, indexed by IFLA_LINKMODE:
+// get_link_mode's names for `link set mode`.
+func LinkModeNames() []string { return slices.Clone(linkModes[:]) }
 
 // groupZeroName is the sole entry of the group table iproute2 ships
 // (etc/iproute2/group: "0 default"). It is named rather than inlined because

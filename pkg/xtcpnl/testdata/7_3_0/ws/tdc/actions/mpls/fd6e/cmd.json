@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mpls push label 20 ttl 0",
+ "desc": "negative: Add mpls push action with ttl of 0 (invalid)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: mpls.*push.*protocol.*mpls_uc.*label.*20.*ttl.*0.*pipe",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/mpls/fd6e",
+ "modules": [
+  "act_mpls"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mpls",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mpls",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mpls",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "fd6e",
+  "tdc": "actions/mpls.json"
+ }
+}

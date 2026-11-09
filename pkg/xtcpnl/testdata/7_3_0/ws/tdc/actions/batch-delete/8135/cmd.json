@@ -1,0 +1,50 @@
+{
+ "cmd": "tc actions del action gact index 1 action gact index 1 action gact index 1",
+ "desc": "negative: Reject duplicate action in a delete batch",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 255
+ },
+ "id": "tdc/actions/batch-delete/8135",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action pass index 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action pass index 1",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8135",
+  "tdc": "actions/batch-delete.json",
+  "unchecked": "tests f67b3ed1308d (net/sched: act_api: reject duplicate actions in a batch, 7.4 merge window); 7.3.0 deletes the first action before refusing the duplicate"
+ }
+}

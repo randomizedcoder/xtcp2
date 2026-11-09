@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from 198.51.100.7 to 203.0.113.9 iif d0 uidrange 1000-2000 ipproto icmp sport 65534 dport 65534 lookup 4294967295 suppress_ifgroup default proto 255 dscp EF
+32766:	from all lookup main
+32767:	from all lookup default

@@ -1,0 +1,31 @@
+{
+ "axes": {
+  "dst": "2001:db8:1::1",
+  "family": "6",
+  "mark": "4294967295"
+ },
+ "cmd": "ip -6 route get 2001:db8:1::1 mark 4294967295",
+ "desc": "boundary: dst=connected from=absent dev=absent mark=max uid=absent ipproto=absent ports=absent flowlabel=absent flags=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "routeget6/pw-026",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

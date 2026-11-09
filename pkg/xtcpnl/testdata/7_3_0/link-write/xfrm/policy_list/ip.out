@@ -1,0 +1,6 @@
+src 2001:db8::1/128 dst 2001:db8::2/128 proto tcp dport 443 
+	dir in action block priority 10 
+src 192.0.2.1/32 dst 192.0.2.2/32 
+	dir out priority 0 
+	tmpl src 192.0.2.1 dst 192.0.2.2
+		proto esp reqid 1 mode transport

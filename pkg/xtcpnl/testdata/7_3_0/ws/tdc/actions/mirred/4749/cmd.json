@@ -1,0 +1,49 @@
+{
+ "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action mirred egress redirect dev lo index \\$i cookie aabbccddeeff112233445566778800a1 \\\"; args=\"\\$args\\$cmd\"; done && tc actions add \\$args\"",
+ "desc": "positive: Add batch of 32 mirred redirect egress actions with cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 32,
+   "pattern": "(?sm)^[ \t]+index [0-9]+ ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mirred/4749",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mirred",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4749",
+  "tdc": "actions/mirred.json"
+ }
+}

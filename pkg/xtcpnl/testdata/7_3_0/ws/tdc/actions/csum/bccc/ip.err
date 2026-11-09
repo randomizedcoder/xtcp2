@@ -1,0 +1,4 @@
+Illegal csum construct, empty <UPDATE> list
+bad action parsing
+parse_action: bad value (4:csum)!
+Illegal "action"

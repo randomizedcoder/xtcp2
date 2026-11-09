@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge eth src set 11:22:33:44:55:66 munge eth dst set ff:ee:dd:cc:bb:aa munge ip6 payload_len set 0xffff munge ip6 nexthdr set 0xff munge ip6 hoplimit preserve munge offset 0 u8 set 0x12 munge offset 1 u16 set 0x3456 munge offset 3 u8 set 0x78 munge ip ttl set 0xaa munge ip protocol set 0xff",
+ "desc": "positive: Add pedit action with mixed RAW/LAYERED_OP #2",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)eth\\+4: val 00001122 mask ffff0000.*eth\\+8: val 33445566 mask 00000000.*eth\\+0: val ffeeddcc mask 00000000.*eth\\+4: val bbaa0000 mask 0000ffff.*ipv6\\+4: val ffff0000 mask 0000ffff.*ipv6\\+4: val 0000ff00 mask ffff00ff.*ipv6\\+4: val 00000000 mask ffffffff.* 0: val 12000000 mask 00ffffff.* 0: val 00345600 mask ff0000ff.* 0: val 00000078 mask ffffff00.*ipv4\\+8: val aa000000 mask 00ffffff.*ipv4\\+8: val 00ff0000 mask ff00ffff",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/70ca",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "70ca",
+  "tdc": "actions/pedit.json"
+ }
+}

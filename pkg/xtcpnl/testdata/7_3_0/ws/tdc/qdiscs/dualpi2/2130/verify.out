@@ -1,0 +1,1 @@
+qdisc dualpi2 1: root refcnt 2 limit 10000p memlimit 30280000B target 20ms tupdate 20ms alpha 0.042969 beta 1.496094 step_thresh 1ms min_qlen_step 0p coupling_factor 2 drop_on_overload drop_dequeue classic_protection 10% l4s_ect split_gso 

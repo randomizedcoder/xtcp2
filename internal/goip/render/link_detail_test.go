@@ -163,7 +163,7 @@ func TestLinkDetailText(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			v := LinkView{}.WithDetail(tc.li, tc.linkObject, fakeNames{})
+			v := LinkView{}.WithDetail(tc.li, tc.linkObject, fakeNames{}, 1)
 			if got := v.detailText(); got != tc.want {
 				t.Errorf("detailText() =\n  %q\nwant\n  %q", got, tc.want)
 			}
@@ -200,7 +200,7 @@ func TestLinkViewWithoutDetailPrintsNone(t *testing.T) {
 		},
 		{
 			description: "positive: the same link through WithDetail prints them",
-			view:        LinkViewOf(li, names).WithDetail(li, true, names),
+			view:        LinkViewOf(li, names).WithDetail(li, true, names, 1),
 			wantContain: true,
 		},
 	}
@@ -292,7 +292,7 @@ func TestLinkDetailJSONKeys(t *testing.T) {
 		{
 			description: "positive: the counters are top-level keys of the link object, not nested under a wrapper",
 			view: LinkView{IfIndex: 3, IfName: "goip0"}.
-				WithDetail(xtcpnl.LinkInfo{Kind: "dummy", Detail: guestDetail()}, true, fakeNames{}),
+				WithDetail(xtcpnl.LinkInfo{Kind: "dummy", Detail: guestDetail()}, true, fakeNames{}, 1),
 			wantKeys: []string{
 				`"promiscuity":0`, `"allmulti":0`, `"min_mtu":0`, `"max_mtu":0`,
 				`"num_tx_queues":1`, `"gso_max_size":65536`, `"gro_ipv4_max_size":65536`,
@@ -305,11 +305,12 @@ func TestLinkDetailJSONKeys(t *testing.T) {
 			// line (ip/ipaddress.c:219), so this is the one part of the run
 			// that IS nested — and the slave kind inside it is the unsuffixed
 			// wire value, because print_string's JSON arm writes the argument
-			// and not the format.
+			// and not the format. bridge_slave has a print_opt, so its
+			// info_slave_data object opens even with no nest to read.
 			description: "corner: linkinfo is a nested object and its slave kind carries no _slave suffix",
 			view: LinkView{IfIndex: 60, IfName: "veth179a698"}.
-				WithDetail(xtcpnl.LinkInfo{Kind: "veth", SlaveKind: "bridge"}, true, fakeNames{}),
-			wantKeys:   []string{`"linkinfo":{"info_kind":"veth","info_slave_kind":"bridge"}`},
+				WithDetail(xtcpnl.LinkInfo{Kind: "veth", SlaveKind: "bridge"}, true, fakeNames{}, 1),
+			wantKeys:   []string{`"linkinfo":{"info_kind":"veth","info_slave_kind":"bridge","info_slave_data":{}}`},
 			absentKeys: []string{`"bridge_slave"`},
 		},
 		{
@@ -319,7 +320,7 @@ func TestLinkDetailJSONKeys(t *testing.T) {
 			// for it.
 			description: "boundary: a zero counter keeps its key, because the pointer is not nil",
 			view: LinkView{IfIndex: 1, IfName: "lo"}.
-				WithDetail(xtcpnl.LinkInfo{Detail: xtcpnl.LinkDetail{Promiscuity: u32a(0)}}, true, fakeNames{}),
+				WithDetail(xtcpnl.LinkInfo{Detail: xtcpnl.LinkDetail{Promiscuity: u32a(0)}}, true, fakeNames{}, 1),
 			wantKeys: []string{`"promiscuity":0`},
 		},
 		{
@@ -328,7 +329,7 @@ func TestLinkDetailJSONKeys(t *testing.T) {
 			// than in the struct.
 			description: "negative: an absent counter has no key at all",
 			view: LinkView{IfIndex: 1, IfName: "lo"}.
-				WithDetail(xtcpnl.LinkInfo{Detail: xtcpnl.LinkDetail{AllMulti: u32a(0)}}, true, fakeNames{}),
+				WithDetail(xtcpnl.LinkInfo{Detail: xtcpnl.LinkDetail{AllMulti: u32a(0)}}, true, fakeNames{}, 1),
 			wantKeys:   []string{`"allmulti":0`},
 			absentKeys: []string{`"promiscuity"`},
 		},
@@ -339,7 +340,7 @@ func TestLinkDetailJSONKeys(t *testing.T) {
 			// omitempty is right for it where it would be wrong above.
 			description: "corner: netns-immutable keeps its dash and disappears when false",
 			view: LinkView{IfIndex: 1, IfName: "lo"}.
-				WithDetail(xtcpnl.LinkInfo{Detail: xtcpnl.LinkDetail{NetnsImmutable: true}}, true, fakeNames{}),
+				WithDetail(xtcpnl.LinkInfo{Detail: xtcpnl.LinkDetail{NetnsImmutable: true}}, true, fakeNames{}, 1),
 			wantKeys:   []string{`"netns-immutable":true`},
 			absentKeys: []string{`"netns_immutable"`},
 		},
@@ -360,7 +361,7 @@ func TestLinkDetailJSONKeys(t *testing.T) {
 					PhysSwitchID:     []byte{0xd0, 0xd8},
 					ParentDevBusName: "pci",
 					ParentDevName:    "0000:23:00.0",
-				}}, true, fakeNames{}),
+				}}, true, fakeNames{}, 1),
 			wantKeys: []string{
 				`"phys_port_name":"p0"`, `"phys_switch_id":"d0d8"`,
 				`"parentbus":"pci"`, `"parentdev":"0000:23:00.0"`,

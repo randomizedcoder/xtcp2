@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mpls mod ttl 128",
+ "desc": "positive: Add mpls mod action with mpls ttl",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: mpls.*modify.*ttl.*128.*pipe",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mpls/6ed5",
+ "modules": [
+  "act_mpls"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mpls",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mpls",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mpls",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6ed5",
+  "tdc": "actions/mpls.json"
+ }
+}

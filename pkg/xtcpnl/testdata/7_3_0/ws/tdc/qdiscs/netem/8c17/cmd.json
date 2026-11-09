@@ -1,0 +1,59 @@
+{
+ "cmd": "ping -c 1 10.10.11.11 -W 0.01",
+ "desc": "negative: Test netem's recursive duplicate",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1
+ },
+ "id": "tdc/qdiscs/netem/8c17",
+ "modules": [
+  "sch_netem"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.11.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 root handle 1: netem limit 1000 duplicate 100%",
+  "tc qdisc add dev dummy1 parent 1: handle 2: netem limit 1000 duplicate 100%"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s -j qdisc ls dev dummy1 root",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.11.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: netem limit 1000 duplicate 100%",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1: handle 2: netem limit 1000 duplicate 100%",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8c17",
+  "tdc": "qdiscs/netem.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

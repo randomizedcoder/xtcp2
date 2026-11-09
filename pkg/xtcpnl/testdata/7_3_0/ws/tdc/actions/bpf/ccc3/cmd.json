@@ -1,0 +1,55 @@
+{
+ "cmd": "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2054,6 0 0 262144,6 0 0 0' index 4294967295",
+ "desc": "negative: Add cBPF action with duplicate index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' default-action pipe.*index 4294967295",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/bpf/ccc3",
+ "modules": [
+  "act_bpf"
+ ],
+ "pre": [
+  [
+   "tc actions flush action bpf",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' index 4294967295"
+ ],
+ "readback": [
+  {
+   "cmd": "tc action get action bpf index 4294967295",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action bpf",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' index 4294967295",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "ccc3",
+  "tdc": "actions/bpf.json"
+ }
+}

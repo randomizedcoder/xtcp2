@@ -1,0 +1,6 @@
+filter protocol ip pref 1 u32 chain 0 
+filter protocol ip pref 1 u32 chain 0 fh 801: ht divisor 16 
+filter protocol ip pref 1 u32 chain 0 fh 800: ht divisor 1 
+filter protocol ip pref 2 u32 chain 0 
+filter protocol ip pref 2 u32 chain 0 fh 803: ht divisor 16 
+filter protocol ip pref 2 u32 chain 0 fh 802: ht divisor 1 

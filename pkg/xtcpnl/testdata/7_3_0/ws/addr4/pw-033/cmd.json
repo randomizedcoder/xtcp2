@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "brd": "192.0.2.255",
+  "family": "4",
+  "flags": "1024",
+  "label": "foo",
+  "local": "127.0.0.2",
+  "metric": "0",
+  "preferred": "60",
+  "prefixlen": "8",
+  "valid": "60",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 127.0.0.2/8 broadcast 192.0.2.255 label foo metric 0 valid_lft 60 preferred_lft 60 autojoin dev d0",
+ "desc": "negative: verb=del local=loopback peer=absent brd=addr label=other scope=absent metric=0 lft=equal flags=autojoin proto=absent: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr4/pw-033",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "altname": "br0",
+  "op": "add"
+ },
+ "cmd": "ip link property add altname br0 dev d0",
+ "desc": "negative: op=add altname=taken dev=dev: an altname another device is called",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkprop/ng-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

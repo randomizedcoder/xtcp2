@@ -1,0 +1,40 @@
+{
+ "cmd": "ip link set dev dummy1 txqueuelen 32768",
+ "desc": "negative: Reject tx_queue_len above S16_MAX at set time (32768)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qlen 1000$",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/qdiscs/pfifo_fast/b50e",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip link show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "b50e",
+  "tdc": "qdiscs/pfifo_fast.json"
+ }
+}

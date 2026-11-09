@@ -1,0 +1,20 @@
+Ring parameters for eth0:
+Pre-set maximums:
+RX:			4096
+RX Mini:		4096
+RX Jumbo:		4096
+TX:			4096
+TX push buff len:	n/a
+HDS thresh:		1024
+Current hardware settings:
+RX:			512
+RX Mini:		4096
+RX Jumbo:		100
+TX:			256
+RX Buf Len:		n/a
+CQE Size:		n/a
+TX Push:		off
+RX Push:		off
+TX push buff len:	n/a
+TCP data split:		off
+HDS thresh:		0

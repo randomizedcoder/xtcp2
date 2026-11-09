@@ -1,0 +1,15 @@
+qdisc taprio 1: root refcnt 9 tc 3 map 2 2 1 0 2 2 2 2 2 2 2 2 2 2 2 2
+queues offset 0 count 1 offset 0 count 1 offset 0 count 1
+clockid TAI flags 0x1	base-time 1000000000 cycle-time 300000 cycle-time-extension 0
+	index 0 cmd S gatemask 0x1 interval 300000
+max-sdu 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+fp E E E E E E E E E E E E E E E E
+
+qdisc pfifo 0: parent 1:8 limit 1000p
+qdisc pfifo 0: parent 1:7 limit 1000p
+qdisc pfifo 0: parent 1:6 limit 1000p
+qdisc pfifo 0: parent 1:5 limit 1000p
+qdisc pfifo 0: parent 1:4 limit 1000p
+qdisc pfifo 0: parent 1:3 limit 1000p
+qdisc pfifo 0: parent 1:2 limit 1000p
+qdisc pfifo 0: parent 1:1 limit 1000p

@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "brd": "-",
+  "family": "4",
+  "local": "239.1.1.1",
+  "metric": "100",
+  "preferred": "4294967295",
+  "prefixlen": "32",
+  "proto": "2",
+  "scope": "255",
+  "valid": "4294967295",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 239.1.1.1/32 brd - scope 255 metric 100 valid_lft forever preferred_lft forever proto kernel_ra dev d0",
+ "desc": "corner: verb=add local=mcast peer=absent brd=minus label=absent scope=255 metric=100 lft=forever flags=absent proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-045",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

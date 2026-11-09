@@ -1,0 +1,17 @@
+anycast 2001:db8:101:: dev dummy4 proto kernel metric 0 pref medium
+anycast 2001:db8:101:: dev dummy5 proto kernel metric 0 pref medium
+2001:db8:101::/64 dev dummy4 proto kernel metric 256 pref medium
+2001:db8:101::/64 dev dummy5 proto kernel metric 256 pref medium
+2001:db8:110::/64 dev dummy6 metric 1024 pref medium
+2001:db8:111::/64 dev dummy6 src 2001:db8:101::11 metric 1024 pref medium
+2001:db8:112::/64 dev dummy6 src 2001:db8:101::12 metric 1024 pref medium
+2001:db8:113::/64 dev lo src 2001:db8:101::13 metric 1024 pref medium
+anycast fe80:: dev dummy4 proto kernel metric 0 pref medium
+anycast fe80:: dev dummy5 proto kernel metric 0 pref medium
+anycast fe80:: dev dummy6 proto kernel metric 0 pref medium
+fe80::/64 dev dummy4 proto kernel metric 256 pref medium
+fe80::/64 dev dummy5 proto kernel metric 256 pref medium
+fe80::/64 dev dummy6 proto kernel metric 256 pref medium
+multicast ff00::/8 dev dummy4 proto kernel metric 256 pref medium
+multicast ff00::/8 dev dummy5 proto kernel metric 256 pref medium
+multicast ff00::/8 dev dummy6 proto kernel metric 256 pref medium

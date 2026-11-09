@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge eth src set 11:22:33:44:55:66 munge ip ttl set 0xff munge tcp flags clear munge offset 15 u8 add 40 retain 0xf0 munge udp dport add 1",
+ "desc": "positive: Add pedit action with mixed RAW/LAYERED_OP #1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)eth\\+4: val 00001122 mask ffff0000.*eth\\+8: val 33445566 mask 00000000.*ipv4\\+8: val ff000000 mask 00ffffff.*tcp\\+12: val 00000000 mask ff00ffff.* 12: add 00000020 mask ffffff0f.*udp\\+0: add 00000001 mask ffff0000",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/d784",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d784",
+  "tdc": "actions/pedit.json"
+ }
+}

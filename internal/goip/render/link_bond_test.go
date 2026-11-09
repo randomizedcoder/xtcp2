@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -16,8 +17,12 @@ import (
 
 // nla is one netlink attribute, padded to four bytes.
 func nla(typ uint16, payload []byte) []byte {
+	n, ok := cint.U16(4 + len(payload))
+	if !ok {
+		panic("nla: an attribute past 64 KiB")
+	}
 	b := make([]byte, 4, 4+len(payload)+3)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(4+len(payload))) //nolint:gosec // test payloads are tiny
+	binary.LittleEndian.PutUint16(b[0:2], n)
 	binary.LittleEndian.PutUint16(b[2:4], typ)
 	b = append(b, payload...)
 	for len(b)%4 != 0 {

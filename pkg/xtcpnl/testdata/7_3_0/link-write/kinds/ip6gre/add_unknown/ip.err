@@ -1,0 +1,33 @@
+Usage: ... ip6gre   	[ remote ADDR ]
+			[ local ADDR ]
+			[ [no][i|o]seq ]
+			[ [i|o]key KEY | no[i|o]key ]
+			[ [no][i|o]csum ]
+			[ hoplimit TTL ]
+			[ encaplimit ELIM ]
+			[ tclass TCLASS ]
+			[ flowlabel FLOWLABEL ]
+			[ dscp inherit ]
+			[ dev PHYS_DEV ]
+			[ fwmark MARK ]
+			[ [no]allow-localremote ]
+			[ external ]
+			[ noencap ]
+			[ encap { fou | gue | none } ]
+			[ encap-sport PORT ]
+			[ encap-dport PORT ]
+			[ [no]encap-csum ]
+			[ [no]encap-csum6 ]
+			[ [no]encap-remcsum ]
+			[ erspan_ver version ]
+			[ erspan IDX ]
+			[ erspan_dir { ingress | egress } ]
+			[ erspan_hwid hwid ]
+
+Where:	ADDR	  := IPV6_ADDRESS
+	TTL	  := { 0..255 } (default=64)
+	KEY	  := { DOTTED_QUAD | NUMBER }
+	ELIM	  := { none | 0..255 }(default=4)
+	TCLASS	  := { 0x0..0xff | inherit }
+	FLOWLABEL := { 0x0..0xfffff | inherit }
+	MARK	  := { 0x0..0xffffffff | inherit }

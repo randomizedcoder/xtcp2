@@ -1,0 +1,61 @@
+{
+ "cmd": "tc qdisc replace dev eth0 handle 1: root cake_mq mpu 128",
+ "desc": "positive: Replace CAKE_MQ with mpu (4 queues)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 5,
+   "pattern": "(?sm)qdisc (cake_mq 1: root|cake 0: parent 1:[1-4]) bandwidth unlimited diffserv3 triple-isolate nonat nowash no-ack-filter split-gso rtt 100ms noatm overhead 128 mpu 128 ",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/cake_mq/ee55",
+ "modules": [
+  "sch_cake",
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+  "tc qdisc add dev eth0 handle 1: root cake_mq overhead 128 mpu 256"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev eth0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev eth0 handle 1: root cake_mq overhead 128 mpu 256",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "ee55",
+  "tdc": "qdiscs/cake_mq.json"
+ }
+}

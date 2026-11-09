@@ -26,6 +26,10 @@ const usage = `Usage: goip-parity SUBCOMMAND [OPTIONS]
                       args, name
   compare -dir DIR    compare the ip/goip/ip capture triples in DIR
 
+  Both take -section LIST, a comma-separated list of ip objects (link,addr),
+  which narrows the run to those sections' rows. compare then reports how
+  many rows it left out; without -section it is the full gate.
+
 goip-parity is the comparator half of the netlink parity harness. It reads
 capture files and prints a report; it never opens a socket, which is what
 keeps a comparator from putting traffic inside a capture window. The capturing
@@ -67,6 +71,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 func runCommands(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("goip-parity commands", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	section := fs.String("section", "", sectionUsageCst)
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
@@ -74,7 +79,11 @@ func runCommands(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "commands takes no arguments, got %v\n", fs.Args())
 		return ExitUsage
 	}
-	cmds := Commands()
+	cmds, err := SelectSections(Commands(), *section)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return ExitUsage
+	}
 	for i := range cmds {
 		fmt.Fprintln(stdout, cmds[i].String())
 	}
@@ -88,6 +97,7 @@ func runCompare(args []string, stdout, stderr io.Writer) int {
 	dir := fs.String("dir", "", "directory holding the capture triples")
 	noAllowlist := fs.Bool("no-allowlist", false,
 		"ignore the embedded allowlist, so every accepted divergence is reported")
+	section := fs.String("section", "", sectionUsageCst)
 	if err := fs.Parse(args); err != nil {
 		return ExitUsage
 	}
@@ -97,6 +107,12 @@ func runCompare(args []string, stdout, stderr io.Writer) int {
 	}
 	if *dir == "" {
 		fmt.Fprintf(stderr, "compare needs -dir\n\n%s", usage)
+		return ExitUsage
+	}
+	all := Commands()
+	cmds, err := SelectSections(all, *section)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
 		return ExitUsage
 	}
 
@@ -114,8 +130,13 @@ func runCompare(args []string, stdout, stderr io.Writer) int {
 		al = loaded
 	}
 
-	if Render(stdout, CompareDir(*dir, al)) {
+	if line := SectionLine(*section, len(cmds), len(all)); line != "" {
+		fmt.Fprintln(stdout, line)
+	}
+	if Render(stdout, CompareCommands(*dir, cmds, al)) {
 		return ExitOK
 	}
 	return ExitFailure
 }
+
+const sectionUsageCst = "comma-separated ip objects (link,addr) whose rows alone are run"

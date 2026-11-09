@@ -1,0 +1,9 @@
+FEC parameters for eth0:
+Supported/Configured FEC encodings: None
+Active FEC encoding: None
+Statistics:
+  corrected_blocks: 123
+  uncorrectable_blocks: 4
+  fec_symbols_err_0: 445 [ per_lane: 125, 120, 100, 100 ]
+  fec_symbols_err_1_to_3: 12
+  fec_symbols_err_4_to_7: 2 [ per_lane: 2, 0, 0, 0 ]

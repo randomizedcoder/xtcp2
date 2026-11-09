@@ -1,0 +1,3 @@
+4: n0@d0: <BROADCAST,NOARP> mtu 1400 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether b6:60:39:86:6d:f3 brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 0 maxmtu 65535 
+    vlan protocol 802.1ad id 20 <REORDER_HDR> addrgenmode eui64 numtxqueues 2 numrxqueues 3 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 

@@ -1,0 +1,1 @@
+ALGO-TYPE value "enc" or "aead" is required with XFRM-PROTO value "esp"

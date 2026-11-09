@@ -1,0 +1,40 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root bfifo foorbar",
+ "desc": "negative: Add bfifo qdisc on egress with unsupported argument",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)qdisc bfifo 1: root",
+   "readback": "verify"
+  },
+  "rc": 1
+ },
+ "id": "tdc/qdiscs/fifo/8d5e",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8d5e",
+  "tdc": "qdiscs/fifo.json"
+ }
+}

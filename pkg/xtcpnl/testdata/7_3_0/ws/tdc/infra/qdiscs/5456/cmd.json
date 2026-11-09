@@ -1,0 +1,66 @@
+{
+ "cmd": "ping -c1 -W0.01 -I dummy1 10.10.11.11",
+ "desc": "negative: Test htb_dequeue_tree with deactivation and row emptying",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1
+ },
+ "id": "tdc/infra/qdiscs/5456",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.11.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 root handle 1: htb default 1",
+  "tc class add dev dummy1 parent 1: classid 1:1 htb rate 64bit ",
+  "tc qdisc add dev dummy1 parent 1:1 handle 2: netem",
+  "tc qdisc add dev dummy1 parent 2:1 handle 3: blackhole"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.11.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1: classid 1:1 htb rate 64bit ",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1:1 handle 2: netem",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 2:1 handle 3: blackhole",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ },
+ "source": {
+  "id": "5456",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

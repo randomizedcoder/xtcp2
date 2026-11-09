@@ -1,0 +1,6 @@
+ok    [lacpa] ip link add br0 type bridge
+ok    [lacpa] ip link add p0 type dummy
+ok    [lacpa] ip link add p1 type dummy
+ok    [lacpa] ip link set p0 master br0
+ok    [lacpa] ip link set p1 master br0
+ok    [lacpa] ip link set dev p0 type bridge_slave backup_port p1

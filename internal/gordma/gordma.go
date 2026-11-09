@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -82,7 +83,7 @@ func (r *rd) errf(format string, a ...any) {
 }
 
 // seq is rd_prepare_msg's time(NULL).
-func seq() uint32 { return uint32(time.Now().Unix()) } //nolint:gosec // rdma's truncation
+func seq() uint32 { return cint.LongBits(time.Now().Unix()) }
 
 func run(cfg config, args []string, stdout, stderr io.Writer) int {
 	w := bufio.NewWriter(stdout)
@@ -403,7 +404,7 @@ func cAtoi(s string) uint32 {
 			v = 1<<63 - 1
 		}
 	}
-	return uint32(v) //nolint:gosec // atoi's truncation
+	return cint.Low32(v)
 }
 
 // portFromArg is get_port_from_argv: arg's port, whether to dump every

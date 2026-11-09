@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "dev": "br0",
+  "lladdr": "00:00:00:00:00:00",
+  "notify": "2",
+  "ntf": "128",
+  "state": "66",
+  "target": "6",
+  "verb": "add",
+  "vlan": "1"
+ },
+ "cmd": "bridge fdb add 00:00:00:00:00:00 dev br0 master self static router vlan 1 inactive",
+ "desc": "negative: verb=add mac=zero dev=bridge target=both state=static flags=router vlan=1 ext=inactive: the zero MAC (RTM_NEWNEIGH with invalid ether address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "fdbbr/rn1-002",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev br0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

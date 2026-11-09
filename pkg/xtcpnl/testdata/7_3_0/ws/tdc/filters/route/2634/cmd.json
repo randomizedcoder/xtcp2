@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter del dev v0p1 parent ffff: protocol ip prio 2 route from 10 to 2 classid 1:1 action pipe",
+ "desc": "positive: Delete route filter with pipe action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)filter protocol ip pref.*route chain [0-9]+.*flowid 1:1 to 2 from 10.*action pipe",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/route/2634",
+ "modules": [
+  "cls_route"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 parent ffff: protocol ip prio 2 route from 10 to 2 classid 1:1 action pipe"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: protocol ip prio 2 route from 10 to 2 classid 1:1 action pipe",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2634",
+  "tdc": "filters/route.json"
+ }
+}

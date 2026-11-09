@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from 198.51.100.0/24 to 203.0.113.0/24 fwmark 0x10/0xff iif d0 uidrange 1000-2000 ipproto ipproto-255 sport 80 tun_id 7 lookup local suppress_ifgroup 5 dscp 63
+32766:	from all lookup main
+32767:	from all lookup default

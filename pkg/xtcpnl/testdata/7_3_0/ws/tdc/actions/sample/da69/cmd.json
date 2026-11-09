@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action sample rate 20000 group 72 reclassify index 100",
+ "desc": "positive: Add valid sample action with mandatory arguments and reclassify control action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: sample rate 1/20000 group 72 reclassify.*index 100 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/sample/da69",
+ "modules": [
+  "act_sample"
+ ],
+ "pre": [
+  [
+   "tc actions flush action sample",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action sample",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action sample",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "da69",
+  "tdc": "actions/sample.json"
+ }
+}

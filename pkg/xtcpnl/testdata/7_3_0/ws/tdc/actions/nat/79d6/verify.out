@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1:  nat ingress 192.168.1.1/32 10.10.10.1 reclassify
+	 index 1 ref 1 bind 0
+	cookie 112233445566778899aabbccddeeff11
+	not_in_hw

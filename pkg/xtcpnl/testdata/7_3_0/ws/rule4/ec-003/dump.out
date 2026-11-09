@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all to 203.0.113.9 tos 0x08 fwmark 0x10/0xff iif lo oif nosuch [detached] uidrange 0-0 ipproto udp sport 1000-2000 dport 1000-2000 tun_id 7 lookup 100 suppress_prefixlength 24 proto 255
+32766:	from all lookup main
+32767:	from all lookup default

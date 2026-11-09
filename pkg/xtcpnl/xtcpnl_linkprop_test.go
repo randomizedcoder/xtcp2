@@ -149,20 +149,25 @@ func TestParseLinkPropCorpus(t *testing.T) {
 		}
 		return strconv.Itoa(n) + " decoded, " + strconv.Itoa(errs) + " errors, names [" + strings.Join(names, " ") + "]"
 	}
+	// The workbench's linkprop rows (coverage-status.md, "W4c") follow the
+	// hand-written captures' d0alt and lo.
+	b127 := strings.Repeat("b", 127)
 	tests := []struct {
 		description string
 		got         string
 		expected    string
 	}{
 		{
-			description: "positive: ip's two NEWLINKPROP requests decode, d0alt and the refused lo, both on ifindex 3",
+			description: "positive: ip's NEWLINKPROP requests decode, d0alt, the refused lo and the linkprop rows' names, all on ifindex 3",
 			got:         tally(unix.RTM_NEWLINKPROP, true),
-			expected:    "2 decoded, 0 errors, names [3:d0alt 3:lo]",
+			expected: "10 decoded, 0 errors, names [3:d0alt 3:lo 3:alt0 3:alt0 3:alt1,alt2 3:a/b 3:br0 3:alternate-name-0 3:" +
+				b127 + " 3:alt1,alt2]",
 		},
 		{
-			description: "positive: ip's DELLINKPROP request decodes",
+			description: "positive: ip's DELLINKPROP requests decode",
 			got:         tally(unix.RTM_DELLINKPROP, true),
-			expected:    "1 decoded, 0 errors, names [3:d0alt]",
+			expected: "11 decoded, 0 errors, names [3:d0alt 3:alt9 3:alternate-name-0 3:alt0 3:alternate-name-0 3:" +
+				b127 + " 3:alt1,alt2 3:a/b 3:alt1,alt2 3:a/b 3:alt0]",
 		},
 		{
 			description: "negative: the kernel sends no NEWLINKPROP",

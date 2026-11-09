@@ -1,0 +1,69 @@
+{
+ "cmd": "tc actions list action tunnel_key",
+ "desc": "positive: Fetch all existing tunnel_key actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: tunnel_key.*set.*src_ip 10.10.10.1.*dst_ip 20.20.20.2.*key_id 1.*dst_port 3128.*nocsum pipe.*index 1.*set.*src_ip 11.10.10.1.*dst_ip 21.20.20.2.*key_id 2.*dst_port 3129.*csum jump 10.*index 2.*set.*src_ip 12.10.10.1.*dst_ip 22.20.20.2.*key_id 3.*dst_port 3130.*csum pass.*index 3.*set.*src_ip 13.10.10.1.*dst_ip 23.20.20.2.*key_id 4.*dst_port 3131.*nocsum continue.*index 4",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/tunnel_key/937c",
+ "modules": [
+  "act_tunnel_key"
+ ],
+ "pre": [
+  [
+   "tc actions flush action tunnel_key",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action tunnel_key set src_ip 10.10.10.1 dst_ip 20.20.20.2 dst_port 3128 nocsum id 1 pipe index 1",
+  "tc actions add action tunnel_key set src_ip 11.10.10.1 dst_ip 21.20.20.2 dst_port 3129 csum id 2 jump 10 index 2",
+  "tc actions add action tunnel_key set src_ip 12.10.10.1 dst_ip 22.20.20.2 dst_port 3130 csum id 3 pass index 3",
+  "tc actions add action tunnel_key set src_ip 13.10.10.1 dst_ip 23.20.20.2 dst_port 3131 nocsum id 4 continue index 4"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action tunnel_key",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action tunnel_key",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action tunnel_key set src_ip 10.10.10.1 dst_ip 20.20.20.2 dst_port 3128 nocsum id 1 pipe index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action tunnel_key set src_ip 11.10.10.1 dst_ip 21.20.20.2 dst_port 3129 csum id 2 jump 10 index 2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action tunnel_key set src_ip 12.10.10.1 dst_ip 22.20.20.2 dst_port 3130 csum id 3 pass index 3",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action tunnel_key set src_ip 13.10.10.1 dst_ip 23.20.20.2 dst_port 3131 nocsum id 4 continue index 4",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "937c",
+  "tdc": "actions/tunnel_key.json"
+ }
+}

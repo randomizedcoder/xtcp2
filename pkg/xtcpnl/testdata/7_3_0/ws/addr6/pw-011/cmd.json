@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "flags": "16",
+  "local": "fe80::1",
+  "metric": "7",
+  "peer": "2001:db8:9::1",
+  "peer_len": "128",
+  "preferred": "4294967295",
+  "prefixlen": "64",
+  "valid": "4294967295",
+  "verb": "replace"
+ },
+ "cmd": "ip -6 address replace fe80::1/64 peer 2001:db8:9::1/128 broadcast 2001:db8:1::ff preference 7 valid_lft forever preferred_lft forever home dev d0",
+ "desc": "corner: verb=replace local=ll peer=128 brd=addr label=absent scope=absent metric=preference lft=forever flags=home proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-011",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,6 @@
+5a:2d:5b:01:d5:75 vlan 10 master br0 permanent
+5a:2d:5b:01:d5:75 vlan 1 master br0 permanent
+5a:2d:5b:01:d5:75 master br0 permanent
+02:00:00:00:00:01 self permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

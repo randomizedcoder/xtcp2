@@ -1,0 +1,5 @@
+62:32:9d:72:ce:80 vlan 10 master br0 permanent
+62:32:9d:72:ce:80 vlan 1 master br0 permanent
+62:32:9d:72:ce:80 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

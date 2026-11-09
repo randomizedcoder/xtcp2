@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "bport": "d1",
+  "dev": "vx0",
+  "dst": "192.0.2.1",
+  "grp": "239.1.1.1",
+  "state": "1",
+  "verb": "add",
+  "vid": "0"
+ },
+ "cmd": "bridge mdb add dev vx0 port d1 grp 239.1.1.1 permanent dst 192.0.2.1",
+ "desc": "negative: verb=add dev=vx0 bport=d1 grp=v4 state=permanent vid=absent dst=v4 dport=absent vni=absent srcvni=absent via=absent src=absent mode=absent srclist=absent proto=absent: a port other than the VXLAN (Port net device must be the VXLAN net device)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "mdbvx/ng-001",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

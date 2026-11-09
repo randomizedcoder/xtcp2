@@ -1,0 +1,19 @@
+total acts 3
+
+	action order 0: gact action pass
+	 random type none pass val 0
+	 index 1 ref 2 bind 1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 2 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: gact action pass
+	 random type none pass val 0
+	 index 3 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled

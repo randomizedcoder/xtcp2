@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1: ife encode action drop type 0XED3E 
+	allow prio 
+	 index 9 ref 1 bind 0
+	not_in_hw

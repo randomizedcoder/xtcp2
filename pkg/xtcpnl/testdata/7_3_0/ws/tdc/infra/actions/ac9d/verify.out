@@ -1,0 +1,5 @@
+filter parent ffff: protocol ip pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1:  police 0x1 rate 1Kbit burst 10Kb mtu 2Kb action reclassify overhead 0b 
+	ref 2 bind 1 
+

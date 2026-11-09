@@ -1,0 +1,40 @@
+[ {
+        "ifindex": 4,
+        "link": "d0",
+        "ifname": "vt0",
+        "flags": [ "POINTOPOINT","NOARP","M-DOWN" ],
+        "mtu": 1480,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ipip",
+        "address": "10.0.0.2",
+        "link_pointtopoint": true,
+        "broadcast": "10.0.0.1",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 0,
+        "max_mtu": 0,
+        "linkinfo": {
+            "info_kind": "vti",
+            "info_data": {
+                "remote": "10.0.0.1",
+                "local": "10.0.0.2",
+                "link": "d0",
+                "ikey": "0.0.0.1",
+                "okey": "0.0.0.2"
+            }
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 65536,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

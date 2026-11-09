@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from all tos 0x08 ipproto ipv6-icmp sport 1-65534 lookup 256
+32766:	from all lookup main

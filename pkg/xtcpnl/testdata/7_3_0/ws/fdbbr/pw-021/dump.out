@@ -1,0 +1,5 @@
+9e:d5:94:f4:a3:ec vlan 10 master br0 permanent
+9e:d5:94:f4:a3:ec vlan 1 master br0 permanent
+9e:d5:94:f4:a3:ec master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

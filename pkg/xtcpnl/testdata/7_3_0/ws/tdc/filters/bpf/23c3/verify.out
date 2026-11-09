@@ -1,0 +1,1 @@
+filter parent ffff: protocol ip pref 100 bpf chain 0 handle 0x1 not_in_hw bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0'

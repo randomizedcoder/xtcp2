@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add nt0 type netkit peer name nt1

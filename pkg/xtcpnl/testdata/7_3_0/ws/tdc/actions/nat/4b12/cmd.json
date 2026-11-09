@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions replace action nat ingress 1.18.1.1 1.18.2.2 goto chain 42 index 90 cookie c1a0c1a0",
+ "desc": "negative: Replace nat action with invalid goto chain control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+:  nat ingress 1.18.1.1/32 1.18.2.2 drop.*index 90 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/nat/4b12",
+ "modules": [
+  "act_nat"
+ ],
+ "pre": [
+  [
+   "tc actions flush action nat",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action nat ingress 1.18.1.1 1.18.2.2 drop index 90"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action nat index 90",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action nat",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action nat ingress 1.18.1.1 1.18.2.2 drop index 90",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4b12",
+  "tdc": "actions/nat.json"
+ }
+}

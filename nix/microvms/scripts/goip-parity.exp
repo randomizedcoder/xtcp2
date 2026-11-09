@@ -55,6 +55,18 @@
 # nltopo::late_setup, which loads the modules and sets net.mptcp.enabled,
 # when it reaches the first of them.
 #
+# NO FALLBACK TUNNELS
+#
+# The link rows' tunnel kinds (gre, ipip, sit, ip6tnl, vti, ...) load their
+# modules themselves, on their first row, and a tunnel module gives every
+# namespace made after it an any/any fallback device unless
+# net.core.fb_tunnels_only_for_init_net is 2. late_setup sets it, but only at
+# the first genl row, after every link row, and never in a `--section link`
+# run. So the driver sets it before its first row, in every run, through
+# nltopo::no_fallback_tunnels (goip-link-kinds.md, KG4-T01). No row before
+# the tunnel rows loads such a module, and the sysctl acts only when a
+# namespace is made, so it changes no other row.
+#
 # NO `ip monitor`, DELIBERATELY
 #
 # The nlmon-capture flavor starts `ip -t monitor all` because its subject is
@@ -76,7 +88,7 @@
 source [file dirname [info script]]/vm-lib.exp
 source [file dirname [info script]]/netlink-topology.exp
 
-set usage "usage: goip-parity.exp <serial-port> <blob-out> --save-blobs <dir> \[--keep-going\] \[--no-allowlist\]"
+set usage "usage: goip-parity.exp <serial-port> <blob-out> --save-blobs <dir> \[--keep-going\] \[--no-allowlist\] \[--section <list>\]"
 if {$argc < 2} {
     puts $usage
     exit 2
@@ -90,6 +102,10 @@ set no_allowlist 0
 # missing file, which reads as a goip divergence rather than as the runner's
 # mistake.
 set save_blobs   ""
+# --section's comma-separated ip objects, passed to both `goip-parity
+# commands` and `goip-parity compare` so the two agree on the rows. Empty
+# runs every row, the full gate.
+set section      ""
 set rest [lrange $argv 2 end]
 while {[llength $rest] > 0} {
     set rest [lassign $rest a]
@@ -102,6 +118,18 @@ while {[llength $rest] > 0} {
                 exit 2
             }
             set rest [lassign $rest save_blobs]
+        }
+        --section {
+            if {[llength $rest] == 0} {
+                puts $usage
+                exit 2
+            }
+            set rest [lassign $rest section]
+            # Typed into the guest's shell, so names and commas only.
+            if {![regexp {^[a-z0-9_]+(,[a-z0-9_]+)*$} $section]} {
+                puts "bad --section: $section"
+                exit 2
+            }
         }
         default {
             puts "unknown argument: $a"
@@ -177,7 +205,12 @@ proc capio {name floor command sout {ns ""} {proto route}} {
 ###############################################################################
 
 proc read_command_table {} {
-    lassign [vmlib::run_out "goip-parity commands"] rc out
+    global section
+    set cmd "goip-parity commands"
+    if {$section ne ""} {
+        append cmd " -section $section"
+    }
+    lassign [vmlib::run_out $cmd] rc out
     if {$rc != 0} {
         vmlib::log "FATAL: `goip-parity commands` exited $rc"
         vmlib::log $out
@@ -499,6 +532,10 @@ vmlib::log "=== topology ==="
 vmlib::must "xtcp2-nlcap ns-add $NS"
 nltopo::build_clean $NS $SUBDIR $DUMMY
 
+# Before the first row, whatever the section; see NO FALLBACK TUNNELS in the
+# header. Its problems are reported at the end, as late_setup's are.
+set early_problems [nltopo::no_fallback_tunnels early]
+
 # Resolved before the captures, not after: a write row's goip side names a
 # file in it for GOIP_WRITE_OUT.
 lassign [nlcap dir $SUBDIR] dir_rc capture_dir
@@ -516,6 +553,9 @@ if {$dir_rc != 0 || $capture_dir eq ""} {
 vmlib::must "cp $save_blobs/restore_fresh.save $save_blobs/restore_existing.save $save_blobs/route_save.save $save_blobs/rule_save.save $capture_dir/"
 
 set table [read_command_table]
+if {$section ne ""} {
+    vmlib::log "=== section $section only: not the full gate ==="
+}
 vmlib::log "=== capturing [llength $table] commands x 3 sides ==="
 
 # late_setup's problems, reported at the end; see GENERIC NETLINK ROWS COME
@@ -543,6 +583,9 @@ foreach row $table {
 set flags ""
 if {$no_allowlist} {
     set flags " -no-allowlist"
+}
+if {$section ne ""} {
+    append flags " -section $section"
 }
 
 vmlib::log "=== comparing in $capture_dir ==="
@@ -616,6 +659,15 @@ if {[llength $refused] > 0} {
     }
     puts "  Any command whose parity depends on those objects is comparing a"
     puts "  smaller topology than intended. Not a failure by itself."
+}
+
+if {[llength $early_problems] > 0} {
+    puts "GOIP_PARITY_EARLY_SETUP_PROBLEMS [llength $early_problems]"
+    foreach p $early_problems {
+        puts "  $p"
+    }
+    puts "  A tunnel row's module may have given later namespaces fallback"
+    puts "  devices; a row that makes a bare tunnel can be refused above."
 }
 
 if {[llength $late_problems] > 0} {

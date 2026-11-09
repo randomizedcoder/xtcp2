@@ -1,0 +1,39 @@
+{
+ "axes": {
+  "action": "7",
+  "dport": "65534-65534",
+  "dscp": "46",
+  "family": "4",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add dscp 46/0x3f dport 65534 unreachable",
+ "desc": "corner: verb=add not=absent from=absent to=absent pref=absent fwmark=absent iif=absent oif=absent ds=dscp-fullmask ipproto=absent sport=absent dport=65534 uidrange=absent suppress=absent protocol=absent extra=absent action=unreachable",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-103",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

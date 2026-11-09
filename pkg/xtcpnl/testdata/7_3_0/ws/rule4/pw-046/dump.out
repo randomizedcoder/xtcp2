@@ -1,0 +1,4 @@
+0:	from all lookup local
+32766:	from all lookup main
+32767:	from all lookup default
+4294967295:	from 198.51.100.7 fwmark 0xffffffff uidrange 1000-2000 ipproto tcp sport 80 dport 80 lookup main suppress_prefixlength 24 dscp 0

@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: handle 0x100 protocol ip prio 100 cgroup match 'cmp(u16 at 0 layer network mask 0xff00 lt 3)' action pipe",
+ "desc": "positive: Add cgroup filter with cmp ematch u16/network layer and pipe action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)filter protocol ip pref 100 cgroup.*handle 0x100..*cmp\\(u16 at 0 layer 1 mask 0xff00 lt 3\\)",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/cgroup/1934",
+ "modules": [
+  "cls_cgroup"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "1934",
+  "tdc": "filters/cgroup.json"
+ }
+}

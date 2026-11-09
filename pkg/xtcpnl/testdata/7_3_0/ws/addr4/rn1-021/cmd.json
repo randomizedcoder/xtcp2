@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "family": "4",
+  "label": "d0:abcdefghijkl",
+  "local": "239.1.1.1",
+  "peer": "198.51.100.0",
+  "peer_len": "24",
+  "prefixlen": "32",
+  "scope": "253",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 239.1.1.1/32 remote 198.51.100.0/24 label d0:abcdefghijkl scope link dev d0",
+ "desc": "corner: verb=del local=mcast peer=remote brd=absent label=15 scope=link metric=absent lft=absent flags=absent proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-021",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 239.1.1.1/32 remote 198.51.100.0/24 label d0:abcdefghijkl scope link dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 239.1.1.1/32 remote 198.51.100.0/24 label d0:abcdefghijkl scope link dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "brd": "+",
+  "family": "4",
+  "flags": "1024",
+  "label": "d0:abcdefghijkl",
+  "local": "192.0.2.1",
+  "metric": "4294967295",
+  "prefixlen": "32",
+  "verb": "change"
+ },
+ "cmd": "ip -4 address change 192.0.2.1/32 brd + label d0:abcdefghijkl metric 4294967295 autojoin dev d0",
+ "desc": "negative: verb=change local=32 peer=absent brd=plus label=15 scope=absent metric=max lft=absent flags=autojoin proto=absent: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr4/pw-019",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

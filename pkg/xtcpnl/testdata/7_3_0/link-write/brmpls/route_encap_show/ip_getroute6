@@ -1,0 +1,2 @@
+2001:db8::/64 proto kernel metric 256 pref medium
+2001:db8:20::/64  encap mpls  300 via 2001:db8::10 metric 1024 pref medium

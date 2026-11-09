@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit munge ip icmp_type set 0xff munge ip icmp_code set 0xff",
+ "desc": "positive: Add pedit action with LAYERED_OP beyond ip set icmp_type & icmp_code",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm) 20: val ff000000 mask 00ffffff.* 20: val ff000000 mask 00ffffff",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/afd8",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "afd8",
+  "tdc": "actions/pedit.json"
+ }
+}

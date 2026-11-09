@@ -1,0 +1,1 @@
+qdisc sfq 1: root refcnt 2 limit 127p quantum 1514b depth 127 headdrop divisor 1024 

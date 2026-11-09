@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev dummy1 parent ffff: handle 0x1 prio 1 protocol ipv6 matchall action drop",
+ "desc": "positive: Add ingress matchall filter for protocol ipv6 and action DROP",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)^filter parent ffff: protocol ipv6 pref 1 matchall.*handle 0x1.*gact action drop.*ref 1 bind 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/matchall/0596",
+ "modules": [
+  "cls_matchall"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev dummy1 parent ffff: handle 1 prio 1 protocol ipv6 matchall",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "0596",
+  "tdc": "filters/matchall.json"
+ }
+}

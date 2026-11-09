@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "1024",
+  "local": "2001:db8:1::1",
+  "metric": "100",
+  "preferred": "50",
+  "prefixlen": "128",
+  "valid": "100",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add 2001:db8:1::1 metric 100 valid_lft 100 preferred_lft 50 autojoin dev d0",
+ "desc": "negative: verb=add local=bare peer=absent brd=absent label=absent scope=absent metric=100 lft=finite flags=autojoin proto=absent: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr6/pw-055",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

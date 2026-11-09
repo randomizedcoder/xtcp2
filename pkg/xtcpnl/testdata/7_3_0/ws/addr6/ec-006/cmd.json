@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "256",
+  "local": "ff0e::1:1",
+  "metric": "7",
+  "prefixlen": "128",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add ff0e::1:1/128 preference 7 mngtmpaddr dev d0",
+ "desc": "negative: verb=add local=mcast peer=absent brd=absent label=absent scope=absent metric=preference lft=absent flags=mngtmpaddr proto=absent: mngtmpaddr off a /64 (address with \"mngtmpaddr\" flag must have a prefix length of 64)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/ec-006",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,40 @@
+[ {
+        "ifindex": 4,
+        "link": "nk0",
+        "ifname": "nt0",
+        "flags": [ "BROADCAST","MULTICAST","NOARP","M-DOWN" ],
+        "mtu": 1500,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "00:00:00:00:00:00",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 68,
+        "max_mtu": 65535,
+        "linkinfo": {
+            "info_kind": "netkit",
+            "info_data": {
+                "mode": "l3",
+                "type": "primary",
+                "policy": "forward",
+                "peer_policy": "forward",
+                "scrub": "default",
+                "peer_scrub": "default"
+            }
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 524280,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

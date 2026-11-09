@@ -1,0 +1,3 @@
+0:	from all lookup local
+32766:	from all lookup main
+4294967295:	from 2001:db8:2::7 fwmark 0xffffffff iif d0 lookup [l3mdev-table] uidrange 0-0 ipproto tcp sport 80 dport 1000-2000 proto 255 dscp 0 flowlabel 0x12345

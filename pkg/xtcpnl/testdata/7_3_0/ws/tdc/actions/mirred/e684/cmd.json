@@ -1,0 +1,54 @@
+{
+ "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action mirred index \\$i \\\"; args=\"\\$args\\$cmd\"; done && tc actions del \\$args\"",
+ "desc": "positive: Delete batch of 32 mirred mirror ingress actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^[ \t]+index [0-9]+ ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mirred/e684",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ],
+  "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action mirred ingress mirror dev lo index \\$i \\\"; args=\\\"\\$args\\$cmd\\\"; done && tc actions add \\$args\""
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mirred",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   },
+   {
+    "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action mirred ingress mirror dev lo index \\$i \\\"; args=\\\"\\$args\\$cmd\\\"; done && tc actions add \\$args\"",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "e684",
+  "tdc": "actions/mirred.json"
+ }
+}

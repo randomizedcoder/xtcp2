@@ -1,0 +1,51 @@
+/sys/class/net/bond0/bonding/ad_actor_key:15
+/sys/class/net/bond0/bonding/ad_actor_sys_prio:65535
+/sys/class/net/bond0/bonding/ad_actor_system:02:00:00:00:00:0a
+/sys/class/net/bond0/bonding/ad_aggregator:1
+/sys/class/net/bond0/bonding/ad_num_ports:1
+/sys/class/net/bond0/bonding/ad_partner_key:15
+/sys/class/net/bond0/bonding/ad_partner_mac:02:00:00:00:00:0b
+/sys/class/net/bond0/bonding/ad_select:stable 0
+/sys/class/net/bond0/bonding/ad_user_port_key:0
+/sys/class/net/bond0/bonding/all_slaves_active:0
+/sys/class/net/bond0/bonding/arp_all_targets:any 0
+/sys/class/net/bond0/bonding/arp_interval:0
+/sys/class/net/bond0/bonding/arp_missed_max:2
+/sys/class/net/bond0/bonding/arp_validate:none 0
+/sys/class/net/bond0/bonding/downdelay:0
+/sys/class/net/bond0/bonding/fail_over_mac:none 0
+/sys/class/net/bond0/bonding/lacp_active:on 1
+/sys/class/net/bond0/bonding/lacp_rate:fast 1
+/sys/class/net/bond0/bonding/lp_interval:1
+/sys/class/net/bond0/bonding/miimon:100
+/sys/class/net/bond0/bonding/mii_status:up
+/sys/class/net/bond0/bonding/min_links:0
+/sys/class/net/bond0/bonding/mode:802.3ad 4
+/sys/class/net/bond0/bonding/num_grat_arp:1
+/sys/class/net/bond0/bonding/num_unsol_na:1
+/sys/class/net/bond0/bonding/packets_per_slave:1
+/sys/class/net/bond0/bonding/peer_notif_delay:0
+/sys/class/net/bond0/bonding/primary_reselect:always 0
+/sys/class/net/bond0/bonding/queue_id:la1:0 la2:0
+/sys/class/net/bond0/bonding/resend_igmp:1
+/sys/class/net/bond0/bonding/slaves:la1 la2
+/sys/class/net/bond0/bonding/tlb_dynamic_lb:1
+/sys/class/net/bond0/bonding/updelay:0
+/sys/class/net/bond0/bonding/use_carrier:1
+/sys/class/net/bond0/bonding/xmit_hash_policy:layer2 0
+/sys/class/net/la1/bonding_slave/ad_actor_oper_port_state:63
+/sys/class/net/la1/bonding_slave/ad_aggregator_id:1
+/sys/class/net/la1/bonding_slave/ad_partner_oper_port_state:63
+/sys/class/net/la1/bonding_slave/link_failure_count:1
+/sys/class/net/la1/bonding_slave/mii_status:up
+/sys/class/net/la1/bonding_slave/perm_hwaddr:02:00:00:00:0a:01
+/sys/class/net/la1/bonding_slave/queue_id:0
+/sys/class/net/la1/bonding_slave/state:active
+/sys/class/net/la2/bonding_slave/ad_actor_oper_port_state:15
+/sys/class/net/la2/bonding_slave/ad_aggregator_id:1
+/sys/class/net/la2/bonding_slave/ad_partner_oper_port_state:55
+/sys/class/net/la2/bonding_slave/link_failure_count:2
+/sys/class/net/la2/bonding_slave/mii_status:down
+/sys/class/net/la2/bonding_slave/perm_hwaddr:02:00:00:00:0a:02
+/sys/class/net/la2/bonding_slave/queue_id:0
+/sys/class/net/la2/bonding_slave/state:backup

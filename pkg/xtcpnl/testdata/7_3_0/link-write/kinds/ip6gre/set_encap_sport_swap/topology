@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add g6 type ip6gre remote 2001:db8::1 encap-sport 4660
