@@ -166,8 +166,9 @@ let
   # captures (docs/netlink/addr-write-path.md, table 6). Those are the only
   # replies that carry IFA_MULTICAST, IFA_ANYCAST and IFA_MC_USERS, and the
   # pinned `ip` never asks for them: `ip maddr` reads /proc until iproute2
-  # b8cdda55, which is in no release, and nothing in iproute2 sends
-  # RTM_GETANYCAST. So this sends the request itself, the way
+  # b8cdda55, which is first released in v7.3.0 (after this pin), and
+  # nothing in iproute2 sends RTM_GETANYCAST. So this sends the request
+  # itself, the way
   # rtnl_mcaddrdump_req (lib/libnetlink.c:338) builds it: an nlmsghdr with
   # NLM_F_REQUEST | NLM_F_DUMP and a zeroed ifaddrmsg naming the family.
   #

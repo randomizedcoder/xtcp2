@@ -875,6 +875,27 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			implemented: true,
 		},
 		{
+			description: "positive: -4 vrf show goipvrf, the NAME get with the family byte, the kernel family-blind on the lookup",
+			name:        "-4 vrf show goipvrf",
+			slug:        "vrf_show_name_v4",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: -6 vrf show goipvrf, the AF_INET6 twin, the same answer and floor",
+			name:        "-6 vrf show goipvrf",
+			slug:        "vrf_show_name_v6",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "corner: -0 vrf show goipvrf, the AF_PACKET byte no other vrf request carries",
+			name:        "-0 vrf show goipvrf",
+			slug:        "vrf_show_name_0",
+			floor:       2,
+			implemented: true,
+		},
+		{
 			description: "positive: vrf show default, the ENODEV arm both sides resolve to the main table",
 			name:        "vrf show default",
 			slug:        "vrf_show_default",
@@ -4709,6 +4730,50 @@ func TestVrfShowNameRowsGated(t *testing.T) {
 		{"boundary: the dump twin stays gated with no Setup either", "vrf show", want{implemented: true, gated: true, floor: 2}},
 		{"boundary: the -j dump twin likewise", "-j vrf show", want{implemented: true, gated: true, floor: 2}},
 		{"negative: a vrf name the topology never builds is not in the matrix", "vrf show nosuchvrf", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.setup, got.floor = c.Implemented, len(c.Setup) > 0, c.Floor
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestVrfFamilyFormRowsGated pins VF2's three family rows: implemented, on no
+// Setup (the NAME form resolves nothing up front), each floor 2 — the one
+// RTM_GETLINK get by name, family byte and all, and its answer — and gated
+// with no allowlist entry after the runs. The plain NAME row they sit beside
+// stays gated beside them, and a family form of the dump twin is not in the
+// matrix at all.
+//
+// go test ./internal/goipparity/ -run TestVrfFamilyFormRowsGated
+func TestVrfFamilyFormRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, setup bool
+		floor, entries            int
+	}
+	gated := want{implemented: true, gated: true, floor: 2}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: -4, the AF_INET family byte", "-4 vrf show goipvrf", gated},
+		{"positive: -6, the AF_INET6 twin", "-6 vrf show goipvrf", gated},
+		{"corner: -0, the AF_PACKET byte no other vrf request carries", "-0 vrf show goipvrf", gated},
+		{"boundary: the plain NAME row stays gated beside them", "vrf show goipvrf", want{implemented: true, gated: true, floor: 2}},
+		{"negative: the dump form's family twin is not in the matrix", "-4 vrf show", want{}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
