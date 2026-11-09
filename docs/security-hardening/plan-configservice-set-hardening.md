@@ -25,6 +25,7 @@
   - [W10 — netlink broker and collector de-privilege (L7)](#w10--netlink-broker-and-collector-de-privilege-l7)
   - [W11 — Docker broker (L7)](#w11--docker-broker-l7)
   - [W12 — syscall profiles (L7)](#w12--syscall-profiles-l7)
+  - [W13 — startup confinement check (L6)](#w13--startup-confinement-check-l6)
 - [Sequencing and dependencies](#sequencing-and-dependencies)
 - [Fleet rollout runbook](#fleet-rollout-runbook)
 - [End-state verification checklist](#end-state-verification-checklist)
@@ -41,7 +42,8 @@
 4. Runtime config changes cannot repoint egress (`dest`, `s3_endpoint`) or listeners/auth without a redeploy.
 5. Every applied `Set` is auditable.
 6. The collector process ends up with **zero** filesystem write capability.
-7. The collector holds no capabilities, no `docker.sock` and no namespace handles. The privileged reads it needs go through two brokers, each enforced by validators on both ends, broker-side filtering, and a syscall profile.
+7. The daemon refuses to start without the confinement its severity rating assumes, unless the operator waives named checks.
+8. The collector holds no capabilities, no `docker.sock` and no namespace handles. The privileged reads it needs go through two brokers, each enforced by validators on both ends, broker-side filtering, and a syscall profile.
 
 **Non-goals** (tracked in the advisory's [honest limits](security-vulnerability-configservice-set-fs-write.md#7-honest-limits--what-this-does-not-fix))
 
@@ -71,6 +73,7 @@
 | I16 | `CAP_NET_ADMIN` in the host netns: host firewall/route rewrite (defeats W7 egress pinning), `SOCK_DESTROY` of any socket, TCP-MD5 keys in inet_diag dumps | `pkg/xtcp/init_capabilities.go`, deployment role | High (post-RCE) | W10 |
 | I17 | `CAP_SYS_ADMIN` under Docker's default seccomp profile: `bpf`, `perf_event_open`, `unshare`, `setns` of any type; `mount` held back only by AppArmor | deployment role | High (post-RCE) | W10, W12 |
 | I18 | The collector receives full container inspect documents (tenant `Env`, mounts, labels) though it uses four fields | `pkg/dockermeta` | Medium (confidentiality) | W11 |
+| I19 | The daemon starts silently with no confinement (bare host as root, `--privileged`, a pod without seccomp): the advisory's Critical shape | `cmd/xtcp2/xtcp2.go`, `nix/modules/xtcp2-service.nix` | High (deployment) | W13 |
 
 ## Workstreams
 
@@ -282,11 +285,25 @@ Advisory §5.8, [Phase 5](phase-5-privilege-brokers.md#syscall-profiles-for-ever
 
 **Acceptance**: R1–R10, T4–T6, U9. **Estimate**: 3–5 days.
 
+### W13 — startup confinement check (L6)
+
+[Phase 1 PR-24](phase-1-code-hardening.md#pr-24--startup-confinement-check). No dependencies; ships in Phase 1.
+
+- [ ] Check confinement, not container markers. Required: `no_new_privs`, `seccomp` (filter mode), `readonly_root`, `capability_bound` (`CapBnd` within `requiredCaps`), and `landlock` once W4 lands. Warn only: `lsm`, `pid_namespace`.
+- [ ] A failed required check exits 78 with per-runtime fixes (Docker, Kubernetes, systemd).
+- [ ] Per-check waiver: `-insecureAllowUnconfined=<check,…>|all` / `XTCP_INSECURE_ALLOW_UNCONFINED`. Unknown names are fatal; waivers warn hourly and export `xtcp2_confinement_waived{check}`.
+- [ ] Argv/env only, with no config field, so `Set` cannot carry a waiver.
+- [ ] Harden the NixOS module (`NoNewPrivileges`, `SystemCallFilter`, `ProtectSystem=strict`, `RestartPreventExitStatus=78`) so it passes with no waiver.
+- [ ] Fleet alert on any non-zero `xtcp2_confinement_waived`.
+
+**Acceptance**: X1–X19. **Estimate**: 2–3 days.
+
 ## Sequencing and dependencies
 
 ```
 Phase 0 (today):          the v2.0.x auth merge (I10) — ops action, no release needed
 Phase 1 (release vNext):  W0 (image rebuild) + W1 ─▶ W2 ─▶ W3   (pure code/build; closes I1-I6, I8, I14)
+                          W13 confinement check, independent  (closes I19)
                              └──▶ W8 (hostile-path + golden-config gates) ──▶ W9
 Phase 2:                  W4 (Landlock, optional pivot_root) ──▶ W6 (Set audit) ──▶ W7 quota + audit ship
 Phase 3:                  W5 (writer split) ──▶ W7 (second container, :ro flip) ──▶ W9
@@ -305,7 +322,7 @@ Phase 5:                  W12 profiles (ship with Phase 2) ─▶ W10 netlink br
 1. Merge Phase 1 → tag release → image repo bump → ansible role pin bump; fleet-gate test green.
 2. Canary via the existing canary mechanism (`ansible/xtcp2.yml`); watch for `InvalidArgument`/`FailedPrecondition` spikes from legit automation using `Set` (expect none — operators use redeploy, but verify `xtcp2_set_applied_total`).
 3. If a legit `Set` migration surfaces: document `-setAllowFrozenFields`, time-box it, remove after migration.
-4. Phase 2 canary: watch `xtcp2_sandbox_active` (expect 1; 0 on any pre-5.13 kernel → raise a ticket, host is unprotected at L4).
+4. Phase 2 canary: watch `xtcp2_sandbox_active` (expect 1). A pre-5.13 kernel now exits 78 at startup (W13 `landlock` check) unless `landlock` is waived; a waived host alerts on `xtcp2_confinement_waived`.
 5. Phase 3 canary: writer-up check, baseline alert still fires on link-down (synthetic test), ASN refresh metric, then the `:ro` flip; revert path = `xtcp2_revert.yml` + restore `:rw` mount.
 6. Post-rollout: run the [end-state verification checklist](#end-state-verification-checklist) against one canary host with the admin token.
 
@@ -326,6 +343,7 @@ With admin token in hand on a canary host, every item must fail safely:
 - [ ] Collector (W10–W12): `CapEff 0` as uid `xtcp2`, no `docker.sock`. On a crippled build, an RCE probe cannot change the firewall or routes, load BPF, `setns`, mount, kill sockets, or reach the Docker API
 - [ ] Netlink broker: `setns` with any type other than `CLONE_NEWNET`, and any socket other than netlink `SOCK_DIAG`/`ROUTE` → `EPERM` (seccomp)
 - [ ] Docker broker: the only Docker requests ever issued are the four fixed GETs; responses carry no `Env`/mounts/labels
+- [ ] Startup (W13): the release binary as root on a bare host exits 78 naming the failed checks; the fleet container and the hardened NixOS unit start with no waiver
 - [ ] Production image (W0): `Set` with `dest = "file:/tmp/pwn"` → fatal startup error, no file ever created (the code is absent from the binary); `write_files = 1` → fatal startup error
 
 ## Open decisions
@@ -333,7 +351,7 @@ With admin token in hand on a canary host, every item must fail safely:
 | # | Decision | Default proposal |
 |---|---|---|
 | OD-1 | `unix_socket_mode` cap: 0600 or allow 0660 (shared-group socket)? | 0600 (`in: [0, 384]`); add 432 (0660) to the list only if a consumer needs group access — never a `lte` bound |
-| OD-2 | Landlock-absent kernel behavior: warn-and-continue vs refuse to start | Warn + `xtcp2_sandbox_active 0` + alert; fleet is ≥6.8 so this is a bare-metal edge case |
+| OD-2 | Landlock-absent kernel behavior: warn-and-continue vs refuse to start | Refuse to start (W13 `landlock` check) unless `landlock` is waived; a waived host runs with `xtcp2_sandbox_active 0` and alerts. Fleet is ≥6.8, so this is a bare-metal edge case |
 | OD-3 | `file:` destination: keep behind `-allowFileDest` or remove entirely in the s3parquet build flavor | Both: the `dest_file` build tag removes it from the production flavor (W0); flavors that compile it still require `-allowFileDest` (W2) |
 | OD-4 | Writer transport: UDS gRPC (chosen) vs loopback TCP | UDS — peer credentials, no port surface; loopback TCP rejected because every host process shares it |
 | OD-5 | Does the ipfeed sidecar adopt the writer? | No — out of scope; it is already uid 65534, single subdirectory, no caps |
@@ -343,6 +361,7 @@ With admin token in hand on a canary host, every item must fail safely:
 | OD-10 | Netlink broker: pass fds vs run the dumps in the broker | Pass fds over `SOCK_SEQPACKET`. The kernel checks the sender's capabilities as well as the opener's, so the fd carries no privilege, and the hot path stays zero-copy |
 | OD-11 | Docker access: typed gRPC broker vs a filtering HTTP proxy in front of `docker.sock` | Typed broker — the projection and the fixed request set are then structural, not pattern-matched |
 | OD-12 | Bound the Docker broker further with dockerd TCP+mTLS and an authz plugin (GET-only for the broker's cert) | Deferred until W11 lands |
+| OD-13 | Make the W13 `lsm` and `pid_namespace` checks required? | Not yet: many bare-metal hosts run no LSM, and bare-metal discovery scans host `/proc`. Revisit when W10's broker owns discovery |
 | OD-9 | Drop the network stdlib destinations (`tcp`/`udp`/`http`/`https`/`unix`/`unixgram`) from the production flavor? | Yes — production needs `s3parquet` only; kills the DEST-repoint exfil class structurally |
 
 ## References

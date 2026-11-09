@@ -43,7 +43,7 @@ PR-9 sec/w4-pivot-root (optional, independent, after PR-8)
 
 ## PR-8 — Landlock self-confinement
 
-**Objective:** a Landlock ruleset applied once at first start, inherited (not re-applied) across soft restarts, and not removable by the process itself; degraded gracefully (warn + gauge, never a failed daemon) where the kernel lacks support.
+**Objective:** a Landlock ruleset applied once at first start, inherited (not re-applied) across soft restarts, and not removable by the process itself; where the kernel lacks support, the daemon refuses to start unless the `landlock` check is waived ([PR-24](phase-1-code-hardening.md#pr-24--startup-confinement-check)).
 
 ### Files
 
@@ -165,8 +165,8 @@ Three layers: **A/E/D** are pure table-driven unit tests (no kernel, all platfor
 | D1 | P | ABI 4 (Ubuntu 24.04 / 6.8) | probed version 4 | ruleset incl. `REFER`+`TRUNCATE`, no `RESOLVE_UNIX` (pathname-UDS connect unmediated, logged); `xtcp2_sandbox_active 1`, `xtcp2_sandbox_abi 4` |
 | D2 | B | ABI 2 (5.19) | probed version 2 | `REFER` kept, `TRUNCATE` dropped; write roots allowed (same-dir atomic rename needs neither); `truncate(2)` outside roots is no longer denied — one warn line names the lost guarantee |
 | D3 | B | ABI 1 (5.13) | probed version 1 | `REFER` and `TRUNCATE` dropped; same-dir rename still permitted (v1 rights cover it); truncation unmediated as D2; active 1; warn line |
-| D4 | N | ABI 0 / `ENOSYS` (unsupported kernel) | probe fails with not-supported | **warn** + `xtcp2_sandbox_active 0` + daemon continues (OD-2: degrade, never a failed daemon) |
-| D5 | C | `EPERM` from a seccomp-blocked `landlock_*` syscall (possible on old Docker default profiles) | probe returns EPERM | same as D4: warn + gauge 0 + continue, message names the likely cause |
+| D4 | N | ABI 0 / `ENOSYS` (unsupported kernel) | probe fails with not-supported | exit 78 naming `landlock` (PR-24 X19); with `landlock` waived: **warn** + `xtcp2_sandbox_active 0` + daemon continues |
+| D5 | C | `EPERM` from a seccomp-blocked `landlock_*` syscall (possible on old Docker default profiles) | probe returns EPERM | same as D4 (exit 78 unless waived), message names the likely cause |
 | D7 | P | ABI ≥ 9 | probed version 9 | `RESOLVE_UNIX` handled; granted on the docker.sock and lldpd socket only; other pathname sockets denied (B14) |
 | D6 | C | ABI ≥ 2 but UDS listener outside all roots | listener path not under a write root | `Constrain` returns a configuration error (loud at startup, not a runtime bind surprise) |
 
@@ -236,7 +236,7 @@ Three layers: **A/E/D** are pure table-driven unit tests (no kernel, all platfor
 
 | # | Decision | Recommendation |
 |---|---|---|
-| OD-2 (already defaulted) | Landlock-absent kernel behavior | warn + `xtcp2_sandbox_active 0` + continue (D4/D5) |
+| OD-2 (revised by PR-24) | Landlock-absent kernel behavior | refuse to start unless `landlock` is waived; waived: warn + `xtcp2_sandbox_active 0` + continue (D4/D5) |
 | new | dependency: go-landlock vs raw x/sys | go-landlock |
 | new | ABI floor for write roots | v1 (same-dir atomic rename needs no `REFER`/`TRUNCATE`); ABI 1–2 lose truncate protection and say so; v0 disables writes with a warning |
 | new | Landlock network rules (TCP bind/connect scoping) | out of scope this phase; revisit after Phase 4 egress pinning |

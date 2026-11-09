@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Active — checkboxes track execution; supersedes the sequencing section of the [hardening plan](plan-configservice-set-hardening.md) |
 | **Repos** | `randomizedcoder/xtcp2` (code), the image repo (image), the deployment repo (deploy), the infra repo (SSM/IAM/network) |
-| **Docs** | [Advisory](security-vulnerability-configservice-set-fs-write.md) — the problem (primitives, permission model, escape idioms). [Hardening plan](plan-configservice-set-hardening.md) — workstreams W0–W12 with design detail, estimates, and open decisions. **This doc** — execution order, PR-level steps, phase gates, and rollback. |
+| **Docs** | [Advisory](security-vulnerability-configservice-set-fs-write.md) — the problem (primitives, permission model, escape idioms). [Hardening plan](plan-configservice-set-hardening.md) — workstreams W0–W13 with design detail, estimates, and open decisions. **This doc** — execution order, PR-level steps, phase gates, and rollback. |
 
 Reading order for an implementer: skim the advisory's §2 (primitives) and §4 (permission model), then execute the phases below, dipping into the workstream sections of the hardening plan as each PR needs detail.
 
@@ -52,11 +52,12 @@ PRs (repo `xtcp2` unless noted; each lands with its tests and doc updates from W
 - [ ] **PR-4 — universal validating interceptor** ([W3](plan-configservice-set-hardening.md#w3--universal-validating-interceptor-l3)): unary interceptor + stream `RecvMsg` wrapper; descriptor-walking guard test so no future RPC skips validation.
 - [ ] **PR-5 — `Set` audit logging** ([W6](plan-configservice-set-hardening.md#w6--set-audit-logging)): field-diff log lines (never secret values), token id, `xtcp2_set_applied_total{applied,frozen_rejected}` metric.
 - [ ] **PR-6 — regression gates** ([W8](plan-configservice-set-hardening.md#w8--tests-ci-and-fleet-config-gates)): end-to-end advisory regression (all five primitives blocked at their layers); fleet golden-config CI gate (ansible-rendered configs from all DCs validated on every proto change).
+- [ ] **PR-24 — startup confinement check** ([W13](plan-configservice-set-hardening.md#w13--startup-confinement-check-l6)): refuse to start (exit 78) without no-new-privs, a seccomp filter, a read-only root and a bounded capability set; per-check `-insecureAllowUnconfined` / `XTCP_INSECURE_ALLOW_UNCONFINED` waiver with `xtcp2_confinement_waived` gauge; hardened NixOS module passes with no waiver. Numbered after Phase 5 to keep existing PR references stable.
 - [ ] **PR-7 — image + role** (the image repo, the deployment repo): build and publish the new production flavor; pin bump; fleet-gate test asserts the flavor rejects `dest file:` and `write_files`.
 
 **Release gate:** full unit/race/microVM matrix green; golden-config gate green; 24 h canary; dashboard shows no unexpected `xtcp2_set_applied_total` rejections from legitimate automation.
 
-**Exit criteria:** fleet image where `Set` cannot reach any write primitive (L0 kills #1–2 in the binary; L1–L3 reject everything else; frozen fields stop `dest`/`s3_endpoint` repointing).
+**Exit criteria:** fleet image where `Set` cannot reach any write primitive (L0 kills #1–2 in the binary; L1–L3 reject everything else; frozen fields stop `dest`/`s3_endpoint` repointing), and a daemon that refuses to start unconfined unless explicitly waived.
 
 **Effort:** ~1.5–2 weeks engineering + release.
 
@@ -152,13 +153,14 @@ PRs (repo `xtcp2` unless noted; each lands with its tests and doc updates from W
 | I16 `CAP_NET_ADMIN` in the collector | Phase 5 (PR-20, PR-22) | L7 |
 | I17 `CAP_SYS_ADMIN` under the default seccomp profile | Phase 5 (PR-19, PR-22) | L7 |
 | I18 full inspect documents in the collector | Phase 5 (PR-21) | L7 |
+| I19 daemon starts unconfined without complaint | Phase 1 (PR-24) | L6 |
 
 ## Timeline and effort
 
 | Phase | Elapsed (from start) | Content |
 |---|---|---|
 | 0 | days 0–2 | auth converge |
-| 1 | weeks 1–3 | PR-1…PR-7, release vNext + fleet converge |
+| 1 | weeks 1–3 | PR-1…PR-7 and PR-24, release vNext + fleet converge |
 | 2 | weeks 3–4 | Landlock (+ optional pivot_root), quota/alert, audit ship |
 | 3 | weeks 4–7 | writer split, `:ro` flip, systemd units |
 | 4 | weeks 7–8 | egress pinning, v1.x retirement, standing gates |
@@ -173,7 +175,7 @@ Phases 1 and 2 partially overlap (Landlock PR-8 can start as soon as PR-3's `-wr
 
 | Phase | Rollback |
 |---|---|
-| 1 | previous image tag + role pin (validations simply stop rejecting) |
+| 1 | previous image tag + role pin (validations simply stop rejecting); for PR-24 alone, waive the failing check rather than roll back |
 | 2 | previous image tag (Landlock ruleset gone); quota/alert are additive |
 | 3 | `xtcp2_revert.yml` + restore the collector's `:rw` state mount (writer container can stay, unused) |
 | 4 | network policy rules (per-DC, reversible); `-setAllowFrozenFields` restoration if a genuine migration is blocked |

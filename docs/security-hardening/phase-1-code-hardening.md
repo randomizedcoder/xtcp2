@@ -3,9 +3,9 @@
 | | |
 |---|---|
 | **Status** | Not started — checkboxes track execution |
-| **Tracks** | [Implementation plan](implementation-plan.md) Phase 1 → [hardening plan](plan-configservice-set-hardening.md) workstreams W0–W3, W6, W8 → [advisory](security-vulnerability-configservice-set-fs-write.md) layers L0–L3 |
-| **Goal** | After this phase, no `Set` input — however crafted — can express a filesystem write, a path change, or an egress repoint, and the debug writers are absent from the production binary |
-| **Repos** | `randomizedcoder/xtcp2` (PR-1…PR-6), the image repo + the deployment repo (PR-7) |
+| **Tracks** | [Implementation plan](implementation-plan.md) Phase 1 → [hardening plan](plan-configservice-set-hardening.md) workstreams W0–W3, W6, W8, W13 → [advisory](security-vulnerability-configservice-set-fs-write.md) layers L0–L3, L6 |
+| **Goal** | After this phase, no `Set` input — however crafted — can express a filesystem write, a path change, or an egress repoint, the debug writers are absent from the production binary, and the daemon refuses to start unconfined |
+| **Repos** | `randomizedcoder/xtcp2` (PR-1…PR-6, PR-24), the image repo + the deployment repo (PR-7) |
 
 ## Contents
 
@@ -18,13 +18,14 @@
 - [PR-5 — `Set` audit logging](#pr-5--set-audit-logging)
 - [PR-6 — regression and CI gates](#pr-6--regression-and-ci-gates)
 - [PR-7 — image and role](#pr-7--image-and-role)
+- [PR-24 — startup confinement check](#pr-24--startup-confinement-check)
 - [Decisions to close during Phase 1](#decisions-to-close-during-phase-1)
 - [Release checklist](#release-checklist)
 - [Definition of done](#definition-of-done)
 
 ## Scope
 
-Phase 1 is pure code and build changes — no new processes, no kernel confinement (Phase 2), no deployment-topology changes (Phase 3). It closes issues I1–I8 and I14 at the validation and binary level:
+Phase 1 is pure code and build changes — no new processes, no kernel confinement (Phase 2), no deployment-topology changes (Phase 3). It closes issues I1–I8, I14 and I19 at the validation and binary level:
 
 | Layer | Effect after Phase 1 |
 |---|---|
@@ -32,6 +33,7 @@ Phase 1 is pure code and build changes — no new processes, no kernel confineme
 | L1 (PR-2) | every path-bearing config field has a shape pattern; hostile paths are rejected by protovalidate before any Go code runs |
 | L2 (PR-3) | a Go path policy confines every path to operator-approved roots and freezes egress/listener/path fields against runtime changes |
 | L3 (PR-4) | every RPC input is validated by an interceptor — per-handler discipline becomes structural |
+| L6 (PR-24) | the daemon refuses to start without the confinement the High rating assumes (no-new-privs, a seccomp filter, a read-only root, a bounded capability set), unless the operator waives named checks |
 
 ## PR map, branches, and parallelization
 
@@ -39,11 +41,13 @@ Phase 1 is pure code and build changes — no new processes, no kernel confineme
 PR-1 sec/w0-build-tags ─────┐
 PR-2 sec/w1-proto-paths ────┤
 PR-3 sec/w2-path-policy ───┼──▶ PR-6 sec/w8-regression ──▶ PR-7 (image, role)
-PR-4 sec/w3-interceptor ────┘        ▲
+PR-4 sec/w3-interceptor ────┤        ▲
+PR-24 sec/w13-confinement ──┘
 PR-5 sec/w6-set-audit (after PR-3: reuses its diff helper)
 ```
 
-- PR-1, PR-2, PR-3, PR-4 are independent — four parallel tracks. PR-1 and PR-3 both touch the `Set` handler's validation block (`pkg/xtcp/grpc_configService.go` ~lines 186–262); land PR-1 first there to minimize rebase churn.
+- PR-24 is numbered after Phase 5's PRs so existing PR references stay stable; it ships in Phase 1 because it has no dependencies.
+- PR-1, PR-2, PR-3, PR-4, PR-24 are independent — five parallel tracks. PR-1 and PR-3 both touch the `Set` handler's validation block (`pkg/xtcp/grpc_configService.go` ~lines 186–262); land PR-1 first there to minimize rebase churn.
 - PR-5 after PR-3 (it logs PR-3's frozen-field diff).
 - PR-6 integrates; PR-7 is the release (repos: the image repo, the deployment repo).
 
@@ -238,6 +242,106 @@ func validatingUnaryInterceptor(ctx context.Context, req any,
 
 ---
 
+## PR-24 — startup confinement check
+
+**Objective:** the advisory rates the issue High in a confined container and Critical on a bare host ([severity](security-vulnerability-configservice-set-fs-write.md)). The daemon should refuse the Critical shape by default instead of running in it silently.
+
+**Why check confinement, not "am I in a container":**
+- Container markers (`/.dockerenv`, `/run/.containerenv`, cgroup paths, the `container=` env var) are heuristics, and they measure the wrong thing.
+- A `--privileged` container passes them with no confinement at all. A hardened systemd unit fails them while being properly confined.
+- The in-tree NixOS module (`nix/modules/xtcp2-service.nix`) runs on bare metal. A container check would force it onto the "not recommended" override.
+
+**Checks.** Each check has a stable name, used in logs, metrics and the override.
+
+| Check | Tier | Passes when | Read from |
+|---|---|---|---|
+| `no_new_privs` | required | `NoNewPrivs: 1` | `/proc/self/status` |
+| `seccomp` | required | `Seccomp: 2` (a filter is loaded) | `/proc/self/status` |
+| `readonly_root` | required | `/` is mounted read-only | `statfs("/")` `ST_RDONLY` |
+| `capability_bound` | required | `CapBnd` ⊆ the `requiredCaps` set in `pkg/xtcp/init_capabilities.go` (`NET_ADMIN`, `SYS_ADMIN`, `SYS_PTRACE`, `NET_RAW`, `SYS_RESOURCE`) | `/proc/self/status` |
+| `landlock` (from PR-8) | required | the Phase 2 ruleset applied | `pkg/sandbox` result, checked right after `Constrain` |
+| `lsm` | warn | AppArmor or SELinux confinement is not `unconfined` | `/proc/self/attr/apparmor/current`, else `/proc/self/attr/current` |
+| `pid_namespace` | warn | not the initial pid namespace | `/proc/self/ns/pid` inode ≠ `0xEFFFFFFC` (`PROC_PID_INIT_INO`) |
+
+- **Why `lsm` and `pid_namespace` only warn:**
+  - Many NixOS and other bare-metal hosts run no AppArmor or SELinux.
+  - Bare-metal namespace discovery (Method B) scans other processes in `/proc`, so it needs the host pid namespace.
+  - OD-13 revisits both once Phase 5's netlink broker owns discovery.
+- **The fleet container passes every check today** (advisory [§4.2](security-vulnerability-configservice-set-fs-write.md#42-runtime-settings--linux-primitives)): `no-new-privileges:true`, Docker's default seccomp, a read-only rootfs, `cap_drop: ALL` + `NET_ADMIN`/`SYS_ADMIN`, `docker-default`, and a private pidns.
+
+**Behavior**
+
+- **Where it runs:** in daemon mode only, in `main()` right after flags and env are parsed, before any listener, netlink socket or Landlock call. `-healthcheck`, `-validateConfig`, `-v` and `-help` skip it.
+- **When a required check fails:**
+  - it exits with status 78 (`EX_CONFIG`);
+  - the message names each failed check, what it protects against, and the fix for Docker, Kubernetes and systemd, then the override as a last resort.
+- **When a warn check fails:** one WARN line per check at startup; the daemon starts.
+- **Override:** `-insecureAllowUnconfined=<check>[,<check>…]|all`, or the `XTCP_INSECURE_ALLOW_UNCONFINED` env var, which overrides the flag like every other `XTCP_*` variable.
+  - Waivers are per check, so a host that can't provide one property doesn't lose the others.
+  - An unknown check name is fatal, so a typo never waives nothing silently.
+  - A waived failure logs a WARN at startup and again every hour.
+- **Metrics:**
+  - `xtcp2_confinement_check{check}`: 1 pass, 0 fail.
+  - `xtcp2_confinement_waived{check}`: 1 when a failing required check is waived. The fleet alerts on any non-zero value.
+- **`Set` cannot change it:** the override is argv/env only and has no config proto field, so a `Set` payload cannot carry it. The soft restart re-execs with the same argv and env, so the check re-runs with the same outcome.
+- **Phase 2:** the `landlock` check replaces OD-2's warn-and-continue. A kernel without Landlock, or a seccomp-blocked `landlock_*` syscall, exits unless `landlock` is waived. Phase 4's Landlock network rules (ABI 4) stay best-effort.
+
+**What passes, per runtime**
+
+| Runtime | Settings |
+|---|---|
+| Docker / Compose | `--security-opt no-new-privileges`, default seccomp (not `unconfined`), `--read-only`, `--cap-drop ALL` + only the needed `--cap-add` |
+| Kubernetes | `allowPrivilegeEscalation: false`, `seccompProfile: RuntimeDefault`, `readOnlyRootFilesystem: true`, `capabilities.drop: [ALL]` + only the needed `add` |
+| systemd | `NoNewPrivileges=yes`, a `SystemCallFilter=` allowlist, `ProtectSystem=strict` (+ `ReadWritePaths=` for the state and runtime dirs), `CapabilityBoundingSet=`, `RestartPreventExitStatus=78` so a refusal does not restart-loop |
+
+**Files**
+
+- New `pkg/xtcp/init_confinement.go`, beside `init_capabilities.go`, with the same test seams: `readProcStatus`, `statfsRoot`, `readLSMAttr` and `statPidNS` are package variables that tests swap, like `capgetFunc`.
+- `cmd/xtcp2/xtcp2.go`: the flag, env override and call site.
+- `nix/modules/xtcp2-service.nix`:
+  - add `NoNewPrivileges`, `SystemCallFilter` (validated by the VM suite; W12's bare-metal allowlist replaces it), `ProtectSystem=strict` and `RestartPreventExitStatus=78`;
+  - this closes the module's existing `ProtectSystem` TODO, and the module then passes with no override.
+- Any test that execs the binary outside the module sets `XTCP_INSECURE_ALLOW_UNCONFINED` explicitly, naming only the checks it fails.
+- Docs: [security.md](../security.md) (checks and per-runtime settings), [operations.md](../operations.md) (exit 78 and the override), [metrics.md](../metrics.md) (both gauges).
+
+**Tests** (`TestConfinementCheck`, table-driven over status, statfs, LSM and pidns fixtures)
+
+| ID | Cat | Description | Input / setup | Expected outcome |
+|---|---|---|---|---|
+| X1 | P | fleet container | `NoNewPrivs 1`, `Seccomp 2`, read-only `/`, `CapBnd` = `NET_ADMIN`+`SYS_ADMIN`, `docker-default (enforce)`, private pidns | starts; every `xtcp2_confinement_check` 1; no WARN |
+| X2 | P | hardened systemd unit on bare metal | required checks pass, `CapBnd` = the five allowed caps, LSM `unconfined`, initial pidns | starts; WARN for `lsm` and `pid_namespace` only; no waiver |
+| X3 | N | `sudo xtcp2` on a bare host | `NoNewPrivs 0`, `Seccomp 0`, read-write `/`, full `CapBnd` | exit 78; message names all four required checks with fixes |
+| X4 | N | `docker run --privileged` | `Seccomp 0`, full `CapBnd` | exit 78 naming `seccomp` and `capability_bound` |
+| X5 | N | Kubernetes pod with defaults | `Seccomp 0`, `NoNewPrivs 0` | exit 78 naming `seccomp` and `no_new_privs` |
+| X6 | N | one required check failing (one row per check) | X1 with that one property flipped | exit 78 naming only that check |
+| X7 | P | waive all on a bare host | X3 + `XTCP_INSECURE_ALLOW_UNCONFINED=all` | starts; WARN per failed check; `xtcp2_confinement_waived` 1 for each |
+| X8 | P | waive exactly the failing check | X6 (`readonly_root`) + `-insecureAllowUnconfined=readonly_root` | starts; one waiver |
+| X9 | N | waiver names a different check | X6 (`seccomp`) + `-insecureAllowUnconfined=readonly_root` | exit 78 naming `seccomp` |
+| X10 | N | misspelled check name | `-insecureAllowUnconfined=seccom` | fatal; names the typo and lists the valid names |
+| X11 | B | `CapBnd` exactly the allowed set | the five allowed caps | `capability_bound` passes |
+| X12 | B | one cap beyond the allowed set | the five + `CAP_DAC_OVERRIDE` | `capability_bound` fails, naming `CAP_DAC_OVERRIDE` |
+| X13 | B | empty `CapBnd` | all caps dropped | `capability_bound` passes; the existing capability check reports the missing fatal caps separately |
+| X14 | C | `NoNewPrivs` or `Seccomp` line missing | status fixture without the line | that check fails as "unknown", no panic |
+| X15 | C | `/proc` unreadable | `readProcStatus` returns an error | every `/proc`-based check fails closed; the message includes the read error |
+| X16 | C | SELinux, no AppArmor | AppArmor attr absent; `/proc/self/attr/current` = `system_u:system_r:container_t:s0` | `lsm` passes; `unconfined_t` → WARN |
+| X17 | C | soft restart with a waiver | `Set` re-exec, env carries the waiver | check re-runs, same outcome; a `Set` payload has no field to carry a waiver |
+| X18 | C | non-daemon modes on an unconfined CI runner | `-healthcheck`, `-validateConfig` | run normally; no check |
+| X19 | N | Landlock not applied (after PR-8) | ABI 0, or `EPERM` from `landlock_create_ruleset` | exit 78 naming `landlock` unless it is waived |
+
+**Integration:** the NixOS VM tests boot the hardened module with no override and pass. One VM test turns the module's hardening off, asserts exit 78 with no restart loop, then sets the waiver and asserts the daemon starts with `xtcp2_confinement_waived` 1.
+
+**Acceptance:**
+- the fleet image starts unchanged on a canary;
+- `sudo xtcp2` on a bare host exits 78 with an actionable message;
+- the NixOS module starts with no override.
+
+**Risks:**
+- Hand-run debug sessions now need a waiver. The message prints the exact flag, so this is friction, not breakage.
+- `Seccomp: 2` proves a filter is loaded, not that it is a good one. W12's fleet-gate asserts the profile itself.
+- This is a guard against misdeployment, not a security boundary: code already running in the daemon is past it.
+
+---
+
 ## Decisions to close during Phase 1
 
 | # | Decision | Recommendation |
@@ -246,10 +350,12 @@ func validatingUnaryInterceptor(ctx context.Context, req any,
 | [OD-9](plan-configservice-set-hardening.md#open-decisions) | drop network stdlib destinations from the production flavor? | yes — production needs `s3parquet` only; blocks the DEST-repoint exfil class structurally |
 | new | flag name for the config-validation mode (`-validateConfig`) | keep it — mirrors `-healthcheck`, usable by CI and ansible |
 | new | freeze `marshal_to`? | no — runtime format changes are legitimate ops; PR-5's audit line covers it |
+| [OD-13](plan-configservice-set-hardening.md#open-decisions) | make `lsm` and `pid_namespace` required? | not yet — revisit when Phase 5's netlink broker owns namespace discovery |
 
 ## Release checklist
 
-- [ ] All six code PRs merged; `make regen-protos` output committed (`gen/` in sync)
+- [ ] All seven code PRs (PR-1…PR-6, PR-24) merged; `make regen-protos` output committed (`gen/` in sync)
+- [ ] Fleet image starts with no confinement waiver; NixOS VM suite green with the hardened module
 - [ ] Full matrix green: unit + race + per-flavor (`dest_file`/`capture` worlds both tested) + microVM suite
 - [ ] Golden-config gate green for both ansible role revisions
 - [ ] Advisory regression test green (five primitives blocked)
@@ -271,3 +377,4 @@ Concretely, with the admin token on a canary host running the new image:
 - [ ] `Set` changing `s3_endpoint`/`dest` scheme/listeners → `FailedPrecondition` (frozen)
 - [ ] `Set` changing only poll knobs applies; soft restart works; one audit line logged
 - [ ] Every RPC rejects a crafted-invalid message with `InvalidArgument` (interceptor)
+- [ ] The release binary run as root on a bare host exits 78 naming the failed checks; with `-insecureAllowUnconfined=all` it starts and `xtcp2_confinement_waived` is non-zero
