@@ -43,7 +43,7 @@ PR-9 sec/w4-pivot-root (optional, independent, after PR-8)
 
 ## PR-8 — Landlock self-confinement
 
-**Objective:** a startup-applied Landlock ruleset that survives the soft restart and cannot be escaped by the process itself; degraded gracefully (warn + gauge, never a failed daemon) where the kernel lacks support.
+**Objective:** a Landlock ruleset applied once at first start, inherited (not re-applied) across soft restarts, and not removable by the process itself; degraded gracefully (warn + gauge, never a failed daemon) where the kernel lacks support.
 
 ### Files
 
@@ -75,8 +75,9 @@ Write roots come from Phase 1's `-writableDir` flags (empty by default = **no wr
 | `/proc` | `READ_FILE \| READ_DIR` | namespace discovery (`/proc/self/ns/net`, `/proc/self/status`); read-only grant is also the kernel backstop against `/proc/sys` and `/proc/sysrq-trigger` writes |
 | `/sys` | `READ_FILE \| READ_DIR` | interface/ethtool sysfs reads |
 | `/run/netns`, `/run/docker/netns` | `READ_FILE \| READ_DIR` | named-netns discovery |
-| `/run/docker.sock` | `READ_FILE \| WRITE_FILE` | `connect(2)` to a UDS requires rw access on the socket file under Landlock — a **scoped per-path grant** (a socket cannot be used as a file-write target; `open(2)` on it fails regardless) |
-| `/run/lldpd.socket` (where present) | `READ_FILE \| WRITE_FILE` | same — LLDP enrichment datagram socket |
+| `/run/docker.sock` | `RESOLVE_UNIX` (ABI ≥ 9) | `connect(2)` to a pathname UDS is not a file open — `READ_FILE`/`WRITE_FILE` do not govern it, and below ABI 9 Landlock does not mediate it at all (every pathname socket stays reachable, B14). From ABI 9, handling `RESOLVE_UNIX` and granting it here limits connects to the granted sockets |
+| `/run/lldpd.socket` (where present) | `RESOLVE_UNIX` (ABI ≥ 9) | same — LLDP enrichment socket |
+| state dir (`/var/lib/xtcp2`) when it is not a write root | `READ_FILE \| READ_DIR` | baseline + ipmeta loads; once Phase 3 removes the write root, this read-only grant is what keeps the collector loading state |
 | `/sys/fs/cgroup` | `READ_FILE \| READ_DIR` | container-id resolution |
 | `/etc` | `READ_FILE \| READ_DIR` | tokens + S3 secret mounts, `/etc/resolv.conf`, `/etc/hosts` (pure-Go resolver), TLS roots |
 | `/dev/null` | `READ_FILE \| WRITE_FILE` | runtime; the only `/dev` write grant |
@@ -86,7 +87,9 @@ Write roots come from Phase 1's `-writableDir` flags (empty by default = **no wr
 
 Notes baked into the design:
 
-- **Same-dir atomic rename works from ABI 1** — `REFER` only gates *cross-directory* moves, and the stores never truncate (they replace via rename). This is why the ABI floor for write roots is v1, not v3 (see [D-table](#test-d--abi-policy-testsandboxabipolicy)).
+- **Same-dir atomic rename works from ABI 1** — `REFER` only gates *cross-directory* moves, and the stores never truncate (they replace via rename). This is why the ABI floor for write roots is v1, not v3 (see [D-table](#test-d--abi-policy-testsandboxabipolicy-pure--the-versionpolicy-decision-table)).
+- **What Landlock leaves open.** At every ABI: `chmod`/`chown`/xattrs/`utimes` (B10), and anything another process does on our behalf (dockerd via `docker.sock`). Below ABI 3: `truncate(2)`/`O_TRUNC` on any DAC-writable file — uid 0 owns most of the host (B24). Below ABI 9: pathname-UDS `connect(2)` (B14). Fleet kernels (6.8) are ABI 4, so chmod and UDS connect are open there. The startup log and the D-table name the lost guarantees per ABI; the tests assert them by probed ABI, they do not paper over them.
+- **Apply once; inherit across the soft restart.** A Landlock domain is inherited across `execve`, and each `landlock_restrict_self` stacks a layer; the kernel caps a domain at 16 (`E2BIG`). Re-applying on every `Set`-triggered exec would fail on the 17th consecutive reconfiguration. `Constrain` therefore records the applied policy hash in an inherited (non-`CLOEXEC`) memfd and passes its fd number across `syscall.Exec`; a re-exec that finds a matching marker skips the apply and reports `Result{Reused: true}`. A missing or mismatched marker → apply (stacking only narrows). The marker is an fd, not an env var: a deploy-time env var could fake it on a cold start, an fd can only come from a process already inside the domain. If `E2BIG` is ever returned anyway, the inherited layers still confine the process: log loudly, keep `xtcp2_sandbox_active 1`. The same stacking applies to any seccomp filter added later.
 - **UDS listener addresses must live under a write root** (bind creates a socket file). This matches and re-states Phase 1's L2 rule; the Landlock denial is the kernel backstop.
 - **Existing fds opened before `Constrain` stay usable** — Landlock evaluates at `open(2)` time. The wiring order (constrain before destination/store init) is what makes this moot; test B20 documents the semantic.
 - **`no-new-privileges`** is set by the apply step; the container already sets it — idempotent.
@@ -127,11 +130,11 @@ Three layers: **A/E/D** are pure table-driven unit tests (no kernel, all platfor
 | B7 | N | append under the read-only `/run` grants | write a file next to the docker.sock mount | `EACCES` |
 | B8 | N | `ipmeta` primitive outside roots | `os.MkdirAll("/opt/x/y")` + `os.Create` | `EACCES` on the mkdir |
 | B9 | N | unlink a file outside roots | `os.Remove("/tmp/x")` | `EACCES` |
-| B10 | N | `chmod` a file outside roots | `os.Chmod("/tmp/x", 0777)` | `EACCES` (open-for-write fails before the mode change) |
+| B10 | C | `chmod` a file outside roots | `os.Chmod("/tmp/x", 0777)` | `OK` on every ABI — Landlock does not mediate `chmod`/`chown`/xattrs/`utimes`; pins the documented gap |
 | B11 | N | rename from root to outside | `os.Rename(root+"/f", "/tmp/f")` | `EACCES` (cross-dir `REFER` + target-dir write both denied) |
 | B12 | P | rename within the root (replace existing target) | `os.Rename(root+"/tmp", root+"/current")` | `OK` — proves baseline/ipmeta atomicity survives |
 | B13 | P | connect to a granted UDS | socket created by parent under a granted path; child dials | `OK` |
-| B14 | N | connect to an ungranted UDS | socket outside granted paths | `EACCES` |
+| B14 | N | connect to an ungranted pathname UDS | socket outside granted paths, created by the parent (outside the domain) | `EACCES` on ABI ≥ 9 (`RESOLVE_UNIX` handled); `OK` on ABI ≤ 8 — documented gap, asserted by probed ABI |
 | B15 | P | read `/proc/self/status` | plain read | `OK` |
 | B16 | P | read `/etc/resolv.conf`, `/etc/hosts` | plain reads (resolver prerequisites) | `OK` |
 | B17 | N | write under `/proc/sys` | open `/proc/sys/kernel/hostname` for write | `EACCES` — the `core_pattern`-idiom kernel backstop |
@@ -141,6 +144,7 @@ Three layers: **A/E/D** are pure table-driven unit tests (no kernel, all platfor
 | B21 | P | open `/dev/urandom`, `/dev/null` | read + write respectively | `OK` |
 | B22 | N | create a **symlink** outside roots (`MAKE_SYM`) | `os.Symlink` in `/tmp` | `EACCES` |
 | B23 | C | bind a UDS listener outside any root | `net.Listen("unix", "/tmp/x.sock")` | `EACCES` — kernel backstop for the planted-socket primitive |
+| B24 | B | truncate a file outside roots | `os.Truncate("/tmp/x", 0)` on a file the parent created | `EACCES` on ABI ≥ 3; `OK` on ABI 1–2 — documented degraded guarantee |
 
 ### Test C — persistence across the soft restart (`TestSandboxReexecPersistence`)
 
@@ -151,16 +155,19 @@ Three layers: **A/E/D** are pure table-driven unit tests (no kernel, all platfor
 | C3 | N | write outside root still denied post-exec | after C1's exec, child writes outside | `EACCES` — the guarantee survives `syscall.Exec` |
 | C4 | N | exec a **different** binary not granted execute | `syscall.Exec("/bin/sh")` (test helper equivalent) | `EACCES` at exec |
 | C5 | B | `Set`-shaped flow end-to-end | child 1 applies → execs child 2 with a hostile "config" in env that names an out-of-root path | child 2's write attempt returns `EACCES` even though child 2 re-derived its ruleset from the same args |
+| C6 | B | more than 16 consecutive soft restarts | child applies → re-execs itself 20 times, probing in each generation | every generation: write outside root `EACCES`, inside root `OK`, no `E2BIG`; generations 2–20 report `Reused`, `landlock_restrict_self` called exactly once (injected syscall counter) |
+| C7 | N | forged marker on a cold start | env names an fd that is absent or not the sandbox memfd | marker ignored; ruleset applied; `Reused false` |
 
 ### Test D — ABI policy (`TestSandboxABIPolicy`, pure — the version→policy decision table)
 
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
-| D1 | P | ABI 4 (Ubuntu 24.04 / 6.8) | probed version 4 | full ruleset incl. `REFER`+`TRUNCATE`; `xtcp2_sandbox_active 1`, `xtcp2_sandbox_abi 4` |
-| D2 | B | ABI 2 (5.19) | probed version 2 | `REFER` kept, `TRUNCATE` dropped; write roots allowed (same-dir atomic rename needs neither); one info-level log line |
-| D3 | B | ABI 1 (5.13) | probed version 1 | `REFER` and `TRUNCATE` dropped; same-dir rename still permitted (v1 rights cover it); active 1; info log |
+| D1 | P | ABI 4 (Ubuntu 24.04 / 6.8) | probed version 4 | ruleset incl. `REFER`+`TRUNCATE`, no `RESOLVE_UNIX` (pathname-UDS connect unmediated, logged); `xtcp2_sandbox_active 1`, `xtcp2_sandbox_abi 4` |
+| D2 | B | ABI 2 (5.19) | probed version 2 | `REFER` kept, `TRUNCATE` dropped; write roots allowed (same-dir atomic rename needs neither); `truncate(2)` outside roots is no longer denied — one warn line names the lost guarantee |
+| D3 | B | ABI 1 (5.13) | probed version 1 | `REFER` and `TRUNCATE` dropped; same-dir rename still permitted (v1 rights cover it); truncation unmediated as D2; active 1; warn line |
 | D4 | N | ABI 0 / `ENOSYS` (unsupported kernel) | probe fails with not-supported | **warn** + `xtcp2_sandbox_active 0` + daemon continues (OD-2: degrade, never a failed daemon) |
 | D5 | C | `EPERM` from a seccomp-blocked `landlock_*` syscall (possible on old Docker default profiles) | probe returns EPERM | same as D4: warn + gauge 0 + continue, message names the likely cause |
+| D7 | P | ABI ≥ 9 | probed version 9 | `RESOLVE_UNIX` handled; granted on the docker.sock and lldpd socket only; other pathname sockets denied (B14) |
 | D6 | C | ABI ≥ 2 but UDS listener outside all roots | listener path not under a write root | `Constrain` returns a configuration error (loud at startup, not a runtime bind surprise) |
 
 ### Test E — root validation (`TestSandboxRootValidation`, pure)
@@ -231,7 +238,7 @@ Three layers: **A/E/D** are pure table-driven unit tests (no kernel, all platfor
 |---|---|---|
 | OD-2 (already defaulted) | Landlock-absent kernel behavior | warn + `xtcp2_sandbox_active 0` + continue (D4/D5) |
 | new | dependency: go-landlock vs raw x/sys | go-landlock |
-| new | ABI floor for write roots | v1 (same-dir atomic rename needs no `REFER`/`TRUNCATE`); v0 disables writes with a warning |
+| new | ABI floor for write roots | v1 (same-dir atomic rename needs no `REFER`/`TRUNCATE`); ABI 1–2 lose truncate protection and say so; v0 disables writes with a warning |
 | new | Landlock network rules (TCP bind/connect scoping) | out of scope this phase; revisit after Phase 4 egress pinning |
 | OD-7 | quota mechanism | alert-only here (Test H); XFS project quota deferred to Phase 4 |
 

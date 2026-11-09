@@ -99,7 +99,7 @@ path    = "^(/segment)+/?$"                                // absolute, no empty
 | `xtcp_proto_file` (63) | `min_len 1` | `pattern` above |
 | `dest` (60) | `min_len 4, max_len 512` | scheme pattern (below) |
 | `ListenerEndpoint.address` (2) | `max_len 512` | charset pattern; message-level CEL cross-rule: `network == unix` ⇒ path pattern |
-| `unix_socket_mode` (3) | `lte 511` | tighten to `lte 384` (0600) |
+| `unix_socket_mode` (3) | `lte 511` | `in: [0, 384]` (0 = the default 0600, or 0600 itself) — not a `lte` bound: 0577 (383) passes `lte 384` yet is world-writable; 0660 (432) only via [OD-1](plan-configservice-set-hardening.md#open-decisions) |
 
 **`dest` scheme pattern** — the real syntax (verified from `validateInput`, `pkg/xtcp/input_validation.go`): bare `null`/`stdout`/`stderr`, or `<scheme>:payload` where path-style schemes take one colon and network schemes take two:
 
@@ -114,6 +114,7 @@ Per-scheme payload shape (host:port vs path) stays in Go — `validateInput`'s s
 - Hostile-path table (also used by PR-3): `../etc/passwd`, `/run/x/../../`, embedded NUL, `…/` (unicode ellipsis), `/proc/self/mem`, `/etc//hostname`, `/etc/hostname/`, `/etc/hostname`, symlink-into-root, `/var/lib/xtcp2/ok` (accept), `/tmp/cap` (accept only with a root configured).
 - `dest` table: `stdout`, `null`, `file:/ok`, `kafka:h:9092`, `http://h/x` (accept); `FILE:/x`, `evil://x`, `stdout:extra`, control chars (reject).
 - Cross-rule: `ListenerEndpoint{network: unix, address: "not a path"}` → `InvalidArgument`.
+- Socket-mode table: `0`, `0600` (accept); `0577`, `0601`, `0666`, `0777` (reject — `0577` is the row a `lte 384` bound would wrongly accept).
 
 **Acceptance:** every hostile case rejected at the proto layer; the fleet golden configs (all DCs, both role revisions) still validate (PR-6 gate runs them in CI).
 
@@ -131,25 +132,28 @@ Per-scheme payload shape (host:port vs path) stays in Go — `validateInput`'s s
 
 ```go
 type PathPolicy struct {
-    Roots         []string // from -writableDir; empty ⇒ no filesystem-writing config allowed
+    WriteRoots    []string // from -writableDir; empty ⇒ no filesystem-writing config allowed
+    ReadRoots     []string // from -readableDir; read/connect fields only
     AllowFileDest bool     // from -allowFileDest
 }
 
-// ValidateConfigPaths canonicalizes each path-bearing field (filepath.Clean +
-// EvalSymlinks, error on failure), verifies no path component is a symlink
-// (component-wise os.Lstat), and requires containment in a root.
+// ValidateConfigPaths canonicalizes each path-bearing field: filepath.Clean,
+// then EvalSymlinks on the deepest existing ancestor (an output may not exist
+// yet, and EvalSymlinks fails on a missing path), then os.Lstat on each
+// existing component (no symlinks). Write fields must land in a write root;
+// read/connect fields in a read or write root.
 func (p PathPolicy) ValidateConfigPaths(c *xtcp_config.XtcpConfig) error
 ```
 
-  Covered fields: `capture_path`, `write_files`, `link_monitor.baseline_file`, `asn_db_path`, `ipmeta_bootstrap_path`, `ipmeta_cache_path`, `docker_socket_path`, `lldpd_socket_path`, `xtcp_proto_file`, and unix `ListenerEndpoint.address`. `dest` scheme `file:` requires `AllowFileDest`.
+  Write fields (under `-writableDir`): `capture_path` (with `write_files`), `link_monitor.baseline_file`, `ipmeta_cache_path`, unix `ListenerEndpoint.address`, `file:` `dest`. Read/connect fields (under `-readableDir` or a write root): `docker_socket_path`, `lldpd_socket_path`, `asn_db_path`, `ipmeta_bootstrap_path`, `xtcp_proto_file` — requiring these under a writable root would reject every stock config (`/run/docker.sock` is not, and must not be, writable). `-readableDir` defaults to the stock paths' parent dirs, pinned by the golden-config gate. `dest` scheme `file:` requires `AllowFileDest`.
 
 - New `pkg/xtcp/set_frozen_fields.go`: `func DiffFrozenConfigFields(running, incoming *xtcp_config.XtcpConfig) (changed []string)` over the frozen set: `dest`, `s3_endpoint`/`s3_bucket`/S3 credential fields, kafka/nats/nsq/valkey options, both listener endpoints + auth settings, `docker_socket_path`, `lldpd_socket_path`, `asn_db_path`, `ipmeta_*`, `baseline_file`, `capture_path`, `write_files`, `xtcp_proto_file`. (`marshal_to` stays runtime-mutable — format changes are legitimate ops; PR-5's audit line covers it.)
 - `pkg/xtcp/grpc_configService.go` — wire both checks into `Set` after the existing enricher check, before `reconfigureFunc`: path violation → `codes.InvalidArgument` (field named); frozen-field change → `codes.FailedPrecondition` (frozen fields named), unless `-setAllowFrozenFields`. The running config is already in reach: `xtcpConfigService.config` (`grpc_configService.go:25`).
-- `cmd/xtcp2/xtcp2.go` — register flags alongside the existing set (~line 454): `-writableDir` (repeatable), `-allowFileDest`, `-setAllowFrozenFlags` (default false). Run the same policy at **startup** and in `loadReconfigureConfig` (~line 1199) so an env-carried `XTCP_CONFIG_JSON` cannot bypass it after the soft restart.
+- `cmd/xtcp2/xtcp2.go` — register flags alongside the existing set (~line 454): `-writableDir` and `-readableDir` (repeatable), `-allowFileDest`, `-setAllowFrozenFields` (default false). Run the same policy at **startup** and in `loadReconfigureConfig` (~line 1199) so an env-carried `XTCP_CONFIG_JSON` cannot bypass it after the soft restart.
 
 **Tests**
 
-- Reject/accept table for the policy (uses PR-2's hostile-path list): no roots configured ⇒ any path-bearing field ⇒ `InvalidArgument`; `/var/lib/xtcp2` root ⇒ in-root accept, out-of-root reject; symlink component reject (create one in `t.TempDir()`).
+- Reject/accept table for the policy (uses PR-2's hostile-path list): no roots configured ⇒ any path-bearing field ⇒ `InvalidArgument`; `/var/lib/xtcp2` root ⇒ in-root accept, out-of-root reject; symlink component reject (create one in `t.TempDir()`); not-yet-created output under a root (first baseline) ⇒ accept; missing parent dirs under a root (`ipmeta_cache_path` before `MkdirAll`) ⇒ accept; missing path whose deepest existing ancestor is a symlink out of the root ⇒ reject; stock `docker_socket_path=/run/docker.sock` with only `/var/lib/xtcp2` writable ⇒ accept (read root); `docker_socket_path` outside every root ⇒ reject.
 - Frozen-diff: change `dest` → rejected; change only `poll_frequency` → applied; `-setAllowFrozenFields` honored.
 - Env-carried: set `XTCP_CONFIG_JSON` to a config with `capture_path`, assert the reload path rejects it.
 
@@ -263,7 +267,7 @@ Concretely, with the admin token on a canary host running the new image:
 
 - [ ] `Set` with `dest = "file:/var/lib/xtcp2/pwn"` → `FailedPrecondition` (not compiled in) — no file, no restart loop
 - [ ] `Set` with `dest = "file:…"` on a `full`-flavor binary without `-allowFileDest` → `InvalidArgument`
-- [ ] `Set` with any path field outside `-writableDir` roots → `InvalidArgument`, field named
+- [ ] `Set` with a write field outside `-writableDir` roots, or a read/connect field outside `-readableDir`/write roots → `InvalidArgument`, field named
 - [ ] `Set` changing `s3_endpoint`/`dest` scheme/listeners → `FailedPrecondition` (frozen)
 - [ ] `Set` changing only poll knobs applies; soft restart works; one audit line logged
 - [ ] Every RPC rejects a crafted-invalid message with `InvalidArgument` (interceptor)

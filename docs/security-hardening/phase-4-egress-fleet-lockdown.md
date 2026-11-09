@@ -38,7 +38,7 @@ The verification target is the [end-state verification checklist](plan-configser
 
 ```
 PR-14 sec/w6-hatch-close (xtcp2) ─┐
-PR-15 sec/w7-egress (xtcp2 + image + deployment-repo + SG) ─┼─▶ PR-17 sec/w8-standing-gates (CI)
+PR-15 sec/w7-egress (xtcp2 + image + deployment-repo + nft)─┼─▶ PR-17 sec/w8-standing-gates (CI)
 PR-16 sec/w7-retire-v1x (deployment-repo) ─┘
 ```
 
@@ -58,9 +58,9 @@ PR-16 sec/w7-retire-v1x (deployment-repo) ─┘
 
 **Layer 1 — build (closes OD-9, decision [recorded](plan-configservice-set-hardening.md#open-decisions): yes).** Gate the network stdlib destinations behind the established `dest_<scheme>` build-tag pattern: `dest_tcp`, `dest_udp`, `dest_http` (covers `https`), `dest_unix`, `dest_unixgram` on `pkg/xtcp/destinations_{tcp,udp,http,unix,unixgram}.go` — today all five are **unconditional** (`knownSchemes`, `destinations_core.go:70`). `nix/versions.nix` flavor lists drop them from the production flavor (the fleet image is `oci-xtcp2-s3parquet-enrich`, which already excludes kafka/nats/nsq/valkey); `full` and the debug flavor keep them. Production needs `s3parquet` + `null`/`stdout` only. The existing `destinationLookupError` behavior (fatal at startup when a requested scheme is not compiled in; `FailedPrecondition` from `Set`) means a repointed config **cannot start**, fleet-wide.
 
-**Layer 2 — kernel (Landlock network rules, ABI 4; the Phase 2 deferred decision).** The collector's `pkg/sandbox` ruleset gains TCP network rules: `CONNECT_TCP` scoped to port 443, `BIND_TCP` scoped to the listener ports (9088, 8889, 9089). Honest limits, documented in-code: Landlock net rules are **port-scoped, not host-scoped** (a 443 listener anywhere passes the kernel check) and ABI 4 does not cover UDP — DNS keeps working and UDP egress stays governed by Layer 3. Degradation mirrors Phase 2: ABI < 4 → warn + `xtcp2_sandbox_net 0` + continue. The writer needs nothing — its container is `network_mode: none` (Phase 3).
+**Layer 2 — kernel (Landlock network rules, ABI 4; the Phase 2 deferred decision).** The collector's `pkg/sandbox` ruleset gains TCP network rules: `CONNECT_TCP` scoped to port 443, `BIND_TCP` scoped to the listener ports (9088, 8889, 9089). Honest limits, documented in-code: Landlock net rules are **port-scoped, not host-scoped** (a 443 listener anywhere passes the kernel check) and ABI 4 does not cover UDP (ABI 10 adds UDP rules; best-effort where present) — DNS keeps working and UDP egress stays governed by Layer 3. Degradation mirrors Phase 2: ABI < 4 → warn + `xtcp2_sandbox_net 0` + continue. The writer needs nothing — its container is `network_mode: none` (Phase 3).
 
-**Layer 3 — cloud/host (deployment + infra repos).** Security groups: host egress restricted to the per-DC S3 endpoints and the operator VPN; UFW OUTPUT rules reviewed with the monitoring lockdown role. This is the only layer that constrains by **host**, closing Landlock's port-only gap. Detection: the host Falco pipeline gains an alert for outbound connections to non-S3 hosts from the collector's uid.
+**Layer 3 — host, scoped to the collector (deployment + infra repos).** The collector runs in the host netns, so container network policy does not apply — and host-wide controls (security groups, UFW `OUTPUT`) would also restrict every co-located workload and host service. The isolation boundary is the collector's cgroup: run it under a dedicated cgroup parent (`--cgroup-parent xtcp2.slice`, created before the rule loads) and add an nftables `output` rule matching `socket cgroupv2 level 1 "xtcp2.slice"` that allows the per-DC S3 endpoints and DNS and drops the rest. Host-wide security groups change only on hosts dedicated to infrastructure. This is the only layer that constrains by **host**, closing Landlock's port-only gap. Detection: the host Falco pipeline gains an alert for outbound connections to non-S3 hosts from the collector's container (match the cgroup, not uid 0 — every host daemon is uid 0).
 
 **Also here (closes OD-7):** state-dir quota — XFS project quota on `/var/lib/xtcp2` for the writer container, plus a small writerd addition from Phase 3: per-target rate cap (default 12 writes/hour/target — a legitimate baseline learns a handful of times an hour) so the seq monotonicity can't be ground into disk fill by an attacker with a valid request shape.
 
@@ -118,22 +118,23 @@ Table-driven, same conventions (Cat: P positive, N negative, B boundary, C corne
 | L3 | P | TCP bind on a listener port | bind `:8889` in the child | bind succeeds (ruleset grants `BIND_TCP` on the listener ports only) |
 | L4 | N | TCP bind on a foreign port | bind `:44444` | `EACCES` — a smuggled listener cannot open a C2 port even with root |
 | L5 | C | ABI < 4 kernel | probed network ABI 0–3 | warn + `xtcp2_sandbox_net 0` + continue (degrade, never a failed daemon — mirrors D4/D5) |
-| L6 | C | UDP is untouched by ABI 4 rules | DNS lookup through `/etc/resolv.conf` resolver | succeeds — documented gap, governed by Layer 3 (SG) instead |
-| L7 | P | UDS connect unaffected by TCP rules | dial the writer socket | succeeds (network rules are TCP-only; FS grants govern sockets) |
+| L6 | C | UDP is untouched by ABI 4 rules | DNS lookup through `/etc/resolv.conf` resolver | succeeds — documented gap, governed by Layer 3 (collector-scoped nftables) instead |
+| L7 | P | UDS connect unaffected by TCP rules | dial the writer socket | succeeds (net rules cover TCP/UDP ports only; pathname sockets are governed by `RESOLVE_UNIX` from ABI 9, unmediated below) |
 | L8 | C | seccomp-blocked `landlock_add_rule` for net rules | injected EPERM at net-rule add | FS ruleset still applied; warn specifically about the missing net rules (`xtcp2_sandbox_net 0`, `xtcp2_sandbox_active 1`) |
 
-### Test M — fleet egress and exposure (microVM + security groups, recorded)
+### Test M — fleet egress and exposure (microVM + host firewall, recorded)
 
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
 | M1 | P | S3 upload path intact | trigger ASN refresh on a canary | upload succeeds to the per-DC endpoint on 443 |
-| M2 | N | arbitrary egress blocked at the host layer | `curl http://<non-S3 host>:443` and `:8080` from the collector container | denied by SG (443 non-S3 included — closes Landlock's port-only gap) |
+| M2 | N | arbitrary egress blocked at the host layer | `curl http://<non-S3 host>:443` and `:8080` from the collector container | denied by the collector-scoped nftables rule (443 non-S3 included — closes Landlock's port-only gap) |
 | M3 | P | DNS intact | resolver query for the S3 endpoint | resolves (UDP 53 untouched) |
 | M4 | P | metrics scrape intact | vmagent scrape of 9088 from the docker-bridge subnets | scrape succeeds |
 | M5 | N | `:8889` from a non-operator subnet | connect from a random host | denied at SG/UFW |
 | M6 | P | `:8889` from operator subnet with the admin token | authorized `Set` (tuning field) | applies, audited (PR-5 line shipped) |
 | M7 | N | unauthenticated `Set` replay on the converged fleet | unauthenticated `Set` to `<host>:8889`, v1.x shape | rejected (raw-token auth) — unauthenticated access is dead fleet-wide |
 | M8 | B | state-dir quota enforced | writer spammed with schema-valid 64 KiB writes past the project quota | writes fail with quota errors once the limit is hit; `Xtcp2StateDirFilling` had already fired (alert precedes quota); collector unaffected |
+| M10 | P | co-located workloads unaffected | the same `curl`s from a non-collector container and a host process | succeed — the egress rule matches only the collector's cgroup |
 | M9 | C | per-target writer rate cap | 20 valid baseline writes in an hour | first ~12 accepted, rest rejected `rate_limited` with counter — no disk-fill grind through the seq mechanism |
 
 ### Test N — CI gates (each gate's failure mode)
@@ -154,27 +155,27 @@ Table-driven, same conventions (Cat: P positive, N negative, B boundary, C corne
 | OD-9 | drop network stdlib destinations from the production flavor | **yes** (closes here): `dest_tcp/udp/http/unix/unixgram` tags; prod keeps `s3parquet` + `null`/`stdout` |
 | OD-6 | hatch lifetime | closes with PR-14 after one clean release cycle (J4 proves zero use) |
 | OD-7 | state-dir quota | XFS project quota + writerd rate cap (M8/M9) |
-| new | Landlock net-rule scope | ship port-scoped 443-connect + listener-port bind; host-level pinning stays with SG (documented division: kernel covers ports, cloud covers hosts) |
-| new | per-DC S3 endpoint list source of truth | the infra repo variables, consumed by SG + frozen S3 fields (single list, no drift) |
+| new | Landlock net-rule scope | ship port-scoped 443-connect + listener-port bind; host-level pinning stays with the collector-scoped nftables rule (documented division: Landlock covers ports, nftables covers hosts) |
+| new | per-DC S3 endpoint list source of truth | the infra repo variables, consumed by the egress rule + frozen S3 fields (single list, no drift) |
 | new | egress alert owner | the host Falco pipeline |
 
 ## Release checklist
 
 - [ ] PR-14 merged after J4 verified zero hatch use across a full release cycle
 - [ ] PR-15 build side: five destinations tagged, flavor lists updated, image rebuilt; K1–K7 green
-- [ ] PR-15 network side: SG changes canaried **one DC first** (the riskiest change in the program — a wrong rule breaks S3 uploads fleet-wide; rollback = revert SG), L1–L8 green where kernels allow, M1–M4 recorded
+- [ ] PR-15 network side: egress-rule changes canaried **one DC first** (the riskiest change in the program — a wrong rule breaks S3 uploads fleet-wide; rollback = remove the rule); M10 proves co-located workloads are untouched, L1–L8 green where kernels allow, M1–M4 recorded
 - [ ] PR-16: stragglers migrated, v1.x branches + image tags retired, M5–M7 recorded
 - [ ] PR-17: all six gates wired as required checks + weekly scheduled proof; N1–N6 exercised with a deliberately-bad PR before merge
 - [ ] [metrics.md](../metrics.md): `xtcp2_sandbox_net`, writerd rate/quota counters documented
-- [ ] Rollback matrix from [implementation-plan.md](implementation-plan.md) updated: each Phase 4 layer rolls back independently (SG revert; flavor bump back; hatch re-add is a code revert, not a flag)
+- [ ] Rollback matrix from [implementation-plan.md](implementation-plan.md) updated: each Phase 4 layer rolls back independently (egress-rule revert; flavor bump back; hatch re-add is a code revert, not a flag)
 
 ## Definition of done
 
 The [end-state verification checklist](plan-configservice-set-hardening.md#end-state-verification-checklist), executed on a canary host **holding the admin token** — every primitive must fail safely at its layer:
 
 - [ ] **Filesystem:** `Set` with `dest:"file:…"` (any of the advisory §4.7 path idioms incl. `/proc/1/root/root/.ssh/authorized_keys`) → validation rejects; crippled build (validation stubbed) → kernel denies; nothing written anywhere on the host
-- [ ] **State:** baseline + ipmeta land via the writer only, owned `65534:65534` `0600`; quota + rate cap enforce (M8/M9)
-- [ ] **Egress:** `Set` with `dest:"http://attacker:8080"` → `FailedPrecondition`, not compiled in the prod flavor; crippled build + RCE-simulated dial → Landlock denies the port; SG denies the host; the outbound-connection alert fires — four layers, each independently sufficient
+- [ ] **State:** baseline + ipmeta land via the writer only, owned `65534:xtcp2-state` `0640`; quota + rate cap enforce (M8/M9)
+- [ ] **Egress:** `Set` with `dest:"http://attacker:8080"` → `FailedPrecondition`, not compiled in the prod flavor; crippled build + RCE-simulated dial → Landlock denies the port; the collector-scoped nftables rule denies the host; the outbound-connection alert fires — four layers, each independently sufficient
 - [ ] **Frozen fields:** `dest`, S3 endpoints, listeners, all path fields → rejected unconditionally, no flag exists (J1/J2); a tuning-only `Set` still applies and audits
 - [ ] **Auth:** unauthenticated `Set` on `:8889` rejected everywhere (M7); `:8889` unreachable off-operator subnets (M5); no v1.x host remains in inventory
 - [ ] **Standing:** weekly crippled-build proof green (N5); a write-site PR fails CI until the inventory row exists (N1/N2); deleting a regression suite fails CI (N6)

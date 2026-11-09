@@ -30,10 +30,10 @@ The daemon has exactly two legitimate writes (advisory §2): the link-monitor ba
 |---|---|---|
 | Collector RCE writes anywhere validation allows | one trusted process, one ruleset | collector has zero file-write rules — the kernel answer is "no", always |
 | `Set` flips a path field | rejected (Phase 1) / kernel-denied (Phase 2) | same, and the path fields no longer exist in the collector's write path at all |
-| Collector RCE **as root** wants to poison state | — | must speak the writer's fixed 3-op API: two named targets, one size cap each, monotonic seq — no paths, no arbitrary bytes past schema checks |
+| Collector RCE **as root** wants to poison state | — | must speak the writer's fixed 3-op API: two named targets, one size cap each, monotonic seq — no paths, no arbitrary bytes past schema checks; schema-valid poison at the next `seq` still lands, and `docker.sock` bypasses the writer entirely |
 | Writer itself compromised | — | unprivileged uid, no capabilities, no network (container `network_mode: none`), Landlock write rules only on its two target dirs |
 
-What this phase does **not** fix: the collector can still reach network egress (Phase 4) and the writer accepts a well-formed request from uid 0 (or a stolen shared secret — see [decisions](#decisions-to-close-during-phase-3)) and will overwrite its two fixed targets with schema-valid data; that bounded surface is the accepted residual.
+What this phase does **not** fix: the collector keeps `docker.sock`, so an RCE can have dockerd write any host path (the state dir included) without touching the writer; the collector can still reach network egress (Phase 4); and the writer accepts a well-formed request from uid 0 (or a stolen shared secret — see [decisions](#decisions-to-close-during-phase-3)) and will overwrite its two fixed targets with schema-valid data; that bounded surface is the accepted residual.
 
 ## PR map and branches
 
@@ -64,7 +64,7 @@ PR-11 sec/w5-writer ──▶ PR-12 sec/w5-collector ──▶ PR-13 sec/w5-depl
 | Op | Name | Request | Writer-side effect | Writer-side validation |
 |---|---|---|---|---|
 | 0 | `PING` | — | reply | none |
-| 1 | `WRITE_BASELINE` | `payload []byte`, `seq uint64` | temp+fsync+rename onto the configured baseline target (`0600`) | oneof arm selects the `baseline` target; protovalidate `max_len 65536` (== `baseline.MaxFileBytes`); payload parses as a `wireRecord` with `Version == 1` (`baseline.Parse` reused); `seq` monotonic (`gte 1`) |
+| 1 | `WRITE_BASELINE` | `payload []byte`, `seq uint64` | temp+fsync+rename onto the configured baseline target (`0640`, group `xtcp2-state`) | oneof arm selects the `baseline` target; protovalidate `max_len 65536` (== `baseline.MaxFileBytes`); payload parses as a `wireRecord` with `Version == 1` (`baseline.Parse` reused); `seq` monotonic (`gte 1`) |
 | 2 | `WRITE_IPMETA` | `payload []byte`, `seq uint64` | temp + preserve-previous (`current → previous`, both writer-configured) + rename + `syncDir` — the exact dance of `ipasn.PublishLookupCache` (`ipasn.go:373`) | oneof arm selects the `ipmeta` target; protovalidate `max_len` == `-ipmetaMaxBytes` (default 64 MiB); `seq` monotonic (`gte 1`) |
 | 3 | `GET_STATS` | — | counters + last `seq` per target | none |
 
@@ -123,7 +123,8 @@ A team standardizing on one IPC mechanism could defensibly choose gRPC-over-UDS 
 ### Targets, auth, seq, locking
 
 - **Targets** come from repeated `-writerTarget name=path` flags — the writer's own config, reachable by nothing `Set` controls. The request's oneof arm selects the target — the envelope carries no strings at all; an op whose target was not configured is rejected (`unconfigured_target`).
-- **Auth:** `SO_PEERCRED` on each accepted connection — peer uid must equal the configured collector uid (fleet: 0; check injectable for tests like `capgetFunc` in `init_capabilities.go`). Socket dir `0750`, socket `0660`. Both are *layers*: uid 0 already passes the cred check, so the real auth is the API surface itself (see decisions).
+- **Auth:** `SO_PEERCRED` on each accepted connection — peer uid must equal the configured collector uid (fleet: 0; check injectable for tests like `capgetFunc` in `init_capabilities.go`). Socket dir `0750`, socket `0660`, both group `xtcp2-state`. Both are *layers*: uid 0 already passes the cred check, so the real auth is the API surface itself (see decisions).
+- **Ownership:** the collector is uid 0 **without** `CAP_DAC_OVERRIDE`/`CAP_DAC_READ_SEARCH`, so it cannot read a `0600` file owned by uid 65534. The writer therefore runs as `65534` with primary group `xtcp2-state` (a fixed gid in the image and role) and umask `027`: targets `0640`, dirs `0750`, group `xtcp2-state`. The collector joins the group (`group_add`, the same pattern as the lldpd socket) and keeps a **read-only** Landlock grant on the state dir. writer-init (one-shot, root) chowns a pre-split state dir and its root-owned `0600` targets to `65534:xtcp2-state` with these modes before the writer starts.
 - **Seq (monotonic per target):** writer is the source of truth. Persisted as a sidecar `<target>.ver` (decimal, atomic, written *after* the rename). Commit order: payload → fsync → rename → sidecar. A crash between rename and sidecar leaves the sidecar one step behind; a replay at the old seq is then accepted once — harmless because both targets are full-file writes (idempotent). Rollback protection has a documented ≤ 1-step window across a writer crash; anything older is rejected (`stale_seq`).
 - **Locking:** the baseline's lifetime `flock` (`files.go` `ErrLocked`) becomes per-op, held by the writer; the collector's post-split load is a lock-free read (it is no longer the baseline "owner"). The writer-init bootstrap (below) re-imports an existing target without a sidecar.
 - **Metrics:** `xtcp2_writerd_requests_total{op,result}`, `xtcp2_writerd_last_seq{target}` — exported through `GET_STATS` and re-registered by the collector (proxy), so vmagent scraping is unchanged and the writer keeps **no TCP listener**.
@@ -139,7 +140,7 @@ Harness: `pkg/writerd` mirrors the injectable-`operations` seam from `baseline/f
 
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
-| A1 | P | valid baseline write | 1 KiB valid wireRecord, seq 1 | accepted; file at configured target == payload, mode `0600`; reply OK |
+| A1 | P | valid baseline write | 1 KiB valid wireRecord, seq 1 | accepted; file at configured target == payload, mode `0640`, group `xtcp2-state`; reply OK |
 | A2 | N | op whose target is not configured | op 2 against a writer started baseline-only (`-writerTarget baseline=…`) | rejected `unconfigured_target`; nothing written |
 | A3 | N | attacker stuffs path-like bytes into the payload | path bytes inside the payload | no string in the envelope is ever resolved as a path: schema-invalid → `invalid_payload`; schema-valid → written verbatim to the one fixed target (the no-path-parameters property — there is no field to abuse) |
 | A4 | B | payload exactly at the baseline cap | `len == baseline.MaxFileBytes` (65 536) | accepted |
@@ -253,11 +254,11 @@ Container pair (deployment role, mirroring the existing `ipfeed` second-containe
 
 | | `xtcp2` (collector) | `xtcp2_writer` (writer) |
 |---|---|---|
-| uid | 0 (unchanged — keeps `NET_ADMIN`/`SYS_ADMIN`) | 65534 |
+| uid | 0 (unchanged — keeps `NET_ADMIN`/`SYS_ADMIN`); `group_add: xtcp2-state` | 65534, primary group `xtcp2-state` |
 | capabilities | `cap_drop ALL` + NET_ADMIN, SYS_ADMIN (unchanged) | `cap_drop ALL` — **none added** |
 | network | host (unchanged, ports 9088/8889/9089) | `network_mode: none` — no interfaces, no egress at all |
 | mounts | as today, **minus** the rw state dir (kept `ro` for loads) + socket volume | `/var/lib/xtcp2:rw` (the only writable mount), socket volume, nothing else — no docker.sock, no netns, no S3 secret |
-| Landlock | zero file-write rules | write rules on the two target dirs |
+| Landlock | zero file-write rules; read-only on the state dir; `RESOLVE_UNIX` on the writer socket (ABI ≥ 9) | write rules on the two target dirs |
 | command | unchanged | `xtcp2 -writer -sock /run/xtcp2/writer.sock -writerTarget baseline=... -writerTarget ipmeta=...` |
 
 Socket sharing: a docker named volume mounted rw in both containers, containing only the socket dir (`0750`) and socket (`0660`). Whether the collector's mount can be `ro` (connect(2) on a UDS under an ro mount) is decided by F-table row F8 — if it works, the collector ends with **zero rw mounts, full stop**.
@@ -278,11 +279,12 @@ Rollout order — each step is independently shippable and reversible:
 | F1 | P | writer up, pair healthy | fresh deploy | socket `0660` in dir `0750`; handshake OK; both processes report `xtcp2_sandbox_active 1`; writer `/proc/self/status` `CapEff: 0` |
 | F2 | P | collector has no writable host path | `docker inspect` + crippled build (Phase 1 policy compiled out) attempting a write anywhere | kernel denies every file write outside the socket volume; `Set` with a hostile path applies but writes fail `EACCES` |
 | F3 | N | writer container killed mid-operation | `docker kill` writer | collector keeps collecting (netlink path unaffected), error counter rises, `Xtcp2WriterDown` fires within one cycle; recovery on restart |
-| F4 | P | baseline lands end-to-end | induce a baseline learn on the canary | `/var/lib/xtcp2` file exists, owner `65534:65534`, mode `0600`, contents == wire JSON |
+| F4 | P | baseline lands end-to-end | induce a baseline learn on the canary | `/var/lib/xtcp2` file exists, owner `65534:xtcp2-state`, mode `0640`, contents == wire JSON; the collector's next load reads it (no `EACCES`) |
 | F5 | P | ASN publish rotates end-to-end | trigger ASN refresh | cache written by writer; previous path holds the prior cache; collector's next load serves the new one |
 | F6 | C | fresh volume, sidecar missing | first boot on a new host | writer **refuses to start** (fail-closed) with a one-line runbook message; after the documented init invocation (imports existing targets, writes sidecars) it starts and serves |
 | F7 | N | hostile `Set` payloads replayed | `dest` `file:` targets from advisory §4.7 | validation rejects; nothing is written anywhere — kernel gate proof (E9's microVM twin) |
 | F8 | C | collector socket mount `ro` | mount the named volume `ro` in the collector container | document the verified answer: if connect(2) succeeds → ship `ro` (zero rw mounts); if `EROFS` → keep `rw`, note the socket volume's contents are one socket file (DoS-only loss) |
+| F10 | N | collector without the group | drop `group_add` on a canary | baseline/ipmeta loads fail `EACCES` and alert — negative control: group membership, not a capability, grants the read |
 | F9 | C | soft restart with the split on | ordinary tuning `Set` | exec + reconnect clean; one save after restart succeeds (D6/E10 twin at deploy level) |
 
 ## Appendix A — the write inventory and the target wish-list
@@ -359,7 +361,7 @@ On a canary pair running a **deliberately crippled build** (Phase 1 path policy 
 - [ ] `docker inspect xtcp2` shows the collector's only rw mounts are container-internal (`/tmp` tmpfs) and the socket volume (or, per F8, `ro` there too); the state dir and rootfs are `ro`
 - [ ] the writer is the only process in the deployment able to write, and only to its two configured targets; `CapEff 0`, no network interface, uid 65534
 - [ ] `Set` with `dest:"file:/proc/1/root/root/.ssh/authorized_keys"` applies (validation stubbed) → the write fails at the kernel — no authorized_keys file appears on the host; same for every other path primitive
-- [ ] a baseline learn lands in `/var/lib/xtcp2` via the writer (owner `65534`, `0600`); an ASN refresh rotates the cache + previous files via the writer
+- [ ] a baseline learn lands in `/var/lib/xtcp2` via the writer (owner `65534:xtcp2-state`, `0640`); an ASN refresh rotates the cache + previous files via the writer
 - [ ] killing the writer degrades, never breaks: collector keeps collecting, `Xtcp2WriterDown` fires, everything recovers on restart
 - [ ] the writer protocol surface is exactly the 4 ops: a fuzzer against the socket (1 h, dumb mode) produces no write outside the two targets, no crash, no OOM, no leaked fds
 - [ ] alert runbook covers: writer down, sidecar init on fresh hosts, socket volume loss (recreate + restart pair)

@@ -91,7 +91,7 @@ Belt layer 1: shape validation in `proto/xtcp_config/v1/xtcp_config.proto`, enfo
   - [ ] `docker_socket_path` (202), `lldpd_socket_path` (211)
 - [ ] `dest` (60): scheme allowlist pattern mirroring `knownSchemes` (`pkg/xtcp/destinations_core.go:70`): `^(null|stdout|stderr|file|tcp|http|https|udp|unix|unixgram|kafka|nats|nsq|valkey|s3parquet)://[^[:cntrl:]]+$`
 - [ ] `ListenerEndpoint`: charset pattern on `address`; message-level CEL cross-rule — when `network == unix`, address must match the path pattern
-- [ ] Tighten `unix_socket_mode` from `lte 511` → `lte 384` (0600) — pending [OD-1](#open-decisions)
+- [ ] Replace `unix_socket_mode` `lte 511` with the allowlist `in: [0, 384]` (default/0600) — not `lte 384`, which accepts world-writable 0577 — pending [OD-1](#open-decisions)
 - [ ] Regenerate all targets (`gen/go`, `gen/dart`, …) via the existing make/nix protobuf targets
 - [ ] Golden-config gate: validate the **fleet's actual configs** (ansible role defaults + per-DC env, incl. the v1.x revision's) against the new rules in CI — catches any legitimate path we just broke, before release (part of W8)
 
@@ -103,8 +103,8 @@ Belt layer 1: shape validation in `proto/xtcp_config/v1/xtcp_config.proto`, enfo
 Belt layer 2: semantics that CEL cannot express (deployment roots, symlink race, running-config diff). This is the workstream that closes I1–I6, I8 outright.
 
 - [ ] New file `pkg/xtcp/set_path_policy.go`:
-  - [ ] `PathPolicy` struct: roots from a new repeatable daemon flag `-writableDir` (register alongside existing flags, `cmd/xtcp2/xtcp2.go` ~line 454); empty default = no filesystem-writing config allowed
-  - [ ] `ValidatePaths(cfg *xtcp_config.XtcpConfig) error`: for every path-bearing field — canonicalize (`filepath.Clean` + `filepath.EvalSymlinks`, reject on error), verify each component via `os.Lstat` is not a symlink, then require containment in a root
+  - [ ] `PathPolicy` struct: write roots from a new repeatable daemon flag `-writableDir`, read roots from `-readableDir` (register alongside existing flags, `cmd/xtcp2/xtcp2.go` ~line 454); empty `-writableDir` = no filesystem-writing config allowed; read/connect fields (`docker_socket_path`, `lldpd_socket_path`, `asn_db_path`, `ipmeta_bootstrap_path`, `xtcp_proto_file`) check against read roots, never write roots
+  - [ ] `ValidatePaths(cfg *xtcp_config.XtcpConfig) error`: for every path-bearing field — canonicalize (`filepath.Clean`, then `filepath.EvalSymlinks` on the deepest existing ancestor — a not-yet-created output is valid), verify each existing component via `os.Lstat` is not a symlink, then require containment in a root of the field's class
   - [ ] Validate `dest` scheme against compiled-in `knownSchemes`; reject `file:` unless `-allowFileDest` is set
 - [ ] Wire the policy:
   - [ ] `Set` handler (`pkg/xtcp/grpc_configService.go`, after existing validation, before `reconfigureFunc`) — returns `codes.InvalidArgument` with the offending field named
@@ -132,7 +132,7 @@ Belt layer 4: kernel enforcement that survives `syscall.Exec` (soft restart) and
 
 - [ ] Dependency: `github.com/landlock-lsm/go-landlock` (check nixpkgs availability; vendor otherwise)
 - [ ] New package `pkg/sandbox`:
-  - [ ] `Constrain(opts)` called once at daemon startup (`cmd/xtcp2/xtcp2.go`), before any config-driven writer is constructed: read-only rules for `/proc`, `/sys`, `/run/netns`, `/run/docker/netns`, `/run/docker.sock`, the lldpd socket dir, ASN bootstrap/cache paths, listener token files; write rules only for `-writableDir` roots (until W5 lands, after which: none)
+  - [ ] `Constrain(opts)` called once at first start (`cmd/xtcp2/xtcp2.go`; soft restarts inherit the domain via an fd marker — re-applying would hit the kernel's 16-layer cap), before any config-driven writer is constructed: read-only rules for `/proc`, `/sys`, `/run/netns`, `/run/docker/netns`, `/run/docker.sock`, the lldpd socket dir, ASN bootstrap/cache paths, listener token files; write rules only for `-writableDir` roots (until W5 lands, after which: none)
   - [ ] Carve-outs: UDS listener dir (only when a unix listener is configured); capture dir (only when `write_files` > 0 with a root configured)
   - [ ] ABI feature detection: kernel < 5.13 → log a warning, set `xtcp2_sandbox_active 0`, continue (degrade-not-exit); otherwise `1` — new Prometheus gauge (add to [metrics.md](../metrics.md) in W9)
 - [ ] Soft-restart interplay test: restriction persists across `syscall.Exec` (unit test with a re-exec of a helper binary attempting an out-of-root write)
@@ -150,13 +150,13 @@ Belt layer 5: the collector ends up with zero write rules; the two legitimate wr
 - [ ] New daemon mode `xtcp2 -writer` (`cmd/xtcp2/writer.go`):
   - [ ] gRPC server on UDS `/run/xtcp2/writer.sock`; `SO_PEERCRED` on accept, reject unexpected uids
   - [ ] Fixed targets inside its root: `link-monitor-baseline.json`, `ipmeta/current.lookup.parquet.zst` (+ previous)
-  - [ ] Size caps (baseline ≤ 64 KiB = `baseline.MaxFileBytes`; cache ≤ 192 MiB), per-RPC rate limits, monotonic version numbers (reject rollback/replay), mode 0600
+  - [ ] Size caps (baseline ≤ 64 KiB = `baseline.MaxFileBytes`; cache ≤ 192 MiB), per-RPC rate limits, monotonic version numbers (reject rollback/replay), mode 0640 group `xtcp2-state` (the collector, uid 0 without `CAP_DAC_OVERRIDE`, reads via the group)
   - [ ] Reuse the existing atomic-write discipline (`pkg/linkmonitor/internal/baseline/files.go`): `CreateTemp` → write → `fsync` → `rename` → dir fsync; baseline `flock` moves inside the writer
 - [ ] Collector side:
   - [ ] `baseline` store: new RPC-backed implementation behind the existing injectable `temporary`/`rename` seam (`pkg/linkmonitor/internal/baseline/files.go:46`); collector reads the file directly through the ro mount
   - [ ] `ipasn.PublishLookupCache` (`pkg/ipasn/ipasn.go:373`): route content through the writer RPC; keep the reload/rollback semantics
   - [ ] Failure mode: writer unreachable → log + `xtcp2_state_writer_errors_total` counter + degrade-not-exit (monitor keeps last-known state) — matches today's behavior when the baseline is unwritable
-- [ ] Deployment (W7): second container `xtcp2_writer` (same image, state dir `:rw`, socket dir shared, no network); collector container flips state dir to `:ro` and mounts the socket dir; systemd units `xtcp2-writer.service` (`RootDirectory=`, uid 65534, `cap_drop ALL`, `RestrictAddressFamilies=AF_UNIX`) + ordering for bare metal
+- [ ] Deployment (W7): second container `xtcp2_writer` (same image, state dir `:rw`, socket dir shared, no network); collector container flips state dir to `:ro` and mounts the socket dir; systemd units `xtcp2-writer.service` (`RootDirectory=`, uid 65534 + group `xtcp2-state` shared with the collector, `cap_drop ALL`, `RestrictAddressFamilies=AF_UNIX`) + ordering for bare metal
 - [ ] Remove `baseline_file`/`ipmeta_cache_path` from the `Set`-mutable surface entirely (they become writer-owned constants; the fields stay in the proto for compat but are frozen — W2 list already includes them)
 
 **Acceptance**: collector's Landlock ruleset has zero write rules; writer tests prove no request field can influence the target path (structurally: no such field exists); kill -9 mid-write leaves old baseline intact; version replay rejected.
@@ -179,7 +179,7 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 - [ ] Retire the v1.x revision: make `LISTENER_AUTH_MODE` impossible to disable via role defaults; add a `test_xtcp2_fleet_gate.py` assertion that auth env is present
 - [ ] Bind guidance: prefer UDS for the control plane (`xtcp2ctl` workflow documented), else loopback + `tasks/firewall.yml` rules for 8889 with TTL 3
 - [ ] I11: state-dir guard — minimum: node-level alert on `/var/lib/xtcp2` usage (vmagent); preferred: XFS project quota (or systemd quota for bare metal) sized to ~2× the ASN cache (~200 MiB headroom)
-- [ ] Egress pinning: restrict container egress to the per-DC S3 endpoints (network policy / security group); pair with W2's frozen `s3_endpoint`
+- [ ] Egress pinning: restrict the collector's egress to the per-DC S3 endpoints (nftables rule on its cgroup — host netns, so not container network policy; not host-wide SG/UFW, which would hit co-located workloads); pair with W2's frozen `s3_endpoint`
 - [ ] W5 deployment: second container + `:ro` collector state dir + shared socket dir; canary via the existing fleet-gate mechanism; revert via `xtcp2_revert.yml`
 - [ ] Pin the new image tag in the image repo; bump the deployment repo role defaults in lockstep (role gate test asserts image↔config compatibility)
 
@@ -190,7 +190,7 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 - [ ] Hostile-path table test (unit, `pkg/xtcp`): `../etc/passwd`, `/run/x/../../`, NUL, `…/` (unicode ellipsis), `/proc/self/mem`, trailing `/`, `//`, symlink-into-root, `/var/lib/xtcp2/ok` (accept), `/tmp/cap` (accept only when a root is configured) — assert proto layer (W1) and Go policy (W2) verdicts
 - [ ] `Set` policy tests: path fields rejected; frozen-field change rejected; valid tuning `Set` applies; escape-hatch flag honored
 - [ ] Interceptor guard test (W3) + per-service invalid-message cases
-- [ ] Landlock: unit re-exec persistence test + microVM scenario (W4)
+- [ ] Landlock: unit re-exec persistence test (> 16 consecutive soft restarts) + microVM scenario (W4)
 - [ ] Writer tests (W5): size cap, rate limit, version replay, kill -9 atomicity, peer-credential rejection
 - [ ] **Fleet golden-config gate (CI)**: ansible role renders real configs (all DCs, both role revisions) → `protovalidate` them in CI on every proto change; blocks a rule that would reject production
 - [ ] Advisory regression: end-to-end gRPC test running the five primitives of advisory §2 and asserting each is blocked at its layer
@@ -237,7 +237,7 @@ With admin token in hand on a canary host, every item must fail safely:
 - [ ] `Set` with `capture_path = /var/spool/cron/` + `write_files = 1` → rejected; no file created
 - [ ] `Set` with `link_monitor.baseline_file = /run/pwn.json` → rejected
 - [ ] `Set` with `ipmeta_cache_path = /etc/xtcp2/pwn/current.lookup.parquet.zst` → rejected; no directories created anywhere new
-- [ ] `Set` with unix listener `address = /etc/ld.so.preload`, `unix_socket_mode = 0777` → rejected (pattern + `lte 384`)
+- [ ] `Set` with unix listener `address = /etc/ld.so.preload`, `unix_socket_mode = 0777` → rejected (pattern + mode allowlist); `unix_socket_mode = 0577` alone → rejected
 - [ ] `Set` changing `s3_endpoint` to an attacker host → `FailedPrecondition` (frozen), even with `-setAllowFrozenFields` unset network policy blocks the egress (W7)
 - [ ] Legit tuning `Set` (poll frequency) applies and the daemon soft-restarts with the Landlock ruleset intact (`xtcp2_sandbox_active` stays 1)
 - [ ] Direct process check: as the collector uid, `os.WriteFile("/tmp/x")` fails (zero write rules, post-W5); the writer still publishes a fresh ASN cache
@@ -249,7 +249,7 @@ With admin token in hand on a canary host, every item must fail safely:
 
 | # | Decision | Default proposal |
 |---|---|---|
-| OD-1 | `unix_socket_mode` cap: 0600 or allow 0660 (shared-group socket)? | 0600 (`lte 384`); relax only if a consumer needs group access |
+| OD-1 | `unix_socket_mode` cap: 0600 or allow 0660 (shared-group socket)? | 0600 (`in: [0, 384]`); add 432 (0660) to the list only if a consumer needs group access — never a `lte` bound |
 | OD-2 | Landlock-absent kernel behavior: warn-and-continue vs refuse to start | Warn + `xtcp2_sandbox_active 0` + alert; fleet is ≥6.8 so this is a bare-metal edge case |
 | OD-3 | `file:` destination: keep behind `-allowFileDest` or remove entirely in the s3parquet build flavor | Keep behind flag (build flavors already gate schemes) |
 | OD-4 | Writer transport: UDS gRPC (chosen) vs loopback TCP | UDS — peer credentials, no port surface; loopback TCP rejected because every host process shares it |
