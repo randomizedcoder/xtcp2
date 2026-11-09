@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "brd": "192.0.2.255",
+  "family": "4",
+  "flags": "1024",
+  "label": "d0:abcdefghijkl",
+  "local": "192.0.2.1",
+  "metric": "7",
+  "preferred": "50",
+  "prefixlen": "24",
+  "proto": "99",
+  "valid": "100",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add local 192.0.2.1/24 broadcast 192.0.2.255 label d0:abcdefghijkl preference 7 valid_lft 100 preferred_lft 50 autojoin proto 99 dev d0",
+ "desc": "negative: verb=add local=keyword peer=absent brd=addr label=15 scope=absent metric=preference lft=finite flags=autojoin proto=99: autojoin on a unicast address (autojoin needs multicast address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr4/pw-005",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "flags": "256",
+  "label": "d0:1",
+  "local": "::",
+  "peer": "2001:db8:9::1",
+  "peer_len": "128",
+  "preferred": "0",
+  "prefixlen": "64",
+  "proto": "99",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "replace"
+ },
+ "cmd": "ip -6 address replace ::/64 peer 2001:db8:9::1/128 broadcast 2001:db8:1::ff label d0:1 scope link preferred_lft 0 mngtmpaddr proto 99 dev d0",
+ "desc": "negative: verb=replace local=any peer=128 brd=addr label=alias scope=link metric=absent lft=deprecated flags=mngtmpaddr proto=99: mngtmpaddr off a /64 (address with \"mngtmpaddr\" flag must have a prefix length of 64)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/pw-013",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

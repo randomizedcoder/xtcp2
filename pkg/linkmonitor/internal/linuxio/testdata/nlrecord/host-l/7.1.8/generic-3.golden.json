@@ -7,7 +7,7 @@
   {
     "call": "GetEthtool(pause, 2)",
     "values": 1,
-    "digest": "89bdf9883c3a9f02"
+    "digest": "c679d9f17e819a49"
   },
   {
     "call": "GetEthtool(fec, 2)",

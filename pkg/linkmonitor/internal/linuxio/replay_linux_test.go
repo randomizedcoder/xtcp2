@@ -306,12 +306,11 @@ func replay(rec recording) ([]replayOutcome, error) {
 		if callErr != nil {
 			out.Values, out.Error = 0, callErr.Error()
 		} else {
-			raw, err := json.Marshal(values)
+			digest, err := valuesDigest(values)
 			if err != nil {
 				return outcomes, err
 			}
-			sum := sha256.Sum256(raw)
-			out.Digest = hex.EncodeToString(sum[:8])
+			out.Digest = digest
 		}
 		outcomes = append(outcomes, out)
 	}
@@ -319,6 +318,118 @@ func replay(rec recording) ([]replayOutcome, error) {
 		return outcomes, fmt.Errorf("%d recorded replies unconsumed", len(socket.pending))
 	}
 	return outcomes, c.Close()
+}
+
+// valuesDigest hashes the decoded values' JSON with every zero-valued field
+// dropped (see withoutZeros), so a field added to a decoded struct changes a
+// digest only when a recording fills it in.
+func valuesDigest(values any) (string, error) {
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return "", err
+	}
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.UseNumber()
+	var v any
+	if err := d.Decode(&v); err != nil {
+		return "", err
+	}
+	if raw, err = json.Marshal(withoutZeros(v)); err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:8]), nil
+}
+
+// withoutZeros removes the object members that hold a zero: null, false,
+// 0, "", or an array or object left empty. Array elements stay, because
+// their position is part of the value.
+func withoutZeros(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, e := range t {
+			e = withoutZeros(e)
+			if isZeroJSON(e) {
+				delete(t, k)
+				continue
+			}
+			t[k] = e
+		}
+		return t
+	case []any:
+		for i, e := range t {
+			t[i] = withoutZeros(e)
+		}
+		return t
+	}
+	return v
+}
+
+// TestValuesDigest: the digest ignores fields that hold a zero, so a field
+// added to a decoded struct leaves every golden alone until a recording
+// fills it in.
+func TestValuesDigest(t *testing.T) {
+	type before struct {
+		Name  string
+		Index int
+	}
+	type after struct {
+		Name    string
+		Index   int
+		IfAlias string
+		Flags   []int
+		Nested  *before
+	}
+	base := []before{{Name: "eth0", Index: 2}}
+	tests := []struct {
+		category    string
+		description string
+		values      any
+		expected    bool // same digest as base
+	}{
+		{"positive", "an added field left empty", []after{{Name: "eth0", Index: 2}}, true},
+		{"negative", "an added field a recording fills in", []after{{Name: "eth0", Index: 2, IfAlias: "uplink"}}, false},
+		{"negative", "a decoded value that changed", []before{{Name: "eth0", Index: 3}}, false},
+		{"boundary", "an empty slice and a nil pointer count as absent", []after{{Name: "eth0", Index: 2, Flags: []int{}}}, true},
+		{"corner", "a zero array element is kept: position is part of the value", []after{{Name: "eth0", Index: 2, Flags: []int{0}}}, false},
+		{"corner", "a nested struct of zeros counts as absent", []after{{Name: "eth0", Index: 2, Nested: &before{}}}, true},
+		{"corner", "an extra element, even all zeros, is kept", []before{{Name: "eth0", Index: 2}, {}}, false},
+	}
+	want, err := valuesDigest(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected same digest: %v", tc.category, tc.description, tc.expected)
+			got, err := valuesDigest(tc.values)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (got == want) != tc.expected {
+				t.Errorf("digest %s vs base %s: same = %v, want %v", got, want, got == want, tc.expected)
+			}
+		})
+	}
+}
+
+func isZeroJSON(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case bool:
+		return !t
+	case string:
+		return t == ""
+	case json.Number:
+		f, err := t.Float64()
+		return err == nil && f == 0
+	case map[string]any:
+		return len(t) == 0
+	case []any:
+		return len(t) == 0
+	}
+	return false
 }
 
 func recordings(t *testing.T) []string {

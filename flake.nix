@@ -57,6 +57,11 @@
 #       Bond / LACP readback fixtures from a bond with a real LACP partner
 #       (two namespaces, two veth pairs), in three negotiation states. Writes
 #       pkg/xtcpnl/testdata/<kernel>/link-write/. Needs /dev/kvm, not root.
+#       The full set takes hours; --only <sections> runs some of them.
+#   nix run    .#microvm-x86_64-link-write-capture-<section>
+#       One section of the above (lacp, addr, write, rtnl, genl, xfrm, kinds,
+#       brmpls; nix/microvms/scripts/link-write-sections.exp), writing only
+#       that section's directories.
 #   nix run    .#microvm-x86_64-lacp-pair-capture
 #       The same readback on virtio-net ports, with the LACP partner in a
 #       second microVM across two point-to-point dgram links (Tier 2).
@@ -74,9 +79,6 @@
 #   Each takes --dry-run (the VM runners with --native-out DIR) to write
 #   placeholder contents and a manifest without a device.
 #
-# Overriding the giouring source (local fork):
-#   nix develop --override-input giouring path:/home/das/Downloads/giouring
-#
 {
   description = "xtcp2 — TCP socket introspection via netlink";
 
@@ -87,13 +89,6 @@
     microvm = {
       url = "github:astro/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # Local fork of iceber/iouring-go. Pin rev — overridable via
-    # `--override-input giouring path:/path/to/local`.
-    giouring = {
-      url = "github:randomizedcoder/giouring/9e96b7216bf07ce3c97281092444e85311f7b2e4";
-      flake = false;
     };
 
     # xdp2 provides `proto-audit`, the netlink layout oracle. It normalises the
@@ -143,7 +138,6 @@
       nixpkgs,
       flake-utils,
       microvm,
-      giouring,
       xdp2,
       rocm-ernic,
     }:
@@ -161,7 +155,6 @@
             lib
             microvm
             nixpkgs
-            giouring
             xdp2
             ;
           rocmErnic = rocm-ernic;

@@ -1,0 +1,7 @@
+total acts 1
+
+	action order 0:  pedit action continue keys 1
+ 	 index 1 ref 1 bind 0
+	 key #0  at ipv6+0: val 04000000 mask f00fffff
+	not_in_hw
+	used_hw_stats disabled

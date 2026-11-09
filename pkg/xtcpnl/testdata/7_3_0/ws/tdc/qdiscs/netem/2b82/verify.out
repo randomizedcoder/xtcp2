@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 delay 100ms  10ms duplicate 1% seed 17563235531927150616

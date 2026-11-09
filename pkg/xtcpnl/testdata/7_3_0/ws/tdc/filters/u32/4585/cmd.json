@@ -1,0 +1,103 @@
+{
+ "cmd": "tc filter delete dev v0p1 parent 10:",
+ "desc": "positive: Delete small tree of u32 hashtables and filters",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)protocol ip pref 2 u32",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/u32/4585",
+ "modules": [
+  "cls_u32"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 parent root handle 10: drr",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 1: u32 divisor 1",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 2: u32 divisor 1",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 3: u32 divisor 2",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 4: u32 divisor 1",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 1: match ip src any action drop",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 2: match ip src any action drop",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 3: match ip src any link 2:",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 3: match ip src any link 1:",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 4: match ip src any action drop",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 800: match ip src any link 3:",
+  "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 800: match ip src any link 4:"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 parent root handle 10: drr",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 1: u32 divisor 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 2: u32 divisor 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 3: u32 divisor 2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 handle 4: u32 divisor 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 1: match ip src any action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 2: match ip src any action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 3: match ip src any link 2:",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 3: match ip src any link 1:",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 4: match ip src any action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 800: match ip src any link 3:",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent 10:0 protocol ip prio 2 u32 ht 800: match ip src any link 4:",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4585",
+  "tdc": "filters/u32.json"
+ }
+}

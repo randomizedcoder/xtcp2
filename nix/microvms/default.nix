@@ -606,6 +606,26 @@ let
       sink = "link-write-capture";
     };
 
+  # nlcap-workbench: the quiet root guest, kept up and driven over ssh by
+  # xtcp2-nlcap-ws (./workbench). Not built from the repository's source, so
+  # an edit to Go, docs or fixtures never rebuilds it. See mkVm.nix
+  # isNlcapWorkbench.
+  mkOneNlcapWorkbench =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "nlcap-workbench";
+    };
+
   # lacp-a / lacp-b: the two VMs of lacp-pair-capture, Tier 2 of
   # docs/netlink/link-write-path.md (phase 8). A is the link-write-capture
   # guest with two virtio-net LACP ports, driven by
@@ -712,6 +732,19 @@ let
   vmsGoipParity = lib.genAttrs constants.supportedArchs mkOneGoipParity;
 
   vmsLinkWriteCapture = lib.genAttrs constants.supportedArchs mkOneLinkWriteCapture;
+
+  vmsNlcapWorkbench = lib.genAttrs constants.supportedArchs mkOneNlcapWorkbench;
+
+  # The workbench's host CLI, guest batch runner and hermetic check.
+  nlcapWorkbench = lib.genAttrs constants.supportedArchs (
+    arch:
+    import ./workbench {
+      inherit pkgs lib;
+      vm = vmsNlcapWorkbench.${arch};
+      netlinkCaptureHelper = import ./netlink-capture.nix { inherit pkgs; };
+      cfg = constants.architectures.${arch};
+    }
+  );
 
   vmsLacpA = lib.genAttrs constants.supportedArchs (mkOneLacp "a");
   vmsLacpB = lib.genAttrs constants.supportedArchs (mkOneLacp "b");
@@ -1021,12 +1054,45 @@ let
   # the link-write-capture VM and drives it with scripts/capture-link-writes.exp.
   # A runner and not a check for netlinkDumpCapture's reasons: /dev/kvm, and
   # the point of the run is to write fixtures into the working tree.
-  linkWriteCapture = lib.genAttrs constants.supportedArchs (arch: {
-    runner = microvmLib.mkLinkWriteCaptureRunner {
-      inherit arch;
-      vm = vmsLinkWriteCapture.${arch};
-    };
-  });
+  #
+  # sections.<name> is the same runner with `--only <name>`, one section of
+  # the corpus (scripts/link-write-sections.exp, whose ALL this list
+  # mirrors: a name here that isn't there fails the run with NLCAP_ERR
+  # before any capture). The full set takes hours on a loaded host; a
+  # section is minutes.
+  linkWriteCapture = lib.genAttrs constants.supportedArchs (
+    arch:
+    let
+      runner = microvmLib.mkLinkWriteCaptureRunner {
+        inherit arch;
+        vm = vmsLinkWriteCapture.${arch};
+      };
+    in
+    {
+      inherit runner;
+      sections = lib.genAttrs linkWriteSections (
+        section:
+        pkgs.writeShellApplication {
+          name = "xtcp2-link-write-capture-${section}-${arch}";
+          text = ''
+            exec ${runner}/bin/xtcp2-link-write-capture-${arch} --only ${section} "$@"
+          '';
+        }
+      );
+    }
+  );
+
+  # The sections of capture-link-writes.exp, in run order.
+  linkWriteSections = [
+    "lacp"
+    "addr"
+    "write"
+    "rtnl"
+    "genl"
+    "xfrm"
+    "kinds"
+    "brmpls"
+  ];
 
   # RDMA nldev capture runner: the netlink-dump-capture VM driven by
   # scripts/capture-rdma.exp. A runner for netlinkDumpCapture's reasons.
@@ -1202,6 +1268,8 @@ in
     vmsNetlinkDumpCapture
     vmsGoipParity
     vmsLinkWriteCapture
+    vmsNlcapWorkbench
+    nlcapWorkbench
     vmsLacpA
     vmsLacpB
     vmsIpmetaBootstrap

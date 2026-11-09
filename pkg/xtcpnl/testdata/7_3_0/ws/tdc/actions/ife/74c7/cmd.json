@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ife encode use prio 3 continue index 9",
+ "desc": "positive: Create valid ife encode action with prio and continue control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ife encode action continue.*type 0[xX]ED3E.*use prio 3.*index 9",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ife/74c7",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action ife index 9",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "74c7",
+  "tdc": "actions/ife.json"
+ }
+}

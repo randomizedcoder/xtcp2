@@ -1,0 +1,52 @@
+{
+ "axes": {
+  "brd": "192.0.2.127",
+  "family": "4",
+  "label": "d0:abcdefghijkl",
+  "local": "239.1.1.1",
+  "metric": "7",
+  "peer": "198.51.100.0",
+  "peer_len": "24",
+  "preferred": "60",
+  "prefixlen": "32",
+  "proto": "0",
+  "scope": "0",
+  "valid": "60",
+  "verb": "change"
+ },
+ "cmd": "ip -4 address change 239.1.1.1/32 remote 198.51.100.0/24 bro 192.0.2.127 label d0:abcdefghijkl scope global preference 7 valid_lft 60 preferred_lft 60 proto unspec dev d0",
+ "desc": "corner: verb=change local=mcast peer=remote brd=abbrev label=15 scope=global metric=preference lft=equal flags=absent proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-025",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 239.1.1.1/32 remote 198.51.100.0/24 bro 192.0.2.127 label d0:abcdefghijkl scope global preference 7 valid_lft 60 preferred_lft 60 proto unspec dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 239.1.1.1/32 remote 198.51.100.0/24 bro 192.0.2.127 label d0:abcdefghijkl scope global preference 7 valid_lft 60 preferred_lft 60 proto unspec dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

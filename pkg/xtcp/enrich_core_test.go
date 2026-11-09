@@ -21,7 +21,7 @@ import (
 
 // ---- the known set ----------------------------------------------------------
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestIsKnownEnricher
+// go test ./pkg/xtcp/ -run TestIsKnownEnricher
 func TestIsKnownEnricher(t *testing.T) {
 	tests := []struct {
 		description string
@@ -50,7 +50,7 @@ func TestIsKnownEnricher(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestCompiledInEnrichers
+// go test ./pkg/xtcp/ -run TestCompiledInEnrichers
 func TestCompiledInEnrichers(t *testing.T) {
 	got := CompiledInEnrichers()
 
@@ -95,7 +95,7 @@ func TestCompiledInEnrichers(t *testing.T) {
 
 // ---- registration guards ------------------------------------------------------
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestRegisterEnricherPanics
+// go test ./pkg/xtcp/ -run TestRegisterEnricherPanics
 func TestRegisterEnricherPanics(t *testing.T) {
 	noop := func(context.Context, *XTCP) {}
 
@@ -161,7 +161,7 @@ func toStr(v any) string {
 
 // ---- lookup + the operator-facing error ----------------------------------------
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestLookupEnricherFactory
+// go test ./pkg/xtcp/ -run TestLookupEnricherFactory
 func TestLookupEnricherFactory(t *testing.T) {
 	tests := []struct {
 		description string
@@ -196,7 +196,7 @@ func TestLookupEnricherFactory(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestEnricherLookupError
+// go test ./pkg/xtcp/ -run TestEnricherLookupError
 func TestEnricherLookupError(t *testing.T) {
 	tests := []struct {
 		description string
@@ -244,7 +244,7 @@ func TestEnricherLookupError(t *testing.T) {
 
 // ---- config -> requested enrichers, and the compiled-in gate --------------------
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestRequestedEnrichers
+// go test ./pkg/xtcp/ -run TestRequestedEnrichers
 func TestRequestedEnrichers(t *testing.T) {
 	tests := []struct {
 		description string
@@ -286,7 +286,7 @@ func TestRequestedEnrichers(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestCheckConfigEnrichersCompiledIn
+// go test ./pkg/xtcp/ -run TestCheckConfigEnrichersCompiledIn
 func TestCheckConfigEnrichersCompiledIn(t *testing.T) {
 	tests := []struct {
 		description string
@@ -344,7 +344,7 @@ func TestCheckConfigEnrichersCompiledIn(t *testing.T) {
 
 // ---- initEnrichers: fatal on a missing build tag -------------------------------
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestInitEnrichersCompiledInGate
+// go test ./pkg/xtcp/ -run TestInitEnrichersCompiledInGate
 func TestInitEnrichersCompiledInGate(t *testing.T) {
 	tests := []struct {
 		description string
@@ -392,7 +392,7 @@ func TestInitEnrichersCompiledInGate(t *testing.T) {
 
 // ---- the compiledInEnrichers gauge ---------------------------------------------
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestPublishCompiledInEnrichers
+// go test ./pkg/xtcp/ -run TestPublishCompiledInEnrichers
 func TestPublishCompiledInEnrichers(t *testing.T) {
 	x := newMetricsFixture(t, 0)
 	x.publishCompiledInEnrichers()

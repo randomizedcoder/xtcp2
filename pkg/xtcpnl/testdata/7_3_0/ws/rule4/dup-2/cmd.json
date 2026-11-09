@@ -1,0 +1,57 @@
+{
+ "axes": {
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "dscp": "4",
+  "family": "4",
+  "fwmark": "0",
+  "iif": "nosuch",
+  "ipproto": "1",
+  "priority": "4294967295",
+  "protocol": "2",
+  "sport": "80-80",
+  "sport_mask": "65520",
+  "src": "198.51.100.7",
+  "src_len": "32",
+  "sup_pl": "2147483647",
+  "table": "255",
+  "uidrange": "0-4294967294",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add from 198.51.100.7/32 pref 4294967295 fwmark 0 iif nosuch dscp 4 ipproto icmp sport 0x50/0xfff0 dport 0x50/0xfff0 uidrange 0-4294967294 suppress_prefixlength 2147483647 protocol kernel table 255",
+ "desc": "negative: verb=add not=absent from=32 to=absent pref=max fwmark=0 iif=nosuch oif=absent ds=dscp ipproto=icmp sport=mask dport=mask uidrange=max suppress=pl-max protocol=kernel extra=absent action=255: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "rule4/dup-2",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add from 198.51.100.7/32 pref 4294967295 fwmark 0 iif nosuch dscp 4 ipproto icmp sport 0x50/0xfff0 dport 0x50/0xfff0 uidrange 0-4294967294 suppress_prefixlength 2147483647 protocol kernel table 255"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add from 198.51.100.7/32 pref 4294967295 fwmark 0 iif nosuch dscp 4 ipproto icmp sport 0x50/0xfff0 dport 0x50/0xfff0 uidrange 0-4294967294 suppress_prefixlength 2147483647 protocol kernel table 255",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

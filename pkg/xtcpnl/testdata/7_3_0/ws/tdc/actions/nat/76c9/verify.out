@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1:  nat ingress 12.18.10.10/32 12.18.20.20 jump 10
+	 index 22 ref 1 bind 0
+	not_in_hw

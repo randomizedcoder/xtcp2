@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add es0 type erspan remote 10.0.0.1 seq key 10

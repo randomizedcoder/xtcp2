@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "brd": "192.0.2.255",
+  "family": "4",
+  "flags": "512",
+  "label": "d0:1",
+  "local": "192.0.2.1",
+  "metric": "100",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "preferred": "50",
+  "prefixlen": "32",
+  "proto": "2",
+  "scope": "253",
+  "valid": "100",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 address replace 192.0.2.1/32 peer 198.51.100.1/32 broadcast 192.0.2.255 label d0:1 scope link metric 100 valid_lft 100 preferred_lft 50 noprefixroute proto kernel_ra dev d0",
+ "desc": "boundary: verb=replace local=32 peer=32 brd=addr label=alias scope=link metric=100 lft=finite flags=noprefixroute proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/ec-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

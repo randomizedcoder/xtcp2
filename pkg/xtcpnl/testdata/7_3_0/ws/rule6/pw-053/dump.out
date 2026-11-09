@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from 2001:db8:2::7 tos 0x08 dport 80 unreachable
+32766:	from all lookup main

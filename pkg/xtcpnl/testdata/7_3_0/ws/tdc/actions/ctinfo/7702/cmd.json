@@ -1,0 +1,64 @@
+{
+ "cmd": "tc action flush action ctinfo",
+ "desc": "positive: Flush ctinfo actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: ctinfo",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ctinfo/7702",
+ "modules": [
+  "act_ctinfo"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ctinfo",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc action add action ctinfo zone 20 pass index 101",
+  "tc action add action ctinfo cpmark 0x02000000 drop index 102",
+  "tc action add action ctinfo continue index 103"
+ ],
+ "readback": [
+  {
+   "cmd": "tc action list action ctinfo",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ctinfo",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action ctinfo zone 20 pass index 101",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action ctinfo cpmark 0x02000000 drop index 102",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action ctinfo continue index 103",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7702",
+  "tdc": "actions/ctinfo.json"
+ }
+}

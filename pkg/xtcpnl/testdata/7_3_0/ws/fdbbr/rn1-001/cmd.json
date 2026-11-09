@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "dev": "d0",
+  "lladdr": "02:00:00:00:00:02",
+  "notify": "3",
+  "ntf": "64",
+  "state": "192",
+  "target": "4",
+  "verb": "replace"
+ },
+ "cmd": "bridge fdb replace to 02:00:00:00:00:02 dev d0 master permanent sticky activity_notify inactive",
+ "desc": "negative: verb=replace mac=to dev=port target=master state=permanent flags=sticky vlan=absent ext=both: a sticky permanent entry",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "fdbbr/rn1-001",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

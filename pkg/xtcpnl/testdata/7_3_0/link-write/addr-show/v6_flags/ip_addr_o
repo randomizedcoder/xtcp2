@@ -1,0 +1,6 @@
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host proto kernel_lo \       valid_lft forever preferred_lft forever
+3: d0    inet6 2001:db8:3::1/48 scope global nodad \       valid_lft forever preferred_lft forever
+3: d0    inet6 2001:db8:2::1/64 scope global nodad mngtmpaddr noprefixroute \       valid_lft forever preferred_lft forever
+3: d0    inet6 2001:db8:1::1/64 scope global home \       valid_lft forever preferred_lft forever
+3: d0    inet6 2001:db8::1/64 scope global nodad \       valid_lft forever preferred_lft forever

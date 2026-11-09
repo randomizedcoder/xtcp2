@@ -1,0 +1,29 @@
+Usage: ... erspan   	[ remote ADDR ]
+			[ local ADDR ]
+			[ [no][i|o]seq ]
+			[ [i|o]key KEY | no[i|o]key ]
+			[ [no][i|o]csum ]
+			[ ttl TTL ]
+			[ tos TOS ]
+			[ [no]pmtudisc ]
+			[ [no]ignore-df ]
+			[ dev PHYS_DEV ]
+			[ fwmark MARK ]
+			[ external ]
+			[ noencap ]
+			[ encap { fou | gue | none } ]
+			[ encap-sport PORT ]
+			[ encap-dport PORT ]
+			[ [no]encap-csum ]
+			[ [no]encap-csum6 ]
+			[ [no]encap-remcsum ]
+			[ erspan_ver version ]
+			[ erspan IDX ]
+			[ erspan_dir { ingress | egress } ]
+			[ erspan_hwid hwid ]
+
+Where:	ADDR := { IP_ADDRESS | any }
+	TOS  := { NUMBER | inherit }
+	TTL  := { 1..255 | inherit }
+	KEY  := { DOTTED_QUAD | NUMBER }
+	MARK := { 0x0..0xffffffff }

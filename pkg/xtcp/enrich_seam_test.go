@@ -60,7 +60,7 @@ func ipv6(s string) []byte {
 	return addr[:]
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestDestAddr
+// go test ./pkg/xtcp/ -run TestDestAddr
 func TestDestAddr(t *testing.T) {
 	tests := []struct {
 		description string
@@ -109,7 +109,7 @@ func TestDestAddr(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestApplyEnrichmentSeams
+// go test ./pkg/xtcp/ -run TestApplyEnrichmentSeams
 func TestApplyEnrichmentSeams(t *testing.T) {
 	const inode = uint64(4026531840)
 
@@ -284,7 +284,7 @@ func TestApplyEnrichmentSeams(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestRefreshLocalityDispatch
+// go test ./pkg/xtcp/ -run TestRefreshLocalityDispatch
 func TestRefreshLocalityDispatch(t *testing.T) {
 	tests := []struct {
 		description string
@@ -310,7 +310,7 @@ func TestRefreshLocalityDispatch(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestListenLocalityDispatch
+// go test ./pkg/xtcp/ -run TestListenLocalityDispatch
 func TestListenLocalityDispatch(t *testing.T) {
 	for _, tc := range []struct {
 		description string

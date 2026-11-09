@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action csum icmp ip4h sctp igmp udplite udp tcp index 7",
+ "desc": "positive: Add all 7 csum actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: csum \\(iph, icmp, igmp, tcp, udp, udplite, sctp\\).*index 7 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/csum/b10b",
+ "modules": [
+  "act_csum"
+ ],
+ "pre": [
+  [
+   "tc actions flush action csum",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action csum index 7",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action csum",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "b10b",
+  "tdc": "actions/csum.json"
+ }
+}

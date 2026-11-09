@@ -1,0 +1,6 @@
+total acts 1
+
+	action order 0:  pedit action continue keys 1
+ 	 index 1 ref 1 bind 0
+	 key #0  at 0: val 00000000 mask ff00ffff
+	not_in_hw

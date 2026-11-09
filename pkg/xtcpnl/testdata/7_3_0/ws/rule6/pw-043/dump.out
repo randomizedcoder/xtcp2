@@ -1,0 +1,3 @@
+0:	from all lookup local
+300:	from all tos 0x10 iif lo sport 65534 dport 1 tun_id 7 lookup main proto 255
+32766:	from all lookup main

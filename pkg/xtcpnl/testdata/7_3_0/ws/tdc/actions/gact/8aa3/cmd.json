@@ -1,0 +1,54 @@
+{
+ "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action gact index \\$i \\\"; args=\"\\$args\\$cmd\"; done && tc actions del \\$args\"",
+ "desc": "positive: Delete batch of 32 gact continue actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^[ \t]+index [0-9]+ ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/8aa3",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ],
+  "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action continue index \\$i \\\"; args=\\\"\\$args\\$cmd\\\"; done && tc actions add \\$args\""
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   },
+   {
+    "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action continue index \\$i \\\"; args=\\\"\\$args\\$cmd\\\"; done && tc actions add \\$args\"",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8aa3",
+  "tdc": "actions/gact.json"
+ }
+}

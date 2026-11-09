@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge ip6 traffic_class set 0x40 continue",
+ "desc": "positive: Add pedit action with LAYERED_OP ip6 traffic_class",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)ipv6\\+0: val 04000000 mask f00fffff",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/94bb",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "94bb",
+  "tdc": "actions/pedit.json"
+ }
+}

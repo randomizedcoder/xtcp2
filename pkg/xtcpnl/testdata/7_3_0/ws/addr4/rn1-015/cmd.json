@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "brd": "+",
+  "family": "4",
+  "label": "d0:1",
+  "local": "192.0.2.1",
+  "metric": "5",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "preferred": "50",
+  "prefixlen": "32",
+  "proto": "255",
+  "scope": "255",
+  "valid": "100",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.1/32 peer 198.51.100.1/32 brd + label d0:1 scope 255 priority 5 valid_lft 100 preferred_lft 50 nodad proto 255 dev d0",
+ "desc": "corner: verb=add local=32 peer=32 brd=plus label=alias scope=255 metric=priority lft=finite flags=nodad proto=255",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-015",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

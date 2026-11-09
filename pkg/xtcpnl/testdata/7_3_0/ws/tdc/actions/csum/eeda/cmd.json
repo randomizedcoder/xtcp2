@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action csum ipv4h sctp continue index 2",
+ "desc": "positive: Add csum ip & sctp action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: csum \\(iph, sctp\\) action continue.*index 2 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/csum/eeda",
+ "modules": [
+  "act_csum"
+ ],
+ "pre": [
+  [
+   "tc actions flush action csum",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action csum index 2",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action csum",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "eeda",
+  "tdc": "actions/csum.json"
+ }
+}

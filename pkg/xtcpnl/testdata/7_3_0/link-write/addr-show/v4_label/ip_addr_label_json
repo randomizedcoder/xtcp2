@@ -1,0 +1,1 @@
+[{"addr_info":[]},{"addr_info":[{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global","label":"d0:1","valid_life_time":4294967295,"preferred_life_time":4294967295},{"family":"inet","local":"192.0.2.9","prefixlen":24,"scope":"global","secondary":true,"label":"d0:9","valid_life_time":4294967295,"preferred_life_time":4294967295}]}]

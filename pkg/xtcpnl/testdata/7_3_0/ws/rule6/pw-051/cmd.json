@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "dport": "1000-2000",
+  "dst": "2001:db8:3::",
+  "dst_len": "64",
+  "family": "6",
+  "ipproto": "58",
+  "protocol": "2",
+  "sport": "80-80",
+  "src": "::",
+  "src_len": "0",
+  "sup_pl": "24",
+  "table": "4294967295",
+  "uidrange": "0-0",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from ::/0 to 2001:db8:3::/64 ipproto ipv6-icmp sport 80 dport 1000-2000 uidrange 0-0 sup_pl 24 protocol kernel table 4294967295",
+ "desc": "corner: verb=add not=absent from=0 to=64 pref=absent fwmark=absent iif=absent oif=absent ds=absent ipproto=icmp sport=80 dport=range uidrange=0 suppress=sup_pl protocol=kernel extra=absent action=max",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-051",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

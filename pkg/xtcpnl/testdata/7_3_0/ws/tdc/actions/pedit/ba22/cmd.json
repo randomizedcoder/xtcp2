@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge eth type set 0x1 munge eth type clear munge eth type set 0x1 munge eth type clear munge eth type set 0x1 munge eth type clear munge eth type set 0x1 munge eth type clear munge eth type set 0x1 munge eth type clear munge eth type set 0x1 munge eth type clear",
+ "desc": "positive: Add pedit action with LAYERED_OP eth type set/clear sequence",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)eth\\+12: val 00010000 mask 0000ffff.*eth\\+12: val 00000000 mask 0000ffff.*eth\\+12: val 00010000 mask 0000ffff.*eth\\+12: val 00000000 mask 0000ffff.*eth\\+12: val 00010000 mask 0000ffff.*eth\\+12: val 00000000 mask 0000ffff.*eth\\+12: val 00010000 mask 0000ffff.*eth\\+12: val 00000000 mask 0000ffff.*eth\\+12: val 00010000 mask 0000ffff.*eth\\+12: val 00000000 mask 0000ffff.*eth\\+12: val 00010000 mask 0000ffff.*eth\\+12: val 00000000 mask 0000ffff",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/ba22",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ba22",
+  "tdc": "actions/pedit.json"
+ }
+}

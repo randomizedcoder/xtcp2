@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action police rate 90kbit burst 10k mtu 1k index 98",
+ "desc": "positive: Add valid police action with mtu",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*:  police 0x62 rate 90Kbit burst 10Kb mtu 1Kb",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/police/49fa",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action police index 98",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "49fa",
+  "tdc": "actions/police.json"
+ }
+}

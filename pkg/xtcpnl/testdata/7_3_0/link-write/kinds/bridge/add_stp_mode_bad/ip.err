@@ -1,0 +1,1 @@
+Error: argument of "stp_mode" must be one of "auto", "user", "kernel", not "bogus"

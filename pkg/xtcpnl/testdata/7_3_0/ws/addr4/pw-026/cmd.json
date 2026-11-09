@@ -1,0 +1,52 @@
+{
+ "axes": {
+  "brd": "+",
+  "family": "4",
+  "label": "d0:1",
+  "local": "0.0.0.0",
+  "metric": "5",
+  "noop": "1",
+  "peer": "198.51.100.0",
+  "peer_len": "24",
+  "preferred": "50",
+  "prefixlen": "24",
+  "proto": "0",
+  "valid": "100",
+  "verb": "change"
+ },
+ "cmd": "ip -4 address change 0.0.0.0/24 remote 198.51.100.0/24 brd + label d0:1 priority 5 valid_lft 100 preferred_lft 50 proto unspec dev d0",
+ "desc": "corner: verb=change local=zero peer=remote brd=plus label=alias scope=absent metric=priority lft=finite flags=absent proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-026",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 0.0.0.0/24 remote 198.51.100.0/24 brd + label d0:1 priority 5 valid_lft 100 preferred_lft 50 proto unspec dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 0.0.0.0/24 remote 198.51.100.0/24 brd + label d0:1 priority 5 valid_lft 100 preferred_lft 50 proto unspec dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -97,7 +97,7 @@ var (
 	addThird  = xtcpnl.AddrEvent{Action: xtcpnl.EventActionAdd, Addr: xtcpnl.AddrInfo{Family: unix.AF_INET, Prefixlen: 24, Index: 2, Local: []byte{10, 0, 0, 3}, Address: []byte{10, 0, 0, 3}}}
 )
 
-// go test -ldflags=-checklinkname=0 -tags enrich_locality ./pkg/xtcp/ -run TestLocalityListener
+// go test -tags enrich_locality ./pkg/xtcp/ -run TestLocalityListener
 func TestLocalityListener(t *testing.T) {
 	type expect struct {
 		self     []string        // addresses inode 1 resolves as self
@@ -307,7 +307,7 @@ func TestLocalityListener(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 -tags enrich_locality ./pkg/xtcp/ -run TestLocalityListenerKernel
+// go test -tags enrich_locality ./pkg/xtcp/ -run TestLocalityListenerKernel
 func TestLocalityListenerKernel(t *testing.T) {
 	t.Run("positive: the real listener goes live on this namespace and stops with its context", func(t *testing.T) {
 		x, li := newLocalityFixture(t, time.Minute)

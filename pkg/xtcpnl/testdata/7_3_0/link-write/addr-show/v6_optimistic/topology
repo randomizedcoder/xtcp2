@@ -1,0 +1,6 @@
+ok    [addra] ip link add v0 address 02:00:00:00:a0:00 type veth peer name v1 address 02:00:00:00:b0:00
+ok    [addra] sysctl net.ipv6.conf.v0.optimistic_dad=1
+ok    [addra] sysctl net.ipv6.conf.v0.dad_transmits=60
+ok    [addra] ip link set v0 up
+ok    [addra] ip link set v1 up
+ok    [addra] ip -6 addr add 2001:db8::5/64 optimistic dev v0

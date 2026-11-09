@@ -1,0 +1,5 @@
+State Recv-Q Send-Q      Local Address:Port        Peer Address:Port
+ESTAB 0      0               127.0.0.1:8080           127.0.0.1:45000
+ESTAB 0      0               127.0.0.1:45000          127.0.0.1:8080
+ESTAB 0      0               127.0.0.1:45000          127.0.0.1:443
+ESTAB 0      0      [::ffff:127.0.0.1]:443   [::ffff:127.0.0.1]:45000

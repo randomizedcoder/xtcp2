@@ -135,6 +135,12 @@ type RouteNextHop struct {
 	Ifindex int32  // rtnh_ifindex: the outgoing interface of this path
 	Gateway []byte // RTA_GATEWAY nested in this entry, network order
 	Via     *RtVia // RTA_VIA nested in this entry, nil when absent
+
+	// NewDst is an AF_MPLS route's per-path RTA_NEWDST, and Encap an IP
+	// route's per-path RTA_ENCAP_TYPE and RTA_ENCAP (`nexthop encap mpls
+	// 101 via ...`), each nil when absent. See xtcpnl_mpls.go.
+	NewDst []MPLSLabel
+	Encap  *RouteEncap
 }
 
 // Weight returns the weight iproute2 renders for this path.
@@ -170,24 +176,8 @@ func WalkRouteNextHops(data []byte, fn func(nh RouteNextHop)) error {
 			Hops:    h.Hops,
 			Ifindex: h.Ifindex,
 		}
-		var viaErr error
-		if err := WalkRTAttrsNested(data[RtNextHopSizeCst:nhLen], func(atype uint16, val []byte) {
-			switch atype {
-			case uint16(unix.RTA_GATEWAY):
-				nh.Gateway = CopyBytes(val)
-			case uint16(unix.RTA_VIA):
-				var v RtVia
-				if _, err := DeserializeRtVia(val, &v); err != nil {
-					viaErr = err
-					return
-				}
-				nh.Via = &v
-			}
-		}); err != nil {
+		if err := walkNextHopAttrs(data[RtNextHopSizeCst:nhLen], &nh); err != nil {
 			return err
-		}
-		if viaErr != nil {
-			return viaErr
 		}
 		fn(nh)
 
@@ -200,6 +190,43 @@ func WalkRouteNextHops(data []byte, fn func(nh RouteNextHop)) error {
 		data = data[adv:]
 	}
 	return nil
+}
+
+// walkNextHopAttrs decodes the attributes nested in one rtnexthop into nh.
+// The first nested error is returned once the walk ends, as ParseNewRoute
+// does; a framing error outranks it.
+func walkNextHopAttrs(attrs []byte, nh *RouteNextHop) error {
+	var nestErr error
+	keep := func(err error) {
+		if err != nil && nestErr == nil {
+			nestErr = err
+		}
+	}
+	if err := WalkRTAttrsNested(attrs, func(atype uint16, val []byte) {
+		switch atype {
+		case uint16(unix.RTA_GATEWAY):
+			nh.Gateway = CopyBytes(val)
+		case uint16(unix.RTA_VIA):
+			var v RtVia
+			if _, err := DeserializeRtVia(val, &v); err != nil {
+				keep(err)
+				return
+			}
+			nh.Via = &v
+		case uint16(unix.RTA_NEWDST):
+			labels, err := ParseMPLSLabels(val)
+			keep(err)
+			nh.NewDst = labels
+		case uint16(unix.RTA_ENCAP_TYPE), uint16(unix.RTA_ENCAP):
+			setEncapAttr(&nh.Encap, atype, val)
+		}
+	}); err != nil {
+		return err
+	}
+	if nestErr != nil {
+		return nestErr
+	}
+	return nh.Encap.decode()
 }
 
 // RouteMetrics is the RTA_METRICS nested attribute stream: per-route values

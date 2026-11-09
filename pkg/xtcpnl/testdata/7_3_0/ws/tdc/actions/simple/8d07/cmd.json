@@ -1,0 +1,69 @@
+{
+ "cmd": "tc actions add action simple sdata \"2\" index 2",
+ "desc": "positive: Verify cleanup of failed actions batch add",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: Simple <2>.*index 2 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/simple/8d07",
+ "modules": [
+  "act_simple"
+ ],
+ "pre": [
+  [
+   "tc actions flush action simple",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action simple sdata \"2\" index 2",
+  [
+   "tc actions add action simple sdata \"1\" index 1 action simple sdata \"2\" index 2",
+   [
+    255
+   ]
+  ],
+  "tc actions flush action simple"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action simple",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action simple",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action simple sdata \"2\" index 2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action simple sdata \"1\" index 1 action simple sdata \"2\" index 2",
+    "rc": 255
+   },
+   {
+    "cmd": "tc actions flush action simple",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8d07",
+  "tdc": "actions/simple.json"
+ }
+}

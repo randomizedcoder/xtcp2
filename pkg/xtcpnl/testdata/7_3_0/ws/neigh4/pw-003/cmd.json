@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "dst": "192.0.2.255",
+  "family": "4",
+  "ntf": "1",
+  "protocol": "0",
+  "state": "64",
+  "verb": "add"
+ },
+ "cmd": "ip -4 neigh add 192.0.2.255 lladdr null nud noarp use protocol 0 dev d0",
+ "desc": "corner: verb=add dst=bcast lladdr=null nud=noarp flags=use proto=0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "neigh4/pw-003",
+ "pre": [
+  "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 neigh show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

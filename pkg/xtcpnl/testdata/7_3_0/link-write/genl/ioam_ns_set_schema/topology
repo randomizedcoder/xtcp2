@@ -1,0 +1,2 @@
+ok    [lacpa] ip ioam namespace add 1
+ok    [lacpa] ip ioam schema add 1 abcd

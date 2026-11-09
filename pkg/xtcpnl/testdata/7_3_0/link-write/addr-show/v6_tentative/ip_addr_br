@@ -1,0 +1,4 @@
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+nlmon0           UNKNOWN        
+v1@v0            DOWN           
+v0@v1            DOWN           2001:db8::5/64 

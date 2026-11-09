@@ -1,0 +1,65 @@
+{
+ "cmd": "tc action flush action bpf",
+ "desc": "positive: Flush BPF actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: bpf bytecode",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/bpf/55ce",
+ "modules": [
+  "act_bpf"
+ ],
+ "pre": [
+  [
+   "tc actions flush action bpf",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' ok index 101",
+  "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2054,6 0 0 262144,6 0 0 0' drop index 102",
+  "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 33024,6 0 0 262144,6 0 0 0' continue index 103"
+ ],
+ "readback": [
+  {
+   "cmd": "tc action list action bpf",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action bpf",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' ok index 101",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 2054,6 0 0 262144,6 0 0 0' drop index 102",
+    "rc": 0
+   },
+   {
+    "cmd": "tc action add action bpf bytecode '4,40 0 0 12,21 0 1 33024,6 0 0 262144,6 0 0 0' continue index 103",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "55ce",
+  "tdc": "actions/bpf.json"
+ }
+}

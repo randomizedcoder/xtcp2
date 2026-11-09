@@ -1,0 +1,1 @@
+id 53  encap mpls  101 ttl 10 via 192.0.2.1 dev d0 scope link 

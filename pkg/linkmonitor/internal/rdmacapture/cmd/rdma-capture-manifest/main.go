@@ -76,7 +76,7 @@ func write(args []string, stdout io.Writer) error {
 	}
 	index := map[string]rdmacapture.IndexEntry{}
 	indexPath := filepath.Join(*dir, "index.tsv")
-	if data, err := os.ReadFile(indexPath); err == nil { // #nosec G304 -- inside the capture directory
+	if data, err := os.ReadFile(indexPath); err == nil {
 		if index, err = rdmacapture.ReadIndex(data); err != nil {
 			return err
 		}
@@ -91,7 +91,7 @@ func write(args []string, stdout io.Writer) error {
 		"firmware":  &base.Firmware,
 		"rdma_core": &base.RDMACore,
 	} {
-		data, err := os.ReadFile(filepath.Join(metaDir, name)) // #nosec G304 -- inside the capture directory
+		data, err := os.ReadFile(filepath.Join(metaDir, name))
 		if err != nil {
 			return fmt.Errorf("meta: %w", err)
 		}

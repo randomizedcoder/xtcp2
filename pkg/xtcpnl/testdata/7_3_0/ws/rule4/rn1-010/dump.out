@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from all to 203.0.113.0/24 iif lo oif d0 uidrange 0-4294967294 sport 65534 dport 65534 realms 10 prohibit proto 255
+32766:	from all lookup main
+32767:	from all lookup default

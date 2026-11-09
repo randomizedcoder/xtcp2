@@ -1,0 +1,6 @@
+total acts 1
+
+	action order 0:  police 0x8 rate 2Mbit burst 200Kb mtu 2Kb action reclassify overhead 0b linklayer atm 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled

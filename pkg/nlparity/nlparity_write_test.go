@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -43,7 +44,11 @@ func segmentFlush(t *testing.T, slug string) Segmentation {
 // wireOf lays a message out as the bytes GOIP_WRITE_OUT would hold.
 func wireOf(m Msg) []byte {
 	b := make([]byte, xtcpnl.NlMsgHdrSizeCst+len(m.Body))
-	binary.LittleEndian.PutUint32(b[0:4], uint32(len(b))) //nolint:gosec // a captured message
+	n, ok := cint.U32(len(b))
+	if !ok {
+		panic("a captured message past 4 GiB")
+	}
+	binary.LittleEndian.PutUint32(b[0:4], n)
 	binary.LittleEndian.PutUint16(b[4:6], m.Hdr.Type)
 	binary.LittleEndian.PutUint16(b[6:8], m.Hdr.Flags)
 	binary.LittleEndian.PutUint32(b[8:12], 1) // goip's own seq

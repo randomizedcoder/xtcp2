@@ -1,0 +1,2 @@
+4: vt1@NONE: <POINTOPOINT,NOARP> mtu 1480 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ipip 0.0.0.0 peer 10.0.0.2

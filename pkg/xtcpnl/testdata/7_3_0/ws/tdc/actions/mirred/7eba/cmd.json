@@ -1,0 +1,59 @@
+{
+ "cmd": "ping -c1 -W0.01 -I dummy1 10.10.10.1",
+ "desc": "negative: Redirect multiport: dummy egress -> dummy egress (Loop)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1
+ },
+ "id": "tdc/actions/mirred/7eba",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.10.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 handle 1: root drr",
+  "tc filter add dev dummy1 parent 1: protocol ip prio 10 matchall action mirred egress redirect dev dummy1 index 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j -s actions get action mirred index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.10.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root drr",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 1: protocol ip prio 10 matchall action mirred egress redirect dev dummy1 index 1",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7eba",
+  "tdc": "actions/mirred.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

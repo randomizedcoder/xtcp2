@@ -1,0 +1,14 @@
+src 2001:db8::1 dst 2001:db8::2
+	proto esp spi 0x00000101 reqid 2 mode tunnel
+	replay-window 0 
+	auth-trunc hmac(sha256) <<Keys hidden>> 128
+	enc cbc(aes) <<Keys hidden>>
+	anti-replay context: seq 0x0, oseq 0x0, bitmap 0x00000000
+	sel src ::/0 dst ::/0 
+src 192.0.2.1 dst 192.0.2.2
+	proto esp spi 0x00000100 reqid 1 mode transport
+	replay-window 0 
+	auth-trunc hmac(sha256) <<Keys hidden>> 96
+	enc cbc(aes) <<Keys hidden>>
+	anti-replay context: seq 0x0, oseq 0x0, bitmap 0x00000000
+	sel src 0.0.0.0/0 dst 0.0.0.0/0 

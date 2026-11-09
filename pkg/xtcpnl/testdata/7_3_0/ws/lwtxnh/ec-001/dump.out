@@ -1,0 +1,1 @@
+id 71  encap seg6 mode encap segs 1 [ 2001:db8:9::1 ] dev d0 scope link 

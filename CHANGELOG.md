@@ -1,11 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-11)
+
+Fixes for what the first fleet rollout of 0.2.0 found: the link monitor baseline, the uplink columns, and container attribution. No schema, flag-default or `XtcpConfig` change; 0.2.0 clients and consumers work unchanged.
+
+### Upgrade checklist
+
+1. **Mount the netns dirs `rslave`** in a container deployment (`-v /run/netns:/run/netns:ro,rslave`, the same for `/run/docker/netns`). Without it, pods started after xtcp2 are not collected; 0.2.1 now warns at startup and sets a gauge (below).
 
 ### New
 
 - **Link monitor learn deadline.** `-linkMonitorLearnDeadline` (`LINK_MONITOR_LEARN_DEADLINE`, `link_monitor.learn_deadline`; go-link-monitor `-learn-deadline`), default 5m, 0 waits forever. If no baseline is learned by then, the visible up count becomes a provisional baseline, so `up_links_delta` still reports when the count never becomes ready (a stuck RDMA port, a hardware fault). It is kept in memory only, never written to the baseline file, and flagged by the sparse `go_link_monitor_baseline_provisional 1`; a normally learned baseline replaces it and is saved.
 - **Netns mount propagation check.** In a container, `/run/netns` and `/run/docker/netns` must be mounted `rslave` (`-v /run/netns:/run/netns:ro,rslave`). With Docker's default `rprivate`, namespaces created after xtcp2 starts are invisible: their sockets aren't collected and their container name/image stays empty. xtcp2 now logs a warning at startup and sets `xtcp_gauges{function="checkNetnsPropagation",variable="private",type="<dir>"}` to 1 for each such dir.
+- **`goip vrf show NAME`**, `ip`'s `ipvrf_get_table` single lookup: prints `NAME TABLE`, `Invalid VRF` (exit 1) for a device that isn't a VRF, and table 254 for `default`. Byte-for-byte with iproute2 7.2.0; the parity matrix is 510 rows, 509 gated.
 
 ### Fixes
 

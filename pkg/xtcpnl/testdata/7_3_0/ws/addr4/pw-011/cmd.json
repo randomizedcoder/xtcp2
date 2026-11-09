@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "brd": "192.0.2.255",
+  "family": "4",
+  "local": "192.0.2.0",
+  "metric": "4294967295",
+  "preferred": "60",
+  "prefixlen": "31",
+  "proto": "0",
+  "scope": "254",
+  "valid": "60",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 address replace 192.0.2.0/31 broadcast 192.0.2.255 scope host metric 4294967295 valid_lft 60 preferred_lft 60 proto unspec dev d0",
+ "desc": "boundary: verb=replace local=31 peer=absent brd=addr label=absent scope=host metric=max lft=equal flags=absent proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-011",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

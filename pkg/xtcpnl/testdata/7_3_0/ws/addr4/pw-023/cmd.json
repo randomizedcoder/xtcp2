@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "brd": "-",
+  "family": "4",
+  "flags": "512",
+  "label": "d0:1",
+  "local": "192.0.2.1",
+  "metric": "5",
+  "peer": "198.51.100.0",
+  "peer_len": "24",
+  "prefixlen": "24",
+  "scope": "253",
+  "verb": "change"
+ },
+ "cmd": "ip -4 address change local 192.0.2.1/24 remote 198.51.100.0/24 brd - label d0:1 scope link priority 5 noprefixroute dev d0",
+ "desc": "corner: verb=change local=keyword peer=remote brd=minus label=alias scope=link metric=priority lft=absent flags=noprefixroute proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-023",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add local 192.0.2.1/24 remote 198.51.100.0/24 brd - label d0:1 scope link priority 5 noprefixroute dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add local 192.0.2.1/24 remote 198.51.100.0/24 brd - label d0:1 scope link priority 5 noprefixroute dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

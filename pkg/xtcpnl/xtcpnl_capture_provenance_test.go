@@ -113,6 +113,13 @@ func TestUnameMatchesKernelDirectory(t *testing.T) {
 			reproducible: true,
 		},
 		{
+			description:  "positive: the 7_3_0 link-write set was answered by kernel 7.3.0 inside the capture VM",
+			file:         tdLinkWrite_7_3_0 + "/uname",
+			dir:          "7_3_0",
+			wantHostname: "xtcp2-vm-x8664",
+			reproducible: true,
+		},
+		{
 			// The negative of the pair: same shape, different provenance.
 			// Nothing about this file is reproducible, which is precisely why
 			// the 7_1_8 expectations are advisory and the 7_1_4 ones are
@@ -342,6 +349,11 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 		{
 			description: "positive: the 7_3_0 dump set's ip_version is the pinned iproute2 goip defaults to",
 			file:        tdDumpIPVersion_7_3_0,
+			expected:    goipIPRoute2,
+		},
+		{
+			description: "positive: the 7_3_0 link-write set's ip_version is the pinned iproute2 too",
+			file:        tdLinkWrite_7_3_0 + "/ip_version",
 			expected:    goipIPRoute2,
 		},
 		{

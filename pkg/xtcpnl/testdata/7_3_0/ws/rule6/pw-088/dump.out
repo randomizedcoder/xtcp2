@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from all fwmark 0xffffffff sport 1-65534 dport 65534 lookup main dscp 63
+32766:	from all lookup main

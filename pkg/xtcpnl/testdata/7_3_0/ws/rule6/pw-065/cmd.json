@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "dscp": "0",
+  "family": "6",
+  "fwmark": "0",
+  "iif": "lo",
+  "ipproto": "17",
+  "priority": "200",
+  "sport": "1000-2000",
+  "src": "all",
+  "src_len": "0",
+  "sup_group": "0",
+  "table": "256",
+  "tun_id": "7",
+  "uidrange": "0-4294967294",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from all order 200 fwmark 0 iif lo dscp 0 ipproto udp sport 1000-2000 dport 0x50/0xfff0 uidrange 0-4294967294 sup_group default tun_id 7 table 256",
+ "desc": "corner: verb=add not=absent from=all to=absent pref=order fwmark=0 iif=lo oif=absent ds=dscp-0 ipproto=udp sport=range dport=mask uidrange=max suppress=group-default protocol=absent extra=tun_id action=256",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-065",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

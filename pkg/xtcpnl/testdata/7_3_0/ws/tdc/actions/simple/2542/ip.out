@@ -1,0 +1,13 @@
+total acts 3
+
+	action order 0: Simple <Rock>
+	 index 1 ref 1 bind 0
+	not_in_hw
+
+	action order 1: Simple <Paper>
+	 index 2 ref 1 bind 0
+	not_in_hw
+
+	action order 2: Simple <Scissors>
+	 index 98 ref 1 bind 0
+	not_in_hw

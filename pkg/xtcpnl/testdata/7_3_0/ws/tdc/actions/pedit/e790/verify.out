@@ -1,0 +1,5 @@
+	 key #0  at 4: val 00008000 mask ffff7fff
+	 key #1  at 4: val 00004000 mask ffffbfff
+	 key #2  at 4: val 00002000 mask ffffdfff
+	 key #3  at 4: val 00001f00 mask ffffe0ff
+	 key #4  at 4: val 00003f00 mask ffffc0ff

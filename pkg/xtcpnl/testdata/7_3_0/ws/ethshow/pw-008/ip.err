@@ -1,0 +1,3 @@
+ethtool: bad command line argument(s)
+JSON output not available for this subcommand
+For more information run ethtool -h

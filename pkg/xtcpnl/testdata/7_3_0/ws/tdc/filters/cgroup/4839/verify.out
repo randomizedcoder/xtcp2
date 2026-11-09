@@ -1,0 +1,8 @@
+filter protocol ip pref 1 cgroup chain 0 
+filter protocol ip pref 1 cgroup chain 0 handle 0x1 
+  canid(sff 0xAA:0x1 sff 0xBB:0x2 sff 0xCC:0x3)
+
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

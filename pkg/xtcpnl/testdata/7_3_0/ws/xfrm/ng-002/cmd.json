@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "encap": "xfrm",
+  "verb": "add"
+ },
+ "cmd": "ip -6 route add 2001:db8:2::/64 dev d0 encap xfrm if_id 0",
+ "desc": "negative: verb=add form=if-id-0: if_id 0 (invarg(\"\\\"if_id\\\" value is invalid\"))",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 255,
+  "refused_by": "iproute2"
+ },
+ "id": "xfrm/ng-002",
+ "modules": [
+  "ila",
+  "xfrm_interface"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

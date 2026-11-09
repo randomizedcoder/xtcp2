@@ -1,0 +1,10 @@
+Expired src 192.0.2.1/32 dst 192.0.2.2/32 
+	dir out priority 0 
+	tmpl src 192.0.2.1 dst 192.0.2.2
+		proto esp reqid 1 mode transport
+	hard 0
+Expired src 192.0.2.1/32 dst 192.0.2.2/32 
+	dir out priority 0 
+	tmpl src 192.0.2.1 dst 192.0.2.2
+		proto esp reqid 1 mode transport
+	hard 1

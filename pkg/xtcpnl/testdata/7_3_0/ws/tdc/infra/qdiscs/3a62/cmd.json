@@ -1,0 +1,101 @@
+{
+ "cmd": "ping -c 1 10.10.10.2 -W0.01 -Idummy1",
+ "desc": "negative: Try to create a qlen underflow with QFQ/CBS",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1
+ },
+ "id": "tdc/infra/qdiscs/3a62",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.10.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 root handle 1: qfq",
+  "tc class add dev dummy1 classid 1:1 parent 1: qfq",
+  "tc class add dev dummy1 classid 1:2 parent 1: qfq",
+  "tc qdisc add dev dummy1 handle 2: parent 1:1 cbs",
+  "tc qdisc add dev dummy1 handle 3: parent 2: netem delay 5000000000",
+  "tc filter add dev dummy1 parent 1: prio 1 u32 match ip dst 10.10.10.1 classid 1:1 action ok",
+  "tc filter add dev dummy1 parent 1: prio 2 u32 match ip dst 10.10.10.2 classid 1:2 action ok",
+  "ping -c 1 10.10.10.1 -W0.01 -Idummy1 || true",
+  "ip l set dummy1 down",
+  "ip l set dummy1 up",
+  "tc qdisc replace dev dummy1 handle 4: parent 2: pfifo"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s -j qdisc ls dev dummy1 parent 1:1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.10.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: qfq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 classid 1:1 parent 1: qfq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 classid 1:2 parent 1: qfq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 2: parent 1:1 cbs",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 3: parent 2: netem delay 5000000000",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 1: prio 1 u32 match ip dst 10.10.10.1 classid 1:1 action ok",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 1: prio 2 u32 match ip dst 10.10.10.2 classid 1:2 action ok",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 10.10.10.1 -W0.01 -Idummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip l set dummy1 down",
+    "rc": 0
+   },
+   {
+    "cmd": "ip l set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc replace dev dummy1 handle 4: parent 2: pfifo",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3a62",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

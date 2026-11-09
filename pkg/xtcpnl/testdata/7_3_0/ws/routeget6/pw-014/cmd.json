@@ -1,0 +1,35 @@
+{
+ "axes": {
+  "dport": "443",
+  "dst": "2001:db8:1::5",
+  "family": "6",
+  "ipproto": "17",
+  "mark": "4294967295",
+  "sport": "1234",
+  "uid": "1000"
+ },
+ "cmd": "ip -6 route get 2001:db8:1::5/128 mark 4294967295 uid 1000 ipproto udp sport 1234 dport 443",
+ "desc": "corner: dst=128 from=absent dev=absent mark=max uid=1000 ipproto=udp ports=both flowlabel=absent flags=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "routeget6/pw-014",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad && ip route add default via 192.0.2.1 dev d0 && ip -6 route add default via 2001:db8:1::1 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

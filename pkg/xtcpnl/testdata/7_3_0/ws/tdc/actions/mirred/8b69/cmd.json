@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mirred ingress mirror dev lo pipe index 4294967295",
+ "desc": "positive: Add mirred mirror action with index at 32-bit maximum",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: mirred \\(Ingress Mirror to device lo\\) pipe.*index 4294967295",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mirred/8b69",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action mirred index 4294967295",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "8b69",
+  "tdc": "actions/mirred.json"
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "action": "8",
+  "dport": "80-80",
+  "dscp": "4",
+  "family": "6",
+  "fwmark": "0",
+  "iif": "d0",
+  "invert": "1",
+  "ipproto": "255",
+  "oif": "d0",
+  "priority": "0",
+  "protocol": "4",
+  "sport": "1-65534",
+  "src": "2001:db8:2::",
+  "src_len": "64",
+  "verb": "del"
+ },
+ "cmd": "ip -6 rule del not from 2001:db8:2::/64 pref 0 fwmark 0 dev d0 oif d0 dscp 4 ipproto 255 sport 1-65534 dport 80 protocol static type prohibit",
+ "desc": "corner: verb=del not=not from=64 to=absent pref=0 fwmark=0 iif=dev oif=d0 ds=dscp ipproto=255 sport=full dport=80 uidrange=absent suppress=absent protocol=static extra=absent action=type-prohibit",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/rn1-024",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add not from 2001:db8:2::/64 pref 0 fwmark 0 dev d0 oif d0 dscp 4 ipproto 255 sport 1-65534 dport 80 protocol static type prohibit"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add not from 2001:db8:2::/64 pref 0 fwmark 0 dev d0 oif d0 dscp 4 ipproto 255 sport 1-65534 dport 80 protocol static type prohibit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

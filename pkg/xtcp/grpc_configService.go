@@ -14,8 +14,16 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
+
+// ReconfigureMaxConfigBytes bounds the protojson config, secrets blanked,
+// that Set's soft restart carries to the exec'd image in one environment
+// variable. The kernel caps each environment string at MAX_ARG_STRLEN, 32
+// pages (128 KiB), and the variable's name, '=' and the NUL need room out of
+// that, so execve would fail with E2BIG past it.
+const ReconfigureMaxConfigBytes = 32*4096 - 64
 
 type xtcpConfigService struct {
 	xtcp_config.UnimplementedConfigServiceServer
@@ -207,7 +215,21 @@ func (c *xtcpConfigService) Set(
 		c.pC.WithLabelValues("Set", "clone", "error").Inc()
 		return nil, status.Error(codes.Internal, "config clone failed")
 	}
-	redactSecrets(resp)
+	RedactSecrets(resp)
+
+	// The restart carries resp's JSON, the same config with the same secrets
+	// blanked, in the environment; refuse one execve could not carry while
+	// the daemon still runs the old config.
+	js, err := protojson.Marshal(resp)
+	if err != nil {
+		c.pC.WithLabelValues("Set", "marshal", "error").Inc()
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if len(js) > ReconfigureMaxConfigBytes {
+		c.pC.WithLabelValues("Set", "tooLarge", "error").Inc()
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"config is %d bytes as JSON, past the %d a soft restart can carry", len(js), ReconfigureMaxConfigBytes)
+	}
 
 	c.reconfigureFunc(in.Config)
 	c.pC.WithLabelValues("Set", "reconfigure", "counter").Inc()
@@ -227,13 +249,14 @@ func (c *xtcpConfigService) redactedConfig() (*xtcp_config.XtcpConfig, error) {
 	if !ok {
 		return nil, status.Error(codes.Internal, "config clone failed")
 	}
-	redactSecrets(redacted)
+	RedactSecrets(redacted)
 	return redacted, nil
 }
 
-// redactSecrets blanks secrets in place. Set treats empty secret fields as
-// "unchanged", so a Get → edit → Set round-trip preserves them.
-func redactSecrets(cfg *xtcp_config.XtcpConfig) {
+// RedactSecrets blanks secrets in place. Set treats empty secret fields as
+// "unchanged", so a Get → edit → Set round-trip preserves them. It is the one
+// list of secret fields: the soft restart's splitSecrets blanks with it too.
+func RedactSecrets(cfg *xtcp_config.XtcpConfig) {
 	cfg.S3SecretKey = ""
 	cfg.S3AccessKey = ""
 	for _, a := range []*xtcp_config.ListenerAuth{cfg.ListenerAuth, cfg.AdminListenerAuth} {

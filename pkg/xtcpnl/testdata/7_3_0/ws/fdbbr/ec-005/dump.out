@@ -1,0 +1,6 @@
+5a:43:9c:a8:7c:e6 vlan 10 master br0 permanent
+5a:43:9c:a8:7c:e6 vlan 1 master br0 permanent
+5a:43:9c:a8:7c:e6 master br0 permanent
+02:00:00:00:00:01 self permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

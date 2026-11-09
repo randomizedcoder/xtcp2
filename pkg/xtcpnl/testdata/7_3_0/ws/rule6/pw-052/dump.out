@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from all iif d0 ipproto tcp sport 1-65534 dport 0x50/0xfff0 tun_id 7 lookup main dscp EF
+32766:	from all lookup main

@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1: vlan  pop continue
+	 index 1 ref 1 bind 0
+	cookie a1b1c2d1
+	not_in_hw

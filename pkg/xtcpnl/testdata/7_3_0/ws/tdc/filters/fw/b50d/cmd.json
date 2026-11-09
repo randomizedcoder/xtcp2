@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: prio 3 handle 10/0xff fw flowid 10:1000 action ok",
+ "desc": "positive: Add fw filter with handle val/mask and flowid 10:1000",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)filter parent ffff: protocol all pref 3 fw.*handle 0xa/0xff classid 10:1000.*gact action pass",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/fw/b50d",
+ "modules": [
+  "cls_fw"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev v0p1 parent ffff: handle 10 prio 3 protocol all fw",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "b50d",
+  "tdc": "filters/fw.json"
+ }
+}

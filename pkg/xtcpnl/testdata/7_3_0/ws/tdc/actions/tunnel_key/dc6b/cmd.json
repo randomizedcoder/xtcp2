@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action tunnel_key set dst_ip 20.20.20.2 id 100",
+ "desc": "negative: Add tunnel_key set action with missing mandatory src_ip parameter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: tunnel_key set.*dst_ip 20.20.20.2.*key_id 100",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/tunnel_key/dc6b",
+ "modules": [
+  "act_tunnel_key"
+ ],
+ "pre": [
+  [
+   "tc actions flush action tunnel_key",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action tunnel_key",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action tunnel_key",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "dc6b",
+  "tdc": "actions/tunnel_key.json"
+ }
+}

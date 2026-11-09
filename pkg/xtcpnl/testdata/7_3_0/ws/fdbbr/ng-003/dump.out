@@ -1,0 +1,5 @@
+02:f6:c2:44:1e:0b vlan 10 master br0 permanent
+02:f6:c2:44:1e:0b vlan 1 master br0 permanent
+02:f6:c2:44:1e:0b master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

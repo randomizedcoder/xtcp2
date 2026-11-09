@@ -1,0 +1,8 @@
+v0                4000
+                    state forwarding mcast_router 1 neigh_suppress off neigh_forward_grat off 
+v0                10
+                    state forwarding mcast_router 1 neigh_suppress off neigh_forward_grat off 
+v0                20-30
+                    state forwarding mcast_router 1 neigh_suppress off neigh_forward_grat off 
+Deleted v0                10
+                    state disabled 

@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1: mpls  push protocol mpls_uc label 30 tc 2 ttl 125 pipe
+	 index 1 ref 1 bind 0
+	cookie aa11bb22cc33
+	not_in_hw

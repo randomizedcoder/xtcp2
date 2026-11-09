@@ -6,7 +6,6 @@
   pkgs,
   lib,
   src,
-  giouring,
   microvm,
   nixpkgs,
   xdp2,
@@ -25,7 +24,7 @@ let
     src = goSrc;
     inherit
       (import ./lib/goModules.nix {
-        inherit pkgs giouring;
+        inherit pkgs;
         src = goSrc;
         vendorHash = versions.goVendorHash;
       })
@@ -38,7 +37,6 @@ let
     inherit
       pkgs
       lib
-      giouring
       ;
     src = goSrc;
   };
@@ -48,7 +46,6 @@ let
     inherit
       pkgs
       src
-      giouring
       ;
     vendorHash = versions.goVendorHash;
   };
@@ -1045,6 +1042,11 @@ in
       # starts both; built here for the same closure and shellcheck value.
       microvm-x86_64-lacp-a = microvms.vmsLacpA.x86_64;
       microvm-x86_64-lacp-b = microvms.vmsLacpB.x86_64;
+      # The nl_mon capture workbench's guest and its host CLI. The guest
+      # does not depend on the repository's source (mkVm.nix
+      # isNlcapWorkbench), so this builds nothing new after a Go edit.
+      microvm-x86_64-nlcap-workbench = microvms.vmsNlcapWorkbench.x86_64;
+      nlcap-ws = microvms.nlcapWorkbench.x86_64.cli;
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
@@ -1135,6 +1137,10 @@ in
     // {
       # Microvm lifecycle per arch shows up alongside the rest of the checks.
       microvm-lifecycle-x86_64 = microvms.checks.x86_64;
+
+      # The nl_mon capture workbench's batch runner and CLI argument
+      # handling, with stubs for the helper and ip: no VM.
+      nlcap-ws = microvms.nlcapWorkbench.x86_64.check;
 
       # Every guest test above that runs unattended (vmTests), and vm-all,
       # which builds them all. The fault run needs /dev/net/tun in the
@@ -1463,6 +1469,15 @@ in
     #
     # Run from the repo root. `--out <dir>` overrides the destination. Not in
     # `nix flake check`: /dev/kvm plus a write to the working tree.
+    # The nl_mon capture workbench (docs/netlink/coverage-status.md,
+    # "Workbench and generated rows"): `nix run .#nlcap-ws -- up`, then
+    # `run` and `batch` as often as you like against the one VM, then
+    # `down`. Needs /dev/kvm; `batch` writes to the working tree.
+    nlcap-ws = {
+      type = "app";
+      program = "${microvms.nlcapWorkbench.x86_64.cli}/bin/xtcp2-nlcap-ws";
+    };
+
     microvm-x86_64-link-write-capture = {
       type = "app";
       program = "${microvms.linkWriteCapture.x86_64.runner}/bin/xtcp2-link-write-capture-x86_64";
@@ -1490,6 +1505,17 @@ in
       program = "${runner}/bin/xtcp2-rdma-capture-x86_64";
     }
   ) microvms.rdmaCapture.x86_64.kernels
+  # One section of the link-write capture: microvm-x86_64-link-write-capture-
+  # brmpls and so on, the runner above with `--only <section>`
+  # (scripts/link-write-sections.exp). Writes only that section's
+  # directories.
+  // lib.mapAttrs' (
+    section: app:
+    lib.nameValuePair "microvm-x86_64-link-write-capture-${section}" {
+      type = "app";
+      program = "${app}/bin/xtcp2-link-write-capture-${section}-x86_64";
+    }
+  ) microvms.linkWriteCapture.x86_64.sections
   # s3parquet-stress with an investigation variant (see
   # docs/investigations/envelope-post-flush-drop.md): -nl1/-nl4/-nl8 set
   # NETLINKERS, -iouring adds -ioUring, -cpuload adds stress-ng contention,

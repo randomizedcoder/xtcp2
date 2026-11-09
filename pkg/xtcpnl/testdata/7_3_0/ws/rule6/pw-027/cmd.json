@@ -1,0 +1,49 @@
+{
+ "axes": {
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "family": "6",
+  "flowlabel": "74565",
+  "flowlabel_mask": "1048575",
+  "iif": "lo",
+  "ipproto": "17",
+  "oif": "d0",
+  "src": "2001:db8:2::7",
+  "src_len": "128",
+  "sup_pl": "24",
+  "table": "254",
+  "tos": "184",
+  "uidrange": "0-4294967294",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add from 2001:db8:2::7/128 iif lo oif d0 tos 0xb8 ipproto udp dport 0x50/0xfff0 uidrange 0-4294967294 sup_pl 24 flowlabel 0x12345 lookup main",
+ "desc": "corner: verb=add not=absent from=128 to=absent pref=absent fwmark=absent iif=lo oif=d0 ds=tos-ef ipproto=udp sport=absent dport=mask uidrange=max suppress=sup_pl protocol=absent extra=flowlabel action=main",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-027",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

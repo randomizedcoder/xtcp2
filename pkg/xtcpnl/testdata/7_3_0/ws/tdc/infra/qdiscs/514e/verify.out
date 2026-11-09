@@ -1,0 +1,3 @@
+qdisc tbf 1: root refcnt 2 rate 8bit burst 100b lat 0us 
+ Sent 98 bytes 1 pkt (dropped 3, overlimits 2 requeues 0) 
+ backlog 0b 0p requeues 0

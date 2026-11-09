@@ -1,0 +1,5 @@
+fe:70:ca:ef:03:85 vlan 10 master br0 permanent
+fe:70:ca:ef:03:85 vlan 1 master br0 permanent
+fe:70:ca:ef:03:85 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

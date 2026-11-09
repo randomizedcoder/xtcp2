@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "dport": "1-1",
+  "family": "6",
+  "flowlabel": "1",
+  "flowlabel_mask": "1",
+  "priority": "4294967295",
+  "protocol": "4",
+  "sport": "80-80",
+  "sport_mask": "65520",
+  "src": "2001:db8:2::",
+  "src_len": "64",
+  "sup_group": "0",
+  "table": "254",
+  "tos": "184",
+  "uidrange": "1000-2000",
+  "verb": "del"
+ },
+ "cmd": "ip -6 rule del from 2001:db8:2::/64 pref 4294967295 tos 0xb8 sport 0x50/0xfff0 dport 1 uidrange 1000-2000 sup_group default protocol static flowlabel 0x1/0x1 lookup main",
+ "desc": "corner: verb=del not=absent from=64 to=absent pref=max fwmark=absent iif=absent oif=absent ds=tos-ef ipproto=absent sport=mask dport=1 uidrange=1000 suppress=group-default protocol=static extra=flowlabel-mask action=main",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-017",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add from 2001:db8:2::/64 pref 4294967295 tos 0xb8 sport 0x50/0xfff0 dport 1 uidrange 1000-2000 sup_group default protocol static flowlabel 0x1/0x1 lookup main"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add from 2001:db8:2::/64 pref 4294967295 tos 0xb8 sport 0x50/0xfff0 dport 1 uidrange 1000-2000 sup_group default protocol static flowlabel 0x1/0x1 lookup main",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,5 @@
+PING 10.10.10.1 (10.10.10.1) from 0.0.0.0 dummy1: 64(92) bytes of data.
+.
+--- 10.10.10.1 ping statistics ---
+1 packets transmitted, 0 received, 100% packet loss, time 0ms
+

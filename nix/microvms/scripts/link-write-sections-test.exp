@@ -1,0 +1,146 @@
+#!/usr/bin/env expect
+###############################################################################
+# link-write-sections-test.exp - table-driven test for link-write-sections.exp
+# and capture-link-writes.exp's argument handling, with no microVM
+#
+# Usage: link-write-sections-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix. The section names are written out again
+# below as literals rather than read from the file under test, so a section
+# dropped or renamed there has to disagree with something not edited with it.
+#
+# The driver rows run capture-link-writes.exp itself with arguments it must
+# refuse: it parses them before it connects to a console, so a refusal needs
+# no VM, and a run that got past them would fail to connect, not pass.
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/link-write-sections.exp
+
+set pass 0
+set fail 0
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+set every {lacp addr write rtnl genl xfrm kinds brmpls}
+
+###############################################################################
+# The sections and their order.
+###############################################################################
+check all_literal "positive: the sections, in run order" \
+    {set lwsections::ALL} $every
+check late_literal "positive: the sections after late setup" \
+    {set lwsections::LATE} {genl xfrm kinds brmpls}
+
+###############################################################################
+# parse
+###############################################################################
+foreach {name description spec expected} [list \
+    empty_is_all     "positive: no spec is every section"                  ""              $every \
+    all_is_all       "positive: all is every section"                      all             $every \
+    one              "positive: one section"                               brmpls          brmpls \
+    two              "positive: two sections"                              kinds,brmpls    {kinds brmpls} \
+    reordered        "corner: a spec's order does not reorder the run"     brmpls,lacp     {lacp brmpls} \
+    every_named      "boundary: every section named is every section"      [join $every ,] $every \
+    first            "boundary: the first section alone"                   lacp            lacp \
+    unknown          "negative: an unknown section"                        nosuch          ERROR \
+    trailing_comma   "negative: a trailing comma names an empty section"   brmpls,         ERROR \
+    leading_comma    "negative: a leading comma names an empty section"    ,brmpls         ERROR \
+    lone_comma       "negative: a comma alone"                             ,               ERROR \
+    repeated         "negative: a section named twice"                     brmpls,brmpls   ERROR \
+    all_in_list      "corner: all is not a section inside a list"          all,brmpls      ERROR \
+    upper_case       "corner: names are case-sensitive"                    BRMPLS          ERROR \
+    space            "corner: a space is not trimmed"                      " brmpls"       ERROR \
+] {
+    check parse_$name $description [list lwsections::parse $spec] $expected
+}
+
+check parse_unknown_message "negative: an unknown section's error lists the sections" \
+    {catch {lwsections::parse nosuch} msg; set msg} \
+    {lwsections: unknown section "nosuch" (one of: lacp, addr, write, rtnl, genl, xfrm, kinds, brmpls, or all)}
+check parse_repeated_message "negative: a repeated section's error names it" \
+    {catch {lwsections::parse kinds,kinds} msg; set msg} \
+    {lwsections: section "kinds" named twice}
+
+###############################################################################
+# want
+###############################################################################
+foreach {name description sections section expected} {
+    picked     "positive: a picked section is wanted"             {lacp brmpls} brmpls 1
+    not_picked "negative: a section not picked is not wanted"     {lacp}        brmpls 0
+    none       "boundary: nothing picked wants nothing"           {}            lacp   0
+    misspelt   "negative: a gate on an unknown section is an error" {lacp}      lcap   ERROR
+} {
+    check want_$name $description [list lwsections::want $sections $section] $expected
+}
+
+###############################################################################
+# needs_late
+###############################################################################
+foreach {name description sections expected} {
+    early_only "negative: the sections before late setup do not need it" {lacp addr write rtnl} 0
+    genl       "positive: genl needs late setup"                        {genl}                 1
+    xfrm       "positive: xfrm needs late setup"                        {xfrm}                 1
+    kinds      "positive: kinds needs late setup"                       {kinds}                1
+    brmpls     "positive: brmpls needs late setup"                      {brmpls}               1
+    mixed      "corner: one late section among early ones is enough"    {lacp rtnl brmpls}     1
+    none       "boundary: nothing picked needs nothing"                 {}                     0
+} {
+    check late_$name $description [list lwsections::needs_late $sections] $expected
+}
+
+###############################################################################
+# The driver's argument handling.
+###############################################################################
+# driver <args...> - "rc first-line-of-output" of capture-link-writes.exp.
+proc driver {args} {
+    global here
+    set rc 0
+    if {[catch {exec expect $here/capture-link-writes.exp {*}$args 2>@1} out opts]} {
+        set rc [lindex [dict get $opts -errorcode] 2]
+    }
+    return "$rc [lindex [split $out \n] 0]"
+}
+
+foreach {name description argv expected} {
+    bad_section "negative: an unknown section is refused before any connect" {12099 /dev/null nosuch}
+        {2 NLCAP_ERR lwsections: unknown section "nosuch" (one of: lacp, addr, write, rtnl, genl, xfrm, kinds, brmpls, or all)}
+    empty_name  "negative: an empty section name is refused"                 {12099 /dev/null brmpls,}
+        {2 NLCAP_ERR lwsections: an empty section name in "brmpls,"}
+    too_many    "boundary: a fourth argument is a usage error"               {12099 /dev/null all extra}
+        {2 usage: capture-link-writes.exp <serial-port> <blob-out> [<sections>]}
+    too_few     "boundary: one argument is a usage error"                    {12099}
+        {2 usage: capture-link-writes.exp <serial-port> <blob-out> [<sections>]}
+} {
+    check driver_$name $description [list driver {*}$argv] $expected
+}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== link-write-sections.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "LWSECTIONS_TEST_FAIL"
+    exit 1
+}
+puts "LWSECTIONS_TEST_PASS"
+exit 0

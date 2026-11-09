@@ -1,0 +1,3 @@
+0:	from all lookup local
+32765:	from all tos EF dport 1-65534 lookup 256 suppress_ifgroup 5
+32766:	from all lookup main

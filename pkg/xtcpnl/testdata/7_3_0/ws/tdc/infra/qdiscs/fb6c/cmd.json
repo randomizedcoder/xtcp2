@@ -1,0 +1,106 @@
+{
+ "cmd": "ping -c 1 10.10.11.1 -W0.01 -Ieth0 || true",
+ "desc": "positive: Force multiq to dequeue from its child's gso_skb with qfq leaf",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/fb6c",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+  "ip link set dev eth0 addrgenmode none || true",
+  "ip link set dev eth0 up || true",
+  "ip l set addr 01:02:03:04:05:06 dev eth0 || true",
+  "ip n add dev eth0 10.10.11.1 lladdr 01:02:03:04:05:06 dev eth0 || true",
+  "ip addr add 10.10.11.10/24 dev eth0 || true",
+  "tc qdisc add dev eth0 root handle 1: tbf rate 88bit burst 1661b peakrate 2257333 minburst 1024 limit 7b",
+  "tc qdisc add dev eth0 parent 1: handle 2: multiq",
+  "tc qdisc add dev eth0 parent 2:1 handle 3: qfq",
+  "tc class add dev eth0 classid 3:1 parent 3: qfq maxpkt 512 weight 1",
+  "tc filter add dev eth0 parent 2: protocol all prio 1 matchall action skbedit queue_mapping 0",
+  "tc filter add dev eth0 parent 3: protocol all prio 1 matchall classid 3:1 action ok"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -s -j qdisc ls dev eth0 parent 1:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 1
+   },
+   {
+    "cmd": "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev eth0 addrgenmode none || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev eth0 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip l set addr 01:02:03:04:05:06 dev eth0 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip n add dev eth0 10.10.11.1 lladdr 01:02:03:04:05:06 dev eth0 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.11.10/24 dev eth0 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev eth0 root handle 1: tbf rate 88bit burst 1661b peakrate 2257333 minburst 1024 limit 7b",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev eth0 parent 1: handle 2: multiq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev eth0 parent 2:1 handle 3: qfq",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev eth0 classid 3:1 parent 3: qfq maxpkt 512 weight 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev eth0 parent 2: protocol all prio 1 matchall action skbedit queue_mapping 0",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev eth0 parent 3: protocol all prio 1 matchall classid 3:1 action ok",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "fb6c",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

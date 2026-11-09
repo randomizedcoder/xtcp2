@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "flags": "2",
+  "label": "d0:1",
+  "local": "2001:db8:1::1",
+  "metric": "100",
+  "peer": "2001:db8:9::1",
+  "peer_len": "128",
+  "preferred": "50",
+  "prefixlen": "128",
+  "proto": "2",
+  "scope": "253",
+  "valid": "100",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add 2001:db8:1::1/128 peer 2001:db8:9::1/128 broadcast 2001:db8:1::ff label d0:1 scope link metric 100 valid_lft 100 preferred_lft 50 nodad proto kernel_ra dev d0",
+ "desc": "negative: verb=add local=128 peer=128 brd=addr label=alias scope=link metric=100 lft=finite flags=nodad proto=kernel_ra: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/dup-3",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -6 address add 2001:db8:1::1/128 peer 2001:db8:9::1/128 broadcast 2001:db8:1::ff label d0:1 scope link metric 100 valid_lft 100 preferred_lft 50 nodad proto kernel_ra dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/128 peer 2001:db8:9::1/128 broadcast 2001:db8:1::ff label d0:1 scope link metric 100 valid_lft 100 preferred_lft 50 nodad proto kernel_ra dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

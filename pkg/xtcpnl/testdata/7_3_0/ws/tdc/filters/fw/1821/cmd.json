@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: protocol 802_3 handle 1 prio 1 fw action ok",
+ "desc": "positive: Add fw filter with protocol 802_3",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)filter parent ffff: protocol 802_3 pref 1 fw.*handle 0x1.*gact action pass",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/fw/1821",
+ "modules": [
+  "cls_fw"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev v0p1 parent ffff: handle 1 prio 1 protocol 802_3 fw",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "1821",
+  "tdc": "filters/fw.json"
+ }
+}

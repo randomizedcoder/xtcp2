@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mirred ingress mirror dev lo reclassify index 150",
+ "desc": "positive: Add mirred mirror action with control reclassify",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: mirred \\(Ingress Mirror to device lo\\) reclassify.*index 150 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mirred/e4aa",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action mirred index 150",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "e4aa",
+  "tdc": "actions/mirred.json"
+ }
+}

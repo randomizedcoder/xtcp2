@@ -259,3 +259,62 @@ func FuzzParseEthtool(f *testing.F) {
 		_, _ = ParseGenericNetlinkFamily(data)
 	})
 }
+
+func TestEthtoolCoalesce(t *testing.T) {
+	u32 := func(v uint32) *uint32 { return &v }
+	u8 := func(v uint8) *uint8 { return &v }
+	tests := []struct {
+		description  string
+		body         []byte
+		flags        uint16
+		expected     *EthtoolCoalesce
+		notification bool
+		wantErr      error
+	}{
+		{description: "positive: a COALESCE_SET request with usecs and adaptive rx",
+			body:  ethtoolTestBody(20, ethtoolTestAttr(2, ethtoolTestU32(10)...), ethtoolTestAttr(11, 1)),
+			flags: unix.NLM_F_REQUEST, expected: &EthtoolCoalesce{RXUsecs: u32(10), UseAdaptiveRX: u8(1)}},
+		{description: "positive: a GET_REPLY's low, high, CQE and aggregation fields",
+			body: ethtoolTestBody(20, ethtoolTestAttr(14, ethtoolTestU32(1)...), ethtoolTestAttr(22, ethtoolTestU32(9)...),
+				ethtoolTestAttr(24, 0), ethtoolTestAttr(25, 1), ethtoolTestAttr(26, ethtoolTestU32(4096)...),
+				ethtoolTestAttr(32, ethtoolTestU32(1000)...)),
+			expected: &EthtoolCoalesce{RXUsecsLow: u32(1), TXMaxFramesHigh: u32(9), UseCQEModeTX: u8(0), UseCQEModeRX: u8(1),
+				TXAggrMaxBytes: u32(4096), RXCQENsecs: u32(1000)}},
+		{description: "boundary: the largest u32 count",
+			body:     ethtoolTestBody(20, ethtoolTestAttr(23, ethtoolTestU32(0xffffffff)...)),
+			expected: &EthtoolCoalesce{RateSampleInterval: u32(0xffffffff)}},
+		{description: "corner: the kernel's COALESCE_NTF is a notification",
+			body:     ethtoolTestBody(21, ethtoolTestAttr(10, ethtoolTestU32(1000)...)),
+			expected: &EthtoolCoalesce{StatsBlockUsecs: u32(1000)}, notification: true},
+		{description: "corner: a DIM profile nest stays in Attributes, decoded as nothing",
+			body:     ethtoolTestBody(19, ethtoolTestAttr(29|unix.NLA_F_NESTED, ethtoolTestAttr(1, 0, 0, 0, 0)...)),
+			flags:    unix.NLM_F_REQUEST,
+			expected: &EthtoolCoalesce{}},
+		{description: "negative: a u32 count two bytes wide",
+			body:    ethtoolTestBody(20, ethtoolTestAttr(6, 1, 0)),
+			wantErr: ErrGenericNetlink},
+		{description: "negative: a u8 mode four bytes wide",
+			body:    ethtoolTestBody(20, ethtoolTestAttr(12, ethtoolTestU32(1)...)),
+			wantErr: ErrGenericNetlink},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			m, err := ParseEthtool(tc.body, tc.flags)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("err %v, want %v", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if m.Kind != EthtoolCoalesceKind || m.Notification != tc.notification {
+				t.Fatalf("kind %q notification %v", m.Kind, m.Notification)
+			}
+			if !reflect.DeepEqual(m.Coalesce, tc.expected) {
+				t.Errorf("got %+v\nwant %+v", *m.Coalesce, *tc.expected)
+			}
+		})
+	}
+}

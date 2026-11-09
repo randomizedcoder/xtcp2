@@ -1,0 +1,1 @@
+qdisc prio 1: root refcnt 2 bands 4 priomap 1 1 2 2 3 3 0 0 1 2 3 0 0 0 0 0

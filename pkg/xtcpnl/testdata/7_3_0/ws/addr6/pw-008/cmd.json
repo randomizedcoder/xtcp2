@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "2",
+  "local": "2001:db8:1::1",
+  "metric": "0",
+  "preferred": "0",
+  "prefixlen": "128",
+  "proto": "255",
+  "valid": "4294967295",
+  "verb": "replace"
+ },
+ "cmd": "ip -6 address replace 2001:db8:1::1/128 metric 0 preferred_lft 0 nodad proto 255 dev d0",
+ "desc": "boundary: verb=replace local=128 peer=absent brd=absent label=absent scope=absent metric=0 lft=deprecated flags=nodad proto=255",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-008",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

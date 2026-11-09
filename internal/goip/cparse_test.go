@@ -2,6 +2,7 @@ package goip
 
 import (
 	"bytes"
+	"math"
 	"net/netip"
 	"strings"
 	"testing"
@@ -193,6 +194,47 @@ func TestCAtoi(t *testing.T) {
 	}
 }
 
+// TestCStrtol is strtol on a 64-bit long: the value and endptr, clamped to
+// the long range on ERANGE.
+//
+// go test ./internal/goip/ -run TestCStrtol
+func TestCStrtol(t *testing.T) {
+	type result struct {
+		val int64
+		end int
+	}
+	tests := []struct {
+		description string
+		arg         string
+		base        int
+		expected    result
+	}{
+		{description: "positive: decimal", arg: "42", expected: result{42, 2}},
+		{description: "positive: hex in base 0", arg: "0x10", expected: result{16, 4}},
+		{description: "positive: octal in base 0", arg: "010", expected: result{8, 3}},
+		{description: "positive: negative", arg: "-5", expected: result{-5, 2}},
+		{description: "negative: no digits", arg: "x", expected: result{0, 0}},
+		{description: "negative: empty", arg: "", expected: result{0, 0}},
+		{description: "boundary: LONG_MAX", arg: "9223372036854775807", expected: result{math.MaxInt64, 19}},
+		{description: "boundary: LONG_MAX+1 clamps", arg: "9223372036854775808", expected: result{math.MaxInt64, 19}},
+		{description: "boundary: LONG_MIN", arg: "-9223372036854775808", expected: result{math.MinInt64, 20}},
+		{description: "boundary: LONG_MIN-1 clamps", arg: "-9223372036854775809", expected: result{math.MinInt64, 20}},
+		{description: "corner: past ULONG_MAX clamps", arg: "99999999999999999999", expected: result{math.MaxInt64, 20}},
+		{description: "corner: past ULONG_MAX negative clamps", arg: "-99999999999999999999", expected: result{math.MinInt64, 21}},
+		{description: "corner: trailing garbage stops end", arg: "5x", expected: result{5, 1}},
+		{description: "corner: base 10 reads 0x10 as 0", arg: "0x10", base: 10, expected: result{0, 1}},
+	}
+	for i := range tests {
+		tc := &tests[i]
+		t.Run(tc.description, func(t *testing.T) {
+			val, end := cStrtol(tc.arg, tc.base)
+			if got := (result{val, end}); got != tc.expected {
+				t.Errorf("strtol(%q, %d) = %+v, want %+v", tc.arg, tc.base, got, tc.expected)
+			}
+		})
+	}
+}
+
 // TestGetAddr is get_addr_1 for AF_INET (as get_addr32 reads it) and AF_INET6.
 //
 // go test ./internal/goip/ -run TestGetAddr
@@ -279,6 +321,125 @@ func TestLLAddrA2N(t *testing.T) {
 			}
 			if !ok || !bytes.Equal(got, tc.expected) {
 				t.Errorf("got % x, %v; want % x", got, ok, tc.expected)
+			}
+		})
+	}
+}
+
+// TestCIntBits is cIntBits: get_integer's int as its 32 bits, clamped.
+func TestCIntBits(t *testing.T) {
+	tests := []struct {
+		description string
+		got         uint64
+		expected    uint64
+	}{
+		{"positive: cIntBits of -2", uint64(cIntBits(-2)), 0xfffffffe},
+		{"corner: cIntBits clamps past INT32_MAX", uint64(cIntBits(math.MaxInt32 + 1)), 0x7fffffff},
+		{"corner: cIntBits clamps past INT32_MIN", uint64(cIntBits(math.MinInt32 - 1)), 0x80000000},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if tc.got != tc.expected {
+				t.Errorf("%#x, want %#x", tc.got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestCStrcaseEq is strcasecmp(a, b) == 0 in the C locale.
+//
+// go test ./internal/goip/ -run TestCStrcaseEq
+func TestCStrcaseEq(t *testing.T) {
+	tests := []struct {
+		description string
+		a, b        string
+		expected    bool
+	}{
+		{description: "positive: equal", a: "none", b: "none", expected: true},
+		{description: "positive: upper against lower", a: "NONE", b: "none", expected: true},
+		{description: "positive: mixed, with an underscore and digits", a: "Eui64_X", b: "eUI64_x", expected: true},
+		{description: "negative: a different letter", a: "nope", b: "none", expected: false},
+		{description: "negative: a prefix", a: "non", b: "none", expected: false},
+		{description: "boundary: both empty", a: "", b: "", expected: true},
+		{description: "boundary: A and Z fold", a: "AZ", b: "az", expected: true},
+		{description: "boundary: the bytes either side of A and Z don't fold", a: "@[", b: "`{", expected: false},
+		{description: "corner: U+017F is not s", a: "ſ", b: "s", expected: false},
+		{description: "corner: the Kelvin sign is not k", a: "K", b: "k", expected: false},
+		{description: "corner: non-ASCII bytes compare exactly", a: "é", b: "é", expected: true},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.description, func(t *testing.T) {
+			if got := cStrcaseEq(tt.a, tt.b); got != tt.expected {
+				t.Errorf("cStrcaseEq(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCStrtoulBase: strtoul's bases. One goip doesn't use converts nothing
+// rather than reading decimal.
+//
+// go test ./internal/goip/ -run TestCStrtoulBase
+func TestCStrtoulBase(t *testing.T) {
+	type result struct {
+		val uint64
+		end int
+	}
+	tests := []struct {
+		description string
+		arg         string
+		base        int
+		expected    result
+	}{
+		{description: "positive: base 10", arg: "17", base: 10, expected: result{17, 2}},
+		{description: "positive: base 16 takes a 0x prefix", arg: "0x11", base: 16, expected: result{17, 4}},
+		{description: "positive: base 8", arg: "21", base: 8, expected: result{17, 2}},
+		{description: "positive: base 0 reads a leading 0 as octal", arg: "021", base: 0, expected: result{17, 3}},
+		{description: "negative: base 2 converts nothing", arg: "101", base: 2},
+		{description: "negative: base 36 converts nothing", arg: "z", base: 36},
+		{description: "negative: a negative base converts nothing", arg: "17", base: -1},
+		{description: "boundary: base 1 converts nothing", arg: "17", base: 1},
+		{description: "corner: base 37 converts nothing", arg: "17", base: 37},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			r := cStrtoul(tc.arg, tc.base)
+			if got := (result{r.val, r.end}); got != tc.expected {
+				t.Errorf("cStrtoul(%q, %d) = %+v, want %+v", tc.arg, tc.base, got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestLLProtoA2N is ll_proto_a2n: names fold only ASCII case, as
+// strcasecmp does, and anything else is get_be16's base-0 number.
+//
+// go test ./internal/goip/ -run TestLLProtoA2N
+func TestLLProtoA2N(t *testing.T) {
+	type result struct {
+		id uint16
+		ok bool
+	}
+	tests := []struct {
+		description string
+		arg         string
+		expected    result
+	}{
+		{description: "positive: a name", arg: "ipv6", expected: result{0x86dd, true}},
+		{description: "positive: upper case folds", arg: "SNAP", expected: result{0x0005, true}},
+		{description: "positive: a number", arg: "0x88cc", expected: result{0x88cc, true}},
+		{description: "negative: an unknown name", arg: "nosuch"},
+		{description: "boundary: 0xffff is the largest number", arg: "0xffff", expected: result{0xffff, true}},
+		{description: "boundary: 0x10000 is past it", arg: "0x10000"},
+		{description: "corner: U+017F does not fold to s", arg: "ſnap"},
+		{description: "corner: the Kelvin sign does not fold to k", arg: "atalK"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			id, ok := llProtoA2N(tc.arg)
+			if got := (result{id, ok}); got != tc.expected {
+				t.Errorf("llProtoA2N(%q) = %+v, want %+v", tc.arg, got, tc.expected)
 			}
 		})
 	}

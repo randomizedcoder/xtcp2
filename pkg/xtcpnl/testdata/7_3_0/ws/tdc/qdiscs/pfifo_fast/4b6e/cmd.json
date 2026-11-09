@@ -1,0 +1,40 @@
+{
+ "cmd": "sh -c 'echo 32767 > /sys/class/net/dummy1/tx_queue_len'",
+ "desc": "positive: Set tx_queue_len to S16_MAX via sysfs (32767 accepted)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qlen 32767$",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/pfifo_fast/4b6e",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip link show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4b6e",
+  "tdc": "qdiscs/pfifo_fast.json"
+ }
+}

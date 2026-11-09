@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from all to 203.0.113.9 ipproto ipproto-255 lookup local suppress_prefixlength 0
+32766:	from all lookup main
+32767:	from all lookup default

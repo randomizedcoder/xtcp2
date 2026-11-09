@@ -1,0 +1,5 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link set d0 up
+ok    [lacpa] ip addr add 192.0.2.1/24 dev d0
+ok    [lacpa] ip route add 203.0.113.0/24 dev d0 table 100
+ok    [lacpa] ip route del 203.0.113.0/24 dev d0 table 100

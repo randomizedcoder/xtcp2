@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "brd": "2001:db8:1::ff",
+  "family": "6",
+  "flags": "512",
+  "label": "d0:1",
+  "local": "ff0e::1:1",
+  "metric": "5",
+  "peer": "2001:db8:9::",
+  "peer_len": "64",
+  "preferred": "4294967295",
+  "prefixlen": "128",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add ff0e::1:1/128 peer 2001:db8:9::/64 broadcast 2001:db8:1::ff label d0:1 scope link priority 5 valid_lft forever preferred_lft forever noprefixroute dev d0",
+ "desc": "negative: verb=add local=mcast peer=64 brd=addr label=alias scope=link metric=priority lft=forever flags=noprefixroute proto=absent: the unspecified address, or a multicast one without autojoin (ipv6_add_addr)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/rn1-035",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

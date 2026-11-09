@@ -9,18 +9,42 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-xfrmmon`,
-# `xtcp2-nl-espinudp`, `xtcp2-nl-ra`, `xtcp2-nl-tcp`, `xtcp2-nl-ioam` and
-# `xtcp2-nl-mptcp`, below, on its own PATH)
+# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-brmon`,
+# `xtcp2-nl-xfrmmon`, `xtcp2-nl-espinudp`, `xtcp2-nl-ra`, `xtcp2-nl-tcp`,
+# `xtcp2-nl-ioam` and `xtcp2-nl-mptcp`, below, on its own PATH)
 # and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
+#
+# The nlcap-workbench flavor drives the same helper over ssh instead, by store
+# path, from a JSON Lines rows file: nix/microvms/workbench/nlcap_batch.py runs
+# each row in its own namespace through `ns-add`, `write` and `capio`
+# (docs/netlink/coverage-status.md, "Workbench and generated rows").
 #
 # Both flavors capture the same way, from the same namespace topology, and
 # that is deliberate rather than incidental: D_control - the diff between the
 # two `ip` sides that the comparator subtracts - only means what it claims if
 # the parity captures come off the topology the decoder fixtures came off.
 # Two capture mechanisms would be two answers to "what was on the wire".
+#
+# KEEP MOVING FORWARD: UPDATE flake.lock, RECAPTURE ON NEW VERSIONS
+#
+# Keep updating flake.lock, and keep moving the guest's Linux kernel and
+# iproute2 forward. The captures will come from different versions over
+# time, and that is fine: pkg/xtcpnl/testdata/ is already split by kernel
+# version (4_19_319 ... 7_3_0), and a new version gets its own directory
+# rather than replacing an old one. What matters is not one fixed version.
+# It is that every pcap holds the exact netlink messages a real kernel and a
+# real `ip` exchanged, so a parser test can check every byte of them.
+#
+# These captures are the base the stronger tests are built on. Each one
+# backs table-driven unit tests: positive, negative, boundary and corner
+# rows, each with a description and its expected outcome. Real bytes catch
+# what hand-built ones miss. Testing against them has already found one
+# iproute2 bug (`ip` reads the u16 IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE
+# as a u8; docs/netlink/upstream/iproute2-bond-partner-state-width.md), and
+# careful tests over newer captures may well find another. So treat a
+# version bump as a chance to recapture and retest, not as a chore.
 #
 # WHY THE SPLIT IS THIS WAY ROUND
 #
@@ -379,6 +403,99 @@ let
         for re in "$@"; do
           if ! wait_match "$re" 100; then
             echo "xtcp2-nl-xfrmmon: no match for $re" >&2
+            rc=1
+          fi
+        done
+      fi
+
+      kill -TERM "$mpid" 2>/dev/null || true
+      wait "$mpid" 2>/dev/null || true
+      cat "$out"
+      exit "$rc"
+    '';
+  };
+
+  # xtcp2-nl-brmon <canary-dev> <bridge-args> <trigger> <until-ERE>...
+  #
+  # `bridge <bridge-args>` (a `monitor fdb vlan` or `monitor vlan`) in the
+  # background while <trigger> runs, for the bridge VLAN event rows
+  # (scripts/brmpls-write-corpus.exp; the BIRD captures in
+  # docs/netlink/coverage-status.md). `ip monitor` never joins
+  # RTNLGRP_BRVLAN, so an RTM_NEWVLAN or RTM_DELVLAN notification has no
+  # subscriber, and no packet, without this.
+  #
+  # Ready means subscribed. RTNLGRP_BRVLAN is group 33, past the 32 bits
+  # /proc/net/netlink shows, and `bridge monitor` joins it with a
+  # setsockopt after the bind that joins the rest (bridge/monitor.c), so a
+  # canary VLAN, vid 4000 on <canary-dev>, is added until the monitor prints
+  # it and deleted and added again if it does not within a second. Seeing
+  # it proves both joins. <bridge-args> must therefore name vlan (or all).
+  #
+  # Then <trigger> runs with `sh -c`, and the monitor is stopped with
+  # SIGTERM once its output matches every <until-ERE>, each within 10 s.
+  # stdout is the monitor's output; a monitor that never prints the canary,
+  # a failed trigger or a timeout is reported on stderr and exits 1; a usage
+  # error exits 2. NLCAP_BRIDGE names the bridge binary, for the hermetic
+  # check's stand-in.
+  brmon = pkgs.writeShellApplication {
+    name = "xtcp2-nl-brmon";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnugrep
+      iproute2
+    ];
+    text = ''
+      usage="usage: xtcp2-nl-brmon <canary-dev> <bridge-args> <trigger> <until-ERE>..."
+      [ $# -ge 4 ] || {
+        echo "$usage" >&2
+        exit 2
+      }
+      canary_dev=$1
+      case "$canary_dev" in
+        "" | *[!a-zA-Z0-9_.-]*)
+          echo "$usage" >&2
+          exit 2
+          ;;
+      esac
+      read -ra br_args <<<"$2"
+      trigger=$3
+      shift 3
+      bridge=''${NLCAP_BRIDGE:-bridge}
+
+      out=$(mktemp)
+      trap 'rm -f "$out"' EXIT
+      "$bridge" "''${br_args[@]}" >"$out" 2>/dev/null &
+      mpid=$!
+
+      # wait_match <ERE> <tenths>: poll the monitor's output.
+      wait_match() {
+        local i
+        for ((i = 0; i < $2 * 2; i++)); do
+          grep -Eq -- "$1" "$out" && return 0
+          sleep 0.05
+        done
+        return 1
+      }
+
+      ready=0
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        "$bridge" vlan add vid 4000 dev "$canary_dev" >/dev/null 2>&1 || true
+        if wait_match "^$canary_dev +4000( |$)" 10; then
+          ready=1
+          break
+        fi
+        "$bridge" vlan del vid 4000 dev "$canary_dev" >/dev/null 2>&1 || true
+      done
+
+      rc=0
+      if [ "$ready" -ne 1 ]; then
+        echo "xtcp2-nl-brmon: the monitor never printed the canary" >&2
+        rc=1
+      else
+        sh -c "$trigger" || rc=1
+        for re in "$@"; do
+          if ! wait_match "$re" 100; then
+            echo "xtcp2-nl-brmon: no match for $re" >&2
             rc=1
           fi
         done
@@ -925,11 +1042,12 @@ let
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
-  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-xfrmmon's,
-  # xtcp2-nl-espinudp's, xtcp2-nl-ra's, xtcp2-nl-tcp's, xtcp2-nl-ioam's and
-  # xtcp2-nl-mptcp's hermetic rows.
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-brmon's,
+  # xtcp2-nl-xfrmmon's, xtcp2-nl-espinudp's, xtcp2-nl-ra's, xtcp2-nl-tcp's,
+  # xtcp2-nl-ioam's and xtcp2-nl-mptcp's hermetic rows.
   passthru = {
     inherit
+      brmon
       xfrmmon
       espinudp
       ra
@@ -941,6 +1059,7 @@ pkgs.writeShellApplication {
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
+    brmon
     xfrmmon
     espinudp
     ra
@@ -995,9 +1114,12 @@ pkgs.writeShellApplication {
     # netlink_<name>_<what>.pcap, and capture() holds a row to that.
     #
     # The numbers are include/uapi/linux/netlink.h's: NETLINK_ROUTE 0,
-    # NETLINK_XFRM 6, NETLINK_GENERIC 16. All three pass netlink_filter_tap()
-    # (net/netlink/af_netlink.c), so nlmon sees them. None is 4, so the
-    # sentinel is dropped from every fixture whatever its protocol.
+    # NETLINK_XFRM 6, NETLINK_GENERIC 16, and NETLINK_SOCK_DIAG 4 for the ss
+    # rows. All four pass netlink_filter_tap() (net/netlink/af_netlink.c), so
+    # nlmon sees them. The `ss -x` sentinel is itself NETLINK_SOCK_DIAG, so a
+    # sock_diag row closes its window on `ip link show dev lo` instead: one
+    # NETLINK_ROUTE dump, tapped and countable alike, which the row's filter
+    # drops. Either way the sentinel never shares the row's protocol.
     PROTO=0
     PROTO_NAME=route
 
@@ -1015,7 +1137,12 @@ pkgs.writeShellApplication {
         route) PROTO=0 ;;
         xfrm) PROTO=6 ;;
         generic) PROTO=16 ;;
-        *) die "unknown netlink protocol '$1'; want route, generic or xfrm" ;;
+        sock_diag)
+          PROTO=4
+          SENTINEL_CMD='ip link show dev lo'
+          SENTINEL_FILTER='ether[14:2]==0'
+          ;;
+        *) die "unknown netlink protocol '$1'; want route, generic, xfrm or sock_diag" ;;
       esac
       PROTO_NAME=$1
     }
@@ -1790,6 +1917,85 @@ pkgs.writeShellApplication {
       echo "NLCAP_MOD_OK $subdir/modules n=$#"
     }
 
+    # kinds <subdir> <kind>...
+    #
+    # Probe whether the kernel creates each link kind, and record the answer
+    # in $OUT/<subdir>/kinds, one `<kind> ok` or `<kind> refused <stderr>`
+    # line each, in argument order (docs/netlink/goip-link-kinds.md,
+    # KC0-T01). The sidecar is the evidence for which kinds are in scope.
+    #
+    # Each kind gets a scratch namespace of its own, holding the lower
+    # devices some kinds need (kl, and ka/kb for hsr's two slaves), in which
+    # `ip link add k0 type <kind>` runs with the fewest options the kernel
+    # accepts (kind_args), then `ip link del k0`. A refusal is evidence, not
+    # a failure: the call fails only on a usage error or a bad name.
+    cmd_kinds() {
+      [ $# -ge 2 ] || die "usage: kinds <subdir> <kind>..."
+      local subdir=$1 kind out lines=""
+      shift
+      for kind in "$@"; do
+        case "$kind" in "" | *[!a-z0-9_]*) die "kinds: bad kind name: $kind" ;; esac
+      done
+      for kind in "$@"; do
+        if out=$(kind_probe "$kind" 2>&1); then
+          lines+="$kind ok"$'\n'
+        else
+          lines+="$kind refused ''${out//$'\n'/ }"$'\n'
+        fi
+      done
+      mkdir -p "$OUT/$subdir"
+      printf '%s' "$lines" >"$OUT/$subdir/kinds"
+      echo "NLCAP_KINDS_OK $subdir/kinds n=$#"
+    }
+
+    # kind_args <kind> - what follows `ip link add` for one probe: the
+    # options without which the kernel refuses the kind. A tunnel's remote
+    # must be nonzero for the tap kinds (ipgre_tap_validate), and ERSPAN
+    # needs sequence numbers and a key (erspan_validate); hsr needs both
+    # slaves, vrf a table, geneve a remote, bareudp a port and an ethertype,
+    # and amt a lower, a local address and, as a gateway, a discovery one.
+    kind_args() {
+      local v4=(local 192.0.2.1 remote 192.0.2.2) v6=(local 2001:db8::1 remote 2001:db8::2)
+      local erspan=(seq key 1 erspan_ver 1 erspan 1)
+      case "$1" in
+        vlan) echo link kl name k0 type vlan id 10 ;;
+        macvlan | macvtap | ipvlan | ipvtap) echo link kl name k0 type "$1" ;;
+        vxlan) echo k0 type vxlan id 1 dstport 4789 ;;
+        geneve) echo k0 type geneve id 1 remote 192.0.2.2 ;;
+        bareudp) echo k0 type bareudp dstport 6635 ethertype ipv4 ;;
+        amt) echo k0 type amt mode gateway local 192.0.2.1 discovery 192.0.2.2 dev kl ;;
+        gre | gretap | ipip | sit | vti) echo k0 type "$1" "''${v4[@]}" ;;
+        erspan) echo k0 type erspan "''${v4[@]}" "''${erspan[@]}" ;;
+        ip6gre | ip6gretap | ip6tnl | vti6) echo k0 type "$1" "''${v6[@]}" ;;
+        ip6erspan) echo k0 type ip6erspan "''${v6[@]}" "''${erspan[@]}" ;;
+        xfrm) echo k0 type xfrm if_id 1 ;;
+        hsr) echo k0 type hsr slave1 ka slave2 kb ;;
+        vrf) echo k0 type vrf table 10 ;;
+        *) echo k0 type "$1" ;;
+      esac
+    }
+
+    # kind_probe <kind> - one probe in a fresh scratch namespace, which is
+    # deleted whatever the outcome. Prints the failing step's stderr.
+    kind_probe() {
+      local ns=nlcapkinds rc=0 lower args
+      ip netns del "$ns" >/dev/null 2>&1 || true
+      ip netns add "$ns" || return 1
+      for lower in kl ka kb; do
+        ip -n "$ns" link add "$lower" type dummy || rc=1
+      done
+      if [ "$rc" -eq 0 ]; then
+        read -r -a args <<<"$(kind_args "$1")"
+        if ip -n "$ns" link add "''${args[@]}"; then
+          ip -n "$ns" link del k0 || rc=1
+        else
+          rc=1
+        fi
+      fi
+      ip netns del "$ns" >/dev/null 2>&1 || true
+      return "$rc"
+    }
+
     # note <subdir> <text...>
     #
     # One free-text line in $OUT/<subdir>/topology. The driver writes one when
@@ -2217,7 +2423,7 @@ pkgs.writeShellApplication {
     # which runs it on a hand-built savefile of mixed protocols with no
     # capture running. Writes <out.pcap> and prints how many records it kept.
     cmd_filter() {
-      [ $# -eq 2 ] || die "usage: filter [--proto route|generic|xfrm] <in.pcap> <out.pcap>"
+      [ $# -eq 2 ] || die "usage: filter [--proto route|generic|xfrm|sock_diag] <in.pcap> <out.pcap>"
       nl_filter "$1" "$2"
       pkt_count "$2"
     }
@@ -2239,7 +2445,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm|sock_diag] ..."
     fi
 
     sub=$1
@@ -2252,7 +2458,7 @@ pkgs.writeShellApplication {
         cap | capio | write | filter) ;;
         *) die "--proto applies to cap, capio, write and filter, not $sub" ;;
       esac
-      [ $# -ge 2 ] || die "--proto needs a value: route, generic or xfrm"
+      [ $# -ge 2 ] || die "--proto needs a value: route, generic, xfrm or sock_diag"
       set_proto "$2"
       shift 2
     fi
@@ -2272,6 +2478,7 @@ pkgs.writeShellApplication {
       tcp)       cmd_tcp "$@" ;;
       hmac)      cmd_hmac "$@" ;;
       modules)   cmd_modules "$@" ;;
+      kinds)     cmd_kinds "$@" ;;
       note)      cmd_note "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;
       strace)    cmd_strace "$@" ;;

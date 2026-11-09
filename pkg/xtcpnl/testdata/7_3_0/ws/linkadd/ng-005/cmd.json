@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "kind": "nosuch",
+  "name": "n0"
+ },
+ "cmd": "ip link add n0 type nosuch",
+ "desc": "negative: name=bare up=absent mtu=absent txqlen=absent address=absent queues=absent kind=nosuch: a kind no module provides (Unknown device type; EOPNOTSUPP, which Linux numbers as ENOTSUP)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ENOTSUP",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkadd/ng-005",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

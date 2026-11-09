@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -203,20 +204,20 @@ func readBondValue(args []string, i int, kw *bondKeyword, s *xtcpnl.BondSetting,
 
 	// Every other arm is NEXT_ARG: a missing value ends the command.
 	if i+1 >= len(args) {
-		return i, fmt.Errorf("%w: Command line is not complete. Try option \"help\"", ErrInvalidArgument)
+		return i, linkUsage(incompleteErr())
 	}
 	i++
 	v := args[i]
 	invarg := func() error {
-		return fmt.Errorf("%w: argument %q is wrong: %s", ErrInvalidArgument, v, kw.invarg)
+		return linkUsage(invargErr(kw.invarg, v))
 	}
 	switch kw.arg {
 	case bondArgIndex:
-		n := getIndex(s.Spec.Names, v)
-		if n < 0 {
+		n, ok := cint.U32(getIndex(s.Spec.Names, v))
+		if !ok {
 			return i, invarg()
 		}
-		s.Value = uint32(n)
+		s.Value = n
 	case bondArgUint:
 		n, ok := readBondUint(v, s.Spec.Wire)
 		if !ok {
@@ -228,7 +229,7 @@ func readBondValue(args []string, i int, kw *bondKeyword, s *xtcpnl.BondSetting,
 		if !ok {
 			return i, invarg()
 		}
-		s.Value = uint32(n) //nolint:gosec // the wire s32, reinterpreted
+		s.Value = cint.Bits(n)
 	case bondArgIfindex:
 		idx, err := resolve(v)
 		if err != nil {
@@ -289,12 +290,12 @@ func parseBondTargets(list string, w xtcpnl.BondWire) ([]netip.Addr, error) {
 		if w == xtcpnl.BondWireIPv4Set {
 			a, ok = getAddrIPv4(f)
 			if !ok {
-				return nil, fmt.Errorf("%w: an IP address is expected rather than %q", ErrInvalidArgument, f)
+				return nil, fmt.Errorf("%w: Error: an IP address is expected rather than %q", ErrInvalidArgument, f)
 			}
 		} else {
 			a, ok = getAddrIPv6(f)
 			if !ok {
-				return nil, fmt.Errorf("%w: inet6 address is expected rather than %q", ErrInvalidArgument, f)
+				return nil, fmt.Errorf("%w: Error: inet6 address is expected rather than %q", ErrInvalidArgument, f)
 			}
 		}
 		out = append(out, a)

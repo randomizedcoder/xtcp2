@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"runtime/pprof"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -65,7 +66,7 @@ func TestFinishMain(t *testing.T) {
 // TestReexecProcess runs a soft restart for real in a child copy of the test
 // binary: runMain with a stubbed daemon that requests one, then finishMain's
 // syscall.Exec into the same test, which prints the tag it was carried and
-// whether it inherited an armed ITIMER_PROF. With a CPU profile on
+// whether it inherited an armed ITIMER_PROF and the config's secrets. With a CPU profile on
 // (-profile.mode=cpu, or the Pyroscope agent) the timer is off in the new
 // image only because finishMain runs after runMain's deferred profiler stops.
 // An armed timer is what the s3parquet-stress VM tripped over: SIGPROF, back
@@ -87,13 +88,15 @@ func TestReexecProcess(t *testing.T) {
 		orKilledBy                                   os.Signal
 	}{
 		{"no_profile", "positive", "soft restart with no profiler", "the exec'd image loads the carried config; no timer",
-			"none", "reexec tag=REEXEC-none itimer=off", nil},
+			"none", "reexec tag=REEXEC-none itimer=off secrets=none", nil},
+		{"secrets", "positive", "soft restart of a config with an S3 secret and a listener token", "the secrets arrive through the memfd, absent from the environment",
+			"secrets", "reexec tag=REEXEC-secrets itimer=off secrets=memfd", nil},
 		{"cpu_profile", "positive", "soft restart with -profile.mode=cpu", "the profile stops first; the exec'd image loads the carried config with no timer",
-			"cpu", "reexec tag=REEXEC-cpu itimer=off", nil},
+			"cpu", "reexec tag=REEXEC-cpu itimer=off secrets=none", nil},
 		{"pyroscope", "corner", "soft restart with the Pyroscope agent on and its server unreachable", "the agent stops first; the exec'd image loads the carried config with no timer",
-			"pyroscope", "reexec tag=REEXEC-pyroscope itimer=off", nil},
+			"pyroscope", "reexec tag=REEXEC-pyroscope itimer=off secrets=none", nil},
 		{"exec_during_profile", "negative", "syscall.Exec while a CPU profile is running", "the exec'd image inherits an armed timer, or SIGPROF kills it first",
-			"exec_during_profile", "reexec tag=REEXEC-exec_during_profile itimer=armed", syscall.SIGPROF},
+			"exec_during_profile", "reexec tag=REEXEC-exec_during_profile itimer=armed secrets=none", syscall.SIGPROF},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -105,7 +108,8 @@ func TestReexecProcess(t *testing.T) {
 				t.Fatal(err)
 			}
 			child := exec.CommandContext(ctx, binary, "-test.run=^TestReexecProcess$")
-			child.Env = append(envWithoutKey(os.Environ(), reconfigureEnvKey), "XTCP2_REEXEC_HELPER="+tc.mode)
+			child.Env = append(envWithoutKey(envWithoutKey(os.Environ(), reconfigureEnvKey), reconfigureMemfdFDKey),
+				"XTCP2_REEXEC_HELPER="+tc.mode)
 			// -profile.mode=cpu writes cpu.pprof to the working directory.
 			child.Dir = t.TempDir()
 			var stdout, stderr bytes.Buffer
@@ -132,10 +136,16 @@ func TestReexecProcess(t *testing.T) {
 	}
 }
 
+// reexecCarriedS3 is the "secrets" mode's S3 secret; its listener token is
+// the same with "-token" appended.
+const reexecCarriedS3 = "REEXEC-s3"
+
 // runReexecChild is the child side of TestReexecProcess. The first image
 // requests a soft restart; the image it exec's into finds the carried config
 // and prints its tag.
 func runReexecChild(mode string) error {
+	// Read before loadReconfigureConfig, which unsets the descriptor's key.
+	carriedJSON := os.Getenv(reconfigureEnvKey)
 	carried, ok, err := loadReconfigureConfig()
 	if err != nil {
 		return err
@@ -149,10 +159,14 @@ func runReexecChild(mode string) error {
 		if it.Value != (unix.Timeval{}) || it.Interval != (unix.Timeval{}) {
 			timer = "armed"
 		}
-		fmt.Printf("reexec tag=%s itimer=%s\n", carried.GetTag(), timer)
+		fmt.Printf("reexec tag=%s itimer=%s secrets=%s\n", carried.GetTag(), timer, carriedSecrets(carried, carriedJSON))
 		return nil
 	}
 	newCfg := &xtcp_config.XtcpConfig{Tag: "REEXEC-" + mode}
+	if mode == "secrets" {
+		newCfg.S3SecretKey = reexecCarriedS3
+		newCfg.ListenerAuth = &xtcp_config.ListenerAuth{RawToken: reexecCarriedS3 + "-token"}
+	}
 
 	if mode == "exec_during_profile" {
 		if err := pprof.StartCPUProfile(io.Discard); err != nil {
@@ -165,7 +179,7 @@ func runReexecChild(mode string) error {
 
 	args := []string{"xtcp2", "-dest", "null"}
 	switch mode {
-	case "none":
+	case "none", "secrets":
 	case "cpu":
 		args = append(args, "-profile.mode=cpu")
 	case "pyroscope":
@@ -173,7 +187,7 @@ func runReexecChild(mode string) error {
 	default:
 		return fmt.Errorf("unknown re-exec helper mode %q", mode)
 	}
-	testArgs := os.Args
+	testArgs, testFlags := os.Args, flag.CommandLine
 	os.Args = args
 	flag.CommandLine = flag.NewFlagSet(args[0], flag.ContinueOnError)
 	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
@@ -185,10 +199,29 @@ func runReexecChild(mode string) error {
 	}
 	code := runMain(context.Background())
 	// The exec'd image is this test binary again, so it needs the test's
-	// own arguments, not the xtcp2 flags runMain parsed.
+	// own flags, not the xtcp2 ones runMain parsed: execSelfWithConfig
+	// rebuilds argv from flag.CommandLine.
 	os.Args = testArgs
+	flag.CommandLine = testFlags
 	code = finishMain(code, execSelfWithConfig)
 	return fmt.Errorf("finishMain returned %d without re-exec'ing", code)
+}
+
+// carriedSecrets describes how the exec'd image got the secrets: "none" when
+// the config had none, "memfd" when both arrived and neither the config's
+// JSON nor the environment holds them, and what went wrong otherwise.
+func carriedSecrets(c *xtcp_config.XtcpConfig, carriedJSON string) string {
+	switch {
+	case c.GetS3SecretKey() == "" && c.GetListenerAuth().GetRawToken() == "":
+		return "none"
+	case c.GetS3SecretKey() != reexecCarriedS3 || c.GetListenerAuth().GetRawToken() != reexecCarriedS3+"-token":
+		return "wrong"
+	case strings.Contains(carriedJSON, reexecCarriedS3):
+		return "in-environment-json"
+	case os.Getenv(reconfigureMemfdFDKey) != "":
+		return "descriptor-key-left-set"
+	}
+	return "memfd"
 }
 
 // killedBy reports whether err is an exit by signal sig.

@@ -7,13 +7,14 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
 // errBody lays out an NLMSG_ERROR body by hand: the int error, an echoed
 // nlmsghdr of reqLen bytes, the echoed payload, then TLVs.
 func errBody(errno int32, reqLen uint32, payload []byte, tlvs ...[]byte) []byte {
-	b := binary.LittleEndian.AppendUint32(nil, uint32(errno)) //nolint:gosec // the wire int
+	b := binary.LittleEndian.AppendUint32(nil, cint.Bits(errno))
 	b = binary.LittleEndian.AppendUint32(b, reqLen)
 	b = binary.LittleEndian.AppendUint16(b, unix.RTM_NEWLINK)
 	b = binary.LittleEndian.AppendUint16(b, unix.NLM_F_REQUEST|unix.NLM_F_ACK)
@@ -27,7 +28,11 @@ func errBody(errno int32, reqLen uint32, payload []byte, tlvs ...[]byte) []byte 
 }
 
 func errTLV(atype uint16, payload []byte) []byte {
-	b := binary.LittleEndian.AppendUint16(nil, uint16(4+len(payload))) //nolint:gosec // test sizes
+	n, ok := cint.U16(4 + len(payload))
+	if !ok {
+		panic("errTLV: an attribute past 64 KiB")
+	}
+	b := binary.LittleEndian.AppendUint16(nil, n)
 	b = binary.LittleEndian.AppendUint16(b, atype)
 	b = append(b, payload...)
 	for len(b)%4 != 0 {

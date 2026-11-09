@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbedit mark 1/-1234",
+ "desc": "negative: Add skbedit action with valid mark and mask with invalid format",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: skbedit  mark 1/-1234",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/skbedit/bc15",
+ "modules": [
+  "act_skbedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action skbedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbedit",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "bc15",
+  "tdc": "actions/skbedit.json"
+ }
+}

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlstrace"
 	"golang.org/x/sys/unix"
 )
@@ -126,7 +127,7 @@ func rdmaCorpusReplies(t *testing.T, k rdmaKernel, slug string) (replies []any, 
 			requests++
 		case m.Type == unix.NLMSG_DONE:
 			if len(m.Body) >= 4 {
-				check(int32(binary.LittleEndian.Uint32(m.Body)), "NLMSG_DONE") //nolint:gosec // the wire int
+				check(cint.Int(binary.LittleEndian.Uint32(m.Body)), "NLMSG_DONE")
 			}
 		case m.Type == unix.NLMSG_ERROR:
 			e, err := ParseNlMsgErr(m.Flags, m.Body)

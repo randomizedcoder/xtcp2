@@ -1,0 +1,13 @@
+192.0.2.0/24 dev d0 proto kernel scope link src 192.0.2.10 
+198.51.100.0/24 
+	nexthop  encap seg6 mode encap segs 1 [ 2001:db8:9::1 ] via 192.0.2.1 dev d0 weight 1 
+	nexthop via 192.0.2.2 dev d0 weight 1 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 192.0.2.10 dev d0 table local proto kernel scope host src 192.0.2.10 
+broadcast 192.0.2.255 dev d0 table local proto kernel scope link src 192.0.2.10 
+2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local 2001:db8:1::10 dev d0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium

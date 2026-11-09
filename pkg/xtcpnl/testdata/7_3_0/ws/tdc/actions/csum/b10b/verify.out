@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1: csum (iph, icmp, igmp, tcp, udp, udplite, sctp) action pass
+	index 7 ref 1 bind 0
+	not_in_hw

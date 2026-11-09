@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action vlan pop reclassify index 429496729599",
+ "desc": "negative: Add vlan pop action with index exceeding 32-bit maximum",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: vlan.*pop.reclassify.*index 429496729599",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/vlan/0dfa",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action vlan index 429496729599",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "0dfa",
+  "tdc": "actions/vlan.json"
+ }
+}

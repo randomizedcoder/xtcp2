@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mirred egress remirror index 20 dev lo",
+ "desc": "negative: Add invalid mirred action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: mirred \\(Egress.*to device lo\\).*index 20 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/mirred/e213",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mirred",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mirred",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mirred",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "e213",
+  "tdc": "actions/mirred.json"
+ }
+}

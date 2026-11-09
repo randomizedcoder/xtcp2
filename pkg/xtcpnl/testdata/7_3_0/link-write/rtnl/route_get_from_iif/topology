@@ -1,0 +1,7 @@
+ok    [lacpa] sysctl net.ipv4.conf.all.forwarding=1
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link set d0 up
+ok    [lacpa] ip addr add 192.0.2.1/24 dev d0
+ok    [lacpa] ip link add d1 type dummy
+ok    [lacpa] ip link set d1 up
+ok    [lacpa] ip addr add 198.51.100.1/24 dev d1

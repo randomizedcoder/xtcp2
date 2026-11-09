@@ -1,0 +1,56 @@
+{
+ "cmd": "tc qdisc add dev eth0 root handle 1: multiq",
+ "desc": "positive: List multiq Class",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 8,
+   "pattern": "(?sm)class multiq 1:[0-9]+ parent 1:",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/multiq/4301",
+ "modules": [
+  "sch_multiq",
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 8\" > /sys/bus/netdevsim/new_device"
+ ],
+ "readback": [
+  {
+   "cmd": "tc class show dev eth0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 8\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "4301",
+  "tdc": "qdiscs/multiq.json"
+ }
+}

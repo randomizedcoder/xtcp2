@@ -1,0 +1,6 @@
+[ {
+        "ifname": "eth0",
+        "autonegotiate": false,
+        "rx": false,
+        "tx": false
+    } ]

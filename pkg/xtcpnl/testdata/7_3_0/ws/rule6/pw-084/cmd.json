@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "dport": "1000-2000",
+  "family": "6",
+  "fwmark": "4294967295",
+  "fwmask": "4294967295",
+  "priority": "300",
+  "protocol": "2",
+  "sport": "1-1",
+  "sup_group": "0",
+  "table": "254",
+  "tos": "8",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add priority 300 fwmark 0xffffffff/0xffffffff dsfield 0x08 sport 1 dport 1000-2000 sup_group default protocol kernel",
+ "desc": "corner: verb=add not=absent from=absent to=absent pref=priority fwmark=max iif=absent oif=absent ds=dsfield ipproto=absent sport=1 dport=range uidrange=absent suppress=group-default protocol=kernel extra=absent action=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-084",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

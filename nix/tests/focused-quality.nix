@@ -78,7 +78,6 @@ in
 
   focused-xtcp-enrich = mkFocusedTest "xtcp-enrich" {
     tags = "enrich_asn enrich_locality";
-    ldflags = "-checklinkname=0";
     paths = [
       "./pkg/xtcp"
       "./cmd/xtcp2"

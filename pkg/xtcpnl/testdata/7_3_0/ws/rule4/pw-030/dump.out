@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	not from all to 203.0.113.0/24 tos 0x10 iif d0 oif d0 lookup [l3mdev-table] uidrange 0-4294967294 sport 1000-2000 proto static
+32766:	from all lookup main
+32767:	from all lookup default

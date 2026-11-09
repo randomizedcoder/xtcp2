@@ -111,8 +111,11 @@ var ipOptions = []ipOption{
 	// getting `-s` wrong, with nothing to say a flag had been dropped.
 	{name: optStatsCst, set: countStats},
 	{name: "-statistics", set: countStats},
-	// `ip` increments show_details too (ip/ip.c:235-236), and unlike -s no
-	// site tests it for a count above one, so `-d -d` is `-d`. No earlier
+	// `ip` increments show_details too (ip/ip.c:235-236). One site reads a
+	// count above one: vxlan_print_opt prints its bools at their defaults
+	// under `-d -d`, so Run carries the count to the render. Everywhere
+	// else `-d -d` is `-d`; ResolveShow, whose ShowRequest holds -d as a
+	// bool, refuses the count (detailsCountMsg). No earlier
 	// option begins with `-d`, so `-d` alone reaches here, which is the
 	// spelling everything in the corpus was captured with.
 	{name: optDetailsCst, set: func(o *options, _ string) { o.showDetails++ }},
@@ -240,6 +243,17 @@ func lookupOption(a string) *ipOption {
 		}
 	}
 	return nil
+}
+
+// detailsCountMsg is ResolveShow's refusal for a -d count above one, or
+// "" for one or none: a ShowRequest holds -d as a bool, and `-d -d` shows
+// vxlan's bools at their defaults.
+func detailsCountMsg(n int) string {
+	if n <= 1 {
+		return ""
+	}
+	return fmt.Sprintf("`-d -d` shows vxlan's bools at their defaults, which a typed show "+
+		"request does not carry (show_details = %d); use a single -d.", n)
 }
 
 // statsCountMsg is the refusal for a -s count goip does not render, or ""

@@ -1,0 +1,56 @@
+{
+ "cmd": "tc qdisc add dev eth0 handle 1: root cake_mq",
+ "desc": "positive: Show CAKE_MQ class (4 queues)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 4,
+   "pattern": "(?sm)class cake_mq",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/cake_mq/67e2",
+ "modules": [
+  "sch_cake",
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 4\" > /sys/bus/netdevsim/new_device"
+ ],
+ "readback": [
+  {
+   "cmd": "tc class show dev eth0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "67e2",
+  "tdc": "qdiscs/cake_mq.json"
+ }
+}

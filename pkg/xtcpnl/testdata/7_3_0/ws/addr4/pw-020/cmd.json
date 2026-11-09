@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "family": "4",
+  "flags": "512",
+  "label": "foo",
+  "local": "192.0.2.0",
+  "metric": "100",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "preferred": "60",
+  "prefixlen": "31",
+  "valid": "60",
+  "verb": "change"
+ },
+ "cmd": "ip -4 address change 192.0.2.0/31 peer 198.51.100.1/32 label foo metric 100 valid_lft 60 preferred_lft 60 noprefixroute dev d0",
+ "desc": "corner: verb=change local=31 peer=32 brd=absent label=other scope=absent metric=100 lft=equal flags=noprefixroute proto=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-020",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 192.0.2.0/31 peer 198.51.100.1/32 label foo metric 100 valid_lft 60 preferred_lft 60 noprefixroute dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 192.0.2.0/31 peer 198.51.100.1/32 label foo metric 100 valid_lft 60 preferred_lft 60 noprefixroute dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

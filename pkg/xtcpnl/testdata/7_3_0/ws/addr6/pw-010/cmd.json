@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "6",
+  "label": "d0:1",
+  "local": "2001:db8:1::1",
+  "metric": "5",
+  "peer": "2001:db8:9::",
+  "peer_len": "64",
+  "prefixlen": "128",
+  "proto": "2",
+  "verb": "replace"
+ },
+ "cmd": "ip -6 address replace 2001:db8:1::1 peer 2001:db8:9::/64 label d0:1 priority 5 nodad optimistic proto kernel_ra dev d0",
+ "desc": "corner: verb=replace local=bare peer=64 brd=absent label=alias scope=absent metric=priority lft=absent flags=nodad-optimistic proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-010",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

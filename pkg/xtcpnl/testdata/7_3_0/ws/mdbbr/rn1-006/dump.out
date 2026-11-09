@@ -1,0 +1,5 @@
+dev br0 port d0 grp 239.1.1.1 src 192.0.2.6 temp blocked vid 1
+dev br0 port d0 grp 239.1.1.1 src 192.0.2.5 temp blocked vid 1
+dev br0 port d0 grp 239.1.1.1 temp vid 1
+dev br0 port br0 grp ff02::6a temp vid 1
+dev br0 port br0 grp ff02::1:ffeb:9a76 temp vid 1

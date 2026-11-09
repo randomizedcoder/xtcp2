@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1: ctinfo zone 0 pipe
+	 index 10 ref 1 bind 0
+	not_in_hw

@@ -524,7 +524,7 @@ that file only in a comment about what a solicited reply carries.
 |---|---|---|---|
 | `prefixmsg` | `rtnetlink.h` | `RTM_NEWPREFIX` | `ip monitor prefix` |
 | `nduseroptmsg` | `rtnetlink.h` | `RTM_NEWNDUSEROPT` | `ip monitor` RA options |
-| `br_port_msg` | `if_bridge.h` | `RTM_{NEW,DEL,GET}MDB` | `bridge mdb` — not an `ip` command |
+| `br_port_msg` | `if_bridge.h` | `RTM_{NEW,DEL,GET}MDB` | `bridge mdb` — not an `ip` command (decoded since W5b, `xtcpnl_mdb.go`) |
 | `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
 | `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
 
@@ -686,6 +686,12 @@ each — `xtcpnl_inet_diag_tcpinfo.go`, `_bbrinfo`, `_dctcpinfo`, `_vegasinfo`,
 
 The bytecode opcodes are a filter language the daemon does not use — it dumps
 and filters in Go — so their absence is a scope boundary, not a gap.
+
+Since W5c the request side is decoded too, for the workbench's `ss` rows.
+`xtcpnl_inet_diag_bc.go` names the bytecode opcodes and the `INET_DIAG_REQ_*`
+attributes. It parses a request, its bytecode and its protocol attribute, and
+it ports the kernel's audit and run (see "W5c: `ss`"). The 17 absences above
+are counted from before W5c.
 
 The same caveat as above applies to the word *referenced*: this is an
 enum-level diff, and the per-field proof for the biggest of these structs is a
@@ -975,6 +981,11 @@ recollection.
 - [Baseline, measured 2026-09-25](#baseline-measured-2026-09-25)
 - [Phase status](#phase-status)
 - [Capture readiness](#capture-readiness)
+  - [Workbench and generated rows](#workbench-and-generated-rows)
+    - [tc from tdc (W1)](#tc-from-tdc-w1)
+    - [Grammar matrix (W2)](#grammar-matrix-w2)
+  - [Captures an outside consumer needs: BIRD's netlink parser](#captures-an-outside-consumer-needs-birds-netlink-parser)
+    - [Plan: B1–B3, the captures, their parsers and the completeness test](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test)
 - [What has landed](#what-has-landed)
 - [Phase exit criteria](#phase-exit-criteria)
 - [Phase 0](#phase-0)
@@ -1016,7 +1027,7 @@ Phases and scope are as defined in
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **done** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive). **The listener**: `pkg/rtnlmon` on `pkg/nlconn` (linkmonitor's transport, moved out of `internal/`), `xtcpnl.WalkNotifications`, the `ENOBUFS` resync that drains before it re-dumps, and self-test check 20 (`XTCP2_SELF_TEST_RTNL_EVENTS`) — see [Phase 1: the listener](#phase-1-the-listener). **The consumer**: `-localityEvents` keeps locality snapshots current from it (`localnet.Tracker`), self-test `XTCP2_SELF_TEST_LOCALITY_EVENTS` | — |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | the `RTA_EXPIRES` *attribute* (distinct from `rta_cacheinfo`'s `rta_expires` member; `print_route` never reads it, so nothing on a `show` path needs it), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it. **`RTA_CACHEINFO` is done** too, in `xtcpnl_rta_cacheinfo.go` — and its real fixtures (48 of 74 captured routes) turn out to be all-zero by kernel construction, which is a finding in itself: see [below](#-s-on-route-neigh-and-rule-two-no-ops-and-a-bug-in-the-ungated-form) |
-| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
+| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses. **The link-kinds plan's parsers** ([goip-link-kinds.md](goip-link-kinds.md), KP1 to KP5) decode the bridge, VLAN-family, UDP-overlay, IP-tunnel, hsr and netkit kinds' sub-nests too, also unrendered until its KG phases; vxcan and batadv send no sub-nest to decode | bridge/VLAN, the bond `-d` render, and the `-d` render of every decoded kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
 | **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus, which `pkg/linkmonitor/internal/linuxio` now decodes with. **Rendered by `gordma`**, a read-only `rdma` clone that replays every corpus row on all six kernels byte for byte — see [below](#gordma-a-read-only-rdma) | xfrm, conntrack, ipset, proc_event; for rdma, live parity against `rdma` in a VM |
@@ -1036,12 +1047,12 @@ is `ip -t monitor all label` (`:1757`).
 
 | Phase / family | Kernel module | Subscriber | Guest tooling | Ready? |
 |---|---|---|---|---|
-| 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes** |
-| 3 bridge / VLAN | `bridge` — **add** | `ip monitor all` ✅ | `bridge vlan` (in `iproute2`) ✅ | no |
+| 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes**; `ip route`, `ip rule` and `ip nexthop` also in the workbench (`ws/route4/`, `ws/route6/`, `ws/rule4/`, `ws/rule6/`, `ws/nh4/`, `ws/nh6/`, `ws/nhgrp/`; 343 + 406 + 280 generated rows); see [the grammar matrix](#grammar-matrix-w2) |
+| 3 bridge / VLAN | `bridge` ✅, loaded by the link-write capture | `ip monitor all` ✅ (FDB); `bridge monitor vlan` under `xtcp2-nl-brmon` ✅ (VLAN) | `bridge` (in `iproute2`) ✅ | **yes**, in the link-write capture (`link-write/brmpls/`), not this flavor; see [the BIRD plan](#plan-b1b3-the-captures-their-parsers-and-the-completeness-test) |
 | link-write 0–3 bond / LACP, Tier 1 | `bonding` — **add**, with `options bonding max_bonds=0` (module load creates `bond0` in `init_net`, `drivers/net/bonding/bond_main.c:6629-6630`) | n/a (dump-only readback) | `iproute2` ✅; a **partner** bond in a second netns over veth — **add** | no |
 | link-write 8 bond / LACP, Tier 2 | `bonding` — **add** | n/a | a second microVM and two point-to-point virtio-net links with `speed=10000,duplex=full` — **add**; never a bridge (`BR_GROUPFWD_RESTRICTED` drops LACPDUs) | no |
-| 4 tc telemetry | `sch_netem` or `sch_htb` — **add** | n/a (dump-only) | `tc` (in `iproute2`) ✅ | no |
-| 5 genetlink: ethtool | kernel config — **verify** | n/a (dump-only) | `ethtool` — **add** | no |
+| 4 tc telemetry | every `sch_*`, `cls_*` and `act_*` module, loaded per rows file by the workbench's batch runner ✅ | n/a (dump-only) | `tc` (in `iproute2`) ✅ | **yes**, in the workbench (`ws/tdc/`, 1310 rows from tdc), not this flavor; see [tc from tdc](#tc-from-tdc-w1) |
+| 5 genetlink: ethtool | `netdevsim`, loaded per rows file by the workbench's batch runner ✅ | n/a (dump-only) | `ethtool` 7.1 in the workbench ✅ | **yes**, in the workbench (`ws/ethring/`, `ws/ethchan/`, `ws/ethpause/`, `ws/ethfec/`, `ws/ethcoal/`, `ws/ethshow/`; 244 generated rows), not this flavor; see [W5d](#w5d-ethtool) |
 | 5 genetlink: devlink, netdev | kernel config — **verify** | n/a (dump-only) | `devlink` (in `iproute2`) ✅ | no |
 | 6 xfrm | `xfrm_user` and the ESP modules, loaded late by the link-write capture ([C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber)) ✅ | `ip xfrm monitor` under `xtcp2-nl-xfrmmon` ([C3-T02](goip-parity-gaps.md#c3-t02-xfrm-policy-and-monitor)) ✅ | `iproute2` ✅ | **yes**, in the link-write capture (`link-write/xfrm/`), not this flavor |
 | 6 conntrack | `nf_conntrack_netlink` — **add** | `conntrack -E` — **add** | `conntrack-tools` — **add** | no |
@@ -1075,6 +1086,2091 @@ extension](#item-7s-capture-extension--the-fixture-gaps-and-pinning-the-parity-t
 and the header of `nix/capture-netlink-fixtures.nix`. The rows above still apply
 to the *notification* families, which need a subscriber and a module in the
 guest.
+
+### Workbench and generated rows
+
+A hand-written `*-corpus.exp` row costs a VM rebuild and a ~500 s cold boot
+per attempt, so the corpus grew by dozens of rows when it needs thousands. The
+`nlcap-workbench` flavor removes both costs. It is a VM you keep up and drive
+over ssh, and the rows it runs are data (JSON Lines), not Tcl:
+
+```sh
+nix run .#nlcap-ws -- up                        # boot, wait for ssh
+nix run .#nlcap-ws -- run --slug t/fq -- tc qdisc add dev lo root fq
+nix run .#nlcap-ws -- batch nix/microvms/workbench/selftest.rows.jsonl -j 8
+nix run .#nlcap-ws -- down                      # power off, delete the key
+```
+
+- **Nothing in the repo rebuilds it.** The guest has no `xtcp2AllPackage`. The
+  capture helper (`netlink-capture.nix`) and the batch runner
+  (`workbench/nlcap_batch.py`) run by store path through the guest's 9p
+  `/nix/store`, so a new build of either is picked up by the next call, with
+  no reboot. Measured: after a Go test file and its testdata were staged, the
+  rebuilt CLI pointed at the same VM runner and helper store paths. Only the
+  batch runner changed, because its own source had been edited.
+- **Ephemeral ssh key.** `up` makes an ed25519 pair under
+  `$XDG_STATE_HOME/xtcp2-nlcap-ws/`. qemu hands the public half to the guest
+  over `-fw_cfg`, and a oneshot installs it before sshd starts. sshd listens
+  on `127.0.0.1:12061` only, and `down` deletes the key. The workbench owns
+  ports 12059–12061 (`constants.nix` `nlcapWs`), so it can stay up while
+  other sessions boot their VMs on 12055/12056.
+- **Parallel rows.** Netlink taps are per network namespace, so each row gets
+  a fresh netns (`ws<slot>`) with its own `nlmon0`, and `-j N` rows run at
+  once without seeing each other's messages. A row marked `serial` runs alone.
+- **`cache=loose` on the 9p store** is what makes this fast. With microvm.nix's
+  default (no cache), every exec from `/nix/store` took ~0.4 s and one row took
+  27 s. With `cache=loose`:
+
+  | measure | value |
+  |---|---|
+  | cold `up` to ssh | 28 s (98 s without `cache=loose`) |
+  | `ip -V` in the guest | 0.06 s |
+  | one row, alone | ~2.5 s |
+  | 40 rows, `-j 8` on 6 vCPUs | 23.5 s, 0.59 s a row (~38 s at `-j 4`) |
+  | the 6 selftest rows, `-j 8` | 7 s |
+
+**A row** is one JSON object per line: `id` (also the output directory under
+`testdata/<kver>/ws/`), `desc` (starts with `positive:`, `negative:`,
+`boundary:` or `corner:`), `cmd`, and optionally `pre` (setup outside the
+capture window, each step a command or `[command, rc]`), `readback` (named
+dumps captured after the command), `proto`, `floor`, `modules`, `serial`,
+`axes` and `source`, plus `expect`:
+
+| `expect` field | checked by `TestWsCorpusRows` against the pcap |
+|---|---|
+| `rc` | the command's exit status |
+| `sent` | how many requests the command sent |
+| `errno`, `extack` | the kernel's `NLMSG_ERROR` and its extack message |
+| `refused_by` | `none`, `kernel`, `iproute2` (rc ≠ 0 and **zero** requests sent) or `ack-then-fail` |
+| `match` | `{readback, pattern, count}`: the RE2 pattern matches `count` times in the readback's stdout (tdc's verify check) |
+
+Each run writes `cmd.json` beside the pcaps: the row, the guest's kernel and
+iproute2 versions, and the result. `pkg/xtcpnl/xtcpnl_ws_corpus_test.go` turns
+every `cmd.json` into a subtest, and `TestWsRowProblem` checks the oracle
+itself on hand-built observations, including the ones that must fail.
+
+**What the selftest rows already showed.** Three of the six expectations
+first written down were wrong, and the oracle caught each one:
+
+- `ip link add <16-byte name> type dummy` is **not** refused by iproute2. The
+  positional name is checked against `ALTIFNAMSIZ` (iproute2 `afd67550`, "allow
+  to use alternative names as handle"), so the request reaches the kernel.
+  There it fails `IFLA_IFNAME`'s `NLA_STRING` policy (`len = IFNAMSIZ - 1`,
+  `net/core/rtnetlink.c`), with **`ERANGE`**, not `EINVAL`: `validate_nla`
+  starts from `err = -ERANGE` (`lib/nlattr.c`), and the extack reads "Attribute
+  failed policy validation". This is a behavior, not a bug.
+- `ip -6 route add … dev d0 table 4294967295` sends **two** requests: an
+  `RTM_GETLINK` to resolve `d0`, then the `RTM_NEWROUTE`.
+- That request carries `rtm_table = RT_TABLE_UNSPEC` (0) plus `RTA_TABLE`
+  (`iproute_modify`, `ip/iproute.c`). The dump answers with
+  `RT_TABLE_COMPAT` (252) plus `RTA_TABLE` (`rt6_fill_node`,
+  `net/ipv6/route.c`). `TestWsSelftestTableMax` pins both.
+
+The two fresh-boot replays of the selftest batch matched row for row: the
+same status, rc and packet count.
+
+#### tc from tdc (W1)
+
+tdc (`tools/testing/selftests/tc-testing`) is the kernel's own tc suite:
+1334 cases, each a setup list, one command under test with its expected exit
+status, and a verify command whose output must match a pattern a given
+number of times. `nlcapgen tdc` (`tools/nlcapgen`) converts them into
+`nix/microvms/workbench/tdc.rows.jsonl`:
+
+```sh
+go run ./tools/nlcapgen tdc -src ~/Downloads/linux/tools/testing/selftests/tc-testing/tc-tests \
+  -out nix/microvms/workbench/tdc.rows.jsonl -skipped nix/microvms/workbench/tdc.skipped.jsonl \
+  -rev "$(git -C ~/Downloads/linux rev-parse --short=12 HEAD)"
+nix run .#nlcap-ws -- batch nix/microvms/workbench/tdc.rows.jsonl -j 8
+```
+
+- **The mapping.** `$TC`, `$IP` and tdc's device names keep their names
+  (`DEV0`/`DEV1` → the veth pair `v0p0`/`v0p1`, `DUMMY` → `dummy1`, `IFB` →
+  `ifbtdc0`), so the many patterns that name a device still match. The setup
+  becomes `pre`; the verify command becomes the `verify` readback, with
+  `matchPattern`/`matchCount` as `expect.match`; the teardown is dropped,
+  since the namespace is. A row loads its file's module (`sch_`, `cls_` or
+  `act_` plus the file name).
+- **Devices only for nsPlugin cases.** tdc makes the veth, dummy and ifb only
+  for a case that requires `nsPlugin` (1303 of 1334). The other 31 make their
+  own devices (`teql.json` adds `$DUMMY` itself), and tdc runs them alone, so
+  their rows get no devices and are `serial`. A `$ETH` case uses netdevsim,
+  whose device ids are global: it runs `serial`, after removing the device an
+  earlier row left behind.
+- **Patterns keep tdc's flags.** tdc compiles every pattern with
+  `re.DOTALL | re.MULTILINE` (`tdc.py`, verify), so the converter writes
+  `(?sm)` in front of each. Without it, 150 rows failed: their `.*` must
+  cross lines. A pattern RE2 cannot compile, a `matchJSON` check and a
+  pattern that counts scapy traffic are left unchecked, each with its reason
+  in `source.unchecked` (63 `matchJSON`, 17 scapy).
+- **24 cases have no row**, each with its reason in `tdc.skipped.jsonl`: 12
+  run tdc's helper scripts (`./tdc_*`, `./scripts/*`), 4 need a compiled eBPF
+  object, 4 a second physical device, 2 use gact's `random`, which needs
+  `CONFIG_GACT_PROB` (the workbench kernel has it off, so one case failed and
+  the other passed for the wrong reason). One's command under test is
+  `/bin/true` (it tests its setup, which the capture does not see). One,
+  `filters/u32/1234`, sends 4096 requests in one `tc -b` burst, and nlmon
+  dropped 3337 of 4858 datagrams even with the row alone.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_tc_test.go`), on top of
+`TestWsCorpusRows`:
+
+| # | test | holds |
+|---|---|---|
+| O6 | `TestWsTcCorpus` | every tc message in every capture parses (`ParseTcMsg`, `ParseTcAction`, `xtcpnl_tcmsg.go`) and carries no attribute past `TCA_MAX`, `TCA_ROOT_MAX` or `TCA_ACT_MAX` |
+| O3 | `TestWsTcCorpus` | a `tc qdisc`/`class`/`filter` add, change, replace or delete sends what its command line says: kind, handle, parent, prio, protocol, chain and shared blocks. `tcWantFromCmd` reads the line as `tc_qdisc_modify`, `tc_class_modify` and `tc_filter_modify` do, with `get_qdisc_handle`, `get_tc_classid` and `ll_proto_a2n` |
+| O4 | `TestWsTcCorpus` | a qdisc the kernel accepted is in the verify dump: same device and kind, and the same parent and handle where the request named them |
+| O7 | `FuzzParseTcMsg`, `FuzzParseTcAction` | seeded with up to 400 distinct corpus messages each: no panic, and the byte fields a parse returns are copies |
+| — | `TestWsSizeBudget` | each kernel's `ws/` stays under 64 MB of file bytes (20 MB until W4b) |
+
+O3 reads 546 requests and O4 checks 254 round trips. Commands outside the
+model (pipelines, quoted arguments, `tc -b`, actions, chains) are counted
+out rather than guessed at. Each oracle and the model have hand-built rows
+that must fail; 17 of 18 mutants of them were killed, and the survivor was
+equivalent (it removed a type mask the attribute walker already applies).
+
+**What the tdc rows showed:**
+
+- **Action dumps are numbered from 0.** `ParseTcAction` first refused nests
+  outside 1–32, which is how tc numbers a request. The kernel's dump
+  numbers from 0, and past 32 when the dump sets
+  `TCA_ACT_FLAG_LARGE_DUMP_ON` (`tcf_dump_walker`,
+  `net/sched/act_api.c`). A flush's reply is one nest 0 holding
+  `TCA_ACT_KIND` and `TCA_FCNT`, whose value 7 reads as `TCA_ACT_FLAGS`
+  (`tcf_del_walker`). The parser now refuses no order: 233 dumps failed O6
+  until it did.
+- **tc looks the device up before refusing an argument.** For a bad ematch
+  or an out-of-range index, tc exits 1 or 255 after one acknowledged
+  `RTM_GETLINK` and no tc request: "ack-then-fail" by the W0 rule. A row
+  that expects that rc has said it knew, so `wsRowProblem` accepts it then
+  (61 tdc rows), and still refuses it with any other rc.
+- **`actions/batch-delete/8135` predates its fix.** It tests f67b3ed1308d
+  ("net/sched: act_api: reject duplicate actions in a batch", 7.4 merge
+  window). On 7.3.0 the delete still fails (rc 255), but the first action is
+  already gone, so tdc's pattern (the action survives) cannot match. The row
+  stays, so its capture records 7.3's behavior; its pattern is unchecked,
+  with that reason.
+- **Determinism.** Three batches, the last two on fresh boots, gave every
+  row the same status, rc, message types and request count (dumps of shared
+  state are compared as type sets). A batch of 1310 rows takes ~12 minutes at
+  `-j 8`. The corpus is 4.1 MB of file bytes in ~9,200 files (34 MB of disk
+  blocks, which is not what git stores).
+
+#### Grammar matrix (W2)
+
+W2 is four commits, each verified on its own:
+
+- **W2a:** the generator and `ip route` for IPv4 and IPv6, with O3 and O4.
+  This section covers it first.
+- **W2b:** `ip rule` and `ip nexthop`, in [its own part below](#w2b-ip-rule-and-ip-nexthop).
+- **W2c:** O5, the goip differential over W2a's and W2b's rows, in
+  [its own part below](#w2c-o5-the-goip-differential).
+- **W2d:** rows mined from the fib selftests, with O5 applied to them.
+
+`nlcapgen matrix` (`tools/nlcapgen/matrix.go`) builds rows from a table of
+axes for each command. Each axis lists values, marked boundary or corner
+where they are. `matrix_route.go` has two spaces:
+
+- **route4**, 10 axes: verb, destination, type, table, metric, protocol,
+  scope, MTU/advmss, source and nexthop.
+- **route6**, 11 axes: the same, without scope, plus pref and expires.
+
+```sh
+go run ./tools/nlcapgen matrix -family route -seed 1 -random 40 \
+  -out nix/microvms/workbench/route.rows.jsonl
+nix run .#nlcap-ws -- batch nix/microvms/workbench/route.rows.jsonl -j 8
+```
+
+- **Strategies.** The generator writes these row groups:
+  - each-choice (`ec-`): every value appears at least once;
+  - pairwise (`pw-`): every pair of values from two axes appears in some
+    row, built greedily (AETG style);
+  - boundary (`bd-`): row n takes the n-th boundary value of every axis;
+  - seeded random (`rn<seed>-`): a SplitMix64 generator, so a seed always
+    gives the same rows, and a new seed gives new ones.
+
+  A repeated assignment is dropped, and the same seed gives the same file
+  byte for byte.
+- **Negatives.** These come from four sources:
+  - an *exclusion* (a pair of values the kernel or iproute2 refuses) keeps
+    the pair out of every positive row and writes one row expecting the
+    refusal;
+  - a *bad value* changes one axis of a positive row;
+  - `Judge` predicts refusals that depend on three axes or more, such as
+    IPv4 scope, which turns on type, scope and nexthop together. A judged
+    row stays in the matrix as a negative;
+  - `deriveRoute` adds repeated adds (EEXIST) and deletes of routes never
+    added (ESRCH).
+
+  Each negative records the errno it expects, and `TestWsCorpusRows`
+  checks it.
+- **Rows.** 343 rows: 228 the kernel accepts (13 positive, 78 boundary,
+  137 corner) and 115 negatives:
+
+  | outcome | rows |
+  |---|---|
+  | EINVAL | 55 |
+  | ESRCH | 19 |
+  | EEXIST | 10 |
+  | ENODEV | 10 |
+  | ENETUNREACH | 7 |
+  | refused by iproute2 before anything is sent | 10 |
+  | iproute2 exits after one acknowledged `RTM_GETLINK` | 3 |
+  | an unknown device (rc 1) | 1 |
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_route_test.go`), on top of
+`TestWsCorpusRows`:
+
+| # | test | holds |
+|---|---|---|
+| O3 | `TestWsRouteCorpus` | an accepted row sends one request, built from its axes the way `iproute_modify` builds it. The test checks the verb's flags, the `rtmsg` (protocol, type, scope and table, plus the table rule: under 256 in the header, otherwise `RT_TABLE_UNSPEC` there and `RTA_TABLE` u32), the exact set of attributes and their widths, the values, `rtnh_hops` = weight − 1, and `RTA_METRICS` |
+| O4 | `TestWsRouteCorpus` | after an accepted write, the `ip route show table all` dump has the route: same family, prefix, table, type and metric (IPv6 stores metric 0 as 1024). After an accepted delete, the route is gone |
+
+O3 checks 329 requests and O4 checks 228 round trips. The model and the oracles have
+unit tables (`TestRouteWantFromAxes`, `TestRouteRequestProblem`,
+`TestRouteDumpHas`, `TestRouteJudge`, `TestBuildRouteOrder`,
+`TestMatrixJudge`). 17 of 17 mutants of the oracles, the model and the
+generator were killed, each by a failing test.
+
+**What the route rows showed** (kernel 7.3.0, iproute2 7.2.0):
+
+- **An IPv4 reject route accepts `nhid`, and its scope is never checked.**
+  `fib_create_info` refuses a gateway, device or multipath on a
+  blackhole, unreachable, prohibit or throw route. It does not refuse a
+  nexthop id, and it then jumps to `link_it`, past every nexthop and scope
+  check (`net/ipv4/fib_semantics.c:1478-1484`). So
+  `ip route add blackhole 0.0.0.0/0 scope host nhid 10` succeeds.
+- **An IPv6 multipath reject route fails with EEXIST.**
+  `fib6_nh_init` puts a reject route's nexthop on lo before it stores a
+  gateway (`net/ipv6/route.c:3623-3640`), so every nexthop is identical.
+  The second is then a duplicate of the first (`rt6_duplicate_nexthop`,
+  `net/ipv6/ip6_fib.c:1136-1142`). The same happens for add, append,
+  prepend and replace, and no extended-ack text explains it.
+- **An IPv6 reject route can't be deleted with the arguments it was added
+  with.** The add accepts `dev d0` or `via …` and drops them, for the same
+  reason. A delete naming them then matches nothing in `ip6_route_del`
+  and fails with ESRCH (6 rows). Deleting by prefix, or by nhid, works.
+- **A gateway at IPv4 link scope fails with ENETUNREACH, not EINVAL.**
+  `fib_check_nh_v4_gw` looks the gateway up at scope host, where only
+  local routes live, and returns the lookup's own error with the
+  extended-ack text "Nexthop has invalid gateway"
+  (`fib_semantics.c:1211-1242`). Onlink at that scope is EINVAL
+  ("Nexthop has invalid scope", `:1183-1186`). Broadcast and multicast
+  routes get link scope from iproute2 when no scope is given, so they
+  hit this too. An IPv6 gateway (RFC 5549) and an nhid without onlink
+  pass. At host scope, any gateway or second nexthop is EINVAL
+  (`:1510-1519`, `net/ipv4/nexthop.c:1626-1641`).
+- **Every non-reject IPv6 type needs a device** (ENODEV), including
+  local and anycast.
+- **`default` sends an all-zero `RTA_DST`.** With `-4` or `-6`,
+  `get_addr_1` sizes `default` to the family (`lib/utils.c:579-586`), so
+  it sends the same request as `0.0.0.0/0` or `::/0`. The O3 model first
+  assumed no `RTA_DST`, so O3 failed every accepted `default` row (28)
+  until the model was corrected.
+- **`to` goes before the type.** `iproute_modify` takes `to` only ahead
+  of the type (`ip/iproute.c:1558-1566`), as `ip-route(8)` writes it
+  (`to TYPE PREFIX`). `ip route add unreachable to …` exits 1. The first
+  batch had 14 rows written that way, which was a generator bug. A
+  negative row keeps the wrong order.
+- **A bad nexthop weight is refused after the device lookup.**
+  `parse_one_nh` resolves `dev` (one acknowledged `RTM_GETLINK`) before it
+  reads `weight`, so weight 0 or 257 is "ack-then-fail" with rc 255, as
+  tc's bad arguments are in W1.
+- **Determinism.** The same 343 rows ran three times, the second on a
+  fresh boot, and wscmp found every row with the same status, rc and
+  message types each time. A batch takes ~90 s at `-j 8`, and a cold
+  `nlcap-ws up` takes 21 s. The corpus is 1.0 MB of file bytes in 2401
+  files.
+
+##### W2b: `ip rule` and `ip nexthop`
+
+The same generator, with two more families:
+
+```sh
+go run ./tools/nlcapgen matrix -family rule -seed 1 -random 40 \
+  -out nix/microvms/workbench/rule.rows.jsonl
+go run ./tools/nlcapgen matrix -family nexthop -seed 1 -random 40 \
+  -out nix/microvms/workbench/nexthop.rows.jsonl
+```
+
+- **`matrix_rule.go`:** rule4 and rule6, 17 axes each: verb, `not`,
+  from, to, pref, fwmark, iif, oif, the DS field (tos, dsfield or dscp
+  with its mask), ipproto, sport, dport, uidrange, suppress, protocol,
+  an extra (tun_id, realms or, for IPv6, flowlabel) and the action
+  (lookup, goto, nop, the reject types, l3mdev).
+- **`matrix_nexthop.go`:** nh4 and nh6 (verb, id, kind, protocol), and
+  nhgrp (verb, fam, id, members, type, fdb, hw_stats, protocol). A group
+  row first adds its members, ids 21 to 32, so the id axis (1 and 100)
+  never takes one of theirs.
+- **Judges.** `ruleJudge` refuses a bare `ip rule add` or `del` (iproute2,
+  rc 1) and a goto at or below its own preference ("Backward goto not
+  supported"). `nhJudge` refuses a replace or delete without an id.
+- **Repeats and deletes.** `deriveDupGone` (shared with route) adds a
+  repeated add (EEXIST) and a delete of something never added (ENOENT).
+  It only repeats a row that names a preference or an id: without one,
+  the kernel picks a new preference or id, so the second add makes a
+  second object instead of failing.
+- **Rows.**
+
+  | family | rows | accepted | negative |
+  |---|---|---|---|
+  | rule (rule4 203, rule6 203) | 406 | 351 (14 positive, 78 boundary, 259 corner) | 55 |
+  | nexthop (nh4 80, nh6 80, nhgrp 120) | 280 | 178 (34 positive, 97 boundary, 47 corner) | 102 |
+
+  | outcome | rule | nexthop |
+  |---|---|---|
+  | EINVAL | 21 | 71 |
+  | ENOENT | 6 | 9 |
+  | EEXIST | 6 | 9 |
+  | ERANGE | 2 | |
+  | ENODEV (rc 255, from `RTM_GETLINK`) | | 2 |
+  | refused by iproute2 before anything is sent (rc 255 or 1) | 20 | 7 |
+  | iproute2 exits after one acknowledged `RTM_GETLINK` | | 4 |
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_rule_test.go`,
+`xtcpnl_ws_nexthop_test.go`):
+
+| # | test | holds |
+|---|---|---|
+| O3 | `TestWsRuleCorpus` | the verb's flags; the `fib_rule_hdr` (family, prefix lengths, tos, action and the table rule: under 256 in the header, otherwise `FRA_TABLE` u32); the exact set of `FRA_*` attributes, each width (an interface name with its NUL, a zero-width `FRA_SRC` for `from all`) and value |
+| O4 | `TestWsRuleCorpus` | the `ip rule show` dump has the rule, with the same selectors, preference, action, table and ranges; after a delete it is gone |
+| O3 | `TestWsNexthopCorpus` | the verb's flags; the `nhmsg` (family, protocol, onlink); the attribute set and widths; `NHA_GROUP` as weight − 1 split over `weight` and `weight_high`; `NHA_GROUP_TYPE`; the `NHA_RES_GROUP` nest and what it holds |
+| O4 | `TestWsNexthopCorpus` | the dump has the nexthop by id, with its family, protocol, gateway, device, blackhole, fdb, members and weights (only when the dump fills in `weight_high` or no weight passes 256) and the resilient values named; after a delete the id is gone |
+
+O3 checks 386 rule and 267 nexthop requests; O4 checks 351 and 178 round
+trips. Unit tables: `TestRuleWantFromAxes`, `TestRuleRequestProblem`,
+`TestRuleDumpMatches`, `TestNhWantFromAxes`, `TestNhWantForCmd`,
+`TestNhRequestProblem`, `TestNhDumpMatches`, and in the generator
+`TestRuleJudge`, `TestBuildRule`, `TestNhJudge`, `TestBuildNexthop` and
+`TestMatrixFibRows`, `TestFibPredicates` and `TestNhMembers`. 26 of 26
+mutants of the oracles, the judges, the builders and the generator were
+killed, each by a failing test. The last two tables were added for three
+that first survived: a repeat predicate that always holds, a negative base
+of any kind, and members back at id 1.
+
+**What the rule and nexthop rows showed** (kernel 7.3.0, iproute2 7.2.0):
+
+- **iproute2 7.2.0 can't send a nexthop `dst_port`.** `NHA_DST_PORT`
+  (18) is parsed only from iproute2 commit ad2b2d95 on, after 7.2.0. So
+  `dev d0 dst_port 4789` is ack-then-fail: one `RTM_GETLINK` for `d0`,
+  then rc 255. It is a negative row until the flake moves past it.
+- **`type resilient` sends an empty `NHA_RES_GROUP` when anything
+  follows it.** `parse_nh_group_type_res` opens the nest whenever there
+  is a next argument, even one that isn't a resilient option (`type
+  resilient fdb`). When `type resilient` ends the line, no nest is sent.
+  O3 models both.
+- **A new resilient group needs `buckets`.** Without them the kernel
+  refuses it with EINVAL ("Number of buckets not specified for nexthop
+  group insertion", `net/ipv4/nexthop.c:2692`).
+- **A nexthop on an unknown device fails in the kernel, not in ip.**
+  `ll_name_to_index` asks with an `RTM_GETLINK`, the kernel answers
+  ENODEV, and ip exits 255 ("Device does not exist") without sending the
+  `RTM_NEWNEXTHOP`.
+- **iproute2 takes weight 65536, the kernel doesn't.** `nhgrp_set_weight`
+  stores 65535 across `weight` and `weight_high`; the kernel refuses it
+  with EINVAL. 65535 is the largest it accepts.
+- **A DSCP of 64 is ERANGE.** iproute2 sends `FRA_DSCP` 64 as given, and
+  `fib_rule_policy`'s `NLA_POLICY_MAX` refuses it ("Error parsing msg")
+  with ERANGE, not EINVAL.
+- **A rule port range must end below 65535.** `sport 65535` passes
+  iproute2 and the kernel refuses it ("Invalid sport range"); 65534 is
+  accepted. An IPv4 `tos 0xb8` (past `IPTOS_TOS_MASK`) is EINVAL too.
+- **`from all` sends a zero-length `FRA_SRC`.** The first O3 model sent
+  the family's width of zeros, which is what `from 0.0.0.0/0` sends.
+- **A repeated rule without a preference isn't EEXIST.**
+  `fib_default_rule_pref` gives the second add a new preference, so it
+  succeeds as a second rule.
+- **Determinism.** Both rows files ran twice, the second on a fresh
+  boot, and wscmp found every row with the same status, rc and message
+  types. The two families' corpus is 1.5 MB in 4802 files.
+
+##### W2c: O5, the goip differential
+
+`TestWsGoipDifferential` (`internal/goip/ws_differential_test.go`) runs
+every route, rule and nexthop row through goip offline, against the row's
+own `ip.pcap`:
+
+- goip's `RTM_GETLINK` lookups are answered from the capture, so `d0`
+  resolves to the ifindex the kernel gave ip;
+- goip's write goes to `GOIP_WRITE_OUT` and is never sent;
+- ip's requests are split into its leading `RTM_GETLINK` lookups and the
+  rest. The lookups and the write are compared separately, so a lookup
+  difference can't hide whether the write matches.
+
+Each row's write gets one outcome:
+
+| outcome | means |
+|---|---|
+| same | the same write byte for byte (seq and pid zeroed), or both refuse at a check goip implements |
+| refuses | goip refuses a command ip sent, or goip and ip both refuse but goip's reason is "not implemented" |
+| sends | goip writes a request ip refused to send |
+| differs | both write, and the writes differ; the report names the nlmsg flags, the family header or the attribute types |
+
+Every row whose outcome isn't "same", and every row whose lookups differ
+other than in the known way, is listed in
+`internal/goip/testdata/ws-differential.txt`. A new divergence and a fixed
+one both fail the test until the file is regenerated with `-update-ws-o5`.
+
+| space | same | refuses | sends | differs | lookups differ |
+|---|---|---|---|---|---|
+| route4 | 132 | 58 | 0 | 0 | 88 |
+| route6 | 55 | 98 | 0 | 0 | 37 |
+| rule4 | 173 | 30 | 0 | 0 | 0 |
+| rule6 | 203 | 0 | 0 | 0 | 0 |
+| nh4 | 78 | 2 | 0 | 0 | 38 |
+| nh6 | 78 | 2 | 0 | 0 | 36 |
+| nhgrp | 81 | 39 | 0 | 0 | 0 |
+
+**What O5 showed:**
+
+- **goip's writes match ip's on every row goip implements.** No row
+  differs.
+- **goip took a `protocol` past 255, and ip doesn't.** `rtnl_rtprot_a2n`
+  refuses a number over 255 (`lib/rt_names.c:293`, in every iproute2
+  release since well before 7.1). goip's rule, nexthop and neigh parsers
+  allowed a u32 and sent its low byte, so `protocol 256` was a write where
+  ip sends nothing (4 "sends" rows). They now refuse it. The nexthop test
+  that expected `protocol 0x1ff` to send 0xff now expects 255 to be the
+  largest it takes, and 256 to be refused.
+- **All 199 lookup differences are `IFLA_EXT_MASK`.** iproute2 7.2.0's
+  `ll_link_get` adds `RTEXT_FILTER_NAME_ONLY` (1<<8, `lib/ll_map.c:276`),
+  so ip asks with 0x109 where goip, which models 7.1, asks with 0x9. goip
+  stays on 7.1 until its parity target moves; the report counts these rows
+  in its header and doesn't list them one by one.
+- **What goip refuses:**
+  - route: 156 rows on keywords goip hasn't implemented (`pref` 68, `nhid`
+    49, `nexthop` 29, `expires` 10);
+  - nexthop: 43 rows on `hw_stats` (41) and `dst_port` (2), which no
+    capture showed before;
+  - rule: 30 rows on `realms`. iproute2 reads realm names from
+    `rt_realms`, and goip reads no config files.
+- **Both refusing isn't always agreement.** goip doesn't implement
+  multipath `nexthop`. On `nexthop via … dev d0 weight 257`, ip resolves
+  `d0` and then refuses the weight, while goip stops at `nexthop`. O5 first
+  counted these 3 rows as "same". A goip "not implemented" now makes the
+  row "refuses", whatever ip did.
+- **Tests:** `TestWsO5Compare`, `TestWsO5Lookups`, `TestWsO5Split`,
+  `TestWsO5Argv` and `TestWsO5GoldenDiff` are table tests on hand-built
+  inputs. They cover the
+  branches the corpus doesn't reach yet: every "differs" detail, a lookup
+  that differs in more than its mask, and a lookup after the write.
+- **Mutation:** 20 of 20 mutants killed, each by a relevant test (outcome
+  classification, the lookup split and comparison, the diff detail, the
+  golden comparison, `-6` parsing, and the three protocol limits). Two
+  needed a second try:
+  - "a rule's header length is wrong" first used `RtMsgSizeCst`, which is
+    equivalent, since `rtmsg` and `fib_rule_hdr` are both 12 bytes;
+  - "the golden file isn't compared" first survived, because a correct
+    report matches it. The comparison is now `wsO5GoldenDiff`, with its own
+    table test. That test found that a reordered or repeated line passed,
+    and the helper now reports it.
+
+##### W2d: rows mined from the fib selftests
+
+`nlcapgen kselftest` (`tools/nlcapgen/kselftest.go`) reads
+`fib_tests.sh`, `fib_nexthops.sh` and `fib_rule_tests.sh` from
+`tools/testing/selftests/net` in `~/Downloads/linux` (6b4b543fa187). It
+writes `nix/microvms/workbench/fib.rows.jsonl` and lists every line it
+skips, with the reason, in `fib.skipped.jsonl`.
+
+The miner is a static walker, not a shell:
+
+- **Groups:** each test the script's main loop runs (`$TESTS` or
+  `$ALL_TESTS`, through its `case` arms) is one group, with the script's
+  per-test prelude (`setup`) walked first.
+- **What it follows:** top-level and `local` assignments, `$1`–`${9}` in
+  inlined functions, `for` over a literal list or `$(seq [A] B)`, an
+  `if`'s then branch, `set -e`/`set +e`, `run_cmd "…"` and
+  `log_test $? N "msg"`.
+- **What it skips, and says so:** command substitutions, compound
+  commands, unresolved variables, other namespaces, `ip netns` (the
+  workbench gives every row its own), `else` branches, a then branch that
+  returns (a failure check), and a then branch whose condition reads an
+  earlier rc (`if [ $rc -eq 0 ]`).
+- **Rows:** each route, rule or nexthop command becomes a row. Its pre
+  steps are lib.sh's `rp_filter` sysctls, then every step of its group
+  before it. A step the selftest doesn't require to succeed is a
+  tolerated pre step.
+- **rc:** `log_test $? N` after the command gives the row rc N
+  (positive: for 0, negative: otherwise); `set -e` gives rc 0. Anything
+  else is a corner: row with no rc, which the corpus test still holds to
+  "an iproute2 or kernel refusal, never ack-then-fail".
+- **Namespaces:** `-netns` naming the test's own namespace is dropped.
+  `ip link … netns X` keeps the device here, and a later
+  `ip -netns X link set D up|down` for that device is kept too, since
+  some tests check what a peer's link state does to a nexthop.
+
+| space | rows | positive | negative | corner |
+|---|---|---|---|---|
+| fibt | 373 | 129 | 32 | 212 |
+| fibnh | 452 | 71 | 62 | 319 |
+| fibrule | 160 | 4 | 0 | 156 |
+
+Of the corner rows, 148 are commands whose output the selftest reads
+(`ip route get … | grep`), 188 follow a write the miner skipped, and 10
+use `dst_port`. 296 lines are skipped: 87 in other namespaces, 81 under a
+test of an earlier rc, 47 `ip netns`, 24 compound commands, 22 unresolved
+variables, and 35 others.
+
+**What recording showed (two fresh runs, 985 of 985 OK, the same message
+types and rcs in both):**
+
+- **The first run had 367 rows fail,** every one a miner bug. Each now has
+  a test row:
+  - `for i in 10 20 … 70;` with `do` on the next line kept the `;`
+    (`dummy_70;`);
+  - `$(seq 6)` (one argument) wasn't expanded, so `dummy4` never existed;
+  - `${1}` didn't expand, so `create_ns $me`'s sysctls were skipped as
+    another namespace. Among them is `keep_addr_on_down=1`, without which
+    `ip link set veth1 down` drops `2001:db8:91::1` for good, and the next
+    `nexthop … via 2001:db8:91::2` fails with "No route to host";
+  - `$NS_EXEC sysctl …` wasn't recognised as ip at all;
+  - `cmd 2>/dev/null || true` under `set -e` was taken as required;
+  - `if [ $rc -eq 0 ]; then ip rule del …` was walked after an add the
+    selftest expects to fail (276 rows).
+- **A step after a skipped write loses its rc.** `fib_rule_tests.sh`
+  deletes its rules by `pref $pref`, where `$pref` comes from
+  `$(ip rule show … | cut)`. The miner can't know it, so the rule stays,
+  and what the selftest states about later steps no longer holds. Those
+  188 rows are corner: rows, marked "follows line N, which the miner
+  skipped".
+- **The selftests are newer than the workbench's iproute2.** iproute2
+  7.2.0 predates `nexthop … dst_port` (ad2b2d95, after 7.2.0), so ip
+  refuses it before sending (rc 255) where the selftest expects the
+  kernel's rc 2. `ksNewer` lists such keywords with the commit; their rows
+  state no rc, and their pre steps are tolerated.
+
+**O5 over the mined rows.** O5 compares only write verbs (add, change,
+replace, prepend, append, del, delete), and resolves abbreviated objects
+(`ro`, `nex`) as goip does. Get, show, flush and bucket rows are counted
+as "not a write".
+
+| space | same | refuses | sends | differs | lookups differ | not a write |
+|---|---|---|---|---|---|---|
+| fibt | 127 | 103 | 0 | 0 | 44 | 143 |
+| fibnh | 316 | 86 | 0 | 0 | 151 | 50 |
+| fibrule | 72 | 0 | 0 | 0 | 4 | 88 |
+
+- **goip's writes match ip's on every mined row goip implements.** Every
+  lookup difference is the known `IFLA_EXT_MASK`.
+- **ip sends a byte of stack after a `congctl` name.** `ip route add …
+  congctl lock foo` first showed as 2 "differs" rows, differing in one
+  byte of `RTA_METRICS`: the pad after `RTAX_CC_ALGO "foo"` was 0xc4 and
+  0xe9 from ip, and 0 from goip. iproute2 builds the metrics in an
+  uninitialized `char mxbuf[256]` (`ip/iproute.c:1172`), and
+  `rta_addattr_l` doesn't clear the alignment padding
+  (`lib/libnetlink.c:1500-1505`). The kernel ignores padding, so nothing
+  breaks, but the byte changes from run to run. O5 now zeroes the padding
+  of `RTA_METRICS` sub-attributes before comparing, and counts the rows
+  where it wasn't zero (4).
+- **What goip refuses in the mined rows:** route `nhid` (73), multipath
+  `nexthop` (57), `expires` (25), `vrf` (15) and `dsfield` (5); nexthop
+  `dst_port` (10) and `encap` (4).
+- **Tests:** `TestMineScript` (43 rows), `TestMineScriptRowFields`,
+  `TestMineScriptPrelude`, `TestKsGroups`, `TestShLines`, `TestShWords`,
+  `TestIPObject` and `TestMineKselftests` cover the miner on small
+  scripts. `TestWsO5Applies`, the new `TestWsO5Argv` rows and
+  `TestWsO5ZeroMetricsPad` cover O5's side. `TestParseNexthopBucketCorpus`
+  now decodes 9 `RTM_GETNEXTHOPBUCKET` requests, up from 2: the mined rows
+  add three gets and four dumps.
+- **The miner leaves out iproute2's British-spelled alias for `neighbor`,**
+  which lint and the kernel-citation audit reject outside kernel paths. No
+  prefix of `neighbor` reaches it, and no mined selftest types it, so the
+  rows don't change.
+- **Mutation:** 29 of 29 miner mutants and 5 of 5 O5 mutants killed, each
+  by a relevant test. The first pass left four survivors, each fixed by
+  adding a test or removing dead code:
+  - a pipe reader that stays required, and a module taken from any word
+    rather than the one after `type`, each needed a test row;
+  - skip deduplication across groups needed `TestMineScriptPrelude`;
+  - `logTest`'s check for a step after a skipped write was dead code (such
+    a step never becomes the one `log_test` reads), so it was removed.
+- **Size:** the rows file is 2.2 MB, because each row repeats its group's
+  steps as pre steps (up to 124). The recorded rows add 6.6 MB of file
+  bytes to `ws/`, which then holds 13.4 MB, under the 20 MB budget. A run
+  of 985 rows takes about nine minutes at `-j 8`.
+
+#### Grammar matrix for addresses, neighbors and links (W3)
+
+W3 applies W2's method to `ip address`, `ip neigh` and `ip link`, one
+commit each: W3a addresses, W3b neighbors, W3c links.
+
+##### W3a: `ip address`
+
+`nlcapgen matrix -family addr -seed 1 -random 40` writes
+`nix/microvms/workbench/addr.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_addr.go`. Each row runs in a fresh namespace
+holding one dummy device, `d0`, up with no address, so the address under
+test is the only one on it. A `change` or `del` first adds the address it
+works on.
+
+| space | axes | rows | positive | boundary | corner | negative |
+|---|---|---|---|---|---|---|
+| addr4 | verb, local, peer, brd, label, scope, metric, lft, flags, proto | 132 | 1 | 12 | 87 | 32 |
+| addr6 | the same; brd, label and scope have only the values IPv6 ignores | 128 | 1 | 10 | 56 | 61 |
+
+Nearly every row takes at least one unusual spelling (`priority` for
+`metric`, `bro` for `broadcast`, `local` before the address), which makes
+it `corner:`.
+
+**What the kernel and iproute2 do** (each is a row, or a judged
+negative):
+
+- **ip exits 1, not 255, when `ipaddr_modify` returns -1.** `do_cmd`
+  negates the return value (`ip/ip.c:131`), so the checks after the device
+  lookup (`autojoin needs multicast address`, `valid_lft is zero`,
+  `preferred_lft is greater than valid_lft`) exit 1, as does IPv6's
+  `brd +`. Only `invarg()` exits 255.
+- **IPv4 `autojoin` with a peer is EINVAL.** `ip_mc_autojoin_config` joins
+  `ifa_address`, which a peer replaces, and `__ip_mc_join_group` refuses a
+  unicast group (`net/ipv4/igmp.c:2363`). A plain exclusion keeps the
+  pair out of positive rows; `Derive` writes the negative, since every
+  negative base row is unicast.
+- **Adding `0.0.0.0` succeeds and stores nothing.** `inet_rtm_newaddr`
+  returns 0 for a zero `IFA_LOCAL` (`net/ipv4/devinet.c:961`). O4 checks
+  that the dump doesn't hold it, and a delete of it is EADDRNOTAVAIL.
+- **IPv6 refuses a multicast address without `autojoin`, and the
+  unspecified one** (`ipv6_add_addr`, EADDRNOTAVAIL). `mngtmpaddr` needs a
+  prefix length of 64, and it is the peer's length that counts when there
+  is one (EINVAL, checked first).
+- **`nodad optimistic` is not refused while optimistic DAD is off.** The
+  kernel clears `IFA_F_OPTIMISTIC` before it checks the pair.
+- **IPv6 ignores `label`, `scope` and `broadcast`.** iproute2 sends them;
+  O4 compares them for IPv4 only. IPv6-only flags on an IPv4 address draw
+  a warning and aren't sent.
+- **An IPv4 delete without a prefix length is a wildcard deletion.**
+  ipaddr_modify leaves `IFA_ADDRESS` out, and the kernel matches on the
+  local address alone.
+
+The first run's 41 failures were all predictions of the first two kinds
+(rc 255 where ip exits 1, and `autojoin` with a peer). There were no
+command or capture bugs.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_addr_test.go`):
+
+- **O3** rebuilds the `AddrInfo` the request should parse to from the
+  row's axes, and checks the attribute set, each width and the header's
+  `ifa_flags`. The model covers: `brd +`/`-` computed from the peer or the
+  local address (none past /30, none on a delete), the wildcard deletion,
+  `default_scope`'s host scope for 127/8, and flags past 0xff moving to
+  `IFA_FLAGS` with the header 0. The index must be the one the kernel gave
+  `d0` in its answer to ip's lookup. O3 checked 213 requests.
+- **O4** looks for the address in `ip address show dev d0`'s dump after
+  each accepted write (167 rows): its addresses, prefix length, metric,
+  protocol and flags, plus the label, scope and broadcast address for
+  IPv4. After a delete, or a zero address, the dump must not hold it.
+- **O5:** goip sends the same request as ip on all 260 rows (addr4 132,
+  addr6 128). The only lookup difference is the known `IFLA_EXT_MASK`.
+- **Determinism:** a second run of all 260 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestAddrJudge` (16 rows), `TestBuildAddr`, `TestSpaceAssign`,
+`TestAddrCanDup`, `TestAddr4Exclusions` and `TestMatrixAddrRows` cover the
+generator. `TestAddrComputedBroadcast`, `TestAddrWantFromAxes`,
+`TestAddrRequestProblem` and `TestAddrDumpMatches` cover the oracles, and
+`TestWsO5HdrLen` covers O5's header lengths.
+
+**Mutation:** 27 of 27 mutants killed, each by a relevant test. The first
+pass left four survivors, each fixed by adding a test:
+
+- `addrCanDup` and the `autojoin`-with-a-peer negative weren't reached by
+  any row check, so each got a direct test;
+- an exclusion swapped for another wasn't visible in the rows, since no
+  positive row happened to take the pair. `TestAddr4Exclusions` now checks
+  the compiled space;
+- O5's header length for addresses was used only to describe a
+  difference, and no row differs. `TestWsO5HdrLen` checks it directly.
+
+**Size:** the rows add 771 KB of file bytes to `ws/`, 14.2 MB in all.
+
+##### W3b: `ip neigh`
+
+`nlcapgen matrix -family neigh -seed 1 -random 40` writes
+`nix/microvms/workbench/neigh.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_neigh.go`. Each row runs in a fresh namespace
+holding a veth pair, `d0` and `d1`, both up, with 192.0.2.10/24 and
+2001:db8:1::10/64 on `d0`. A dummy device won't do here, since it is NOARP
+and resolves nothing. A `change` or `del` first adds the entry it works
+on, and a proxy row reads back `ip neigh show proxy`, since the plain dump
+leaves proxy entries out.
+
+| space | axes | rows | corner | negative |
+|---|---|---|---|---|
+| neigh4 | verb, dst (incl. broadcast, multicast, proxy), lladdr, nud, flags, protocol | 138 | 87 | 51 |
+| neigh6 | the same, with a link-local destination in place of broadcast | 137 | 82 | 55 |
+
+No row is plain `positive:`. The all-plain row (`add 192.0.2.1 dev d0`)
+has no link-layer address, so it is a judged negative, and every other row
+takes at least one corner value.
+
+**What the kernel does** (`net/core/neighbour.c` `neigh_add` and
+`__neigh_update`, each a row or a judged negative). All 275 rows passed
+on the first run.
+
+- **A new entry in a valid state needs a link-layer address**, or the
+  kernel refuses it with EINVAL ("No link layer address given"). That
+  includes the default state, NUD_PERMANENT, so `ip neigh add 192.0.2.1
+  dev d0` fails.
+- **Not for a multicast or broadcast destination.** `arp_constructor` and
+  `ndisc_constructor` start such an entry NUD_NOARP, which is valid, so
+  the kernel keeps the address it already has.
+- **`none`, `incomplete` and `failed` need no address.** They aren't
+  NUD_VALID, so `__neigh_update` stores the state and returns.
+- **`use` and `managed` return before that check.** `managed` also sets
+  the state to NUD_NONE, and it wins over a `nud` before it on the line.
+- **`extern_valid` needs a valid state** on a new entry (EINVAL, "Cannot
+  create externally validated neighbor with an invalid state").
+- **A proxy entry refuses `managed` and `extern_valid`** ("Invalid NTF_*
+  flag combination") and takes anything else. Added twice, it is found
+  rather than refused, so the duplicate-add negatives skip proxy rows.
+- **`change` of an absent entry is ENOENT.** change sends NLM_F_REPLACE
+  without NLM_F_CREATE. `Derive` writes three such rows (`chgone-*`).
+- **`router` is stored only with a valid state.** `__neigh_update` leaves
+  for an invalid state, `use` or `managed` before it updates
+  `NTF_ROUTER` (`net/core/neighbour.c:1460`), while `extern_learn` is set
+  earlier, by `neigh_update_flags`. O4 first expected the router flag on
+  8 such rows.
+
+**A parser gap closed.** `ParseNeigh` skipped `NDA_PROTOCOL`, which ip sends
+for `protocol` and the kernel dumps back. `NeighInfo` now has `Protocol`
+and `HasProtocol`, with table rows and `NdaProtocol` pinned at 12 next to
+`NdaFlagsExt`.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_neigh_test.go`):
+
+- **O3** rebuilds the `NeighInfo` the request should parse to: the state
+  (NUD_PERMANENT unless named), `NTF_PROXY`, `NDA_FLAGS_EXT` only when an
+  extended flag is set, and `NDA_PROTOCOL` only when named. The index must
+  be `d0`'s, found by name in the link dump ip reads first (`ll_init_map`),
+  where `lo` comes first. O3 checked 262 requests.
+- **O4** finds the entry in the dump after each accepted write (169 rows).
+  It checks the flags asked for, the extended flags and the protocol, plus
+  the state and link-layer address for a permanent or noarp entry, unless
+  `use` or `managed` handed the entry to the kernel to resolve. A
+  reachable entry may have gone stale by the readback, so other states
+  aren't compared.
+- **O5:** goip sends the same request as ip on all 275 rows (neigh4 138,
+  neigh6 137). ip neigh dumps every link before its write, and O5 used to
+  count that dump as a lookup goip skipped. `wsO5Split` now sets ip's
+  leading `NLM_F_DUMP` link requests apart and compares them with goip's
+  dumps byte for byte. They differ only in `IFLA_EXT_MASK`: 0x109 from ip,
+  0x1 from goip. iproute2 7.2.0's de91e928 added
+  `RTEXT_FILTER_SKIP_STATS | RTEXT_FILTER_NAME_ONLY` to `ll_init_map`'s
+  dump as well as to `ll_link_get`, and goip models 7.1. The report's mask
+  notes now say whether they come from a lookup or a dump.
+- **Determinism:** a second run of all 275 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestNeighJudge` (17 rows), `TestBuildNeigh`, `TestNeighCanDup`,
+`TestDeriveNeighChangeGone` and `TestMatrixNeighRows` cover the generator.
+`TestNeighWantFromAxes`, `TestNeighRequestProblem` and
+`TestNeighDumpMatches` cover the oracles. `TestWsO5Split`, `TestWsO5Lookups`
+and `TestWsO5MaskOnly` cover O5's dump handling.
+
+**Mutation:** 33 of 33 mutants killed, each by a relevant test. The first
+pass ran 35 and left three survivors:
+
+- the derive test didn't check that a proxy change was skipped, since
+  its proxy and plain sources had the same command. It now checks the
+  derived row's axes;
+- `managed` setting the state to NUD_NONE in the judge was dead code.
+  `flags` is one axis, so `managed` never meets `extern_valid`, and it was
+  removed;
+- judging a change's setup add as an add was equivalent to judging the
+  change itself, since the judge refuses one exactly when it refuses the
+  other. The line was removed. Neither removal changed the rows.
+
+**Size:** the rows add 707 KB of file bytes to `ws/`, 14.9 MB in all.
+
+##### W3c: `ip link set`
+
+`nlcapgen matrix -family link -seed 1 -random 40` writes
+`nix/microvms/workbench/link.rows.jsonl` from one space, `linkset`, in
+`tools/nlcapgen/matrix_link.go`. Each row runs in a fresh namespace
+holding one dummy device, `d0`, down, and runs `ip link set dev d0 …`. The
+readback dumps every link (`ip -d link show`), so a rename is still found.
+`ip link add`, kind by kind, is W3d.
+
+| axis | values (boundary values in bold) |
+|---|---|
+| updown | absent, up, down |
+| mtu | absent, 1400, **0**, **65535** |
+| txqlen | absent, 500, **0**, **32767** (`qlen`), `txq 100` |
+| group | absent, 5, `default`, **2147483647** |
+| alias | absent, `hello`, **255 characters** |
+| address | absent, a MAC, `addr` abbreviated, `broadcast` |
+| flag | absent, multicast on and off, promisc, allmulticast, arp off, dynamic, trailers off |
+| gso | absent, gso_max_size, gso_max_segs (**65535**), gro_max_size (**524280**), gso_ipv4_max_size, gro_ipv4_max_size |
+| mode | absent, `mode dormant`, `mode default`, `state dormant` |
+| name | absent, `name d9` |
+
+130 rows: 8 positive, 7 boundary, 105 corner and 10 negative. All 130
+passed on their first run, so every prediction about a dummy device held:
+
+- **A dummy has no MTU limits.** It sets `min_mtu` and `max_mtu` to 0
+  (`drivers/net/dummy.c:126`), so `mtu 0` and `mtu 65535` are taken.
+  `mtu -1` passes `get_integer` and the kernel refuses it as negative
+  (EINVAL, "mtu less than device minimum").
+- **`txqueuelen 32768` is ERANGE.** `ifla_policy` bounds `IFLA_TXQLEN` at
+  S16_MAX (`txqlen_range`), before `netif_change_tx_queue_len`'s own check.
+- **`gro_max_size 524281` is EINVAL** (past `GRO_MAX_SIZE`, 8 × 65535, in
+  `validate_linkmsg`). `gso_max_segs 65536` never reaches the kernel:
+  iplink_parse refuses it against `GSO_MAX_SEGS`.
+- **A multicast MAC is EADDRNOTAVAIL** (`eth_mac_addr`). A 2-byte address
+  is refused by iproute2 after it has looked d0's address length up
+  (`nl_get_ll_addr_len`), so it exits 1 with an acknowledged lookup.
+- **An alias of 256 characters is refused by iproute2** (`alias too long`,
+  IFALIASZ), and a name of 16 by `check_ifname`.
+
+**A parser gap closed.** `ParseNewLink` skipped `IFLA_IFALIAS`, ip's
+`alias` line. `LinkInfo` now has `IfAlias`. The kernel dumps it
+NUL-terminated and iproute2 sends it without the NUL; both decode alike.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_link_test.go`):
+
+- **O3** rebuilds every attribute's bytes from the axes and compares them,
+  in any order, with none missing, extra or repeated. It also checks the
+  `ifinfomsg`: AF_UNSPEC, d0's index, and `ifi_flags`/`ifi_change` from
+  up, down and the on/off flag (`arp off` and `trailers off` set
+  `IFF_NOARP` and `IFF_NOTRAILERS`). No `NLM_F_CREATE`. O3 checked 124
+  requests.
+- **O4** finds `d0` by index in the dump after each accepted write (120
+  rows), and checks its name, the flags under the change mask, MTU,
+  txqueuelen, group, the GSO and GRO limits, link mode, address,
+  broadcast and alias. The operational state isn't compared: a down
+  device's stays down whatever `state` asked for.
+- **O5:** `set` is now one of O5's write verbs, run through goip's `link`
+  object. goip sends the same request as ip on only 8 of the 130 rows.
+  The other 122 stop at a keyword goip recognizes but hasn't implemented,
+  counted by the first one each row reaches: `group` 61, `gso_max_segs`
+  16, `gro_max_size` 15, `gro_ipv4_max_size` 7, `gso_ipv4_max_size` 6,
+  `broadcast` 6, `gso_max_size` 5, `mode` 3, `state` 1, and the
+  address-length lookup 2. That is goip's to-do list for `ip link set`.
+  Implementing it is outside W3.
+- **Determinism:** a second run of all 130 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestBuildLinkSet` and `TestMatrixLinkRows` cover the
+generator. `TestLinkSetWantFromAxes`, `TestLinkSetRequestProblem` and
+`TestLinkDumpProblem` cover the oracles, and three `TestParseNewLink` rows
+cover `IfAlias`.
+
+**Mutation:** 25 of 25 mutants killed, each by a relevant test. One
+survived the first pass: the longest-alias test compared the command with
+the constant that built it, so shortening the constant changed both. It
+now spells out 255 characters itself.
+
+**Size:** the rows add 737 KB of file bytes to `ws/`, 15.6 MB in all. They
+are larger than W3a's and W3b's because every readback dumps both links
+with `-d`, and 1 in 5 rows carries the 255-character alias.
+
+##### W3d: `ip link add`
+
+The second space in `link.rows.jsonl`, `linkadd`
+(`tools/nlcapgen/matrix_linkadd.go`). The `linkset` rows come first and
+keep their ids, so W3c's captures are unchanged. Each row runs in a fresh
+namespace holding `d0`, a dummy that is up, as the lower device a vlan or
+macvlan names, and adds `n0`. The readback shows `n0` alone.
+
+| axis | values (boundary values in bold) |
+|---|---|
+| name | `n0`, `dev n0`, `name n0` |
+| up | absent, up |
+| mtu | absent, 1400, **1500**, 9000 |
+| txqlen | absent, 100, **0** |
+| address | absent, a MAC |
+| queues | absent, `numtxqueues 4`, `numrxqueues 4`, both |
+| kind | dummy; ifb; veth (`peer name p0`, and with the peer's mtu); vlan (`id 10`, **`id 4094`**, `protocol 802.1ad`); macvlan (`mode bridge`, `private`, `passthru`); bridge (and `stp_state 1`) |
+
+111 rows: 10 positive, 8 boundary, 74 corner and 19 negative. Three were
+wrong on the first run:
+
+- **A bare name of 16 characters is refused by the kernel.** A bare name is
+  iplink_parse's `dev`, which `check_altifname` allows up to ALTIFNAMSIZ,
+  so ip sends it and `ifla_policy` refuses `IFLA_IFNAME` (ERANGE). The
+  `name` keyword goes through `check_ifname`, which refuses it in ip
+  (W3c).
+- **`vlan id 65536` is refused after a lookup.** `vlan_parse_opt` runs after
+  iplink_parse has looked `d0` up, so ip exits 255 with an acknowledged
+  `RTM_GETLINK`.
+- **An unknown kind is ENOTSUP.** The kernel returns EOPNOTSUPP ("Unknown
+  device type"), which Linux numbers the same as ENOTSUP, and that is the
+  name `unix.ErrnoName` gives it.
+
+The rest held:
+
+- **A vlan's or macvlan's MTU may not pass its lower device's** (1500 on
+  `d0`, EINVAL). A veth, bridge, dummy or ifb takes 9000.
+- **VLAN id 4095 is ERANGE**, and 4094 is the largest taken.
+- **A vlan with no lower device is EINVAL.**
+- **Adding `n0` twice is EEXIST** (three `dup-*` rows).
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_link_test.go`):
+
+- **O3** checks the top-level attributes by bytes, with `IFLA_LINK` as
+  `d0`'s index, plus the `IFLA_LINKINFO` nest byte for byte:
+  `IFLA_INFO_KIND` with its NUL, then the kind's `IFLA_INFO_DATA`. The
+  model covers:
+  - a veth peer: a zeroed `ifinfomsg`, with the peer's `IFLA_MTU` before
+    its `IFLA_IFNAME`, as the peer's iplink_parse adds them;
+  - a vlan protocol in network order before a host-order id;
+  - a macvlan mode as a u32;
+  - a bridge option.
+
+  It also checks `NLM_F_CREATE|NLM_F_EXCL` and index 0. O3 checked 109
+  requests.
+- **O4** finds `n0` in the dump (92 rows) and checks its kind, up, lower
+  device, MTU, txqueuelen, queue counts and address. It also checks the
+  decoded kind data: a vlan's id and protocol (802.1Q when none is named),
+  a macvlan's mode and a bridge's STP state.
+- **Two findings from O4:**
+  - `ip link show dev n0` first resolves the name, and iproute2 7.2.0
+    asks with `RTEXT_FILTER_NAME_ONLY`, so the first reply about `n0`
+    holds its name alone. The full reply comes second, and O4 takes the
+    last.
+  - A passthru macvlan takes its lower device's address whatever was
+    asked (`eth_hw_addr_inherit`, `drivers/net/macvlan.c:1552`), so its
+    address isn't compared.
+- **O5:** goip sends the same request as ip on 43 rows, across all six
+  kinds. The other 68 stop at `numtxqueues` (47) or `numrxqueues` (21),
+  which goip hasn't implemented. Every lookup difference is the known
+  `IFLA_EXT_MASK`.
+- **Determinism:** a second run of all 111 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestLinkAddJudge`, `TestBuildLinkAdd`, `TestDeriveLinkAddDup`
+and `TestMatrixLinkAddRows` cover the generator. `TestLinkAddInfoData`,
+`TestLinkAddRequestProblem` and `TestLinkAddDumpProblem` cover the
+oracles.
+
+**Mutation:** 23 of 23 mutants killed, each by a relevant test. Two
+mutants were rewritten before they counted, neither a survivor:
+
+- "queue counts unchecked in the dump" first panicked on rows with no
+  queue count. It now drops the check, and `TestLinkAddDumpProblem` gained
+  a tx-queue row to kill it;
+- "a passthru address compared" first didn't build.
+
+**Size:** the rows add 321 KB of file bytes to `ws/`, 16.0 MB in all,
+against the 20 MB budget.
+
+#### Netlink coverage report (W4)
+
+`nlcapgen coverage -linux DIR -ws DIR -out FILE` (`tools/nlcapgen/coverage.go`)
+writes [`ws-coverage.txt`](ws-coverage.txt). For each message family the
+rows write, it lists which attributes of the kernel's policy table some
+request in the workbench corpus sent. That is every row's `ip.pcap`: 4106
+captures. The never-sent list is the to-do list for the next axis values.
+
+- **The policy** is the set of designators in the `nla_policy` table, read
+  from the Linux tree: `rtm_ipv4_policy`, `rtm_ipv6_policy`,
+  `fib_rule_policy`, `rtm_nh_policy_new`, `ifa_ipv4_policy`,
+  `ifa_ipv6_policy`, `nda_policy` and `ifla_policy`. The UNSPEC entry
+  holds only `strict_start_type`, so it isn't counted.
+- **Attribute numbers** come from the uapi enum: its place in the enum, or
+  an explicit value.
+- **The requests counted** are every type whose kernel handler parses with
+  that table. The route, address, link and neighbor tables also judge
+  their family's gets and dumps (`inet_rtm_getroute`, the address dump
+  checks, `rtnl_getlink`, the neighbor get and dump checks). The rule and
+  new-nexthop tables judge only writes.
+- Route and address requests are split by family, so an `AF_UNSPEC`
+  address dump counts for neither.
+
+| family | sent / policy | requests | never sent, though ip has a keyword for it | never sent, and no iproute2 code sends it |
+|---|---|---|---|---|
+| route4 | 12 / 19 | 494 | `RTA_FLOW` (realms), `RTA_ENCAP`/`_TYPE` (encap), `RTA_UID`, `RTA_IP_PROTO`, `RTA_SPORT`, `RTA_DPORT` (route get) | — |
+| route6 | 12 / 19 | 461 | `RTA_ENCAP`/`_TYPE`, `RTA_UID`, `RTA_IP_PROTO`, `RTA_SPORT`, `RTA_DPORT`, `RTA_FLOWLABEL` (route get) | — |
+| rule | 23 / 23 | 464 | — | — |
+| nexthop | 11 / 12 | 494 | `NHA_DST_PORT`, which iproute2 7.2.0 predates (W2d) | — |
+| addr4, addr6 | 8 / 9, 6 / 7 | 110, 103 | — | `IFA_TARGET_NETNSID` |
+| neigh | 4 / 13 | 262 | `NDA_IFINDEX`, `NDA_MASTER` (neigh dump filters); `NDA_VLAN`, `NDA_PORT`, `NDA_VNI`, `NDA_NH_ID`, `NDA_FDB_EXT_ATTRS` (`bridge fdb`, W5) | `NDA_CACHEINFO`, `NDA_PROBES` |
+| link | 19 / 56 | 2548 | `IFLA_MASTER`, `IFLA_AF_SPEC` (addrgenmode), `IFLA_NET_NS_FD`, `IFLA_CARRIER`, `IFLA_LINK_NETNSID`, `IFLA_PROTO_DOWN` and `_REASON`, `IFLA_XDP`, `IFLA_TARGET_NETNSID`, `IFLA_NEW_IFINDEX`, `IFLA_PROP_LIST`/`IFLA_ALT_IFNAME` (altname), `IFLA_PARENT_DEV_NAME`, `IFLA_VFINFO_LIST` | 23, mostly ones the kernel only reports (`IFLA_PROMISCUITY`, the carrier counters, `IFLA_MIN_MTU`/`MAX_MTU`, `IFLA_PERM_ADDRESS`, `IFLA_TSO_MAX_*`, …), plus `IFLA_MAP`, `IFLA_WEIGHT`, `IFLA_NET_NS_PID`, `IFLA_VF_PORTS`, `IFLA_PORT_SELF` and `IFLA_PACING_OFFLOAD`, which the kernel takes and iproute2 7.2.0 has no keyword for |
+
+Whether ip has a keyword was checked by searching iproute2's `ip/`, `lib/`
+and `bridge/` for each name where an attribute is added. A plain
+line-by-line search for `addattr…(…NAME` missed four that are added over
+two lines or through a helper: `RTA_ENCAP` (via `rta_nest`),
+`IFLA_PROP_LIST`, `IFLA_PROTO_DOWN_REASON` and `IFLA_VFINFO_LIST`.
+
+**What the report showed besides the gaps** ("sent outside the policy",
+each checked against the kernel source):
+
+- **`rtm_ipv4_policy` has no `RTA_VIA`**, and `rtm_ipv6_policy` no `RTA_DST`
+  or `RTA_SRC`. The kernel reads them without policy validation
+  (`fib_gw_from_via`; `rtm_to_fib6_config` copies the prefixes itself).
+- **`fib_rule_policy` has no `FRA_DST` or `FRA_SRC`.** Each family's
+  `configure` hook checks them.
+- **ip sends `IFA_LABEL` and `IFA_BROADCAST` on IPv6**, which
+  `ifa_ipv6_policy` doesn't name and the kernel ignores (W3a).
+- **IPv6 requests carry `RTA_CACHEINFO`.** These are `ip -6 route flush`'s
+  deletes, which echo back the dumped routes' attributes, cache info
+  included (18 mined fib rows).
+
+**Tests:** `TestUapiEnum`, `TestPolicyNames`, `TestFindPolicy`,
+`TestLoadPolicies`, `TestCovTally` and `TestWriteCoverage`, on fixture
+trees and hand-built messages, since the Linux tree isn't available to the
+hermetic tests.
+
+**Mutation:** 16 of 16 mutants killed, each by a relevant test. One
+survived the first pass: every test attribute was 8 bytes long, so
+dropping the walk's alignment to four bytes changed nothing.
+`TestCovTally` now has an odd-length attribute followed by another.
+
+Next is W4b: rows for the keywords in the table's fourth column.
+
+##### W4b: `ip route get`, for the route attributes no write sends
+
+Four of route4's seven gaps and five of route6's seven are lookup
+attributes. `nlcapgen matrix -family routeget -seed 1 -random 40` writes
+`nix/microvms/workbench/routeget.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_routeget.go`. Each row runs `routeSetup`'s namespace
+plus a default route per family, so every destination resolves. There is
+no readback: the answer is in ip's own capture.
+
+| axis | values (boundary values in bold) |
+|---|---|
+| dst | connected, via the default route, **/32** or **/128**, `to` |
+| from | absent, d0's address |
+| dev | absent, `oif d0`, `dev d0` |
+| mark | absent, 0x10, **0** (ip sends no `RTA_MARK`), **4294967295** |
+| uid | absent, 1000, **0** |
+| ipproto | absent, tcp, udp, the family's ICMP |
+| ports | absent, sport, dport, both, **dport 65535** |
+| tos (v4) / flowlabel (v6) | absent, 0x10 or `dsfield 0x08` / 0x12345, **0xfffff** |
+| flags | absent, fibmatch, notify (v4) |
+
+161 rows (routeget4 81, routeget6 80): 7 positive, 42 boundary, 101 corner
+and 11 negative. The first run's 55 failures were two kernel rules the
+spaces hadn't modeled:
+
+- **Only TCP, UDP and the family's own ICMP are taken.**
+  `rtm_getroute_parse_ip_proto` (`net/ipv4/netlink.c`) refuses anything
+  else with EOPNOTSUPP ("Unsupported ip proto"), including ICMP in an IPv6
+  lookup and ICMPv6 in an IPv4 one. These are now bad values.
+- **An IPv6 lookup takes `RTM_F_FIB_MATCH` alone.**
+  `inet6_rtm_valid_getroute_req` refuses `notify` (EINVAL, "Invalid flags
+  for get route request"). That is the strict check, so ip enables strict
+  checking for gets. A device ip can't resolve is refused in its
+  `RTM_GETLINK` (ENODEV), before any lookup is sent.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_routeget_test.go`):
+
+- **O3** rebuilds the lookup: the `rtmsg`, with dst and src lengths at
+  full width, `RTM_F_LOOKUP_TABLE` on IPv4, plus fibmatch and notify. Then
+  every attribute's bytes. The ports and flow label are network order
+  (`get_be16`/`get_be32`), the mark and uid host order, `RTA_MARK` absent
+  for mark 0, and `RTA_OIF` as d0's index. `x/sys/unix` has no
+  `RTA_FLOWLABEL`, so the test names it as `RtaNhID + 1`. O3 checked 154
+  lookups.
+- **O4** holds the kernel's answer (150 rows). It must leave through
+  `d0`. Without fibmatch it is the destination at full length; with it,
+  the FIB entry that matched, which is shorter and holds the destination,
+  or the default route with no `RTA_DST`.
+- **O5 doesn't apply:** a lookup isn't a write.
+- **Coverage:** route4 rises from 12/19 to 16/19 and route6 from 12/19 to
+  17/19. What remains is `RTA_FLOW` (realms) and `RTA_ENCAP`/`_TYPE`,
+  which belong in the route write spaces. Adding values there regenerates
+  every route row, so it is left for its own step.
+- **Determinism:** a second run of all 161 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:** `TestBuildRouteGet` and `TestMatrixRouteGetRows` cover the
+generator. `TestRouteGetWantFromAxes`, `TestRouteGetRequestProblem`,
+`TestRouteGetReplyProblem` and `TestPrefixHolds` cover the oracles.
+
+**Mutation:** 17 of 17 mutants killed, each by a relevant test. Two
+survived the first pass:
+
+- the setup test compared the setup with the constant that built it, so
+  dropping the default routes went unseen. It now names them;
+- no prefix test cut through a byte where the byte and the bits disagree.
+  `TestPrefixHolds` now has a /20 holding 192.0.31.9.
+
+**Size:** the rows add 267 KB of file bytes to `ws/`, 16.2 MB in all.
+
+**Budget raised to 64 MB (2026-11-01):** at 16.2 MB of 20 MB, the corpus
+had room for about one more W3-sized family, and W5 adds five. The budget
+in `TestWsSizeBudget` is now 64 MB per kernel version. Each version has its
+own `ws/`, so W7's replays don't count against it. Packing a family into
+one pcapng stays the fallback if a version nears the new limit.
+
+##### W4c: the link keywords no row sent
+
+The link family's fourth-column gaps. `nlcapgen matrix -family linkattr
+-seed 1 -random 20` writes `nix/microvms/workbench/linkattr.rows.jsonl`
+from three spaces in `tools/nlcapgen/matrix_linkattr.go`:
+
+| space | device | axes (boundary values in bold) |
+|---|---|---|
+| linkattr | `d0`, with a bridge `br0` and a VRF `v0` | master: `master br0`, `vrf v0`, `nomaster`; addrgenmode: eui64, none, random; carrier on/off; netns: `netns $$`, `netns $$ index 100`; xdp: `xdp off`, `xdpgeneric none`, `xdpdrv off` (always last) |
+| linkpd | a macvlan `m0` (a dummy has no `change_proto_down`) | protodown on/off; `protodown_reason` 0 on, 0 off, **31 on**; up |
+| linkprop | `d0` | `ip link property add`/`del`, and `ip link show` by altname; altname: short, 16 characters, **127 characters**, two at once, one with a slash; `dev d0` or bare `d0` |
+
+100 rows (linkattr 52, linkprop 28, linkpd 20): 18 positive, 5 boundary,
+59 corner and 18 negative. Two are derived:
+
+- `linkattr/xdp-not-last` has `xdp off carrier on`;
+- `linkattr/parentdev` is `ip link set dev d0 parentdev br0`. iplink_parse sends
+  `IFLA_PARENT_DEV_NAME` on a set too, and the kernel only ever dumps it
+  (`rtnl_fill_ifinfo`), so the set succeeds and changes nothing.
+
+`linkprop/del-absent` (ENOENT) and `linkprop/dup-1` (EEXIST) are derived
+too.
+
+The first runs' failures were all iproute2 parsing rules the spaces
+hadn't modeled:
+
+- **`xdp off` must be the last argument.** Otherwise `xdp_parse` hands
+  `off` to `bpf_parse_and_load_common` as a program mode (`What mode is
+  "off"?`).
+- **`carrier`/`protodown` with a bad value exit 22.** That is
+  `parse_on_off`'s -EINVAL, not the usual 255.
+- **`index` needs `netns`** (rc 255, "index can be used only when creating
+  devices or when moving device to another netns").
+- **The kernel decides the rest:**
+  - `xdpdrv off` on a dummy succeeds;
+  - a slash in an altname is taken (`netdev_name_node_alt_create`);
+  - `master nosuch` is ip's lookup refused with ENODEV;
+  - `protodown on` on a dummy gives EOPNOTSUPP;
+  - `protodown off` with a reason on gives EBUSY (`do_set_proto_down`,
+    "Cannot clear protodown, active reasons").
+
+**Two iproute2 print bugs** turned up in `ip -d link show` (`print_proto_down`,
+`ip/ipaddress.c`). Both are recorded here only:
+
+- **The reason is read with `rta_getattr_u8`**, though
+  `IFLA_PROTO_DOWN_REASON_VALUE` is a u32. Reasons 8–31 never print: the
+  `31 on` rows show no `protodown_reason`, while O4 finds 0x80000000 in
+  the kernel's dump.
+- **No space precedes `protodown_reason <…>`**, so it runs into the
+  address before it (`brd ff:ff:ff:ff:ff:ffprotodown_reason <0>`).
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_linkattr_test.go`):
+
+- **O3 for linkattr and linkpd** extends the W3c set model with:
+  - `IFLA_MASTER` as the looked-up index, 0 for `nomaster`;
+  - `IFLA_CARRIER` and `IFLA_PROTO_DOWN` as u8;
+  - `IFLA_NEW_IFINDEX`, `IFLA_LINK_NETNSID` and the
+    `IFLA_PARENT_DEV_NAME` string;
+  - the nests: addrgenmode in `IFLA_AF_SPEC`'s `AF_INET6`, `IFLA_XDP`'s fd
+    −1 and flags, and the reason's mask and value;
+  - the namespace fd `netns $$` opened, taken from the request (any
+    descriptor past stderr).
+
+  It checked 63 requests.
+- **O4 for linkattr and linkpd** holds the dumped device's master,
+  addrgenmode and carrier, and its protodown and reason, which are 0 when
+  not asked for. `ip link show dev m0` first looks m0 up and gets a
+  name-only answer, so the last reply about the device is the one read.
+  It checked 57 round trips.
+- **O3 for linkprop:**
+  - an add carries `NLM_F_EXCL|NLM_F_CREATE|NLM_F_APPEND`;
+  - the names are NUL-terminated `IFLA_ALT_IFNAME`s in `IFLA_PROP_LIST`;
+  - a show sends two `RTM_GETLINK`s naming the device by `IFLA_IFNAME`,
+    or by `IFLA_ALT_IFNAME` when `check_ifname` refuses the name (16 or
+    more characters, a slash or space, `.` or `..`). The second one has
+    `AF_PACKET` and no index.
+
+  It checked 27 requests.
+- **O4 for linkprop:** after an add or show, d0 holds every name; after a
+  del, none. It checked 24 round trips.
+- **O5:**
+  - linkattr has 2 same and 50 refused;
+  - linkpd has 1 same and 19 refused. goip has none of these keywords,
+    which adds addrgenmode, vrf, protodown and its reason, carrier, xdp,
+    netns, index, link-netnsid and parentdev to its list;
+  - linkprop has 19 same: goip's altname writes match ip's, and the 9
+    shows aren't writes.
+- **Coverage:** link rises from 19/56 to 31/56 (`ws-coverage.txt`). The
+  tally now counts `RTM_NEWLINKPROP` and `RTM_DELLINKPROP` as link
+  requests, since `rtnl_linkprop` parses them with `ifla_policy`. Of the
+  25 left, iproute2 7.2.0 sends only two:
+  - `IFLA_TARGET_NETNSID`, from `link-netnsid` with `link`, which needs a
+    peer namespace with an nsid;
+  - `IFLA_VFINFO_LIST` (`vf`, W5's netdevsim).
+
+  It never sends `IFLA_NET_NS_PID`: `netns_get_fd` turns a pid into
+  `/proc/PID/ns/net` and sends the fd.
+- **Determinism:** a second run of all 100 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:**
+
+- The generator: `TestBuildLinkAttr`, `TestDeriveLinkAttrCorners`,
+  `TestLinkAttrSetups`, `TestLinkPDJudge`, `TestBuildLinkPD`,
+  `TestBuildLinkProp`, `TestDeriveLinkPropAbsent` and
+  `TestMatrixLinkAttrRows`.
+- The oracles: `TestLinkAttrWantFromAxes`, `TestLinkNetnsFD`,
+  `TestLinkProtoDown`, `TestLinkAttrDumpProblem`, `TestLinkPropAlts`,
+  `TestLinkPropRequestProblem`, `TestLinkShowNameAttr`,
+  `TestLinkShowProblem` and `TestLinkPropDumpProblem`.
+
+**Mutation:** 30 of 30 mutants killed, each by a relevant test. Four
+survived the first pass, and each now has a row:
+
+- no generator test looked at reason 31's mask;
+- no O4 row had a carrier that was present but wrong;
+- no show row had three requests;
+- `TestWsO5HdrLen` lacked the property types. Their bodies match byte for
+  byte, so comparing them whole hid the missing header length.
+
+**Size:** the rows add 644 KB to `ws/`, 16.9 MB of 64 MB in all.
+
+##### W5a: `bridge fdb`
+
+W4's report counted no `AF_BRIDGE` neighbor writes: `ip neigh` never
+sends `NDA_VLAN`, `NDA_PORT`, `NDA_VNI`, `NDA_IFINDEX`, `NDA_SRC_VNI`,
+`NDA_NH_ID` or `NDA_FDB_EXT_ATTRS`, and `bridge fdb` sends all of them.
+`nlcapgen matrix -family fdb -seed 1 -random 40` writes
+`nix/microvms/workbench/fdb.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_fdb.go`:
+
+| space | devices | axes (boundary values in bold) |
+|---|---|---|
+| fdbbr | a VLAN-filtering bridge `br0` with a dummy port `d0`, VLAN 10 on both | verb: add, append, replace, del; MAC: unicast, unicast after `to`, multicast, zero; dev: port or bridge; `self`, `master`, both or neither; state: none, permanent, static, dynamic, local, temp; sticky, extern_learn, use, router; vlan: none, 1, 10, **4094**, 65535; `activity_notify`, `norefresh`, `activity_notify inactive`, `inactive` alone |
+| fdbvx | a VXLAN `vx0` (VNI 100, port 4789, nolearning) over `d1`, with nexthops 1 (fdb), 10 (an fdb group of 1) and 2 (not fdb) | remote: `dst` v4 or v6, `nhid` 10, 1, 2 or 99, none; port: none, 4790, **0**, **65535**, `0x12b6`; vni: none, 200, **0**, **16777215**; src_vni: none, 100, 300; `via d1`; state |
+
+199 rows (fdbbr 99, fdbvx 100): 3 positive, 6 boundary, 34 corner and
+156 negative. A del's pre step is its own add, when that add would be
+accepted. Derived rows add a duplicate add (EEXIST), a delete of
+something absent (ENOENT) and the two `twice-*` rows below.
+
+**bridge, unlike ip:**
+
+- **It exits 255 on a kernel refusal**, since `fdb_modify` returns -1.
+- **Every command dumps links first** (`ll_init_map`, `bridge/fdb.c:948`),
+  so a refused argument is `ack-then-fail`, never zero messages. An
+  unknown `dev` or `via` is the kernel's ENODEV to `ll_link_get`.
+- **`fdb_modify`'s defaults:**
+  - with neither `self` nor `master` it sets `NTF_SELF`;
+  - the state starts at `NUD_NOARP`, so no keyword means permanent (192),
+    `static` is 66 and `dynamic` is 2;
+  - `vlan` is `atoi` into a short and is sent only if not negative, so
+    `vlan 65535` sends nothing and `vlan ten` sends VLAN 0;
+  - `port 0` isn't sent;
+  - `nhid` is checked against `dst`, `port` and `vni` only, so `via` with
+    `nhid` reaches the kernel (EINVAL).
+
+**The kernel:** `rtnl_fdb_add` and `rtnl_fdb_del` parse with a NULL
+policy (`net/core/rtnetlink.c:4822` and `4936`). They refuse VLAN 0 and
+4095 (EINVAL). With neither path taken the answer is EOPNOTSUPP, which
+Go names ENOTSUP, as the rows do. The paths are:
+
+- `master` on a bridge port, which is `br_fdb_add`. It refuses (EINVAL)
+  the zero MAC, a VLAN the port lacks, `use` or a non-permanent entry
+  towards the bridge, sticky with permanent, and `inactive` without
+  `activity_notify`;
+- `self` on the dummy, which is `ndo_dflt_fdb_add`. It takes only
+  permanent entries and no VLAN;
+- the VXLAN's `vxlan_fdb_add`. It refuses (EINVAL):
+  - no `dst` and no `nhid`;
+  - `nhid` with anything else;
+  - a dynamic `nhid`;
+  - an `nhid` that is missing, not fdb or not a group.
+
+  An IPv6 `dst` on the IPv4 VXLAN is EAFNOSUPPORT, and a replace of a
+  multicast or zero MAC is EOPNOTSUPP.
+
+**A kernel quirk** (recorded here only):
+
+- `vxlan_fdb_alloc` keys an entry by its `src_vni`, but on a VXLAN
+  without `external` (`VXLAN_F_COLLECT_METADATA`), `vxlan_find_mac_rcu`
+  always looks up under the device's own VNI
+  (`drivers/net/vxlan/vxlan_core.c`).
+- So an entry added with a foreign `src_vni 300` can't be found:
+  - its delete is ENOENT (the del rows with `src_vni 300` expect that);
+  - a second identical replace finds nothing, inserts the same key
+    again, and the hash refuses it with EEXIST (`fdbvx/twice-other`). The
+    same pair under the device's own VNI succeeds (`fdbvx/twice-own`);
+  - the dump still lists the entry, without its `src_vni`.
+
+**Oracles** (`pkg/xtcpnl/xtcpnl_ws_fdb_test.go`):
+
+- **ParseNeigh** now decodes `NDA_PORT` (big-endian), `NDA_VNI`,
+  `NDA_SRC_VNI`, `NDA_IFINDEX`, `NDA_NH_ID` and `NDA_FDB_EXT_ATTRS`'s
+  `NFEA_ACTIVITY_NOTIFY` and `NFEA_DONT_REFRESH`. A short attribute is
+  skipped, and so is a nest that overruns. A repeated attribute's last
+  copy wins.
+- **O3:**
+  - the request has `AF_BRIDGE`, the looked-up index, the state and
+    flags;
+  - its attributes are in `fdb_modify`'s order, at their widths;
+  - the decoded values equal the axes.
+
+  An `ack-then-fail` row must send no fdb request. O3 checked 190
+  requests.
+- **O4:** after an accepted add, the device's dump has the entry
+  (MAC, VLAN and, on vx0, the dst, nhid, port, VNI and via); after a
+  del, it is gone. A port of 4789 or VNI of 100 is the device's own,
+  which the dump leaves out. O4 checked 43 round trips.
+- **O5 doesn't apply:** goip implements `ip`, not `bridge`.
+- **Coverage:** no policy judges these writes, so `nlcapgen coverage`
+  counts them on a line of their own (190 requests) rather than as
+  neigh, which stays at 4/13. The `NDA_*` attributes above are sent
+  only by these writes.
+- **Determinism:** a second run of all 199 rows, on the same workbench
+  boot, gave the same status, rc and message types on every row.
+
+**Tests:**
+
+- The generator: `TestFdbBrJudge`, `TestFdbVxJudge`, `TestBuildFdb`,
+  `TestFdbVxTwice`, `TestDeriveFdbDupGone`, `TestMatrixFdbRows`, and new
+  `TestCovTally` and `TestWriteCoverage` rows.
+- The oracles: `TestFdbWantFromAxes`, `TestFdbRequestProblem`,
+  `TestFdbDumpHas`, `TestFdbAckFailProblem`, `TestFdbRoundTripProblem`,
+  and seven new `TestParseNeigh` rows.
+
+**Mutation:** 29 of 29 mutants killed, each by a relevant test. Three
+survived the first pass:
+
+- **ParseNeigh kept the first `NFEA_ACTIVITY_NOTIFY`**, where
+  `nla_parse` and `parse_rtattr` keep the last. It now keeps the last,
+  and a row repeats the attribute.
+- **No hand-built row broke two oracle checks:** the `ack-then-fail`
+  check, and O4's presence check. Each is now a function with its own
+  table (`TestFdbAckFailProblem`, `TestFdbRoundTripProblem`).
+
+Two mutants that didn't compile were rewritten and rerun.
+
+**Size:** the rows add 563 KB to `ws/`, 17 MB of 64 MB in all.
+
+##### W5b: `bridge mdb`
+
+W4's report covered no MDB writes. `bridge mdb` is the only iproute2
+command that sends `RTM_NEWMDB` or `RTM_DELMDB`, and the only one that
+dumps with `RTM_GETMDB`. `nlcapgen matrix -family mdb -seed 1 -random 40`
+writes `nix/microvms/workbench/mdb.rows.jsonl` from two spaces in
+`tools/nlcapgen/matrix_mdb.go`:
+
+| space | devices | axes (boundary values in bold) |
+|---|---|---|
+| mdbbr | a VLAN-filtering bridge `br0` with a dummy port `d0`, VLAN 10 on both; a lone dummy `d9`; a second bridge `br1` with port `d2` | verb: add, replace, del; port: `d0` or `br0` (a host join); group: IPv4, IPv6, L2; state: none, permanent, temp; vid: none, 1, 10, **4094**; src: none, IPv4, IPv6; filter_mode: none, exclude, include; source_list: none, one, two; proto: none, static, bgp, 200 |
+| mdbvx | a VXLAN `vx0` (VNI 100, port 4789, nolearning) over `d1` (192.0.2.10/24) | verb; group: IPv4, 0.0.0.0, IPv6, `::`; state: permanent or none; dst: IPv4, IPv6, none; dst_port: none, 4790, **0**, **65535**; vni: none, 200, **0**, **16777215**; src_vni: none, 100, 300; `via d1`; src; filter_mode; source_list; proto |
+
+177 rows (mdbbr 90, mdbvx 87): 5 positive, 6 boundary, 18 corner and
+148 negative. As in W5a, a del's pre step is its own add, when that add
+would be accepted. Derived rows add a duplicate add (EEXIST), a delete of
+something absent (EINVAL on the bridge, ENOENT on the VXLAN) and
+`mdbbr/del-all-vlans` (below).
+
+**bridge's side** (`bridge/mdb.c` `mdb_modify`):
+
+- add is `NLM_F_CREATE|NLM_F_EXCL`, replace `NLM_F_CREATE|NLM_F_REPLACE`,
+  and del is `RTM_DELMDB` with no flags.
+- `MDBA_SET_ENTRY` is a 28-byte `struct br_mdb_entry` after an 8-byte
+  `struct br_port_msg`. `permanent` reaches the state only on
+  `RTM_NEWMDB`. The VLAN is `atoi` into a short and always sent, so
+  `vid 65535` is sent as 65535.
+- `MDBA_SET_ENTRY_ATTRS` is sent iff any of src, filter_mode,
+  source_list, proto, dst, dst_port, vni, src_vni or via is given. Its
+  attributes come in that order. `dst_port` is a host-order u16, and
+  `dst_port 0` is sent. The VNI isn't range-checked, so `vni 16777216`
+  reaches the kernel, which answers ERANGE.
+- As in `bridge fdb`, the links are dumped first (`ll_init_map`), so a
+  refused argument is `ack-then-fail` and exits 255.
+
+**The kernel:**
+
+- `rtnl_validate_mdb_entry` (`net/core/rtnetlink.c`, policy
+  `mdba_policy`) refuses (EINVAL):
+  - a zero port index;
+  - an IPv4 group that is neither multicast nor 0.0.0.0, or that is local
+    multicast;
+  - `ff02::1`;
+  - an L2 group that isn't multicast;
+  - a state other than 0 or 1;
+  - VLAN 4095 or more.
+
+  A device without `ndo_mdb_add`, such as a dummy, is EOPNOTSUPP.
+  `proto kernel` is under the policy's minimum (ERANGE).
+- **The bridge** (`net/bridge/br_mdb.c`, `br_mdb_config_init` and
+  `br_mdb_config_attrs_init`) refuses (EINVAL):
+  - a port that isn't one of its own;
+  - the 0.0.0.0 group;
+  - a source of the wrong family, or on an L2 group;
+  - a filter mode or source list on a host group or on an entry that is
+    no (*, G);
+  - a source list without a filter mode;
+  - INCLUDE with an empty list;
+  - a protocol on a host group.
+
+  `br_mdb_add` then refuses flags on a host group, a host join with a
+  source, and an L2 entry that isn't permanent. A VLAN the port lacks
+  (4094) is taken as given.
+- **The VXLAN** (`drivers/net/vxlan/vxlan_mdb.c`) refuses (EINVAL):
+  - a port other than itself;
+  - an add or replace that isn't permanent;
+  - a VLAN;
+  - a missing `dst`;
+  - a source on the all-zeros group;
+  - a filter mode or source list on an (S, G) entry;
+  - a source list without a mode;
+  - INCLUDE with an empty list.
+
+  It takes the 0.0.0.0 and `::` groups, its catch-all. A delete that
+  finds nothing is ENOENT; a duplicate add is EEXIST.
+
+**A kernel quirk** (recorded here only): on a VLAN-filtering bridge, a
+delete without a VLAN loops over the port's VLANs, and `br_mdb_del`
+returns the last one's result. After an add in VLAN 1 only, a delete
+with no VLAN removes that entry but reports VLAN 10's EINVAL
+(`mdbbr/del-all-vlans`).
+
+**Dumps differ by device:**
+
+- The bridge answers a dump with `RTM_GETMDB`
+  (`net/bridge/br_mdb.c:391`), and the VXLAN with `RTM_NEWMDB`
+  (`drivers/net/vxlan/vxlan_mdb.c:292`).
+- The bridge dumps an entry's filter mode and source list only under
+  IGMPv3 or MLDv2; `br0` runs the defaults (IGMPv2, MLDv1). Its dump
+  also holds the kernel's own MLD host joins (`ff02::6a` and the
+  solicited-node groups).
+- The VXLAN leaves out a port of 0 or its own 4789, a VNI that is its
+  own (100), and the source VNI unless it is `external`.
+- The dump's attribute numbers (`MDBA_MDB_EATTR_*`) differ from the
+  request's (`MDBE_ATTR_*`).
+
+**Oracles:**
+
+- **`pkg/xtcpnl/xtcpnl_mdb.go`:** `ParseMdbEntry`, `ParseMdbRequest` and
+  `ParseMdbDump`, which decode both attribute numberings.
+- **O3** (`pkg/xtcpnl/xtcpnl_ws_mdb_test.go`):
+  - the request is rebuilt from the row's axes alone: the type, the
+    flags, the entry with the looked-up indexes, and the nest in
+    `mdb_modify`'s order;
+  - the decoded request must equal it.
+
+  O3 checked 166 requests. An `ack-then-fail` row must send none.
+- **O4:**
+  - After an accepted add, the device's dump has the entry: in each of
+    VLANs 1 and 10 when none was given, with the state, protocol and, on
+    `vx0`, the dst, mode, source list, port, VNI and via.
+  - After a del, it is gone. Extra entries are ignored.
+
+  O4 checked 28 round trips.
+- **O5 doesn't apply**, as in W5a.
+- **Coverage:** `nlcapgen coverage` gains an `mdb` family
+  (`mdba_policy`, 2/2) and an `mdbe` family for the nest
+  (`vxlan_mdbe_attrs_pol`, 9/9). A family can now judge a nested
+  attribute's payload, and one request can count towards two families.
+- **Universe:** `RTM_GETMDB` is captured, so its exclusion in
+  `xtcpnl_universe_test.go` is gone (four exclusions remain).
+- **Determinism:** a second run of all 177 rows, on the same workbench
+  boot, matched on every row.
+
+**Tests:**
+
+- The parsers: `TestParseMdbEntry`, `TestParseMdbRequest` and
+  `TestParseMdbDump`.
+- The generator: `TestMdbBrJudge`, `TestMdbVxJudge`, `TestBuildMdb`,
+  `TestMdbBrAllVlans`, `TestDeriveBridgeDupGone`, `TestMatrixMdbRows`, and
+  five new `TestCovTally` rows.
+- The oracles: `TestMdbWantFromAxes`, `TestMdbRequestProblem`,
+  `TestMdbRoundTripProblem` and `TestWsMdbDump`.
+
+**Mutation:** 40 of 40 mutants killed, each by a relevant test. Three
+survived the first pass, and one didn't compile (it was rewritten and
+rerun):
+
+- **No test pinned the VXLAN's gone-row errno** (ENOENT, where the
+  bridge's is EINVAL). `TestMatrixMdbRows` now checks both.
+- **No hand-built row broke two O4 checks on the VXLAN:** its source list,
+  and an (S, G) entry dumping as INCLUDE. `TestMdbRoundTripProblem` has a
+  row for each.
+
+**Size:** the rows add 561 KB to `ws/`, 18 MB of 64 MB in all.
+
+##### W5c: `ss`
+
+`ss` is iproute2's one sock_diag client. It reads each inet table with
+`SOCK_DIAG_BY_FAMILY` on `NETLINK_SOCK_DIAG`. Its filter (`sport ge :1024`,
+`src 127.0.0.0/8`, `autobound` and so on) is compiled to bytecode that the
+kernel audits and runs per socket. No earlier row captured this protocol.
+The workbench now captures it: `xtcp2-nlcap` takes `--proto sock_diag`,
+whose stop sentinel is `ip link show dev lo` (filtered to protocol 0),
+because the default `ss -x` sentinel is itself sock_diag.
+
+`nlcapgen matrix -family ss -seed 1 -random 40` writes
+`nix/microvms/workbench/ss.rows.jsonl` from one space in
+`tools/nlcapgen/matrix_ss.go`:
+
+| axis | values (boundary values in bold) |
+|---|---|
+| proto | `-t`, `-u`, `-w`, `-M` (MPTCP), `-S` (SCTP) |
+| family | both, `-4`, `-6` |
+| ext | none, `-m`, `-i`, `--tos`, `-mi` |
+| state | default, `-a`, `-l`, `state established`, `exclude time-wait`, `state connected`, two `state` words, **`-B`** |
+| filter | none; each port operator in word and symbol form, with **`:0`**, **`:65535`**, `:65536` and `:-1`; IPv4 and IPv6 hosts and prefixes, **`/0`**, with and without a port; or, and, not, implicit and, parentheses; `autobound`; `fwmark` with and without a mask; `cgroup`; `dev lo`; `src localhost` |
+
+383 rows: 59 positive, 38 boundary, 268 corner and 18 negative. Every row's
+namespace holds the same sockets, opened by a pre step (`ssHolder`):
+- TCP listeners on 127.0.0.1:22, [::1]:80, 127.0.0.1:8080, [::]:443
+  (dual-stack) and 127.0.0.1:9000 (`SO_MARK` 0x10);
+- two established pairs, one of them v4-mapped through the dual-stack
+  listener;
+- UDP sockets on 127.0.0.1:53 and [::1]:5353, plus a connected one;
+- a raw ICMP socket.
+
+The namespace's port range is one port wide, so both autobound connects
+take 45000. A forked child holds the sockets for 10 s.
+
+**ss's side** (`misc/ss.c`):
+
+- `inet_show_netlink` sends one dump per family, AF_INET then AF_INET6
+  (only one with `-4` or `-6`).
+- `sockdiag_send` writes `idiag_states` in host order.
+  - The collector's own requests store a byte-swapped constant
+    (`pkg/xtcp/init.go`) that they write big-endian. That is why
+    `DeserializeInetDiagReqV2` reads the field big-endian;
+    `ParseInetDiagRequest` reads it the kernel's way.
+  - With no state option, the mask is the tables' defaults ORed
+    together: SS_CONN for tcp, mptcp and sctp, but only SS_ESTABLISHED
+    for udp and raw (`ss.c:276`, `280`). `-4` and `-6` OR in SS_CONN too
+    (`filter_af_set`).
+- `-m`, `-i` and `--tos` set ext bits 0x41, 0x0e and 0x30.
+- MPTCP's protocol, 262, is stored truncated in the u8 (6) and sent
+  again in `INET_DIAG_REQ_PROTOCOL`.
+- `-4` and `-6` also set the family addresses are parsed in, so an
+  address of the other family is refused (rc 1).
+- `dev` compiles to nothing (`ss.c:2059`). Any `and` or `or` holding it
+  sends no bytecode, and ss filters the replies itself.
+- A `cgroup` term makes ss probe kernel support first
+  (`ssfilter_check.c`): AF_INET, TCP, no states, `CGROUP_COND` 0.
+
+**iproute2 bugs** (recorded here only; the rows assert they are still
+there through a `bug` fact):
+
+- **`src localhost` tests only the first address.**
+  `ssfilter_bytecompile` builds every address of a name from the first
+  one (`a->addr`, not `b->addr`, `ss.c:1945`). The request carries two
+  `S_COND`s for 127.0.0.1, and `[::1]:80` is never listed. With `-4` or
+  `-6` the name resolves to one address, and the rows expect no bug.
+- **`sport ge :65536` passes every socket.** A port comparison's operand
+  is the u16 `no` field (`ss.c:1987`), so 65536 wraps to 0.
+  `sport = :65536` is a hostcond with an int port, which correctly
+  matches nothing.
+- **`sport = :-1` passes every socket.** `get_long` takes -1, which a
+  hostcond reads as any port.
+- **Bytecode padding leaks heap.** The bytecode buffer is `malloc`ed and
+  never cleared, so a hostcond's 2 padding bytes carry heap contents into
+  the request (seen as `87 e2`). The oracles never compare them.
+- **The cgroup probe runs for every `cgroup` term.**
+  `ssfilter_is_supported` caches the result in a copy of the table entry,
+  so `cgroup A or cgroup A` sends two probes (the `cgroup2` rows).
+- **`cgroup /` doesn't name the cgroup2 root.** `get_cgroup2_id` tries
+  the path as given first (`lib/fs.c:145`). In the guest `/` has no file
+  handle, so ss refuses it; on a host whose root has one, it would take
+  that id. The rows use `cgroup /sys/fs/cgroup`. `ip netns exec` mounts a
+  fresh sysfs without cgroup2, so a cgroup row mounts it first, in the
+  exec's private mount namespace.
+- **A prefix outside the brackets is refused.** `[2001:db8::]/32` reads
+  `/32` as the port (rc 1, the `v6slash` row); the prefix goes inside,
+  `[2001:db8::/32]`.
+
+**The kernel** (`net/ipv4/inet_diag.c` unless noted):
+
+- `inet_diag_bc_audit` (`:728`) checks:
+  - each op's yes and no: at least its length, at most 4 past the end,
+    a multiple of 4;
+  - every jump target is an op boundary (`valid_cc`);
+  - a hostcond's family and prefix length;
+  - `MARK_COND` needs CAP_NET_ADMIN (EPERM).
+
+  Every bytecode ss sent passes it.
+- `inet_diag_bc_run` (`:465`) matches an AF_INET condition against a
+  v4-mapped AF_INET6 socket, so `src 127.0.0.1` lists the mapped
+  `[::ffff:127.0.0.1]:443`.
+- An accepted socket keeps its listener's userlocks minus
+  `SOCK_BINDPORT_LOCK` (`net/core/sock.c:2570`), so `autobound` lists
+  both ends of an established pair.
+- `raw_diag`'s dump ignores `idiag_states`; ss drops the states it didn't
+  ask for itself (`ss.c:4330`).
+- `INET_DIAG_MARK` is sent only to a CAP_NET_ADMIN reader (`:128`).
+
+**Oracles:**
+
+- **`pkg/xtcpnl/xtcpnl_inet_diag_bc.go`:**
+  - `ParseInetDiagRequest` decodes the request;
+  - `InetDiagBcAudit` and `InetDiagBcRun` port the kernel's audit and
+    run.
+- **O3a** (`pkg/xtcpnl/xtcpnl_ws_ss_test.go`): each request matches the
+  row's facts. It checks the family order, the protocol (and its u8),
+  the protocol attribute, the states, the ext bits, and whether there is
+  bytecode. Any bytecode must pass the audit. Cgroup probes come first
+  and must match the probe's shape.
+- **O3b:** the bytecode is run over 143 probe sockets:
+  - the holder's sockets;
+  - a grid of ports, addresses, v4-mapped addresses, locks, marks,
+    devices and cgroups.
+
+  Each verdict must equal the filter the user meant: the row's `pred`
+  fact, a prefix notation the test evaluates on its own. On a `bug` row
+  they must disagree somewhere.
+
+  O3a and O3b checked 639 requests.
+- **O4:** each reply lists a holder socket in a requested state that
+  passes the filter, with its mark. Every holder socket that passes
+  is listed. The filter is the pred, or on a bug row the bytecode as
+  sent; on a row with no bytecode it is no filter. O4 checked 607 round
+  trips. The 32 cgroup requests are skipped, because the holder's cgroup
+  id is unknown to the model.
+- **O5 doesn't apply:** goip has no sock_diag.
+- **Coverage:** inet_diag requests have no nla policy, so `nlcapgen
+  coverage` counts their bytecode ops on a line of their own: 10 of 14
+  (667 requests). ss never sends `NOP`, `DEV_COND`, `S_EQ` or `D_EQ`:
+  `dev` compiles to nothing, and `sport = :N` is a hostcond, not an
+  `S_EQ`.
+- **Determinism:** a second run of all 383 rows, on the same workbench
+  boot, matched on every row.
+
+**Tests:**
+
+- The parser: `TestParseInetDiagRequest`, `TestInetDiagBcAudit`,
+  `TestInetDiagBcRun` and `TestBitstringMatch`.
+- The generator: `TestBuildSs`, `TestSsFamilyExcl`,
+  `TestRowValidateProto`, `TestMatrixSsRows`, `TestCovAddDiag`,
+  `TestTallyCorpusSockDiag`, and two new `TestWriteCoverage` rows.
+- The oracles: `TestSsParsePred`, `TestSsPredPasses`,
+  `TestSsWantFromAxes`, `TestSsRequestProblem`,
+  `TestSsCgroupProbeProblem`, `TestSsRoundTripProblem`,
+  `TestSsExchangeProblems` and `TestWsSsExchanges`.
+
+**Mutation:** 47 of 47 mutants killed, each by a relevant test. Six
+survived the first pass:
+
+- **A PROTOCOL attribute longer than 4 bytes wasn't tested.**
+  `TestParseInetDiagRequest` now has an 8-byte row.
+- **Four oracle paths were exercised only by the corpus:** the family
+  order, an O3b disagreement, a bug that is gone, and the cgroup probe's
+  shape. A clean corpus never trips them. They moved into
+  `ssExchangeProblems`, and `TestSsExchangeProblems` holds hand-built
+  rows that break each one.
+- **Nothing read a real sock_diag capture through the coverage tally.**
+  `TestTallyCorpusSockDiag` does.
+
+**Size:** the rows add 1.5 MB to `ws/`, 18 MB of 64 MB in all.
+
+##### W5d: `ethtool`
+
+`ethtool` 7.1 talks to the kernel's `ethtool` generic netlink family. It is
+the first workbench client on `NETLINK_GENERIC`. Every row loads
+`netdevsim` and makes a fresh device, `eth0`, in its own namespace (the
+pre step `ethSetup`; the device id is 900 plus the namespace's number, so
+parallel rows never share one). Rows capture with `--proto generic`.
+
+`nlcapgen matrix -family ethtool -seed 1 -random 20` writes
+`nix/microvms/workbench/ethtool.rows.jsonl` from six spaces in
+`tools/nlcapgen/matrix_ethtool.go`:
+
+| space | command | axes (boundary values in bold) |
+|---|---|---|
+| `ethring` | `-G` (RINGS_SET 16) | each absent or: rx 1, 1024, **4096** (netdevsim's max); tx 1, 256, **4096**; rx-mini **0**, **4096**; rx-jumbo 100; tcp-data-split on, off, auto; hds-thresh **0**, **1024** |
+| `ethchan` | `-L` (CHANNELS_SET 18) | combined 1, 2, **4** (the device's queues); rx, tx, other **0** |
+| `ethpause` | `-A` (PAUSE_SET 22) | autoneg off; rx, tx on/off |
+| `ethfec` | `--set-fec` (FEC_SET 30) | off, auto, rs, baser, llrs, and the corners two modes, auto plus a mode, off plus a mode, mixed case |
+| `ethcoal` | `-C` (COALESCE_SET 20) | adaptive-rx/tx, the usecs and frames (plain, irq, low, high), pkt-rate-low/high, sample-interval, cqe-mode-rx/tx, tx-aggr-*, rx-cqe-* |
+| `ethshow` | `-g -l -a -c --show-fec -T -k` (their GETs) | none, `--json`, `-I`; `eth0` or `lo` |
+
+244 rows: 73 positive, 37 boundary, 81 corner and 53 negative. The
+negatives are out-of-range values (`4097`, 2^32, 2^32+1, `-1`), a
+repeated argument, a missing value, parameters netdevsim doesn't support,
+`nosuch0` (ENODEV) and `lo` (EOPNOTSUPP). Each row that sets something
+reads it back with the matching show command. `ethShowJSON` adds a
+`--json` row of `eth0` for each JSON command the pairwise rows missed.
+
+**`ethtool`'s side** (`ethtool-7.1/`):
+
+- Every command looks the family up (`CTRL_CMD_GETFAMILY`). A show
+  command also dumps the GET operation's policy (`CTRL_CMD_GETPOLICY`,
+  `netlink/netlink.c:259`) to learn which header flags it takes. `-I`
+  sets `ETHTOOL_FLAG_STATS` only when that policy allows it
+  (`netlink.c:289`): PAUSE_GET, FEC_GET and TSINFO_GET. On `-g`, `-l` and
+  `-c` the flag is silently dropped. These are the corpus's first
+  `CTRL_CMD_GETPOLICY` captures, so `TestNetlinkUniverse` no longer
+  excludes it.
+- `--set-fec encoding off` sends the link mode name `None`
+  (`netlink/fec.c:356`). Any other word is upper-cased, so `none`
+  becomes `NONE`, which names no link mode. The kernel answers
+  EOPNOTSUPP, "bit name not found" (`net/ethtool/bitset.c:415`).
+- `--json` with `-T` is refused before any request (`ethtool.c:6743`).
+
+**`ethtool` bugs** (recorded here only):
+
+- **A bare `hds-thresh` reads past argv.** Its parser entry has
+  `min_argc = 0` (`netlink/rings.c:205`); every other ring parameter
+  has 1. `ethtool -G eth0 hds-thresh` hands the u32 parser a NULL and
+  prints `invalid value '(null)' for parameter 'hds-thresh'`. It still
+  exits 1 before sending anything (the `ethring/ng-017` row).
+- **Four coalescing JSON keys differ from their parameters.** The
+  printer names `rx-frames-low` `rx-frame-low` (`netlink/coalesce.c:72`),
+  and likewise `tx-frame-low`, `rx-frame-high` and `tx-frame-high`
+  (`:76`, `:81`, `:85`). So `ethtool --json -c` output can't be fed back
+  as `-C` arguments by name. The JSON oracle's key table follows the
+  printer.
+
+**The kernel and netdevsim:**
+
+- `tcp-data-split auto` is stored as UNKNOWN, which netdevsim reports as
+  ENABLED (`drivers/net/netdevsim/ethtool.c:77-78`). The row reads back
+  on (`rt.tcp-data-split=2`).
+- A channel count of 0 for a type whose max is 0 is left out of the
+  reply (`net/ethtool/channels.c:64-83`). The rows expect it absent.
+- netdevsim's `set_coalesce` copies only `struct ethtool_coalesce`
+  (`netdevsim/ethtool.c:56-63`). Every `kernel_ethtool_coalesce` field
+  (cqe-mode-rx/tx, tx-aggr-*, rx-cqe-*) is accepted and reads back 0.
+  Those rows carry `rt.<arg>=0`.
+- `autoneg on` for pause is EINVAL (`netdevsim/ethtool.c:37`), so
+  ethtool exits 76.
+- `lo` has no ring, channel, pause, coalescing or FEC operation, so
+  each of those GETs is EOPNOTSUPP. `-T` and `-k` work on it.
+
+**Oracles:**
+
+- **The parser** (`pkg/xtcpnl/xtcpnl_ethtool.go`): `ParseEthtool` now
+  decodes coalescing (`EthtoolCoalesce`, every u32 and u8 attribute;
+  the two profile nests stay raw).
+- **O3** (`pkg/xtcpnl/xtcpnl_ws_ethtool_test.go`): the one SET request
+  carries the row's device in its header and exactly the attributes its
+  facts name, each with its value. For FEC, the mode names (as a
+  no-mask bitset) and auto. A show row's GET has the command, the
+  device, and the STATS flag exactly when `-I` asks and the policy
+  allows. A refusal before sending (`ack-then-fail`) sends no SET.
+- **O4:** the readback's GET reply holds each attribute set, as set or
+  as its `rt.` fact, and leaves out the `absent` ones. For FEC, the
+  configured link-mode bits, auto and the active mode.
+- **JSON:** each `--json` key of rings, channels, pause and coalescing
+  names a reply attribute, and its value equals the reply's.
+- O3 checked 231 requests, O4 170 round trips and 47 JSON values.
+- **O5 doesn't apply:** goip has no ethtool.
+- **Coverage:** `nlcapgen coverage` now reads generic netlink. It names
+  the family ids from each capture's `CTRL_CMD_NEWFAMILY` replies and
+  holds each SET to its kernel policy (`ethnl_*_set_policy`). Rings
+  12/12, channels 5/5, coalescing 30/32, pause 4/5, FEC 3/3. Never sent:
+  `RX_PROFILE` and `TX_PROFILE` (ethtool 7.1 has no parameter for them)
+  and pause `STATS_SRC` (`NLA_REJECT` in a SET). The YNL-generated
+  header's `X_MAX = (__X_CNT - 1)` entries now evaluate.
+- **Determinism:** a second run of all 244 rows, on the same workbench
+  boot, matched on every row.
+
+**Tests:**
+
+- The parser: `TestEthtoolCoalesce`.
+- The generator: `TestEthBuild`, `TestEthShowJudge`, `TestEthShowJSON`,
+  `TestMatrixEthtoolRows`, `TestCovGenlIDs`, `TestCovAddGenl`,
+  `TestTallyCorpusGenl`, four new `TestUapiEnum` rows and two new
+  `TestCheckRows` rows (a readback's protocol).
+- The oracles: `TestEthWantFromAxes`, `TestEthRequestProblem`,
+  `TestEthRoundTripProblem`, `TestEthFecProblems`, `TestEthBitIndexes`,
+  `TestEthShowProblem`, `TestEthJSONProblem`, `TestEthJSONValue` and
+  `TestEthGenlID`.
+- The new captures moved two benchmarks' picks. `ParseGenericNetlinkFamily`
+  now picks only NEWFAMILY replies (the smallest nlctrl message became a
+  policy dump). `ParseEthtool` picks only the replies and notifications
+  it classifies (the largest became a reply it doesn't decode).
+
+**Mutation:** 45 of 45 mutants killed, each by a relevant test. One
+survived the first pass:
+
+- **`covGenlIDs` would have taken a family id from a request.** Nothing
+  sent a request carrying `CTRL_CMD_NEWFAMILY`'s command.
+  `TestCovGenlIDs` now has that row.
+
+Two mutants didn't compile the first time and were rewritten. While
+writing the driver, one more gap turned up before the run: nothing
+checked a readback's protocol, so `TestCheckRows` gained its two rows.
+
+**Size:** the rows add 1.1 MB to `ws/`, 20 MB of 64 MB in all.
+
+### Captures an outside consumer needs: BIRD's netlink parser
+
+Counted from the tree on 2026-10-31. The BIRD routing daemon's kernel protocol
+(`sysdep/linux/netlink.c` in [BIRD](https://gitlab.nic.cz/labs/bird)) is
+being unit-tested and fuzzed with messages taken from these captures, so that
+its parser sees real kernel output rather than hand-built bytes. Across every
+`.pcap` under `pkg/xtcpnl/testdata/`, de-duplicated by message bytes, there
+are 504 `RTM_NEWROUTE`, 46 `RTM_DELROUTE`, 86,585 `RTM_NEWADDR` and 10,210
+`RTM_NEWLINK` (40 link kinds), and 17 routes carry `RTA_MULTIPATH` (10
+`AF_INET`, 6 `AF_INET6`, 1 `RTNL_FAMILY_IPMR`). Seven kernel refusals of a
+route request, and 153 refusals carrying extack TLVs, cover BIRD's error-reply
+path. Three things BIRD parses are in **no** capture:
+
+| Missing | What BIRD parses | Capture needed | Guest needs |
+|---|---|---|---|
+| bridge FDB entries | `RTM_NEWNEIGH`/`RTM_DELNEIGH` with `ndm_family = AF_BRIDGE` (`nl_parse_fdb`); all 414 neighbour messages in the tree are `AF_INET`/`AF_INET6` | `bridge fdb show` on a bridge with static and learned entries, and `bridge fdb add`/`del` under `ip monitor all` | the `bridge` module, the same gap as the **3 bridge / VLAN** row above |
+| bridge VLANs | `RTM_NEWVLAN`/`RTM_DELVLAN` (`nl_parse_vlan`); none in the tree | `bridge vlan show` and `bridge vlan add`/`del` on a `vlan_filtering 1` bridge | as above |
+| MPLS routes | `rtm_family = AF_MPLS` routes, `RTA_NEWDST` label stacks, and `RTA_ENCAP` with `LWTUNNEL_ENCAP_MPLS` on IP routes, single path and inside `RTA_MULTIPATH`; the tree has no `AF_MPLS` route and no `RTA_ENCAP` at all | `ip -f mpls route show`, `ip -f mpls route add 100 as 200/300 via inet 192.0.2.10 dev X`, `ip route add 198.18.20.0/24 encap mpls 100/200 via 192.0.2.10 dev X`, and a multipath route with a per-nexthop `encap mpls` | `mpls_router` and `mpls_iptunnel` modules, `net.mpls.platform_labels` above the labels used, and `net.mpls.conf.<dev>.input=1` |
+
+Routes BIRD installed itself (`rtm_protocol = RTPROT_BIRD`, 12) need no new
+capture: the BIRD test rewrites that byte in a captured route.
+
+#### Plan: B1–B3, the captures, their parsers and the completeness test
+
+The work order is the usual one: captures, then parsers with table tests and
+benchmarks, then a test that every capture is there.
+
+**B1, captures.** `nix/microvms/scripts/brmpls-write-corpus.exp` holds 36 rows,
+run by the link-write capture (`nix run .#microvm-x86_64-link-write-capture`,
+or these rows alone with `nix run .#microvm-x86_64-link-write-capture-brmpls`)
+into `link-write/brmpls/<slug>/`. They run last, after
+`xtcp2-nlcap modules brmpls mpls_router mpls_iptunnel`: `mpls_router` gives
+every device an `AF_MPLS` netconf and stats entry, which no earlier row may
+see. Each row rebuilds its namespace:
+
+- **FDB** (8 rows): `br0` with `vlan_filtering 1`, the veth port `v0`, and
+  `v0`'s peer `v0p` outside the bridge with a fixed MAC. The learned entry
+  comes from `v0p`'s DAD neighbor solicitation, and a `wait-learned` pre
+  step polls `bridge fdb show dev v0` for it, under `timeout 20`. With a
+  `dev` filter, `bridge` leaves `dev v0` out of its lines, so the poll
+  matches the MAC alone. Rows: show (static, VLAN and learned
+  entries), add static, add in a VLAN, add existing, replace, del, del
+  missing, and an `ip monitor all` event row.
+- **VLAN** (10 rows): show (RTM_GETVLAN's dump, plus the old `RTM_GETLINK`
+  `RTEXT_FILTER_BRVLAN` dump, its compressed form, and `vlan global`), add,
+  add a range, add the PVID untagged, add on the bridge itself (`self`), add
+  the reserved VID 4095, del, del a range, `set ... state`, and an event
+  row. `ip monitor` never joins `RTNLGRP_BRVLAN`, so the event row runs
+  `bridge monitor vlan` under the new `xtcp2-nl-brmon` helper
+  (`nix/microvms/netlink-capture.nix`), whose canary is a VLAN it adds
+  until the monitor prints it.
+- **MPLS** (18 rows): `platform_labels 1000` and `d0` with
+  `net.mpls.conf.d0.input 1`. `AF_MPLS` swap (`100 as 200/300`), pop,
+  multipath, a `via inet6`; refusals for an existing label, the reserved
+  label 3 and label 2000 (past the table); show, get, del, del missing
+  (accepted), del past the table. Then `encap mpls` on IPv4 and IPv6 routes,
+  with `ttl`, inside `RTA_MULTIPATH`, a show of all three, and an
+  `ip monitor route` event row.
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the design's, in order | `brmplscorpus::rows` | the 36 slugs, written out again as literals |
+| negative: every row has six fields and a unique slug | the rows | no malformed or duplicate slug |
+| positive: exactly the refusal rows expect a non-zero status | the rows | 3 `bridge` rows rc 255; 4 `ip` rows rc 2 |
+| corner: a refused `bridge` write exits 255, not 2 | `tool_mismatch` | none (`bridge`'s `do_cmd` returns -1 unnegated) |
+| corner: deleting a missing label in range is accepted | `mpls_route_del_missing` | rc 0 |
+| negative: no floor below the write's own requests | every row | ≥2, ≥4 when the command names `dev` |
+| negative: nothing holds a single quote | commands, pre steps and readbacks | none |
+| positive: a `bridge` pre step runs `bridge -n <ns>` | `{bridge vlan add vid 10 dev v0}` | one call, rc 1 |
+| negative: a refused `bridge` pre step is a refusal | the recorder refuses `^bridge` | 0, and it is in `nltopo::refused` |
+| boundary: a `wait-learned` with the wrong arity | 1 or 3 arguments | an error, nothing sent |
+| positive: MPLS sysctls in order | `PRE_MPLS` | `platform_labels` first; `conf.d0.input` after `d0` exists |
+| corner: `ip monitor all` prefixes a group banner | `FDB_UNTIL` | no ERE anchored with `^` |
+| positive: `rc_problem` names `brmpls/` | `x 0 2` | `brmpls/x/ip.rc is 2, want 0` |
+
+`xtcp2-nl-brmon`'s rows are in `addr-topology-test.exp`, against a stand-in
+`bridge` (`NLCAP_BRIDGE`):
+
+| description | input | expected |
+|---|---|---|
+| positive: canary seen, trigger run, line matched | `v0 "monitor vlan" "<add vid 10>" "^v0 +10( \|$)"` | rc 0, `v0 10` printed |
+| negative: three arguments | no ERE | rc 2, usage |
+| negative: an empty canary device | `""` | rc 2, usage |
+| corner: a shell metacharacter in the canary device | `v0;x` | rc 2, usage |
+| negative: the monitor never prints the canary | a silent `bridge` | rc 1, `never printed the canary` |
+| negative: the trigger fails | `false` | rc 1, the monitor's output still printed |
+| boundary: an ERE that never matches | `^v0 +11` | rc 1, `no match for ^v0 +11` |
+| corner: every ERE must match, not just the first | `^v0 +10`, `^v0 +12` | rc 1, naming the second |
+
+**B2, parsers** (`pkg/xtcpnl`), each with a table test whose positive rows
+come from the B1 pcaps and whose negative, boundary and corner rows are
+hand-built, and a `parseBenchCases` row:
+
+- `ParseNeigh` gains `NDA_MASTER` and `NDA_VLAN`, with presence bits, as
+  `nl_parse_fdb` reads them.
+- `ParseBrVlan` (new, `xtcpnl_brvlan.go`): the `br_vlan_msg` header and
+  `BRIDGE_VLANDB_ENTRY` (`_INFO` flags and VID, `_RANGE`, `_STATE`) and
+  `BRIDGE_VLANDB_GLOBAL_OPTIONS` (`_ID`, `_RANGE`).
+- MPLS (new, `xtcpnl_mpls.go`): label stacks (20-bit label, TC, BoS, TTL),
+  `RTA_NEWDST`, `RTA_ENCAP_TYPE`, and `RTA_ENCAP` with `MPLS_IPTUNNEL_DST`
+  and `MPLS_IPTUNNEL_TTL`, on a route and inside each `RTA_MULTIPATH`
+  nexthop.
+
+| description | input | expected |
+|---|---|---|
+| positive: a static FDB entry | `fdb_add_static`'s answer | `AF_BRIDGE`, the MAC, `NDA_MASTER` = br0's index, `NUD_NOARP` |
+| positive: an FDB entry in a VLAN | `fdb_add_vlan` | `NDA_VLAN` 10 |
+| positive: a learned FDB entry | `fdb_show` | the learned MAC, `NUD_REACHABLE`, VLAN 1 |
+| boundary: `NDA_VLAN` of one byte | hand-built | `HasVlan` false, not an error (a short `NDA_PROBES` is treated the same way) |
+| corner: a repeated `NDA_MASTER` | hand-built | the first wins |
+| positive: one VLAN | `vlan_add`'s `RTM_NEWVLAN` | VID 10, flags 0 |
+| positive: a range | `vlan_add_range` | VID 20, range 30, untagged |
+| positive: PVID untagged | `vlan_add_pvid` | PVID and untagged flags |
+| positive: the port STP state | `vlan_set_state` | state `BR_STATE_BLOCKING` |
+| boundary: a `br_vlan_msg` shorter than its 8 bytes | hand-built | an error |
+| negative: `_INFO` shorter than `bridge_vlan_info` | hand-built | an error |
+| positive: a two-label swap | `mpls_route_add_swap` | dst 100; `RTA_NEWDST` 200, 300 with BoS on the last |
+| positive: a multipath `AF_MPLS` route | `mpls_route_add_multipath` | two nexthops, labels 201 and 202 |
+| positive: a two-label push | `route_encap_mpls` | encap type MPLS; labels 100, 200 |
+| positive: the encap TTL | `route_encap_mpls_ttl` | TTL 64 |
+| positive: a per-nexthop encap | `route_multipath_encap_mpls` | 101 on the first nexthop, 102 on the second |
+| boundary: a label stack not a multiple of 4 bytes | hand-built | an error |
+| corner: a stack without BoS on its last label | hand-built | an error |
+| corner: an `RTA_ENCAP` of an unknown encap type | hand-built | kept raw, not an error |
+
+**B3, completeness.** `TestBrMplsCorpusComplete`: every row of B1 has its
+`ip.pcap`, `ip.rc` and readback pcaps under
+`testdata/<kernel>/link-write/brmpls/`, and every positive B2 row names a
+pcap that exists.
+
+| description | input | expected |
+|---|---|---|
+| positive: every row has its files | the 36 slugs | `ip.pcap`, `ip.rc`, each readback |
+| negative: a row whose capture is missing | a slug with no directory | the test names it |
+| corner: the rows' statuses are the corpus's | each `ip.rc` | 0, 2 or 255 as in B1 |
+
+#### Delivered: B1–B3 (2026-10-31)
+
+- **Captures.** `pkg/xtcpnl/testdata/7_3_0/link-write/brmpls/`, 36 rows, from
+  the brmpls section alone. The full link-write run took hours on a loaded
+  host and timed out twice before it reached these rows, last of all. So
+  the runner now takes `--only <sections>`
+  (`nix/microvms/scripts/link-write-sections.exp`: lacp, addr, write, rtnl,
+  genl, xfrm, kinds, brmpls), and each section has its own app,
+  `microvm-x86_64-link-write-capture-<section>`. A section run writes the
+  same bytes as a full run would: every row rebuilds its namespace, and
+  late setup runs whenever a section after it is picked.
+  `link-write-sections-test.exp` (34 rows, in `checks.vm-lib-exp`) pins the
+  names, their order, and the driver refusing a bad list before it boots
+  anything.
+- **The first section run found a dead poll.** `wait-learned` grepped for
+  `^<mac> dev v0 `, a form `bridge fdb show dev v0` never prints, and its
+  loop could outlast `pre_step`'s 30 s and still be running when the next
+  row's command was typed. The pattern is now `learned_re`, tested against
+  the line a real `bridge` printed, and the loop is under `timeout 20`.
+- **Parsers.** `ParseNeigh`'s `NDA_MASTER` and `NDA_VLAN`, `ParseBrVlan`,
+  and the MPLS label, `RTA_NEWDST` and `RTA_ENCAP` decoding, as planned, with
+  hand-built tables (`TestParseNeigh`, `TestParseBrVlan`,
+  `xtcpnl_mpls_test.go`) and three `parseBenchCases` rows run against the
+  brmpls corpus.
+- **Corpus tests** (`xtcpnl_brmpls_corpus_test.go`):
+  - `TestBrMplsCorpusComplete`: B3's rows, plus a corner row that the
+    corpus has no directory the table does not name.
+  - `TestBrMplsCorpusWrites`: each row's write, decoded with the parsers
+    under test, and the kernel's answer (26 rows).
+  - `TestBrMplsCorpusReplies`: the dumps, readbacks and event rows'
+    notifications, decoded in the kernel's order (17 rows).
+- **What the bytes showed, against the plan's table:**
+  - `bridge vlan add` and `del` still use the old API: an `RTM_SETLINK` or
+    `RTM_DELLINK` with `IFLA_AF_SPEC`. Only `bridge vlan set` sends
+    `RTM_NEWVLAN`, with `BRIDGE_VLAN_INFO_ONLY_OPTS` (64). So B2's
+    `RTM_NEWVLAN` rows are checked against each row's `getvlan` readback,
+    and the VLAN event row's notifications, not its write.
+  - `bridge vlan show dev v0` dumps every port and filters in userspace
+    (`bridge/vlan.c`, `filter_index`), so every readback holds br0's entry
+    too.
+  - Deleting a missing label in range is acked; label 3 is refused by
+    `nla_get_labels`'s implicit-null check, not by the reserved-range check.
+  - `RTM_GETVLAN` was one of `TestNetlinkUniverse`'s exclusions ("bridge
+    only"). The test flagged the exclusion as stale once the corpus held
+    it, and it is removed: five exclusions remain.
+
+#### Still missing for BIRD: B4, each namespace's links and addresses (2026-10-31)
+
+BIRD's tests now use the brmpls MPLS rows: `mpls_route_show`,
+`mpls_route_add_via6`'s readback, `route_encap_show` (both families) and
+`mpls_event`. Every captured route parses to what `ip` printed. The bridge
+rows can't be used yet. **No brmpls row records the links or the addresses
+of its namespace**, and BIRD needs both before it accepts anything else
+from that namespace:
+
+- **Links.** Every `RTM_NEWLINK` in a brmpls `ip.pcap` or readback is a reply
+  to the name lookup `ip`/`bridge` makes before printing. It is 40 bytes, and
+  `IFLA_IFNAME` is its only attribute. BIRD's `nl_parse_link` needs
+  `IFLA_MTU` and rejects these ("KIF: Malformed message received"), so the
+  interface stays unknown. Every route on it is then dropped ("unknown
+  ifindex"). The one exception is `fdb_event`, whose `ip monitor all` saw full
+  br0 and v0 messages, but in a namespace with the canary interface.
+- **Addresses.** BIRD keeps a route only if its gateway is on a connected
+  subnet of the interface (`neigh_find`). No brmpls row has an
+  `RTM_NEWADDR` dump. 192.0.2.1/24 on d0 is visible only in `topology`.
+- **The bridge itself.** `nl_parse_vlan` takes a VLAN only from a bridge it
+  knows has VLAN filtering on. It learns that from br0's full link message:
+  `IFLA_LINKINFO` kind `bridge`, `IFLA_INFO_DATA` → `IFLA_BR_VLAN_FILTERING`.
+  `nl_parse_fdb` likewise needs br0's index and v0 as a known port.
+
+Correction to the **bridge VLANs** row above: BIRD's `nl_parse_vlan` reads
+the old form, `RTM_NEWLINK` with `ifi_family = AF_BRIDGE` and
+`IFLA_AF_SPEC` → `IFLA_BRIDGE_VLAN_INFO`, not `RTM_NEWVLAN`. Its own writes
+are `RTM_SETLINK`/`RTM_DELLINK`, the same as `bridge vlan add`/`del`. So
+`vlan_show`'s `netlink_route_getlink_brvlan.pcap` is the right reply. Its two
+`AF_BRIDGE` messages, for br0 and v0, are full. What it lacks is the
+`AF_UNSPEC` links next to them, which are name lookups again.
+
+**Workaround in BIRD until then.** The MPLS tests take goip0's full link and
+address messages from `7_3_0/dumps/` and rename them to d0 with the index
+changed: 3, or 4 in `mpls_event`, where the canary `c0` takes 3. This works
+only because the brmpls `topology` gives d0 goip0's addresses. There is no
+captured bridge link to start from, so the FDB and VLAN tests wait for B4.
+
+**B4, the fix.** Add two readbacks to the brmpls rows BIRD reads, taken
+after the row's command, with the same `{slug floor {command}}` shape as
+`ROUTE_RB`:
+
+```
+variable LINK_RB {{getlink 2 {ip -d link show}}}
+variable ADDR_RB {{getaddr 2 {ip addr show}}}
+```
+
+- `ip -d link show` and `ip addr show` with no `dev` filter, so the reply is
+  a full `NLM_F_DUMP` (every attribute, `IFLA_LINKINFO` included) rather
+  than a name lookup.
+- Rows: `fdb_show`, `fdb_event`, `vlan_show`, `vlan_event`,
+  `mpls_route_show`, `mpls_route_add_via6`, `route_encap_show` and
+  `mpls_event`, each appending `$LINK_RB $ADDR_RB` to its readbacks. For
+  the event rows, read back after the trigger: their links stay up, and
+  BIRD loads the links before replaying the events.
+- Optional: drop the canary from `mpls_event`, or keep it and record in the
+  row that d0 is index 4. Either way, the readback makes the index explicit.
+
+B4's tests extend `TestBrMplsCorpusComplete`:
+
+| description | input | expected |
+|---|---|---|
+| positive: every BIRD row has a link and an address readback | the 8 slugs above | `netlink_route_getlink.pcap` and `netlink_route_getaddr.pcap` in each |
+| positive: a link readback is a full dump | each `getlink` pcap | every `RTM_NEWLINK` has `IFLA_MTU` and `IFLA_LINKINFO` (lo has no `IFLA_LINKINFO`, so skip it) |
+| negative: a name-lookup reply is not a link readback | a 40-byte `RTM_NEWLINK` holding only `IFLA_IFNAME` (today's `ip.pcap`) | the test names the row |
+| positive: br0's link says VLAN filtering is on | `vlan_show`'s `getlink` | kind `bridge`, `IFLA_BR_VLAN_FILTERING` = 1 |
+| positive: d0 has the addresses of `topology` | each MPLS row's `getaddr` | 192.0.2.1/24 and 2001:db8::1/64 on d0 |
+| corner: the event rows' indexes | `mpls_event`'s `getlink` | c0 at 3, d0 at 4, as the routes' `RTA_OIF` say |
+| boundary: an address dump of a namespace without addresses | a row whose `topology` adds none | an empty dump (`NLMSG_DONE` only), not a missing file |
+
+Once these land, BIRD's FDB and VLAN tests use them directly. The MPLS tests
+then drop the renamed goip0 messages and load d0 from its own namespace.
+
+#### Delivered: B4 (2026-10-31)
+
+- **Captures.** `brmpls-write-corpus.exp` has `LINK_RB` and `ADDR_RB` as
+  above, appended (as `NS_RB`) to the eight rows' readbacks, after each
+  row's own. `nix run .#microvm-x86_64-link-write-capture-brmpls` rewrote the
+  whole `link-write/brmpls/` directory from one run. c0's and v0's MACs are
+  random on every run, br0 takes v0's, and the FDB rows' events carry them.
+  So a row's readbacks must come from the same run as its `ip.pcap`.
+  `brmpls-write-corpus-test.exp` pins which rows read back links and
+  addresses (those eight, and no others) and that neither dump has a `dev`
+  filter.
+- **Tests** (`xtcpnl_brmpls_corpus_test.go`): `TestBrMplsCorpusComplete`
+  expects both pcaps in the eight rows. `TestBrMplsCorpusLinkReadbacks`,
+  `…FullLinkProblem`, `…BridgeForBird`, `…AddrReadbacks` and
+  `…EventIndexes` hold the table's rows, with three changes the bytes forced.
+  `fullLinkProblem` is `nl_parse_link`'s test (`sysdep/linux/netlink.c:1088`
+  in BIRD): `IFLA_MTU` on every link, and `IFLA_LINKINFO` on every link but
+  lo. Three mutants of it are each caught by a row.
+- **What the bytes showed, against the table above:**
+  - Index 2 in every namespace is `nlmon0`, the capture device, so the
+    indexes are lo 1, nlmon0 2, then the row's devices. In `mpls_event`, c0
+    is 3 and d0 is 4, as the routes' `RTA_OIF` say; in the other MPLS rows
+    d0 is 3. The canary stays.
+  - lo is up in every row's namespace, with 127.0.0.1/8 and ::1/128. No
+    address dump is empty, so the boundary row is now "a namespace whose
+    devices have no address dumps only lo's" (`vlan_show`, `vlan_event`).
+  - `bridge`'s name lookups are not single lookups: `bridge` dumps every
+    link, names only (24-byte bodies), lo first. The negative row names lo.
+  - In the old-API VLAN dump BIRD reads, br0's own `AF_BRIDGE` entry
+    carries `IFLA_MASTER` = br0. `nl_parse_vlan` requires `IFLA_MASTER`, but
+    br0's entry has it, so BIRD takes br0's VLANs as well as v0's.
+  - BIRD dumps addresses per family (`AF_INET`, then `AF_INET6`); `ip addr
+    show` makes one `AF_UNSPEC` dump, which holds the same messages. Its
+    pcap also has the link dump `ip` makes first.
 
 ## What has landed
 

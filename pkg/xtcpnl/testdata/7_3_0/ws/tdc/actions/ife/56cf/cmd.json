@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ife encode allow mark pass index 4294967295999",
+ "desc": "negative: Create ife encode action with index exceeding 32-bit maximum",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: ife encode action pass.*type 0[xX]ED3E.*allow mark.*index 4294967295999",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/ife/56cf",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action ife index 4294967295999",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "56cf",
+  "tdc": "actions/ife.json"
+ }
+}

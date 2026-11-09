@@ -1,0 +1,1 @@
+[{"kind":"ets","handle":"1:","root":true,"refcnt":2,"options":{"bands":2,"strict":1,"quanta":[1514],"priomap":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]},"bytes":98,"packets":1,"drops":2,"overlimits":0,"requeues":0,"backlog":98,"qlen":1}]

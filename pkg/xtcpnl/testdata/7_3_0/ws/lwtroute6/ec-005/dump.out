@@ -1,0 +1,5 @@
+2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+2001:db8:2::/64  encap ip id 1 src 0.0.0.0 dst 203.0.113.5 ttl 0 tos 0 dev d0 metric 1024 pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local 2001:db8:1::10 dev d0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium

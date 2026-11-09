@@ -1,0 +1,6 @@
+qdisc drr 1: root refcnt 2 
+ Sent 98 bytes 1 pkt (dropped 1, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc drr ffff: parent 1:1 
+ Sent 98 bytes 1 pkt (dropped 1, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

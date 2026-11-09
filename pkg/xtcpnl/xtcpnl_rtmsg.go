@@ -143,6 +143,15 @@ type RouteInfo struct {
 	MfcStats   *RtaMfcStats
 	Expires    uint64
 	HasExpires bool
+
+	// NewDst is an AF_MPLS route's RTA_NEWDST, the labels it swaps the
+	// incoming one for, nil when absent (a pop). The route's own label is
+	// RTA_DST, one entry: ParseMPLSLabels(Dst). See xtcpnl_mpls.go.
+	NewDst []MPLSLabel
+
+	// Encap is RTA_ENCAP_TYPE and RTA_ENCAP, nil when neither is present:
+	// `encap mpls 100/200` on an IP route. See xtcpnl_mpls.go.
+	Encap *RouteEncap
 }
 
 // ParseNewRoute decodes an RTM_NEWROUTE message body (the bytes after the
@@ -192,6 +201,9 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 	}
 	if nestErr != nil {
 		return RouteInfo{}, nestErr
+	}
+	if eerr := ri.Encap.decode(); eerr != nil {
+		return RouteInfo{}, eerr
 	}
 	return ri, nil
 }
@@ -252,7 +264,8 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 			ri.Table = binary.LittleEndian.Uint32(val[0:4])
 		}
 	case uint16(unix.RTA_MULTIPATH), uint16(unix.RTA_VIA),
-		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO):
+		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO),
+		uint16(unix.RTA_NEWDST), uint16(unix.RTA_ENCAP_TYPE), uint16(unix.RTA_ENCAP):
 		return parseRouteNestedAttr(ri, atype, val)
 	case uint16(unix.RTA_MFC_STATS), uint16(unix.RTA_EXPIRES):
 		return setRouteMcastAttr(ri, atype, val)
@@ -277,7 +290,7 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 	return nil
 }
 
-// parseRouteNestedAttr decodes the four RTA_* attributes whose payload is a
+// parseRouteNestedAttr decodes the RTA_* attributes whose payload is a
 // struct or a stream of its own rather than a scalar, and is the only part of
 // route attribute decoding that can return an error.
 //
@@ -321,6 +334,15 @@ func parseRouteNestedAttr(ri *RouteInfo, atype uint16, val []byte) error {
 			return cerr
 		}
 		ri.CacheInfo = &ci
+	case uint16(unix.RTA_NEWDST):
+		labels, lerr := ParseMPLSLabels(val)
+		if lerr != nil {
+			return lerr
+		}
+		ri.NewDst = labels
+	case uint16(unix.RTA_ENCAP_TYPE), uint16(unix.RTA_ENCAP):
+		// Decoded by ParseNewRoute once the walk has both; see RouteEncap.
+		setEncapAttr(&ri.Encap, atype, val)
 	}
 	return nil
 }

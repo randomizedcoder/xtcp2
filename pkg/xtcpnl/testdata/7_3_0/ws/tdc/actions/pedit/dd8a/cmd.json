@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit munge offset 12 u16 set 0x1234 munge offset 14 u16 set 0x5678",
+ "desc": "positive: Add pedit action with RAW_OP offset u16 u16",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)val 12340000 mask 0000ffff.*val 00005678 mask ffff0000",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/dd8a",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "dd8a",
+  "tdc": "actions/pedit.json"
+ }
+}

@@ -1,0 +1,2 @@
+4: vr0: <NOARP,MASTER> mtu 65575 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether 32:4b:df:59:14:ac brd ff:ff:ff:ff:ff:ff

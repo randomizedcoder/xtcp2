@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev dummy1 parent ffff: handle 0xffffffff prio 1 protocol all matchall action continue",
+ "desc": "positive: Add ingress matchall filter for all protocols and action CONTINUE with handle at 32-bit maximum",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)^filter parent ffff: protocol all pref 1 matchall.*handle 0xffffffff.*gact action continue.*ref 1 bind 1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/matchall/f755",
+ "modules": [
+  "cls_matchall"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev dummy1 parent ffff: handle 0xffffffff prio 1 protocol all matchall",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "f755",
+  "tdc": "filters/matchall.json"
+ }
+}

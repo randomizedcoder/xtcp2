@@ -1,0 +1,5 @@
+12:77:c5:52:b4:f9 vlan 10 master br0 permanent
+12:77:c5:52:b4:f9 vlan 1 master br0 permanent
+12:77:c5:52:b4:f9 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

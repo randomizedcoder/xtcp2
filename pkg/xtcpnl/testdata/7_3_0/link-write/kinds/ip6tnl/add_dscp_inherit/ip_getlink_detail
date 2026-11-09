@@ -1,0 +1,3 @@
+3: t6@NONE: <NOARP> mtu 1452 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/tunnel6 :: brd 2001:db8::1 permaddr 2dc:2f0a:228f:: promiscuity 0 allmulti 0 minmtu 68 maxmtu 65535 
+    ip6tnl any remote 2001:db8::1 local any hoplimit 64 encaplimit 4 tclass 0x00 flowlabel 0x00000 dscp inherit addrgenmode eui64 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 

@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "bport": "vx0",
+  "dev": "vx0",
+  "dport": "65535",
+  "dst": "2001:db8::1",
+  "grp": "0.0.0.0",
+  "mode": "1",
+  "proto": "200",
+  "src": "192.0.2.1",
+  "src_vni": "300",
+  "state": "1",
+  "verb": "add",
+  "vid": "0",
+  "vni": "16777215"
+ },
+ "cmd": "bridge mdb add dev vx0 port vx0 grp 0.0.0.0 permanent dst 2001:db8::1 dst_port 65535 vni 16777215 src_vni 300 src 192.0.2.1 filter_mode include proto 200",
+ "desc": "negative: verb=add dev=vx0 bport=vx0 grp=zero state=permanent vid=absent dst=v6 dport=65535 vni=max srcvni=other via=absent src=v4 mode=include srclist=absent proto=200: a source on the all-zeros group (Source cannot be specified for the all-zeros entry)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "mdbvx/pw-002",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

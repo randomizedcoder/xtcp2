@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 delay 100ms  10ms loss state p13 1% p31 99% p32 0% p23 100% p14 0% seed 7101063419345924328

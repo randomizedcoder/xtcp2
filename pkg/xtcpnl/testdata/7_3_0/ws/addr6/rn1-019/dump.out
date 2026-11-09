@@ -1,0 +1,3 @@
+3: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    inet6 2001:db8:1::1 peer 2001:db8:9::1/128 metric 7 scope global nodad deprecated 
+       valid_lft forever preferred_lft 0sec

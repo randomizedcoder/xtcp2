@@ -115,7 +115,6 @@ flake check because its module dependencies need network access.
 Local source overrides keep the same workflow:
 
 ```sh
-nix develop --override-input giouring path:/path/to/giouring
 nix build path:.#checks.x86_64-linux.proto-audit-netlink \
   --override-input xdp2 path:/path/to/xdp2
 nix run path:.#test-linkmonitor-ionic-vm \

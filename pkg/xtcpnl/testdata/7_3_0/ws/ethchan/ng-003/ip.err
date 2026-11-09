@@ -1,0 +1,2 @@
+netlink error: requested channel counts would result in no RX or TX channel being configured (offset 36)
+netlink error: Invalid argument

@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions replace action pedit ex munge ip ttl set 10 goto chain 42 index 90 cookie c1a0c1a0",
+ "desc": "negative: Replace pedit action with invalid goto chain",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+:  pedit action pass keys 1.*index 90 ref.*key #0  at ipv4\\+8: val 0a000000 mask 00ffffff",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/pedit/7e67",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action pedit ex munge ip ttl set 10 pass index 90"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action pedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action pedit ex munge ip ttl set 10 pass index 90",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7e67",
+  "tdc": "actions/pedit.json"
+ }
+}

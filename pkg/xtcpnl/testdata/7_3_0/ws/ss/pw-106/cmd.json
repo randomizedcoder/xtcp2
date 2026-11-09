@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "ext": "14",
+  "families": "10",
+  "pred": "mark=16/4294967295",
+  "proto": "255",
+  "states": "1152"
+ },
+ "cmd": "ss -n -w -6 -i -l fwmark = 0x10",
+ "desc": "positive: proto=raw family=6 ext=info state=listen filter=fwmark",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "ss/pw-106",
+ "modules": [
+  "inet_diag",
+  "tcp_diag",
+  "udp_diag",
+  "raw_diag",
+  "mptcp_diag",
+  "sctp_diag"
+ ],
+ "pre": [
+  "ip link set lo up && sysctl -qw net.ipv4.ip_local_port_range='45000 45000' && python3 -c 'import os, socket as s, time\nL = []\ndef tcp(fam, addr, port, v6only=1, mark=0):\n    k = s.socket(fam, s.SOCK_STREAM)\n    k.setsockopt(s.SOL_SOCKET, s.SO_REUSEADDR, 1)\n    if fam == s.AF_INET6:\n        k.setsockopt(s.IPPROTO_IPV6, s.IPV6_V6ONLY, v6only)\n    if mark:\n        k.setsockopt(s.SOL_SOCKET, s.SO_MARK, mark)\n    k.bind((addr, port)); k.listen(8); L.append(k); return k\ndef conn(port):\n    c = s.socket(s.AF_INET, s.SOCK_STREAM); c.connect((\"127.0.0.1\", port)); L.append(c)\ndef udp(fam, addr, port):\n    k = s.socket(fam, s.SOCK_DGRAM)\n    if fam == s.AF_INET6:\n        k.setsockopt(s.IPPROTO_IPV6, s.IPV6_V6ONLY, 1)\n    k.bind((addr, port)); L.append(k)\ntcp(s.AF_INET, \"127.0.0.1\", 22)\ntcp(s.AF_INET6, \"::1\", 80)\na = tcp(s.AF_INET, \"127.0.0.1\", 8080); conn(8080); L.append(a.accept()[0])\nb = tcp(s.AF_INET6, \"::\", 443, 0); conn(443); L.append(b.accept()[0])\ntcp(s.AF_INET, \"127.0.0.1\", 9000, mark=16)\nudp(s.AF_INET, \"127.0.0.1\", 53)\nudp(s.AF_INET6, \"::1\", 5353)\nu = s.socket(s.AF_INET, s.SOCK_DGRAM); u.connect((\"127.0.0.1\", 53)); L.append(u)\nL.append(s.socket(s.AF_INET, s.SOCK_RAW, s.IPPROTO_ICMP))\nif os.fork() == 0:\n    n = os.open(os.devnull, os.O_RDWR)\n    for fd in (0, 1, 2):\n        os.dup2(n, fd)\n    time.sleep(10)\n    os._exit(0)\n'"
+ ],
+ "proto": "sock_diag",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link set lo up && sysctl -qw net.ipv4.ip_local_port_range='45000 45000' && python3 -c 'import os, socket as s, time\nL = []\ndef tcp(fam, addr, port, v6only=1, mark=0):\n    k = s.socket(fam, s.SOCK_STREAM)\n    k.setsockopt(s.SOL_SOCKET, s.SO_REUSEADDR, 1)\n    if fam == s.AF_INET6:\n        k.setsockopt(s.IPPROTO_IPV6, s.IPV6_V6ONLY, v6only)\n    if mark:\n        k.setsockopt(s.SOL_SOCKET, s.SO_MARK, mark)\n    k.bind((addr, port)); k.listen(8); L.append(k); return k\ndef conn(port):\n    c = s.socket(s.AF_INET, s.SOCK_STREAM); c.connect((\"127.0.0.1\", port)); L.append(c)\ndef udp(fam, addr, port):\n    k = s.socket(fam, s.SOCK_DGRAM)\n    if fam == s.AF_INET6:\n        k.setsockopt(s.IPPROTO_IPV6, s.IPV6_V6ONLY, 1)\n    k.bind((addr, port)); L.append(k)\ntcp(s.AF_INET, \"127.0.0.1\", 22)\ntcp(s.AF_INET6, \"::1\", 80)\na = tcp(s.AF_INET, \"127.0.0.1\", 8080); conn(8080); L.append(a.accept()[0])\nb = tcp(s.AF_INET6, \"::\", 443, 0); conn(443); L.append(b.accept()[0])\ntcp(s.AF_INET, \"127.0.0.1\", 9000, mark=16)\nudp(s.AF_INET, \"127.0.0.1\", 53)\nudp(s.AF_INET6, \"::1\", 5353)\nu = s.socket(s.AF_INET, s.SOCK_DGRAM); u.connect((\"127.0.0.1\", 53)); L.append(u)\nL.append(s.socket(s.AF_INET, s.SOCK_RAW, s.IPPROTO_ICMP))\nif os.fork() == 0:\n    n = os.open(os.devnull, os.O_RDWR)\n    for fd in (0, 1, 2):\n        os.dup2(n, fd)\n    time.sleep(10)\n    os._exit(0)\n'",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

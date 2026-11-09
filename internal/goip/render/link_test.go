@@ -3,6 +3,7 @@ package render
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -855,6 +856,36 @@ func TestLinkViewJSON(t *testing.T) {
 				if !reflect.DeepEqual(got, want) {
 					t.Errorf("key %q = %#v, want %#v (in %s)", k, got, want, b)
 				}
+			}
+		})
+	}
+}
+
+// TestLinkStateNames is the name tables `link set mode` and `state` look up:
+// print's own, indexed by value, handed out as copies.
+//
+// go test ./internal/goip/render/ -run TestLinkStateNames
+func TestLinkStateNames(t *testing.T) {
+	tests := []struct {
+		description string
+		names       func() []string
+		expected    []string
+	}{
+		{description: "positive: the operstates, by IFLA_OPERSTATE", names: OperStateNames,
+			expected: []string{"UNKNOWN", "NOTPRESENT", "DOWN", "LOWERLAYERDOWN", "TESTING", "DORMANT", "UP"}},
+		{description: "positive: the link modes, by IFLA_LINKMODE", names: LinkModeNames,
+			expected: []string{"DEFAULT", "DORMANT"}},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.description, func(t *testing.T) {
+			got := tt.names()
+			if !slices.Equal(got, tt.expected) {
+				t.Fatalf("got %q, want %q", got, tt.expected)
+			}
+			got[0] = "changed"
+			if again := tt.names(); !slices.Equal(again, tt.expected) {
+				t.Errorf("corner: a caller's edit reached the table: %q", again)
 			}
 		})
 	}

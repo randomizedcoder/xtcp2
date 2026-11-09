@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "dst": "192.0.2.50",
+  "family": "4",
+  "ntf_ext": "4",
+  "protocol": "0",
+  "proxy": "1",
+  "state": "32",
+  "verb": "add"
+ },
+ "cmd": "ip -4 neigh add proxy 192.0.2.50 nud failed extern_valid protocol 0 dev d0",
+ "desc": "negative: verb=add dst=proxy lladdr=absent nud=failed flags=extern_valid proto=0: a proxy entry with managed or extern_valid (Invalid NTF_* flag combination)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "neigh4/pw-062",
+ "pre": [
+  "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 neigh show proxy dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

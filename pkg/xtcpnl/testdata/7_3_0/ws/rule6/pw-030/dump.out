@@ -1,0 +1,3 @@
+0:	from all lookup local
+200:	from all tos EF fwmark 0x10 iif d0 oif nosuch [detached] uidrange 0-0 ipproto ipproto-255 lookup local suppress_prefixlength 2147483647 proto 255
+32766:	from all lookup main

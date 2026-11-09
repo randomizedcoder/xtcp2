@@ -1,0 +1,2 @@
+3: vn0: <NOARP,UP,LOWER_UP> mtu 2060 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/can 

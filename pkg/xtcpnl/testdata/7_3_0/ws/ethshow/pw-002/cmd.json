@@ -1,0 +1,33 @@
+{
+ "axes": {
+  "get": "21"
+ },
+ "cmd": "ethtool -a eth0",
+ "desc": "positive: opt=none cmd=pause dev=eth0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "ethshow/pw-002",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null"
+ ],
+ "proto": "generic",
+ "result": {
+  "pre": [
+   {
+    "cmd": "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

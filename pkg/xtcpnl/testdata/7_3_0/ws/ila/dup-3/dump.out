@@ -1,0 +1,11 @@
+192.0.2.0/24 dev d0 proto kernel scope link src 192.0.2.10 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 192.0.2.10 dev d0 table local proto kernel scope host src 192.0.2.10 
+broadcast 192.0.2.255 dev d0 table local proto kernel scope link src 192.0.2.10 
+2001:db8:0:1::/64  encap ila  2001:0:0:2  csum-mode adj-transport  ident-type luid  hook-type output dev d0 metric 1024 pref medium
+2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+local ::1 dev lo table local proto kernel metric 0 pref medium
+local 2001:db8:1::10 dev d0 table local proto kernel metric 0 pref medium
+multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium

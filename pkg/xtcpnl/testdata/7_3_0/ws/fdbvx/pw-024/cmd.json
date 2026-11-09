@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "dev": "vx0",
+  "lladdr": "02:00:00:00:00:01",
+  "nhid": "1",
+  "state": "192",
+  "target": "2",
+  "verb": "del"
+ },
+ "cmd": "bridge fdb del 02:00:00:00:00:01 nhid 1 dev vx0",
+ "desc": "negative: verb=del mac=uni remote=nhsingle port=absent vni=absent srcvni=absent via=absent state=absent: a delete of an entry its add could not create",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ENOENT",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "fdbvx/pw-024",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up && ip nexthop add id 1 via 192.0.2.1 fdb && ip nexthop add id 10 group 1 fdb && ip nexthop add id 2 via 192.0.2.1 dev d1"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge fdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up && ip nexthop add id 1 via 192.0.2.1 fdb && ip nexthop add id 10 group 1 fdb && ip nexthop add id 2 via 192.0.2.1 dev d1",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

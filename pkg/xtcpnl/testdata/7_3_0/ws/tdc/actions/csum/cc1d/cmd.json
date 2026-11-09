@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action csum igmp index 999",
+ "desc": "positive: Add csum igmp action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: csum \\(igmp\\) action pass.*index 999 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/csum/cc1d",
+ "modules": [
+  "act_csum"
+ ],
+ "pre": [
+  [
+   "tc actions flush action csum",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action csum index 999",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action csum",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "cc1d",
+  "tdc": "actions/csum.json"
+ }
+}

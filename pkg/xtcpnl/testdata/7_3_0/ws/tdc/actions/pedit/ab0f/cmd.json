@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit munge offset 0 u16 set 0x1234 munge offset 2 u8 set 0x56 munge offset 3 u8 set 0x78",
+ "desc": "positive: Add pedit action with RAW_OP offset u16-u8-u8",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)val 12340000 mask 0000ffff.*val 00005600 mask ffff00ff.*val 00000078 mask ffffff00",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/ab0f",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ab0f",
+  "tdc": "actions/pedit.json"
+ }
+}

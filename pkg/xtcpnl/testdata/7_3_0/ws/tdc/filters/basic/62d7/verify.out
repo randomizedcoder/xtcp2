@@ -1,0 +1,10 @@
+filter parent ffff: protocol ip pref 1 basic chain 0 handle 0x1 
+  cmp(u32 at 4 layer 2 mask 0xff00ff00 eq 3)
+
+	action order 1: skbedit  mark 7 pipe
+	 index 1 ref 1 bind 1
+
+	action order 2: gact action drop
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

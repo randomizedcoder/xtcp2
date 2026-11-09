@@ -1,0 +1,15 @@
+2001:db8:1::/64 dev dummy0 proto kernel metric 256 pref medium
+2001:db8:101::/64 dev dummy1 proto kernel metric 256 pref medium
+2001:db8:101::/64 dev dummy2 proto kernel metric 256 pref medium
+2001:db8:110::/64 dev dummy3 metric 1024 pref medium
+2001:db8:111::/64 dev dummy3 metric 1024 pref medium
+2001:db8:112::/64 dev dummy3 metric 1024 pref medium
+2001:db8:113::/64 dev lo metric 1024 pref medium
+2001:db8:115::/64 via 2001:db8:101::2 dev dummy1 metric 1024 pref medium
+2001:db8:116::/64 dev dummy2 metric 1024 pref medium
+2001:db8:117::/64 dev dummy3 src fe80::1 metric 1024 pref medium
+fe80::1 dev dummy3 proto kernel metric 256 pref medium
+fe80::/64 dev dummy0 proto kernel metric 256 pref medium
+fe80::/64 dev dummy1 proto kernel metric 256 pref medium
+fe80::/64 dev dummy2 proto kernel metric 256 pref medium
+fe80::/64 dev dummy3 proto kernel metric 256 pref medium

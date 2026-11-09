@@ -1,0 +1,13 @@
+qdisc drr 1: root refcnt 7 
+ Sent 0 bytes 0 pkt (dropped 4, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc hfsc 2: parent 1:1  default 0x1 
+ Sent 0 bytes 0 pkt (dropped 4, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc blackhole 4: parent 3:1 
+ Sent 0 bytes 0 pkt (dropped 4, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc netem 3: parent 2:1 limit 1000 seed 14325665412644243796
+ Sent 0 bytes 0 pkt (dropped 4, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  delayed 0 dropped 0 corrupted 0 duplicated 0 reordered 0 ecn_marked 0

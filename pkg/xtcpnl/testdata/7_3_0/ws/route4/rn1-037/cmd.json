@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "advmss": "1300",
+  "dst": "198.51.100.0",
+  "dst_len": "24",
+  "family": "4",
+  "gw": "203.0.113.1",
+  "metric": "1024",
+  "oif": "d0",
+  "onlink": "1",
+  "prefsrc": "192.0.2.10",
+  "proto": "4",
+  "scope": "254",
+  "type": "unicast",
+  "verb": "add"
+ },
+ "cmd": "ip -4 route add unicast 198.51.100.0/24 metric 1024 proto static scope host advmss 1300 src 192.0.2.10 via 203.0.113.1 dev d0 onlink",
+ "desc": "negative: verb=add dst=24 type=unicast table=absent metric=1024 proto=static scope=host mtu=advmss src=local nh=onlink: a host-scope route takes no gateway",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "route4/rn1-037",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

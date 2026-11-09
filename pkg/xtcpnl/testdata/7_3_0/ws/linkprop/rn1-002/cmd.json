@@ -1,0 +1,36 @@
+{
+ "axes": {
+  "altname": "alternate-name-0",
+  "op": "show"
+ },
+ "cmd": "ip link show dev alternate-name-0",
+ "desc": "positive: op=show altname=long dev=dev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkprop/rn1-002",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link property add dev d0 altname alternate-name-0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link property add dev d0 altname alternate-name-0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

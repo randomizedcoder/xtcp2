@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action police rate 90kbit burst 10k mtu 2kb peakrate 100T index 1",
+ "desc": "negative: Add police action with invalid peakrate value",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*:  police 0x1 rate 90Kbit burst 10Kb mtu 2Kb peakrate 100Tbit",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/police/c26f",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action police",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "c26f",
+  "tdc": "actions/police.json"
+ }
+}

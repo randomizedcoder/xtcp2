@@ -1,0 +1,2 @@
+192.0.2.1 age 1.411sec cwnd 10 rtt 26us rttvar 26us source 192.0.2.2
+192.0.2.2 age 1.411sec cwnd 10 rtt 12us rttvar 12us source 192.0.2.1

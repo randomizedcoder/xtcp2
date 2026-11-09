@@ -138,8 +138,10 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 		return w.dev(args, i)
 	case a == nexthopViaKeyCst:
 		return w.via(args, i)
-	case a == "encap", a == "dst_port", a == "hw_stats":
-		return i, fmt.Errorf("nexthop %s: no capture shows it: %w", a, ErrNotImplemented)
+	case a == tnlKeyEncap:
+		return w.encap(args, i)
+	case a == "hw_stats":
+		return w.hwStats(args, i)
 	case a == "blackhole":
 		w.familyIfUnset(unix.AF_INET)
 		return i, w.attrs.PutBytes(xtcpnl.NhaBlackhole, nil)
@@ -154,9 +156,11 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 		return w.groupType(args, i)
 	case matchesPrefix(a, "protocol"):
 		return w.protocolArg(args, i)
-	case a == "help":
+	case a == addrHelpKeywordCst:
 		return i, fmt.Errorf("nexthop help: %w", ErrNotImplemented)
 	}
+	// The chain's last arm. dst_port lands here too: iproute2 7.2.0 has no
+	// such keyword (ad2b2d95 adds it later).
 	return i, invargErr("", args[i])
 }
 
@@ -178,6 +182,49 @@ func (w *nexthopWrite) u32Arg(args []string, i int, typ uint16, msg string) (int
 		return i, invargErr(msg, args[i])
 	}
 	return i, w.attrs.PutU32(typ, v)
+}
+
+// encap is ipnh_modify's encap (ip/ipnexthop.c:1095): lwt_parse_encap into
+// NHA_ENCAP and NHA_ENCAP_TYPE in buf[1024], then addraw_l into the
+// request, whose bound counts the request so far, as a route's does.
+func (w *nexthopWrite) encap(args []string, i int) (int, error) {
+	e, i, err := lwtEncapArgs(args, i, w.resolve)
+	if err != nil {
+		return i, err
+	}
+	room := min(routeEncapBufCst-xtcpnl.RTAttrSizeCst,
+		routeEncapBufCst-xtcpnl.NlMsgHdrSizeCst-xtcpnl.NhMsgSizeCst-w.attrs.Len())
+	as, err := xtcpnl.EncodeLwtEncapAs(e, xtcpnl.NhaEncap, xtcpnl.NhaEncapType, room)
+	if errors.Is(err, xtcpnl.ErrAttrNoSpace) {
+		return i, fmt.Errorf("%w: addraw_l ERROR: message exceeded bound of %d", ErrInvalidArgument, routeEncapBufCst)
+	}
+	if err != nil {
+		return i, err
+	}
+	for k := range as {
+		if err := w.attrs.PutBytes(as[k].Type, as[k].Payload); err != nil {
+			return i, err
+		}
+	}
+	return i, nil
+}
+
+// hwStats is hw_stats: parse_on_off, whose error ipnh_modify returns, into
+// NHA_HW_STATS_ENABLE u32.
+func (w *nexthopWrite) hwStats(args []string, i int) (int, error) {
+	i, err := nextArg(args, i)
+	if err != nil {
+		return i, err
+	}
+	on, err := parseOnOff("hw_stats", args[i])
+	if err != nil {
+		return i, err
+	}
+	var v uint32
+	if on {
+		v = 1
+	}
+	return i, w.attrs.PutU32(xtcpnl.NhaHwStatsEnable, v)
 }
 
 // dev is ll_name_to_index into NHA_OIF, which also makes an unset family
@@ -348,7 +395,7 @@ func (w *nexthopWrite) protocolArg(args []string, i int) (int, error) {
 	if err != nil {
 		return i, err
 	}
-	p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint32)
+	p, ok := rtnlNameA2N(routeProtoNames, args[i], math.MaxUint8)
 	if !ok {
 		return i, invargErr(`"protocol" value is invalid`+"\n", args[i])
 	}

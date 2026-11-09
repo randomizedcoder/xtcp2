@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action nat ingress 192.168.1.1 10.10.10.1 reclassify index 1 cookie 112233445566778899aabbccddeeff11",
+ "desc": "positive: Add nat action on ingress with cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+:  nat ingress 192.168.1.1/32 10.10.10.1 reclassify.*index 1 ref.*cookie 112233445566778899aabbccddeeff11",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/nat/79d6",
+ "modules": [
+  "act_nat"
+ ],
+ "pre": [
+  [
+   "tc actions flush action nat",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action nat index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action nat",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "79d6",
+  "tdc": "actions/nat.json"
+ }
+}

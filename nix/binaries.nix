@@ -47,7 +47,6 @@
   pkgs,
   lib,
   src,
-  giouring,
   commit ? "nix",
   date ? "1970-01-01-00:00",
   # Release version stamped into main.version → the record's daemon_version.
@@ -59,7 +58,7 @@
 
 let
   versions = import ./versions.nix { inherit pkgs; };
-  mkGoBinary = import ./lib/mkGoBinary.nix { inherit pkgs lib giouring; };
+  mkGoBinary = import ./lib/mkGoBinary.nix { inherit pkgs lib; };
 
   binaryNames = [
     "clickhouse_http_insert_protobuflist"

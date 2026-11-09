@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from 198.51.100.7 fwmark 0x10 oif d0 uidrange 1000-2000 sport 0x50/0xfff0 tun_id 7 lookup 256 proto static dscp 0x20/0x30
+32766:	from all lookup main
+32767:	from all lookup default

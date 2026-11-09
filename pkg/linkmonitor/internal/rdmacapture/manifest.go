@@ -128,7 +128,7 @@ func listFiles(dir string) ([]string, error) {
 }
 
 func sha256File(p string) (string, error) {
-	data, err := os.ReadFile(p) // #nosec G304 -- paths come from walking the capture directory
+	data, err := os.ReadFile(p)
 	if err != nil {
 		return "", err
 	}
@@ -223,7 +223,7 @@ func Write(dir string, m Manifest) error {
 // recorded sha256, every file present is listed, and the paths are clean,
 // sorted and unique.
 func Verify(dir string) (Manifest, error) {
-	data, err := os.ReadFile(filepath.Join(dir, ManifestName)) // #nosec G304 -- dir is a capture directory chosen by the caller
+	data, err := os.ReadFile(filepath.Join(dir, ManifestName))
 	if err != nil {
 		return Manifest{}, err
 	}

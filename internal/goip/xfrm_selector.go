@@ -238,7 +238,7 @@ func xfrmUpspecWord(a *xfrmArgs, sel *xfrmSel, u *xfrmUpspec) (bool, error) {
 // base 0; a name goip does not know is not implemented.
 func xfrmUpspecProto(v string, sel *xfrmSel) error {
 	sel.protoSet = true
-	if v == "any" {
+	if v == addrNameAnyCst {
 		sel.proto = 0
 		return nil
 	}

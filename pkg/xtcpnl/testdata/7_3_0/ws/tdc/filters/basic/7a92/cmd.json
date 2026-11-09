@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: handle 1 protocol ip prio 1 basic match 'cmp(u8 at 0 layer link mask 0xff gt 10)' classid 1:1",
+ "desc": "positive: Add basic filter with cmp ematch u8/link layer and default action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)^filter parent ffff: protocol ip pref 1 basic.*handle 0x1 flowid 1:1.*cmp\\(u8 at 0 layer 0 mask 0xff gt 10\\)",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/basic/7a92",
+ "modules": [
+  "cls_basic"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev v0p1 parent ffff: handle 1 prio 1 protocol ip basic",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7a92",
+  "tdc": "filters/basic.json"
+ }
+}

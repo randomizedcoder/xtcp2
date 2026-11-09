@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action pedit ex munge tcp dport set 4789 munge tcp sport set 1 munge tcp flags set 0x1",
+ "desc": "positive: Add pedit action with LAYERED_OP tcp set dport, sport & flags fields",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)tcp\\+0: val 000012b5 mask ffff0000.*tcp\\+0: val 00010000 mask 0000ffff.*tcp\\+12: val 00010000 mask ff00ffff",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/pedit/3bc4",
+ "modules": [
+  "act_pedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action pedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action pedit | grep 'key '",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action pedit",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3bc4",
+  "tdc": "actions/pedit.json"
+ }
+}

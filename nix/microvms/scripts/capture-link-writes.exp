@@ -3,10 +3,13 @@
 # capture-link-writes.exp - drive the bond / LACP capture inside a microVM
 #
 # Usage:
-#   capture-link-writes.exp <serial-port> <blob-out>
+#   capture-link-writes.exp <serial-port> <blob-out> [<sections>]
 #
 #   <serial-port>  host TCP port qemu bound the guest's serial console to
 #   <blob-out>     file to write the base64 tarball to
+#   <sections>     comma-separated sections to run (lacp, addr, write, rtnl,
+#                  genl, xfrm, kinds, brmpls), or all, the default; see
+#                  scripts/link-write-sections.exp
 #
 # Phase 0 of docs/netlink/link-write-path.md: the Tier 1 topology and its
 # READBACK rows only. Three states of one two-namespace topology
@@ -65,7 +68,13 @@
 # scripts/genl-write-corpus.exp: each pcap keeps NETLINK_GENERIC, the
 # family lookup included, under genl/<slug>/; see genl_row below. Then the
 # XFRM rows (C3), data in scripts/xfrm-write-corpus.exp: each pcap keeps
-# NETLINK_XFRM, under xfrm/<slug>/; see xfrm_row below.
+# NETLINK_XFRM, under xfrm/<slug>/; see xfrm_row below. Then the link
+# kind rows (docs/netlink/goip-link-kinds.md), data in
+# scripts/kind-write-corpus.exp, under kinds/<kind>/<name>/; see kind_row
+# below. Last of all, after loading the MPLS modules, the bridge FDB, bridge
+# VLAN and MPLS rows BIRD's parser needs (docs/netlink/coverage-status.md),
+# data in scripts/brmpls-write-corpus.exp, under brmpls/<slug>/; see
+# brmpls_row below.
 #
 # POLICY HERE, MECHANISM IN THE GUEST
 #
@@ -95,13 +104,20 @@ source [file dirname [info script]]/addr-corpus.exp
 source [file dirname [info script]]/rtnl-write-corpus.exp
 source [file dirname [info script]]/genl-write-corpus.exp
 source [file dirname [info script]]/xfrm-write-corpus.exp
+source [file dirname [info script]]/kind-write-corpus.exp
+source [file dirname [info script]]/brmpls-write-corpus.exp
+source [file dirname [info script]]/link-write-sections.exp
 
-if {$argc != 2} {
-    puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
+if {$argc < 2 || $argc > 3} {
+    puts "usage: capture-link-writes.exp <serial-port> <blob-out> \[<sections>\]"
     exit 2
 }
 set port     [lindex $argv 0]
 set blob_out [lindex $argv 1]
+if {[catch {lwsections::parse [lindex $argv 2]} sections]} {
+    puts "NLCAP_ERR $sections"
+    exit 2
+}
 
 set NS_A $lwtopo::NS_A
 set NS_B $lwtopo::NS_B
@@ -480,83 +496,95 @@ vmlib::must "xtcp2-nlcap side - . ip_version 'ip -V'"
 vmlib::must "xtcp2-nlcap ns-add $NS_A"
 vmlib::must "xtcp2-nlcap ns-add $NS_B"
 
-set reached 1
+vmlib::log "sections: [join $sections {, }]"
+puts "NLCAP_SECTIONS [join $sections ,]"
 
-vmlib::log "=== lacp_no_partner ==="
-lwtopo::build_partnerless "."
-if {[lwtopo::wait_defaulted] && [lwtopo::wait_churn settled]} {
-    readback_set $NS_A lacp_no_partner
-} else {
-    lappend lacp_timeouts lacp_no_partner
-}
+if {[lwsections::want $sections lacp]} {
+    set reached 1
 
-# The partner is built whether or not the state above was reached: a bond
-# that never defaulted can still converge, and the converged state is the
-# one the later phases most need.
-vmlib::log "=== lacp_converged ==="
-lwtopo::build_partner lacp_converged
-if {[lwtopo::wait_lacp_converged] && [lwtopo::wait_churn]} {
-    readback_set $NS_A lacp_converged
-} else {
-    lappend lacp_timeouts lacp_converged
-    set reached 0
-}
-
-if {$reached} {
-    vmlib::log "=== lacp_partner_down ==="
-    lwtopo::pull_lb2 lacp_partner_down
-    if {[lwtopo::wait_partner_down] && [lwtopo::wait_churn]} {
-        readback_set $NS_A lacp_partner_down
+    vmlib::log "=== lacp_no_partner ==="
+    lwtopo::build_partnerless "."
+    if {[lwtopo::wait_defaulted] && [lwtopo::wait_churn settled]} {
+        readback_set $NS_A lacp_no_partner
     } else {
+        lappend lacp_timeouts lacp_no_partner
+    }
+
+    # The partner is built whether or not the state above was reached: a bond
+    # that never defaulted can still converge, and the converged state is the
+    # one the later phases most need.
+    vmlib::log "=== lacp_converged ==="
+    lwtopo::build_partner lacp_converged
+    if {[lwtopo::wait_lacp_converged] && [lwtopo::wait_churn]} {
+        readback_set $NS_A lacp_converged
+    } else {
+        lappend lacp_timeouts lacp_converged
+        set reached 0
+    }
+
+    if {$reached} {
+        vmlib::log "=== lacp_partner_down ==="
+        lwtopo::pull_lb2 lacp_partner_down
+        if {[lwtopo::wait_partner_down] && [lwtopo::wait_churn]} {
+            readback_set $NS_A lacp_partner_down
+        } else {
+            lappend lacp_timeouts lacp_partner_down
+        }
+    } else {
+        vmlib::log "skipping lacp_partner_down: it starts from lacp_converged"
         lappend lacp_timeouts lacp_partner_down
     }
-} else {
-    vmlib::log "skipping lacp_partner_down: it starts from lacp_converged"
-    lappend lacp_timeouts lacp_partner_down
 }
 
 # The address states have namespaces of their own, so they can run here,
 # after the LACP states are done with lacpa and before the rows that
 # rebuild it.
-addr_readback
+set addr_problems {}
+if {[lwsections::want $sections addr]} {
+    addr_readback
+}
 
 # The write rows run last because each one recreates lacpa, which tears
 # down the veth pairs the readback states were built on.
-foreach row $write_rows {
-    write_row {*}$row
-}
-foreach row $route_rows {
-    write_row {*}$row route
-}
-foreach row $addrcorpus::write_rows {
-    write_row {*}$row addr
-}
-
-set addr_problems {}
-addr_mcdump
-addr_monitor
-set promote [promote_default]
-if {$promote eq ""} {
-    lappend addr_problems "promote_secondaries default unreadable; addr-flush rows not run"
-} else {
-    foreach row [addrcorpus::flush_rows $promote] {
-        write_row {*}$row addr-flush
+if {[lwsections::want $sections write]} {
+    foreach row $write_rows {
+        write_row {*}$row
+    }
+    foreach row $route_rows {
+        write_row {*}$row route
     }
 }
 
-# A save row's file is written by the row's own redirect, from its own
-# directory. Check it is there: a save that wrote somewhere else would
-# still have a pcap and an rc, and look like a capture.
-lassign [nlcap dir addr-save] dir_rc save_dir
-set save_dir [string trim $save_dir]
-foreach row $addrcorpus::save_rows {
-    set slug [lindex $row 0]
-    if {![write_row {*}$row addr-save]} {
-        continue
+if {[lwsections::want $sections addr]} {
+    foreach row $addrcorpus::write_rows {
+        write_row {*}$row addr
     }
-    set file [expr {$slug eq "showdump_bad_magic" ? "bad.save" : "ip.save"}]
-    if {[vmlib::run "test -s $save_dir/$slug/$file"] != 0} {
-        lappend addr_problems "addr-save/$slug/$file missing or empty"
+
+    addr_mcdump
+    addr_monitor
+    set promote [promote_default]
+    if {$promote eq ""} {
+        lappend addr_problems "promote_secondaries default unreadable; addr-flush rows not run"
+    } else {
+        foreach row [addrcorpus::flush_rows $promote] {
+            write_row {*}$row addr-flush
+        }
+    }
+
+    # A save row's file is written by the row's own redirect, from its own
+    # directory. Check it is there: a save that wrote somewhere else would
+    # still have a pcap and an rc, and look like a capture.
+    lassign [nlcap dir addr-save] dir_rc save_dir
+    set save_dir [string trim $save_dir]
+    foreach row $addrcorpus::save_rows {
+        set slug [lindex $row 0]
+        if {![write_row {*}$row addr-save]} {
+            continue
+        }
+        set file [expr {$slug eq "showdump_bad_magic" ? "bad.save" : "ip.save"}]
+        if {[vmlib::run "test -s $save_dir/$slug/$file"] != 0} {
+            lappend addr_problems "addr-save/$slug/$file missing or empty"
+        }
     }
 }
 
@@ -589,13 +617,19 @@ proc rtnl_row {slug floor pre command readbacks rc} {
     }
 }
 
-foreach row $rtnlcorpus::rows {
-    rtnl_row {*}$row
+if {[lwsections::want $sections rtnl]} {
+    foreach row $rtnlcorpus::rows {
+        rtnl_row {*}$row
+    }
 }
 
-# After every row above; see nltopo::late_setup.
-vmlib::log "=== late setup (late/) ==="
-set late_problems [nltopo::late_setup late]
+# After every row above; see nltopo::late_setup. A run of the earlier
+# sections alone skips it, as it skips the rows that need it.
+set late_problems {}
+if {[lwsections::needs_late $sections]} {
+    vmlib::log "=== late setup (late/) ==="
+    set late_problems [nltopo::late_setup late]
+}
 
 ###############################################################################
 # genl_row - one row of genl-write-corpus.exp, under genl/<slug>.
@@ -625,8 +659,10 @@ proc genl_row {slug floor pre command readbacks rc} {
     }
 }
 
-foreach row $genlcorpus::rows {
-    genl_row {*}$row
+if {[lwsections::want $sections genl]} {
+    foreach row $genlcorpus::rows {
+        genl_row {*}$row
+    }
 }
 
 ###############################################################################
@@ -657,8 +693,86 @@ proc xfrm_row {slug floor pre command readbacks rc} {
     }
 }
 
-foreach row $xfrmcorpus::rows {
-    xfrm_row {*}$row
+if {[lwsections::want $sections xfrm]} {
+    foreach row $xfrmcorpus::rows {
+        xfrm_row {*}$row
+    }
+}
+
+###############################################################################
+# kind_row - one row of kind-write-corpus.exp, under kinds/<kind>/<name>.
+#
+# As rtnl_row. The kind rows run after late setup, which loads the kind
+# modules, and after the XFRM rows, so no earlier fixture moves.
+###############################################################################
+set kind_problems {}
+
+proc kind_row {slug floor pre command readbacks rc} {
+    global NS_A kind_problems
+    if {![write_row $slug $floor $pre $command kinds]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[kindcorpus::readback_args $NS_A kinds/$slug $rb]
+    }
+    lassign [nlcap dir kinds/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [kindcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend kind_problems $problem
+    }
+}
+
+if {[lwsections::want $sections kinds]} {
+    foreach row $kindcorpus::rows {
+        kind_row {*}$row
+    }
+}
+
+###############################################################################
+# brmpls_row - one row of brmpls-write-corpus.exp, under brmpls/<slug>.
+#
+# As rtnl_row, with brmplscorpus::pre_step for the bridge and sysctl steps.
+# The rows run last, after the MPLS modules load: mpls_router adds an AF_MPLS
+# entry to every device's netconf and stats, which no earlier row may see.
+###############################################################################
+set brmpls_problems {}
+
+set mod_rc 1
+if {[lwsections::want $sections brmpls]} {
+    lassign [nlcap modules $brmplscorpus::SUBDIR {*}$brmplscorpus::MODULES] mod_rc mod_out
+    if {$mod_rc != 0} {
+        lappend brmpls_problems "modules $brmplscorpus::MODULES: [string trim $mod_out]"
+    }
+}
+
+proc brmpls_row {slug floor pre command readbacks rc} {
+    global NS_A brmpls_problems
+    set subdir $brmplscorpus::SUBDIR
+    if {![write_row $slug $floor $pre $command $subdir route brmplscorpus::pre_step]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[rtnlcorpus::readback_args $NS_A $subdir/$slug $rb]
+    }
+    lassign [nlcap dir $subdir/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [brmplscorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend brmpls_problems $problem
+    }
+}
+
+if {$mod_rc == 0} {
+    foreach row $brmplscorpus::rows {
+        brmpls_row {*}$row
+    }
 }
 
 lassign [nlcap inventory] inv_rc inventory
@@ -758,6 +872,22 @@ if {[llength $genl_problems] > 0} {
 if {[llength $xfrm_problems] > 0} {
     puts "NLCAP_XFRM_RC [llength $xfrm_problems]"
     foreach p $xfrm_problems {
+        puts "  $p"
+    }
+    set failed 1
+}
+
+if {[llength $kind_problems] > 0} {
+    puts "NLCAP_KIND_RC [llength $kind_problems]"
+    foreach p $kind_problems {
+        puts "  $p"
+    }
+    set failed 1
+}
+
+if {[llength $brmpls_problems] > 0} {
+    puts "NLCAP_BRMPLS_RC [llength $brmpls_problems]"
+    foreach p $brmpls_problems {
         puts "  $p"
     }
     set failed 1
