@@ -42,10 +42,13 @@ usage: xtcp2-nlcap-ws <command> [args]
       --readback name='<cmd>'  a captured readback after it (repeatable)
       --proto route|generic|xfrm|sock_diag   --floor N   --expect-rc N
       --modules m1,m2          --serial
-      --out DIR                --helper PATH   (as for batch)
+      --out DIR  --helper PATH  --ip PATH   (as for batch)
   batch <rows.jsonl> [-j N] [--only id,id] [--out DIR] [--helper PATH]
-                          run a rows file; rows land in
-                          DIR (default pkg/xtcpnl/testdata/<kernel>/ws)
+        [--ip PATH]       run a rows file; rows land in
+                          DIR (default pkg/xtcpnl/testdata/<kernel>/ws).
+                          --ip: an iproute2 store path whose bin/ip every
+                          row runs, e.g. nix build --print-out-paths
+                          '.#iproute2_7_3_0^out' (^out: not the man output)
 
   Rows files: nix/microvms/workbench/*.rows.jsonl. State: $STATE
 EOF
@@ -170,13 +173,16 @@ kver_dir() {
 }
 
 cmd_batch() {
-  local rows="" jobs=8 only="" out="" helper="$NLCAP"
+  local rows="" jobs=8 only="" out="" helper="$NLCAP" ipdir=""
   while [ $# -gt 0 ]; do
     case "$1" in
       -j) jobs=$2; shift 2 ;;
       --only) only=$2; shift 2 ;;
       --out) out=$2; shift 2 ;;
       --helper) helper=$2; shift 2 ;;
+      --ip)
+        [ $# -ge 2 ] || die "batch: --ip wants an iproute2 store path"
+        ipdir=$2; shift 2 ;;
       -*) die "batch: unknown arg $1" ;;
       *) [ -z "$rows" ] || die "batch: one rows file"; rows=$1; shift ;;
     esac
@@ -184,6 +190,10 @@ cmd_batch() {
   [ -n "$rows" ] || die "batch: no rows file"
   [ -f "$rows" ] || die "batch: no such file $rows"
   case "$jobs" in '' | *[!0-9]*) die "batch: -j wants a number" ;; esac
+  # The guest sees the host's /nix/store, so checking here checks there.
+  if [ -n "$ipdir" ] && [ ! -x "$ipdir/bin/ip" ]; then
+    die "batch: no ip in $ipdir/bin"
+  fi
   need_up
   if [ -z "$out" ]; then
     [ -d pkg/xtcpnl/testdata ] || die "batch: run from the xtcp2 repo root, or pass --out"
@@ -195,6 +205,7 @@ cmd_batch() {
   gssh "mkdir -p $rdir/out && cat > $rdir/rows.jsonl" <"$rows"
   local args=(-j "$jobs" --nlcap "$helper/bin/xtcp2-nlcap")
   [ -z "$only" ] || args+=(--only "$only")
+  [ -z "$ipdir" ] || args+=(--ip-bin "$ipdir/bin")
   local rc=0
   gssh "$BATCH/bin/xtcp2-nlcap-batch ${args[*]} $rdir/rows.jsonl $rdir/out" || rc=$?
   if [ "$rc" -eq 2 ]; then
@@ -222,7 +233,9 @@ cmd_run() {
       --expect-rc) rc_want=$2; shift 2 ;;
       --modules) mods=$2; shift 2 ;;
       --serial) serial=true; shift ;;
-      --out | --helper) bargs+=("$1" "$2"); shift 2 ;;
+      --out | --helper | --ip)
+        [ $# -ge 2 ] || die "run: $1 wants a value"
+        bargs+=("$1" "$2"); shift 2 ;;
       --) shift; break ;;
       *) die "run: unknown arg $1 (the command goes after --)" ;;
     esac

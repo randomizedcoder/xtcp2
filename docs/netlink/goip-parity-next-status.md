@@ -7,7 +7,7 @@
 - The plan is written (DOC001). It follows the closed plans: [goip-lwt-srv6.md](goip-lwt-srv6.md) and those before it.
 - **Captures come first.** Tier C runs the workbench at iproute2 7.2.0 and 7.3.0. Tiers P and G are outlined until NC5-T01 writes their tables.
 
-**Next action:** NC0-T01, `batch --ip` and the `iproute2_7_3_0` package.
+**Next action:** NC1-T01, the netns forms in the `linkattr` space.
 
 ## Contents
 
@@ -28,7 +28,7 @@
 
 | Phase | Work | Closed by | State | Evidence |
 |---|---|---|---|---|
-| [NC0](goip-parity-next.md#nc0--two-iproute2-versions-in-the-workbench) | two iproute2 versions in the workbench | NC0-T01 | not started | — |
+| [NC0](goip-parity-next.md#nc0--two-iproute2-versions-in-the-workbench) | two iproute2 versions in the workbench | NC0-T01 | done | V001–V003 |
 | [NC1](goip-parity-next.md#nc1--link-set--netns) | `link set … netns` rows | NC1-T01 | not started | — |
 | [NC2](goip-parity-next.md#nc2--mpls-family-routes) | MPLS-family route rows | NC2-T02 | not started | — |
 | [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | not started | — |
@@ -41,7 +41,7 @@
 
 | Done | Task | Work | State | Evidence |
 |---|---|---|---|---|
-| [ ] | [NC0-T01](goip-parity-next.md#nc0-t01-batch---ip) | `batch --ip`, `iproute2_7_3_0` | not started | — |
+| [x] | [NC0-T01](goip-parity-next.md#nc0-t01-batch---ip) | `batch --ip`, `iproute2_7_3_0` | done | V001–V003 |
 | [ ] | [NC1-T01](goip-parity-next.md#nc1-t01-the-netns-forms) | the netns forms | not started | — |
 | [ ] | [NC2-T01](goip-parity-next.md#nc2-t01-the-mpls-family) | the `mpls` family | not started | — |
 | [ ] | [NC2-T02](goip-parity-next.md#nc2-t02-capture-and-o3) | capture, O3 | not started | — |
@@ -57,8 +57,13 @@
 | ID | Date | Task | Check | Result | Commit |
 |---|---|---|---|---|---|
 | DOC001 | 2026-11-09 | plan | The plan and this status doc, from the 2026-11-09 assessment: `ws-differential.txt` at 3904f318 (27 `refuses`, all `linkattr`), `main_test.go`'s `LLMapNameOnly = false`, `iplink.c`'s `netns` arm and `netns_get_fd`, `iproute.c`'s `as` and `ttl-propagate`, `git log v7.2.0..v7.3.0 -- ip lib`, `ipstats.c` and the kernel's stats fill functions | written | this commit |
+| V001 | 2026-11-09 | NC0-T01 | `checks.nlcap-ws`: `TestIpBin` (`--ip-bin` given, and the pre step's `ip` is it too; no `--ip-bin`; no `ip` in the dir: rc 2, no rows run) and 5 new `cli-test.sh` cases (`--ip` with no `bin/ip`, with no value on `batch` and `run`, a fake `bin/ip` reaches `need_up`, `--helper` with `--ip`) | pass | this commit |
+| V002 | 2026-11-09 | NC0-T01 | 3 mutants killed: no PATH prefix, no `NLCAP_IP_BIN` export, no `no ip` check. `vm-lib-exp`, nix-fmt, statix, deadnix, shellcheck `-s bash` and codespell | pass | this commit |
+| V003 | 2026-11-09 | NC0-T01 | Live, kernel 7.3.1: `run -- ip -V` without `--ip` gives `iproute2-7.2.0`, with `--ip $(nix build --print-out-paths '.#iproute2_7_3_0^out')` gives `iproute2-7.3.0`, and `cmd.json` `env.iproute2` matches each; `--ip /nix/store/x` gives rc 2, `no ip in /nix/store/x/bin`, and no output dir | pass | this commit |
 
 ## Decision log
 
 - **Captures first, at both iproute2 versions.** The 2026-11-09 assessment went from source reading to goip tasks. Planning starts from captures instead: the workbench, generated rows, and pcaps with their `ip` commands, as the earlier plans did.
 - **7.3.0 is captured without moving the pin.** The workbench takes `--ip <store path>`, and `iproute2_7_3_0` is a capture-only package. So 7.2.0 and 7.3.0 rows come from the same guest and kernel, and the diff between them is `ip`'s alone. The pin moves in Tier G's NX4.
+- **The version is recorded in each row's `cmd.json`.** `env.iproute2` is taken from `ip -V` on the PATH the row runs with, so it already says 7.3.0 under `--ip`. No separate `ip_version` sidecar is needed.
+- **`^out` for the store path.** `iproute2_7_3_0` has a `man` output too, so a bare `--print-out-paths` prints two paths. The usage text names `'.#iproute2_7_3_0^out'`.

@@ -22,6 +22,7 @@ import nlcap_batch  # noqa: E402
 STUB_NLCAP = r"""#!/bin/sh
 log="$NLCAP_OUT/../calls.log"
 echo "$*" >> "$log"
+echo "NLCAP_IP_BIN=${NLCAP_IP_BIN:-}" >> "$NLCAP_OUT/../nlcap-env.log"
 [ "$1" = --proto ] && { echo "NLCAP_ERR unknown subcommand: --proto" >&2; exit 2; }
 sub=$1; shift
 [ "$1" = --proto ] && shift 2
@@ -45,6 +46,14 @@ exit 0
 STUB_IP = r"""#!/bin/sh
 if [ "$1" = -V ]; then echo "ip utility, iproute2-stub"; exit 0; fi
 echo "ip $*" >> "$NLCAP_OUT/../calls.log"
+shift 3
+exec "$@"
+"""
+
+# The --ip-bin ip: another version, and its own name in the calls log.
+STUB_IP730 = r"""#!/bin/sh
+if [ "$1" = -V ]; then echo "ip utility, iproute2-7.3.0-stub"; exit 0; fi
+echo "ip730 $*" >> "$NLCAP_OUT/../calls.log"
 shift 3
 exec "$@"
 """
@@ -234,6 +243,62 @@ class TestRun(unittest.TestCase):
         before = {x.split()[1] for x in ev[:i]}
         self.assertEqual(before, {"t/p0", "t/p1"}, ev)
         self.assertTrue(any(x == "start t/p2" for x in ev[i + 2:]), ev)
+
+
+class TestIpBin(unittest.TestCase):
+    """--ip-bin: every row runs that directory's ip, the helper is told."""
+
+    def env_with_bin(self, rows, with_ip=True):
+        e = Env(self, rows)
+        d = os.path.join(e.tmp.name, "ip730")
+        os.makedirs(d)
+        if with_ip:
+            p = os.path.join(d, "ip")
+            with open(p, "w") as f:
+                f.write(STUB_IP730)
+            os.chmod(p, stat.S_IRWXU)
+        return e, d
+
+    def helper_env(self, e):
+        with open(os.path.join(e.tmp.name, "nlcap-env.log")) as f:
+            return set(f.read().splitlines())
+
+    CASES = [
+        # (description, use --ip-bin, pre step, want pre's ip, want
+        # iproute2). The build sandbox has no ip on PATH, so only the
+        # --ip-bin row's pre step calls one.
+        ("positive: --ip-bin given; corner: the pre step's ip is it too",
+         True, "ip -V > pre-ip.txt",
+         "ip utility, iproute2-7.3.0-stub", "ip utility, iproute2-7.3.0-stub"),
+        ("positive: no --ip-bin", False, "true",
+         None, "ip utility, iproute2-stub"),
+    ]
+
+    def test_cases(self):
+        for desc, use_bin, pre, want_pre_ip, want_ver in self.CASES:
+            with self.subTest(desc):
+                r = row(pre=[pre])
+                e, d = self.env_with_bin([r])
+                extra = ["--ip-bin", d] if use_bin else []
+                rc, out = e.run("-j", "1", *extra)
+                self.assertEqual(rc, 0, out)
+                got = e.cmd_json("t/r")
+                self.assertEqual(got["env"]["iproute2"], want_ver)
+                self.assertEqual(self.helper_env(e),
+                                 {"NLCAP_IP_BIN=" + (d if use_bin else "")})
+                want_calls = ["ns-add", "ip730" if use_bin else "ip",
+                              "write", "ns-del"]
+                self.assertEqual(e.calls(), want_calls)
+                if want_pre_ip:
+                    with open(os.path.join(e.out, "t/r", "pre-ip.txt")) as f:
+                        self.assertEqual(f.read().strip(), want_pre_ip)
+
+    def test_no_ip_in_dir(self):
+        e, d = self.env_with_bin([row()], with_ip=False)
+        rc, out = e.run("--ip-bin", d)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("NLCAP_ERR no ip in " + d, out)
+        self.assertEqual(e.calls(), [], "no row may run")
 
 
 class TestSegments(unittest.TestCase):
