@@ -86,17 +86,23 @@ func ipstatsShowAfMpls(a *ipstatsAttrs, p *render.Printer, _ bool) error {
 	if link == nil {
 		return fmt.Errorf("%w: no MPLS_STATS_LINK", ErrStatsShow)
 	}
-	b := payload(link, xtcpnl.MplsLinkStatsSizeCst)
-	u := func(i int) uint64 { return binary.NativeEndian.Uint64(b[8*i:]) }
 	p.NL()
 	p.OpenObject("mpls_stats")
-	render.IPMplsLinkStats(p, xtcpnl.MplsLinkStats{
+	render.IPMplsLinkStats(p, mplsLinkStatsOf(link), "    ")
+	p.CloseObject()
+	return nil
+}
+
+// mplsLinkStatsOf is RTA_DATA(MPLS_STATS_LINK) read as struct
+// mpls_link_stats, which ip does unchecked; a short payload reads as zeros.
+func mplsLinkStatsOf(link []byte) xtcpnl.MplsLinkStats {
+	b := payload(link, xtcpnl.MplsLinkStatsSizeCst)
+	u := func(i int) uint64 { return binary.NativeEndian.Uint64(b[8*i:]) }
+	return xtcpnl.MplsLinkStats{
 		RxPackets: u(0), TxPackets: u(1), RxBytes: u(2), TxBytes: u(3),
 		RxErrors: u(4), TxErrors: u(5), RxDropped: u(6), TxDropped: u(7),
 		RxNoroute: u(8),
-	}, "    ")
-	p.CloseObject()
-	return nil
+	}
 }
 
 // ipstatsShowXstats is ipstats_stat_desc_show_xstats: each member of the

@@ -1,12 +1,17 @@
 package goip
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 
-	"github.com/randomizedcoder/xtcp2/internal/goip/model"
+	"golang.org/x/sys/unix"
+
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -131,58 +136,120 @@ func linkXstats(c *runCtx, args []string) error {
 }
 
 // parseLinkAfstatsArgs is iplink_afstats's loop (ip/iplink.c:1675-1692):
-// `dev` is strcmp and resolves a name no capture grounds, so it is refused;
-// `help` is matches() and usage; anything else is unknown.
-func parseLinkAfstatsArgs(args []string) error {
-	for _, arg := range args {
-		switch {
+// `dev` is strcmp and takes the next word, once; `help` is matches() and
+// usage; anything else is unknown. Each refusal is an exit(-1), 255.
+func parseLinkAfstatsArgs(args []string) (string, error) {
+	var dev string
+	for i := 0; i < len(args); i++ {
+		switch arg := args[i]; {
 		case arg == devKeywordCst:
-			return fmt.Errorf("link afstats dev: %w", ErrNotImplemented)
+			if i++; i >= len(args) {
+				return "", linkUsage(incompleteErr())
+			}
+			if dev != "" {
+				return "", linkUsage(duparg2Err(devKeywordCst, args[i]))
+			}
+			dev = args[i]
 		case matchesPrefix(arg, linkHelpKeywordCst):
-			return fmt.Errorf("%w: ip link help is not implemented by goip", ErrNotImplemented)
+			return "", fmt.Errorf("%w: ip link help is not implemented by goip", ErrNotImplemented)
 		default:
-			return fmt.Errorf("%w: Command %q is unknown, try \"ip link help\"", ErrInvalidArgument, arg)
+			return "", linkUsage(fmt.Errorf("%w: Command %q is unknown, try \"ip link help\"", ErrInvalidArgument, arg))
 		}
 	}
-	return nil
+	return dev, nil
 }
 
-// linkAfstats is `ip link afstats`: the AF_SPEC stats dump, then
-// print_af_stats per record (ip/iplink.c:1605-1666). A record prints only for
-// an IFLA_STATS_AF_SPEC member of the -4/-6/-M family, or of any family
-// without one, and the only member iproute2 prints is AF_MPLS's, which no
-// capture grounds; such a record is refused. Without MPLS every nest is
-// empty, and the command prints nothing, or `[]` under -j.
+// errAfstatsStopped is rtnl_dump_filter's failure: the dump, or a reply
+// print_af_stats refused, ended it.
+var errAfstatsStopped = errors.New("link afstats: dump terminated")
+
+// linkAfstats is `ip link afstats` (ip/iplink.c:1668-1722): the AF_SPEC
+// stats dump, each record printed by print_af_stats, and the JSON array
+// around them all, closed even when the dump fails. do_iplink drops its
+// return, so every outcome after the arguments, a `dev` naming no device
+// included, exits 0.
 func linkAfstats(c *runCtx, args []string) error {
-	if err := parseLinkAfstatsArgs(args); err != nil {
-		return err
-	}
-	svc := service.New(c.src, c.nextSeq)
-	records, err := svc.IfStatsAfSpec()
+	dev, err := parseLinkAfstatsArgs(args)
 	if err != nil {
 		return err
 	}
-	if err := afstatsUngrounded(records, c.family); err != nil {
+	var ifindex int32
+	if dev != "" {
+		if ifindex, err = genlNameToIndex(c, dev); err != nil {
+			return fmt.Errorf("link afstats: cannot find device %q: %w", dev, err)
+		}
+		if ifindex <= 0 {
+			_, err := fmt.Fprintf(c.errOut, "Device \"%s\" does not exist.\n", dev)
+			return err
+		}
+	}
+	p := render.NewPrinter(c.json)
+	p.NewObj()
+	bodies, err := c.src.Dump(req.LinkAfstatsDump(c.nextSeq()), uint16(unix.RTM_NEWSTATS))
+	if err != nil {
+		if _, err := fmt.Fprintf(c.errOut, "%v\n", err); err != nil {
+			return err
+		}
+		err = errAfstatsStopped
+	} else {
+		err = printAfStats(c, p, bodies, ifindex)
+	}
+	if errors.Is(err, errAfstatsStopped) {
+		_, err = fmt.Fprint(c.errOut, "Dump terminated\n")
+	}
+	if err != nil {
 		return err
 	}
-	if c.json {
-		_, err := fmt.Fprintln(c.out, "[]")
-		return err
-	}
-	return nil
+	p.DeleteObj()
+	_, err = c.out.Write(p.Bytes())
+	return err
 }
 
-// afstatsUngrounded refuses the first record print_af_stats_attr would print
-// for: an AF_SPEC member of the family asked for, or of any family when none
-// was. iproute2 prints AF_MPLS's counters and an "unknown af" line for any
-// other, and no capture grounds either.
-func afstatsUngrounded(records []model.IfStats, family uint8) error {
-	for i := range records {
-		for _, af := range records[i].AfSpec {
-			if family == 0 || uint16(family) == af {
-				return fmt.Errorf("link afstats: interface %d reports family %d stats, which goip does not ground: %w",
-					records[i].Ifindex, af, ErrNotImplemented)
+// printAfStats is print_af_stats and print_af_stats_attr over the replies:
+// a record of another device than `dev` is skipped; otherwise each AF_SPEC
+// member of the -4/-6/-M family, or of any family when none was given,
+// prints under the device's name, which prints once and with no object
+// around it. Only AF_MPLS has a body, print_mpls_stats; any other family
+// is a line on stderr. A reply too short for its header ends the dump,
+// errAfstatsStopped.
+func printAfStats(c *runCtx, p *render.Printer, bodies [][]byte, ifindex int32) error {
+	for _, body := range bodies {
+		if len(body) < xtcpnl.IfStatsMsgSizeCst {
+			if _, err := fmt.Fprintf(c.errOut, "BUG: wrong nlmsg len %d\n", len(body)-xtcpnl.IfStatsMsgSizeCst); err != nil {
+				return err
 			}
+			return errAfstatsStopped
+		}
+		idx := cint.Int(binary.NativeEndian.Uint32(body[4:8]))
+		if ifindex != 0 && idx != ifindex {
+			continue
+		}
+		spec := rtaTable(body[xtcpnl.IfStatsMsgSizeCst:], iflaStatsMaxCst, false)[unix.IFLA_STATS_AF_SPEC]
+		printed := false
+		for af, member := range rtaAttrs(spec) {
+			if c.family != unix.AF_UNSPEC && af != uint16(c.family) {
+				continue
+			}
+			if !printed {
+				p.U64(render.PrintAny, "ifindex", "%d:", uint64(cint.Bits(idx)))
+				p.String(render.PrintAny, "ifname", "%s", genlIndexToName(c, idx))
+				p.NL()
+				printed = true
+			}
+			if af != unix.AF_MPLS {
+				if _, err := fmt.Fprintf(c.errOut, "    unknown af(%d)\n", af); err != nil {
+					return err
+				}
+				continue
+			}
+			link := rtaTable(member, mplsStatsMaxCst, false)[mplsStatsLinkCst]
+			if link == nil {
+				continue
+			}
+			p.FP("    mpls:")
+			p.NL()
+			render.IPMplsLinkStats(p, mplsLinkStatsOf(link), "        ")
+			p.FP("\n")
 		}
 	}
 	return nil

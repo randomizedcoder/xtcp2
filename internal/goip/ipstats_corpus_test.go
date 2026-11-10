@@ -86,8 +86,8 @@ func wsStatsRows(t *testing.T) []wsStatsRow {
 
 // TestWsStatsCorpus replays every `ip stats` row of the NC4 corpus through
 // goip: ip's requests, a `stats set`'s write among them, its stdout byte for
-// byte, and its rc. The `ip link afstats` and `ip link xstats` rows, which
-// are iplink.c's, are counted apart.
+// byte, and its rc; and the `ip link afstats` rows, iplink.c's loop over the
+// same MPLS body. The `ip link xstats` rows are counted apart.
 //
 // go test ./internal/goip/ -run TestWsStatsCorpus
 func TestWsStatsCorpus(t *testing.T) {
@@ -100,6 +100,8 @@ func TestWsStatsCorpus(t *testing.T) {
 		{description: "positive: every `ip stats show` and `ip stats` row", prefix: "ip stats show", expected: 73},
 		{description: "positive: `ip stats help`, which prints the usage on stderr", prefix: "ip stats help", expected: 1},
 		{description: "positive: `ip stats set`, on, off and a value parse_on_off refuses", prefix: "ip stats set", expected: 3},
+		{description: "positive: `ip link afstats`, -j's members with no object around them as ip prints them",
+			prefix: "ip link afstats", expected: 8},
 	}
 	rows := wsStatsRows(t)
 	for _, tc := range tests {
@@ -128,7 +130,8 @@ func wsStatsCheck(t *testing.T, row wsStatsRow) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if object != "stats" {
+	run := map[string]func(*runCtx, []string) error{"stats": runStats, "link": runLink}[object]
+	if run == nil {
 		t.Fatalf("object %s in %q", object, row.cmd)
 	}
 	pcap := filepath.Join(row.dir, "ip.pcap")
@@ -139,7 +142,7 @@ func wsStatsCheck(t *testing.T, row wsStatsRow) {
 	written := filepath.Join(t.TempDir(), "write.bin")
 	t.Setenv(writeOutEnvCst, written)
 	rc := ExitOK
-	if err := runStats(c, args); err != nil {
+	if err := run(c, args); err != nil {
 		rc = exitCodeOf(err)
 	}
 	if rc != row.rc {

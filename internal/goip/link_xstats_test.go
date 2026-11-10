@@ -2,16 +2,20 @@ package goip
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/internal/goip/model"
+	"golang.org/x/sys/unix"
+
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 // linkReadsDir is the C1-T03 reads corpus, captured in a namespace holding
@@ -69,19 +73,31 @@ func TestParseLinkAfstatsArgs(t *testing.T) {
 	tests := []struct {
 		description string
 		args        string
+		expected    string // the dev
 		wantErr     error
+		wantRC      int
 	}{
-		{"positive: no argument lists every device", "", nil},
-		{"negative: `dev` resolves a name no capture grounds", "dev br0", ErrNotImplemented},
-		{"negative: `dev` is strcmp, so `de` is unknown", "de br0", ErrInvalidArgument},
-		{"negative: an unknown word", "bogus", ErrInvalidArgument},
-		{"boundary: `help` is usage", "help", ErrNotImplemented},
-		{"corner: `h` is help by matches()", "h", ErrNotImplemented},
+		{"positive: no argument lists every device", "", "", nil, ExitOK},
+		{"positive: `dev` names one", "dev br0", "br0", nil, ExitOK},
+		{"negative: `dev` with no name is incomplete", "dev", "", ErrLinkUsage, ExitMinusOne},
+		{"negative: a second `dev` is duparg2", "dev d0 dev d1", "", ErrLinkUsage, ExitMinusOne},
+		{"negative: `dev` is strcmp, so `de` is unknown", "de br0", "", ErrLinkUsage, ExitMinusOne},
+		{"negative: an unknown word", "bogus", "", ErrLinkUsage, ExitMinusOne},
+		{"boundary: `help` is usage", "help", "", ErrNotImplemented, exitCodeOf(ErrNotImplemented)},
+		{"corner: `h` is help by matches()", "h", "", ErrNotImplemented, exitCodeOf(ErrNotImplemented)},
+		{"corner: the word after `dev` is the name, even `help`", "dev help", "help", nil, ExitOK},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			if err := parseLinkAfstatsArgs(strings.Fields(tc.args)); !errors.Is(err, tc.wantErr) {
-				t.Errorf("err = %v, want %v", err, tc.wantErr)
+			dev, err := parseLinkAfstatsArgs(strings.Fields(tc.args))
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if dev != tc.expected {
+				t.Errorf("dev = %q, want %q", dev, tc.expected)
+			}
+			if rc := exitCodeOf(err); err != nil && rc != tc.wantRC {
+				t.Errorf("rc = %d, want %d", rc, tc.wantRC)
 			}
 		})
 	}
@@ -214,29 +230,78 @@ func jsonKeys(t *testing.T, obj json.RawMessage) []string {
 	return keys
 }
 
-// TestAfstatsUngrounded is the refusal of a record ip would print for.
+// TestLinkAfstats is iplink_afstats and print_af_stats over hand-built
+// replies: the family filter, the stderr-only families, the record-level
+// filter for `dev`, and the exits that are all 0 once the arguments parse.
 //
-// go test ./internal/goip/ -run TestAfstatsUngrounded
-func TestAfstatsUngrounded(t *testing.T) {
-	const afMPLS = 28
-	empty := model.IfStats{Ifindex: 2, HasAfSpec: true}
-	mpls := model.IfStats{Ifindex: 3, HasAfSpec: true, AfSpec: []uint16{afMPLS}}
+// go test ./internal/goip/ -run TestLinkAfstats
+func TestLinkAfstats(t *testing.T) {
+	hdr := func(ifindex uint32) []byte {
+		h := make([]byte, xtcpnl.IfStatsMsgSizeCst)
+		binary.NativeEndian.PutUint32(h[4:8], ifindex)
+		return h
+	}
+	link := make([]byte, xtcpnl.MplsLinkStatsSizeCst)
+	binary.NativeEndian.PutUint64(link[16:], 7) // rx_bytes
+	spec := func(members ...[]byte) []byte {
+		return rtattrBytes(unix.IFLA_STATS_AF_SPEC, slices.Concat(members...))
+	}
+	mpls := rtattrBytes(unix.AF_MPLS, rtattrBytes(mplsStatsLinkCst, link))
+	const (
+		head3 = "3:if3\n"
+		body  = "    mpls:\n" +
+			"        RX: bytes packets errors dropped noroute\n" +
+			"                7       0      0       0       0 \n" +
+			"        TX: bytes packets errors dropped\n" +
+			"                0       0      0       0 \n"
+	)
 	tests := []struct {
 		description string
-		records     []model.IfStats
+		args        string
 		family      uint8
-		wantErr     error
+		json        bool
+		src         Source
+		expected    string
+		stderr      string
 	}{
-		{"positive: empty nests print nothing and pass", []model.IfStats{empty, empty}, 0, nil},
-		{"negative: an MPLS member with no family asked is refused", []model.IfStats{empty, mpls}, 0, ErrNotImplemented},
-		{"negative: -M asks for that family and is refused", []model.IfStats{mpls}, afMPLS, ErrNotImplemented},
-		{"corner: -4 filters the MPLS member out, so nothing prints", []model.IfStats{mpls}, 2, nil},
-		{"boundary: no records at all", nil, 0, nil},
+		{description: "positive: an mpls member under its device's name",
+			src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec(mpls))}}, expected: head3 + body},
+		{description: "positive: json is the members with no object around them",
+			json: true, src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec(mpls)), slices.Concat(hdr(4), spec(mpls))}},
+			expected: `["ifindex":3,"ifname":"if3","rx":{"bytes":7,"packets":0,"errors":0,"dropped":0,"noroute":0},` +
+				`"tx":{"bytes":0,"packets":0,"errors":0,"dropped":0},"ifindex":4,"ifname":"if4","rx":{"bytes":7,` +
+				`"packets":0,"errors":0,"dropped":0,"noroute":0},"tx":{"bytes":0,"packets":0,"errors":0,"dropped":0}]` + "\n"},
+		{description: "positive: `dev` keeps that device's record alone", args: "dev if4",
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec(mpls)), slices.Concat(hdr(4), spec(mpls))}},
+			expected: "4:if4\n" + body},
+		{description: "negative: -4 filters the mpls member out, so nothing prints", family: unix.AF_INET,
+			src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec(mpls))}}},
+		{description: "positive: -M keeps it", family: unix.AF_MPLS,
+			src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec(mpls))}}, expected: head3 + body},
+		{description: "corner: another family prints the name, and the complaint on stderr",
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec(rtattrBytes(unix.AF_INET6, nil), mpls))}},
+			expected: head3 + body, stderr: "    unknown af(10)\n"},
+		{description: "corner: an mpls member with no MPLS_STATS_LINK is the name alone",
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec(rtattrBytes(unix.AF_MPLS, nil)))}},
+			expected: head3},
+		{description: "boundary: an empty nest prints nothing, and -j an empty array",
+			json: true, src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), spec())}}, expected: "[]\n"},
+		{description: "negative: a short reply ends the dump, which still closes the array",
+			json: true, src: typedStatsSource{unix.RTM_NEWSTATS: {make([]byte, xtcpnl.IfStatsMsgSizeCst-1)}},
+			expected: "[]\n", stderr: "BUG: wrong nlmsg len -1\nDump terminated\n"},
+		{description: "negative: a failed dump is the same",
+			json: true, src: &failSource{}, expected: "[]\n", stderr: "source refused\nDump terminated\n"},
+		{description: "negative: a `dev` the kernel has no device for is stderr alone", args: "dev nosuch",
+			src: &enodevSource{}, stderr: "Device \"nosuch\" does not exist.\n"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			if err := afstatsUngrounded(tc.records, tc.family); !errors.Is(err, tc.wantErr) {
-				t.Errorf("err = %v, want %v", err, tc.wantErr)
+			var out, errOut bytes.Buffer
+			c := &runCtx{out: &out, errOut: &errOut, lltab: NewLLTab(), json: tc.json, family: tc.family, src: tc.src}
+			c.lltab.Fill([]xtcpnl.LinkInfo{{Index: 3, Name: "if3"}, {Index: 4, Name: "if4"}})
+			err := linkAfstats(c, strings.Fields(tc.args))
+			if err != nil || out.String() != tc.expected || errOut.String() != tc.stderr {
+				t.Errorf("stdout %q\nstderr %q\nerr %v\nwant %q, %q", out.String(), errOut.String(), err, tc.expected, tc.stderr)
 			}
 		})
 	}

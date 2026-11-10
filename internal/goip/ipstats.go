@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"slices"
 	"strings"
 
@@ -477,25 +478,36 @@ func (a *ipstatsAttrs) get(group, subgroup uint16) []byte {
 // with no payload is an empty, non-nil slice.
 func rtaTable(data []byte, maxType int, nested bool) [][]byte {
 	tb := make([][]byte, maxType+1)
-	for len(data) >= unix.SizeofRtAttr {
-		l := int(binary.NativeEndian.Uint16(data[0:2]))
-		if l < unix.SizeofRtAttr || l > len(data) {
-			break
-		}
-		t := binary.NativeEndian.Uint16(data[2:4])
+	for t, v := range rtaAttrs(data) {
 		if nested {
 			t &^= unix.NLA_F_NESTED
 		}
 		if int(t) <= maxType && tb[t] == nil {
-			tb[t] = data[unix.SizeofRtAttr:l:l]
+			tb[t] = v
 		}
-		adv := (l + unix.RTA_ALIGNTO - 1) &^ (unix.RTA_ALIGNTO - 1)
-		if adv >= len(data) {
-			break
-		}
-		data = data[adv:]
 	}
 	return tb
+}
+
+// rtaAttrs is the RTA_OK/RTA_NEXT walk: each attribute's raw type and its
+// payload, capped at its length, until one does not fit.
+func rtaAttrs(data []byte) iter.Seq2[uint16, []byte] {
+	return func(yield func(uint16, []byte) bool) {
+		for len(data) >= unix.SizeofRtAttr {
+			l := int(binary.NativeEndian.Uint16(data[0:2]))
+			if l < unix.SizeofRtAttr || l > len(data) {
+				return
+			}
+			if !yield(binary.NativeEndian.Uint16(data[2:4]), data[unix.SizeofRtAttr:l:l]) {
+				return
+			}
+			adv := (l + unix.RTA_ALIGNTO - 1) &^ (unix.RTA_ALIGNTO - 1)
+			if adv >= len(data) {
+				return
+			}
+			data = data[adv:]
+		}
+	}
 }
 
 // payload is IPSTATS_RTA_PAYLOAD: v's bytes, cut or zero-padded to size.
