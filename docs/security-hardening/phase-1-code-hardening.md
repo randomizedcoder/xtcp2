@@ -73,7 +73,7 @@ PR-5 sec/w6-set-audit (after PR-3: reuses its diff helper)
 - Tagged build (`go test -tags 'dest_file capture' ./pkg/xtcp/`): `newFileDest` constructs and writes under a `t.TempDir()`; capture writer writes one file and decrements the budget.
 - `lookupDestinationFactory("file")` without the tag → `destLookupNotCompiledIn` (gate-pair test file, both worlds).
 
-**Acceptance:** `nix build .#xtcp2-s3parquet` binary: startup with `dest file:…` or `write_files>0` exits non-zero with the rebuild hint; `Set` with either returns `FailedPrecondition` and the daemon keeps running. `.#xtcp2` (full) accepts both. Fleet golden configs (PR-6 gate) unaffected.
+**Acceptance:** `nix build .#xtcp2-s3parquet` binary: startup with `dest file:…` or `write_files>0` exits non-zero with the rebuild hint — the test asserts the hint, not just the exit status, because PR-24's exit 78 would also satisfy "non-zero" (run it with `XTCP_INSECURE_ALLOW_UNCONFINED=all` outside a confined runtime); `Set` with either returns `FailedPrecondition` and the daemon keeps running. `.#xtcp2` (full) accepts both. Fleet golden configs (PR-6 gate) unaffected.
 
 **Risks:** a fleet config legitimately using `file:`/`write_files` (none known — fleet uses `s3parquet`; the golden-config gate proves it). Decision [OD-8](plan-configservice-set-hardening.md#open-decisions) (`xtcp2-min` keeps `file:`?) — recommend dropping it there too.
 
@@ -236,7 +236,7 @@ func validatingUnaryInterceptor(ctx context.Context, req any,
 
 **Objective:** ship it.
 
-- Image repo: bump the `xtcp2` flake input to the release commit; build `oci-xtcp2-s3parquet-enrich` (now without `dest_file`/`capture`); smoke test in CI: the image binary with `dest file:…` / `write_files=1` exits non-zero naming the build tag; publish the image tag.
+- Image repo: bump the `xtcp2` flake input to the release commit; build `oci-xtcp2-s3parquet-enrich` (now without `dest_file`/`capture`); smoke test in CI: the image binary, run with the fleet container flags so PR-24 passes, with `dest file:…` / `write_files=1` exits non-zero and the test asserts the build-tag message (exit status alone would also match PR-24's exit 78); publish the image tag.
 - Deployment repo: pin `xtcp2_image` to the new tag; verify the fleet-gate test still passes (it asserts image↔role compatibility); the binary-level assertions live in `xtcp2` CI (PR-6), not in the role.
 - Rollout per the [fleet rollout runbook](plan-configservice-set-hardening.md#fleet-rollout-runbook): canary first, watch `xtcp2_set_applied_total` for legitimate-automation rejections (expect none — operators redeploy), then fleet converge.
 
@@ -258,10 +258,22 @@ func validatingUnaryInterceptor(ctx context.Context, req any,
 | `no_new_privs` | required | `NoNewPrivs: 1` | `/proc/self/status` |
 | `seccomp` | required | `Seccomp: 2` (a filter is loaded) | `/proc/self/status` |
 | `readonly_root` | required | `/` is mounted read-only | `statfs("/")` `ST_RDONLY` |
-| `capability_bound` | required | `CapBnd` ⊆ the `requiredCaps` set in `pkg/xtcp/init_capabilities.go` (`NET_ADMIN`, `SYS_ADMIN`, `SYS_PTRACE`, `NET_RAW`, `SYS_RESOURCE`) | `/proc/self/status` |
+| `capability_bound` | required | `CapBnd` ⊆ the allowed set for the running mode (next table) | `/proc/self/status` |
 | `landlock` (from PR-8) | required | the Phase 2 ruleset applied | `pkg/sandbox` result, checked right after `Constrain` |
 | `lsm` | warn | AppArmor or SELinux confinement is not `unconfined` | `/proc/self/attr/apparmor/current`, else `/proc/self/attr/current` |
 | `pid_namespace` | warn | not the initial pid namespace | `/proc/self/ns/pid` inode ≠ `0xEFFFFFFC` (`PROC_PID_INIT_INO`) |
+
+**Allowed capabilities per mode.** The writer and both brokers are the same binary, so one list would let a writer run with `SYS_ADMIN` unnoticed.
+
+| Mode | Allowed `CapBnd` | From |
+|---|---|---|
+| collector, direct mode | the `requiredCaps` set in `pkg/xtcp/init_capabilities.go`: `NET_ADMIN`, `SYS_ADMIN`, `SYS_PTRACE`, `NET_RAW`, `SYS_RESOURCE` | PR-24 |
+| writer (`-writer`) | none | Phase 3 PR-11 |
+| netlink broker (`-nlbroker`) | `SYS_ADMIN` | Phase 5 PR-20 |
+| Docker broker (`-dockerbroker`) | none | Phase 5 PR-21 |
+| collector, broker mode | none | Phase 5 PR-22 |
+
+Each later PR adds its row when it adds the mode.
 
 - **Why `lsm` and `pid_namespace` only warn:**
   - Many NixOS and other bare-metal hosts run no AppArmor or SELinux.
@@ -284,6 +296,7 @@ func validatingUnaryInterceptor(ctx context.Context, req any,
   - `xtcp2_confinement_check{check}`: 1 pass, 0 fail.
   - `xtcp2_confinement_waived{check}`: 1 when a failing required check is waived. The fleet alerts on any non-zero value.
 - **`Set` cannot change it:** the override is argv/env only and has no config proto field, so a `Set` payload cannot carry it. The soft restart re-execs with the same argv and env, so the check re-runs with the same outcome.
+- **Relation to W7's fleet gate:** W7 asserts the container spec with `docker inspect` before deploy; this check is its runtime twin and catches anything that slips past (a hand-edited role, a different orchestrator, a bare host).
 - **Phase 2:** the `landlock` check replaces OD-2's warn-and-continue. A kernel without Landlock, or a seccomp-blocked `landlock_*` syscall, exits unless `landlock` is waived. Phase 4's Landlock network rules (ABI 4) stay best-effort.
 
 **What passes, per runtime**
@@ -301,7 +314,13 @@ func validatingUnaryInterceptor(ctx context.Context, req any,
 - `nix/modules/xtcp2-service.nix`:
   - add `NoNewPrivileges`, `SystemCallFilter` (validated by the VM suite; W12's bare-metal allowlist replaces it), `ProtectSystem=strict` and `RestartPreventExitStatus=78`;
   - this closes the module's existing `ProtectSystem` TODO, and the module then passes with no override.
-- Any test that execs the binary outside the module sets `XTCP_INSECURE_ALLOW_UNCONFINED` explicitly, naming only the checks it fails.
+- Any test that execs the binary outside the module sets `XTCP_INSECURE_ALLOW_UNCONFINED` explicitly, naming only the checks it fails. Known case: `nix/checks/capability-check.nix` runs the bare binary without capabilities and pins the capability diagnostics. Without `all` it would hit exit 78 first and fail on the wrong message.
+- `build/k8s/xtcp/xtcp-daemonset.yaml` fails every required check today:
+  - add `allowPrivilegeEscalation: false`, `seccompProfile: RuntimeDefault` and `readOnlyRootFilesystem: true`;
+  - change capabilities to `drop: [ALL]` + `add: [NET_ADMIN, SYS_ADMIN]`;
+  - remove `CAP_SYS_CHROOT`: it is outside the allowed set and unused (advisory §4.2).
+- `build/containers/docker-compose.yml`: add `read_only: true`, `security_opt: [no-new-privileges:true]`, `cap_drop: [ALL]` + `cap_add: [NET_ADMIN, SYS_ADMIN]`.
+- Quickstart examples (`sudo ./result/bin/xtcp2 …` in [output-and-destinations.md](../output-and-destinations.md) and the repo README): show the waiver explicitly, which also makes the risk visible. Offer a confined alternative: `sudo systemd-run --pty -p NoNewPrivileges=yes -p ProtectSystem=strict -p SystemCallFilter=@system-service -p CapabilityBoundingSet="CAP_NET_ADMIN CAP_SYS_ADMIN" ./result/bin/xtcp2 …`.
 - Docs: [security.md](../security.md) (checks and per-runtime settings), [operations.md](../operations.md) (exit 78 and the override), [metrics.md](../metrics.md) (both gauges).
 
 **Tests** (`TestConfinementCheck`, table-driven over status, statfs, LSM and pidns fixtures)
@@ -327,6 +346,11 @@ func validatingUnaryInterceptor(ctx context.Context, req any,
 | X17 | C | soft restart with a waiver | `Set` re-exec, env carries the waiver | check re-runs, same outcome; a `Set` payload has no field to carry a waiver |
 | X18 | C | non-daemon modes on an unconfined CI runner | `-healthcheck`, `-validateConfig` | run normally; no check |
 | X19 | N | Landlock not applied (after PR-8) | ABI 0, or `EPERM` from `landlock_create_ruleset` | exit 78 naming `landlock` unless it is waived |
+| X20 | N | writer with a capability (after PR-11) | `-writer`, `CapBnd` = `SYS_ADMIN` | exit 78 naming `capability_bound` and `CAP_SYS_ADMIN` |
+| X21 | N | netlink broker with `NET_ADMIN` (after PR-20) | `-nlbroker`, `CapBnd` = `SYS_ADMIN`+`NET_ADMIN` | exit 78 naming `CAP_NET_ADMIN` |
+| X22 | B | netlink broker with exactly `SYS_ADMIN` | `-nlbroker`, `CapBnd` = `SYS_ADMIN` | `capability_bound` passes |
+| X23 | N | collector in broker mode with any capability (after PR-22) | broker flags set, `CapBnd` = `NET_ADMIN` | exit 78 naming `CAP_NET_ADMIN` |
+| X24 | P | the capability nix check keeps its purpose | `capability-check.nix` with `XTCP_INSECURE_ALLOW_UNCONFINED=all` | non-zero exit with the existing capability diagnostics, not exit 78 |
 
 **Integration:** the NixOS VM tests boot the hardened module with no override and pass. One VM test turns the module's hardening off, asserts exit 78 with no restart loop, then sets the waiver and asserts the daemon starts with `xtcp2_confinement_waived` 1.
 

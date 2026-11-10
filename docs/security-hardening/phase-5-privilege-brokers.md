@@ -390,7 +390,7 @@ PR-18 sec/w10-spike ──▶ PR-20 sec/w10-nlbroker ──┐
   - broker mode as the fleet default;
   - excess-capability warning and gauge;
   - token and secret files readable by group `xtcp2`;
-  - the capability check rewritten per mode.
+  - the capability check rewritten per mode, and [PR-24](phase-1-code-hardening.md#pr-24--startup-confinement-check)'s allowed set for the broker-mode collector set to none (the netlink broker's to `SYS_ADMIN`, the Docker broker's to none, in PR-20/PR-21).
 - [ ] **PR-23 — deployment (deployment repo):**
   - containers and profiles;
   - the rollout steps below;

@@ -129,7 +129,7 @@ A team standardizing on one IPC mechanism could defensibly choose gRPC-over-UDS 
 - **Seq (monotonic per target):** writer is the source of truth. Persisted as a sidecar `<target>.ver` (decimal, atomic, written *after* the rename). Commit order: payload → fsync → rename → sidecar. A crash between rename and sidecar leaves the sidecar one step behind; a replay at the old seq is then accepted once — harmless because both targets are full-file writes (idempotent). Rollback protection has a documented ≤ 1-step window across a writer crash; anything older is rejected (`stale_seq`).
 - **Locking:** the baseline's lifetime `flock` (`files.go` `ErrLocked`) becomes per-op, held by the writer; the collector's post-split load is a lock-free read (it is no longer the baseline "owner"). The writer-init bootstrap (below) re-imports an existing target without a sidecar.
 - **Metrics:** `xtcp2_writerd_requests_total{op,result}`, `xtcp2_writerd_last_seq{target}` — exported through `GET_STATS` and re-registered by the collector (proxy), so vmagent scraping is unchanged and the writer keeps **no TCP listener**.
-- **Writer self-confinement:** `pkg/sandbox` with write rules only on the two target dirs; `-healthcheck` mode probes the socket. In the fleet, the writer container adds the docker boundary on top (`network_mode: none`, `cap_drop ALL`, uid 65534) — see PR-13.
+- **Writer self-confinement:** `pkg/sandbox` with write rules only on the two target dirs; `-healthcheck` mode probes the socket. In the fleet, the writer container adds the docker boundary on top (`network_mode: none`, `cap_drop ALL`, `read_only`, `no-new-privileges`, uid 65534) — see PR-13. On bare metal the writer's systemd unit needs `NoNewPrivileges=yes`, a `SystemCallFilter=` allowlist, `ProtectSystem=strict` and an empty `CapabilityBoundingSet=`, or [PR-24](phase-1-code-hardening.md#pr-24--startup-confinement-check) refuses to start it.
 
 ---
 
@@ -257,6 +257,7 @@ Container pair (deployment role, mirroring the existing `ipfeed` second-containe
 |---|---|---|
 | uid | 0 (unchanged — keeps `NET_ADMIN`/`SYS_ADMIN` until Phase 5 makes it a non-root uid with no capabilities); `group_add: xtcp2-state` | 65534, primary group `xtcp2-state` |
 | capabilities | `cap_drop ALL` + NET_ADMIN, SYS_ADMIN (unchanged) | `cap_drop ALL` — **none added** |
+| rootfs, privileges | `read_only: true`, `no-new-privileges`, default seccomp (unchanged) | `read_only: true`, `no-new-privileges`, default seccomp — required by [PR-24](phase-1-code-hardening.md#pr-24--startup-confinement-check), whose writer-mode allowed capability set is empty |
 | network | host (unchanged, ports 9088/8889/9089) | `network_mode: none` — no interfaces, no egress at all |
 | mounts | as today, **minus** the rw state dir (kept `ro` for loads) + socket volume | `/var/lib/xtcp2:rw` (the only writable mount), socket volume, nothing else — no docker.sock, no netns, no S3 secret |
 | Landlock | zero file-write rules; read-only on the state dir; `RESOLVE_UNIX` on the writer socket (ABI ≥ 9) | write rules on the two target dirs |
@@ -264,7 +265,7 @@ Container pair (deployment role, mirroring the existing `ipfeed` second-containe
 
 Socket sharing: a docker named volume mounted rw in both containers, containing only the socket dir (`0750`) and socket (`0660`). Whether the collector's mount can be `ro` (connect(2) on a UDS under an ro mount) is decided by F-table row F8 — if it works, the collector ends with **zero rw mounts, full stop**.
 
-Alert rules (vmalert + `promtool test rules` cases): `Xtcp2WriterDown` (client-side `rate(xtcp2_writer_requests_total{result="error"}[5m]) > 0`, sustained), `Xtcp2WriterSeqStuck` (last seq unchanged while link churn is high — silent save failure), plus `Xtcp2SandboxInactive` extended to both containers.
+Alert rules (vmalert + `promtool test rules` cases): `Xtcp2WriterDown` (client-side `rate(xtcp2_writer_requests_total{result="error"}[5m]) > 0`, sustained), `Xtcp2WriterSeqStuck` (last seq unchanged while link churn is high — silent save failure), plus `Xtcp2SandboxInactive` and `Xtcp2ConfinementWaived` (any non-zero `xtcp2_confinement_waived`, PR-24) extended to both containers.
 
 Rollout order — each step is independently shippable and reversible:
 

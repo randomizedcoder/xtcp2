@@ -145,7 +145,7 @@ Belt layer 4: kernel enforcement that survives `syscall.Exec` (soft restart) and
 - [ ] New package `pkg/sandbox`:
   - [ ] `Constrain(opts)` called once at first start (`cmd/xtcp2/xtcp2.go`; soft restarts inherit the domain via an fd marker — re-applying would hit the kernel's 16-layer cap), before any config-driven writer is constructed: read-only rules for `/proc`, `/sys`, `/run/netns`, `/run/docker/netns`, `/run/docker.sock`, the lldpd socket dir, ASN bootstrap/cache paths, listener token files; write rules only for `-writableDir` roots (until W5 lands, after which: none)
   - [ ] Carve-outs: UDS listener dir (only when a unix listener is configured); capture dir (only when `write_files` > 0 with a root configured)
-  - [ ] ABI feature detection: kernel < 5.13 → log a warning, set `xtcp2_sandbox_active 0`, continue (degrade-not-exit); otherwise `1` — new Prometheus gauge (add to [metrics.md](../metrics.md) in W9)
+  - [ ] ABI feature detection: kernel < 5.13 → exit 78 via W13's `landlock` check unless waived; when waived, log a warning, set `xtcp2_sandbox_active 0` and continue; otherwise `1` — new Prometheus gauge (add to [metrics.md](../metrics.md) in W9)
 - [ ] Soft-restart interplay test: restriction persists across `syscall.Exec` (unit test with a re-exec of a helper binary attempting an out-of-root write)
 - [ ] microVM integration scenario: daemon running, `os.WriteFile` outside roots fails with `EACCES`; state-dir writes still succeed (pre-W5) / fail (post-W5)
 - [ ] Optional extra belt (advisory §5.4): self-`pivot_root` confinement using the existing `CAP_SYS_ADMIN` (`chroot()` itself is impossible — `CAP_SYS_CHROOT` is dropped); carries the full bind-mount farm (`/proc` ro, `/run/netns`, `/run/docker/netns`, `/sys/fs/cgroup`, docker + lldpd sockets, state dir, tokens, ASN files, `/dev/null` + `urandom`, `/etc/resolv.conf` + `hosts` + `ssl/certs` for S3 TLS/DNS). Persists across the soft-restart exec. Landlock stays primary; prioritize for bare-metal runs where no container pidns defeats `/proc/1/root` (advisory §4.7)
@@ -192,7 +192,7 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 - [ ] I11: state-dir guard — minimum: node-level alert on `/var/lib/xtcp2` usage (vmagent); preferred: XFS project quota (or systemd quota for bare metal) sized to ~2× the ASN cache (~200 MiB headroom)
 - [ ] Egress pinning: restrict the collector's egress to the per-DC S3 endpoints (nftables rule on its cgroup — host netns, so not container network policy; not host-wide SG/UFW, which would hit co-located workloads); pair with W2's frozen `s3_endpoint`. This holds against a stolen admin token. Against a collector RCE it holds only once W10 removes `CAP_NET_ADMIN` from the collector, which can otherwise delete the rule
 - [ ] W5 deployment: second container + `:ro` collector state dir + shared socket dir; canary via the existing fleet-gate mechanism; revert via `xtcp2_revert.yml`
-- [ ] Regression-guard the load-bearing container defaults in the fleet-gate test (`docker inspect`): `HostConfig.PidMode` not `host`, `ReadonlyRootfs` true, `AppArmorProfile` == `docker-default` (not `unconfined`), every bind except the state dir `:ro`, and a probe that `mount -o remount,bind,rw` on a `:ro` bind fails `EACCES` inside the container
+- [ ] Regression-guard the load-bearing container defaults in the fleet-gate test (`docker inspect`): `HostConfig.PidMode` not `host`, `ReadonlyRootfs` true, `AppArmorProfile` == `docker-default` (not `unconfined`), every bind except the state dir `:ro`, and a probe that `mount -o remount,bind,rw` on a `:ro` bind fails `EACCES` inside the container. W13 is the runtime twin of this gate
 - [ ] Pin the new image tag in the image repo; bump the deployment repo role defaults in lockstep (role gate test asserts image↔config compatibility)
 
 **Estimate**: 3–5 days spread across phases. **Owner**: infra.
@@ -209,10 +209,10 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 
 ### W9 — documentation
 
-- [ ] [security.md](../security.md): new "Runtime reconfiguration" section — path policy, frozen fields, Landlock gauge, writer process
+- [ ] [security.md](../security.md): new "Runtime reconfiguration" section — path policy, frozen fields, Landlock gauge, writer process; the W13 checks and per-runtime settings
 - [ ] [grpc-api.md](../grpc-api.md): `Set` frozen-field list + error codes (`InvalidArgument` path, `FailedPrecondition` frozen) + `-setAllowFrozenFields` migration note
-- [ ] [operations.md](../operations.md): writer deployment (container + systemd), `-writableDir`, quota guidance, token rotation
-- [ ] [metrics.md](../metrics.md): `xtcp2_sandbox_active`, `xtcp2_state_writer_errors_total`, `xtcp2_set_applied_total`
+- [ ] [operations.md](../operations.md): writer deployment (container + systemd), `-writableDir`, quota guidance, token rotation; exit 78 and the `-insecureAllowUnconfined` waiver
+- [ ] [metrics.md](../metrics.md): `xtcp2_sandbox_active`, `xtcp2_state_writer_errors_total`, `xtcp2_set_applied_total`, `xtcp2_confinement_check`, `xtcp2_confinement_waived`
 - [ ] [README.md](../README.md): link this plan from the advisory entry
 - [ ] Update the advisory's layer table with ✅ per workstream as they land
 
@@ -294,9 +294,12 @@ Advisory §5.8, [Phase 5](phase-5-privilege-brokers.md#syscall-profiles-for-ever
 - [ ] Per-check waiver: `-insecureAllowUnconfined=<check,…>|all` / `XTCP_INSECURE_ALLOW_UNCONFINED`. Unknown names are fatal; waivers warn hourly and export `xtcp2_confinement_waived{check}`.
 - [ ] Argv/env only, with no config field, so `Set` cannot carry a waiver.
 - [ ] Harden the NixOS module (`NoNewPrivileges`, `SystemCallFilter`, `ProtectSystem=strict`, `RestartPreventExitStatus=78`) so it passes with no waiver.
-- [ ] Fleet alert on any non-zero `xtcp2_confinement_waived`.
+- [ ] Fleet alert on any non-zero `xtcp2_confinement_waived` (`Xtcp2ConfinementWaived`).
+- [ ] Allowed capabilities per mode: collector direct mode = `requiredCaps`; writer, Docker broker and broker-mode collector = none; netlink broker = `SYS_ADMIN`. W5/W10/W11 add their rows.
+- [ ] In-repo deployments pass: the k8s DaemonSet and the dev docker-compose gain the settings; `nix/checks/capability-check.nix` sets the waiver; quickstart docs show the waiver or a `systemd-run` recipe.
+- [ ] Tests that assert a startup failure assert its message, not just a non-zero exit (W0's PR-1 acceptance and the image smoke test).
 
-**Acceptance**: X1–X19. **Estimate**: 2–3 days.
+**Acceptance**: X1–X24. **Estimate**: 3–4 days.
 
 ## Sequencing and dependencies
 
