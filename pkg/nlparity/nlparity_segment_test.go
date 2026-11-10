@@ -133,6 +133,13 @@ const (
 	tdGuestGetNsid = tdGuest + "/reads/netlink_route_getnsid_list.pcap"
 	tdNetnsSet     = "../xtcpnl/testdata/7_1_4/link-write/rtnl/netns_set/ip.pcap"
 
+	// NX2's `link set|add … netns`, ip 7.2.0 on 7.3.1: by name and by path,
+	// each ll_link_get's RTM_GETLINK then the RTM_NEWLINK; and an add with
+	// an index, the RTM_NEWLINK alone. Each carries IFLA_NET_NS_FD 4.
+	tdLinkNetnsName  = "../xtcpnl/testdata/7_3_1/ws/linkns/ec-002/ip.pcap"
+	tdLinkNetnsPath  = "../xtcpnl/testdata/7_3_1/ws/linkns/ec-003/ip.pcap"
+	tdLinkNetnsIndex = "../xtcpnl/testdata/7_3_1/ws/linkns/add-index/ip.pcap"
+
 	// `ip neigh show dev NAME`. Its txn 0 is byte-identical to
 	// tdGuestGetNeigh's, which is the property its allowlist entry rests on
 	// and the reason it still needs a file of its own: the whole difference

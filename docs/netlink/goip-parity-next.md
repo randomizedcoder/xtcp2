@@ -497,8 +497,16 @@ goip opens the namespace as `netns_get_fd` does and sends `IFLA_NET_NS_FD` first
 | positive: add with an index | `linkns/add-index` | `same`: ifi_index 100, no `IFLA_NEW_IFINDEX` |
 | negative: pid 0, -1, a missing path, `netns` twice | `ng-001`, `002`, `003`, `005` | rc 255, nothing sent |
 | negative: a file that isn't a namespace | `ng-004` | sent; kernel EINVAL |
-| negative: with `link-netnsid` | `ng-006` | sent; kernel EINVAL |
+| negative: with `link-netnsid` | `ng-006` | sent with no `setns`; kernel EINVAL |
 | positive: the 26 `linkattr` `netns $$` rows | `7_3_0/ws/linkattr` | from `refuses` to `same` |
+
+The VM matrix gets three rows, each set up with d0 and a `c1mv` peer namespace. `IFLA_NET_NS_FD` is an accepted divergence on each: the descriptor is a slot in the sender's own table.
+
+| description | input | expected |
+|---|---|---|
+| positive: a move by name | `link set dev d0 netns c1mv` | `GOIP_PARITY_PASS`, the fd aside |
+| positive: a move by path | `link set dev d0 netns /proc/self/ns/net` | `GOIP_PARITY_PASS`, the fd aside |
+| positive: an add with an index | `link add d9 netns c1mv index 100 type dummy` | `GOIP_PARITY_PASS`, ifi_index 100 |
 
 ### NX3 MPLS routes
 

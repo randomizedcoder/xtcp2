@@ -147,7 +147,7 @@ func TestLinkNetkitBuilt(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, strings.Fields(tc.args), nil, nil, nil)
+			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, strings.Fields(tc.args), nil, nil, nil, nil)
 			if tc.notImpl {
 				if !errors.Is(err, ErrNotImplemented) || exitCodeOf(err) != ExitUsage {
 					t.Fatalf("error %v (exit %d), want ErrNotImplemented, 1", err, exitCodeOf(err))

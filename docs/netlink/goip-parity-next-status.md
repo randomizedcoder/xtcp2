@@ -1,6 +1,6 @@
 # goip ↔ `ip` parity next: implementation status
 
-**Last updated:** 2026-11-09
+**Last updated:** 2026-11-10
 
 **Summary:**
 - The design and the task plan are in [goip-parity-next.md](goip-parity-next.md). This document tracks progress against them.
@@ -12,9 +12,11 @@
   - the 101 `stats` rows are captured, and the order the bare show prints groups in is pinned.
 - **Captures came first.** Tier C ran the workbench at iproute2 7.2.0 and 7.3.0. Tier P (NP1–NP6) and Tier G (NX1–NX5) now have their tables in the plan, written from those rows.
 - **Tier P is closed** (NP1–NP6): `NHA_DST_PORT`, `RTA_TTL_PROPAGATE`, `IFLA_OVPN_MODE`, the seg6 encap with its lookup table and the AF_MPLS link stats decode on reads, each held to what ip printed across its corpus; the stats-filter and multicast-dump builders match ip's captured requests byte for byte.
-- **Tier G is under way:** NX1 has O5 compare the lookups at 7.2.0's masks; every space's lookups now match.
+- **Tier G is under way:**
+  - NX1 has O5 compare the lookups at 7.2.0's masks; every space's lookups now match.
+  - NX2 has goip send `netns NAME|PATH|PID` as ip does. O5's 26 `linkattr` netns rows and the 12 `linkns` rows match, and three VM rows are gated.
 
-**Next action:** Tier G, NX2 (`link set … netns`).
+**Next action:** Tier G, NX3 (MPLS routes).
 
 ## Contents
 
@@ -65,13 +67,15 @@
 | V032 | 2026-11-09 | NP5 | `TestParseNewStatsMplsLink`, `TestWsStatsMplsCorpus`, `FuzzParseNewStats` (30 s, new); `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `IfStatsInfo` gains `MplsLink` (`MplsLinkStats`, the nine u64s) and `HasMplsLink`, from the first AF_MPLS member's first `MPLS_STATS_LINK`. A short one marks `AfSpecMalformed` and keeps the record. The table has 12 rows; the captured one is compared with the afstats pcap. The corpus test holds 66 devices' counters in the `-j` stats shows to ip's JSON (all zero, so the field order rests on the hand-built rows). Mutants: member and link first-wins dropped, an off-by-one length, three field swaps, presence never set, the family check, the inner walk error dropped, a short link not marked. All 11 were killed. gocritic flagged a `strings.Index` slice in the corpus test; the counters now come from their own helper | this commit |
 | V033 | 2026-11-09 | NP6 | `TestBuildStatsFilterRequest`, `TestBuildDumpMulticastRequest`, `TestFamilyHdrLen`, `BenchmarkBuildStatsRequest`, `BenchmarkBuildDumpMulticastRequest`; `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `BuildStatsRequest` takes a `StatsFilter` (the group mask and the xstats, xstats_slave and offload sub-masks): a dump for ifindex 0, else a get, with an `IFLA_STATS_GET_FILTERS` nest for each sub-mask that is set and not full. `BuildDumpMulticastRequest` is the 24-byte ifaddrmsg dump. 8 stats rows and 4 multicast rows (6 requests) match ip's captured requests byte for byte, seq aside. `FamilyHdrLen` now models RTM_GETMULTICAST and RTM_NEWMULTICAST (ifaddrmsg), so nlparity compares their bodies, not their lengths. Mutants: the full-mask rule dropped or inverted, the dump flag on a get, NLA_F_NESTED dropped, both full masks widened, the slave group id, the sub-mask in the header, the multicast ifindex dropped. All 10 were killed. The two full-mask mutants survived until the test wrote the full masks as literals rather than reading the builder's constants | this commit |
 | V034 | 2026-11-09 | NX1 | `TestWsGoipDifferential` regenerated; `TestWsO5LLMapKnob`; `go vet`; `go test -count=1 -race ./internal/goip/...`; mutation; lint-baseline, codespell | All pass. O5 sets `useLLMap720`: the package's `TestMain` keeps 7.1.0's masks for the older fixtures, so O5 had compared 7.1.0-style lookups with 7.2.0 captures. Regenerated, every space's "lookups differ" is 0, down from 1,400 rows (1,138 lookups, 262 dumps), and the two mask notes are gone; the outcomes are unchanged. `TestWsO5LLMapKnob` has 4 rows: a lookup and a dump compare clean under 7.2.0's knob and report the dropped 0x100 under 7.1.0's, and the knob is back to the package's after each. Mutants: the knob dropped from O5; the knob not restored. Both were killed. No goip code changed, so no VM run | this commit |
+| V035 | 2026-11-09 | NX2 | `TestLinkWriteNetns`, `TestOpenFdsClose`, `TestWsGoipDifferential` regenerated, the nlparity derivability rows; `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. goip's `netns` opens the namespace as `netns_get_fd` does (a name under `/run/netns`, else a path, else `/proc/PID/ns/net`) and sends `IFLA_NET_NS_FD` in the keyword's place. The descriptors stay open until the request is written. A move makes `index` legal on a set, sent as `IFLA_NEW_IFINDEX` before `IFLA_IFNAME`, and a veth or netkit peer takes its own `netns`. `TestLinkWriteNetns` has 17 rows over a fake opener. O5 reads `7_3_1/ws/linkns` too: it puts a fixed pid in for `$$` and a fake namespace for `$(ip netns identify $$)`, and zeroes the descriptor on both sides. Regenerated, `linkattr` is 51 same and 1 refuses (`xdp` not last), up from 25 same and 27 refuses, and `linkns` is 12 same. Mutants: 9, all killed. Three VM rows (by name, by path, an add with an index); their `IFLA_NET_NS_FD` is an accepted divergence, its derivability rows reading ip's fd 4 out of the `linkns` captures | this commit |
+| V036 | 2026-11-10 | NX2 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section link`, three runs | The first, before the allowlist entries: 798 `GOIP_PARITY_PASS` and the three netns rows `GOIP_PARITY_WARN`, each on `IFLA_NET_NS_FD` alone (ip 4, goip 6); `GOIP_PARITY_OVERALL_PASS`. The second and third, on the final tree: 801 `GOIP_PARITY_PASS` of 801 each, the three netns rows among them, and `GOIP_PARITY_OVERALL_PASS`. The rows are gated on those two | this commit |
 | [x] | [NP2](goip-parity-next.md#np2-the-af_mpls-route-attributes) | `RTA_TTL_PROPAGATE` | done | V029 |
 | [x] | [NP3](goip-parity-next.md#np3-ifla_ovpn_mode) | `IFLA_OVPN_MODE` | done | V030 |
 | [x] | [NP4](goip-parity-next.md#np4-seg6_iptunnel_table-on-reads) | `SEG6_IPTUNNEL_TABLE` on reads | done | V031 |
 | [x] | [NP5](goip-parity-next.md#np5-af_mpls-link-stats) | AF_MPLS link stats | done | V032 |
 | [x] | [NP6](goip-parity-next.md#np6-request-builders) | the stats-filter and multicast-dump builders | done | V033 |
 | [x] | [NX1](goip-parity-next.md#nx1-o5-checks-the-lookups) | O5 checks the lookups | done | V034 |
-| [ ] | [NX2](goip-parity-next.md#nx2-link-set--netns) | `link set … netns` | not started | — |
+| [x] | [NX2](goip-parity-next.md#nx2-link-set--netns) | `link set … netns` | done | V035, V036 |
 | [ ] | [NX3](goip-parity-next.md#nx3-mpls-routes) | MPLS routes | not started | — |
 | [ ] | [NX4](goip-parity-next.md#nx4-the-target-moves-to-730) | the target moves to 7.3.0 | not started | — |
 | [ ] | [NX5](goip-parity-next.md#nx5-ip-stats) | `ip stats` | not started | — |
@@ -135,3 +139,6 @@
 - **`RTA_TTL_PROPAGATE` reads like the other route scalars.** The plan had a u32 payload as an error. `setRouteAttr`'s scalars never fail: an empty payload is dropped, and a longer one is read from its first byte, as `rta_getattr_u8` in ip reads it. A u32 then decodes the same as ip prints it. The plan's NP2 table now says so, and NP3's `IFLA_OVPN_MODE` follows the same rule (`ovpn_print_opt` reads it the same way).
 - **A short `MPLS_STATS_LINK` keeps the record.** The plan had it as an error. `ParseNewStats` keeps a malformed afstats member and marks `AfSpecMalformed`, as it does for the nest's walk, so the short link does the same and goip can decline it. ip reads the struct unchecked.
 - **`ip -j link afstats` prints invalid JSON at 7.2.0:** members with no object around them, `["ifindex":1,…]`. The corpus test skips it. Recorded only: nothing goes to netdev.
+- **`netns` with `link-netnsid` sends without a `setns`.** When both are given, ip `setns`es into the target namespace to open a second rtnetlink socket there, and switches back (ip/iplink.c:1317). That socket serves only `link-netns` and a `link` device's lookup; the request still goes on ip's first socket, so goip, which opens none, sends the same bytes. The bytes are the same, but a file that isn't a namespace makes ip refuse with "Cannot set namespace", where goip sends and the kernel refuses.
+- **The VM matrix has no pid form of `netns`.** The only pid the VM can name ahead of the row is init's, and moving d0 there keeps it in the root namespace. O5 covers the pid forms offline.
+- **The descriptor is an accepted divergence, as for `netns set`.** ip sends fd 4, goip whatever slot is free (6 in the VM). The kernel resolves either to the same namespace.

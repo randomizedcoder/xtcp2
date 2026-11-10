@@ -37,6 +37,19 @@ var updateWsO5 = flag.Bool("update-ws-o5", false, "rewrite testdata/ws-different
 // wsCorpusDir is the workbench's corpus for the guest kernel the rows ran on.
 const wsCorpusDir = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 
+// wsCorpusDir731 is the corpus of the rows run on kernel 7.3.1
+// (goip-parity-next.md, Tier C), at iproute2 7.2.0.
+const wsCorpusDir731 = "../../pkg/xtcpnl/testdata/7_3_1/ws"
+
+// wsO5SpaceDir is the corpus a space's rows are under: 7.3.1's for those
+// captured there, else 7.3.0's.
+func wsO5SpaceDir(sp string) string {
+	if sp == "linkns" {
+		return wsCorpusDir731
+	}
+	return wsCorpusDir
+}
+
 // wsO5Golden lists every row whose outcome is not "same".
 const wsO5Golden = "testdata/ws-differential.txt"
 
@@ -47,7 +60,7 @@ const wsO5Golden = "testdata/ws-differential.txt"
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
 	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
 	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh",
-	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh"}
+	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh", "linkns"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -101,6 +114,72 @@ func wsO5Argv(cmd string) (family uint8, object string, args []string, err error
 		return 0, "", nil, fmt.Errorf("unknown object %s in %q", f[0], cmd)
 	}
 	return family, objects[i].name, f[1:], nil
+}
+
+// The words the workbench's shell expanded in a row's command, and what O5
+// puts in their place: the pid of the row's shell, and the name `ip netns
+// identify` gave its namespace. wsO5Netns answers for the paths they make.
+const (
+	wsO5PidCst        = "4242"
+	wsO5NetnsNameCst  = "o5ns"
+	wsO5NetnsRunDir   = "/o5/netns"
+	wsO5IdentifyShell = "$(ip netns identify $$)"
+)
+
+// wsO5Subst is the row's command as its shell ran it, with wsO5PidCst and
+// wsO5NetnsNameCst for what the shell expanded.
+func wsO5Subst(cmd string) string {
+	cmd = strings.ReplaceAll(cmd, wsO5IdentifyShell, wsO5NetnsNameCst)
+	return strings.ReplaceAll(cmd, "$$", wsO5PidCst)
+}
+
+// useWsO5Netns answers netns_get_fd's opens for the namespaces the rows
+// name: wsO5NetnsNameCst under wsO5NetnsRunDir, the row shell's pid, pid 1
+// and /proc/self, and /proc/self/stat, a file that isn't one. Each opens
+// /dev/null, since O5 zeroes the descriptor; any other path is ENOENT.
+func useWsO5Netns(t *testing.T) {
+	t.Helper()
+	prevOpen, prevDir := netnsOpen, netnsRunDir
+	exists := map[string]bool{
+		wsO5NetnsRunDir + "/" + wsO5NetnsNameCst: true,
+		"/proc/" + wsO5PidCst + "/ns/net":        true,
+		"/proc/1/ns/net":                         true,
+		"/proc/self/ns/net":                      true,
+		"/proc/self/stat":                        true,
+	}
+	netnsRunDir = wsO5NetnsRunDir
+	netnsOpen = func(path string) (int, error) {
+		if !exists[path] {
+			return -1, unix.ENOENT
+		}
+		return unix.Open(os.DevNull, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	}
+	t.Cleanup(func() { netnsOpen, netnsRunDir = prevOpen, prevDir })
+}
+
+// wsO5ZeroNetnsFd zeroes a link write's IFLA_NET_NS_FD value: the
+// descriptor ip happened to get, which goip's needn't match.
+func wsO5ZeroNetnsFd(msg []byte) ([]byte, bool) {
+	if len(msg) < xtcpnl.NlMsgHdrSizeCst+unix.SizeofIfInfomsg {
+		return msg, false
+	}
+	if t := binary.LittleEndian.Uint16(msg[4:6]); t != unix.RTM_NEWLINK && t != unix.RTM_SETLINK {
+		return msg, false
+	}
+	out := slices.Clone(msg)
+	zeroed := false
+	for off := xtcpnl.NlMsgHdrSizeCst + unix.SizeofIfInfomsg; off+4 <= len(out); {
+		l := int(binary.LittleEndian.Uint16(out[off:]))
+		if l < 4 || off+l > len(out) {
+			break
+		}
+		if binary.LittleEndian.Uint16(out[off+2:]) == unix.IFLA_NET_NS_FD && l == 8 {
+			binary.LittleEndian.PutUint32(out[off+4:], 0)
+			zeroed = true
+		}
+		off += (l + 3) &^ 3
+	}
+	return out, zeroed
 }
 
 // wsO5Applies says whether O5 compares a row's args: a write verb, spelled
@@ -470,7 +549,7 @@ func wsO5Split(ipReqs [][]byte) (look, dumps, rest [][]byte) {
 // wsO5Row runs one row through goip and classifies it.
 func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups string, pad, encapPad bool) {
 	t.Helper()
-	family, object, args, err := wsO5Argv(row.Cmd)
+	family, object, args, err := wsO5Argv(wsO5Subst(row.Cmd))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,7 +566,8 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 	var writes [][]byte
 	if _, err := os.Stat(out); err == nil {
 		for _, m := range restoreWrites(t, out) {
-			writes = append(writes, wireBytesOf(m))
+			w, _ := wsO5ZeroNetnsFd(wireBytesOf(m))
+			writes = append(writes, w)
 		}
 	}
 	goipErr := ""
@@ -501,6 +581,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		pad = pad || z
 		ipWrites[i], z = wsO5ZeroEncapPad(ipWrites[i])
 		encapPad = encapPad || z
+		ipWrites[i], _ = wsO5ZeroNetnsFd(ipWrites[i])
 	}
 	lookups = wsO5Lookups("lookup", look, src.gets)
 	if d := wsO5Lookups("dump", dumps, src.dumpReqs); d != "" {
@@ -522,18 +603,19 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 // go test ./internal/goip/ -run TestWsGoipDifferential
 func TestWsGoipDifferential(t *testing.T) {
 	useLLMap720(t) // the rows ran ip 7.2.0, whose lookups ask for names alone
+	useWsO5Netns(t)
 	var report []string
 	counts := map[string]map[string]int{}
 	lookupNotes := map[string]int{}
 	padRows, encapPadRows := 0, 0
 	for _, sp := range wsO5Spaces {
-		ents, err := os.ReadDir(filepath.Join(wsCorpusDir, sp))
+		ents, err := os.ReadDir(filepath.Join(wsO5SpaceDir(sp), sp))
 		if err != nil {
 			t.Fatal(err)
 		}
 		counts[sp] = map[string]int{}
 		for _, e := range ents {
-			dir := filepath.Join(wsCorpusDir, sp, e.Name())
+			dir := filepath.Join(wsO5SpaceDir(sp), sp, e.Name())
 			b, err := os.ReadFile(filepath.Join(dir, "cmd.json"))
 			if err != nil {
 				t.Fatal(err)
@@ -545,7 +627,7 @@ func TestWsGoipDifferential(t *testing.T) {
 			if row.Result.Status != "OK" {
 				t.Fatalf("%s: status %s, which O1 already fails", row.ID, row.Result.Status)
 			}
-			if _, _, args, err := wsO5Argv(row.Cmd); err == nil && !wsO5Applies(args) {
+			if _, _, args, err := wsO5Argv(wsO5Subst(row.Cmd)); err == nil && !wsO5Applies(args) {
 				counts[sp]["n/a"]++
 				continue
 			}

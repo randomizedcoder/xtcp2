@@ -1880,6 +1880,13 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 encap seg6 mode encap segs 2001:db8:9::1 nexthop via 192.0.2.2 dev d0",
 		"-6 nexthop add id 71 encap seg6 mode encap segs 2001:db8:9::1 dev d0",
 		"-6 nexthop add id 72 encap seg6local action End dev d0",
+		// goip-parity-next.md's three NX2 netns rows: a set by name and by
+		// path, and an add with an index, gated on two `--section link`
+		// runs, each row GOIP_PARITY_PASS both times
+		// (goip-parity-next-status.md, NX2).
+		"link set dev d0 netns c1mv",
+		"link set dev d0 netns /proc/self/ns/net",
+		"link add d9 netns c1mv index 100 type dummy",
 	}
 
 	tests := []struct {
@@ -1887,19 +1894,21 @@ func TestAllowlistCommitted(t *testing.T) {
 		check       func(t *testing.T, a *Allowlist)
 	}{
 		{
-			// It loaded above, so every validation rule holds on it. Five is
+			// It loaded above, so every validation rule holds on it. Eight is
 			// the measured state since goip follows the 7.2.0 pin: the netns
-			// rows' NETNSA_FD, accepted divergences (G4-T04), and no
-			// version skew. The next entry is a decision, and this row makes
-			// it one a test notices.
-			description: "positive: the committed file loads with the five netns entries alone",
+			// rows' NETNSA_FD (G4-T04) and the link netns rows'
+			// IFLA_NET_NS_FD (NX2), accepted divergences, and no version
+			// skew. The next entry is a decision, and this row makes it one
+			// a test notices.
+			description: "positive: the committed file loads with the eight namespace-descriptor entries alone",
 			check: func(t *testing.T, a *Allowlist) {
-				if len(a.Entries) != 5 {
-					t.Fatalf("%d entries, want 5", len(a.Entries))
+				if len(a.Entries) != 8 {
+					t.Fatalf("%d entries, want 8", len(a.Entries))
 				}
 				for i := range a.Entries {
-					if a.Entries[i].Kind != KindAcceptedDivergence || !strings.HasPrefix(a.Entries[i].Command, "netns ") &&
-						!strings.HasPrefix(a.Entries[i].Command, "-j netns ") {
+					c := a.Entries[i].Command
+					if a.Entries[i].Kind != KindAcceptedDivergence || !strings.HasPrefix(c, "netns ") &&
+						!strings.HasPrefix(c, "-j netns ") && !strings.Contains(c, " netns ") {
 						t.Errorf("entry %d is %q at %q, kind %s", i, a.Entries[i].Command, a.Entries[i].Locus, a.Entries[i].Kind)
 					}
 				}

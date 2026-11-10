@@ -1768,6 +1768,23 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			command:     "netns set c1set 7", locus: "request:type(88):attr(3):write",
 			filename: tdNetnsSet, wantMask: 5, attr: unix.NETNSA_FD, entry: true,
 		},
+		// NX2's IFLA_NET_NS_FD entries: the RTM_NEWLINK of each netns write
+		// row, ip's fd 4, after ll_link_get's get on the sets.
+		{
+			description: "positive: the link set netns IFLA_NET_NS_FD locus is derivable by name, ip's fd 4",
+			command:     "link set dev d0 netns c1mv", locus: "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+			filename: tdLinkNetnsName, txn: 1, wantMask: 4, attr: unix.IFLA_NET_NS_FD, entry: true,
+		},
+		{
+			description: "positive: the same by path",
+			command:     "link set dev d0 netns /proc/self/ns/net", locus: "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+			filename: tdLinkNetnsPath, txn: 1, wantMask: 4, attr: unix.IFLA_NET_NS_FD, entry: true,
+		},
+		{
+			description: "positive: the same on an add with an index, whose RTM_NEWLINK comes first",
+			command:     "link add d9 netns c1mv index 100 type dummy", locus: "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+			filename: tdLinkNetnsIndex, wantMask: 4, attr: unix.IFLA_NET_NS_FD, entry: true,
+		},
 	}
 
 	for _, tc := range tests {

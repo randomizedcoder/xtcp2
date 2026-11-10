@@ -2632,6 +2632,33 @@ var commands = withArgs([]Command{
 		// linkattr/parentdev: parentdev (rc 0).
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
 	},
+	// NX2 (goip-parity-next.md): `link set … netns`, IFLA_NET_NS_FD in the
+	// keyword's place, the descriptor of the namespace netns_get_fd opened.
+	// Each side meets a new peer c1mv; ip moves d0 into it, goip writes the
+	// request. Each row has the shape of a 7.3.1 linkns capture, its corpus
+	// row offline. The pid forms are not rows: the VM has no pid to name but
+	// init's, and moving d0 there would leave it in the root; O5 holds them,
+	// with index on a set (linkns, and linkattr's 26 netns rows). The
+	// descriptor's number is the process's next free slot, so each row has
+	// an accepted-divergence entry.
+	{
+		Name: "link set dev d0 netns c1mv", Slug: "link_netns_name",
+		// By name, under NETNS_RUN_DIR (linkns/ec-002): the lookup and the
+		// write.
+		Floor: 4, Implemented: true, Write: true, Setup: linkNetnsSetup,
+	},
+	{
+		Name: "link set dev d0 netns /proc/self/ns/net", Slug: "link_netns_self",
+		// By path, the sender's own namespace (linkns/ec-003): the kernel's
+		// move is a no-op.
+		Floor: 4, Implemented: true, Write: true, Setup: linkNetnsSetup,
+	},
+	{
+		Name: "link add d9 netns c1mv index 100 type dummy", Slug: "link_netns_add_index",
+		// On an add, index is ifi_index and there's no lookup
+		// (linkns/add-index).
+		Floor: 2, Implemented: true, Write: true, Setup: linkNetnsSetup,
+	},
 	// The inet rows (goip-link-kinds.md, KG0-T02): KC1-T01's 11 rows the
 	// kernel answers, in its order, from pkg/xtcpnl/testdata/7_3_0/link-write/
 	// rtnl/inet_*. Each is the d0 lookup and the write (4). The 7 rows ip
@@ -7838,6 +7865,10 @@ var (
 		"link set d0 addrgenmode none", "link set d1 addrgenmode none", "link set d1 up", "link set d0 up",
 	}
 )
+
+// linkNetnsSetup is the netns rows' precondition: the workbench's d0 and
+// the peer c1mv it moves into.
+var linkNetnsSetup = append(slices.Clone(gwWsLinkD0), "peer c1mv")
 
 // netnsSetup is the netns reads' precondition, rtnl-read-corpus.exp's two
 // peers: nlcaprp1 and nlcaprp2, made from the root, nsids 1 and 2 in the

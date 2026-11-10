@@ -14,7 +14,7 @@
 # neigh6: 137 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # linkset: 130 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # linkadd: 111 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
-# linkattr: 25 same, 27 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# linkattr: 51 same, 1 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # linkpd: 20 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # linkprop: 19 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 9
 # kwroute4: 13 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
@@ -34,32 +34,7 @@
 # lwtxreq: 6 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # lwtxhop: 4 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # lwtxnh: 4 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# linkns: 12 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # encap padding: 41 rows: ip sends stack bytes in an encap or after its type, on a nexthop, a route or a hop; zeroed before comparing
-linkattr/ec-002 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 carrier on netns $$ xdp off
-linkattr/ec-003 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier off netns $$ index 100 xdpgeneric none
-linkattr/ng-007 refuses rc=255 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 netns nosuch
-linkattr/pw-001 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on netns $$ xdp off
-linkattr/pw-002 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode none carrier off netns $$ index 100 xdpgeneric none
-linkattr/pw-003 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random netns $$ xdpdrv off
-linkattr/pw-004 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 carrier on netns $$ index 100 xdpdrv off
-linkattr/pw-006 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode none netns $$
-linkattr/pw-008 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 carrier off netns $$ xdpgeneric none
-linkattr/pw-009 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 netns $$ index 100
-linkattr/pw-011 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode random carrier on netns $$ index 100
-linkattr/pw-013 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode eui64 carrier off netns $$ xdpdrv off
-linkattr/pw-014 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode none carrier on netns $$ index 100 xdp off
-linkattr/rn1-001 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode eui64 netns $$ index 100 xdpgeneric none
-linkattr/rn1-003 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none carrier on netns $$ index 100
-linkattr/rn1-004 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 nomaster netns $$ xdpdrv off
-linkattr/rn1-005 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode eui64 carrier off netns $$ index 100 xdpgeneric none
-linkattr/rn1-006 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier on netns $$ xdpdrv off
-linkattr/rn1-007 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random netns $$
-linkattr/rn1-008 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 nomaster addrgenmode random carrier off netns $$ index 100 xdp off
-linkattr/rn1-009 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode eui64 carrier off netns $$ index 100 xdpgeneric none
-linkattr/rn1-011 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode random carrier on netns $$ index 100 xdpgeneric none
-linkattr/rn1-012 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode random carrier on netns $$ index 100 xdp off
-linkattr/rn1-013 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 addrgenmode none carrier off netns $$ xdpgeneric none
-linkattr/rn1-015 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 master br0 addrgenmode none carrier off netns $$ xdpdrv off
-linkattr/rn1-016 refuses rc=0 link keyword "netns": object recognized but not implemented by goip | ip link set dev d0 vrf v0 addrgenmode none netns $$ index 100 xdpgeneric none
 linkattr/xdp-not-last refuses rc=255 link keyword "xdp": an XDP program: object recognized but not implemented by goip | ip link set dev d0 xdp off carrier on

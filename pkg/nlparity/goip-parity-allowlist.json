@@ -1185,6 +1185,24 @@
       "locus": "request:type(88):attr(3):write",
       "kind": "accepted-divergence",
       "reason": "G4-T04. `ip netns set NAME NSID` sends one RTM_NEWNSID (type(88)) whose first attribute, NETNSA_FD (attr(3)), is the descriptor of /run/netns/NAME open in the sender (set_netns_id_from_name, lib/namespace.c): fd 5 in ip (link-write/rtnl/netns_set/ip.pcap), whatever slot is free in goip. It is the list-id entries' reason on the write role: the kernel resolves either number to the same namespace, and matching ip's would mean padding goip's table. NETNSA_NSID, the value the command sets, is compared and not covered here."
+    },
+    {
+      "command": "link set dev d0 netns c1mv",
+      "locus": "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+      "kind": "accepted-divergence",
+      "reason": "NX2. `ip link set|add \u2026 netns NAME|PATH|PID` opens the namespace (netns_get_fd, lib/namespace.c) and sends IFLA_NET_NS_FD, the descriptor of that open file in the sender, at the keyword's place (iplink_parse, ip/iplink.c): fd 4 in ip (linkns/ec-002, ec-003 and add-index ip.pcap), whatever slot is free in goip: fd 6 in the NX2 VM runs. It is the netns set entry's reason on RTM_NEWLINK: the kernel resolves either number to the same namespace, and matching ip's would mean padding goip's table. Every other attribute, IFLA_NEW_IFINDEX and IFLA_IFNAME among them, is compared and not covered here."
+    },
+    {
+      "command": "link set dev d0 netns /proc/self/ns/net",
+      "locus": "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+      "kind": "accepted-divergence",
+      "reason": "NX2. `ip link set|add \u2026 netns NAME|PATH|PID` opens the namespace (netns_get_fd, lib/namespace.c) and sends IFLA_NET_NS_FD, the descriptor of that open file in the sender, at the keyword's place (iplink_parse, ip/iplink.c): fd 4 in ip (linkns/ec-002, ec-003 and add-index ip.pcap), whatever slot is free in goip: fd 6 in the NX2 VM runs. It is the netns set entry's reason on RTM_NEWLINK: the kernel resolves either number to the same namespace, and matching ip's would mean padding goip's table. Every other attribute, IFLA_NEW_IFINDEX and IFLA_IFNAME among them, is compared and not covered here."
+    },
+    {
+      "command": "link add d9 netns c1mv index 100 type dummy",
+      "locus": "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+      "kind": "accepted-divergence",
+      "reason": "NX2. `ip link set|add \u2026 netns NAME|PATH|PID` opens the namespace (netns_get_fd, lib/namespace.c) and sends IFLA_NET_NS_FD, the descriptor of that open file in the sender, at the keyword's place (iplink_parse, ip/iplink.c): fd 4 in ip (linkns/ec-002, ec-003 and add-index ip.pcap), whatever slot is free in goip: fd 6 in the NX2 VM runs. It is the netns set entry's reason on RTM_NEWLINK: the kernel resolves either number to the same namespace, and matching ip's would mean padding goip's table. Every other attribute, IFLA_NEW_IFINDEX and IFLA_IFNAME among them, is compared and not covered here."
     }
   ],
   "gated_commands": [
@@ -2562,6 +2580,9 @@
     "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap seg6 mode encap segs 2001:db8:9::1 nexthop via 2001:db8:1::2 dev d0",
     "-4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 encap seg6 mode encap segs 2001:db8:9::1 nexthop via 192.0.2.2 dev d0",
     "-6 nexthop add id 71 encap seg6 mode encap segs 2001:db8:9::1 dev d0",
-    "-6 nexthop add id 72 encap seg6local action End dev d0"
+    "-6 nexthop add id 72 encap seg6local action End dev d0",
+    "link set dev d0 netns c1mv",
+    "link set dev d0 netns /proc/self/ns/net",
+    "link add d9 netns c1mv index 100 type dummy"
   ]
 }

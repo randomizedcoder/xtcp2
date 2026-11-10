@@ -457,8 +457,9 @@ func TestLinkWriteXdp(t *testing.T) {
 // TestLinkWriteIndexNetns is iplink_parse's index, link-netnsid and
 // parentdev arms (ip/iplink.c:904, 1164, 1250) and the index check after the
 // loop (:1291). index is atoi, positive, ifi_index on a create and refused
-// on a set, since goip doesn't implement netns (move_netns). link-netnsid is
-// get_integer as IFLA_LINK_NETNSID; parentdev the name with its NUL. GW2-T08.
+// on a set unless a netns moves the device (move_netns; TestLinkWriteNetns).
+// link-netnsid is get_integer as IFLA_LINK_NETNSID; parentdev the name with
+// its NUL. GW2-T08.
 //
 // go test ./internal/goip/ -run TestLinkWriteIndexNetns
 func TestLinkWriteIndexNetns(t *testing.T) {
@@ -500,8 +501,8 @@ func TestLinkWriteIndexNetns(t *testing.T) {
 			expected: usage(`Error: duplicate "link-netns/link-netnsid": "2" is the second value`)},
 		{description: "negative: a bad link-netnsid", verb: "set", args: d0("link-netnsid", "x"),
 			expected: usage(`Error: argument "x" is wrong: Invalid "link-netnsid" value`)},
-		{description: "negative: netns stays not implemented", verb: "set", args: d0("netns", "nosuch"),
-			expected: linkWriteExpected{err: ErrNotImplemented, errMsg: `"netns"`}},
+		{description: "negative: a netns that isn't there", verb: "set", args: d0("netns", "goip-test-no-such-netns"),
+			expected: usage(`Error: argument "goip-test-no-such-netns" is wrong: Invalid "netns" value`)},
 		{description: "negative: a lower dev in link-netnsid's namespace", verb: "add",
 			args:     []string{"v9", "link", "d0", "link-netnsid", "1", "type", "dummy"},
 			expected: linkWriteExpected{err: ErrNotImplemented, errMsg: `link "d0" in link-netnsid's namespace`}},

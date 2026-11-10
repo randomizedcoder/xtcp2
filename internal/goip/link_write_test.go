@@ -308,8 +308,8 @@ func TestBuildLinkWrite(t *testing.T) {
 			expected: invalid(`argument of "promisc" must be "on" or "off", not "On"`)},
 
 		// Keywords goip does not implement are refused, never read as a device.
-		{description: "negative: netns", verb: "add", args: []string{"d0", "netns", "ns1", "type", "dummy"},
-			expected: notImpl(`"netns"`)},
+		{description: "negative: a netns that isn't there", verb: "add", args: []string{"d0", "netns", "goip-test-no-such-netns", "type", "dummy"},
+			expected: linkWriteExpected{err: ErrLinkUsage, errMsg: `Invalid "netns" value`}},
 		{description: "negative: vf", verb: "set", args: []string{"d0", "vf", "0", "mac", "02:00:00:00:00:01"},
 			expected: notImpl(`"vf"`)},
 
@@ -399,7 +399,9 @@ func runLinkWriteRows(t *testing.T, rows []linkWriteRow) {
 				t.Fatalf("no verb %q", tc.verb)
 			}
 			links := newFakeLinks()
-			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve, nil, links.fetch)
+			var fds openFds
+			defer fds.close()
+			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve, nil, links.fetch, &fds)
 			if !slices.Equal(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}
@@ -478,7 +480,7 @@ func TestParseLinkLower(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			links := newFakeLinks()
-			got, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb(tc.verb), unix.AF_UNSPEC, tc.args, links.resolve, nil, nil)
+			got, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb(tc.verb), unix.AF_UNSPEC, tc.args, links.resolve, nil, nil, nil)
 			if !slices.Equal(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}

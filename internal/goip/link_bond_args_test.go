@@ -387,7 +387,7 @@ func TestLinkIfindexBits(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			resolve := func(string) (int32, error) { return tc.idx, nil }
-			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, strings.Fields(tc.args), resolve, nil, nil)
+			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, strings.Fields(tc.args), resolve, nil, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

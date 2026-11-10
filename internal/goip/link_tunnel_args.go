@@ -43,6 +43,8 @@ type kindEnv struct {
 	resolve linkResolver
 	isVRF   vrfChecker
 	fetch   linkDataFetcher
+	// fds holds the namespaces a peer's `netns` opened.
+	fds *openFds
 }
 
 // The tunnel words several parsers spell the same way.

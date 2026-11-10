@@ -18,6 +18,7 @@ import (
 // routeWriteSlugPrefixCst or addrWriteSlugPrefixCst.
 const (
 	tdLinkWrite             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/write"
+	tdWs731                 = "../../pkg/xtcpnl/testdata/7_3_1/ws"
 	tdRouteWrite            = "../../pkg/xtcpnl/testdata/7_1_4/link-write/route"
 	tdAddrWrite             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr"
 	tdAddrFlush             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-flush"
@@ -314,6 +315,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	}
 	if strings.HasPrefix(c.Slug, gwSlugPrefixCst) {
 		dir = gwCorpusDir(t, c.Slug)
+	}
+	if row, ok := linkNetnsCorpus[c.Slug]; ok {
+		dir = filepath.Join(tdWs731, "linkns", row)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
@@ -769,4 +773,12 @@ func TestCompareWriteRow(t *testing.T) {
 			}
 		}
 	})
+}
+
+// linkNetnsCorpus is the linkns row each netns write row has the shape of
+// (NX2), its capture offline.
+var linkNetnsCorpus = map[string]string{
+	"link_netns_name":      "ec-002",
+	"link_netns_self":      "ec-003",
+	"link_netns_add_index": "add-index",
 }
