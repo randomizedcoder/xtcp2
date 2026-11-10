@@ -11,8 +11,9 @@
   - every family has been replayed at 7.3.0 and diffed (`nlcapgen verdiff`), and the 42 `v730` rows are captured at both versions;
   - the 101 `stats` rows are captured, and the order the bare show prints groups in is pinned.
 - **Captures came first.** Tier C ran the workbench at iproute2 7.2.0 and 7.3.0. Tier P (NP1–NP6) and Tier G (NX1–NX5) now have their tables in the plan, written from those rows.
+- **Tier P is under way:** NP1 decodes `NHA_DST_PORT` on reads.
 
-**Next action:** Tier P, NP1 (`NHA_DST_PORT` on reads).
+**Next action:** Tier P, NP2 (`RTA_TTL_PROPAGATE`).
 
 ## Contents
 
@@ -39,7 +40,7 @@
 | [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | done | V013–V021 |
 | [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | done | V022–V026 |
 | [NC5](goip-parity-next.md#nc5--the-tier-closes) | Tier C closes | NC5-T01 | done | V027 |
-| [Tier P](goip-parity-next.md#tier-p-parsers-tests-and-benchmarks) | parsers, tests, benchmarks | — | not started | — |
+| [Tier P](goip-parity-next.md#tier-p-parsers-tests-and-benchmarks) | parsers, tests, benchmarks | NP6 | in progress | V028– |
 | [Tier G](goip-parity-next.md#tier-g-goip-and-the-matrix) | goip and the matrix (NX1–NX5) | — | not started | — |
 
 ## Task checklist
@@ -56,7 +57,7 @@
 | [x] | [NC4-T01](goip-parity-next.md#nc4-t01-the-stats-family) | the `stats` family | done | V022–V023 |
 | [x] | [NC4-T02](goip-parity-next.md#nc4-t02-capture-and-the-order) | capture, the group order, O3 | done | V024–V026 |
 | [x] | [NC5-T01](goip-parity-next.md#nc5--the-tier-closes) | recount; write Tier P and G tables | done | V027 |
-| [ ] | [NP1](goip-parity-next.md#np1-nha_dst_port-on-reads) | `NHA_DST_PORT` on reads | not started | — |
+| [x] | [NP1](goip-parity-next.md#np1-nha_dst_port-on-reads) | `NHA_DST_PORT` on reads | done | V028 |
 | [ ] | [NP2](goip-parity-next.md#np2-the-af_mpls-route-attributes) | `RTA_TTL_PROPAGATE` | not started | — |
 | [ ] | [NP3](goip-parity-next.md#np3-ifla_ovpn_mode) | `IFLA_OVPN_MODE` | not started | — |
 | [ ] | [NP4](goip-parity-next.md#np4-seg6_iptunnel_table-on-reads) | `SEG6_IPTUNNEL_TABLE` on reads | not started | — |
@@ -100,6 +101,7 @@
 | V025 | 2026-11-09 | NC4-T02 | The bare show's group headings on every device of the four topologies, on both boots | One order everywhere, 13 leaves: afstats mpls; link; offload l3_stats, hw_stats_info, cpu_hit; xstats_slave bond 802.3ad; xstats bond 802.3ad; xstats_slave bridge vlan, mcast, stp; xstats bridge vlan, mcast, stp. It is pinned in `wsStatsOrder` | this commit |
 | V026 | 2026-11-09 | NC4-T02 | `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestWsStatsCorpus` checks 88 shows and 2 sets; `TestWsStatsGroupOrder` checks every bare text show; `TestStatsProblems` has 15 rows. Mutants: a nest allowed on a full sub-mask; a dump taken for one device; two leaves of the order swapped; the mask not compared. All 4 were killed. The second survived until a row had the right index with the dump flag set. `TestParseBenchAllocs`'s largest RTM_NEWSTATS is now a bridge's bare show (676 bytes) and allocates twice, for its afstats and its VLAN xstats; the expectation moved with it | this commit |
 | V027 | 2026-11-09 | NC5-T01 | Each new corpus's rows counted by `refused_by`, from its `cmd.json`; `TestNetlinkUniverse` with RTM_GETMULTICAST; the stats and ovpn readbacks read for what Tier P can decode | The plan doc's NC5 table. The universe holds RTM_GETMULTICAST (v7.3.0 `lib/libnetlink.c:348`), 72 messages in 11 pcaps, 48 rtnetlink names in all; the "cites no source" test row moved to RTM_GETANYCAST. No device on the workbench reports CPU_HIT or in-use L3_STATS bodies, so Tier P drops those decoders. Tier P (NP1–NP6) and Tier G (NX1–NX5) tables written | this commit |
+| V028 | 2026-11-09 | NP1 | `TestParseNewNexthopDstPort`, `TestWsNexthopDstPortCorpus`, `FuzzParseNewNexthop` (30 s), `BenchmarkParseNewNexthop`; `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `NexthopInfo` gains `DstPort` (host order) and `HasDstPort`; a payload other than 2 bytes is `ErrNhDstPortLen`. The table has 9 rows; its 4 captured bodies are compared with the v730nh show pcaps. The corpus test decodes all 7 nexthops of the v730nh shows at both versions and holds 4 ports to the `dst_port` ip printed. Mutants: little-endian, a short-only length check, the length error dropped, `HasDstPort` never set, the attribute id off by one. All 5 were killed. The benchmark's picks are unchanged: 0 to 1 allocations | this commit |
 
 ## Decision log
 

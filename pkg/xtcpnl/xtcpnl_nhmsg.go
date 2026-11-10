@@ -55,6 +55,10 @@ const (
 	NhaOpFlags   uint16 = 14 // NHA_OP_FLAGS: op filter (request) / resvd (reply)
 	// NhaHwStatsEnable is NHA_HW_STATS_ENABLE, u32: `ip nexthop … hw_stats`.
 	NhaHwStatsEnable uint16 = 16
+	// NhaDstPort is NHA_DST_PORT, be16: an fdb nexthop's UDP destination
+	// port, `ip nexthop … fdb dst_port PORT` (iproute2 7.3.0). The kernel
+	// echoes it only when nonzero.
+	NhaDstPort uint16 = 18
 
 	// NexthopGrpTypeMpath is NEXTHOP_GRP_TYPE_MPATH, the default group type that
 	// iproute2 prints no `type` token for. NexthopGrpTypeRes is
@@ -86,6 +90,9 @@ var (
 	// ErrNhGroupBad is an NHA_GROUP payload that is not a whole number of
 	// nexthop_grp entries.
 	ErrNhGroupBad = errors.New("NHA_GROUP payload not a multiple of nexthop_grp")
+
+	// ErrNhDstPortLen is an NHA_DST_PORT payload that is not a be16.
+	ErrNhDstPortLen = errors.New("NHA_DST_PORT payload is not 2 bytes")
 )
 
 // GroupMember is one entry of an NHA_GROUP array: a member nexthop id and its
@@ -120,7 +127,9 @@ type NexthopInfo struct {
 	OIF         int32  // 0 is absent: index 0 is not a device
 	Gateway     []byte // network order, nil when absent
 	Blackhole   bool
-	Fdb         bool // NHA_FDB present: an L2 bridge-fdb nexthop (via, no oif)
+	Fdb         bool   // NHA_FDB present: an L2 bridge-fdb nexthop (via, no oif)
+	DstPort     uint16 // NHA_DST_PORT, host order, valid when HasDstPort
+	HasDstPort  bool   // NHA_DST_PORT present: an fdb nexthop with a port
 	HasGroup    bool
 	Group       []GroupMember // NHA_GROUP members, nil when not a group
 	GroupType   uint16        // NHA_GROUP_TYPE, NEXTHOP_GRP_TYPE_*
@@ -157,6 +166,7 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 
 	var groupRaw []byte    // NHA_GROUP bytes, resolved to members after the walk
 	var resGroupRaw []byte // NHA_RES_GROUP nested bytes, decoded after the walk
+	var perr error         // a malformed attribute, reported after the walk
 	err := WalkRTAttrs(body[NhMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case NhaID:
@@ -173,6 +183,12 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			nh.Blackhole = true
 		case NhaFdb:
 			nh.Fdb = true
+		case NhaDstPort:
+			if len(val) != 2 {
+				perr = ErrNhDstPortLen
+				return
+			}
+			nh.DstPort, nh.HasDstPort = binary.BigEndian.Uint16(val), true
 		case NhaGroup:
 			nh.HasGroup = true
 			groupRaw = CopyBytes(val)
@@ -189,7 +205,7 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			}
 		}
 	})
-	if err != nil {
+	if err = errors.Join(err, perr); err != nil {
 		return nh, err
 	}
 	if err := resolveNhGroup(&nh, groupRaw); err != nil {
