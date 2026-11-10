@@ -371,6 +371,8 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 
 - **The capture.** Capture, with the gate.
 - **The order.** From the bare-show rows on the bridge and bond topologies, pin the order ip prints the groups in and record it in the decision log. Then check that the same order holds on a second boot.
+  - Pinned in `wsStatsOrder`; `TestWsStatsGroupOrder` holds every device of every bare text show to it.
+- **No traffic.** The first gate's two boots differed in the link counters of the bridge topologies: an up bridge sends a packet or two, a different count each boot. The bridge now stays down, as the bond does.
 - **O3** (`xtcpnl_ws_stats_test.go`) checks each request's `filter_mask` and `IFLA_STATS_GET_FILTERS` nest:
   - the nest appears only when a sub-mask is neither 0 nor full;
   - `l3_stats` is `{4: 0x6}`, `cpu_hit` `{4: 0x1}` and `hw_stats_info` `{4: 0x2}`;

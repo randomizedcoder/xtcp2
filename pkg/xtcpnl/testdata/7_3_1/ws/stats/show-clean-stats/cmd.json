@@ -1,0 +1,33 @@
+{
+ "axes": {
+  "mask": "31"
+ },
+ "cmd": "ip -s stats show",
+ "desc": "positive: the bare show on the clean topology, stats",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "stats/show-clean-stats",
+ "modules": [
+  "bonding",
+  "mpls_router"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

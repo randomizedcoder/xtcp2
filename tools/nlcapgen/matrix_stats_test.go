@@ -31,7 +31,7 @@ func TestStatsFamily(t *testing.T) {
 		{"corner: link afstats dev dumps, then filters", "stats/link-afstats-dev-text", "ip link afstats dev d0 0 none 16  "},
 		{"positive: xstats_slave", "stats/xstats-bond-slave-text", "ip link xstats type bond_slave 0 none 4  "},
 		{"negative: a subgroup with no group", "stats/err-orphan-subgroup", "ip stats show subgroup l3_stats 22 iproute2   "},
-		{"negative: dev twice", "stats/err-dev-twice", "ip stats show dev d0 dev d0 255 ack-then-fail   "},
+		{"negative: dev twice", "stats/err-dev-twice", "ip stats show dev d0 dev d0 255 iproute2   "},
 		{"negative: a device that isn't there", "stats/err-nosuch-dev", "ip stats show dev nosuch 1 kernel   "},
 		{"corner: help is rc 0", "stats/err-help", "ip stats help 0 none   "},
 		{"negative: stats set x", "stats/set-x", "ip stats set dev d0 l3_stats x 22 iproute2   "},

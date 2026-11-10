@@ -1,0 +1,5 @@
+3: d0: group offload subgroup l3_stats on used off
+    RX: bytes packets errors dropped   mcast
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 

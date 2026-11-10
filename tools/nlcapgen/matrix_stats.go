@@ -8,7 +8,8 @@ package main
 // The batch loads mpls_router before any row runs, so every device has
 // AF_MPLS stats (afstats's mpls subgroup). Nothing in a topology sends
 // traffic, so the counters stay still: no device has a link-local
-// address, and the bond stays down.
+// address, and the bridge and the bond stay down (an up bridge sends a
+// packet or two, a different count each boot).
 
 // statsModules: bonding for the bond topology, mpls_router for afstats.
 var statsModules = []string{"bonding", "mpls_router"}
@@ -19,7 +20,7 @@ const statsDummy = "ip link add d0 type dummy && ip link set d0 addrgenmode none
 var statsTopologies = []struct{ name, setup string }{
 	{"clean", statsDummy},
 	{"bridge", statsDummy + " && ip link add br0 type bridge && ip link set br0 addrgenmode none" +
-		" && ip link set d0 master br0 && ip link set br0 up"},
+		" && ip link set d0 master br0"},
 	{"bond", statsDummy + " && ip link add bond0 type bond mode 802.3ad" +
 		" && ip link add d2 type dummy && ip link add d3 type dummy && ip link set d2 master bond0 && ip link set d3 master bond0"},
 	{"l3", statsDummy + " && ip stats set dev d0 l3_stats on"},
@@ -29,7 +30,7 @@ var statsTopologies = []struct{ name, setup string }{
 // select a group.
 const statsFull = statsDummy + " && ip stats set dev d0 l3_stats on" +
 	" && ip link add br0 type bridge && ip link set br0 addrgenmode none" +
-	" && ip link add d1 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link set br0 up && ip link set d1 up" +
+	" && ip link add d1 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0" +
 	" && ip link add bond0 type bond mode 802.3ad" +
 	" && ip link add d2 type dummy && ip link add d3 type dummy && ip link set d2 master bond0 && ip link set d3 master bond0"
 
@@ -93,7 +94,7 @@ func statsFamily() []row {
 		{"suite-no-subgroup", "stats show group xstats suite bond", expect{RC: intp(22), RefusedBy: "iproute2"},
 			"a suite with no subgroup (requested without selecting a subgroup first)"},
 		{"nosuch-group", "stats show group nosuch", expect{RC: intp(22), RefusedBy: "iproute2"}, "an unknown group (no group named nosuch)"},
-		{"dev-twice", "stats show dev d0 dev d0", expect{RC: intp(255), RefusedBy: "ack-then-fail"}, "dev twice, after the first's lookup"},
+		{"dev-twice", "stats show dev d0 dev d0", expect{RC: intp(255), RefusedBy: "iproute2"}, "dev twice (either \"dev\" is duplicate)"},
 		{"nosuch-word", "stats show nosuch", expect{RC: intp(22), RefusedBy: "iproute2"}, `an unknown word (What is "nosuch"?)`},
 		{"nosuch-dev", "stats show dev nosuch", expect{RC: intp(1), Errno: "ENODEV", RefusedBy: "kernel"}, "a device that isn't there"},
 	}

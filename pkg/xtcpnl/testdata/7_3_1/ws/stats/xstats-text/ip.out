@@ -1,0 +1,71 @@
+1: lo: group xstats subgroup bond suite 802.3ad
+1: lo: group xstats subgroup bridge suite vlan
+1: lo: group xstats subgroup bridge suite mcast
+1: lo: group xstats subgroup bridge suite stp
+
+2: nlmon0: group xstats subgroup bond suite 802.3ad
+2: nlmon0: group xstats subgroup bridge suite vlan
+2: nlmon0: group xstats subgroup bridge suite mcast
+2: nlmon0: group xstats subgroup bridge suite stp
+
+3: d0: group xstats subgroup bond suite 802.3ad
+3: d0: group xstats subgroup bridge suite vlan
+3: d0: group xstats subgroup bridge suite mcast
+3: d0: group xstats subgroup bridge suite stp
+
+4: br0: group xstats subgroup bond suite 802.3ad
+4: br0: group xstats subgroup bridge suite vlan
+                  1 PVID Egress Untagged
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+
+4: br0: group xstats subgroup bridge suite mcast
+                    IGMP queries:
+                      RX: v1 0 v2 0 v3 0
+                      TX: v1 0 v2 0 v3 0
+                    IGMP reports:
+                      RX: v1 0 v2 0 v3 0
+                      TX: v1 0 v2 0 v3 0
+                    IGMP leaves: RX: 0 TX: 0
+                    IGMP parse errors: 0
+                    MLD queries:
+                      RX: v1 0 v2 0
+                      TX: v1 0 v2 0
+                    MLD reports:
+                      RX: v1 0 v2 0
+                      TX: v1 0 v2 0
+                    MLD leaves: RX: 0 TX: 0
+                    MLD parse errors: 0
+
+4: br0: group xstats subgroup bridge suite stp
+
+5: d1: group xstats subgroup bond suite 802.3ad
+5: d1: group xstats subgroup bridge suite vlan
+5: d1: group xstats subgroup bridge suite mcast
+5: d1: group xstats subgroup bridge suite stp
+
+6: bond0: group xstats subgroup bond suite 802.3ad
+                    LACPDU Rx 0
+                    LACPDU Tx 0
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+6: bond0: group xstats subgroup bridge suite vlan
+6: bond0: group xstats subgroup bridge suite mcast
+6: bond0: group xstats subgroup bridge suite stp
+
+7: d2: group xstats subgroup bond suite 802.3ad
+7: d2: group xstats subgroup bridge suite vlan
+7: d2: group xstats subgroup bridge suite mcast
+7: d2: group xstats subgroup bridge suite stp
+
+8: d3: group xstats subgroup bond suite 802.3ad
+8: d3: group xstats subgroup bridge suite vlan
+8: d3: group xstats subgroup bridge suite mcast
+8: d3: group xstats subgroup bridge suite stp
+

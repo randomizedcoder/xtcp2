@@ -1,0 +1,9 @@
+What is "nosuch"?
+Usage: ip stats help
+       ip stats show [ dev DEV ] [ group GROUP [ subgroup SUBGROUP [ suite SUITE ] ... ] ... ] ...
+       ip stats set dev DEV l3_stats { on | off }
+GROUP := { link | xstats | xstats_slave | offload | afstats }
+xstats SUBGROUP := { bridge [ suite stp ] [ suite mcast ] [ suite vlan ] | bond [ suite 802.3ad ] }
+xstats_slave SUBGROUP := { bridge [ suite stp ] [ suite mcast ] [ suite vlan ] | bond [ suite 802.3ad ] }
+offload SUBGROUP := { cpu_hit | hw_stats_info | l3_stats }
+afstats SUBGROUP := { mpls }
