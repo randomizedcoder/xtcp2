@@ -153,8 +153,8 @@ func TestResolveShow(t *testing.T) {
 		},
 		{
 			name: "unimplemented_object", category: "negative",
-			description: "m is maddress, which goip does not implement",
-			inputs:      [][]string{{"m"}}, wantErr: ErrNotImplemented, wantMsg: "ip maddress show:",
+			description: "tunn is tunnel, which goip does not implement",
+			inputs:      [][]string{{"tunn"}}, wantErr: ErrNotImplemented, wantMsg: "ip tunnel show:",
 		},
 		{
 			name: "unknown_verb", category: "negative",
@@ -553,7 +553,7 @@ func TestLookupObjectExported(t *testing.T) {
 		{name: "full_length", category: "boundary", description: "addrlabel spelled in full", tok: "addrlabel", expected: "addrlabel"},
 		{name: "one_longer", category: "boundary", description: "addressx matches no object", tok: "addressx", wantErr: ErrUnknownObject},
 		{name: "unknown", category: "negative", description: "zz is no object", tok: "zz", wantErr: ErrUnknownObject},
-		{name: "unimplemented", category: "negative", description: "m is maddress, named as the command ip would run", tok: "m", wantErr: ErrNotImplemented, wantMsg: "ip maddress show:"},
+		{name: "unimplemented", category: "negative", description: "tunn is tunnel, named as the command ip would run", tok: "tunn", wantErr: ErrNotImplemented, wantMsg: "ip tunnel show:"},
 		{name: "empty", category: "corner", description: "an empty token matches nothing", tok: "", wantErr: ErrUnknownObject},
 	}
 	for _, tt := range tests {
@@ -592,7 +592,7 @@ func TestIsVerb(t *testing.T) {
 		{name: "exact_stats", category: "boundary", description: "stats compares with strcmp, so sh is no verb", object: "stats", tok: "sh", expected: false},
 		{name: "alias_not_canonical", category: "corner", description: "only canonical names are looked up; ntbl is LookupObject's job", object: "ntbl", tok: "show", expected: true},
 		{name: "unknown_object", category: "corner", description: "an object goip has no row for has no verbs", object: "zz", tok: "show", expected: false},
-		{name: "unimplemented_object", category: "corner", description: "maddress has no chain", object: "maddress", tok: "show", expected: false},
+		{name: "unimplemented_object", category: "corner", description: "tunnel has no chain", object: "tunnel", tok: "show", expected: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {

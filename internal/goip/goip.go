@@ -169,7 +169,7 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
 		errors.Is(err, ErrFouDumpTerminated), errors.Is(err, ErrIlaUsage), errors.Is(err, ErrIlaDumpTerminated),
 		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage),
-		errors.Is(err, ErrVrfUsage):
+		errors.Is(err, ErrVrfUsage), errors.Is(err, ErrMaddrUsage):
 		return ExitMinusOne
 	case errors.Is(err, ErrLinkUsage):
 		// Ahead of ErrInvalidArgument, which its refusals wrap.

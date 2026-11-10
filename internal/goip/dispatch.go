@@ -77,7 +77,7 @@ const (
 var objects = []object{
 	{name: addressObjectCst, run: runAddress, outputModes: true, verbs: addressVerbs},
 	{name: "addrlabel", run: runAddrLabel, verbs: addrLabelVerbs},
-	{name: "maddress"},
+	{name: "maddress", run: runMaddr, verbs: maddrVerbs},
 	{name: objRouteCst, run: runRoute, verbs: routeVerbs},
 	{name: "rule", run: runRule, verbs: ruleVerbs},
 	{name: "neighbor", run: runNeigh, verbs: neighVerbs},

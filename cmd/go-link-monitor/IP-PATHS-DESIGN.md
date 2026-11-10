@@ -35,6 +35,7 @@ Every path is on `-metrics-addr`, answers GET and HEAD only (anything else is
 | `/ip/netconf` | `ip -j netconf show` | `dev`, `family` |
 | `/ip/ntable` | `ip -j ntable show` | `family`, `stats` |
 | `/ip/addrlabel` | `ip -j addrlabel show` | none |
+| `/ip/maddr` | `ip -j maddress show` | `dev`, `family` |
 | `/ip/mroute` | `ip -j mroute show` | `table=main\|local\|default\|all\|N`, `iif`, `family`, `stats` |
 | `/ip/mrule` | `ip -j mrule show` | `family` |
 | `/ip/token` | `ip -j token show` | `dev` |
