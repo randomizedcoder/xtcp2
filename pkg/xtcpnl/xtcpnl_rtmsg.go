@@ -149,6 +149,13 @@ type RouteInfo struct {
 	// RTA_DST, one entry: ParseMPLSLabels(Dst). See xtcpnl_mpls.go.
 	NewDst []MPLSLabel
 
+	// TTLPropagate is an AF_MPLS route's RTA_TTL_PROPAGATE, 1 enabled or 0
+	// disabled, when HasTTLPropagate. The kernel sends it only for a route
+	// that set it (mpls_dump_route, net/mpls/af_mpls.c); absent is the
+	// sysctl's default, and ip prints nothing for it.
+	TTLPropagate    uint8
+	HasTTLPropagate bool
+
 	// Encap is RTA_ENCAP_TYPE and RTA_ENCAP, nil when neither is present:
 	// `encap mpls 100/200` on an IP route. See xtcpnl_mpls.go.
 	Encap *RouteEncap
@@ -258,6 +265,11 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 		if len(val) >= 1 {
 			ri.Pref = val[0]
 			ri.HasPref = true
+		}
+	case uint16(unix.RTA_TTL_PROPAGATE):
+		// Its first byte, as rta_getattr_u8 reads it (ip/iproute.c).
+		if len(val) >= 1 {
+			ri.TTLPropagate, ri.HasTTLPropagate = val[0], true
 		}
 	case uint16(unix.RTA_TABLE):
 		if len(val) >= 4 {

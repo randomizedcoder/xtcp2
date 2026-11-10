@@ -425,7 +425,8 @@ Each task gets a table test from the captures, a parse benchmark over the corpus
 | positive: `ttl-propagate enabled` | an `mpls` dump with it | 1, present |
 | positive: `disabled` | `mpls/show` (label 102) | 0, present |
 | corner: absent | `mpls/ec-001` dump | not present |
-| negative: a u32 | hand-built | error |
+| corner: a u32 | hand-built | its first byte, as `rta_getattr_u8` reads it |
+| negative: an empty payload | hand-built | not present, as for the other scalars |
 | positive: a 30-label stack | `mpls/bd-*` dump | 30 labels, BoS on the last |
 
 ### NP3 `IFLA_OVPN_MODE`

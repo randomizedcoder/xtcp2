@@ -11,9 +11,9 @@
   - every family has been replayed at 7.3.0 and diffed (`nlcapgen verdiff`), and the 42 `v730` rows are captured at both versions;
   - the 101 `stats` rows are captured, and the order the bare show prints groups in is pinned.
 - **Captures came first.** Tier C ran the workbench at iproute2 7.2.0 and 7.3.0. Tier P (NP1–NP6) and Tier G (NX1–NX5) now have their tables in the plan, written from those rows.
-- **Tier P is under way:** NP1 decodes `NHA_DST_PORT` on reads.
+- **Tier P is under way:** NP1 decodes `NHA_DST_PORT` on reads, NP2 `RTA_TTL_PROPAGATE`.
 
-**Next action:** Tier P, NP2 (`RTA_TTL_PROPAGATE`).
+**Next action:** Tier P, NP3 (`IFLA_OVPN_MODE`).
 
 ## Contents
 
@@ -58,7 +58,8 @@
 | [x] | [NC4-T02](goip-parity-next.md#nc4-t02-capture-and-the-order) | capture, the group order, O3 | done | V024–V026 |
 | [x] | [NC5-T01](goip-parity-next.md#nc5--the-tier-closes) | recount; write Tier P and G tables | done | V027 |
 | [x] | [NP1](goip-parity-next.md#np1-nha_dst_port-on-reads) | `NHA_DST_PORT` on reads | done | V028 |
-| [ ] | [NP2](goip-parity-next.md#np2-the-af_mpls-route-attributes) | `RTA_TTL_PROPAGATE` | not started | — |
+| V029 | 2026-11-09 | NP2 | `TestParseNewRouteTTLPropagate`, `TestWsMplsShowCorpus`, `FuzzParseNewRoute` (30 s, 2 captured seeds added); `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `RouteInfo` gains `TTLPropagate` and `HasTTLPropagate`. The table has 8 rows; its 5 captured bodies are compared with the mpls show pcaps. The corpus test decodes all 78 AF_MPLS routes of the mpls shows and holds each one's ttl-propagate (29) and top-level `as` stack (49) to what ip printed. Mutants: presence never set, the value fixed at 1, the last byte read, a one-byte payload dropped. All 4 were killed. `setRouteAttr` is at gocyclo 25 (ceiling 30). misspell flagged the test regex for ip's misspelled key; a character class now matches it | this commit |
+| [x] | [NP2](goip-parity-next.md#np2-the-af_mpls-route-attributes) | `RTA_TTL_PROPAGATE` | done | V029 |
 | [ ] | [NP3](goip-parity-next.md#np3-ifla_ovpn_mode) | `IFLA_OVPN_MODE` | not started | — |
 | [ ] | [NP4](goip-parity-next.md#np4-seg6_iptunnel_table-on-reads) | `SEG6_IPTUNNEL_TABLE` on reads | not started | — |
 | [ ] | [NP5](goip-parity-next.md#np5-af_mpls-link-stats) | AF_MPLS link stats | not started | — |
@@ -125,3 +126,4 @@
 - **The `maddress` requests are 24 bytes, not the 152 the plan said:** a header and an `ifaddrmsg`, one dump per family.
 - **The bare `ip stats show` order is pinned from the captures.** ip prints a device's groups in the order of its sorted descriptor pointers, not the table's. At 7.2.0 on this build, that is the same 13-leaf order on every device, topology and boot (V025). goip's NX5 renders in `wsStatsOrder`. A different `ip` build could print another order, so NX4's move to 7.3.0 rechecks it.
 - **Tier P drops the CPU_HIT and L3_STATS decoders.** No workbench device reports either body, so their tests would only read hand-built bytes. They wait for a capture, from hardware or netdevsim.
+- **`RTA_TTL_PROPAGATE` reads like the other route scalars.** The plan had a u32 payload as an error. `setRouteAttr`'s scalars never fail: an empty payload is dropped, and a longer one is read from its first byte, as `rta_getattr_u8` in ip reads it. A u32 then decodes the same as ip prints it. The plan's NP2 table now says so.
