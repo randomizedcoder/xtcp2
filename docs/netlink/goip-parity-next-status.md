@@ -5,10 +5,12 @@
 **Summary:**
 - The design and the task plan are in [goip-parity-next.md](goip-parity-next.md). This document tracks progress against them.
 - The plan is written (DOC001). It follows the closed plans: [goip-lwt-srv6.md](goip-lwt-srv6.md) and those before it.
-- NC0 and NC1 are done. The workbench runs rows with either iproute2 (`--ip`), and the 12 `linkns` rows are captured at kernel 7.3.1.
+- NC0, NC1 and NC2 are done:
+  - the workbench runs rows with either iproute2 (`--ip`);
+  - the 12 `linkns` rows and the 115 `mpls` rows are captured at kernel 7.3.1, with their O3 tests.
 - **Captures come first.** Tier C runs the workbench at iproute2 7.2.0 and 7.3.0. Tiers P and G are outlined until NC5-T01 writes their tables.
 
-**Next action:** NC2-T02, the `mpls` capture and O3.
+**Next action:** NC3-T01, every family replayed at iproute2 7.3.0.
 
 ## Contents
 
@@ -31,7 +33,7 @@
 |---|---|---|---|---|
 | [NC0](goip-parity-next.md#nc0--two-iproute2-versions-in-the-workbench) | two iproute2 versions in the workbench | NC0-T01 | done | V001–V003 |
 | [NC1](goip-parity-next.md#nc1--link-set--netns) | `link set … netns` rows | NC1-T01 | done | V004–V007 |
-| [NC2](goip-parity-next.md#nc2--mpls-family-routes) | MPLS-family route rows | NC2-T02 | in progress | V008–V009 |
+| [NC2](goip-parity-next.md#nc2--mpls-family-routes) | MPLS-family route rows | NC2-T02 | done | V008–V012 |
 | [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | not started | — |
 | [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | not started | — |
 | [NC5](goip-parity-next.md#nc5--the-tier-closes) | Tier C closes | NC5-T01 | not started | — |
@@ -45,7 +47,7 @@
 | [x] | [NC0-T01](goip-parity-next.md#nc0-t01-batch---ip) | `batch --ip`, `iproute2_7_3_0` | done | V001–V003 |
 | [x] | [NC1-T01](goip-parity-next.md#nc1-t01-the-netns-forms) | the netns forms | done | V004–V007 |
 | [x] | [NC2-T01](goip-parity-next.md#nc2-t01-the-mpls-family) | the `mpls` family | done | V008–V009 |
-| [ ] | [NC2-T02](goip-parity-next.md#nc2-t02-capture-and-o3) | capture, O3 | not started | — |
+| [x] | [NC2-T02](goip-parity-next.md#nc2-t02-capture-and-o3) | capture, O3 | done | V010–V012 |
 | [ ] | [NC3-T01](goip-parity-next.md#nc3-t01-every-family-at-730) | every family at 7.3.0, `verdiff` | not started | — |
 | [ ] | [NC3-T02](goip-parity-next.md#nc3-t02-the-730-forms) | the `v730` family | not started | — |
 | [ ] | [NC3-T03](goip-parity-next.md#nc3-t03-capture-both-versions-and-o3) | capture both versions, O3 | not started | — |
@@ -67,6 +69,9 @@
 | V007 | 2026-11-09 | NC1-T01 | lint-baseline, netlink-audit, codespell | pass | this commit |
 | V008 | 2026-11-09 | NC2-T01 | Two probe batches (38 and 23 forms), then calibration batches of the generated rows | The first calibration had 11 rows at 255: `ttl-propagate` after the nexthops, which `parse_nexthops` reads as a hop word. With the ttl axis moved before via, `rows=115 ok=115`. Two expectations were corrected after `TestWsCorpusRows` (V010's capture): `dev nosuch` is ENODEV from ip's own lookup, and `ttl-after-hops` is ack-then-fail | this commit |
 | V009 | 2026-11-09 | NC2-T01 | `go vet`; `go test -count=1 -race ./tools/nlcapgen/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestMplsRows` (19 rows), `TestMplsSpace` (6 properties) and `TestMplsCoverage` (each axis's values, 115 rows, the same bytes twice). Mutants: no del setup; label 15 refused by `ip`; one module; the `en` value dropped. All 4 were killed. lint-baseline first found a `prealloc` and a `misspell` (the row description quoted `ip`'s misspelling). Both were fixed in code | this commit |
+| V010 | 2026-11-09 | NC2-T02 | Two fresh-boot batches of `mpls.rows.jsonl` (kernel 7.3.1, iproute2 7.2.0, host load 43–58); each row's rc, message types and request bytes, and every readback's text, compared | `rows=115 ok=115 not_ok=0` both times. The boots agree on all 115 rows, byte for byte, readbacks included. The first is in `testdata/7_3_1/ws/mpls` (306 KB). `TestWsCorpusRows` corrected two rows' `refused_by` (V008), and the two captures' `cmd.json` were given the corrected `expect` and `desc`, as was `show-json`'s reworded `desc` | this commit |
+| V011 | 2026-11-09 | NC2-T02 | `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G` | All pass. `TestWsMplsCorpus`: O3 checks 101 requests, O4 84 tables. The 14 rows refused before sending send none; `dev nosuch` stops at ip's lookup. `TestMplsRequestProblem` has 15 rows and `TestMplsTableProblem` 8. Mutants: the TTL width check; the last `as` winning; the hop device; the hop stack; a del's label left behind. All 5 were killed. The last survived until `TestMplsTableProblem` was added | this commit |
+| V012 | 2026-11-09 | NC2-T02 | lint-baseline, netlink-audit, codespell | pass | this commit |
 
 ## Decision log
 
@@ -77,3 +82,4 @@
 - **New captures go under `testdata/7_3_1/`.** The workbench boots kernel 7.3.1 now, and the corpus directory names the kernel that answered. The O3 tests read every `testdata/*/ws`. O5 (`TestWsGoipDifferential`) still reads only `7_3_0/ws`; NX2 widens it. The `linkattr` rows recaptured at 7.3.1 matched the 7.3.0 corpus byte for byte, so the old rows stay where they are.
 - **`linkns` is a space of its own, with named rows.** Adding to `linkattr`'s axes would renumber its committed `ec`/`ng` rows. And a create and a real move don't fit `linkattr`'s O3 model of a set on d0.
 - **MPLS rows set `platform_labels` through `/proc/sys`.** A pre step runs in the row's namespace, so the write is per row and needs no `sysctl` binary.
+- **`ParseNewRoute` is not changed for an IP route's RTA_NEWDST.** `ip route add … as 200` sends one, and the kernel ignores it, so no dump carries it. O3 reads that request raw.

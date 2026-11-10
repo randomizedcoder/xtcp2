@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "dst": "100",
+  "oif": "d0",
+  "verb": "add",
+  "via": "inet:10.0.0.2"
+ },
+ "cmd": "ip -f mpls route add 100 via inet 10.0.0.2 dev d0",
+ "desc": "negative: no platform_labels set (Label >= configured maximum in platform_labels)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "mpls/no-platform",
+ "modules": [
+  "mpls_router",
+  "mpls_iptunnel"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 10.0.0.1/24 dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -f mpls route show",
+   "name": "show"
+  },
+  {
+   "cmd": "ip -j -f mpls route show",
+   "name": "showj"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 10.0.0.1/24 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

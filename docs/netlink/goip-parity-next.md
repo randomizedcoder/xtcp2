@@ -256,6 +256,11 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 | negative: a hand-built row, `RTA_TTL_PROPAGATE` as u32 | | O3 problem width |
 | corner: an rc 255 row | `ttl-propagate maybe` | no request in the pcap |
 
+- **O4, added.** After a write with rc 0, `mplsTableProblem` reads the `show` readback's dump. The label is there after an add or replace, with the stack the kernel kept (the last `as`; none at the top with nexthops), and gone after a del.
+- **Two rows O3 can't model the general way:**
+  - `dev nosuch` is refused at ip's own RTM_GETLINK, so no route request is sent;
+  - `as` on an IP route is an address, not a label stack, so it is checked raw: `ParseNewRoute` would read it as labels and fail its bottom-of-stack check. The kernel never sends such a route, so the parser stays as it is.
+
 ### NC3 — iproute2 7.3.0
 
 #### NC3-T01 every family at 7.3.0
