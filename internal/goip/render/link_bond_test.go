@@ -319,7 +319,7 @@ func TestBondRenderCoversOptionTable(t *testing.T) {
 				t.Fatalf("wire %d has no payload here; BondOptions should not use it", spec.Wire)
 			}
 			k := bondData(xtcpnl.ParseBondInfoData(nla(spec.ID, payload)), fakeNames{1: {name: "p1"}})
-			expected := !bondNotPrinted[spec.ID]
+			expected := !bondNotPrinted(spec.ID)
 			if got := k.Text() != ""; got != expected {
 				t.Errorf("printed = %v, want %v (text %q)", got, expected, k.Text())
 			}

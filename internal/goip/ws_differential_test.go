@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -41,13 +42,33 @@ const wsCorpusDir = "../../pkg/xtcpnl/testdata/7_3_0/ws"
 // (goip-parity-next.md, Tier C), at iproute2 7.2.0.
 const wsCorpusDir731 = "../../pkg/xtcpnl/testdata/7_3_1/ws"
 
-// wsO5SpaceDir is the corpus a space's rows are under: 7.3.1's for those
-// captured there, else 7.3.0's.
-func wsO5SpaceDir(sp string) string {
-	if sp == "linkns" || sp == "mpls" {
-		return wsCorpusDir731
+// wsCorpusDir731IP730 is the corpus of the rows run on kernel 7.3.1 at
+// iproute2 7.3.0 (goip-parity-next.md, NC3-T02).
+const wsCorpusDir731IP730 = "../../pkg/xtcpnl/testdata/7_3_1/ws-ip730"
+
+// wsO5IP730Prefix marks a space O5 reads from wsCorpusDir731IP730, as
+// iproute2 7.3.0.
+const wsO5IP730Prefix = "ip730/"
+
+// wsO5SpacePath is the directory of a space's rows: 7.3.1's for those
+// captured there, at 7.3.0 for an ip730/ space, else 7.3.0's kernel.
+func wsO5SpacePath(sp string) string {
+	if name, ok := strings.CutPrefix(sp, wsO5IP730Prefix); ok {
+		return filepath.Join(wsCorpusDir731IP730, name)
 	}
-	return wsCorpusDir
+	if sp == "linkns" || sp == "mpls" || strings.HasPrefix(sp, "v730") {
+		return filepath.Join(wsCorpusDir731, sp)
+	}
+	return filepath.Join(wsCorpusDir, sp)
+}
+
+// useWsO5Release sets the knobs to the release a space's rows ran: 7.3.0
+// for an ip730/ space, else 7.2.0.
+func useWsO5Release(sp string) {
+	ip730 := strings.HasPrefix(sp, wsO5IP730Prefix)
+	LLAddrStrict = ip730
+	render.RenderBondLacpStrict = ip730
+	render.RenderNhDstPort = ip730
 }
 
 // wsO5Golden lists every row whose outcome is not "same".
@@ -56,11 +77,14 @@ const wsO5Golden = "testdata/ws-differential.txt"
 // wsO5Spaces are the row directories O5 reads, in report order: the
 // matrix's, then those mined from the fib selftests, then the address,
 // neighbor and link matrices', then the kwlive keyword forms', then the
-// lwt encap forms', then the lwtx ones', then the netns and MPLS rows'.
+// lwt encap forms', then the lwtx ones', then the netns and MPLS rows',
+// then NC3-T02's rows at 7.2.0 and at 7.3.0.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
 	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
 	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh",
-	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh", "linkns", "mpls"}
+	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh", "linkns", "mpls",
+	"v730lladdr", "v730nh", "v730bond", "v730seg6", "v730ovpn", "v730maddr",
+	"ip730/v730lladdr", "ip730/v730nh", "ip730/v730bond", "ip730/v730seg6", "ip730/v730ovpn", "ip730/v730maddr"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -616,14 +640,16 @@ func TestWsGoipDifferential(t *testing.T) {
 	counts := map[string]map[string]int{}
 	lookupNotes := map[string]int{}
 	padRows, encapPadRows := 0, 0
+	t.Cleanup(func() { useWsO5Release("") })
 	for _, sp := range wsO5Spaces {
-		ents, err := os.ReadDir(filepath.Join(wsO5SpaceDir(sp), sp))
+		useWsO5Release(sp)
+		ents, err := os.ReadDir(wsO5SpacePath(sp))
 		if err != nil {
 			t.Fatal(err)
 		}
 		counts[sp] = map[string]int{}
 		for _, e := range ents {
-			dir := filepath.Join(wsO5SpaceDir(sp), sp, e.Name())
+			dir := filepath.Join(wsO5SpacePath(sp), e.Name())
 			b, err := os.ReadFile(filepath.Join(dir, "cmd.json"))
 			if err != nil {
 				t.Fatal(err)
@@ -651,11 +677,15 @@ func TestWsGoipDifferential(t *testing.T) {
 				counts[sp]["lookups"]++
 				lookupNotes[lookups]++
 			}
+			id := row.ID
+			if strings.HasPrefix(sp, wsO5IP730Prefix) {
+				id = wsO5IP730Prefix + id
+			}
 			if outcome != o5Same {
-				report = append(report, fmt.Sprintf("%s %s rc=%d %s | %s", row.ID, outcome, row.Result.RC, detail, row.Cmd))
+				report = append(report, fmt.Sprintf("%s %s rc=%d %s | %s", id, outcome, row.Result.RC, detail, row.Cmd))
 			}
 			if lookups != "" && !wsO5MaskOnly(lookups) {
-				report = append(report, fmt.Sprintf("%s lookups rc=%d %s | %s", row.ID, row.Result.RC, lookups, row.Cmd))
+				report = append(report, fmt.Sprintf("%s lookups rc=%d %s | %s", id, row.Result.RC, lookups, row.Cmd))
 			}
 		}
 		if len(ents) == 0 {

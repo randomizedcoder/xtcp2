@@ -548,6 +548,8 @@ NX3b's VM rows are reads, after the writes for the same reason:
 
 ### NX4 the target moves to 7.3.0
 
+NX4 is four tasks: NX4a the render and parse knobs (`RenderBondLacpStrict`, `RenderNhDstPort`, `LLAddrStrict`), each defaulting to 7.3.0 and set to 7.2.0 by the TestMains; NX4b the write keywords and ovpn's `-d`; NX4c `maddress show`; NX4d the pin, the matrix under 7.3.0 and a full run. O5 reads `ws/v730*` at 7.2.0 and `ws-ip730/v730*` at 7.3.0, and `TestWsV730Readbacks` replays every v730 readback at its release.
+
 The pin moves (the `flake.nix` overlay or nixpkgs, and `upstream-pins.json`). The matrix runs under 7.3.0, and the `dpll-pin` comments are corrected. The changes come from NC3's version diff (V015, V016) and the `v730` corpus:
 
 | description | input | expected |

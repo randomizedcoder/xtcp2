@@ -74,11 +74,18 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 		b.WriteString("onlink ")
 	}
 	// print_null fdb (ip/ipnexthop.c:597), after the rt_flags, for a nexthop that
-	// belongs to a bridge fdb (via but no dev). iproute2 7.1.0 emits "fdb" with no
-	// trailing space (the captured ip_nexthop_fdb line ends "fdb\n"); it is the
-	// terminal token here, so no later token needs the separator.
+	// belongs to a bridge fdb (via but no dev). Before 7.3.0 it is "fdb" with no
+	// trailing space (the captured ip_nexthop_fdb line ends "fdb\n"); 7.3.0
+	// adds the space, and print_uint dst_port after it for a nonzero port
+	// (RenderNhDstPort).
 	if nh.Fdb {
 		b.WriteString("fdb")
+		if RenderNhDstPort {
+			b.WriteByte(' ')
+		}
+	}
+	if RenderNhDstPort && nh.DstPort != 0 {
+		fmt.Fprintf(&b, "dst_port %d ", nh.DstPort)
 	}
 	return b.String(), nil
 }
@@ -147,6 +154,7 @@ type NexthopView struct {
 	Protocol  string   // "" when suppressed (unspec and not -d)
 	Flags     []string // always non-nil; empty renders []
 	Fdb       bool
+	DstPort   uint16 // 0 when not printed: absent, zero, or before 7.3.0
 }
 
 // nhGroupMember is one NHA_GROUP entry: weight is 0 when it is 1, which
@@ -208,6 +216,9 @@ func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopVi
 		v.Protocol = routeProtoName(nh.Protocol)
 	}
 	v.Fdb = nh.Fdb
+	if RenderNhDstPort {
+		v.DstPort = nh.DstPort
+	}
 	return v, nil
 }
 
@@ -301,6 +312,10 @@ func (v NexthopView) MarshalJSON() ([]byte, error) {
 	if v.Fdb {
 		sep()
 		b.WriteString(`"fdb":null`)
+	}
+	if v.DstPort != 0 {
+		sep()
+		fmt.Fprintf(&b, `"dst_port":%d`, v.DstPort)
 	}
 	b.WriteByte('}')
 	return b.Bytes(), nil

@@ -36,6 +36,38 @@
 # lwtxnh: 4 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # linkns: 12 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # mpls: 109 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 6
+# v730lladdr: 11 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# v730nh: 9 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# v730bond: 6 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# v730seg6: 6 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# v730ovpn: 1 same, 3 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# v730maddr: 0 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 6
+# ip730/v730lladdr: 11 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# ip730/v730nh: 3 same, 6 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# ip730/v730bond: 2 same, 4 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# ip730/v730seg6: 2 same, 4 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# ip730/v730ovpn: 1 same, 3 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# ip730/v730maddr: 0 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 6
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # encap padding: 42 rows: ip sends stack bytes in an encap or after its type, on a nexthop, a route or a hop; zeroed before comparing
 linkattr/xdp-not-last refuses rc=255 link keyword "xdp": an XDP program: object recognized but not implemented by goip | ip link set dev d0 xdp off carrier on
+v730ovpn/mp refuses rc=1 link type "ovpn" options: object recognized but not implemented by goip | ip link add o0 type ovpn mode mp
+v730ovpn/p2p refuses rc=1 link type "ovpn" options: object recognized but not implemented by goip | ip link add o0 type ovpn mode p2p
+v730ovpn/x refuses rc=1 link type "ovpn" options: object recognized but not implemented by goip | ip link add o0 type ovpn mode x
+ip730/v730nh/0 refuses rc=2 invalid argument: Error: argument "dst_port" is wrong: | ip nexthop add id 1 via 192.0.2.2 fdb dst_port 0
+ip730/v730nh/4789 refuses rc=0 invalid argument: Error: argument "dst_port" is wrong: | ip nexthop add id 1 via 192.0.2.2 fdb dst_port 4789
+ip730/v730nh/65535 refuses rc=0 invalid argument: Error: argument "dst_port" is wrong: | ip nexthop add id 1 via 192.0.2.2 fdb dst_port 65535
+ip730/v730nh/inet6 refuses rc=0 invalid argument: Error: argument "dst_port" is wrong: | ip -6 nexthop add id 1 via 2001:db8:1::2 fdb dst_port 4789
+ip730/v730nh/nofdb refuses rc=2 invalid argument: Error: argument "dst_port" is wrong: | ip nexthop add id 1 via 192.0.2.2 dev d0 dst_port 4789
+ip730/v730nh/replace refuses rc=0 invalid argument: Error: argument "dst_port" is wrong: | ip nexthop replace id 1 via 192.0.2.2 fdb dst_port 4790
+ip730/v730bond/active-backup refuses rc=2 invalid argument: bond: unknown command "lacp_strict"? | ip link add b0 type bond mode active-backup lacp_strict on
+ip730/v730bond/off refuses rc=0 invalid argument: bond: unknown command "lacp_strict"? | ip link add b0 type bond mode 802.3ad lacp_strict off
+ip730/v730bond/on refuses rc=0 invalid argument: bond: unknown command "lacp_strict"? | ip link add b0 type bond mode 802.3ad lacp_strict on
+ip730/v730bond/set refuses rc=0 invalid argument: bond: unknown command "lacp_strict"? | ip link set dev b0 type bond lacp_strict on
+ip730/v730seg6/100 refuses rc=0 invalid argument: Error: either "to" is duplicate, or "lookup" is garbage | ip -6 route add 2001:db8:2::/64 encap seg6 mode encap segs 2001:db8:9::1 lookup 100 dev d0
+ip730/v730seg6/inet refuses rc=0 invalid argument: Error: either "to" is duplicate, or "lookup" is garbage | ip -4 route add 198.51.100.0/24 encap seg6 mode encap segs 2001:db8:9::1 lookup 100 dev d0
+ip730/v730seg6/inline refuses rc=0 invalid argument: Error: either "to" is duplicate, or "lookup" is garbage | ip -6 route add 2001:db8:2::/64 encap seg6 mode inline segs 2001:db8:9::1 lookup 100 dev d0
+ip730/v730seg6/main refuses rc=0 invalid argument: Error: either "to" is duplicate, or "lookup" is garbage | ip -6 route add 2001:db8:2::/64 encap seg6 mode encap segs 2001:db8:9::1 lookup main dev d0
+ip730/v730ovpn/mp refuses rc=0 link type "ovpn" options: object recognized but not implemented by goip | ip link add o0 type ovpn mode mp
+ip730/v730ovpn/p2p refuses rc=0 link type "ovpn" options: object recognized but not implemented by goip | ip link add o0 type ovpn mode p2p
+ip730/v730ovpn/x refuses rc=1 link type "ovpn" options: object recognized but not implemented by goip | ip link add o0 type ovpn mode x
