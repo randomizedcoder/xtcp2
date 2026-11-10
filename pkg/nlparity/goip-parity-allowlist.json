@@ -2583,6 +2583,13 @@
     "-6 nexthop add id 72 encap seg6local action End dev d0",
     "link set dev d0 netns c1mv",
     "link set dev d0 netns /proc/self/ns/net",
-    "link add d9 netns c1mv index 100 type dummy"
+    "link add d9 netns c1mv index 100 type dummy",
+    "-M route add 16 as 200 ttl-propagate enabled via inet6 2001:db8::2 dev d0",
+    "-M route add 100 as to 200 dev d0",
+    "-M route add 100 as 200/300/400 ttl-propagate enabled nexthop via inet 10.0.0.2 dev d0 nexthop via inet6 2001:db8::2 dev d0",
+    "-M route add 100 as 100/101/102/103/104/105/106/107/108/109/110/111/112/113/114/115/116/117/118/119/120/121/122/123/124/125/126/127/128/129 nexthop as 300 via inet 10.0.0.2 dev d0 nexthop as 400 via inet 10.0.0.3 dev d0",
+    "-M route add 15 via inet 10.0.0.2 dev d0",
+    "-M route del 100",
+    "route add 10.1.0.0/24 as 200 via 10.0.0.2"
   ]
 }

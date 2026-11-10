@@ -55,8 +55,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		var oe *optionError
 		if !errors.As(err, &oe) {
+			// -family's invarg, which exits -1.
 			fmt.Fprintf(stderr, "goip: %v\n", err)
-			return ExitUsage
+			return ExitMinusOne
 		}
 		if oe.missing {
 			return missLoopCount(stderr)
@@ -102,6 +103,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// neigh). Refusing here, by name, keeps a dropped flag from showing up in
 	// the parity report as a full-render divergence. address is the one
 	// object that reads them (object.outputModes); see addrShow.
+	if msg := familyMsg(c.family, &obj); msg != "" {
+		fmt.Fprintf(stderr, "goip: %s\n", msg)
+		return ExitUsage
+	}
 	if msg := outputModeMsg(c, &obj); msg != "" {
 		fmt.Fprintf(stderr, "goip: %s\n", msg)
 		return ExitUsage

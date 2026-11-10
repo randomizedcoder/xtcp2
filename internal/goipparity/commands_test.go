@@ -2684,7 +2684,7 @@ func TestRouteGetRowsGated(t *testing.T) {
 		})
 	}
 
-	t.Run("corner: only the from/iif row's Setup carries a sysctl step", func(t *testing.T) {
+	t.Run("corner: only the forwarding route get row's and the MPLS rows' Setups carry sysctl steps", func(t *testing.T) {
 		for _, c := range Commands() {
 			n := 0
 			for _, step := range c.Setup {
@@ -2693,8 +2693,12 @@ func TestRouteGetRowsGated(t *testing.T) {
 				}
 			}
 			expected := 0
-			if c.Slug == "route_get_from_iif" {
+			switch {
+			case c.Slug == "route_get_from_iif":
 				expected = 1
+			case strings.HasPrefix(c.Slug, "mpls_route_"):
+				// platform_labels and d0's input (mplsRouteSetup).
+				expected = 2
 			}
 			if n != expected {
 				t.Errorf("%s: %d sysctl steps, want %d", c.Slug, n, expected)

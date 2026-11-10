@@ -80,12 +80,16 @@ func TestRunFamilyOption(t *testing.T) {
 			wantAccepted: false,
 		},
 		{
-			description: "corner: -M is AF_MPLS in `ip` and is deliberately NOT implemented here, so it must be rejected rather than silently ignored",
-			args:        []string{"-M"},
-			// ip/ip.c:223-226 has -M and -B too. goip has no MPLS or bridge
-			// object, so accepting them would mean parsing an option that
-			// changes nothing — the kind of quiet no-op the parity harness
-			// reports as a rendering bug three commands later.
+			description:  "positive: -M is AF_MPLS, which route's writes read (NX3); Run refuses it for every other object",
+			args:         []string{"-M"},
+			wantAccepted: true,
+		},
+		{
+			description: "negative: -B is AF_BRIDGE, which goip does not implement, so it is rejected rather than silently ignored",
+			args:        []string{"-B"},
+			// ip/ip.c:225-226. Accepting it would mean parsing an option
+			// that changes nothing, the kind of quiet no-op the parity
+			// harness reports as a rendering bug three commands later.
 			wantAccepted: false,
 		},
 	}

@@ -319,6 +319,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if row, ok := linkNetnsCorpus[c.Slug]; ok {
 		dir = filepath.Join(tdWs731, "linkns", row)
 	}
+	if row, ok := mplsRouteCorpus[c.Slug]; ok {
+		dir = filepath.Join(tdWs731, "mpls", row)
+	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
 
@@ -781,4 +784,16 @@ var linkNetnsCorpus = map[string]string{
 	"link_netns_name":      "ec-002",
 	"link_netns_self":      "ec-003",
 	"link_netns_add_index": "add-index",
+}
+
+// mplsRouteCorpus is the mpls row each MPLS route write row is (NX3), its
+// capture offline. The rows spell -f mpls as -M, which sends the same bytes.
+var mplsRouteCorpus = map[string]string{
+	"mpls_route_pw_001":     "pw-001",
+	"mpls_route_ec_005":     "ec-005",
+	"mpls_route_pw_018":     "pw-018",
+	"mpls_route_ec_007":     "ec-007",
+	"mpls_route_ng_001":     "ng-001",
+	"mpls_route_del_absent": "del-absent",
+	"mpls_route_inet_as":    "inet-as",
 }

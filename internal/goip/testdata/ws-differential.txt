@@ -35,6 +35,7 @@
 # lwtxhop: 4 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # lwtxnh: 4 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # linkns: 12 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# mpls: 109 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 6
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
-# encap padding: 41 rows: ip sends stack bytes in an encap or after its type, on a nexthop, a route or a hop; zeroed before comparing
+# encap padding: 42 rows: ip sends stack bytes in an encap or after its type, on a nexthop, a route or a hop; zeroed before comparing
 linkattr/xdp-not-last refuses rc=255 link keyword "xdp": an XDP program: object recognized but not implemented by goip | ip link set dev d0 xdp off carrier on

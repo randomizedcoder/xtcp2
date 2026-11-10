@@ -512,6 +512,8 @@ The VM matrix gets three rows, each set up with d0 and a `c1mv` peer namespace. 
 
 AF_MPLS in `routeFamilySupported`; `as` at the top level, in a hop and in `route get`; `ttl-propagate` before the hops; `via` in another family as `RTA_VIA`.
 
+NX3 is done in two parts. NX3a is the writes, with `-M` and `-f`; every route verb but the writes is refused in AF_MPLS until NX3b. NX3b is `route get` and `route show`, which share print_route's AF_MPLS render.
+
 | description | input | expected |
 |---|---|---|
 | positive: the 90 rc-0 rows | `7_3_1/ws/mpls` | `same` |
@@ -522,6 +524,18 @@ AF_MPLS in `routeFamilySupported`; `as` at the top level, in a hop and in `route
 | corner: `as` twice | `mpls/as-twice` | both `RTA_NEWDST` sent |
 | corner: `as` on an IPv4 route | `mpls/inet-as` | `RTA_NEWDST` 200.0.0.0 |
 | positive: show, text and JSON | `mpls/show`, `show-json` | the same text, `ttl-propogate` spelled as `ip` spells it |
+
+NX3a's VM rows are seven of the corpus's commands, `-f mpls` spelled `-M` so that they stay in the route section. Their Setup loads `mpls_router` through a new `modules` step, so they come last among the route rows.
+
+| description | input | expected |
+|---|---|---|
+| positive: a swap with ttl-propagate, via inet6 | `-M route add 16 as 200 ttl-propagate enabled via inet6 2001:db8::2 dev d0` | `GOIP_PARITY_PASS` |
+| positive: `as to` | `-M route add 100 as to 200 dev d0` | `GOIP_PARITY_PASS` |
+| positive: a stack over two hops | `mpls/pw-018` | `GOIP_PARITY_PASS`, one lookup |
+| boundary: a 30-label stack and each hop's `as` | `mpls/ec-007` | `GOIP_PARITY_PASS` |
+| negative: a reserved label | `-M route add 15 via inet 10.0.0.2 dev d0` | `GOIP_PARITY_PASS`, the kernel's EINVAL on both |
+| corner: a delete with no route | `-M route del 100` | `GOIP_PARITY_PASS`, unicast, no lookup |
+| corner: `as` on an IPv4 route | `route add 10.1.0.0/24 as 200 via 10.0.0.2` | `GOIP_PARITY_PASS` |
 
 ### NX4 the target moves to 7.3.0
 

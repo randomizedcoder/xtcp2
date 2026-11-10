@@ -328,7 +328,10 @@ proc capture_triple {row dev} {
 # `tcp SERVER CLIENT`, one connection in the namespace through xtcp2-nlcap
 # tcp, which leaves a tcp_metrics entry at each end (genl-write-corpus.exp's
 # tcp pre step), or `hmac KEYID ALGO SECRET`, an SR HMAC key set through
-# xtcp2-nlcap hmac (its hmac pre step).
+# xtcp2-nlcap hmac (its hmac pre step), or `modules NAME...`, loaded through
+# xtcp2-nlcap modules. A module is kernel-wide and stays loaded, so a row
+# whose Setup loads one comes after every row it would change: the MPLS
+# route rows' mpls_router, last among the route rows.
 ###############################################################################
 
 proc setup_step {ns step} {
@@ -369,6 +372,14 @@ proc setup_step {ns step} {
             return 1
         }
         lassign [vmlib::run_out "xtcp2-nlcap hmac $ns $SUBDIR [lindex $step 1] [lindex $step 2] [lindex $step 3]"] rc out
+        return $rc
+    }
+    if {[lindex $step 0] eq "modules"} {
+        if {[llength $step] < 2} {
+            vmlib::log "setup: a modules step is {modules NAME...}: $step"
+            return 1
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap modules $SUBDIR [join [lrange $step 1 end] { }]"] rc out
         return $rc
     }
     if {[lindex $step 0] eq "smcroute"} {

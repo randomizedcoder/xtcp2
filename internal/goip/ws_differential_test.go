@@ -44,7 +44,7 @@ const wsCorpusDir731 = "../../pkg/xtcpnl/testdata/7_3_1/ws"
 // wsO5SpaceDir is the corpus a space's rows are under: 7.3.1's for those
 // captured there, else 7.3.0's.
 func wsO5SpaceDir(sp string) string {
-	if sp == "linkns" {
+	if sp == "linkns" || sp == "mpls" {
 		return wsCorpusDir731
 	}
 	return wsCorpusDir
@@ -56,11 +56,11 @@ const wsO5Golden = "testdata/ws-differential.txt"
 // wsO5Spaces are the row directories O5 reads, in report order: the
 // matrix's, then those mined from the fib selftests, then the address,
 // neighbor and link matrices', then the kwlive keyword forms', then the
-// lwt encap forms', then the lwtx ones'.
+// lwt encap forms', then the lwtx ones', then the netns and MPLS rows'.
 var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
 	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
 	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh",
-	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh", "linkns"}
+	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh", "linkns", "mpls"}
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in
 // full. A mined row's get, show, flush or bucket is a dump or a lookup, not
@@ -101,6 +101,14 @@ func wsO5Argv(cmd string) (family uint8, object string, args []string, err error
 			family = unix.AF_INET
 		case "-6":
 			family = unix.AF_INET6
+		case "-j":
+			// A readback's, never a write's: O5 counts it as not a write.
+		case "-f":
+			if len(f) < 2 || readFamily(f[1]) == unix.AF_UNSPEC {
+				return 0, "", nil, fmt.Errorf("bad -f in %q", cmd)
+			}
+			family = readFamily(f[1])
+			f = f[1:]
 		default:
 			return 0, "", nil, fmt.Errorf("option %s in %q", f[0], cmd)
 		}
@@ -1059,7 +1067,11 @@ func TestWsO5Argv(t *testing.T) {
 		{"positive: no family", "ip rule add pref 100", "0 rule [add pref 100]"},
 		{"boundary: an object with no args", "ip rule", "0 rule []"},
 		{"negative: not ip", "tc qdisc add dev d0 root fq", `not an ip command: "tc qdisc add dev d0 root fq"`},
-		{"negative: an option goip's rows do not use", "ip -j route", `option -j in "ip -j route"`},
+		{"negative: an option goip's rows do not use", "ip -d route", `option -d in "ip -d route"`},
+		{"positive: -f mpls is AF_MPLS", "ip -f mpls route add 100 dev d0", "28 route [add 100 dev d0]"},
+		{"corner: -j is a readback's, and changes nothing", "ip -j -f mpls route show", "28 route [show]"},
+		{"negative: a -f word read_family does not know", "ip -f ipx route", `bad -f in "ip -f ipx route"`},
+		{"boundary: -f as the last word", "ip -f", `bad -f in "ip -f"`},
 		{"negative: a family and no object", "ip -4", `no object in "ip -4"`},
 		{"corner: a bare ip", "ip", `not an ip command: "ip"`},
 		{"positive: ro is route", "ip ro add 10.0.0.0/24 dev lo", "0 route [add 10.0.0.0/24 dev lo]"},

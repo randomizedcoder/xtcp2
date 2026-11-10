@@ -91,7 +91,8 @@ const (
 	routeArmVrf
 	routeArmNexthop
 	routeArmEncap
-	routeArmUnsupported // a keyword `ip` knows and goip does not implement
+	routeArmAs  // RTA_NEWDST: an optional "to", then get_addr in the route's family
+	routeArmTTL // RTA_TTL_PROPAGATE: enabled or disabled, by matches()
 )
 
 // routeKeyword is one test in iproute_modify's chain.
@@ -129,7 +130,7 @@ const (
 // (tos is strcmp), `p` is priority.
 var routeParseKeywords = []routeKeyword{
 	{keyword: "src", arm: routeArmSrc},
-	{keyword: "as", arm: routeArmUnsupported},
+	{keyword: routeAsKeywordCst, arm: routeArmAs},
 	{keyword: nexthopViaKeyCst, arm: routeArmVia},
 	{keyword: fromKeywordCst, arm: routeArmFrom},
 	{keyword: tosKeywordCst, arm: routeArmTos},
@@ -165,7 +166,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: oifKeywordCst, arm: routeArmDev},
 	{keyword: "pref", prefix: true, arm: routeArmPref},
 	{keyword: tnlKeyEncap, arm: routeArmEncap},
-	{keyword: "ttl-propagate", arm: routeArmUnsupported},
+	{keyword: "ttl-propagate", arm: routeArmTTL},
 	{keyword: "fastopen_no_cookie", prefix: true, arm: routeArmBool,
 		rtax: unix.RTAX_FASTOPEN_NO_COOKIE, name: "fastopen_no_cookie"},
 }
@@ -181,6 +182,8 @@ func lookupRouteKeyword(arg string) *routeKeyword {
 }
 
 const (
+	// routeAsKeywordCst is RTA_NEWDST's word, on the route and in a hop.
+	routeAsKeywordCst   = "as"
 	routeLockKeywordCst = "lock"
 	routeToKeywordCst   = "to"
 	routeHelpKeywordCst = "help"
@@ -213,6 +216,8 @@ type routeParseState struct {
 	dstOK    bool
 	scopeOK  bool
 	tableOK  bool
+	// typeOK is type_ok: the destination named a route type.
+	typeOK bool
 	// nhid is iproute_modify's nhid local: the last id read, so `nhid 0`
 	// is absent to the scope default.
 	nhid uint32
@@ -277,8 +282,6 @@ func nextArg(args []string, i int) (int, error) {
 
 func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int, error) {
 	switch kw.arm {
-	case routeArmUnsupported:
-		return i, fmt.Errorf("route %q: %w", kw.keyword, ErrNotImplemented)
 	case routeArmOnlink:
 		st.w.RtmFlags |= unix.RTNH_F_ONLINK
 		return i, nil
@@ -292,6 +295,8 @@ func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int,
 		return len(args), nil
 	case routeArmEncap:
 		return st.encap(args, i)
+	case routeArmAs:
+		return st.as(args, i)
 	default:
 		// Every other arm takes a value, read by NEXT_ARG below.
 	}
@@ -385,6 +390,8 @@ func (st *routeParseState) value(kw *routeKeyword, v string) error {
 		st.w.Attrs = append(st.w.Attrs, xtcpnl.RouteAttrU32(unix.RTA_FLOW, r))
 	case routeArmVrf:
 		return st.vrf(v)
+	case routeArmTTL:
+		return st.ttlPropagate(v)
 	case routeArmExpires:
 		e, ok := getU32(v, 0)
 		if !ok {
@@ -537,6 +544,7 @@ func (st *routeParseState) destination(args []string, i int) (int, error) {
 				return i, err
 			}
 			st.w.Type = t
+			st.typeOK = true
 		}
 	}
 	v := args[i]
@@ -589,7 +597,53 @@ func (st *routeParseState) finish(resolve linkResolver) error {
 	if !st.scopeOK {
 		st.defaultScope()
 	}
+	if !st.typeOK && st.w.Family == unix.AF_MPLS {
+		// A delete too: its type starts at RTN_UNSPEC.
+		st.w.Type = unix.RTN_UNICAST
+	}
 	return nil
+}
+
+// ttlPropagate is the ttl-propagate arm's value: enabled or disabled by
+// matches(), enabled first, as a u8.
+func (st *routeParseState) ttlPropagate(v string) error {
+	var prop uint8
+	switch {
+	case matchesPrefix(v, "enabled"):
+		prop = 1
+	case matchesPrefix(v, "disabled"):
+	default:
+		return invargErr(`"ttl-propagate" value is invalid`, v)
+	}
+	st.attr(unix.RTA_TTL_PROPAGATE, []byte{prop})
+	return nil
+}
+
+// as is the as arm: NEXT_ARG, a "to" skipped with another, then get_addr in
+// the route's family as it stands, which RTA_NEWDST carries whole.
+func (st *routeParseState) as(args []string, i int) (int, error) {
+	a, i, err := asAddr(args, i, st.w.Family)
+	if err != nil {
+		return i, err
+	}
+	st.adoptFamily(a.family)
+	st.attr(unix.RTA_NEWDST, a.data)
+	return i, nil
+}
+
+// asAddr is the as arms' reading, at the top level and in a hop.
+func asAddr(args []string, i int, family uint8) (inetPrefix, int, error) {
+	i, err := nextArg(args, i)
+	if err != nil {
+		return inetPrefix{}, i, err
+	}
+	if args[i] == routeToKeywordCst {
+		if i, err = nextArg(args, i); err != nil {
+			return inetPrefix{}, i, err
+		}
+	}
+	a, err := routeGetAddr(args[i], family)
+	return a, i, err
 }
 
 // defaultScope is the scope iproute_modify picks when argv gave none. A type
@@ -640,7 +694,8 @@ func (st *routeParseState) parseNexthops(resolve linkResolver) error {
 
 // parseOneNh is parse_one_nh (ip/iproute.c:1019): the words after
 // `nexthop` up to one it doesn't know, which it returns the index of.
-// Every keyword is strcmp but realms. `as` is refused, as at the top level.
+// Every keyword is strcmp but realms. A hop's `as` reads in the route's
+// family and, unlike the top level's, does not set it.
 func (st *routeParseState) parseOneNh(h *xtcpnl.RouteNexthop, args []string, i int,
 	resolve linkResolver) (int, error) {
 	var err error
@@ -668,8 +723,11 @@ func (st *routeParseState) parseOneNh(h *xtcpnl.RouteNexthop, args []string, i i
 			}
 		case w == tnlKeyEncap:
 			i, err = st.nhEncap(h, args, i, resolve)
-		case w == "as":
-			return i, fmt.Errorf("route nexthop %q: %w", w, ErrNotImplemented)
+		case w == routeAsKeywordCst:
+			var a inetPrefix
+			if a, i, err = asAddr(args, i, st.w.Family); err == nil {
+				h.Attrs = append(h.Attrs, xtcpnl.RouteAttrBytes(unix.RTA_NEWDST, a.data))
+			}
 		default:
 			return i, nil
 		}
@@ -913,12 +971,39 @@ func readFamily(name string) uint8 {
 	return unix.AF_UNSPEC
 }
 
-// getAddr1 is __get_addr_1 for the families goip reads, AF_UNSPEC, AF_INET
-// and AF_INET6. "default" is an all-zero address of the family's length, so
-// with no family yet it has no bytes at all; "all" and "any" never have
-// bytes. An address with a ':' is IPv6, anything else IPv4, and either is
-// refused when the family is set to the other one, or to bridge.
+// getAddr1 is __get_addr_1 for the families goip reads, AF_UNSPEC, AF_INET,
+// AF_INET6 and AF_MPLS. "default" is an all-zero address of the family's
+// length, so with no family yet it has no bytes at all; "all" and "any"
+// never have bytes; all three are refused in AF_MPLS. An address with a ':'
+// is IPv6; in AF_MPLS anything else is a label stack (mplsPton); otherwise
+// it is IPv4, and either is refused when the family is set to the other
+// one, or to bridge.
 func getAddr1(name string, family uint8) (inetPrefix, bool) {
+	a, _, ok := getAddr1Mpls(name, family)
+	return a, ok
+}
+
+// getAddr1Mpls is getAddr1 with tooMany, mplsPton's report of a stack past
+// its limit, for get_addr's message.
+//
+// __get_addr_1 refuses default, all and any in AF_MPLS before it reaches
+// mpls_pton; mplsPton refuses them too, since none starts with a digit, so
+// the one test serves. An address with a ':' never reaches mpls_pton, so it
+// never prints "too many labels".
+func getAddr1Mpls(name string, family uint8) (a inetPrefix, tooMany, ok bool) {
+	if family == unix.AF_MPLS && strings.IndexByte(name, ':') < 0 {
+		data, tooMany, ok := mplsPton(name)
+		if !ok {
+			return inetPrefix{}, tooMany, false
+		}
+		return inetPrefix{family: unix.AF_MPLS, data: data, bitlen: afBitLen(unix.AF_MPLS)}, false, true
+	}
+	a, ok = getAddr1Inet(name, family)
+	return a, false, ok
+}
+
+// getAddr1Inet is __get_addr_1 outside AF_MPLS.
+func getAddr1Inet(name string, family uint8) (inetPrefix, bool) {
 	switch name {
 	case addrNameDefaultCst:
 		return inetPrefix{family: family, data: make([]byte, afBitLen(family)/8), bitlen: -2}, true
@@ -947,10 +1032,10 @@ func getAddr1(name string, family uint8) (inetPrefix, bool) {
 	return inetPrefix{family: unix.AF_INET, data: b[:], bitlen: -1}, true
 }
 
-// routeFamilySupported refuses the two families whose addresses goip does
-// not parse: link (ll_addr_a2n, reached by `via link`) and MPLS labels.
+// routeFamilySupported refuses the family whose addresses goip does not
+// parse: link (ll_addr_a2n, reached by `via link`).
 func routeFamilySupported(family uint8) error {
-	if family == unix.AF_PACKET || family == unix.AF_MPLS {
+	if family == unix.AF_PACKET {
 		return fmt.Errorf("route address in family %s: %w", familyNameVerbose(family), ErrNotImplemented)
 	}
 	return nil
@@ -961,10 +1046,14 @@ func routeGetAddr(arg string, family uint8) (inetPrefix, error) {
 	if err := routeFamilySupported(family); err != nil {
 		return inetPrefix{}, err
 	}
-	a, ok := getAddr1(arg, family)
+	a, tooMany, ok := getAddr1Mpls(arg, family)
 	if !ok {
-		return inetPrefix{}, fmt.Errorf("%w: Error: %s address is expected rather than %q",
-			ErrInvalidArgument, familyNameVerbose(family), arg)
+		msg := fmt.Sprintf("Error: %s address is expected rather than %q", familyNameVerbose(family), arg)
+		if tooMany {
+			// mpls_pton1's line, before get_addr's.
+			msg = "Error: too many labels.\n" + msg
+		}
+		return inetPrefix{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
 	}
 	return a, nil
 }

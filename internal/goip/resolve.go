@@ -114,6 +114,10 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 			return ShowRequest{}, Resolved{}, fmt.Errorf("option %s: %w", row.name, ErrRefusedOption)
 		}
 	}
+	if _, ok := familyOptions[o.family]; !ok && o.family != unix.AF_UNSPEC {
+		// -M, -f mpls and -f bridge: no listing goip serves reads them.
+		return ShowRequest{}, Resolved{}, fmt.Errorf("family %s: %w", familyNameVerbose(o.family), ErrNotImplemented)
+	}
 	if msg := statsCountMsg(o.showStats); msg != "" {
 		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
 	}

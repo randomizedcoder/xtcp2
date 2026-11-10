@@ -120,9 +120,20 @@ func TestResolveShow(t *testing.T) {
 		},
 		{
 			name: "family_not_implemented", category: "negative",
-			description: "-f is ip's -family, which goip does not implement",
-			inputs:      [][]string{{"-f", "inet", "link"}, {"-pretty", "link"}},
+			description: "-M, -f mpls and -f bridge name families no listing goip serves reads, and -pretty is not implemented",
+			inputs:      [][]string{{"-M", "route"}, {"-f", "mpls", "route"}, {"-family", "bridge", "link"}, {"-pretty", "link"}},
 			wantErr:     ErrNotImplemented,
+		},
+		{
+			name: "family_word", category: "positive",
+			description: "-f inet6 is -6, as read_family reads it, and the canonical spelling is -6",
+			inputs:      [][]string{{"-f", "inet6", "r"}, {"-fam", "inet6", "r"}, {"-6", "r"}}, wantArgv: "-6 route show",
+		},
+		{
+			name: "family_word_invalid", category: "negative",
+			description: "-f with a word read_family does not know is invarg",
+			inputs:      [][]string{{"-f", "ipx", "link"}, {"-f", "INET", "link"}},
+			wantErr:     ErrInvalidArgument, wantMsg: "invalid protocol family",
 		},
 		{
 			name: "unknown_option", category: "negative",
@@ -489,7 +500,10 @@ func TestResolvePrefixProperty(t *testing.T) {
 					want = helpOption
 				}
 				in := []string{p}
-				if want.arg != "" {
+				switch {
+				case want.name == "-family":
+					in = append(in, "inet")
+				case want.arg != "":
 					in = append(in, "1")
 				}
 				in = append(in, "link")
@@ -499,7 +513,8 @@ func TestResolvePrefixProperty(t *testing.T) {
 					if !errors.Is(err, ErrRefusedOption) || !strings.Contains(err.Error(), want.name) {
 						t.Errorf("%q: err %v, want ErrRefusedOption naming %s", p, err, want.name)
 					}
-				case want.set == nil:
+				case want.set == nil || want.name == "-M":
+					// -M is AF_MPLS, which no listing goip serves reads.
 					if !errors.Is(err, ErrNotImplemented) {
 						t.Errorf("%q: err %v, want ErrNotImplemented", p, err)
 					}

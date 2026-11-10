@@ -380,7 +380,6 @@ func TestParseRouteWriteArgs(t *testing.T) {
 			expected: routeWriteExpected{err: errFakeResolve, errMsg: "fake", resolved: []string{"boom"}}},
 
 		// Keywords goip does not implement.
-		{description: "negative: ttl-propagate", verb: "add", args: p24 + " ttl-propagate enabled dev d0", expected: notImpl(`"ttl-propagate"`)},
 		{description: "negative: via link", verb: "add", args: p24 + " via link 02:00:00:00:00:01", expected: notImpl("link")},
 		{description: "negative: help", verb: "add", args: "help", expected: notImpl("help")},
 		{description: "corner: h is help, since hoplimit is strcmp", verb: "add", args: "h", expected: notImpl("help")},
@@ -564,8 +563,8 @@ func TestRunRouteWrite(t *testing.T) {
 		{description: "negative: an argv error writes no file",
 			args: []string{"route", "add", "blackhole", "198.51.100.0/24", "quickack", "2"}, hook: hookSet,
 			expected: result{code: ExitUsage, stderr: `"quickack" value should be 0 or 1`}},
-		{description: "boundary: an unimplemented keyword writes no file",
-			args: []string{"route", "add", "198.51.100.0/24", "ttl-propagate", "enabled", "dev", "d0"}, hook: hookSet,
+		{description: "boundary: an unimplemented form writes no file",
+			args: []string{"route", "add", "198.51.100.0/24", "via", "link", "02:00:00:00:00:01", "dev", "d0"}, hook: hookSet,
 			expected: result{code: ExitUsage, stderr: "not implemented"}},
 	}
 	for _, tc := range tests {

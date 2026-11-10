@@ -6811,6 +6811,52 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 
+	// NX3's MPLS route writes (goip-parity-next.md), each a 7_3_1/ws/mpls
+	// row's command, its -f mpls spelled -M so that the row stays in the
+	// route section: the same preferred_family, the same bytes. They come
+	// last among the route rows because mplsRouteSetup loads mpls_router,
+	// which is kernel-wide: every device gains an AF_MPLS netconf entry and
+	// afstats, which no row after them reads.
+	{
+		Name: "-M route add 16 as 200 ttl-propagate enabled via inet6 2001:db8::2 dev d0", Slug: "mpls_route_pw_001",
+		// mpls/pw-001: a swap, ttl-propagate before the via (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 100 as to 200 dev d0", Slug: "mpls_route_ec_005",
+		// mpls/ec-005: as to (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 100 as 200/300/400 ttl-propagate enabled nexthop via inet 10.0.0.2 dev d0 nexthop via inet6 2001:db8::2 dev d0",
+		Slug: "mpls_route_pw_018",
+		// mpls/pw-018: a three-label stack over two hops, one lookup (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 100 as 100/101/102/103/104/105/106/107/108/109/110/111/112/113/114/115/116/117/118/119/120/121/122/123/124/125/126/127/128/129 " +
+			"nexthop as 300 via inet 10.0.0.2 dev d0 nexthop as 400 via inet 10.0.0.3 dev d0",
+		Slug: "mpls_route_ec_007",
+		// mpls/ec-007: the kernel's 30-label stack, and each hop's as (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 15 via inet 10.0.0.2 dev d0", Slug: "mpls_route_ng_001",
+		// mpls/ng-001: a reserved label, sent and refused (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route del 100", Slug: "mpls_route_del_absent",
+		// mpls/del-absent: unicast, scope universe, no lookup; the kernel
+		// acks a delete of a label that has no route (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "route add 10.1.0.0/24 as 200 via 10.0.0.2", Slug: "mpls_route_inet_as",
+		// mpls/inet-as: an IPv4 RTA_NEWDST, which the kernel ignores (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+
 	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
 	// preconditions (genl-write-corpus.exp). The connections' entries carry
 	// each side's own RTTs and ages, which nlparity normalizes, and a dump's
@@ -7869,6 +7915,16 @@ var (
 // linkNetnsSetup is the netns rows' precondition: the workbench's d0 and
 // the peer c1mv it moves into.
 var linkNetnsSetup = append(slices.Clone(gwWsLinkD0), "peer c1mv")
+
+// mplsRouteSetup is the mpls rows' pre (nlcapgen's matrix_mpls.go):
+// mpls_router, d0 up with an IPv4 and an IPv6 address, 1000 platform
+// labels, and MPLS input on d0.
+var mplsRouteSetup = []string{
+	"modules mpls_router",
+	"link add d0 type dummy", "link set d0 addrgenmode none", "link set d0 up",
+	"addr add 10.0.0.1/24 dev d0", "-6 addr add 2001:db8::1/64 dev d0 nodad",
+	"sysctl net.mpls.platform_labels 1000", "sysctl net.mpls.conf.d0.input 1",
+}
 
 // netnsSetup is the netns reads' precondition, rtnl-read-corpus.exp's two
 // peers: nlcaprp1 and nlcaprp2, made from the root, nsids 1 and 2 in the
