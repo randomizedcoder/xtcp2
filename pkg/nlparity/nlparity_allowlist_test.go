@@ -432,6 +432,16 @@ func TestAllowlistCommitted(t *testing.T) {
 		"nexthop show dev goip0",
 		"nexthop show master goipvrf",
 		"nexthop show vrf goipvrf",
+		// The six maddress rows (NX4d), gated on two maddress section runs
+		// at iproute2 7.3.0 (2026-11-10): GOIP_PARITY_PASS with stdout=0 and
+		// control nl=0 on both, txns 5/5, 4/4, 4/4, 5/5, 3/3 and 1/1, the
+		// reports alike but for the pids.
+		"maddress show",
+		"-4 maddress show",
+		"-6 maddress show",
+		"-j maddress show",
+		"maddress show dev d0",
+		"maddress show dev nosuch",
 		// The twenty-one link write rows, gated on the phase 7 runs: all
 		// GOIP_PARITY_PASS twice with identical verdicts, txns matching ip
 		// with goip's GOIP_WRITE_OUT file counted as its write, control nl=0

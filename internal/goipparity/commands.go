@@ -1033,6 +1033,35 @@ var commands = withArgs([]Command{
 		Name: "neigh show", Slug: "neigh_show",
 		Floor: 4, Implemented: true,
 	},
+	// NX4c: `maddress show` (ip/ipmaddr.c, iproute2 7.3.0), the
+	// ws-ip730/v730maddr rows. The link-layer groups come from
+	// /proc/net/dev_mcast, which both tools read in the shared namespace;
+	// the inet and inet6 groups from one RTM_GETMULTICAST dump each. `dev
+	// nosuch` is the by-name get alone, and prints nothing.
+	{
+		Name: "maddress show", Slug: "maddr_show",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-4 maddress show", Slug: "maddr_show_v4",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 maddress show", Slug: "maddr_show_v6",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j maddress show", Slug: "maddr_show_json",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "maddress show dev d0", Slug: "maddr_show_dev",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "maddress show dev nosuch", Slug: "maddr_show_nosuch",
+		Setup: maddrReadSetup, Floor: 2, Implemented: true,
+	},
 	{
 		Name: "-4 neigh show", Slug: "neigh_show_v4",
 		// Four, and the first family row this object has ever had — every
@@ -8059,6 +8088,17 @@ func addrFlushManySetup() []string {
 // have nothing to do: with carrier and no partner, a port goes from
 // defaulted to churned over the next minute, and ip_a, goip and ip_b would
 // each read a different moment of it.
+// maddrReadSetup is the v730maddr rows' pre: a dummy, with no link-local
+// address to race DAD, that has joined one group of each kind.
+var maddrReadSetup = []string{
+	"link add d0 type dummy",
+	"link set d0 addrgenmode none",
+	"link set d0 up",
+	"maddr add 33:33:00:00:00:99 dev d0",
+	"addr add 239.1.1.1/32 dev d0 autojoin",
+	"-6 addr add ff05::1234/128 dev d0 autojoin",
+}
+
 var bondReadSetup = []string{
 	"link add bond0 type bond mode 802.3ad",
 	"link add la1 type veth peer name lb1",

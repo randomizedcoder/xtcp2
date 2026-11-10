@@ -4793,3 +4793,47 @@ func TestVrfFamilyFormRowsGated(t *testing.T) {
 		})
 	}
 }
+
+// TestMaddrRowsGated pins NX4d's six maddress rows (ws-ip730/v730maddr), which
+// gated on two clean maddress section runs under ip 7.3.0 rather than joining
+// the ungated list.
+//
+// go test ./internal/goipparity/ -run TestMaddrRowsGated
+func TestMaddrRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		floor       int
+	}{
+		{"positive: the bare show, dev_mcast and both family dumps", "maddress show", true, 4},
+		{"positive: -4, the AF_INET dump alone", "-4 maddress show", true, 4},
+		{"positive: -6, the AF_INET6 dump alone", "-6 maddress show", true, 4},
+		{"positive: -j, the same requests as the bare show", "-j maddress show", true, 4},
+		{"positive: dev d0, the by-name get then the dumps", "maddress show dev d0", true, 4},
+		{"boundary: dev nosuch, the get alone and nothing printed", "maddress show dev nosuch", true, 2},
+		{"negative: a device the matrix has no row for is not gated", "maddress show dev d1", false, 0},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != r.floor || !slices.Equal(c.Setup, maddrReadSetup) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented read row, floor %d, maddrReadSetup",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.floor)
+			}
+		})
+	}
+}
