@@ -335,29 +335,37 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 
 #### NC4-T01 the `stats` family
 
-- **Every row is a show, in four forms:** text, `-j`, `-s` and `-j -s`.
-- **The topologies:**
-  - clean (`lo`, a dummy `d0`);
-  - a bridge `br0` with port `d0`;
-  - a bond `bond0` in 802.3ad with two dummy slaves;
-  - `d0` after `ip stats set dev d0 l3_stats on`;
-  - each of the four again, created after `modprobe mpls_router`.
-- **The commands:**
-  - `stats show` (bare);
-  - `group link`, `group offload`, `group xstats`, `group xstats_slave`, `group afstats`;
-  - `group offload subgroup cpu_hit|hw_stats_info|l3_stats`;
-  - `group link group afstats`, and two subgroups;
-  - `dev d0` on each;
-  - `link afstats` and `link afstats dev d0`;
-  - `link xstats type bond|bond_slave|bridge|bridge_slave`;
-  - the errors: `stats help`, `stats show help`, `stats show group`, `stats show subgroup l3_stats`, `stats show group link subgroup x`, `stats show group nosuch`, `stats show dev d0 dev d0`, `stats show nosuch`.
+- **Named rows,** `tools/nlcapgen/matrix_stats.go`, 101 in all, set from a probe batch of 36 forms (V022). Every row loads `bonding` and `mpls_router`.
+- **The bare show** in four forms (text, `-j`, `-s`, `-j -s`) on four topologies:
+  - clean (`d0`);
+  - a bridge with `d0` as a port;
+  - a bond in 802.3ad with two dummy slaves, left down so no LACPDU moves a counter;
+  - `d0` after `ip stats set dev d0 l3_stats on`.
+- **18 more shows,** each in the four forms, on one topology holding all of those devices:
+  - `dev d0`;
+  - each group, each offload subgroup, `dev d0` with `l3_stats`, two groups, and two subgroups;
+  - `link afstats`, with and without `dev d0`;
+  - `link xstats type bond|bond_slave|bridge|bridge_slave`.
+- **`stats set`**: `l3_stats on`, `off` after on, and `x` (rc 22).
+- **The errors**, with their rcs:
+  - `stats help` and `stats show help`: 0;
+  - `show group`: 255;
+  - an orphan subgroup, a subgroup in a leaf, a suite with no subgroup, an unknown group, an unknown word: 22;
+  - `dev` twice: 255, after the first's lookup;
+  - `dev nosuch`: 1, ENODEV.
+- **Not built: the topologies without `mpls_router`.** The batch loads every row's modules before any row runs, so they would need a batch of their own.
+- **What the requests showed** (the axes now carry it):
+  - each show is one RTM_GETSTATS: a dump, or a get by ifindex for `dev`;
+  - `link afstats dev d0` dumps, then filters itself;
+  - `IFLA_STATS_GET_FILTERS` goes out only for a partial offload sub-mask: `cpu_hit` with `l3_stats` (0x7) is full, so it sends none.
 
 | description | input | expected |
 |---|---|---|
-| positive: each topology | generator | the setup builds it, ip-only |
-| positive: the forms | each command | four rows (text, `-j`, `-s`, `-j -s`) |
-| negative: an error command | | rc as the source says, stderr kept |
-| corner: `l3_stats on` before the show | | the setup's `stats set` runs outside the capture window |
+| positive: each topology | generator | one setup step, ip-only, outside the capture window |
+| positive: the forms | each show | four rows |
+| positive: the filter | the axes | mask, offload sub-mask and `dev` as the probe sent them |
+| negative: an error command | | rc as the probe showed; no axes |
+| corner: `l3_stats on` before the show | `show-l3-*` | in the setup |
 
 #### NC4-T02 capture and the order
 

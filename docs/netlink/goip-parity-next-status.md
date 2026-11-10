@@ -11,7 +11,7 @@
   - every family has been replayed at 7.3.0 and diffed (`nlcapgen verdiff`), and the 42 `v730` rows are captured at both versions.
 - **Captures come first.** Tier C runs the workbench at iproute2 7.2.0 and 7.3.0. Tiers P and G are outlined until NC5-T01 writes their tables.
 
-**Next action:** NC4-T01, the `stats` family.
+**Next action:** NC4-T02, the `stats` capture, the group order and O3.
 
 ## Contents
 
@@ -36,7 +36,7 @@
 | [NC1](goip-parity-next.md#nc1--link-set--netns) | `link set … netns` rows | NC1-T01 | done | V004–V007 |
 | [NC2](goip-parity-next.md#nc2--mpls-family-routes) | MPLS-family route rows | NC2-T02 | done | V008–V012 |
 | [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | done | V013–V021 |
-| [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | not started | — |
+| [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | in progress | V022–V023 |
 | [NC5](goip-parity-next.md#nc5--the-tier-closes) | Tier C closes | NC5-T01 | not started | — |
 | [Tier P](goip-parity-next.md#tier-p-parsers-tests-and-benchmarks) | parsers, tests, benchmarks | — | not started | — |
 | [Tier G](goip-parity-next.md#tier-g-goip-and-the-matrix) | goip and the matrix (NX1–NX5) | — | not started | — |
@@ -52,7 +52,7 @@
 | [x] | [NC3-T01](goip-parity-next.md#nc3-t01-every-family-at-730) | every family at 7.3.0, `verdiff` | done | V013–V015 |
 | [x] | [NC3-T02](goip-parity-next.md#nc3-t02-the-730-forms) | the `v730` family | done | V017–V018 |
 | [x] | [NC3-T03](goip-parity-next.md#nc3-t03-capture-both-versions-and-o3) | capture both versions, O3 | done | V019–V021 |
-| [ ] | [NC4-T01](goip-parity-next.md#nc4-t01-the-stats-family) | the `stats` family | not started | — |
+| [x] | [NC4-T01](goip-parity-next.md#nc4-t01-the-stats-family) | the `stats` family | done | V022–V023 |
 | [ ] | [NC4-T02](goip-parity-next.md#nc4-t02-capture-and-the-order) | capture, the group order, O3 | not started | — |
 | [ ] | [NC5-T01](goip-parity-next.md#nc5--the-tier-closes) | recount; write Tier P and G tables | not started | — |
 
@@ -82,6 +82,8 @@
 | V019 | 2026-11-09 | NC3-T03 | Two fresh boots, each running `v730ip720.rows.jsonl` at 7.2.0 and `v730.rows.jsonl` at 7.3.0; `verdiff` of each version's two boots, and of 7.2.0 against 7.3.0 | `rows=42 ok=42` in all four batches. Each version's boots: 0 differences, readbacks and stderr included. 7.2.0 against 7.3.0: 37 of 42 rows differ (16 rcs, 23 type sequences, 57 outputs), as the table in the plan doc says. The first boot's rows are the corpus: `ws/v730*` (7.2.0) and `ws-ip730/v730*` (7.3.0, 112 KB) | this commit |
 | V020 | 2026-11-09 | NC3-T03 | `TestWsCorpusRows` over both roots | It first failed on 10 rows. The path check didn't know `ws-ip730`; it now does, and checks each row's `env.iproute2` against its root. 8 rows were ack-then-fail, not `iproute2`: `ip` looks the device up before refusing. One was new: 7.3.0's `maddress show dev nosuch` gets ENODEV for its lookup and exits 0. The oracle gains `kernel-ignored` for that, accepted only when a row names it, like `ack-then-fail`. The generator was corrected, the rows regenerated, and 10 captures' `cmd.json` given the new `expect` and `desc` | this commit |
 | V021 | 2026-11-09 | NC3-T03 | `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestWsV730Corpus` checks 34 rows, and 28 refusals send nothing. `TestV730Problems` has 16 rows; `TestWsRowProblem` gains 3 for `kernel-ignored`. Mutants: `NHA_DST_PORT` read little-endian; its place after `NHA_FDB`; 7.2.0's `maddress` expected to dump; a stray `lacp_strict` allowed; `kernel-ignored` matching nothing. All 5 were killed | this commit |
+| V022 | 2026-11-09 | NC4-T01 | A probe batch of 36 `ip stats` and `ip link afstats|xstats` forms on one topology; its requests decoded; then a calibration of the generated rows | The plan doc's NC4-T01. Every show sends one RTM_GETSTATS; `stats set` sends RTM_SETSTATS. `link afstats dev d0` dumps, and `cpu_hit` with `l3_stats` sends no filter nest. The bare show's groups print in an order that isn't the descriptor table's (NC4-T02 pins it). Calibration: `rows=101 ok=101` | this commit |
+| V023 | 2026-11-09 | NC4-T01 | `go vet`; `go test -count=1 -race ./tools/nlcapgen/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestStatsFamily` has 12 rows and 5 properties. Mutants: the `-j -s` form dropped; a nest on the full sub-mask; `dev` dropped from the axes; `mpls_router` dropped. All 4 were killed. The last survived until the test named the list itself, as V014 found. lint-baseline first found a `prealloc` | this commit |
 
 ## Decision log
 

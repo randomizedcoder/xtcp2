@@ -142,12 +142,13 @@ var families = map[string]func() []*space{
 var namedFamilies = map[string]func() []row{
 	"v730":      func() []row { return v730Family("7.3.0") },
 	"v730ip720": func() []row { return v730Family("7.2.0") },
+	"stats":     statsFamily,
 }
 
 func runMatrix(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720")
+	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720, stats")
 	seed := fs.Uint64("seed", 1, "the random rows' seed, recorded in their ids")
 	random := fs.Int("random", 0, "random rows per space")
 	out := fs.String("out", "", "rows file to write")
@@ -159,7 +160,7 @@ func runMatrix(args []string, stdout, stderr io.Writer) int {
 		ok = true
 	}
 	if !ok || *out == "" || *random < 0 {
-		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720) and -out are required, -random must be >= 0")
+		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720, stats) and -out are required, -random must be >= 0")
 		return 2
 	}
 	var rows []row
