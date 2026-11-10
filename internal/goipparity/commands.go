@@ -6856,6 +6856,28 @@ var commands = withArgs([]Command{
 		// mpls/inet-as: an IPv4 RTA_NEWDST, which the kernel ignores (rc 0).
 		Floor: 2, Implemented: true, Write: true, Setup: mplsRouteSetup,
 	},
+	// NX3b's MPLS reads, after the writes for the same reason: the dump of
+	// mpls/show's three routes, a swap, a multipath and a ttl-propagate, as
+	// text and JSON, then a get of the one route mpls/get adds, bare and
+	// with as.
+	{
+		Name: "-M route show", Slug: "mpls_route_show",
+		// The dump, its three routes and the done, and d0's lookup by index.
+		Floor: 5, Implemented: true, Setup: mplsShowSetup,
+	},
+	{
+		Name: "-j -M route show", Slug: "mpls_route_show_json",
+		Floor: 5, Implemented: true, Setup: mplsShowSetup,
+	},
+	{
+		Name: "-M route get 100", Slug: "mpls_route_get",
+		// The get, its reply, and d0's lookup by index.
+		Floor: 4, Implemented: true, Setup: mplsGetSetup,
+	},
+	{
+		Name: "-M route get 100 as 200", Slug: "mpls_route_get_as",
+		Floor: 4, Implemented: true, Setup: mplsGetSetup,
+	},
 
 	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
 	// preconditions (genl-write-corpus.exp). The connections' entries carry
@@ -7925,6 +7947,16 @@ var mplsRouteSetup = []string{
 	"addr add 10.0.0.1/24 dev d0", "-6 addr add 2001:db8::1/64 dev d0 nodad",
 	"sysctl net.mpls.platform_labels 1000", "sysctl net.mpls.conf.d0.input 1",
 }
+
+// mplsShowSetup and mplsGetSetup are the pre steps of the mpls rows named
+// show and get, after mplsRouteSetup's.
+var (
+	mplsShowSetup = append(slices.Clone(mplsRouteSetup),
+		"-f mpls route add 100 as 200/300 via inet 10.0.0.2 dev d0",
+		"-f mpls route add 101 nexthop as 200 via inet 10.0.0.2 dev d0 nexthop via inet6 2001:db8::2 dev d0",
+		"-f mpls route add 102 dev d0 ttl-propagate disabled")
+	mplsGetSetup = append(slices.Clone(mplsRouteSetup), "-f mpls route add 100 via inet 10.0.0.2 dev d0")
+)
 
 // netnsSetup is the netns reads' precondition, rtnl-read-corpus.exp's two
 // peers: nlcaprp1 and nlcaprp2, made from the root, nsids 1 and 2 in the

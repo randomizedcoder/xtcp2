@@ -674,11 +674,11 @@ func TestRouteViewOfText(t *testing.T) {
 			in: xtcpnl.RouteInfo{
 				Family: unix.AF_MPLS, DstLen: 20, Table: unix.RT_TABLE_MAIN,
 				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
-				Dst: []byte{0x00, 0x00, 0x64, 0x00}, HasMultipath: true,
+				Dst: []byte{0x00, 0x06, 0x41, 0x00}, HasMultipath: true,
 				Multipath: []xtcpnl.RouteNextHop{{Hops: 0, Ifindex: 3}},
 			},
 			filter: filterMain,
-			want:   "00006400 \n\tnexthop dev goip0 \n",
+			want:   "100 \n\tnexthop dev goip0 \n",
 		},
 		{
 			// A nexthop's rtnh_flags go through the same print_rt_flags as the

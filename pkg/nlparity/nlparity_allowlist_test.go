@@ -1897,6 +1897,12 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-M route add 15 via inet 10.0.0.2 dev d0",
 		"-M route del 100",
 		"route add 10.1.0.0/24 as 200 via 10.0.0.2",
+		// The four NX3b MPLS reads, gated on two `--section route` runs, each
+		// row GOIP_PARITY_PASS both times (goip-parity-next-status.md, NX3b).
+		"-M route show",
+		"-j -M route show",
+		"-M route get 100",
+		"-M route get 100 as 200",
 	}
 
 	tests := []struct {

@@ -51,7 +51,7 @@ func runRoute(c *runCtx, args []string) error {
 			if w := lookupRouteWriteVerb(v.name); w != nil {
 				return routeWrite(c, w, rest)
 			}
-			if c.family == unix.AF_MPLS {
+			if c.family == unix.AF_MPLS && v.name != routeGetVerbCst {
 				return routeMplsUnserved(v.name)
 			}
 			switch v.name {
@@ -70,9 +70,6 @@ func runRoute(c *runCtx, args []string) error {
 		}
 		args = rest
 	}
-	if c.family == unix.AF_MPLS {
-		return routeMplsUnserved(showVerbCst)
-	}
 	sel, err := parseRouteShowArgs(args, c.family)
 	if err != nil {
 		return err
@@ -80,8 +77,8 @@ func runRoute(c *runCtx, args []string) error {
 	return routeShow(c, sel)
 }
 
-// routeMplsUnserved refuses a route verb goip does not run in AF_MPLS:
-// all but the writes (goip-parity-next.md, NX3).
+// routeMplsUnserved refuses a route verb goip does not run in AF_MPLS: all
+// but the writes, get and show (goip-parity-next.md, NX3).
 func routeMplsUnserved(verb string) error {
 	return fmt.Errorf("route %s in family mpls: %w", verb, ErrNotImplemented)
 }

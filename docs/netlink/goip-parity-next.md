@@ -537,6 +537,15 @@ NX3a's VM rows are seven of the corpus's commands, `-f mpls` spelled `-M` so tha
 | corner: a delete with no route | `-M route del 100` | `GOIP_PARITY_PASS`, unicast, no lookup |
 | corner: `as` on an IPv4 route | `route add 10.1.0.0/24 as 200 via 10.0.0.2` | `GOIP_PARITY_PASS` |
 
+NX3b's VM rows are reads, after the writes for the same reason:
+
+| description | input | expected |
+|---|---|---|
+| positive: the show of a swap, a multipath and a ttl-propagate | `-M route show` over mpls/show's routes | `GOIP_PARITY_PASS`, stdout ip's |
+| positive: the same as JSON | `-j -M route show` | `GOIP_PARITY_PASS`, `"ttl-propogate":false` last |
+| positive: a get | `-M route get 100` | `GOIP_PARITY_PASS` |
+| corner: a get with `as` | `-M route get 100 as 200` | `GOIP_PARITY_PASS`, RTA_NEWDST sent |
+
 ### NX4 the target moves to 7.3.0
 
 The pin moves (the `flake.nix` overlay or nixpkgs, and `upstream-pins.json`). The matrix runs under 7.3.0, and the `dpll-pin` comments are corrected. The changes come from NC3's version diff (V015, V016) and the `v730` corpus:

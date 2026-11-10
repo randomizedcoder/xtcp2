@@ -15,9 +15,9 @@
 - **Tier G is under way:**
   - NX1 has O5 compare the lookups at 7.2.0's masks; every space's lookups now match.
   - NX2 has goip send `netns NAME|PATH|PID` as ip does. O5's 26 `linkattr` netns rows and the 12 `linkns` rows match, and three VM rows are gated.
-  - NX3a has goip write MPLS routes (`-M`, `-f`, `as`, `ttl-propagate`). O5's 109 `mpls` write rows match, and seven VM rows are gated.
+  - NX3 has goip write, show and get MPLS routes (`-M`, `-f`, `as`, `ttl-propagate`). O5's 109 `mpls` write rows match, all 115 rows' show readbacks print as ip's, text and JSON, and eleven VM rows are gated.
 
-**Next action:** Tier G, NX3b (`route get` and `route show` in AF_MPLS).
+**Next action:** Tier G, NX4 (the target moves to 7.3.0).
 
 ## Contents
 
@@ -72,6 +72,8 @@
 | V036 | 2026-11-10 | NX2 | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section link`, four runs | The first, before the allowlist entries: 798 `GOIP_PARITY_PASS` and the three netns rows `GOIP_PARITY_WARN`, each on `IFLA_NET_NS_FD` alone (ip 4, goip 6); `GOIP_PARITY_OVERALL_PASS`. The second and third, on the final tree: 801 `GOIP_PARITY_PASS` of 801 each, the three netns rows among them, and `GOIP_PARITY_OVERALL_PASS`. The rows are gated on those two | this commit |
 | V037 | 2026-11-10 | NX3a | `TestRouteWriteMpls`, `TestRunMplsFamily`, `TestResolveShow`, `TestRunFamilyOption`, `TestWsO5Argv`, `TestWsGoipDifferential` regenerated; `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. goip takes `-M` and `-family` (read_family's words; another is invarg, exit 255; `help` is the usage). `getAddr1` reads a label stack in AF_MPLS, as `__get_addr_1` does, so a route, an `as` or a via can be one. `as` (an optional `to`) is RTA_NEWDST at the top level and in a hop, `ttl-propagate` is RTA_TTL_PROPAGATE at its place, and an AF_MPLS route with no type is unicast, a delete too. Run refuses AF_MPLS for every object but route and AF_BRIDGE for all; route refuses every verb but the writes in AF_MPLS until NX3b; ResolveShow refuses both. `TestRouteWriteMpls` has 32 rows, `TestRunMplsFamily` 12. O5 reads `7_3_1/ws/mpls`: 109 same, 6 not a write. goip's messages match ip's on every refusal; the rc does not on the 4 invarg rows (below). Mutants: 18, all killed; a 19th, the default/all/any guard, was equivalent, and the guard is gone | this commit |
 | V038 | 2026-11-10 | NX3a | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section route`, three runs | The first, before the rows were gated and a funlen refactor: 142 `GOIP_PARITY_PASS` of 142, the seven MPLS rows among them at the corpus's rcs (rc 2 for label 15), and `GOIP_PARITY_OVERALL_PASS`. The second, on the final tree: 141 of 142, `route_write_replace_nfs` failing on ip's uninitialised RTA_METRICS padding byte (below), the MPLS rows passing. The third and fourth, on the final tree: 142 `GOIP_PARITY_PASS` of 142 each, the seven MPLS rows among them, and `GOIP_PARITY_OVERALL_PASS`. The rows are gated on those two | this commit |
+| V039 | 2026-11-10 | NX3b | `TestWsMplsShowReadbacks`, `TestWsMplsGet`, `TestAddrStringMpls`, `TestRouteViewOfText`, `TestResolveShow`, `TestRunMplsFamily`; `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. route show and get run in AF_MPLS. The render prints a label stack as mpls_ntop does, RTA_NEWDST as `as to` (JSON `to`) on the route and in a hop, and RTA_TTL_PROPAGATE as ip spells it, `ttl-propogate`, after pref, with no trailing space; JSON `true`/`false`. `RouteView.MarshalJSON` writes that key, which no struct tag can carry past the spell checkers. route get takes `as`. ResolveShow serves `-M route show`, spelled -M, and refuses MPLS elsewhere as Run does. Replayed with 7.2.0's lookups, every one of the 115 mpls rows' `show` and `-j` readbacks prints as ip's and sends ip's requests, and the four get rows too, two of them the kernel's refusals. Mutants: 12, all killed; the bottom-of-stack stop survived until `TestAddrStringMpls`'s 8 rows. `l2tpEnabled` is now `enabledWord`, shared with route; `RouteView.Text`'s tail moved to `writeTail` (gocyclo) | this commit |
+| V040 | 2026-11-10 | NX3b | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section route`, two runs on the final tree | 146 `GOIP_PARITY_PASS` of 146 each, the eleven MPLS rows among them, and `GOIP_PARITY_OVERALL_PASS`. The four reads are gated on those two | this commit |
 | [x] | [NP2](goip-parity-next.md#np2-the-af_mpls-route-attributes) | `RTA_TTL_PROPAGATE` | done | V029 |
 | [x] | [NP3](goip-parity-next.md#np3-ifla_ovpn_mode) | `IFLA_OVPN_MODE` | done | V030 |
 | [x] | [NP4](goip-parity-next.md#np4-seg6_iptunnel_table-on-reads) | `SEG6_IPTUNNEL_TABLE` on reads | done | V031 |
@@ -79,7 +81,7 @@
 | [x] | [NP6](goip-parity-next.md#np6-request-builders) | the stats-filter and multicast-dump builders | done | V033 |
 | [x] | [NX1](goip-parity-next.md#nx1-o5-checks-the-lookups) | O5 checks the lookups | done | V034 |
 | [x] | [NX2](goip-parity-next.md#nx2-link-set--netns) | `link set … netns` | done | V035, V036 |
-| [ ] | [NX3](goip-parity-next.md#nx3-mpls-routes) | MPLS routes | in progress: NX3a done, NX3b not started | V037, V038 |
+| [x] | [NX3](goip-parity-next.md#nx3-mpls-routes) | MPLS routes | done | V037–V040 |
 | [ ] | [NX4](goip-parity-next.md#nx4-the-target-moves-to-730) | the target moves to 7.3.0 | not started | — |
 | [ ] | [NX5](goip-parity-next.md#nx5-ip-stats) | `ip stats` | not started | — |
 

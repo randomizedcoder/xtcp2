@@ -120,14 +120,19 @@ func TestResolveShow(t *testing.T) {
 		},
 		{
 			name: "family_not_implemented", category: "negative",
-			description: "-M, -f mpls and -f bridge name families no listing goip serves reads, and -pretty is not implemented",
-			inputs:      [][]string{{"-M", "route"}, {"-f", "mpls", "route"}, {"-family", "bridge", "link"}, {"-pretty", "link"}},
+			description: "-M and -f mpls outside route, -f bridge anywhere, and -pretty are not implemented",
+			inputs:      [][]string{{"-M", "link"}, {"-f", "mpls", "address"}, {"-family", "bridge", "route"}, {"-pretty", "link"}},
 			wantErr:     ErrNotImplemented,
 		},
 		{
 			name: "family_word", category: "positive",
 			description: "-f inet6 is -6, as read_family reads it, and the canonical spelling is -6",
 			inputs:      [][]string{{"-f", "inet6", "r"}, {"-fam", "inet6", "r"}, {"-6", "r"}}, wantArgv: "-6 route show",
+		},
+		{
+			name: "family_mpls_route", category: "positive",
+			description: "-M and -f mpls on route are its show in AF_MPLS, spelled -M",
+			inputs:      [][]string{{"-M", "route"}, {"-f", "mpls", "r", "show"}}, wantArgv: "-M route show",
 		},
 		{
 			name: "family_word_invalid", category: "negative",
@@ -514,7 +519,7 @@ func TestResolvePrefixProperty(t *testing.T) {
 						t.Errorf("%q: err %v, want ErrRefusedOption naming %s", p, err, want.name)
 					}
 				case want.set == nil || want.name == "-M":
-					// -M is AF_MPLS, which no listing goip serves reads.
+					// -M is AF_MPLS, which only route reads, not link.
 					if !errors.Is(err, ErrNotImplemented) {
 						t.Errorf("%q: err %v, want ErrNotImplemented", p, err)
 					}

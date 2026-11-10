@@ -156,7 +156,7 @@ type mplsRun struct {
 }
 
 // TestRunMplsFamily is the -M and -family options through Run: route's
-// writes take AF_MPLS, and every verb and object that would read it
+// writes, get and show take AF_MPLS, and every verb and object that would read it
 // otherwise is refused rather than run in the wrong family.
 //
 // go test ./internal/goip/ -run TestRunMplsFamily
@@ -170,14 +170,10 @@ func TestRunMplsFamily(t *testing.T) {
 			args: []string{"-M", "route", "add", "100", "via", "inet", "10.0.0.2"}, expected: mplsRun{code: ExitUsage, stderr: "never applies a write"}},
 		{description: "positive: -f mpls is -M", args: []string{"-f", "mpls", "route", "del", "100"},
 			expected: mplsRun{code: ExitUsage, stderr: "never applies a write"}},
-		{description: "negative: route show in AF_MPLS", args: []string{"-M", "route", "show"},
-			expected: mplsRun{code: ExitUsage, stderr: "route show in family mpls"}},
-		{description: "negative: a bare route in AF_MPLS is its show", args: []string{"-family", "mpls", "route"},
-			expected: mplsRun{code: ExitUsage, stderr: "route show in family mpls"}},
-		{description: "negative: route get in AF_MPLS", args: []string{"-M", "route", "get", "100"},
-			expected: mplsRun{code: ExitUsage, stderr: "route get in family mpls"}},
 		{description: "negative: route flush in AF_MPLS", args: []string{"-M", "route", "flush"},
 			expected: mplsRun{code: ExitUsage, stderr: "route flush in family mpls"}},
+		{description: "negative: route save in AF_MPLS", args: []string{"-f", "mpls", "route", "save"},
+			expected: mplsRun{code: ExitUsage, stderr: "route save in family mpls"}},
 		{description: "negative: another object in AF_MPLS", args: []string{"-M", "address", "show"},
 			expected: mplsRun{code: ExitUsage, stderr: "family mpls is only implemented for route"}},
 		{description: "negative: AF_BRIDGE on any object", args: []string{"-f", "bridge", "route", "show"},
