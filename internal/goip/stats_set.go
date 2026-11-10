@@ -21,11 +21,18 @@ const (
 )
 
 // statsSetArgs is ipstats_set's loop and the checks after it, before the
-// device lookup: the device name and the suite's value.
+// device lookup: the device name and the suite's value, or help, which
+// prints the usage and returns 0.
+//
+// The refusals keep ip's statuses: NEXT_ARG, duparg2, invarg and the two
+// missing arguments end with exit(-1), 255 (ErrStatsUsage), and a second
+// suite, a value parse_on_off refuses and an unknown word return -EINVAL,
+// 22 (ErrStatsInval).
 type statsSetArgs struct {
 	dev    string
 	suite  uint16
 	enable bool
+	help   bool
 }
 
 func parseStatsSetArgs(args []string) (statsSetArgs, error) {
@@ -35,22 +42,22 @@ func parseStatsSetArgs(args []string) (statsSetArgs, error) {
 		case devKeywordCst:
 			v, err := statsSetValue(args, &i)
 			if err != nil {
-				return a, err
+				return a, statsUsage(err)
 			}
 			if a.dev != "" {
-				return a, duparg2Err(devKeywordCst, v)
+				return a, statsUsage(duparg2Err(devKeywordCst, v))
 			}
 			if !checkIfname(v) {
-				return a, invargErr(`"dev" not a valid ifname`, v)
+				return a, statsUsage(invargErr(`"dev" not a valid ifname`, v))
 			}
 			a.dev = v
 		case statsL3StatsKeyCst:
 			v, err := statsSetValue(args, &i)
 			if err != nil {
-				return a, err
+				return a, statsUsage(err)
 			}
 			if a.suite != 0 {
-				return a, fmt.Errorf("%w: A statistics suite to toggle was already given", ErrInvalidArgument)
+				return a, fmt.Errorf("%w: A statistics suite to toggle was already given", ErrStatsInval)
 			}
 			a.suite = unix.IFLA_STATS_SET_OFFLOAD_XSTATS_L3_STATS
 			switch v {
@@ -60,19 +67,19 @@ func parseStatsSetArgs(args []string) (statsSetArgs, error) {
 			default:
 				// __parse_one_of's message, not link set's older wording.
 				return a, fmt.Errorf("%w: Error: argument of %q must be one of \"off\", \"on\", not %q",
-					ErrInvalidArgument, statsL3StatsKeyCst, v)
+					ErrStatsInval, statsL3StatsKeyCst, v)
 			}
 		case routeHelpKeywordCst:
-			return a, fmt.Errorf("stats set help: %w", ErrNotImplemented)
+			return statsSetArgs{help: true}, nil
 		default:
-			return a, fmt.Errorf("%w: What is %q?", ErrInvalidArgument, args[i])
+			return a, fmt.Errorf("%w: What is %q?", ErrStatsInval, args[i])
 		}
 	}
 	if a.dev == "" {
-		return a, fmt.Errorf("%w: Not enough information: \"dev\" argument is required", ErrInvalidArgument)
+		return a, fmt.Errorf("%w: Not enough information: \"dev\" argument is required", ErrStatsUsage)
 	}
 	if a.suite == 0 {
-		return a, fmt.Errorf("%w: Not enough information: stat type to toggle is required", ErrInvalidArgument)
+		return a, fmt.Errorf("%w: Not enough information: stat type to toggle is required", ErrStatsUsage)
 	}
 	return a, nil
 }
@@ -92,6 +99,10 @@ func statsSetValue(args []string, i *int) (string, error) {
 func statsSet(c *runCtx, args []string) error {
 	a, err := parseStatsSetArgs(args)
 	if err != nil {
+		return err
+	}
+	if a.help {
+		_, err := fmt.Fprint(c.errOut, ipstatsHelp())
 		return err
 	}
 	idx, err := newLinkNameResolver(service.New(c.src, c.nextSeq))(a.dev)

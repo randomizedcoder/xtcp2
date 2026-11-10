@@ -2573,7 +2573,7 @@ func TestStatsDumpRowsGated(t *testing.T) {
 		{"boundary: the dev point get gated before G0-T02 and stays gated", "stats show group link dev", gated},
 		{"boundary: netconf show dev, measured with them, gated later on G0-T03's runs", "netconf show dev", gated},
 		{"negative: addr show dynamic stays out by design", "addr show dynamic", want{implemented: true}},
-		{"corner: -j -s stats is refused by goip and is not a matrix row", "-j -s stats show group link", want{}},
+		{"corner: -j -s stats, refused before NX5a, is a gated row since", "-j -s stats show group link", gated},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
@@ -4833,6 +4833,58 @@ func TestMaddrRowsGated(t *testing.T) {
 			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != r.floor || !slices.Equal(c.Setup, maddrReadSetup) {
 				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented read row, floor %d, maddrReadSetup",
 					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.floor)
+			}
+		})
+	}
+}
+
+// TestStatsNX5aRowsGated pins NX5a's fifteen stats rows, which gated on two
+// clean stats section runs at iproute2 7.3.0.
+//
+// go test ./internal/goipparity/ -run TestStatsNX5aRowsGated
+func TestStatsNX5aRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		setup       []string
+	}{
+		{"boundary: no verb, show_stats 0", "stats", true, nil},
+		{"positive: every leaf", "stats show", true, nil},
+		{"positive: every leaf, extended", "-s stats show", true, nil},
+		{"positive: every leaf as JSON", "-j stats show", true, nil},
+		{"positive: every leaf as extended JSON", "-j -s stats show", true, nil},
+		{"positive: link's extended JSON keys", "-j -s stats show group link", true, nil},
+		{"boundary: all of offload, no nest", "stats show group offload", true, nil},
+		{"positive: the offload nest", "stats show group offload subgroup l3_stats", true, nil},
+		{"boundary: two subgroups make the full sub-mask", "stats show group offload subgroup cpu_hit subgroup l3_stats", true, nil},
+		{"positive: afstats", "stats show group afstats", true, nil},
+		{"corner: two groups, printed sorted", "stats show group link group afstats", true, nil},
+		{"positive: xstats_slave", "stats show group xstats_slave", true, nil},
+		{"positive: one device, l3_stats on", "stats show dev d0", true, statsL3Setup},
+		{"positive: the l3_stats point get", "stats show dev d0 group offload subgroup l3_stats", true, statsL3Setup},
+		{"positive: the offload point get as JSON", "-j stats show dev d0 group offload", true, statsL3Setup},
+		{"negative: a selection the matrix has no row for is not gated", "stats show group offload subgroup cpu_hit", false, nil},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != 4 || !slices.Equal(c.Setup, r.setup) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented read row, floor 4, Setup %v",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.setup)
 			}
 		})
 	}

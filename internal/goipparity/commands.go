@@ -2011,10 +2011,10 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 
-	// The stats block — the tenth and last read-only object. Every row carries an
-	// explicit `group link` (filter_mask 0x1), which keeps the reply link-only on
-	// every topology (a bare multi-group show would print bridge xstats on mesh,
-	// a shape goip refuses). The first 12-byte filter_mask-carrying request here.
+	// The stats block — the tenth and last read-only object. These first rows
+	// carry an explicit `group link` (filter_mask 0x1), from when goip grounded
+	// that group alone; NX5a's rows after the xstats block select the rest. The
+	// first 12-byte filter_mask-carrying request here.
 	{
 		Name: "stats show group link", Slug: "stats_show",
 		// `ip stats` uniquely does NOT call ll_init_map: it issues the
@@ -2058,8 +2058,8 @@ var commands = withArgs([]Command{
 		Name: "-j stats show group link", Slug: "stats_show_json",
 		// Four, as `stats show group link`: `-j` does not reach the wire, so the
 		// request is byte-identical to the text twin and the floor is inherited. The
-		// short JSON form (ifindex/ifname/group/stats64); the extended `-s` JSON keys
-		// are not grounded, so goip refuses `-j -s` rather than emit a short object.
+		// short JSON form (ifindex/ifname/group/stats64); `-j -s stats show group
+		// link`, below, is the extended one.
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
 		// ip_stats_json sidecar; gated with its text twin on G0-T02's two runs.
@@ -2070,9 +2070,8 @@ var commands = withArgs([]Command{
 	// GET_FILTERS nest). The whole group expands to four leaves, in the
 	// pointer-sorted golden order bond/802.3ad, bridge/vlan, bridge/mcast,
 	// bridge/stp, so every device prints four header stanzas with bodies only on
-	// bridges (mesh's br0: vlan + mcast). goip grounds the vlan/mcast bodies,
-	// the bond 802.3ad body and the empty stp headers; the stp body is refused.
-	// The dev rows are the bond ones below, which bring their own bond.
+	// bridges (mesh's br0: vlan + mcast). The dev rows are the bond ones below,
+	// which bring their own bond.
 	{
 		Name: "stats show group xstats", Slug: "stats_show_xstats",
 		// Four, the stats shape: the RTM_GETSTATS xstats dump, then one
@@ -2095,6 +2094,88 @@ var commands = withArgs([]Command{
 		// the wire, so the request is byte-identical to the text twin. Grounded
 		// against ip_stats_xstats_json; gated with its text twin on G0-T02's
 		// two runs.
+		Floor: 4, Implemented: true,
+	},
+	// NX5a: every group, as ipstats.c selects and prints them (the NC4
+	// `stats` corpus rows, internal/goip's TestWsStatsCorpus). A selection
+	// is render-only but for the filter it packs: the mask, and an offload
+	// sub-mask in an IFLA_STATS_GET_FILTERS nest when it narrows the group.
+	// Every dump is the stats shape above, the RTM_GETSTATS dump then one
+	// RTM_GETLINK per device; every dev row the by-name get then the point
+	// get.
+	{
+		Name: "stats", Slug: "stats_bare",
+		// do_ipstats with no verb: ipstats_show at the -s level given, 0,
+		// so link's short block; filter_mask 0x1f.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show", Slug: "stats_show_all",
+		// All thirteen leaves per device, in descriptor-address order.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s stats show", Slug: "stats_show_all_stats",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j stats show", Slug: "stats_show_all_json",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s stats show", Slug: "stats_show_all_json_stats",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s stats show group link", Slug: "stats_show_json_stats",
+		// print_stats64's extended JSON keys.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group offload", Slug: "stats_show_offload",
+		// All three subgroups make the full sub-mask, so no nest.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group offload subgroup l3_stats", Slug: "stats_show_offload_l3",
+		// l3_stats packs hw_stats_info too: the nest's {4: 0x6}.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group offload subgroup cpu_hit subgroup l3_stats", Slug: "stats_show_offload_two",
+		// 0x1 | 0x6 is the full sub-mask, which is no nest.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group afstats", Slug: "stats_show_afstats",
+		// AF_MPLS's counters where mpls_router has given a device one, the
+		// header alone elsewhere.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group link group afstats", Slug: "stats_show_two_groups",
+		// Two groups, printed afstats first: sorted, not in argument order.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group xstats_slave", Slug: "stats_show_xstats_slave",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev d0", Slug: "stats_show_dev_l3",
+		Setup: statsL3Setup,
+		// Every leaf of one device, l3_stats on: the request flag shows on
+		// the header and the hw stats64 block under it.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev d0 group offload subgroup l3_stats", Slug: "stats_show_dev_l3_only",
+		Setup: statsL3Setup,
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j stats show dev d0 group offload", Slug: "stats_show_dev_offload_json",
+		Setup: statsL3Setup,
 		Floor: 4, Implemented: true,
 	},
 	// G3-T05's stats write: the by-name RTM_GETLINK that resolves d0, then
@@ -8097,6 +8178,15 @@ var maddrReadSetup = []string{
 	"maddr add 33:33:00:00:00:99 dev d0",
 	"addr add 239.1.1.1/32 dev d0 autojoin",
 	"-6 addr add ff05::1234/128 dev d0 autojoin",
+}
+
+// statsL3Setup is the stats corpus's l3 topology: a dummy with its L3
+// offload stats requested.
+var statsL3Setup = []string{
+	"link add d0 type dummy",
+	"link set d0 addrgenmode none",
+	"link set d0 up",
+	"stats set dev d0 l3_stats on",
 }
 
 var bondReadSetup = []string{

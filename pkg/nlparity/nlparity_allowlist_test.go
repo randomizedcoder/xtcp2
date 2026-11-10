@@ -442,6 +442,27 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-j maddress show",
 		"maddress show dev d0",
 		"maddress show dev nosuch",
+		// The fifteen NX5a stats rows, gated on two stats section runs at
+		// iproute2 7.3.0 (2026-11-10): GOIP_PARITY_PASS with stdout=0 on
+		// both, txns 6/6 on the twelve dumps and 2/2 on the three dev d0
+		// rows. Control nl=0, but for lo's IFLA_STATS_LINK_64 counters
+		// moving between captures (nl=1 to 3 on the rows that print
+		// group link), which the control suppresses.
+		"stats",
+		"stats show",
+		"-s stats show",
+		"-j stats show",
+		"-j -s stats show",
+		"-j -s stats show group link",
+		"stats show group offload",
+		"stats show group offload subgroup l3_stats",
+		"stats show group offload subgroup cpu_hit subgroup l3_stats",
+		"stats show group afstats",
+		"stats show group link group afstats",
+		"stats show group xstats_slave",
+		"stats show dev d0",
+		"stats show dev d0 group offload subgroup l3_stats",
+		"-j stats show dev d0 group offload",
 		// The twenty-one link write rows, gated on the phase 7 runs: all
 		// GOIP_PARITY_PASS twice with identical verdicts, txns matching ip
 		// with goip's GOIP_WRITE_OUT file counted as its write, control nl=0

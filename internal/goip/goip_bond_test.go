@@ -10,8 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/internal/goip/model"
-	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
@@ -685,8 +684,9 @@ func TestStatsDumpRequestsMatchIpBytes(t *testing.T) {
 	}
 }
 
-// TestResolveStatsNames is ll_index_to_name's cache over a record list: a get
-// for each ifindex the cache does not hold, none for index 0 or a repeat.
+// TestResolveStatsNames is ll_index_to_name's cache as ipstats_process_ifsm
+// uses it, once per reply: a get for each ifindex the cache does not hold,
+// none for index 0 or a repeat.
 //
 // go test ./internal/goip/ -run TestResolveStatsNames
 func TestResolveStatsNames(t *testing.T) {
@@ -705,11 +705,9 @@ func TestResolveStatsNames(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			src := newStatsReplay(t, statsPcapBase)
 			c := &runCtx{src: src, lltab: NewLLTab(), out: io.Discard, errOut: io.Discard}
-			records := make([]model.IfStats, len(tc.ifindexes))
-			for i, idx := range tc.ifindexes {
-				records[i].Ifindex = idx
+			for _, idx := range tc.ifindexes {
+				genlIndexToName(c, cint.Int(idx))
 			}
-			resolveStatsNames(c, service.New(src, c.nextSeq), records)
 			if len(src.sent) != tc.expected {
 				t.Errorf("%d gets, want %d", len(src.sent), tc.expected)
 			}

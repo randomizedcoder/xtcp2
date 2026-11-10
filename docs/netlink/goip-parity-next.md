@@ -567,6 +567,12 @@ The pin moves (the `flake.nix` overlay or nixpkgs, and `upstream-pins.json`). Th
 
 The selection machinery and the filter nest; rendering of `hw_stats_info`, `mpls_link_stats`, the `-j -s` keys and the stp body; the per-device loop in the pinned order.
 
+NX5 is done in three parts:
+
+- **NX5a, `ip stats`:** ipstats.c whole, the table below, rendered through a json_print.c port (`render.Printer`). Fifteen VM rows join the matrix.
+- **NX5b, `ip link afstats`:** iplink.c's afstats loop over the same `mpls_link_stats` body, the 8 `afstats-*` rows.
+- **NX5c, `ip link xstats`:** `type bond|bond_slave|bridge|bridge_slave` over the Printer callbacks NX5a wrote, the 16 `xstats-*` rows; `render/bridge_xstats.go`'s views go.
+
 | description | input | expected |
 |---|---|---|
 | positive: the bare show on each topology, four forms | `stats/show-*` | `same`, groups in `wsStatsOrder` |

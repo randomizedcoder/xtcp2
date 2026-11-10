@@ -39,6 +39,8 @@ func wsReadbackArgv(cmd string) (*runCtx, string, []string, error) {
 			c.json = true
 		case "-d":
 			c.showDetails++
+		case "-s":
+			c.showStats++
 		default:
 			return nil, "", nil, fmt.Errorf("option %s in %q", f[0], cmd)
 		}
