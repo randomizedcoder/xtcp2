@@ -851,6 +851,85 @@ func BuildGetStatsByIndexRequest(ifindex, filterMask, seq uint32) ([]byte, error
 	return BuildRequest(uint16(unix.RTM_GETSTATS), 0, seq, hdr, nil)
 }
 
+// StatsFilter is the selection `ip stats show` puts in a request: Mask is
+// if_stats_msg's filter_mask, a bit per IFLA_STATS_* group, and Xstats,
+// XstatsSlave and Offload are the sub-masks of the three groups ip selects
+// inside (ipstats_stat_dump_filters, ip/ipstats.c), a bit per
+// LINK_XSTATS_TYPE_* or IFLA_OFFLOAD_XSTATS_*.
+type StatsFilter struct {
+	Mask        uint32
+	Xstats      uint32
+	XstatsSlave uint32
+	Offload     uint32
+}
+
+// The full sub-mask of each selectable group, (1 << max) - 1, which ip sends
+// as no sub-mask at all (ipstats_req_should_filter_at): LINK_XSTATS_TYPE_MAX
+// is 2 and IFLA_OFFLOAD_XSTATS_MAX 3.
+const (
+	statsXstatsFullCst  = 1<<2 - 1
+	statsOffloadFullCst = 1<<3 - 1
+)
+
+// BuildStatsRequest builds the RTM_GETSTATS `ip stats show` sends for a
+// selection: a dump (NLM_F_DUMP, rtnl_statsdump_req_filter) for ifindex 0,
+// else ipstats_show_one's get of one device, NLM_F_REQUEST alone. When a
+// sub-mask is set and not full, an IFLA_STATS_GET_FILTERS nest carries
+// each such sub-mask as a u32 at its group's id, in id order
+// (ipstats_req_add_filters).
+func BuildStatsRequest(ifindex uint32, f StatsFilter, seq uint32) ([]byte, error) {
+	subs := []struct {
+		group      uint16
+		mask, full uint32
+	}{
+		{unix.IFLA_STATS_LINK_XSTATS, f.Xstats, statsXstatsFullCst},
+		{unix.IFLA_STATS_LINK_XSTATS_SLAVE, f.XstatsSlave, statsXstatsFullCst},
+		{unix.IFLA_STATS_LINK_OFFLOAD_XSTATS, f.Offload, statsOffloadFullCst},
+	}
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	var nest *NestMark
+	for _, sub := range subs {
+		if sub.mask == 0 || sub.mask == sub.full {
+			continue
+		}
+		if nest == nil {
+			m, err := ab.BeginNest(unix.IFLA_STATS_GET_FILTERS | unix.NLA_F_NESTED)
+			if err != nil {
+				return nil, err
+			}
+			nest = &m
+		}
+		if err := ab.PutU32(sub.group, sub.mask); err != nil {
+			return nil, err
+		}
+	}
+	var attrs []byte
+	if nest != nil {
+		if err := ab.EndNest(*nest); err != nil {
+			return nil, err
+		}
+		attrs = ab.Bytes()
+	}
+	hdr := ifStatsHdr(unix.AF_UNSPEC, ifindex, f.Mask)
+	if ifindex == 0 {
+		return BuildRequest(uint16(unix.RTM_GETSTATS), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
+	}
+	return BuildRequest(uint16(unix.RTM_GETSTATS), 0, seq, hdr, attrs)
+}
+
+// BuildDumpMulticastRequest builds the RTM_GETMULTICAST dump `ip maddress
+// show` sends from iproute2 7.3.0 (rtnl_mcaddrdump_req, lib/libnetlink.c):
+// an ifaddrmsg with ifa_family the caller's, ifa_index the device `dev`
+// names or 0, and no attributes. ip sends one per family, AF_INET then
+// AF_INET6, for a show of both.
+func BuildDumpMulticastRequest(family uint8, ifindex uint32, seq uint32) []byte {
+	hdr := make([]byte, IfAddrmsgSizeCst)
+	hdr[0] = family
+	binary.LittleEndian.PutUint32(hdr[4:8], ifindex)
+	return BuildDumpRequest(uint16(unix.RTM_GETMULTICAST), seq, hdr)
+}
+
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.
 func extMaskAttrs(extMask uint32) ([]byte, error) {
 	if extMask == 0 {

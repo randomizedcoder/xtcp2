@@ -432,6 +432,10 @@ func FamilyHdrLen(msgType uint16) int {
 		return IfInfomsgSizeCst
 	case uint16(unix.RTM_GETADDR), uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR):
 		return IfAddrmsgSizeCst // struct ifaddrmsg, 8
+	case uint16(unix.RTM_GETMULTICAST), uint16(unix.RTM_NEWMULTICAST):
+		// struct ifaddrmsg too (inet_dump_ifmcaddr, net/ipv4/devinet.c), with
+		// no DEL member: `ip maddress show` from iproute2 7.3.0.
+		return IfAddrmsgSizeCst
 	case uint16(unix.RTM_GETROUTE), uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE):
 		return RtMsgSizeCst // struct rtmsg, 12
 	case uint16(unix.RTM_GETNEIGH), uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH):

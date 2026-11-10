@@ -471,6 +471,8 @@ The bytes are compared with the captured requests.
 | positive: `group offload subgroup l3_stats` | the builder | the `stats/l3-stats-text` request: mask 0x8, nest `{4: 0x6}` |
 | boundary: a full sub-mask | `cpu_hit` with `l3_stats` | no nest, like `stats/two-subgroups-text` |
 | positive: an RTM_GETMULTICAST dump | AF_INET, then AF_INET6 | the two 24-byte `ws-ip730/v730maddr/all` requests |
+| positive: `maddress show dev d0` | ifindex 3 | the two `v730maddr/dev` requests |
+| boundary: full xstats sub-masks with a partial offload one | hand-built | a nest holding only the offload sub-mask |
 
 ## Tier G: goip and the matrix
 
