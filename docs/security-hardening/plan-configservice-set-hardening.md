@@ -43,7 +43,7 @@
 5. Every applied `Set` is auditable.
 6. The collector process ends up with **zero** filesystem write capability.
 7. The daemon refuses to start without the confinement its severity rating assumes, unless the operator waives named checks.
-8. The collector holds no capabilities, no `docker.sock` and no namespace handles. The privileged reads it needs go through two brokers, each enforced by validators on both ends, broker-side filtering, and a syscall profile.
+8. The collector holds no capabilities, no `docker.sock` and no namespace handles, and sends no netlink message into any namespace. The privileged reads it needs go through two brokers, each enforced by validators on both ends, broker-side filtering, and a syscall profile. Every xtcp2 process talks to another over gRPC on a unix socket (`pkg/ipc`).
 
 **Non-goals** (tracked in the advisory's [honest limits](security-vulnerability-configservice-set-fs-write.md#7-honest-limits--what-this-does-not-fix))
 
@@ -157,9 +157,10 @@ Belt layer 4: kernel enforcement that survives `syscall.Exec` (soft restart) and
 
 Belt layer 5: the collector ends up with zero write rules; the two legitimate writes move behind a path-free API. Full design in advisory §5.5.
 
-- [ ] New proto `proto/state_writer/v1/state_writer.proto`: `service StateWriter { rpc WriteBaseline(bytes) …; rpc PublishIpmetaCache(bytes) … }` — **no path parameters on the wire, ever**
+- [ ] New proto `proto/xtcp_writer/v1/writer.proto`: `service WriterService { Ping; WriteBaseline; WriteIpmeta (client stream); GetStats }` — **no path parameters on the wire, ever**
+- [ ] New `pkg/ipc`: the gRPC-over-UDS stack every xtcp2 process uses (peer uid checked in the handshake before HTTP/2 parsing, hardened options, unknown-field + protovalidate + rate-limit interceptors); Phase 5's brokers reuse it
 - [ ] New daemon mode `xtcp2 -writer` (`cmd/xtcp2/writer.go`):
-  - [ ] gRPC server on UDS `/run/xtcp2/writer.sock`; `SO_PEERCRED` on accept, reject unexpected uids
+  - [ ] gRPC server on UDS `/run/xtcp2/writer.sock` via `pkg/ipc`; `SO_PEERCRED` in the handshake, reject unexpected uids
   - [ ] Fixed targets inside its root: `link-monitor-baseline.json`, `ipmeta/current.lookup.parquet.zst` (+ previous)
   - [ ] Size caps (baseline ≤ 64 KiB = `baseline.MaxFileBytes`; cache ≤ `-ipmetaMaxBytes`, default 64 MiB), per-RPC rate limits, monotonic version numbers (reject rollback/replay), mode 0640 group `xtcp2-state` (the collector, uid 0 without `CAP_DAC_OVERRIDE`, reads via the group)
   - [ ] Reuse the existing atomic-write discipline (`pkg/linkmonitor/internal/baseline/files.go`): `CreateTemp` → write → `fsync` → `rename` → dir fsync; baseline `flock` moves inside the writer
@@ -221,32 +222,32 @@ Changes in the deployment repo (`ansible/roles/monitoring/xtcp2/`) and the image
 Advisory §5.8, [Phase 5](phase-5-privilege-brokers.md#the-netlink-broker). Moves `setns` and both capabilities out of the collector.
 
 - [ ] Spike (PR-18):
-  - confirm on fleet kernels that a capability-less process using a broker-opened netlink fd gets unprivileged semantics (`__netlink_ns_capable` checks opener **and** sender);
-  - run every collector feature with zero capabilities;
-  - classify the link-monitor reads.
-- [ ] `proto/xtcp_nlbroker/v1/nlbroker.proto` — message-only, with protovalidate rules:
-  - `NetnsId{dev, inode}` with `gt 0`;
-  - `NetlinkProtocol` enum `in: [SOCK_DIAG, ROUTE]`;
-  - oneof required;
-  - `ListNetns` paginated at ≤ 256 entries per datagram.
-- [ ] `xtcp2 -nlbroker` (`pkg/nlbroker`):
-  - `SOCK_SEQPACKET` UDS, replies carrying the fd in `SCM_RIGHTS`;
-  - a discovery table the broker owns;
-  - `fstat` + `NS_GET_NSTYPE` re-check before `setns`;
-  - rate and single-connection limits;
-  - `SO_PEERCRED` must equal the collector uid.
+  - confirm the kernel facts on fleet kernels: a sender without `CAP_NET_ADMIN` gets only unprivileged netlink semantics, and dump replies go only to the requesting socket;
+  - prototype the dump relay and run every collector feature against it with zero capabilities;
+  - run the relay benchmark gate (P12) against today's direct and io_uring paths;
+  - inventory the link monitor's and `rtnlmon`'s netlink requests.
+- [ ] `proto/xtcp_nlbroker/v1/nlbroker.proto` — a gRPC service with protovalidate rules:
+  - `ListNetns`, `DumpSockets` and `DumpRoute`, the dumps as server streams of raw `NetlinkChunk { bytes data }`;
+  - `NetnsId{cookie}` with `gt 0`;
+  - `DumpSockets`: family enum, TCP state mask ≤ 16 382, extension mask ≤ 255; no protocol, socket-id or attribute field;
+  - `DumpRoute`: links, addresses or routes.
+- [ ] `xtcp2 -nlbroker` (`pkg/nlbroker` on `pkg/ipc`):
+  - builds and sends every netlink request from constants plus validated fields (golden-byte tests); relays replies unfiltered, reading only `nlmsghdr` headers;
+  - a discovery table the broker owns; one cached socket per (netns, protocol), verified by `fstat`, `NS_GET_NSTYPE` and `SO_NETNS_COOKIE`;
+  - one dump per netns, concurrency, rate, byte-cap and single-connection limits;
+  - the peer uid must equal the collector uid.
 - [ ] Collector seams:
-  - `netNamespaceInstance`/`attemptOpenAndSetns` and `nsLocalitySnapshot` → `OpenSocket`;
+  - a stream receiver feeding the existing `packetCh` replaces the per-netns sockets in `netNamespaceInstance`; `nsLocalitySnapshot` → `DumpRoute`;
   - `ns_discover.go` → `ListNetns`;
-  - new `-nlBrokerSock` flag.
+  - new `-nlBrokerSock` flag; direct mode only in builds with the `netns_direct` tag.
 - [ ] De-privilege (PR-22):
   - collector runs as uid `xtcp2` with `cap_drop ALL`;
   - token and secret files group `xtcp2`, `0440`;
   - capability check per mode;
   - new `xtcp2_collector_excess_caps` gauge.
 
-**Acceptance**: P1–P10, Q1–Q17, R1–R10, U1–U5 ([Phase 5 tests](phase-5-privilege-brokers.md#tests)).
-**Estimate**: 8–12 days. **Risk**: a link-monitor read that genuinely needs `CAP_NET_ADMIN` → typed broker op via the admission checklist.
+**Acceptance**: P1–P13, Q1–Q24, R1–R10, T6–T7, U1–U5 ([Phase 5 tests](phase-5-privilege-brokers.md#tests)).
+**Estimate**: 10–14 days. **Risk**: the relay misses the P12 gate → the shared-memory reply ring (same single copy as today); a link-monitor read that genuinely needs `CAP_NET_ADMIN` → typed broker op via the admission checklist.
 
 ### W11 — Docker broker (L7)
 
@@ -361,10 +362,11 @@ With admin token in hand on a canary host, every item must fail safely:
 | OD-6 | Frozen-field escape hatch lifetime | Time-boxed to one migration window, then remove the flag |
 | OD-7 | State-dir quota mechanism (alert-only vs XFS project quota) | Alert-only in Phase 2 (cheap), quota when a host survives to Phase 3 |
 | OD-8 | Does `xtcp2-min` keep `file:` (it is the stdlib-only flavor)? | Drop it there too; only `full`/`-debug` carry the tag |
-| OD-10 | Netlink broker: pass fds vs run the dumps in the broker | Pass fds over `SOCK_SEQPACKET`. The kernel checks the sender's capabilities as well as the opener's, so the fd carries no privilege, and the hot path stays zero-copy |
+| OD-10 | Netlink broker: pass fds vs run the dumps in the broker | Run the dumps in the broker, over gRPC. The broker builds and sends every request, so what reaches the kernel is filtered by xtcp2 and not only by the kernel; replies are relayed unfiltered as raw chunks. A passed fd would let the collector send anything on it. Fallback if the P12 benchmark fails: a read-only shared-memory reply ring |
 | OD-11 | Docker access: typed gRPC broker vs a filtering HTTP proxy in front of `docker.sock` | Typed broker — the projection and the fixed request set are then structural, not pattern-matched |
 | OD-12 | Bound the Docker broker further with dockerd TCP+mTLS and an authz plugin (GET-only for the broker's cert) | Deferred until W11 lands |
-| OD-13 | Make the W13 `lsm` and `pid_namespace` checks required? | Not yet: many bare-metal hosts run no LSM, and bare-metal discovery scans host `/proc`. Revisit when W10's broker owns discovery |
+| OD-13 | Make the W13 `lsm` and `pid_namespace` checks required? | Not yet: many bare-metal hosts run no LSM. Revisit when W10's broker owns discovery |
+| OD-14 | Broker the link monitor's and `rtnlmon`'s host-netns netlink requests too? | Yes, after W10: typed broker RPCs for the requests PR-18 inventories, so the collector's seccomp profile denies `AF_NETLINK` entirely. Until then they stay capless in the host netns, where the kernel admits only GETs and multicast joins |
 | OD-9 | Drop the network stdlib destinations (`tcp`/`udp`/`http`/`https`/`unix`/`unixgram`) from the production flavor? | Yes — production needs `s3parquet` only; kills the DEST-repoint exfil class structurally |
 
 ## References

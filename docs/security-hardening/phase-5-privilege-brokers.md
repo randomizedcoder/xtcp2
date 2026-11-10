@@ -4,8 +4,9 @@
 |---|---|
 | **Status** | Not started — checkboxes track execution |
 | **Tracks** | [Implementation plan](implementation-plan.md) Phase 5 → [hardening plan](plan-configservice-set-hardening.md) workstreams W10 (netlink broker), W11 (Docker broker), W12 (syscall profiles) → [advisory](security-vulnerability-configservice-set-fs-write.md) layer L7 |
-| **Goal** | The collector — everything that parses netlink and parquet, serves gRPC and Prometheus, and uploads to S3 — runs as a dedicated non-root uid with **zero capabilities, no `docker.sock`, and no namespace handles**. The two privileged needs move into two single-purpose brokers whose APIs can express nothing else, and each request is enforced three times: protovalidate rules on both ends, broker-side filtering against broker-owned state, and a kernel syscall profile on the broker |
-| **Prereqs** | None hard. PR-19 (syscall profiles) ships first, against today's single-process collector. Reuses `pkg/sandbox` (Phase 2) and the peer-auth and both-ends-validation patterns of the writer (Phase 3) |
+| **Goal** | The collector — everything that parses netlink and parquet, serves gRPC and Prometheus, and uploads to S3 — runs as a dedicated non-root uid with **zero capabilities, no `docker.sock`, no namespace handles, and no netlink socket in any tenant netns**. The two privileged needs move into two single-purpose brokers whose APIs can express nothing else. Every netlink message xtcp2 sends into a namespace is built by the netlink broker from a typed request; the high-volume replies flow back unfiltered. Each request is enforced three times: protovalidate rules on both ends, broker-side filtering against broker-owned state, and a kernel syscall profile on the broker |
+| **Prereqs** | None hard. PR-19 (syscall profiles) ships first, against today's single-process collector. Reuses `pkg/sandbox` (Phase 2) and `pkg/ipc` ([Phase 3](phase-3-writer-split.md#wire-format-grpc-over-uds-pkgipc): gRPC over UDS, peer uid checked in the handshake, validation on both ends) |
+| **Scope** | The container deployment. Bare metal is unsupported for this design: [PR-24](phase-1-code-hardening.md#pr-24--startup-confinement-check) refuses to start unconfined unless the operator waives named checks, and a waived host is the operator's risk |
 
 ## Contents
 
@@ -37,60 +38,65 @@ Phases 1–4 close the `Set` primitives and confine the collector's filesystem a
 
 Verified against kernel source (`torvalds/linux` master). PR-18's spike re-verifies each on fleet kernels; the P-table pins them as tests.
 
-1. **Netlink privilege checks need the opener *and* the sender.** `__netlink_ns_capable` (`net/netlink/af_netlink.c`) returns `file_ns_capable(<socket opener>, cap) && ns_capable(<current task>, cap)`. A netlink socket opened by a privileged broker and then used by a capability-less collector therefore behaves exactly like an unprivileged socket: dumps work, and every `CAP_NET_ADMIN`-gated operation fails. **Privilege does not travel with the fd** — this is what makes fd passing safe.
-2. **inet_diag dumps are unprivileged.** `CAP_NET_ADMIN` only adds `INET_DIAG_MARK`, TCP-MD5 key material (`tcp_diag_get_aux` → `tcp_diag_put_md5sig` copies `tcpm_key`), ULP details, and mark conditions in bytecode filters (`net/ipv4/inet_diag.c`, `net/ipv4/tcp_diag.c`). `SOCK_DESTROY` checks `ns_capable(current, CAP_NET_ADMIN)` (`net/core/sock_diag.c`). `xtcp_flat_record` has no mark or MD5 field, so the collector loses nothing it records. It also gains something: it can no longer read MD5 keys or kill sockets. The startup check's claim that xtcp2 "cannot read any TCP socket data without" `CAP_NET_ADMIN` (`pkg/xtcp/init_capabilities.go:36`) contradicts this; PR-18 settles it attribute by attribute.
-3. **A socket's netns is fixed at creation** (`sock_net(sk)`). An fd created inside a target netns dumps that netns, whichever netns the process using it is in.
-4. **rtnetlink mutations** (`RTM_NEW*`/`RTM_DEL*`) are gated by `netlink_net_capable` (fact 1). A broker-opened `NETLINK_ROUTE` fd lets the collector dump addresses and routes, never change them.
-5. **gRPC cannot carry file descriptors.** `SCM_RIGHTS` is ancillary data on a unix socket, and HTTP/2 framing has no place for it. So the netlink broker speaks proto messages over `SOCK_SEQPACKET`; the Docker broker, which returns only data, is a gRPC service.
+1. **Netlink privilege checks need the opener *and* the sender.** `__netlink_ns_capable` (`net/netlink/af_netlink.c`) returns `file_ns_capable(<socket opener>, cap) && ns_capable(<current task>, cap)`. A sender without `CAP_NET_ADMIN` is limited to unprivileged requests, whoever opened the socket. The netlink broker holds no `CAP_NET_ADMIN`, so this is the kernel backstop under the broker's own request filter.
+2. **inet_diag dumps are unprivileged.** `CAP_NET_ADMIN` only adds `INET_DIAG_MARK`, TCP-MD5 key material (`tcp_diag_get_aux` → `tcp_diag_put_md5sig` copies `tcpm_key`), ULP details, and mark conditions in bytecode filters (`net/ipv4/inet_diag.c`, `net/ipv4/tcp_diag.c`). `SOCK_DESTROY` checks `ns_capable(current, CAP_NET_ADMIN)` (`net/core/sock_diag.c`). `xtcp_flat_record` has no mark or MD5 field, so nothing it records is lost, and MD5 keys and socket kills leave reach. The startup check's claim that xtcp2 "cannot read any TCP socket data without" `CAP_NET_ADMIN` (`pkg/xtcp/init_capabilities.go:36`) contradicts this; PR-18 settles it attribute by attribute.
+3. **A socket's netns is fixed at creation** (`sock_net(sk)`). A socket created inside a target netns dumps that netns, whichever netns the process using it is in. The broker keeps one socket per (netns, protocol) and never stays inside a tenant netns.
+4. **rtnetlink mutations** (`RTM_NEW*`/`RTM_DEL*`, every non-GET kind) are gated by `netlink_net_capable(skb, CAP_NET_ADMIN)` in `rtnetlink_rcv_msg` (fact 1). Without `CAP_NET_ADMIN`, only dumps and multicast joins succeed.
+5. **A netlink socket cannot be made send-only or receive-only, and dump replies go only to the socket that sent the request.** Netlink implements no `shutdown` (`sock_no_shutdown`), seccomp cannot tell one fd from another, and the kernel unicasts a dump to the requester's port id. So whichever process reads the replies can also send anything on that socket. **Filtering what xtcp2 sends therefore means the broker both sends and reads, and relays the reply bytes.** Passing the fd to the collector would leave its sends filtered by the kernel alone.
 
 ## Target topology
+
+All three links are gRPC over a unix socket, on the shared `pkg/ipc` stack ([Phase 3](phase-3-writer-split.md#wire-format-grpc-over-uds-pkgipc)).
 
 ```
                      ┌────────────────────────────────────────────┐
                      │ xtcp2 collector                             │
                      │  uid xtcp2 (non-root), CapEff 0             │
                      │  host netns: listeners 9088/8889/9089, S3   │
-                     │  no docker.sock, no netns mounts            │
+                     │  no docker.sock, no netns mounts,           │
+                     │  no SOCK_DIAG socket, no setns              │
                      └──┬───────────────┬───────────────┬──────────┘
-      SOCK_SEQPACKET    │ gRPC / UDS    │   framed UDS  │
-   proto + SCM_RIGHTS   │               │   (Phase 3)   │
+      gRPC / UDS        │ gRPC / UDS    │ gRPC / UDS    │
+   typed requests ↓     │               │  (Phase 3)    │
+   raw replies ↑        │               │               │
 ┌───────────────────────▼──┐ ┌──────────▼──────────┐ ┌──▼─────────────────┐
 │ xtcp2 -nlbroker          │ │ xtcp2 -dockerbroker │ │ xtcp2 -writer      │
 │ uid 0, CAP_SYS_ADMIN only│ │ uid xtcp2-docker +  │ │ uid xtcp2-writer   │
-│ seccomp: setns(NEWNET),  │ │ docker group, Cap 0 │ │ Cap 0, no network  │
-│ socket(NETLINK,          │ │ network_mode none   │ │ state dir rw       │
-│   SOCK_DIAG|ROUTE) only  │ │ docker.sock, 4 fixed│ │                    │
+│ builds + sends every     │ │ docker group, Cap 0 │ │ Cap 0, no network  │
+│ netlink request; relays  │ │ network_mode none   │ │ state dir rw       │
+│ replies unfiltered       │ │ docker.sock, 4 fixed│ │                    │
 │ /run/netns, docker/netns │ │ GETs, projection    │ │                    │
 └──────────────────────────┘ └─────────────────────┘ └────────────────────┘
 ```
 
 | Process | uid | Capabilities | Network | Mounts | Listens on |
 |---|---|---|---|---|---|
-| collector | dedicated `xtcp2` (non-root, not 65534) | **none** | host netns, so it can bind and connect but not configure | state dir `ro`, broker socket dirs, token and secret files (group `xtcp2`, `0440`), `/sys/fs/cgroup:ro` | 9088, 8889, 9089 (all ≥ 1024, no capability needed) |
-| netlink broker | 0 | `CAP_SYS_ADMIN` only (+ `CAP_SYS_PTRACE` only for bare-metal `/proc` discovery) | host netns, which is its handle to the host namespace; seccomp forbids `AF_INET*` sockets | `/run/netns:ro`, `/run/docker/netns:ro` (rslave), its socket dir | `/run/xtcp2/nlbroker.sock` only |
-| Docker broker | dedicated `xtcp2-docker`, `group_add` docker gid | none | `network_mode: none` | `docker.sock`, `/run/docker/netns:ro` (stat only), its socket dir | `/run/xtcp2/dockerbroker.sock` only |
-| writer | dedicated `xtcp2-writer` (moved off 65534, which the internet-facing ipfeed sidecar also uses) | none | `network_mode: none` | state dir `rw` | per [Phase 3](phase-3-writer-split.md) |
+| collector | dedicated `xtcp2` (non-root, not 65534) | **none** | host netns, so it can bind and connect but not configure. Netlink: no `SOCK_DIAG` socket and no tenant netns; host-netns `ROUTE`/`GENERIC`/`RDMA` sockets for the link monitor and `rtnlmon` until those are brokered ([decision](#decisions-to-close-during-phase-5)) | state dir `ro`, broker socket dirs, token and secret files (group `xtcp2`, `0440`), `/sys/fs/cgroup:ro` | 9088, 8889, 9089 (all ≥ 1024, no capability needed) |
+| netlink broker | 0 | `CAP_SYS_ADMIN` only | host netns, which is its handle to the host namespace; seccomp forbids `AF_INET*` sockets | `/run/netns:ro`, `/run/docker/netns:ro` (rslave), its socket dir | `/run/xtcp2/nlbroker.sock` (gRPC) only |
+| Docker broker | dedicated `xtcp2-docker`, `group_add` docker gid | none | `network_mode: none` | `docker.sock`, `/run/docker/netns:ro` (stat only), its socket dir | `/run/xtcp2/dockerbroker.sock` (gRPC) only |
+| writer | dedicated `xtcp2-writer` (moved off 65534, which the internet-facing ipfeed sidecar also uses) | none | `network_mode: none` | state dir `rw` | `/run/xtcp2/writer.sock` (gRPC), per [Phase 3](phase-3-writer-split.md) |
 
 **Why two brokers, not one.** Membership in the docker group is host-root-equivalent; `CAP_SYS_ADMIN` limited by seccomp to `setns(CLONE_NEWNET)` is not. A combined broker would hand one compromise both. Each broker holds exactly one privilege and has its own API, profile and alert.
 
 ## Design rules for every broker
 
-1. **Typed, verb-specific APIs; never a pass-through.** No request field carries a path, URL, HTTP method, raw netlink message, socket family, or syscall argument chosen by the client. The broker builds every privileged call from compiled-in constants plus identifiers it issued itself.
+1. **Typed, verb-specific APIs; never a pass-through.** No request field carries a path, URL, HTTP method, raw netlink message, socket family, or syscall argument chosen by the client. The broker builds every privileged call, and every byte it sends to the kernel or dockerd, from compiled-in constants plus validated fields and identifiers it issued itself.
 2. **Three independent enforcement layers per request:**
-   - *validators*: protovalidate on both ends — the client before send, the broker after decode; unknown fields rejected;
+   - *validators*: protovalidate on both ends — the client before send, the broker after decode; unknown fields rejected. Both run in the shared `pkg/ipc` interceptor chain ([Phase 3](phase-3-writer-split.md#wire-format-grpc-over-uds-pkgipc)), so every service gets them identically;
    - *broker-side filtering*: semantic checks against broker-owned state (discovery tables, indexes), rate limits, connection limits;
    - *kernel*: a seccomp allowlist and a Landlock ruleset on the broker, so a bug in the first two layers still cannot exceed the API's intent.
-3. **Identifiers, not handles.** Clients name objects by broker-issued ids: a netns by `(dev, inode)` from the broker's own discovery, a container by netns inode from the broker's own index. An unknown id returns `NOT_FOUND` before any privileged call.
+3. **Identifiers, not handles.** Clients name objects by broker-issued ids: a netns by its cookie (`SO_NETNS_COOKIE`, never reused by the kernel, unlike inode numbers) from the broker's own discovery, a container by netns inode from the broker's own index. An unknown id returns `NOT_FOUND` before any privileged call.
 4. **Responses are projections.** Only fields with a consumer cross the boundary. Outbound messages are validated too: tenant-controlled strings such as container names get charset rules, and a failing entry is dropped, not repaired.
 5. **Peer authentication is meaningful because the collector is no longer root.**
-   - `SO_PEERCRED` uid must equal the dedicated `xtcp2` uid. Once the collector is non-root, that uid names exactly one process image; uid 0 never did.
+   - `SO_PEERCRED` uid must equal the dedicated `xtcp2` uid, checked by `pkg/ipc`'s transport credentials during the handshake, before any HTTP/2 frame is parsed. Once the collector is non-root, that uid names exactly one process image; uid 0 never did.
+   - The collector checks the broker's uid the same way (mutual), so a process that wins a race for the socket path is refused.
    - Socket dir `0750` and socket `0660`, group `xtcp2-broker`.
    - Optional second factor: `SO_PEERSEC` AppArmor label `xtcp2-collector` (verify unix-socket label support on fleet kernels). Separate PID namespaces rule out pid- or cgroup-based checks below `PIDFD_INFO_CGROUPID` (6.13).
 6. **Fail closed in the brokers, degrade-not-exit in the collector.**
    - Broker down: the affected enrichment or namespace set goes stale, a counter rises, and an alert fires.
-   - The collector never falls back to holding the privilege itself in the fleet. Direct mode exists only when no broker socket is configured, for bare `xtcp2` runs.
+   - The collector never falls back to holding the privilege itself in the fleet. Direct mode exists only when no broker socket is configured, and only in builds with the `netns_direct` tag; the fleet image is built without it, so a broker misconfiguration cannot fall back to the privileged path.
 7. **One admission checklist for new ops**, mirroring the writer's ([Phase 3 Appendix A, C](phase-3-writer-split.md#appendix-a--the-write-inventory-and-the-target-wish-list)):
-   1. a new oneof arm or RPC with validators;
+   1. a new RPC with validators;
    2. a compiled-in mapping to exactly one privileged call;
    3. a seccomp and Landlock delta;
    4. a test-table block;
@@ -103,15 +109,19 @@ Verified against kernel source (`torvalds/linux` master). PR-18's spike re-verif
 
 ### What it replaces
 
-Today the collector does the privileged work itself.
-- **Per-netns readers** (`netNamespaceInstance`, `pkg/xtcp/ns_net_namespace.go`): lock an OS thread, `open` the netns handle, `setns(fd, CLONE_NEWNET)`, `socket(AF_NETLINK, SOCK_DGRAM, NETLINK_INET_DIAG)`, then restore or terminate the thread.
-- **The locality enricher** (`nsLocalitySnapshot`, `pkg/xtcp/enrich_locality.go:408`): does the same to dump addresses and routes.
+Today the collector enters every namespace, and builds and sends every netlink request itself:
+- **Per-netns socket dumps** (`netNamespaceInstance`, `pkg/xtcp/ns_net_namespace.go`): lock an OS thread, `open` the netns handle, `setns(fd, CLONE_NEWNET)`, `socket(AF_NETLINK, SOCK_DGRAM, NETLINK_INET_DIAG)`, then restore or terminate the thread. The poller sends a `SOCK_DIAG_BY_FAMILY` dump (`xtcpnl.BuildNetlinkSockDiagRequest`, sent at `pkg/xtcp/poller.go:447`), and `netlinkReceiver` (`pkg/xtcp/netlinker.go`) or the io_uring path reads the replies onto `packetCh` for the decoders.
+- **The locality enricher** (`nsLocalitySnapshot`, `pkg/xtcp/enrich_locality.go`): the same entry dance on a `NETLINK_ROUTE` socket, then `RTM_GETLINK`, `RTM_GETADDR` and `RTM_GETROUTE` dumps (`enrich_locality.go:486–520`).
+- **Discovery** (`ns_discover.go`, `pkg/nsdiscover`).
 
-After the split, both call sites become one broker request that returns a socket fd. The collector keeps its zero-copy hot path — it reads the same netlink socket it reads today — and loses `setns`, the thread-tainting dance, and both capabilities.
+Those four dump types are everything xtcp2 sends into a namespace. The `inet_diag` request is the `ss --tcp --info` request: TCP, one address family, a state mask and an extension mask.
 
-### Protocol — proto over `SOCK_SEQPACKET`
+After the split:
+- **Sends are filtered.** The collector sends nothing to the kernel over netlink in any namespace. It makes a typed gRPC call; the broker builds the request from compiled-in constants plus validated fields, sends it, and is the only process that writes to a netlink socket in any namespace. The host netns's socket dumps go through the broker too.
+- **Replies are not filtered.** They are the high-volume direction and carry no risk to the kernel. The broker relays them unchanged on a server stream, and the collector feeds them to today's decoders.
+- The collector loses `setns`, the thread-tainting dance, every per-netns socket, and both capabilities.
 
-`SOCK_SEQPACKET` preserves message boundaries, so one datagram is one request and no length prefix needs parsing. A successful `OpenSocket` reply carries **exactly one** fd in `SCM_RIGHTS`; every other reply carries none. The schema is message-only (no `service`), like the writer's:
+### gRPC service
 
 ```proto
 // proto/xtcp_nlbroker/v1/nlbroker.proto
@@ -119,10 +129,13 @@ syntax = "proto3";
 package xtcp_nlbroker.v1;
 import "buf/validate/validate.proto";
 
-enum NetlinkProtocol {
-  NETLINK_PROTOCOL_UNSPECIFIED = 0;
-  NETLINK_PROTOCOL_SOCK_DIAG   = 1; // NETLINK_SOCK_DIAG (4): inet_diag dumps
-  NETLINK_PROTOCOL_ROUTE       = 2; // NETLINK_ROUTE (0): address/route dumps (locality)
+service NetlinkBrokerService {
+  // Network namespaces the broker discovered. Paginated, pinned to a generation.
+  rpc ListNetns(ListNetnsRequest) returns (ListNetnsResponse);
+  // The inet_diag dump (`ss --tcp --info`) in one netns.
+  rpc DumpSockets(DumpSocketsRequest) returns (stream NetlinkChunk);
+  // An rtnetlink link, address or route dump in one netns (locality).
+  rpc DumpRoute(DumpRouteRequest) returns (stream NetlinkChunk);
 }
 
 enum NetnsSource {
@@ -130,19 +143,18 @@ enum NetnsSource {
   NETNS_SOURCE_HOST        = 1; // the broker's own (host) netns
   NETNS_SOURCE_RUN_NETNS   = 2; // /run/netns/<name>
   NETNS_SOURCE_DOCKER      = 3; // /run/docker/netns/<sandbox>
-  NETNS_SOURCE_PROC        = 4; // /proc/<pid>/ns/net (bare metal only)
 }
 
-// Broker-issued identity. The client never sends a path.
+// Broker-issued identity: the netns cookie. The client never sends a path.
 message NetnsId {
-  uint64 dev   = 1 [(buf.validate.field).uint64.gt = 0];
-  uint64 inode = 2 [(buf.validate.field).uint64.gt = 0];
+  uint64 cookie = 1 [(buf.validate.field).uint64.gt = 0];
 }
 
 message Netns {
   NetnsId     id     = 1 [(buf.validate.field).required = true];
-  NetnsSource source = 2 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
-  string      name   = 3 [(buf.validate.field).string = {max_len: 255, pattern: "^[A-Za-z0-9._-]*$"}];
+  uint64      inode  = 2 [(buf.validate.field).uint64.gt = 0]; // joins the Docker broker's netns_inode
+  NetnsSource source = 3 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
+  string      name   = 4 [(buf.validate.field).string = {max_len: 255, pattern: "^[A-Za-z0-9._-]*$"}];
 }
 
 message ListNetnsRequest {
@@ -150,86 +162,104 @@ message ListNetnsRequest {
   uint32 offset     = 2 [(buf.validate.field).uint32.lte = 65535];
 }
 message ListNetnsResponse {
-  repeated Netns netns      = 1 [(buf.validate.field).repeated.max_items = 256]; // one datagram ≪ sk_sndbuf
+  repeated Netns netns      = 1 [(buf.validate.field).repeated.max_items = 1024];
   uint64         generation = 2;
   bool           more       = 3;
 }
 
-message OpenSocketRequest {
-  NetnsId         netns    = 1 [(buf.validate.field).required = true];
-  NetlinkProtocol protocol = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2]}];
-}
-message OpenSocketResponse {          // the fd travels in SCM_RIGHTS
-  NetnsId         netns    = 1;
-  NetlinkProtocol protocol = 2;
+enum AddressFamily {
+  ADDRESS_FAMILY_UNSPECIFIED = 0;
+  ADDRESS_FAMILY_INET        = 1; // AF_INET
+  ADDRESS_FAMILY_INET6       = 2; // AF_INET6
 }
 
-message PingRequest {}
-message PingResponse {}
-message StatsRequest {}
-message StatsResponse {
-  map<string, uint64> counters = 1 [(buf.validate.field).map.max_pairs = 64];
+// Built as struct inet_diag_req_v2 with sdiag_protocol = IPPROTO_TCP, a zeroed
+// inet_diag_sockid and no attributes. There is no protocol, socket-id or
+// bytecode field to set.
+message DumpSocketsRequest {
+  NetnsId       netns      = 1 [(buf.validate.field).required = true];
+  AddressFamily family     = 2 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
+  uint32        states     = 3 [(buf.validate.field).uint32 = {gt: 0, lte: 16382}]; // bits 1..13: TCP_ESTABLISHED..TCP_BOUND_INACTIVE
+  uint32        extensions = 4 [(buf.validate.field).uint32.lte = 255];            // idiag_ext: the 8 requestable INET_DIAG_* reads
+  uint32        seq        = 5;                                                    // copied into nlmsg_seq; opaque to the kernel
 }
 
-message Error {
-  enum Code { CODE_UNSPECIFIED = 0; CODE_INVALID = 1; CODE_NOT_FOUND = 2;
-              CODE_RESOURCE_EXHAUSTED = 3; CODE_ABORTED = 4; CODE_INTERNAL = 5; }
-  Code   code   = 1 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
-  string detail = 2 [(buf.validate.field).string.max_len = 256];
+enum RouteDump {
+  ROUTE_DUMP_UNSPECIFIED = 0;
+  ROUTE_DUMP_LINKS       = 1; // RTM_GETLINK
+  ROUTE_DUMP_ADDRS       = 2; // RTM_GETADDR
+  ROUTE_DUMP_ROUTES      = 3; // RTM_GETROUTE
 }
 
-message Request {
-  oneof op {
-    option (buf.validate.oneof).required = true;
-    PingRequest       ping        = 1;
-    ListNetnsRequest  list_netns  = 2;
-    OpenSocketRequest open_socket = 3;
-    StatsRequest      stats       = 4;
-  }
+// Built as a bare dump request (ifinfomsg, ifaddrmsg or rtmsg) with
+// AF_UNSPEC and no attributes.
+message DumpRouteRequest {
+  NetnsId   netns = 1 [(buf.validate.field).required = true];
+  RouteDump dump  = 2 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
+  uint32    seq   = 3;
 }
-message Response {
-  oneof result {
-    option (buf.validate.oneof).required = true;
-    PingResponse       ping        = 1;
-    ListNetnsResponse  list_netns  = 2;
-    OpenSocketResponse open_socket = 3;
-    StatsResponse      stats       = 4;
-    Error              error       = 5;
-  }
+
+// The reply format. data is one or more whole netlink messages, exactly as
+// recvmsg returned them, concatenated. The broker never splits, edits or
+// filters a message. The last chunk ends with NLMSG_DONE.
+message NetlinkChunk {
+  bytes data = 1;
 }
 ```
 
 What the schema leaves out is as important as what it includes:
-- no socket type, family or protocol number: the broker always uses `AF_NETLINK`/`SOCK_DGRAM|SOCK_CLOEXEC`, and the enum maps to exactly two protocol numbers;
-- no netns path;
-- no generic-netlink family;
-- no socket options.
+- no netlink message type, flags or protocol number: each RPC maps to exactly one message type, and `DumpSockets` always asks for TCP;
+- no socket id, so no single-socket lookups;
+- no attributes, so no `INET_DIAG_REQ_BYTECODE` — the kernel's bytecode auditor has a CVE history, and the typed API makes it unreachable;
+- no netns path, generic-netlink family or socket option.
+
+`seq` is the one client-chosen value that reaches the kernel: it is copied into `nlmsg_seq`, which the kernel only echoes. It keeps the collector's decoders unchanged, because the rtnetlink reader drops replies with another seq (`xtcpnl_rtnetlink.go:393`).
 
 ### Broker-side filtering (beyond the validators)
 
-Receive pipeline, fail-closed, each stage counted in `xtcp2_nlbroker_requests_total{op,stage}`:
+Each request runs this pipeline, fail-closed, each stage counted in `xtcp2_nlbroker_requests_total{rpc,stage}`:
 
-1. **Connection gate:** `SO_PEERCRED` uid == `-nlBrokerPeerUid`; at most one client connection (the collector), and a second `accept` is closed immediately; datagrams larger than 4 KiB arrive `MSG_TRUNC` and are treated as `malformed`.
-2. **Decode:** `proto.Unmarshal`, then `GetUnknown() == nil` on every message (unknown fields rejected, not stored) → `malformed`.
-3. **Validate:** protovalidate `Validate(req)` → `invalid`.
-4. **Resolve:** `(dev, inode)` must be in the broker's **current** discovery table, which the broker builds from the host netns, `/run/netns`, `/run/docker/netns` and, on bare metal, the `/proc` scan. A miss returns `not_found` and makes no syscall.
-5. **Re-verify the handle (TOCTOU):** the broker `open`s the path from **its own** table entry, `fstat`s the fd, and requires `(dev, inode)` to still match. It also requires `ioctl(NS_GET_NSTYPE) == CLONE_NEWNET`, so a non-network nsfs file planted under `/run/netns` is never entered. On mismatch it returns `not_found` and increments the `race` counter.
-6. **Rate limit:** `OpenSocket` ≤ `-nlBrokerOpenRate` (default 100/s, burst 1000 — container churn) and `ListNetns` ≤ 20/s; excess returns `resource_exhausted`.
-7. **Create:** on a dedicated locked OS thread: `setns(nsfd, CLONE_NEWNET)` → `socket(AF_NETLINK, SOCK_DGRAM|SOCK_CLOEXEC, proto)` → restore the original netns, or terminate the thread if the restore fails (the existing tainted-M rule from `ns_net_namespace.go` moves here unchanged).
-8. **Post-check before sending:** `getsockopt(SO_DOMAIN) == AF_NETLINK` and `SO_PROTOCOL` == the requested protocol; then `sendmsg` with one `SCM_RIGHTS` fd, close the broker's copy, and count `{protocol, source, ok}`.
+1. **Connection gate** (`pkg/ipc`): the peer uid from `SO_PEERCRED` must equal `-nlBrokerPeerUid`, checked in the handshake before any HTTP/2 frame is parsed; at most one client connection.
+2. **Decode:** unknown fields rejected → `InvalidArgument`.
+3. **Validate:** protovalidate → `InvalidArgument`.
+4. **Resolve:** the cookie must be in the broker's **current** discovery table, which the broker builds from the host netns, `/run/netns` and `/run/docker/netns`. A miss returns `NotFound` and makes no syscall.
+5. **Limit:** one dump in flight per (netns, protocol), since a netlink socket runs one dump at a time; at most `-nlBrokerMaxDumps` concurrent dumps (default 64); a per-RPC rate limit. Excess returns `ResourceExhausted`.
+6. **Socket:** the broker's own cached socket for (netns, protocol). It is created on a dedicated locked OS thread:
+   - `open` the path from **its own** table entry, `fstat` it, and require `(dev, inode)` to match the table;
+   - require `ioctl(NS_GET_NSTYPE) == CLONE_NEWNET`, so a non-network nsfs file planted under `/run/netns` is never entered;
+   - `setns(nsfd, CLONE_NEWNET)` → `socket(AF_NETLINK, SOCK_DGRAM|SOCK_CLOEXEC, proto)` → restore the original netns, or terminate the thread if the restore fails (the tainted-M rule from `ns_net_namespace.go` moves here unchanged);
+   - require `SO_PROTOCOL` == the protocol and `SO_NETNS_COOKIE` == the table's cookie.
 
-Pagination (`ListNetns`): a listing is pinned to a `generation`. If the table changes mid-listing the broker replies `aborted`, and the collector restarts at offset 0.
+   Any mismatch returns `NotFound` and increments the `race` counter.
+7. **Build:** the request bytes come from constants and validated fields only: the message type fixed by the RPC, flags `NLM_F_REQUEST|NLM_F_DUMP`, `nlmsg_pid` 0, a zeroed socket id, no attributes. Golden-byte tests pin every combination (Q2).
+8. **Send and relay:**
+   - `sendto` the kernel, then `recvmsg` until the dump ends;
+   - coalesce whole datagrams into chunks of up to 256 KiB and send each as one `NetlinkChunk`;
+   - read only the `nlmsghdr` headers: lengths must tile each datagram (otherwise close the socket and return `Internal`), a message with another seq is dropped and counted, and the stream ends after `NLMSG_DONE`; `NLMSG_ERROR` becomes a gRPC status carrying the errno;
+   - a per-dump byte cap (`-nlBrokerMaxDumpBytes`, default 1 GiB) and deadline bound a runaway dump;
+   - a cancelled or broken stream closes that socket, because a half-read dump cannot be resumed; the next dump recreates it.
+
+Pagination (`ListNetns`): a listing is pinned to a `generation`. If the table changes mid-listing the broker returns `Aborted`, and the collector restarts at offset 0.
+
+### Reply path: simple framing, one copy
+
+- **Format:** a `NetlinkChunk` is one `bytes` field. On the wire that is a one-byte tag, a varint length, then the kernel's bytes, inside gRPC's 5-byte message frame.
+- **Collector side:** a stream receiver replaces `netlinkReceiver` and puts each chunk on the existing `packetCh` in place of a `recvmsg` buffer. Chunks hold whole messages, so the decoders, `packetHasDone` and the dump tracker are unchanged.
+- **Cost against today:** one extra copy (broker buffer → gRPC) plus HTTP/2 framing. In broker mode the collector's io_uring receive path does not apply.
+- **Optional:** a custom gRPC codec for `NetlinkChunk` on the collector side that slices `data` out of the receive buffer instead of protobuf-go's copying unmarshal. Add it only if P12 shows the decode copy matters.
+- **Gate (P12, in the PR-18 spike):** a benchmark against today's direct and io_uring paths at fleet-like scale. A miss selects the fallback: the broker `recvmsg`s straight into a sealed memfd ring the collector maps read-only, and gRPC carries only offsets and lengths. That is the same single copy as today, and the collector still holds no netlink socket.
 
 ### Kernel enforcement on the netlink broker
 
 - **seccomp (allowlist; the noteworthy rules):**
   - `setns`: arg1 `== CLONE_NEWNET` (`SCMP_CMP_EQ 0x40000000`). `nstype 0` means "any type" and is therefore **denied**.
-  - `socket`: (`AF_NETLINK`, `type & 0xf == SOCK_DGRAM`, `protocol ∈ {0, 4}`) or (`AF_UNIX`, `SOCK_SEQPACKET`, 0); everything else `EPERM`.
+  - `socket`: (`AF_NETLINK`, `type & 0xf == SOCK_DGRAM`, `protocol ∈ {0, 4}`) or (`AF_UNIX`, `SOCK_STREAM`) for its gRPC listener; everything else `EPERM`.
+  - `ioctl`: `NS_GET_NSTYPE` only, plus whatever the recorded profile shows the Go runtime needs.
   - `openat`: only with `(flags & (O_WRONLY|O_RDWR|O_CREAT|O_TRUNC)) == 0`.
   - `clone`: denied when any `CLONE_NEW*` bit is set; `clone3` returns `ENOSYS` (the Go runtime uses `clone`).
   - denied outright: `execve`/`execveat` (the broker never re-execs), the mount family (`mount`, `umount2`, `pivot_root`, `move_mount`, `open_tree`, `fsopen`/`fsconfig`/`fsmount`/`fspick`, `mount_setattr`), `bpf`, `perf_event_open`, `unshare`, `ptrace`, `process_vm_*`, `keyctl`/`add_key`/`request_key`, `io_uring_*`, `userfaultfd`, the `chmod`/`chown`/`*xattr` families.
 - **Landlock:**
-  - read-only `/run/netns`, `/run/docker/netns` (and `/proc` on bare metal);
+  - read-only `/run/netns` and `/run/docker/netns`;
   - `MAKE_SOCK` in its own socket dir;
   - no other write;
   - ABI ≥ 6: signal and abstract-UDS scoping.
@@ -238,17 +268,18 @@ Pagination (`ListNetns`): a listing is pinned to a `generation`. If the table ch
   - `cap_drop: ALL` + `SYS_ADMIN`;
   - `read_only: true`;
   - `no-new-privileges`;
-  - `pids_limit: 256`, memory 64 MiB;
+  - `pids_limit: 256`, memory 128 MiB (it now buffers dump chunks);
   - no listeners besides its UDS.
 
-**Residual if the broker itself is fully compromised.** Fact 1 plus the seccomp rules bound it. The attacker can enter network namespaces and open `SOCK_DIAG`/`ROUTE` sockets — that is, read socket tables, addresses and routes, which is exactly what the collector legitimately sees. It cannot modify routes or the firewall, kill sockets, read MD5 keys (no `CAP_NET_ADMIN`), load BPF, mount, open inet sockets, or exec. That is the accepted residual.
+**Residual if the broker itself is fully compromised.** Facts 1 and 4 plus the seccomp rules bound it. The attacker can enter network namespaces and send any message on `SOCK_DIAG`/`ROUTE` sockets, but without `CAP_NET_ADMIN` the kernel admits only dumps: socket tables, links, addresses and routes, which is what the collector legitimately sees. It cannot modify routes or the firewall, kill sockets, read MD5 keys, load BPF, mount, open inet sockets, or exec. That is the accepted residual.
 
 ### Collector integration
 
-- **Netns readers:** `attemptOpenAndSetns` plus the `syscall.Socket(… NETLINK_INET_DIAG)` in `netNamespaceInstance` collapse into `nlbroker.OpenSocket(ctx, id, SOCK_DIAG)`. The `LockOSThread`/`setns`/restore code leaves the collector entirely, and with it the tainted-M thread-exhaustion class.
-- **Locality:** `nsLocalitySnapshot` → `OpenSocket(id, ROUTE)`, then the existing address/route dump runs on that fd. This needs a new fd-accepting dump seam in `xtcpnl`, because `localnet.BuildSnapshot` already takes parsed `AddrInfo`/`RouteInfo`.
-- **Discovery:** `ns_discover.go` is replaced by `ListNetns` at the existing discovery cadence; an unchanged `generation` skips work.
+- **Socket dumps:** in broker mode the collector holds no per-netns socket. The poller calls `DumpSockets` for each netns on each poll, and the stream receiver feeds `packetCh`. `attemptOpenAndSetns`, the `LockOSThread`/`setns`/restore code and the per-netns sockets leave the collector, and with them the tainted-M thread-exhaustion class.
+- **Locality:** `nsLocalitySnapshot` → three `DumpRoute` calls whose chunks feed the existing link, address and route parsers; `localnet.BuildSnapshot` is unchanged.
+- **Discovery:** `ns_discover.go` is replaced by `ListNetns` at the existing discovery cadence; an unchanged `generation` skips work. Container attribution joins on `Netns.inode`, as today.
 - **Mode:** `-nlBrokerSock <path>` set → broker mode. In broker mode, `CAP_NET_ADMIN`/`CAP_SYS_ADMIN` move from **fatal** to **unexpected**: their presence logs a warning and sets `xtcp2_collector_excess_caps 1`, so a role regression that re-adds them is visible.
+- **Host-netns netlink that stays for now:** the link monitor (`pkg/linkmonitor`) and `pkg/rtnlmon` open `ROUTE`, `GENERIC` and `RDMA` sockets in the collector's own (host) netns. With `CapEff 0` the kernel admits only their dumps, GETs and multicast joins (fact 1). The broker-mode seccomp profile allows `AF_NETLINK` only for those three protocols and never `SOCK_DIAG`, and the collector has no `setns`, so it cannot reach a tenant netns at all. Moving their requests behind typed broker RPCs, so the collector's profile can deny `AF_NETLINK` entirely, is a [decision](#decisions-to-close-during-phase-5).
 
 ## The Docker broker
 
@@ -322,14 +353,9 @@ The collector mirrors the index locally — `List` once, then `Watch` — so the
    - per-request timeouts.
 3. **Outbound validation.** Every `Container` passes protovalidate before it enters the index. A tenant container whose name or image breaks the charset is **dropped**, not sanitized, and counted in `xtcp2_dockerbroker_rejected_total{field}`. Container names and images are tenant-controlled strings that end up in telemetry rows.
 4. **Sandbox path discipline.** Host-network containers (no `SandboxKey`) are omitted. `SandboxKey` must `filepath.Clean` to a direct child of `/run/docker/netns/`, or it is never `stat`ed. Inode 0 or a stat error → omitted.
-5. **gRPC server hardening** (the [Phase 3 checklist](phase-3-writer-split.md#wire-format-and-the-protocol-decision)):
-   - UDS only;
+5. **gRPC server hardening:** the `pkg/ipc` defaults ([Phase 3](phase-3-writer-split.md#wire-format-grpc-over-uds-pkgipc)) — peer uid checked in the handshake, no reflection or health service, no compression codecs, keepalive enforcement, the shared interceptor chain — with these service settings:
    - `MaxRecvMsgSize` 4 KiB (requests are tiny); `MaxSendMsgSize` sized for 4096 containers;
-   - no reflection service, no health service (health is `-healthcheck` mode);
-   - no compression codecs registered;
-   - keepalive enforcement policy;
-   - `MaxConcurrentStreams` 4, and one `Watch` stream per peer;
-   - interceptors, in order: peer-credential check (a custom `TransportCredentials` exposing `SO_PEERCRED` as `AuthInfo`; grpc-go has no stock support), then a per-RPC rate limit, then PR-4's validating interceptor.
+   - `MaxConcurrentStreams` 4, and one `Watch` stream per peer.
 6. **Watch backpressure.** Each stream has a bounded send queue; a slow consumer gets its stream reset (the collector re-lists) instead of unbounded broker memory. An event ring of the last 1024 generations backs `since_generation`.
 
 ### Kernel enforcement on the Docker broker
@@ -362,15 +388,15 @@ Ships first (PR-19) and does not depend on the brokers. Applied to today's colle
 | Process | Notable allows | Notable denies | AppArmor |
 |---|---|---|---|
 | collector, v1 (today's single process) | `setns` only `CLONE_NEWNET`; `socket` `AF_NETLINK`/`AF_INET`/`AF_INET6`/`AF_UNIX`; `io_uring_*` only in the `-ioUring` profile variant | `bpf`, `perf_event_open`, mount family, `unshare`, `clone` with `CLONE_NEW*`, `ptrace`, `process_vm_*`, `keyctl` family, `userfaultfd`, `chmod`/`chown`/`xattr` families (the fleet has no unix listeners to chmod) | `xtcp2-collector`: deny mount, ptrace, `network packet`/`raw`, writes outside the state dir |
-| collector, v2 (broker mode) | as v1 **minus `setns`** | v1 set + `setns` | same |
+| collector, v2 (broker mode) | as v1 **minus `setns`**; `socket(AF_NETLINK)` only for `ROUTE`/`GENERIC`/`RDMA` (host-netns link monitor and `rtnlmon`) | v1 set + `setns` + `socket(AF_NETLINK, NETLINK_SOCK_DIAG)` | same |
 | netlink broker | [above](#kernel-enforcement-on-the-netlink-broker) | | `xtcp2-nlbroker` |
 | Docker broker | [above](#kernel-enforcement-on-the-docker-broker) | | `xtcp2-dockerbroker` |
-| writer | `AF_UNIX` only; file ops in its target dirs | everything network; `setns`/mount/`bpf`/… | `xtcp2-writer` |
+| writer | `AF_UNIX` (`SOCK_STREAM`, its gRPC listener) only; file ops in its target dirs | everything network; `setns`/mount/`bpf`/… | `xtcp2-writer` |
 
 - **Allowlists, generated and gated.** Each profile is generated from the full test matrix (microVM runs under a recording hook or `strace -f`), committed as Docker seccomp JSON, and enforced in CI. The suite runs under the profile with `SCMP_ACT_ERRNO` plus logging, so a new syscall fails CI rather than production.
 - **Delivery:**
   - containers: `security_opt: seccomp=<profile>.json` (runc applies it before exec, covering the whole process) plus `apparmor=<profile>`;
-  - bare metal: `SystemCallFilter=`/`RestrictNamespaces=net` in the unit, or an in-process filter installed at startup.
+  - bare metal (unsupported, best effort): `SystemCallFilter=`/`RestrictNamespaces=net` in the unit, or an in-process filter installed at startup.
 - **Apply once.** In-process filters stack across `execve` like Landlock, so the soft restart inherits the filter and must not re-install it ([Phase 2](phase-2-kernel-confinement.md#pr-8--landlock-self-confinement)).
 - **Regression guard.** The fleet-gate test asserts each container's `SecurityOpt` names its profile; `unconfined` or `docker-default` fails the gate.
 
@@ -382,9 +408,9 @@ PR-18 sec/w10-spike ──▶ PR-20 sec/w10-nlbroker ──┐
                         PR-21 sec/w11-dockerbroker ┼──▶ PR-22 sec/w10-collector-deprivilege ──▶ PR-23 (deployment repo)
 ```
 
-- [ ] **PR-18 — spike:** verify the [kernel facts](#kernel-facts-the-design-rests-on) and run every collector feature with zero capabilities on broker-opened fds (Test P); record which link-monitor reads (ethtool `GET`, RDMA, devlink) need a typed broker op, if any.
+- [ ] **PR-18 — spike:** verify the [kernel facts](#kernel-facts-the-design-rests-on) on fleet kernels; prototype the dump relay and run every collector feature against it with zero capabilities; run the P12 benchmark gate; inventory the link monitor's and `rtnlmon`'s netlink requests (ethtool `GET`, RDMA, devlink, rtnetlink) as candidate typed broker ops (Test P).
 - [ ] **PR-19 — syscall profiles:** v1 collector seccomp + AppArmor profiles, the CI gate, and the fleet-gate assertion (Tests R, T).
-- [ ] **PR-20 — netlink broker:** `proto/xtcp_nlbroker/v1`, `xtcp2 -nlbroker` (`pkg/nlbroker`), the client, and the collector seams (Tests Q, R).
+- [ ] **PR-20 — netlink broker:** `proto/xtcp_nlbroker/v1` (gRPC service), `xtcp2 -nlbroker` (`pkg/nlbroker` on `pkg/ipc`), the client, the collector's stream receiver and seams, and the `netns_direct` build tag (Tests Q, R).
 - [ ] **PR-21 — Docker broker:** `proto/xtcp_dockerbroker/v1`, `xtcp2 -dockerbroker` (`pkg/dockerbroker`, reusing `dockermeta`'s decoding behind the fixed request set), and the collector mirror (Tests S, T).
 - [ ] **PR-22 — collector de-privilege:**
   - broker mode as the fleet default;
@@ -401,42 +427,54 @@ PR-18 sec/w10-spike ──▶ PR-20 sec/w10-nlbroker ──┐
 
 Same conventions as Phases 2–4 (Cat: P positive, N negative, B boundary, C corner). P, R and T run in the child-process harness on Linux (skip-aware). Q and S are pure, using injected syscall seams and a fake dockerd. U is microVM, recorded.
 
-### Test P — kernel facts and feature parity (`TestBrokerFdSemantics`, spike → permanent)
+### Test P — kernel facts, relay parity and the benchmark gate (`TestBrokerRelay`, spike → permanent)
 
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
-| P1 | P | inet_diag dump on a broker-opened fd from a zero-cap process | broker (CAP_SYS_ADMIN) opens `SOCK_DIAG` in a test netns with 50 TCP sockets; child with `CapEff 0` dumps | all 50 sockets returned, `INET_DIAG_INFO` (tcp_info) present |
-| P2 | N | `SOCK_DESTROY` through the same fd | zero-cap child sends `SOCK_DESTROY` for one socket | `EPERM`; the socket survives |
-| P3 | N | route mutation on a broker-opened `ROUTE` fd | zero-cap child sends `RTM_NEWROUTE` | `EPERM`; routing table unchanged |
-| P4 | P | address/route dump on a broker-opened `ROUTE` fd | locality snapshot | identical to the snapshot produced by today's `setns` path |
-| P5 | C | TCP-MD5 socket in the target netns | socket with `TCP_MD5SIG` set | zero-cap dump carries no `INET_DIAG_MD5SIG`; the same dump with `CAP_NET_ADMIN` does — pins the confidentiality gain |
-| P6 | B | socket mark | socket with `SO_MARK` | zero-cap dump has no `INET_DIAG_MARK`; golden-record diff shows no change (no mark field exists) |
-| P7 | P | host-netns link-monitor reads with zero caps | rtnetlink link dumps, ethtool `GET`s, RDMA dumps | each `OK`, or listed in the spike report as needing a typed broker op |
-| P8 | P | io_uring reader on a broker-opened fd | `-ioUring` path | works unchanged |
-| P9 | P | fleet output parity | canary: broker mode vs direct mode, 24 h | identical record schemas; per-netns record counts within noise |
-| P10 | C | fd outlives its netns | broker opens, netns deleted, collector dumps | dump returns empty or an error the reader already handles; no crash; fd closed on the netns-delete path |
+| P1 | P | inet_diag dump without `CAP_NET_ADMIN` | broker with `CAP_SYS_ADMIN` only dumps a test netns holding 50 TCP sockets | all 50 sockets returned, `INET_DIAG_INFO` (tcp_info) present |
+| P2 | N | `SOCK_DESTROY` from the broker | the broker process sends `SOCK_DESTROY` for one socket | `EPERM`; the socket survives — the kernel backstop under the broker's filter |
+| P3 | N | route mutation from the broker | `RTM_NEWROUTE` on its `ROUTE` socket | `EPERM`; routing table unchanged |
+| P4 | P | locality through the relay | three `DumpRoute` calls | snapshot identical to the one today's `setns` path produces |
+| P5 | C | TCP-MD5 socket in the target netns | socket with `TCP_MD5SIG` set | no `INET_DIAG_MD5SIG` in the broker's dump; the same dump with `CAP_NET_ADMIN` has it — pins the confidentiality gain |
+| P6 | B | socket mark | socket with `SO_MARK` | no `INET_DIAG_MARK`; golden-record diff shows no change (no mark field exists) |
+| P7 | C | replies go only to the requester | two sockets in one netns; the first sends a dump | the second receives nothing — pins kernel fact 5 |
+| P8 | N | no receive-only netlink socket | `shutdown(SHUT_WR)` on a netlink socket | `EOPNOTSUPP` — pins why the fd is not passed |
+| P9 | P | relay is byte-exact | recording seam on the broker's `recvmsg`; a full dump | concatenated chunk bytes delivered to the collector == bytes `recvmsg` returned |
+| P10 | P | fleet output parity | canary: broker mode vs direct mode, 24 h | identical record schemas; per-netns record counts within noise |
+| P11 | C | netns deleted mid-dump | delete the netns while a dump streams | stream ends with an error the poller counts; broker socket closed; no crash |
+| P12 | B | relay benchmark gate | 100 netns × 1 000 sockets plus a 50 000-socket host netns, at the fleet poll cadence; baseline: today's direct and io_uring paths | proposed gate: collector + broker CPU ≤ 1.3× today's collector CPU, and p99 poll completion within the poll interval. Results go in the spike report; a miss selects the shared-memory fallback |
+| P13 | P | host-netns link-monitor and `rtnlmon` reads with zero caps | rtnetlink link dumps, ethtool `GET`s, RDMA dumps, multicast joins | each `OK`, or listed in the spike report as needing a typed broker op |
 
 ### Test Q — netlink broker validation and filtering (`TestNlBroker`, pure)
 
+Injected syscall and netlink seams; the gRPC server runs on a real UDS.
+
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
-| Q1 | P | open `SOCK_DIAG` in a discovered netns | valid `(dev, inode)` | reply `open_socket` with exactly one `SCM_RIGHTS` fd; `SO_PROTOCOL == 4` |
-| Q2 | N | protocol unspecified | `protocol = 0` | `invalid` (`in: [1, 2]`); no syscall |
-| Q3 | N | protocol not in the enum | `protocol = 99` | `invalid` (`defined_only`) |
-| Q4 | N | netns not in the discovery table | unknown `(dev, inode)` | `not_found`; injected `setns`/`open` counters stay 0 |
-| Q5 | B | zero ids | `inode = 0` | `invalid` (`gt 0`) |
-| Q6 | C | netns file replaced between discovery and open | same name, new inode | `fstat` mismatch → `not_found`, counter `race` +1 |
+| Q1 | P | `DumpSockets` in a discovered netns | valid cookie, `INET`, all states, `INFO` | a chunk stream ending in `NLMSG_DONE`; exactly one `sendto` |
+| Q2 | P | golden request bytes | every RPC × family × dump kind | sent bytes equal the golden files: type fixed by the RPC, flags `REQUEST|DUMP`, pid 0, zeroed socket id, `sdiag_protocol` TCP, no attributes |
+| Q3 | N | family unspecified or undefined | `family = 0`, `99` | `InvalidArgument`; zero `sendto` |
+| Q4 | B | state and extension bounds | `states` 16 382 / 16 383 / 0; `extensions` 255 / 256 | 16 382 accepted, 16 383 and 0 rejected; 255 accepted, 256 rejected |
+| Q5 | N | netns not in the discovery table | unknown cookie | `NotFound`; injected `open`/`setns`/`sendto` counters stay 0 |
+| Q6 | C | netns file replaced between discovery and socket creation | same name, new inode | `fstat` mismatch → `NotFound`, `race` +1 |
 | Q7 | C | non-network nsfs file under `/run/netns` | bind of a UTS ns file | `NS_GET_NSTYPE != CLONE_NEWNET` → rejected; never `setns` |
-| Q8 | N | unknown field in the envelope | field 99 set | `malformed` (`GetUnknown` check) |
-| Q9 | N | empty oneof | `Request{}` | `invalid` (oneof required) |
-| Q10 | B | oversized datagram | 4 KiB + 1 | `MSG_TRUNC` → `malformed`, connection closed |
-| Q11 | N | wrong peer uid | injected cred uid 0 or 1234 | rejected at accept; no reply payload, no fd |
-| Q12 | N | second concurrent client | two connections | second closed immediately; counter |
-| Q13 | B | rate limit | burst + 1 opens | last one `resource_exhausted` |
-| Q14 | P | thread hygiene under churn | 10 000 opens with netns create/delete churn | broker OS-thread count bounded (no tainted-M growth) |
-| Q15 | C | listing across a generation change | table changes between page 1 and page 2 | page 2 `aborted`; restart at offset 0 yields a consistent list |
-| Q16 | N | fd count on error replies | every error path | zero `SCM_RIGHTS` fds attached (cmsg count asserted) |
-| Q17 | P | both-ends validation | client validates before send; mutate a bound field post-validate | broker-side `invalid` — the layering is observable |
+| Q8 | C | cookie mismatch after socket creation | injected `SO_NETNS_COOKIE` differs from the table | `NotFound`, `race` +1, socket closed |
+| Q9 | N | unknown field in a request | field 99 set | `InvalidArgument` |
+| Q10 | B | request above `MaxRecvMsgSize` | 4 KiB + 1 | `ResourceExhausted` from gRPC |
+| Q11 | N | wrong peer uid | injected cred uid 0 or 1234 | handshake fails; the HTTP/2 frame counter stays 0 |
+| Q12 | N | second client connection | two connections | second closed; counter |
+| Q13 | B | one dump per netns | two concurrent `DumpSockets` on one netns | second `ResourceExhausted` |
+| Q14 | B | rate limit | burst + 1 calls | last one `ResourceExhausted` |
+| Q15 | C | reply with a foreign seq | injected stale message mid-dump | dropped and counted; the rest of the stream intact |
+| Q16 | N | malformed reply framing | `nlmsg_len` overruns the datagram | `Internal`; socket closed; the next dump recreates it |
+| Q17 | B | per-dump byte cap | a dump larger than `-nlBrokerMaxDumpBytes` | `ResourceExhausted`; socket closed |
+| Q18 | C | client cancels mid-dump | cancel after the first chunk | socket closed; the next dump on that netns succeeds on a new socket |
+| Q19 | P | chunks never split a message | datagrams of varying sizes around the 256 KiB chunk size | every chunk is whole messages; their concatenation equals the `recvmsg` bytes |
+| Q20 | C | `NLMSG_ERROR` reply | injected `-EINVAL` | stream ends with a gRPC status carrying the errno |
+| Q21 | P | thread hygiene under churn | 10 000 socket creations with netns create/delete churn | broker OS-thread count bounded (no tainted-M growth) |
+| Q22 | C | listing across a generation change | table changes between page 1 and page 2 | page 2 `Aborted`; restart at offset 0 yields a consistent list |
+| Q23 | P | both-ends validation | client validates before send; mutate a bound field after validation | broker-side `InvalidArgument` — the layering is observable |
+| Q24 | P | the surface is exactly three RPCs | service descriptor | `ListNetns`, `DumpSockets`, `DumpRoute`; a new RPC without a test-table row fails |
 
 ### Test R — netlink broker syscall profile (`TestNlBrokerProfile`, child harness)
 
@@ -486,6 +524,7 @@ Same conventions as Phases 2–4 (Cat: P positive, N negative, B boundary, C cor
 | T4 | N | collector v1: BPF, perf, mount, non-net `setns` | each call | `EPERM` |
 | T5 | P | collector v1: the full feature suite | unit + microVM matrix under the profile | green; profile log shows zero denials |
 | T6 | N | collector v2: any `setns` | `setns(fd, CLONE_NEWNET)` | `EPERM` — broker mode removes the syscall entirely |
+| T7 | N | collector v2: a `SOCK_DIAG` socket | `socket(AF_NETLINK, SOCK_DGRAM, NETLINK_SOCK_DIAG)` | `EPERM` — the collector cannot send a socket-diag request anywhere |
 
 ### Test U — deployment (microVM, recorded)
 
@@ -495,7 +534,7 @@ Same conventions as Phases 2–4 (Cat: P positive, N negative, B boundary, C cor
 | U2 | P | monitoring parity | 20 containers, churn | per-netns socket records and container attribution identical to direct mode (P9's microVM twin) |
 | U3 | N | collector RCE simulation | test-build hook runs a probe list in-process | `nft` flush, `ip route add`, `bpf`, `setns`, `SOCK_DESTROY`, `connect(docker.sock)` all fail (`EPERM`/`ENOENT`) |
 | U4 | P | the egress rule holds against the collector | U3 plus an attempt to delete Phase 4's nftables rule | rule intact — closes the gap noted in [Phase 4](phase-4-egress-fleet-lockdown.md#definition-of-done) |
-| U5 | N | netlink broker killed | `docker kill` | existing fds keep the readers running; new namespaces unmonitored; `Xtcp2NlBrokerDown` fires; recovers on restart |
+| U5 | N | netlink broker killed | `docker kill` | polls fail and are counted as per-netns gaps; the collector keeps serving and uploading; `Xtcp2NlBrokerDown` fires; collection resumes on restart |
 | U6 | N | Docker broker killed | `docker kill` | attribution goes stale (flagged); `Xtcp2DockerBrokerDown` fires; recovers |
 | U7 | P | soft restart in broker mode | tuning `Set` | re-exec reconnects to both brokers; no capability needed at any point |
 | U8 | C | socket dir permissions | another uid tries both sockets | `EACCES` at connect |
@@ -528,19 +567,21 @@ Alerts (vmalert + `promtool test rules`):
 
 | # | Decision | Recommendation |
 |---|---|---|
-| new | netlink broker transport | proto over `SOCK_SEQPACKET` with `SCM_RIGHTS` — gRPC cannot pass fds, and a gRPC control call plus a side channel adds a correlation protocol for nothing |
-| new | netlink broker model: pass fds vs run dumps itself | pass fds — zero-copy hot path unchanged, and kernel fact 1 strips privilege from the fd. A broker-executed op only for a `CAP_NET_ADMIN`-gated read PR-18 proves necessary, via the admission checklist |
+| new | IPC between xtcp2 processes | gRPC over UDS for all of them, on `pkg/ipc` ([Phase 3](phase-3-writer-split.md#wire-format-grpc-over-uds-pkgipc)): typed services, protovalidate on both ends, one interceptor chain, and the peer uid checked before HTTP/2 parsing |
+| new | netlink broker model: pass fds vs run the dumps itself | run the dumps. The broker builds and sends every request and relays the replies unfiltered. A passed fd lets its holder send anything on it (kernel fact 5), leaving the kernel as the only filter on what is sent |
+| new | reply relay performance | a gRPC server stream of raw chunks. If P12 fails: a sealed memfd ring mapped read-only by the collector, with gRPC carrying offsets — the same single copy as today |
+| new | link monitor and `rtnlmon` netlink in the collector | keep in Phase 5: host netns only, `CapEff 0` (the kernel admits only dumps, GETs and multicast joins) and no `SOCK_DIAG`. Follow-up: typed broker RPCs for the requests P13 inventories, so the collector's profile denies `AF_NETLINK` entirely |
 | new | Docker access: typed gRPC broker vs filtering HTTP proxy in front of `docker.sock` | typed broker — a proxy filters an HTTP surface by method/path patterns and must also rewrite inspect bodies to keep `Env` out; the typed API makes both properties structural |
-| new | collector stays in the host netns? | yes for now (listeners, link monitor, S3). Later option: with every namespace reached through broker fds, the collector could run in its own netns, turning egress pinning into ordinary container policy |
+| new | collector stays in the host netns? | yes for now (listeners, link monitor, `rtnlmon`, S3). Later option: once the link monitor and `rtnlmon` are brokered, the collector needs nothing from the host netns and could run in its own, turning egress pinning into ordinary container policy |
 | new | dockerd over TCP+mTLS with an authz plugin enforcing GET-only for the broker | deferred — strongest bound on the Docker broker's residual; revisit once the broker is in |
-| new | bare-metal `/proc` discovery | `CAP_SYS_PTRACE` lives in the netlink broker only; the collector never holds it |
+| new | bare metal | unsupported: PR-24 refuses to start unconfined unless waived. No process holds `CAP_SYS_PTRACE`, and discovery has no `/proc` source |
 | new | dedicated uids | `xtcp2`, `xtcp2-docker`, `xtcp2-writer` — none shared with each other or with the ipfeed sidecar's 65534 |
 
 ## Release checklist
 
-- [ ] PR-18 spike report merged: kernel facts confirmed on fleet kernels; P1–P10 green; link-monitor reads classified
+- [ ] PR-18 spike report merged: kernel facts confirmed on fleet kernels; P1–P13 green; the P12 gate met (or the fallback chosen); link-monitor and `rtnlmon` requests inventoried
 - [ ] PR-19 profiles canaried on today's collector; T4/T5 green; fleet-gate asserts the profile names
-- [ ] PR-20/PR-21: Q, R, S, T green; both protocol surfaces reviewed line by line; coverage-guided fuzz targets for the nlbroker datagram decoder and the Docker broker's inbound RPCs running continuously
+- [ ] PR-20/PR-21: Q, R, S, T green; both protocol surfaces reviewed line by line; coverage-guided fuzz targets for both brokers' inbound RPCs and the collector's chunk receiver running continuously
 - [ ] PR-22: broker mode default; excess-caps gauge and alert live
 - [ ] PR-23: rollout steps 1–5 on canaries with a parity soak before step 5; U1–U9 recorded
 - [ ] [metrics.md](../metrics.md): `xtcp2_nlbroker_*`, `xtcp2_dockerbroker_*`, `xtcp2_collector_excess_caps`
@@ -553,4 +594,5 @@ On a canary running Phase 5 with a deliberately crippled collector build (Phase 
 - [ ] every RCE probe fails: firewall and route changes, `bpf`, `perf_event_open`, `setns`, mount, `SOCK_DESTROY`, Docker API (U3); Phase 4's egress rule survives (U4)
 - [ ] monitoring output is unchanged against direct mode (P9, U2)
 - [ ] the netlink broker can enter only network namespaces and open only `SOCK_DIAG`/`ROUTE` sockets, enforced by seccomp (R1–R10); the Docker broker can issue only its four GETs (S9) and returns only the projection (S2)
-- [ ] each broker's surface is exactly its listed ops: a descriptor test fails on any new message arm or RPC without a test-table row
+- [ ] the collector cannot create a `SOCK_DIAG` socket (T7), and every netlink request the broker sends matches its RPC's golden bytes (Q2)
+- [ ] each broker's surface is exactly its listed RPCs: a descriptor test fails on any new RPC without a test-table row

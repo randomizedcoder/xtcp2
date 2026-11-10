@@ -5,7 +5,8 @@
 | **Status** | Not started — checkboxes track execution |
 | **Tracks** | [Implementation plan](implementation-plan.md) Phase 3 → [hardening plan](plan-configservice-set-hardening.md) workstream W5 → [advisory](security-vulnerability-configservice-set-fs-write.md) layer L5 |
 | **Goal** | The collector process — the part that talks to the network, parses attacker-influenced data, and serves gRPC — holds **no filesystem write capability at all**. The only two legitimate writes move to a separate, minimal, unprivileged writer process |
-| **Prereqs** | Phase 1 (frozen path fields so `Set` can't move targets; build tags) and Phase 2 (`pkg/sandbox`, reused by both processes) |
+| **Prereqs** | Phase 1 (frozen path fields so `Set` can't move targets; build tags; PR-4's validating interceptor) and Phase 2 (`pkg/sandbox`, reused by both processes) |
+| **Introduces** | `pkg/ipc`, the gRPC-over-UDS stack every xtcp2 process uses to talk to another; Phase 5's two brokers reuse it |
 
 ## Contents
 
@@ -30,7 +31,7 @@ The daemon has exactly two legitimate writes (advisory §2): the link-monitor ba
 |---|---|---|
 | Collector RCE writes anywhere validation allows | one trusted process, one ruleset | collector has zero file-write rules — the kernel answer is "no", always |
 | `Set` flips a path field | rejected (Phase 1) / kernel-denied (Phase 2) | same, and the path fields no longer exist in the collector's write path at all |
-| Collector RCE **as root** wants to poison state | — | must speak the writer's fixed 3-op API: two named targets, one size cap each, monotonic seq — no paths, no arbitrary bytes past schema checks; schema-valid poison at the next `seq` still lands, and `docker.sock` bypasses the writer entirely |
+| Collector RCE **as root** wants to poison state | — | must speak the writer's fixed write API (two write RPCs): two named targets, one size cap each, monotonic seq — no paths, no arbitrary bytes past schema checks; schema-valid poison at the next `seq` still lands, and `docker.sock` bypasses the writer entirely |
 | Writer itself compromised | — | unprivileged uid, no capabilities, no network (container `network_mode: none`), Landlock write rules only on its two target dirs |
 
 What this phase does **not** fix: the collector keeps `docker.sock` (until [Phase 5](phase-5-privilege-brokers.md)), so an RCE can have dockerd write any host path (the state dir included) without touching the writer; the collector can still reach network egress (Phase 4); and the writer accepts a well-formed request from uid 0 (or a stolen shared secret — see [decisions](#decisions-to-close-during-phase-3)) and will overwrite its two fixed targets with schema-valid data; that bounded surface is the accepted residual.
@@ -47,88 +48,106 @@ PR-11 sec/w5-writer ──▶ PR-12 sec/w5-collector ──▶ PR-13 sec/w5-depl
 
 ## PR-11 — The writer process
 
-**Objective:** a minimal writer daemon — same binary, `-writer` mode — exposing four operations over one unix socket. The security model lives in the parameter list: **no request anywhere carries a path.**
+**Objective:** a minimal writer daemon — same binary, `-writer` mode — exposing a four-RPC gRPC service over one unix socket. The security model lives in the parameter list: **no request anywhere carries a path.**
 
 ### Files
 
 - New `pkg/writerd/writerd.go` — server, request validation, target registry, seq state, crash-safe commit dance
-- New `pkg/writerd/proto.go` — the `[len u32]` frame + proto envelope codec (below)
-- New `proto/xtcp_writer/v1/writer.proto` — message-only envelope (no `service` definition), annotated with `buf.validate` rules, generated via the usual `make regen-protos`
+- New `pkg/ipc/` — the shared gRPC-over-UDS stack (below): peer-credential transport credentials, hardened server and client options, the interceptor chain, metrics
+- New `proto/xtcp_writer/v1/writer.proto` — the `WriterService` gRPC service, annotated with `buf.validate` rules, generated via the usual `make regen-protos`
 - New `pkg/writerd/client.go` — the collector-side client
-- `cmd/xtcp2/xtcp2.go` — `-writer` mode: writer never parses `XtcpConfig`, never registers gRPC services, never initializes enrichers/netlink; it reads its own flags only
-- `pkg/xtcp/prometheus.go` — collector-side `xtcp2_writer_requests_total{op,result}` (client view) + proxy registration for the writer's own counters
-- `nix/versions.nix` — no new dependencies: protobuf runtime (`v1.36.12`) and protovalidate-go are already direct dependencies; `golang.org/x/sys/unix` suffices for `SO_PEERCRED`
+- `cmd/xtcp2/xtcp2.go` — `-writer` mode: writer never parses `XtcpConfig`, registers only `WriterService` (none of the collector's gRPC services, no TCP listener), never initializes enrichers/netlink; it reads its own flags only
+- `pkg/xtcp/prometheus.go` — collector-side `xtcp2_writer_requests_total{rpc,result}` (client view) + proxy registration for the writer's own counters
+- `nix/versions.nix` — no new dependencies: grpc-go, the protobuf runtime (`v1.36.12`) and protovalidate-go are already direct dependencies; `golang.org/x/sys/unix` suffices for `SO_PEERCRED`
 
 ### The API
 
-| Op | Name | Request | Writer-side effect | Writer-side validation |
-|---|---|---|---|---|
-| 0 | `PING` | — | reply | none |
-| 1 | `WRITE_BASELINE` | `payload []byte`, `seq uint64` | temp+fsync+rename onto the configured baseline target (`0640`, group `xtcp2-state`) | oneof arm selects the `baseline` target; protovalidate `max_len 65536` (== `baseline.MaxFileBytes`); payload parses as a `wireRecord` with `Version == 1` (`baseline.Parse` reused); `seq` monotonic (`gte 1`) |
-| 2 | `WRITE_IPMETA` | `payload []byte`, `seq uint64` | temp + preserve-previous (`current → previous`, both writer-configured) + rename + `syncDir` — the exact dance of `ipasn.PublishLookupCache` (`ipasn.go:373`) | oneof arm selects the `ipmeta` target; protovalidate `max_len` == `-ipmetaMaxBytes` (default 64 MiB); `seq` monotonic (`gte 1`) |
-| 3 | `GET_STATS` | — | counters + last `seq` per target | none |
+| RPC | Request | Writer-side effect | Writer-side validation |
+|---|---|---|---|
+| `Ping` | — | reply | none |
+| `WriteBaseline` | `payload bytes`, `seq uint64` | temp+fsync+rename onto the configured baseline target (`0640`, group `xtcp2-state`) | the RPC selects the `baseline` target; protovalidate `max_len 65536` (== `baseline.MaxFileBytes`); payload parses as a `wireRecord` with `Version == 1` (`baseline.Parse` reused); `seq` monotonic (`gte 1`) |
+| `WriteIpmeta` (client stream) | a header (`seq`, `total_size`), then `data` chunks ≤ 1 MiB | chunks stream into the temp file; then preserve-previous (`current → previous`, both writer-configured) + rename + `syncDir` — the exact dance of `ipasn.PublishLookupCache` (`ipasn.go:373`) | the RPC selects the `ipmeta` target; `total_size` ≤ `-ipmetaMaxBytes` (default 64 MiB); received bytes must equal `total_size` exactly; `seq` monotonic (`gte 1`) |
+| `GetStats` | — | counters + last `seq` per target | none |
 
 The two write ops port existing code, not new logic: baseline's atomic dance comes from `pkg/linkmonitor/internal/baseline/files.go`; ipmeta's from `pkg/ipasn/ipasn.go` (`MkdirAll 0750`, `preservePrevious`, `syncDir`). Validation of the *ipmeta payload* stays collector-side (`validateCacheCandidate` needs the refresh loop's `Stats`); the writer validates size, schema only where cheap (baseline), and seq.
 
-### Wire format and the protocol decision
+### Wire format: gRPC over UDS (`pkg/ipc`)
 
-Frame: little-endian `[len u32]`, then one protobuf `Request`; reply frame `[len u32]`, one protobuf `Response` (oneof `ok` / `err{code,detail}` / `stats`). The envelope is proto — deliberately **not** a gRPC service:
+Every xtcp2 process talks to another over gRPC on a unix socket, through one shared package. PR-11 introduces it with the writer as its first user; Phase 5's [netlink and Docker brokers](phase-5-privilege-brokers.md#design-rules-for-every-broker) reuse it unchanged. One stack means typed services, generated clients, deadlines and streaming for free, and one place to harden, fuzz and review.
+
+**`pkg/ipc`:**
+- **Peer-credential transport credentials.** A `credentials.TransportCredentials` whose server handshake reads `SO_PEERCRED` from the accepted unix conn and rejects a wrong uid **before any HTTP/2 frame is parsed**, so only the expected peer ever reaches grpc-go's HTTP/2 server. The client handshake checks the server's uid the same way (mutual). The uid is exposed as `AuthInfo` for logs. grpc-go has no stock support, so this is ~100 lines with its own tests (Test C).
+- **Server options:**
+  - UDS only; any TCP listener is a startup error;
+  - `MaxRecvMsgSize` and `MaxSendMsgSize` per service — grpc-go checks the length prefix before allocating;
+  - `MaxConcurrentStreams` small, per service;
+  - a keepalive enforcement policy;
+  - no reflection or health service (health is `-healthcheck` mode);
+  - no compression codecs registered;
+  - an unknown-service handler returning `Unimplemented`.
+- **Interceptor chain** (unary and stream, in order):
+  1. unknown fields rejected — protobuf-go stores them by default (`decode.go` `m.SetUnknown`), so the interceptor walks the message and requires `GetUnknown() == nil`;
+  2. protovalidate (PR-4's validating interceptor);
+  3. a per-RPC rate limit;
+  4. the service's own filter stages.
+- **Client side:** the same protovalidate rules before send, and a deadline on every call.
+- **Metrics:** `xtcp2_ipc_requests_total{service,rpc,stage}`.
 
 ```proto
-// proto/xtcp_writer/v1/writer.proto — message-only, no service definition.
+// proto/xtcp_writer/v1/writer.proto
+service WriterService {
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc WriteBaseline(WriteBaselineRequest) returns (WriteResponse);
+  // One header, then data chunks. Bytes stream into the temp file; the commit
+  // happens only after the stream completes at exactly total_size.
+  rpc WriteIpmeta(stream WriteIpmetaChunk) returns (WriteResponse);
+  rpc GetStats(StatsRequest) returns (StatsResponse);
+}
 message WriteBaselineRequest {
   uint64 seq     = 1 [(buf.validate.field).uint64.gte = 1];
-  bytes   payload = 2 [(buf.validate.field).bytes = {min_len: 1, max_len: 65536}];   // == baseline.MaxFileBytes
+  bytes  payload = 2 [(buf.validate.field).bytes = {min_len: 1, max_len: 65536}];     // == baseline.MaxFileBytes
 }
-message WriteIpmetaRequest {
-  uint64 seq     = 1 [(buf.validate.field).uint64.gte = 1];
-  bytes   payload = 2 [(buf.validate.field).bytes = {min_len: 1, max_len: 67108864}]; // == -ipmetaMaxBytes default
+message WriteIpmetaHeader {
+  uint64 seq        = 1 [(buf.validate.field).uint64.gte = 1];
+  uint64 total_size = 2 [(buf.validate.field).uint64 = {gte: 1, lte: 67108864}];      // == -ipmetaMaxBytes default
 }
-message Request {
-  oneof op {
+message WriteIpmetaChunk {
+  oneof part {
     option (buf.validate.oneof).required = true;
-    PingRequest          ping           = 1;
-    WriteBaselineRequest write_baseline = 2;
-    WriteIpmetaRequest   write_ipmeta   = 3;
-    StatsRequest         stats          = 4;
+    WriteIpmetaHeader header = 1;                                                     // first message only
+    bytes             data   = 2 [(buf.validate.field).bytes = {min_len: 1, max_len: 1048576}];
   }
 }
-// Response mirrors: oneof { Ok ok = 1; Err err = 2; StatsResponse stats = 3; }
+message WriteResponse { uint64 seq = 1; }
 ```
 
-Per-op caps live in per-message rules — the oneof expresses them natively where a flat message could not. `.Validate()` runs on **both ends**: collector-side before send (catches collector bugs at the source), writer-side after unmarshal (catches everything else).
+Errors are gRPC status codes: `InvalidArgument` (malformed or invalid), `FailedPrecondition` (`stale_seq`, `unconfigured_target`, `invalid_payload`), `ResourceExhausted` (size or rate), `Unauthenticated` (peer uid). `.Validate()` runs on **both ends**: collector-side before send (catches collector bugs at the source), writer-side after decode (catches everything else). Streaming ipmeta also means the writer never holds a 64 MiB payload in memory.
 
-**Why not gRPC over the UDS?** Both processes run the same binary and gRPC is already in it, so this is about *exposure*, not dependency weight:
+**Why gRPC, given the HTTP/2 surface.** An earlier draft used a 4-byte length frame plus a proto envelope to keep HTTP/2 out of the writer. The decision now is one IPC stack for every process, and the exposure is closed inside gRPC instead:
+- the peer uid is checked in the handshake, so a process other than the collector never reaches the HTTP/2 parser;
+- the options above remove every optional surface (reflection, health, compression, unbounded streams);
+- the residual is a compromised collector itself reaching grpc-go's HTTP/2 server, which the release checklist covers with a current grpc-go (CVE gate) and fuzz targets.
 
-| Dimension | gRPC over UDS | proto envelope + tiny frame (chosen) |
-|---|---|---|
-| Parser facing a pwned collector | the full HTTP/2 stack — SETTINGS, HPACK, flow control, trailers, keepalive; a CVE history (rapid reset et al.) | `len u32` + proto unmarshal |
-| Validation | protovalidate via PR-4's universal interceptor (genuine reuse) | protovalidate via `.Validate()` — same rules |
-| `SO_PEERCRED` | custom listener-wrapper code (no stock support) | direct `GetsockoptUcred` on the accepted conn |
-| Deadlines/timeouts | free (ctx) | ~20 lines in the client (covered by D3) |
-| Knobs to get right | `MaxRecvMsgSize`, keepalive, streams, compression codecs, reflection, health service — each a misconfiguration risk | none |
-| Evolvability | new RPCs at will | new oneof arms — the friction is deliberate (a frozen API is the security property) |
+**Writer receive pipeline — a series of fail-closed filters, each stage metric-tagged (`xtcp2_writerd_requests_total{rpc,filter}`):**
 
-A team standardizing on one IPC mechanism could defensibly choose gRPC-over-UDS anyway; the hardening checklist is then: `MaxRecvMsgSize` at the payload cap + margin, no reflection service, no health service, no compression codecs imported, keepalive disabled, one stream per connection — and the same filter chain below.
-
-**Writer receive pipeline — a series of fail-closed filters, each stage metric-tagged (`xtcp2_writerd_requests_total{op,filter}`):**
-
-1. frame `len` checked against the global cap (64 MiB + margin) **before allocation** — `make(4 GiB)` is unreachable (protobuf-go `v1.36.12` has no `UnmarshalOptions.MaxSize`; this check is the allocation guard)
-2. `proto.Unmarshal` → `malformed` on parse failure; unknown fields are **rejected explicitly** — the default stores them (`decode.go` `m.SetUnknown`), so the writer asserts `GetUnknown() == nil` after unmarshal
-3. `.Validate()` (protovalidate: `gte 1`, per-op `max_len`) → `invalid`
-4. op/target allow-list — the op's target must have been passed via `-writerTarget` → `unconfigured_target`
-5. `seq` monotonic per target (sidecar state) → `stale_seq`
-6. payload schema check (baseline `wireRecord` parse) → `invalid_payload`
-7. commit dance (temp → fsync → rename → sidecar)
+1. peer uid (`pkg/ipc` handshake) → `Unauthenticated`
+2. message size: `MaxRecvMsgSize` 1 MiB + margin, checked by grpc-go against the length prefix **before allocation** → `ResourceExhausted`
+3. unknown fields rejected → `InvalidArgument`
+4. `.Validate()` (protovalidate: `gte 1`, per-RPC `max_len`, `total_size` cap) → `InvalidArgument`
+5. target allow-list — the RPC's target must have been passed via `-writerTarget` → `unconfigured_target`
+6. `seq` monotonic per target (sidecar state) → `stale_seq`
+7. ipmeta stream discipline: header first and only first; running byte count never above `total_size`, and equal to it at end of stream; a cancelled or short stream removes the temp file → `InvalidArgument`
+8. payload schema check (baseline `wireRecord` parse) → `invalid_payload`
+9. commit dance (temp → fsync → rename → sidecar)
 
 ### Targets, auth, seq, locking
 
-- **Targets** come from repeated `-writerTarget name=path` flags — the writer's own config, reachable by nothing `Set` controls. The request's oneof arm selects the target — the envelope carries no strings at all; an op whose target was not configured is rejected (`unconfigured_target`).
-- **Auth:** `SO_PEERCRED` on each accepted connection — peer uid must equal the configured collector uid (fleet: 0; check injectable for tests like `capgetFunc` in `init_capabilities.go`). Socket dir `0750`, socket `0660`, both group `xtcp2-state`. Both are *layers*: uid 0 already passes the cred check, so the real auth is the API surface itself (see decisions).
+- **Targets** come from repeated `-writerTarget name=path` flags — the writer's own config, reachable by nothing `Set` controls. The RPC selects the target — no request carries a string at all; an RPC whose target was not configured is rejected (`unconfigured_target`).
+- **Auth:** `SO_PEERCRED` in the `pkg/ipc` handshake on each accepted connection — peer uid must equal the configured collector uid (fleet: 0; check injectable for tests like `capgetFunc` in `init_capabilities.go`). Socket dir `0750`, socket `0660`, both group `xtcp2-state`. Both are *layers*: uid 0 already passes the cred check, so the real auth is the API surface itself (see decisions).
 - **Ownership:** the collector is uid 0 **without** `CAP_DAC_OVERRIDE`/`CAP_DAC_READ_SEARCH`, so it cannot read a `0600` file owned by uid 65534. The writer therefore runs as `65534` with primary group `xtcp2-state` (a fixed gid in the image and role) and umask `027`: targets `0640`, dirs `0750`, group `xtcp2-state`. The collector joins the group (`group_add`, the same pattern as the lldpd socket) and keeps a **read-only** Landlock grant on the state dir. writer-init (one-shot, root) chowns a pre-split state dir and its root-owned `0600` targets to `65534:xtcp2-state` with these modes before the writer starts.
 - **Seq (monotonic per target):** writer is the source of truth. Persisted as a sidecar `<target>.ver` (decimal, atomic, written *after* the rename). Commit order: payload → fsync → rename → sidecar. A crash between rename and sidecar leaves the sidecar one step behind; a replay at the old seq is then accepted once — harmless because both targets are full-file writes (idempotent). Rollback protection has a documented ≤ 1-step window across a writer crash; anything older is rejected (`stale_seq`).
 - **Locking:** the baseline's lifetime `flock` (`files.go` `ErrLocked`) becomes per-op, held by the writer; the collector's post-split load is a lock-free read (it is no longer the baseline "owner"). The writer-init bootstrap (below) re-imports an existing target without a sidecar.
-- **Metrics:** `xtcp2_writerd_requests_total{op,result}`, `xtcp2_writerd_last_seq{target}` — exported through `GET_STATS` and re-registered by the collector (proxy), so vmagent scraping is unchanged and the writer keeps **no TCP listener**.
+- **Metrics:** `xtcp2_writerd_requests_total{rpc,result}`, `xtcp2_writerd_last_seq{target}` — exported through `GetStats` and re-registered by the collector (proxy), so vmagent scraping is unchanged and the writer keeps **no TCP listener**.
 - **Writer self-confinement:** `pkg/sandbox` with write rules only on the two target dirs; `-healthcheck` mode probes the socket. In the fleet, the writer container adds the docker boundary on top (`network_mode: none`, `cap_drop ALL`, `read_only`, `no-new-privileges`, uid 65534) — see PR-13. On bare metal the writer's systemd unit needs `NoNewPrivileges=yes`, a `SystemCallFilter=` allowlist, `ProtectSystem=strict` and an empty `CapabilityBoundingSet=`, or [PR-24](phase-1-code-hardening.md#pr-24--startup-confinement-check) refuses to start it.
 
 ---
@@ -142,13 +161,13 @@ Harness: `pkg/writerd` mirrors the injectable-`operations` seam from `baseline/f
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
 | A1 | P | valid baseline write | 1 KiB valid wireRecord, seq 1 | accepted; file at configured target == payload, mode `0640`, group `xtcp2-state`; reply OK |
-| A2 | N | op whose target is not configured | op 2 against a writer started baseline-only (`-writerTarget baseline=…`) | rejected `unconfigured_target`; nothing written |
-| A3 | N | attacker stuffs path-like bytes into the payload | path bytes inside the payload | no string in the envelope is ever resolved as a path: schema-invalid → `invalid_payload`; schema-valid → written verbatim to the one fixed target (the no-path-parameters property — there is no field to abuse) |
+| A2 | N | RPC whose target is not configured | `WriteIpmeta` against a writer started baseline-only (`-writerTarget baseline=…`) | rejected `unconfigured_target`; nothing written |
+| A3 | N | attacker stuffs path-like bytes into the payload | path bytes inside the payload | no string in any request is ever resolved as a path: schema-invalid → `invalid_payload`; schema-valid → written verbatim to the one fixed target (the no-path-parameters property — there is no field to abuse) |
 | A4 | B | payload exactly at the baseline cap | `len == baseline.MaxFileBytes` (65 536) | accepted |
 | A5 | N | payload one byte over | 65 537 B | rejected `invalid` at `.Validate()` (`max_len 65536`) — the framing cap (B4) is the layer above it; nothing written |
 | A6 | P | baseline payload with `Version: 1`, all fields | well-formed wireRecord | accepted |
 | A7 | N | baseline payload not baseline JSON | `Version: 2` / missing fields / garbage | rejected `invalid_payload` — writer-side schema check |
-| A8 | N | seq 0 | any write op | rejected `invalid` at `.Validate()` (`gte 1`) — before the seq filter ever sees it |
+| A8 | N | seq 0 | any write RPC | rejected `invalid` at `.Validate()` (`gte 1`) — before the seq filter ever sees it |
 | A9 | N | replay: seq == last seen | two requests, same seq | first accepted, second rejected `stale_seq` |
 | A10 | N | rollback: seq < last seen | write at last-5 | rejected `stale_seq` |
 | A11 | B | first request after writer-init import | target pre-exists, sidecar imported, seq 1 | accepted |
@@ -158,31 +177,33 @@ Harness: `pkg/writerd` mirrors the injectable-`operations` seam from `baseline/f
 | A15 | C | bootstrap: target exists, no sidecar | writer-init run first | init imports (sidecar `0`), writer starts, write at seq 1 accepted |
 | A16 | N | zero-length payload | `WriteBaselineRequest{seq: 1, payload: <empty>}` | rejected `invalid` at `.Validate()` (`min_len 1`) |
 
-### Test B — framing (`TestWriterdFraming`)
+### Test B — transport (`TestWriterdTransport`, real UDS)
 
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
-| B1 | P | encode/decode round trip | valid frame with payload | parsed fields identical |
-| B2 | N | truncated length prefix | 3 of the 4 `len` bytes, then EOF | `malformed`, connection closed, no write attempted |
-| B3 | N | no op set | `Request` with an empty oneof (the oneof arm is the op; there is no op byte) | rejected `invalid` at `.Validate()` (`oneof required`) |
-| B4 | N | frame length lies huge | `len 0xFFFFFFFF` | rejected against the global cap **before allocation** (no OOM), connection closed |
-| B5 | C | payload shorter than declared, then EOF | `len` says 100 B, sender sends 50 and closes | `malformed`; no partial file written |
-| B6 | C | trailing bytes after the envelope | valid frame + 4 junk bytes before the next `len` | `malformed` (strict framing) |
-| B7 | P | empty-payload op | `GET_STATS` frame | valid, stats reply |
-| B8 | B | error reply at max size | err text 1024 B | encoded fine; collector decodes it |
-| B9 | N | envelope violates protovalidate: seq 0 | `WriteBaselineRequest{seq: 0}` | rejected `invalid` at `.Validate()` (writer side; the collector side rejected it before send — same rules, both ends) |
-| B10 | N | protovalidate per-op cap: baseline payload 65 537 B | hand-built envelope over `max_len` | rejected `invalid` at `.Validate()` — layered under the framing cap (B4) |
-| B11 | N | unknown/forward-incompatible field in the envelope | hand-crafted frame with field 99 set | rejected `malformed` — explicit `GetUnknown() == nil` check, fail closed (protobuf-go stores unknown fields by default) |
-| B12 | P | both-ends validation round trip | valid request through collector-side `.Validate()` → marshal → writer unmarshal → `.Validate()` | both sides pass; mutating any bound field flips exactly the writer side (the layering is observable) |
+| B1 | P | round trip | `WriteBaseline` with a valid payload | fields identical writer-side; reply `seq` echoes |
+| B2 | N | message above `MaxRecvMsgSize` | 1 MiB + margin + 1 | `ResourceExhausted` before allocation; no write attempted |
+| B3 | N | unknown method | raw call to `/xtcp_writer.v1.WriterService/Delete` | `Unimplemented` |
+| B4 | N | reflection and health absent | reflection and health clients | `Unimplemented` |
+| B5 | N | ipmeta stream without a header | first message is `data` | `InvalidArgument`; no temp file created |
+| B6 | N | second header mid-stream | header, data, header | `InvalidArgument`; temp file removed |
+| B7 | B | ipmeta at exactly `total_size` | chunks summing to `total_size` | committed |
+| B8 | N | ipmeta stream exceeds `total_size` | one byte over | `InvalidArgument` at the overflowing chunk; temp removed; target unchanged |
+| B9 | C | client cancels mid-stream | cancel after half the bytes | temp removed; target and sidecar unchanged |
+| B10 | N | short stream | stream closes below `total_size` | `InvalidArgument`; nothing renamed |
+| B11 | N | unknown field in a request | field 99 set | `InvalidArgument` — the `GetUnknown() == nil` interceptor, fail closed |
+| B12 | P | both-ends validation round trip | collector-side `.Validate()` → send → writer-side `.Validate()` | both pass; mutating a bound field after client validation fails only writer-side (the layering is observable) |
+| B13 | B | concurrent streams | `MaxConcurrentStreams` + 1 | excess stream refused |
 
 ### Test C — peer auth (`TestWriterdPeerAuth`)
 
 | ID | Cat | Description | Input / setup | Expected outcome |
 |---|---|---|---|---|
 | C1 | P | peer uid equals the collector uid | injected cred uid 0 | request served |
-| C2 | N | peer uid not allowed | injected cred uid 1234 | rejected at handshake with `auth` error; counter `{op,result="auth"}` +1; nothing written |
+| C2 | N | peer uid not allowed | injected cred uid 1234 | handshake fails before any HTTP/2 frame is parsed (frame counter 0); counter `{rpc,result="auth"}` +1; nothing written |
+| C6 | N | client refuses a wrong server | server runs as an unexpected uid | client handshake fails; no request sent |
 | C3 | C | wrong-uid peer blocked by file perms first | socket `0660 root:root`, dir `0750`, peer uid 1234 | connect fails `EACCES` before any protocol bytes |
-| C4 | N | writer never listens on TCP | server constructed, inspect listener calls | only `unix` network listeners; any config attempt to add TCP is a startup error |
+| C4 | N | writer never listens on TCP | server constructed, inspect listener calls | only `unix` network listeners; `pkg/ipc` makes any TCP listener a startup error |
 | C5 | C | peer-cred lookup fails | injected lookup returns EBADF | connection closed, counter `auth`, writer stays up |
 
 ### Test D — client resilience (`TestWriterdClient`, fake server)
@@ -194,7 +215,7 @@ Harness: `pkg/writerd` mirrors the injectable-`operations` seam from `baseline/f
 | D3 | B | slow writer beyond client timeout | fake server delays | deadline honored, error surfaces, no goroutine leak (leakcheck) |
 | D4 | C | connection drops mid-request, then writer recovers | fake server closes once | client errors, reconnects on next attempt, second save succeeds |
 | D5 | P | stats proxy | fake server serves counters | collector re-exports them under the `xtcp2_writerd_*` names |
-| D6 | P | seq bootstrapping | `GET_STATS` returns last seq 7 for `baseline` | collector's next save uses seq 8 (writer stays the source of truth across collector restarts) |
+| D6 | P | seq bootstrapping | `GetStats` returns last seq 7 for `baseline` | collector's next save uses seq 8 (writer stays the source of truth across collector restarts) |
 
 ### Test G — crash safety (`TestWriterdCrashSafety`, injected faults)
 
@@ -243,7 +264,7 @@ Collector post-split ruleset delta (from the [Phase 2 table](phase-2-kernel-conf
 | E7 | N | writer down during ASN refresh | socket absent | refresh errors, counter, collector serves from in-memory cache; next refresh recovers |
 | E8 | C | first-ever startup, no baseline file | empty state dir | collector proceeds without baseline; writer-init creates dir + sidecar (F6 covers the ops step) |
 | E9 | N | hostile `file:` `Set` replayed | `dest:"file:/proc/1/root/root/.ssh/authorized_keys"` | rejected by validation (Phase 1) — and with the ruleset flip, nothing writable exists anyway (cross-layer regression row) |
-| E10 | C | collector restarts mid-session | restart between two saves | seq continues from `GET_STATS` (D6), no stale-seq rejection of the first save |
+| E10 | C | collector restarts mid-session | restart between two saves | seq continues from `GetStats` (D6), no stale-seq rejection of the first save |
 
 ---
 
@@ -297,8 +318,8 @@ Rollout order — each step is independently shippable and reversible:
 |---|---|---|---|---|---|
 | 1 | `pkg/xtcp/destinations_file.go:28` | **`Set`** (`dest:"file:<path>"`) | records, `O_APPEND`, arbitrary path, `0600` | debug export | PR-1 `dest_file` build tag; out of prod flavor |
 | 2 | `pkg/xtcp/netlinker.go:84` | **`Set`** (`write_files` + `capture_path`) | netlink capture dump, arbitrary path | debug | PR-1 `capture` build tag |
-| 3 | `pkg/linkmonitor/internal/baseline/files.go` | internal (linkmonitor learn) | baseline JSON, ≤ 64 KiB, temp+rename | **state** | **writer op `WRITE_BASELINE`** |
-| 4 | `pkg/ipasn/ipasn.go:373-439` | internal (ASN refresh) | ipmeta cache + previous, temp+rename+syncDir | **state** | **writer op `WRITE_IPMETA`** |
+| 3 | `pkg/linkmonitor/internal/baseline/files.go` | internal (linkmonitor learn) | baseline JSON, ≤ 64 KiB, temp+rename | **state** | **writer RPC `WriteBaseline`** |
+| 4 | `pkg/ipasn/ipasn.go:373-439` | internal (ASN refresh) | ipmeta cache + previous, temp+rename+syncDir | **state** | **writer RPC `WriteIpmeta`** |
 | 5 | `pkg/listener/listener.go:149,165,214` | **`Set`** (listener config) | UDS bind / chmod ≤0777 / unlink stale — sockets, not files | sockets | narrow Landlock grants (`MAKE_SOCK\|REMOVE_FILE` on the listen dir); fleet listeners are TCP-only |
 | 6 | `pkg/linkmonitor/internal/linuxio/record_linux.go:149` | env `LINKMONITOR_NLRECORD=<dir>` at **deploy** time — not `Set`-reachable (env survives the soft restart unchanged but no `Set` field touches it) | `<proto>-<pid>-<serial>.pcap` netlink recordings, `O_EXCL`, into the env dir | debug recording | stays env-gated; Landlock requires the dir under a writable root; never set in the fleet |
 | 7 | `pkg/linkmonitor/internal/rdmacapture/manifest.go` | standalone `rdma-capture-manifest` tool only | manifest + payloads | analysis artifact | not linked into the daemon; no change |
@@ -309,8 +330,8 @@ Non-writes verified: `pkg/misc/misc.go:88,116` are `O_RDONLY` config loads; the 
 
 | Need | How it is served | Verdict |
 |---|---|---|
-| baseline state | writer `WRITE_BASELINE` | exists |
-| ipmeta cache | writer `WRITE_IPMETA` | exists |
+| baseline state | writer `WriteBaseline` | exists |
+| ipmeta cache | writer `WriteIpmeta` | exists |
 | local record export (the `file:` need) | `stdout`/`stderr` dests + redirect; kafka/nats/nsq/valkey/s3parquet dests | dev builds only; if a fleet need ever materializes: a **named journal op** with fixed path + cap + rotation — never a generic write |
 | netlink pcap capture (`capture_path`, `LINKMONITOR_NLRECORD`) | debug image + writable root, time-boxed, Landlock-scoped | never a writer op — chatty and unbounded by nature |
 | node_exporter textfile snapshot | vmagent scrapes the daemon's metrics port directly | refuse; if ever genuinely needed: small fixed-file writer op (cap ~64 KiB) |
@@ -323,7 +344,7 @@ Non-writes verified: `pkg/misc/misc.go:88,116` are `O_RDONLY` config loads; the 
 
 **C. Admission checklist for a new write target** — the rule that keeps the property:
 
-1. a named oneof arm in `writer.proto` — the envelope gains no strings
+1. a named RPC in `writer.proto` — no request gains a string
 2. fixed path from the writer's own `-writerTarget` flags, never from a request or `XtcpConfig`
 3. size cap via protovalidate `max_len` + a semantic schema check where one exists (baseline's `wireRecord` parse is the model)
 4. `seq` monotonic + sidecar + the atomic commit dance
@@ -338,16 +359,16 @@ Adding a write destination is an engineering decision with review and a redeploy
 | # | Decision | Recommendation |
 |---|---|---|
 | OD-4 (socket auth strength) | `SO_PEERCRED` uid alone vs + shared secret | ship uid + file perms this phase (API surface is the real auth); add a 0400 shared-secret file mounted ro in both containers if review wants the uid ambiguity closed |
-| new | writer IPC format: gRPC over UDS vs proto envelope + tiny frame | **proto envelope + tiny frame** ([rationale](#wire-format-and-the-protocol-decision)) — protovalidate both ends, no HTTP/2 stack on the writer; gRPC variant only behind its hardening checklist if the team standardizes on one IPC mechanism |
+| new | writer IPC format | **gRPC over UDS on `pkg/ipc`** ([rationale](#wire-format-grpc-over-uds-pkgipc)) — one stack for the writer and both Phase 5 brokers; peer uid checked before HTTP/2 parsing; protovalidate both ends |
 | new | ipmeta payload cap default | 64 MiB (measured bootstrap × headroom) |
 | new | sidecar ordering (rename→sidecar) | accept the ≤ 1-step replay window across a writer crash (full-file writes make replays idempotent); document in the runbook |
 | new | baseline `flock` ownership | writer holds per-op; collector reads lock-free; `ErrLocked` now means "two writers" (misconfig, fatal in writer) |
 | new | socket volume `ro` in collector | decided by F8 |
-| new | writer seq source of truth | writer (via `GET_STATS`); collector never persists seq |
+| new | writer seq source of truth | writer (via `GetStats`); collector never persists seq |
 
 ## Release checklist
 
-- [ ] PR-11: tests A–D, G green (pure, any platform); protocol code reviewed line-by-line (it is the entire attack surface)
+- [ ] PR-11: tests A–D, G green; `pkg/ipc` and the service code reviewed line-by-line (they are the entire attack surface); grpc-go at a release with no open HTTP/2 CVE; a coverage-guided fuzz target on the writer's RPCs
 - [ ] PR-12: tests E green; `enrich_asn.go` seam and `BaselineStore` implementation reviewed for one-call-site fidelity
 - [ ] Metrics: `xtcp2_writer_*` (collector) + `xtcp2_writerd_*` (proxy) in [metrics.md](../metrics.md)
 - [ ] PR-13: container pair deployed to canary; F1–F9 executed and recorded (F8's answer folded into the role)
@@ -365,5 +386,5 @@ On a canary pair running a **deliberately crippled build** (Phase 1 path policy 
 - [ ] `Set` with `dest:"file:/proc/1/root/root/.ssh/authorized_keys"` applies (validation stubbed) → the write fails at the kernel — no authorized_keys file appears on the host; same for every other path primitive
 - [ ] a baseline learn lands in `/var/lib/xtcp2` via the writer (owner `65534:xtcp2-state`, `0640`); an ASN refresh rotates the cache + previous files via the writer
 - [ ] killing the writer degrades, never breaks: collector keeps collecting, `Xtcp2WriterDown` fires, everything recovers on restart
-- [ ] the writer protocol surface is exactly the 4 ops: a fuzzer against the socket (1 h, dumb mode) produces no write outside the two targets, no crash, no OOM, no leaked fds
+- [ ] the writer's surface is exactly the 4 RPCs (a descriptor test fails on a new one): a fuzzer against the socket (1 h) produces no write outside the two targets, no crash, no OOM, no leaked fds
 - [ ] alert runbook covers: writer down, sidecar init on fresh hosts, socket volume loss (recreate + restart pair)

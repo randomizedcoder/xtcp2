@@ -116,11 +116,11 @@ PRs (repo `xtcp2` unless noted; each lands with its tests and doc updates from W
 
 > Drill-down with the broker protocols, filtering pipelines, syscall profiles and full test matrices: [phase-5-privilege-brokers.md](phase-5-privilege-brokers.md).
 
-**Goal:** a compromised collector holds no capability, no `docker.sock` and no namespace handle; the privileged reads go through two brokers whose APIs can express nothing else.
+**Goal:** a compromised collector holds no capability, no `docker.sock` and no namespace handle, and cannot send a netlink message into any namespace; the privileged reads go through two gRPC brokers whose APIs can express nothing else.
 
-- [ ] **PR-18 — spike** ([W10](plan-configservice-set-hardening.md#w10--netlink-broker-and-collector-de-privilege-l7)): kernel fd-semantics proofs and a zero-capability feature run.
+- [ ] **PR-18 — spike** ([W10](plan-configservice-set-hardening.md#w10--netlink-broker-and-collector-de-privilege-l7)): kernel-fact proofs, a dump-relay prototype with a zero-capability feature run, and the relay benchmark gate.
 - [ ] **PR-19 — syscall profiles** ([W12](plan-configservice-set-hardening.md#w12--syscall-profiles-l7)): per-process seccomp and AppArmor; the v1 collector profile ships with Phase 2.
-- [ ] **PR-20 — netlink broker** (W10): `xtcp2 -nlbroker`, proto over `SOCK_SEQPACKET` with `SCM_RIGHTS`, collector seams.
+- [ ] **PR-20 — netlink broker** (W10): `xtcp2 -nlbroker`, a gRPC service that builds and sends every netlink request and streams the replies back as raw chunks; collector seams.
 - [ ] **PR-21 — Docker broker** ([W11](plan-configservice-set-hardening.md#w11--docker-broker-l7)): `xtcp2 -dockerbroker`, typed gRPC, fixed outbound request set, projection.
 - [ ] **PR-22 — collector de-privilege** (W10): non-root uid, `cap_drop ALL`, broker mode as the fleet default.
 - [ ] **PR-23 — deployment** (the deployment repo): broker containers, profiles, the five-step rollout, alerts.
