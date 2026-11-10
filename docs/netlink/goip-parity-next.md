@@ -195,33 +195,48 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 
 #### NC2-T01 the `mpls` family
 
-- **A new space.** `tools/nlcapgen/matrix_mpls.go`, registered as `-family mpls`.
-  - Setup: `modprobe mpls_router`, then in the row's netns `sysctl net.mpls.platform_labels=1000` and `net.mpls.conf.d0.input=1`.
+- **A new space.** `tools/nlcapgen/matrix_mpls.go`, registered as `-family mpls`. Two probe batches (61 forms) came first, and the space follows what they showed.
+  - Setup: `mpls_router` and `mpls_iptunnel` loaded, then in the row's netns d0 with 10.0.0.1/24 and 2001:db8::1/64, `platform_labels` 1000 and `conf/d0/input` 1 (written under `/proc/sys`).
   - Each row's readbacks are `ip -f mpls route show` and `ip -j -f mpls route show`.
 
-| axis | values (boundaries in bold) |
+| axis | values (boundaries in bold, corners in italics) |
 |---|---|
-| verb | add, replace, del |
-| label | **15**, **16**, 100, **999** (platform_labels − 1), **1000**, **1048575**, **1048576** |
-| `as` | absent, `200`, `200/300`, `200/300/400`, `implicit-null`, `to 200` |
-| via | `via inet 10.0.0.2 dev d0`, `via inet6 fe80::2 dev d0`, `dev d0` |
-| `ttl-propagate` | absent, `enabled`, `disabled`, `maybe` |
-| multipath | absent, two `nexthop as 200 via inet …` hops |
+| verb | add, replace, del (a del's setup adds the label first) |
+| label | 100, **16**, **999**, *`100/20`* |
+| `as` | absent, `200`, `200/300`, `200/300/400`, *`to 200`*, **`0`**, **30 labels** |
+| `ttl-propagate` | absent, `enabled`, `disabled`, *`en`* (before the next hop: `nexthop` takes every word after it) |
+| via | `via inet 10.0.0.2 dev d0`, `via inet6 2001:db8::2 dev d0`, *`fe80::2`*, *no dev*, `dev d0`, *off-link with dev*, two `nexthop as …` hops, *a mixed-family pair* |
 
-- **Rows outside the label space:**
-  - IPv4 and IPv6 routes with `as` (`ip route add 10.1.0.0/24 as 200 via 10.0.0.2`);
-  - `encap mpls` routes for contrast;
-  - `ip route get … as`.
-- **Negative rows** come by mutation: `as` with no labels, `ttl-propagate` with no value, a label over 20 bits.
+- **The negatives** (19, each a positive add with one value changed):
+  - labels 15, 3, 1000, 1048575 (kernel EINVAL) and 1048576 (`ip`, rc 1);
+  - `as 3` and 31 labels (kernel EINVAL);
+  - `as implicit-null`, `as 1048576`, `as 200/` and a bare `as` (`ip`, rc 1: `mpls_pton` takes numbers only);
+  - a via with no family (rc 1), two vias (255), `dev nosuch` (rc 1, ENODEV from ip's lookup), off-link and link-local with no device (ENETUNREACH), no next hop (ENODEV);
+  - `ttl-propagate maybe` and a bare one (255).
+- **The named rows** (15):
+  - a duplicate (EEXIST);
+  - a replace of a label that's there;
+  - a del of a label that isn't, which succeeds;
+  - no `platform_labels` (EINVAL);
+  - `as` twice: both are sent, and the kernel keeps the last;
+  - `get`, `get … as`, a get of an absent label (ENETUNREACH);
+  - `show` and `-j show`, where `ip` prints `ttl-propogate`;
+  - `ttl-propagate` after the hops (255, after the hops' lookups);
+  - `as` on an IPv4 route (sent as the address 200.0.0.0 and ignored), on an IPv6 route (rc 1), and on an IPv4 get (EINVAL);
+  - `encap mpls` for contrast.
+- **What changed from the outline:**
+  - `implicit-null` isn't a word `ip` takes;
+  - `ttl-propagate` with nexthops is accepted, so it's no negative;
+  - a top-level `as` with nexthops is sent, and the kernel keeps only the hops' stacks.
 
 | description | input | expected |
 |---|---|---|
-| positive: each-choice | the space | every axis value in at least one row |
-| positive: pairwise | the space | every value pair across two axes in at least one row |
-| positive: the setup | any row | the three setup steps, in order |
-| negative: a multipath hop with `ttl-propagate` | constraint | moved to the negatives, not a positive row |
-| boundary: label 1048576 | | `desc` negative:, the rc as recorded |
-| corner: the same seed twice | seed 1 | identical bytes |
+| positive: each value | the space | every axis value in a positive row (`TestMplsCoverage`) |
+| positive: the setup, modules and readbacks | every row | `mplsSetup` (or none for `no-platform`), both modules, both shows |
+| positive: a del's setup | del rows | adds its label first |
+| negative: ttl-propagate after a nexthop | every row | only in `ttl-after-hops` |
+| boundary: label 1048576 | `ng-005` | rc 1, refused by `ip` |
+| corner: the same seed twice | seed 1 | identical bytes; 115 rows |
 
 #### NC2-T02 capture and O3
 
