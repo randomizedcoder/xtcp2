@@ -10,7 +10,7 @@
   - the 12 `linkns` rows and the 115 `mpls` rows are captured at kernel 7.3.1, with their O3 tests.
 - **Captures come first.** Tier C runs the workbench at iproute2 7.2.0 and 7.3.0. Tiers P and G are outlined until NC5-T01 writes their tables.
 
-**Next action:** NC3-T02, the `v730` family.
+**Next action:** NC3-T03, capture `v730` at both versions and its O3.
 
 ## Contents
 
@@ -34,7 +34,7 @@
 | [NC0](goip-parity-next.md#nc0--two-iproute2-versions-in-the-workbench) | two iproute2 versions in the workbench | NC0-T01 | done | V001–V003 |
 | [NC1](goip-parity-next.md#nc1--link-set--netns) | `link set … netns` rows | NC1-T01 | done | V004–V007 |
 | [NC2](goip-parity-next.md#nc2--mpls-family-routes) | MPLS-family route rows | NC2-T02 | done | V008–V012 |
-| [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | in progress | V013–V015 |
+| [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | in progress | V013–V018 |
 | [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | not started | — |
 | [NC5](goip-parity-next.md#nc5--the-tier-closes) | Tier C closes | NC5-T01 | not started | — |
 | [Tier P](goip-parity-next.md#tier-p-parsers-tests-and-benchmarks) | parsers, tests, benchmarks | — | not started | — |
@@ -49,7 +49,7 @@
 | [x] | [NC2-T01](goip-parity-next.md#nc2-t01-the-mpls-family) | the `mpls` family | done | V008–V009 |
 | [x] | [NC2-T02](goip-parity-next.md#nc2-t02-capture-and-o3) | capture, O3 | done | V010–V012 |
 | [x] | [NC3-T01](goip-parity-next.md#nc3-t01-every-family-at-730) | every family at 7.3.0, `verdiff` | done | V013–V015 |
-| [ ] | [NC3-T02](goip-parity-next.md#nc3-t02-the-730-forms) | the `v730` family | not started | — |
+| [x] | [NC3-T02](goip-parity-next.md#nc3-t02-the-730-forms) | the `v730` family | done | V017–V018 |
 | [ ] | [NC3-T03](goip-parity-next.md#nc3-t03-capture-both-versions-and-o3) | capture both versions, O3 | not started | — |
 | [ ] | [NC4-T01](goip-parity-next.md#nc4-t01-the-stats-family) | the `stats` family | not started | — |
 | [ ] | [NC4-T02](goip-parity-next.md#nc4-t02-capture-and-the-order) | capture, the group order, O3 | not started | — |
@@ -76,6 +76,8 @@
 | V014 | 2026-11-09 | NC3-T01 | A replay of 17 families (4,091 rows) on fresh boots of kernel 7.3.1: at 7.2.0, at 7.3.0 (`--ip`), and at 7.2.0 again; `cmd.json` `env.iproute2` checked; `verdiff` of 7.2.0 against 7.3.0, and of 7.2.0 against itself | Every row ran its version (4,091 each). At 7.2.0 and in the repeat, every rc is as written. At 7.3.0, `nh4/ng-004` and `nh6/ng-004` (`dev d0 dst_port 4789`) change from rc 255 to 2. 7.2.0 against 7.3.0: 333 differences. 7.2.0 against itself: 166. All 25 request-byte differences are in both, so they are noise: padding that `ip` leaves uninitialized. | this commit |
 | V015 | 2026-11-09 | NC3-T01 | The version-only differences (in 7.2.0→7.3.0, not 7.2.0→7.2.0), each read | 178 lines. ip's: 14 rcs and 12 type sequences, all `dst_port` (ad2b2d95): 12 `fib_nexthops.sh` `fdb_port` rows, where 7.2.0 refuses the word and 7.3.0 sends `NHA_DST_PORT`, which the kernel judges (4 rc 0, 6 rc 2, 2 changed from 2 to 0), plus `nh4`/`nh6` `ng-004`. 135 nexthop readbacks and 2 `fib` outputs gain `fdb `'s trailing space. Noise that the repeat missed by chance: 3 `linkadd` bridge timers 0.01 s apart, `fdbbr/rn1-012`'s entry order, 11 `ss` socket orders | this commit |
 | V016 | 2026-11-09 | NC3-T01 | `verdiff` compares `ip.err` too (a NC3-T02 probe showed a stderr-only change); `TestDiffVerRows` gains a row, lint-baseline; the replay re-diffed | All pass. 194 version-only lines now, 15 of them stderr: the 14 `dst_port` rows' new texts, and `ss/ng-013`'s usage text, which no longer lists `-d, --dccp` or `dccp` (3c0b939e, "ss: stop displaying dccp sockets"). `linkns/ng-005`'s pid in its duplicate message is in the noise baseline too | this commit |
+| V017 | 2026-11-09 | NC3-T02 | A probe batch of 44 forms at 7.2.0 and at 7.3.0 on one boot; kernel errnos read in `bond_options.c`, `nexthop.c` and `nlattr.c`; then a calibration of both generated rows files | The plan doc's table. Kernel 7.3.1 takes `IFLA_BOND_LACP_STRICT`, `NHA_DST_PORT`, `SEG6_IPTUNNEL_TABLE` and `IFLA_OVPN_MODE`. `maddress show` prints the same at both versions, and `dev nosuch` is rc 0 at both. The strict `ll_addr_a2n` changes no rc, only the error text, and adds a stderr line to the macvlan `macaddr set` (the loop's probe for the end of the list). Calibration: `rows=42 ok=42` at each version | this commit |
+| V018 | 2026-11-09 | NC3-T02 | `go vet`; `go test -count=1 -race ./tools/nlcapgen/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestV730Family` checks the ids and commands at both versions, 16 rows' rcs and 5 properties. Mutants: 7.3.0's expectations at 7.2.0; a 7.3.0 word in a setup step; the ovpn module dropped; rc 1 written as positive. All 4 were killed. lint-baseline first found a `rangeValCopy`, fixed by indexing | this commit |
 
 ## Decision log
 
@@ -93,3 +95,5 @@
   - Both are left to NC3-T02's `v730` rows.
   - `ss` 7.3.0 dropped DCCP (3c0b939e): its usage text no longer lists it. No replayed `ss` row asks for DCCP sockets. Kernel 7.3.1 accepts `NHA_DST_PORT`: `dev d0 dst_port 4789` is refused by the kernel ("Destination port can only be set on fdb nexthops that have a gateway"), not by `ip`.
 - **A repeat run is verdiff's noise baseline.** Readbacks carry timers, socket order and padding that differ run to run, so a 7.2.0 repeat is diffed too, and only what it doesn't show is ip's. One repeat misses some noise by chance (3 timers, 12 orderings), so each remaining line was read.
+- **`v730` is a family of named rows, written once per version.** The matrix spaces have one expectation per row, but here the version decides it. Two rows files with the same ids let a capture at each version pair up in `verdiff`.
+- **The strict `ll_addr_a2n` regresses nothing a script would see in rc.** It does print a spurious `"bcqueuelen" is invalid lladdr.` when `macaddr set` is followed by another keyword. Recorded only: nothing goes to netdev.

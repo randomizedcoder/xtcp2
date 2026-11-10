@@ -137,10 +137,17 @@ var families = map[string]func() []*space{
 	},
 }
 
+// namedFamilies are families of named rows, written out as they are
+// rather than generated from a space.
+var namedFamilies = map[string]func() []row{
+	"v730":      func() []row { return v730Family("7.3.0") },
+	"v730ip720": func() []row { return v730Family("7.2.0") },
+}
+
 func runMatrix(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx")
+	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720")
 	seed := fs.Uint64("seed", 1, "the random rows' seed, recorded in their ids")
 	random := fs.Int("random", 0, "random rows per space")
 	out := fs.String("out", "", "rows file to write")
@@ -148,11 +155,20 @@ func runMatrix(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	spaces, ok := families[*family]
+	if _, named := namedFamilies[*family]; named {
+		ok = true
+	}
 	if !ok || *out == "" || *random < 0 {
-		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, ethtool, kwlive, lwt, lwtx) and -out are required, -random must be >= 0")
+		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720) and -out are required, -random must be >= 0")
 		return 2
 	}
-	rows, err := matrixRows(spaces(), matrixOpts{Seed: *seed, Random: *random})
+	var rows []row
+	var err error
+	if named, ok := namedFamilies[*family]; ok {
+		rows, err = named(), checkRows(named())
+	} else {
+		rows, err = matrixRows(spaces(), matrixOpts{Seed: *seed, Random: *random})
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, "nlcapgen matrix:", err)
 		return 1

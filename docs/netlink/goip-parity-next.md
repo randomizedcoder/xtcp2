@@ -287,20 +287,29 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 
 #### NC3-T02 the 7.3.0 forms
 
-- **A new family, `v730`.** Each row is run at both 7.2.0 and 7.3.0:
-  - bond `lacp_strict on|off|x`, with a `-d` readback;
-  - nexthop `fdb dst_port 0|4789|65535|65536|x`;
-  - seg6 encap `lookup main|100|0|nosuch`;
-  - `type ovpn mode p2p|mp|x` (module `ovpn`);
-  - `maddress show` forms (bare, `-4`, `-6`, `dev d0`, `dev nosuch`, `-j`), after `ip maddr add 33:33:00:00:00:99 dev d0`, an IPv4 group join (`ip addr add … autojoin`) and an IPv6 one;
-  - lladdr edge cases on `link set address`, `neigh add lladdr` and macvlan `macaddr set`: `00:11:zz`, `0aq`, `1ff`, seven parts, an empty argument, and `macaddr set 00:11:22:33:44:55 bcqueuelen 10`.
+- **A new family of named rows,** `tools/nlcapgen/matrix_v730.go`. It is written twice with the same ids, once per version's expectations:
+  - `-family v730` gives `v730.rows.jsonl`, run with `--ip` at 7.3.0;
+  - `-family v730ip720` gives `v730ip720.rows.jsonl`, run at 7.2.0.
+- **The rows.** 42, in six spaces, set from a probe batch of 44 forms at both versions (V017):
+
+| space | rows | at 7.2.0 | at 7.3.0 |
+|---|---|---|---|
+| `v730bond` | plain, `lacp_strict on`, `off`, on an existing bond, `x`, in active-backup | `bond: unknown command` (rc 1); plain 0 | 0; `x` rc 1; active-backup EACCES (option not supported in mode); `-d` prints `lacp_strict` on every bond |
+| `v730nh` | `fdb` with no port, `dst_port` 4789, 65535, 0, 65536, `x`, on IPv6, without `fdb`, by replace | invarg (255); plain `fdb` 0 | 0; port 0 ERANGE; without `fdb` EINVAL; 65536 and `x` 255 |
+| `v730seg6` | `lookup main`, `100`, with `inline`, on IPv4, `0`, `nosuch` | `either "to" is duplicate` (255) | 0; `0` and `nosuch` 255 |
+| `v730ovpn` | plain, `mode p2p`, `mp`, `x` | `Garbage instead of arguments` (rc 1); plain 0 | 0; `x` rc 1 |
+| `v730maddr` | `maddress show`, `-4`, `-6`, `dev d0`, `dev nosuch`, `-j` | 0, from procfs | 0, from netlink, with the same text |
+| `v730lladdr` | a good address; `00:11:zz`, `0aq`, `1ff`, seven octets, `00:11:`, `''` on `link set address`; a neighbor's `zz` and seven octets; macvlan `macaddr set … bcqueuelen 10` and `macaddr add 00:11:zz` | rc 1 for each bad one; seven neighbor octets and the macvlan set are 0 | the same rcs; the error names the whole argument; the macvlan set also prints `"bcqueuelen" is invalid lladdr.` |
+
+- **No setup step uses a 7.3.0 word,** so each row's pre steps run at both versions.
 
 | description | input | expected |
 |---|---|---|
-| positive: the `v730` space | generator | every form once, each with its 7.2.0 and 7.3.0 rcs from the source |
-| positive: maddress rows | | readbacks only (show rows) |
-| negative: ovpn without the module | constraint | module listed in the row's setup |
-| corner: an empty-argument lladdr | `address ""` | the quoting survives the rows format |
+| positive: the same ids and commands | both versions | 42 rows each, row for row |
+| positive: each version's rc | 16 named rows | as the probes showed |
+| positive: modules | bond and ovpn rows | `bonding`, `ovpn`; no other row loads one |
+| positive: maddress rows | | no readback: the command is the show |
+| corner: an empty-argument lladdr | `address ''` | the quoting survives the rows format |
 
 #### NC3-T03 capture both versions and O3
 
