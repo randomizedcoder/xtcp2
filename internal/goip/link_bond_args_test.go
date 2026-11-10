@@ -318,7 +318,7 @@ func TestBondParseKeywordsCoverTable(t *testing.T) {
 		unparsed    []string
 		expected    int // keywords, help included
 	}{
-		{description: "positive: bond", chain: bondParseKeywords, table: xtcpnl.BondOptions, unparsed: []string{"lacp_strict"}, expected: 35},
+		{description: "positive: bond", chain: bondParseKeywords, table: xtcpnl.BondOptions, expected: 36},
 		{description: "positive: bond_slave", chain: bondSlaveParseKeywords, table: xtcpnl.BondSlaveOptions, expected: 4},
 	}
 	for _, tc := range tests {

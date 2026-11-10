@@ -117,11 +117,13 @@ func SRH(nsegs int, segs [][16]byte, hmacKeyID uint32) ([]byte, error) {
 }
 
 // Seg6Encap is `encap seg6 …`: the mode (-1 for none), parse_srh's SRH,
-// and `tunsrc`'s 16 bytes, or nil.
+// `tunsrc`'s 16 bytes, or nil, and iproute2 7.3.0's `lookup` table, sent as
+// SEG6_IPTUNNEL_TABLE after them when nonzero.
 type Seg6Encap struct {
 	Mode   int32
 	SRH    []byte
 	TunSrc []byte
+	Lookup uint32
 }
 
 // Seg6LocalItem is one of parse_encap_seg6local's keywords, in the order
@@ -164,10 +166,15 @@ func putSeg6Encap(ab *AttrBuilder, e *Seg6Encap) error {
 	if err := ab.PutBytes(Seg6IptunnelSRH, append(p, e.SRH...)); err != nil {
 		return err
 	}
-	if e.TunSrc == nil {
+	if e.TunSrc != nil {
+		if err := ab.PutBytes(Seg6IptunnelSrc, e.TunSrc); err != nil {
+			return err
+		}
+	}
+	if e.Lookup == 0 {
 		return nil
 	}
-	return ab.PutBytes(Seg6IptunnelSrc, e.TunSrc)
+	return ab.PutU32(Seg6IptunnelTable, e.Lookup)
 }
 
 func putSeg6LocalEncap(ab *AttrBuilder, e *Seg6LocalEncap) error {

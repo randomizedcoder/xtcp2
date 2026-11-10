@@ -13,5 +13,6 @@ func TestMain(m *testing.M) {
 	RenderQlenZero = false
 	RenderBondLacpStrict = false
 	RenderNhDstPort = false
+	RenderOvpnMode = false
 	os.Exit(m.Run())
 }

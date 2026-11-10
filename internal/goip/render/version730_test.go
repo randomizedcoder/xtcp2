@@ -116,3 +116,59 @@ func TestRenderNhDstPort(t *testing.T) {
 		})
 	}
 }
+
+// TestRenderOvpnMode is ovpn_print_opt under each release (92f89d0e): `mode
+// p2p|mp` from 7.3.0, "(unknown)" past the table; before 7.3.0 no print_opt
+// and so no info_data object.
+//
+// go test ./internal/goip/render/ -run TestRenderOvpnMode
+func TestRenderOvpnMode(t *testing.T) {
+	tests := []struct {
+		description string
+		knob        bool
+		info        *xtcpnl.OvpnInfo
+		expected    string
+		json        string
+		none        bool // no info_data object at all
+	}{
+		{description: "positive: p2p", knob: true, info: &xtcpnl.OvpnInfo{Mode: 0, HasMode: true},
+			expected: "mode p2p ", json: `{"mode":"p2p"}`},
+		{description: "positive: mp", knob: true, info: &xtcpnl.OvpnInfo{Mode: 1, HasMode: true},
+			expected: "mode mp ", json: `{"mode":"mp"}`},
+		{description: "boundary: 2 is past the table", knob: true, info: &xtcpnl.OvpnInfo{Mode: 2, HasMode: true},
+			expected: "mode (unknown) ", json: `{"mode":"(unknown)"}`},
+		{description: "corner: no mode prints nothing, in an empty object", knob: true, info: &xtcpnl.OvpnInfo{},
+			expected: "", json: `{}`},
+		{description: "corner: no nest prints nothing, in an empty object", knob: true, info: nil,
+			expected: "", json: `{}`},
+		{description: "negative: 7.2.0 has no print_opt", knob: false, info: &xtcpnl.OvpnInfo{Mode: 1, HasMode: true},
+			none: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			old := RenderOvpnMode
+			RenderOvpnMode = tc.knob
+			defer func() { RenderOvpnMode = old }()
+			k := ovpnData(tc.info)
+			if tc.none {
+				if k != nil {
+					t.Errorf("got %q, want no info_data", k.Text())
+				}
+				return
+			}
+			if k == nil {
+				t.Fatal("no info_data")
+			}
+			if got := k.Text(); got != tc.expected {
+				t.Errorf("text %q, want %q", got, tc.expected)
+			}
+			b, err := k.MarshalJSON()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != tc.json {
+				t.Errorf("json %s, want %s", b, tc.json)
+			}
+		})
+	}
+}

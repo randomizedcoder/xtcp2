@@ -89,6 +89,9 @@ func TestPutSeg6Encap(t *testing.T) {
 	seg6 := func(mode int32, srh, src []byte) LwtEncap {
 		return LwtEncap{Seg6: &Seg6Encap{Mode: mode, SRH: srh, TunSrc: src}}
 	}
+	seg6L := func(mode int32, srh, src []byte, lookup uint32) LwtEncap {
+		return LwtEncap{Seg6: &Seg6Encap{Mode: mode, SRH: srh, TunSrc: src, Lookup: lookup}}
+	}
 	local := func(srh []byte, items ...Seg6LocalItem) LwtEncap {
 		return LwtEncap{Seg6Local: &Seg6LocalEncap{Items: items, SRH: srh}}
 	}
@@ -119,6 +122,12 @@ func TestPutSeg6Encap(t *testing.T) {
 				"0526000000000007" + strings.Repeat("00", 32) + seg6Type},
 		{description: "positive: tunsrc after the SRH", e: seg6(Seg6ModeEncap, srh(1, 0, s1), tunsrc),
 			expected: "38000880" + srh1 + "14000200" + hex.EncodeToString(tunsrc) + seg6Type},
+		{description: "positive: 7.3.0's lookup table after the SRH", e: seg6L(Seg6ModeEncap, srh(1, 0, s1), nil, 100),
+			expected: "2c000880" + srh1 + "0800030064000000" + seg6Type},
+		{description: "positive: the table after tunsrc", e: seg6L(Seg6ModeEncap, srh(1, 0, s1), tunsrc, 254),
+			expected: "40000880" + srh1 + "14000200" + hex.EncodeToString(tunsrc) + "08000300fe000000" + seg6Type},
+		{description: "boundary: the largest table", e: seg6L(Seg6ModeEncap, srh(1, 0, s1), nil, 0xffffffff),
+			expected: "2c000880" + srh1 + "08000300ffffffff" + seg6Type},
 		{description: "positive: seg6local's items in argv order",
 			e: local(nil, action(2), Seg6LocalItem{Kind: Seg6LocalNH6, Addr: nh6},
 				Seg6LocalItem{Kind: Seg6LocalOIF, U32: 3}, Seg6LocalItem{Kind: Seg6LocalCounters}),

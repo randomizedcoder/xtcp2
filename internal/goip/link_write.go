@@ -1084,6 +1084,17 @@ func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []
 	return w, nil
 }
 
+// noParseOptData is iplink_modify's else arm, for a kind with no
+// parse_opt and arguments after it: `help` is ip link's usage, and any other
+// word is garbage.
+func noParseOptData(rest []string) ([]byte, error) {
+	if matchesPrefix(rest[0], bondHelpKeywordCst) {
+		return nil, fmt.Errorf("%w: ip link help is not implemented by goip", ErrNotImplemented)
+	}
+	return nil, fmt.Errorf("%w: Garbage instead of arguments \"%s ...\". Try \"ip link help\"",
+		ErrInvalidArgument, rest[0])
+}
+
 // kindData is lu->parse_opt for the kinds goip implements, run only when
 // arguments follow the kind. env.errOut takes the warnings a parser prints
 // and goes on from; env.family is preferred_family, ip's -4 or -6.
@@ -1163,14 +1174,12 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 			return nil, err
 		}
 		return xtcpnl.EncodeBatadvInfoData(settings)
+	case kindOvpnCst:
+		return ovpnData(errOut, rest)
 	case kindDummyCst, kindIfbCst, kindNlmonCst, kindVcanCst, kindTeamCst, kindTeamSlaveCst, kindVrfSlaveCst:
 		// These kinds have no parse_opt (ip/iplink_dummy.c, ifb.c and
 		// so on), so iplink_modify takes its else arm.
-		if matchesPrefix(rest[0], bondHelpKeywordCst) {
-			return nil, fmt.Errorf("%w: ip link help is not implemented by goip", ErrNotImplemented)
-		}
-		return nil, fmt.Errorf("%w: Garbage instead of arguments \"%s ...\". Try \"ip link help\"",
-			ErrInvalidArgument, rest[0])
+		return noParseOptData(rest)
 	default:
 		return nil, fmt.Errorf("link type %q options: %w", kind, ErrNotImplemented)
 	}

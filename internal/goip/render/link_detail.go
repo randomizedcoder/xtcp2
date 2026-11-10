@@ -200,6 +200,8 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab, details int) *KindData {
 		return hsrData(li.Hsr, names)
 	case NetkitKindCst:
 		return netkitData(li.Netkit)
+	case OvpnKindCst:
+		return ovpnData(li.Ovpn)
 	}
 	return nil
 }

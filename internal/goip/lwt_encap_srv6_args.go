@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
@@ -15,6 +16,7 @@ import (
 // (ip/iproute_lwtunnel.c) no other parser in goip shares.
 const (
 	lwtKeySegs     = "segs"
+	lwtKeyLookup   = "lookup"
 	lwtKeyTundst   = "tundst"
 	lwtKeyOif      = "oif"
 	lwtKeyFlavors  = "flavors"
@@ -149,8 +151,8 @@ func lwtResolve(resolve linkResolver, name string) (uint32, error) {
 }
 
 // seg6EncapArgs is parse_encap_seg6 (ip/iproute_lwtunnel.c:955) from
-// args[i]: mode, tunsrc, segs and hmac in any order, but tunsrc and segs
-// after mode, until a word it doesn't know. hmac's get_u32 isn't checked,
+// args[i]: mode, tunsrc, segs and hmac, and from 7.3.0 lookup, in any
+// order, but tunsrc and segs after mode, until a word it doesn't know. hmac's get_u32 isn't checked,
 // so a bad one is 0. With no mode, the mode is -1 and the SRH has one more
 // slot, as parse_srh's encap is the mode.
 func seg6EncapArgs(args []string, i int) (xtcpnl.LwtEncap, int, error) {
@@ -191,11 +193,33 @@ func seg6EncapArgs(args []string, i int) (xtcpnl.LwtEncap, int, error) {
 				return xtcpnl.LwtEncap{}, i, err
 			}
 			hmac, _ = getU32(v, 0)
+		case lwtKeyLookup:
+			if !Keywords730 {
+				return seg6EncapDone(&e, segbuf, hmac, i-1)
+			}
+			if i, err = seg6Lookup(&e, args, i, seen); err != nil {
+				return xtcpnl.LwtEncap{}, i, err
+			}
 		default:
 			return seg6EncapDone(&e, segbuf, hmac, i-1)
 		}
 	}
 	return seg6EncapDone(&e, segbuf, hmac, len(args)-1)
+}
+
+// seg6Lookup is 7.3.0's lookup (144c45b6, ip/iproute_lwtunnel.c:1017-1023):
+// once, and rtnl_rttable_a2n, which must not be table 0.
+func seg6Lookup(e *xtcpnl.Seg6Encap, args []string, i int, seen map[string]bool) (int, error) {
+	i, v, err := lwtValued(args, i, seen)
+	if err != nil {
+		return i, err
+	}
+	t, ok := rtnlNameA2N(routeTableNames, v, math.MaxUint32)
+	if !ok || t == 0 {
+		return i, invargErr("\"lookup\" value is invalid\n", v)
+	}
+	e.Lookup = t
+	return i, nil
 }
 
 // seg6Tunsrc is tunsrc's value: after mode, not with inline, once, and

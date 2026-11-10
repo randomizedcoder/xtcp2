@@ -67,8 +67,10 @@ func wsO5SpacePath(sp string) string {
 func useWsO5Release(sp string) {
 	ip730 := strings.HasPrefix(sp, wsO5IP730Prefix)
 	LLAddrStrict = ip730
+	Keywords730 = ip730
 	render.RenderBondLacpStrict = ip730
 	render.RenderNhDstPort = ip730
+	render.RenderOvpnMode = ip730
 }
 
 // wsO5Golden lists every row whose outcome is not "same".

@@ -20,6 +20,8 @@ func TestMain(m *testing.M) {
 	render.RenderQlenZero = false
 	render.RenderBondLacpStrict = false
 	render.RenderNhDstPort = false
+	render.RenderOvpnMode = false
 	LLAddrStrict = false
+	Keywords730 = false
 	os.Exit(m.Run())
 }

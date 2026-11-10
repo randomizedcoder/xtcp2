@@ -147,6 +147,8 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 		return i, w.attrs.PutBytes(xtcpnl.NhaBlackhole, nil)
 	case a == "fdb":
 		return i, w.attrs.PutBytes(xtcpnl.NhaFdb, nil)
+	case a == "dst_port" && Keywords730:
+		return w.dstPort(args, i)
 	case a == "onlink":
 		w.flags |= unix.RTNH_F_ONLINK
 		return i, nil
@@ -159,9 +161,23 @@ func (w *nexthopWrite) parseArg(args []string, i int) (int, error) {
 	case a == addrHelpKeywordCst:
 		return i, fmt.Errorf("nexthop help: %w", ErrNotImplemented)
 	}
-	// The chain's last arm. dst_port lands here too: iproute2 7.2.0 has no
-	// such keyword (ad2b2d95 adds it later).
+	// The chain's last arm. dst_port lands here too before 7.3.0, which has
+	// no such keyword (ad2b2d95).
 	return i, invargErr("", args[i])
+}
+
+// dstPort is ipnh_modify's dst_port (ip/ipnexthop.c:1121-1128 in 7.3.0):
+// get_u16 base 0, sent as NHA_DST_PORT in network order.
+func (w *nexthopWrite) dstPort(args []string, i int) (int, error) {
+	i, err := nextArg(args, i)
+	if err != nil {
+		return i, err
+	}
+	port, ok := getU16(args[i], 0)
+	if !ok {
+		return i, invargErr(`"dst_port" value is invalid`, args[i])
+	}
+	return i, w.attrs.PutBytes(xtcpnl.NhaDstPort, binary.BigEndian.AppendUint16(nil, port))
 }
 
 func (w *nexthopWrite) familyIfUnset(f uint8) {

@@ -402,6 +402,15 @@ func llAddrA2NPart(arg string, maxLen int) ([]byte, int, string) {
 	return nil, maxLen + 1, ""
 }
 
+// Keywords730 is whether the write parsers take the keywords iproute2 7.3.0
+// added: nexthop `dst_port` (ad2b2d95), bond `lacp_strict` (30365d09), the
+// seg6 encap's `lookup` (144c45b6) and ovpn's `mode` (92f89d0e). Before 7.3.0
+// each is refused where the parser's chain ends, as an unknown word.
+//
+// true, the default and the parity target, takes them; false reproduces
+// 7.2.0 and earlier, for the corpora captured with them.
+var Keywords730 = true
+
 // LLAddrStrict is whether ll_addr_a2n is iproute2 7.3.0's.
 //
 // 5faf18f6 "lib: fix warning from ll_addr_a2n", first released in 7.3.0,

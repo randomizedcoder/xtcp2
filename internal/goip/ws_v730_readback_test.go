@@ -96,10 +96,6 @@ func wsReadbackDiffers(t *testing.T, dir, name, cmd string) string {
 // is nothing to differ.
 var wsV730EncapGap = []string{"100/show", "100/showj", "inline/show", "inline/showj", "main/show", "main/showj"}
 
-// wsV730OvpnGap is the ovpn readbacks: goip has no ovpn link_util, so a
-// link of that kind is refused under -d (NX4b).
-var wsV730OvpnGap = []string{"mp/d", "mp/dj", "p2p/d", "p2p/dj", "plain/d", "plain/dj"}
-
 // TestWsV730Readbacks replays each v730 row's readbacks: goip sends ip's
 // requests and prints what ip printed, at the release the row ran, except
 // the readbacks a row names as differing.
@@ -123,10 +119,8 @@ func TestWsV730Readbacks(t *testing.T) {
 		{description: "positive: the seg6 rows at 7.2.0, every route refused", space: "v730seg6", readbacks: 12},
 		{description: "negative: the seg6 rows at 7.3.0, the encap not printed", space: wsO5IP730Prefix + "v730seg6", readbacks: 12,
 			differs: wsV730EncapGap},
-		{description: "negative: the ovpn rows at 7.2.0, the one link refused", space: "v730ovpn", readbacks: 8,
-			differs: []string{"plain/d", "plain/dj"}},
-		{description: "negative: the ovpn rows at 7.3.0", space: wsO5IP730Prefix + "v730ovpn", readbacks: 8,
-			differs: wsV730OvpnGap},
+		{description: "positive: the ovpn rows at 7.2.0, the kind with nothing after it", space: "v730ovpn", readbacks: 8},
+		{description: "positive: the ovpn rows at 7.3.0, mode printed", space: wsO5IP730Prefix + "v730ovpn", readbacks: 8},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

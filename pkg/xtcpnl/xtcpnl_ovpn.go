@@ -39,3 +39,19 @@ func ParseOvpnInfoData(nest []byte) *OvpnInfo {
 	})
 	return o
 }
+
+// EncodeOvpnInfoData is ovpn_parse_opt's IFLA_INFO_DATA: one IFLA_OVPN_MODE
+// u8 per `mode` read, in order, as addattr8 appends each. nil for none.
+func EncodeOvpnInfoData(modes []uint8) ([]byte, error) {
+	if len(modes) == 0 {
+		return nil, nil
+	}
+	var raw [linkWriteBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	for _, m := range modes {
+		if err := ab.PutU8(IflaOvpnMode, m); err != nil {
+			return nil, err
+		}
+	}
+	return append([]byte(nil), ab.Bytes()...), nil
+}
