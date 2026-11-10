@@ -12,8 +12,9 @@
   - the 101 `stats` rows are captured, and the order the bare show prints groups in is pinned.
 - **Captures came first.** Tier C ran the workbench at iproute2 7.2.0 and 7.3.0. Tier P (NP1–NP6) and Tier G (NX1–NX5) now have their tables in the plan, written from those rows.
 - **Tier P is closed** (NP1–NP6): `NHA_DST_PORT`, `RTA_TTL_PROPAGATE`, `IFLA_OVPN_MODE`, the seg6 encap with its lookup table and the AF_MPLS link stats decode on reads, each held to what ip printed across its corpus; the stats-filter and multicast-dump builders match ip's captured requests byte for byte.
+- **Tier G is under way:** NX1 has O5 compare the lookups at 7.2.0's masks; every space's lookups now match.
 
-**Next action:** Tier G, NX1 (O5 checks the lookups).
+**Next action:** Tier G, NX2 (`link set … netns`).
 
 ## Contents
 
@@ -41,7 +42,7 @@
 | [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | done | V022–V026 |
 | [NC5](goip-parity-next.md#nc5--the-tier-closes) | Tier C closes | NC5-T01 | done | V027 |
 | [Tier P](goip-parity-next.md#tier-p-parsers-tests-and-benchmarks) | parsers, tests, benchmarks | NP6 | done | V028–V033 |
-| [Tier G](goip-parity-next.md#tier-g-goip-and-the-matrix) | goip and the matrix (NX1–NX5) | — | not started | — |
+| [Tier G](goip-parity-next.md#tier-g-goip-and-the-matrix) | goip and the matrix (NX1–NX5) | NX5 | in progress | V034– |
 
 ## Task checklist
 
@@ -63,12 +64,13 @@
 | V031 | 2026-11-09 | NP4 | `TestParseSeg6Encap`, `TestWsSeg6EncapCorpus`, `FuzzParseSeg6Encap` (30 s); `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `RouteEncap` gains `Seg6` (`Seg6EncapInfo`: mode, SRH, tunsrc, `Lookup` table), decoded for a route and for each hop; an SRH shorter than its mode is `ErrSeg6EncapSRH`. The table has 14 rows; its 4 captured payloads are compared with the v730seg6 shows and a seg6route6 dump. The corpus test decodes all 21 seg6 encaps in the workbench's text readbacks, routes' and hops', and holds each mode and table (3) to what ip printed. Mutants: the length check, the mode left in the SRH, a 4-byte table dropped, a big-endian table, the SRH error dropped, the mode's low byte alone, tunsrc dropped, first-wins dropped, the dispatch dropped. All 9 were killed. The low-byte mutant survived until rows with modes 256 and -1 | this commit |
 | V032 | 2026-11-09 | NP5 | `TestParseNewStatsMplsLink`, `TestWsStatsMplsCorpus`, `FuzzParseNewStats` (30 s, new); `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `IfStatsInfo` gains `MplsLink` (`MplsLinkStats`, the nine u64s) and `HasMplsLink`, from the first AF_MPLS member's first `MPLS_STATS_LINK`. A short one marks `AfSpecMalformed` and keeps the record. The table has 12 rows; the captured one is compared with the afstats pcap. The corpus test holds 66 devices' counters in the `-j` stats shows to ip's JSON (all zero, so the field order rests on the hand-built rows). Mutants: member and link first-wins dropped, an off-by-one length, three field swaps, presence never set, the family check, the inner walk error dropped, a short link not marked. All 11 were killed. gocritic flagged a `strings.Index` slice in the corpus test; the counters now come from their own helper | this commit |
 | V033 | 2026-11-09 | NP6 | `TestBuildStatsFilterRequest`, `TestBuildDumpMulticastRequest`, `TestFamilyHdrLen`, `BenchmarkBuildStatsRequest`, `BenchmarkBuildDumpMulticastRequest`; `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `BuildStatsRequest` takes a `StatsFilter` (the group mask and the xstats, xstats_slave and offload sub-masks): a dump for ifindex 0, else a get, with an `IFLA_STATS_GET_FILTERS` nest for each sub-mask that is set and not full. `BuildDumpMulticastRequest` is the 24-byte ifaddrmsg dump. 8 stats rows and 4 multicast rows (6 requests) match ip's captured requests byte for byte, seq aside. `FamilyHdrLen` now models RTM_GETMULTICAST and RTM_NEWMULTICAST (ifaddrmsg), so nlparity compares their bodies, not their lengths. Mutants: the full-mask rule dropped or inverted, the dump flag on a get, NLA_F_NESTED dropped, both full masks widened, the slave group id, the sub-mask in the header, the multicast ifindex dropped. All 10 were killed. The two full-mask mutants survived until the test wrote the full masks as literals rather than reading the builder's constants | this commit |
+| V034 | 2026-11-09 | NX1 | `TestWsGoipDifferential` regenerated; `TestWsO5LLMapKnob`; `go vet`; `go test -count=1 -race ./internal/goip/...`; mutation; lint-baseline, codespell | All pass. O5 sets `useLLMap720`: the package's `TestMain` keeps 7.1.0's masks for the older fixtures, so O5 had compared 7.1.0-style lookups with 7.2.0 captures. Regenerated, every space's "lookups differ" is 0, down from 1,400 rows (1,138 lookups, 262 dumps), and the two mask notes are gone; the outcomes are unchanged. `TestWsO5LLMapKnob` has 4 rows: a lookup and a dump compare clean under 7.2.0's knob and report the dropped 0x100 under 7.1.0's, and the knob is back to the package's after each. Mutants: the knob dropped from O5; the knob not restored. Both were killed. No goip code changed, so no VM run | this commit |
 | [x] | [NP2](goip-parity-next.md#np2-the-af_mpls-route-attributes) | `RTA_TTL_PROPAGATE` | done | V029 |
 | [x] | [NP3](goip-parity-next.md#np3-ifla_ovpn_mode) | `IFLA_OVPN_MODE` | done | V030 |
 | [x] | [NP4](goip-parity-next.md#np4-seg6_iptunnel_table-on-reads) | `SEG6_IPTUNNEL_TABLE` on reads | done | V031 |
 | [x] | [NP5](goip-parity-next.md#np5-af_mpls-link-stats) | AF_MPLS link stats | done | V032 |
 | [x] | [NP6](goip-parity-next.md#np6-request-builders) | the stats-filter and multicast-dump builders | done | V033 |
-| [ ] | [NX1](goip-parity-next.md#nx1-o5-checks-the-lookups) | O5 checks the lookups | not started | — |
+| [x] | [NX1](goip-parity-next.md#nx1-o5-checks-the-lookups) | O5 checks the lookups | done | V034 |
 | [ ] | [NX2](goip-parity-next.md#nx2-link-set--netns) | `link set … netns` | not started | — |
 | [ ] | [NX3](goip-parity-next.md#nx3-mpls-routes) | MPLS routes | not started | — |
 | [ ] | [NX4](goip-parity-next.md#nx4-the-target-moves-to-730) | the target moves to 7.3.0 | not started | — |

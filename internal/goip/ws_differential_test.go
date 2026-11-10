@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -520,6 +521,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 //
 // go test ./internal/goip/ -run TestWsGoipDifferential
 func TestWsGoipDifferential(t *testing.T) {
+	useLLMap720(t) // the rows ran ip 7.2.0, whose lookups ask for names alone
 	var report []string
 	counts := map[string]map[string]int{}
 	lookupNotes := map[string]int{}
@@ -995,5 +997,47 @@ func TestWsO5Argv(t *testing.T) {
 				t.Fatalf("got %q, want %q", got, tc.expected)
 			}
 		})
+	}
+}
+
+// TestWsO5LLMapKnob runs O5 over captured rows under each lookup knob. The
+// rows ran ip 7.2.0, so 7.2.0's knob compares their lookups clean, and
+// 7.1.0's, which drops RTEXT_FILTER_NAME_ONLY (0x100), is reported; the
+// knob is back to the package's after each.
+func TestWsO5LLMapKnob(t *testing.T) {
+	tests := []struct {
+		description string
+		row         string // under wsCorpusDir
+		knob720     bool
+		expected    string // the lookups note
+	}{
+		{"positive: a link set's lookup under 7.2.0's knob", "linkset/bd-001", true, ""},
+		{"positive: a neighbor's dump under 7.2.0's knob", "neigh4/bd-001", true, ""},
+		{"negative: 7.1.0's knob drops 0x100 from a lookup", "linkset/bd-001", false, "lookup IFLA_EXT_MASK 0x109, goip 0x9"},
+		{"negative: 7.1.0's knob drops 0x100 from a dump", "neigh4/bd-001", false, "dump IFLA_EXT_MASK 0x109, goip 0x1"},
+	}
+	before := req.LLMapNameOnly
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if tc.knob720 {
+				useLLMap720(t)
+			}
+			dir := filepath.Join(wsCorpusDir, tc.row)
+			b, err := os.ReadFile(filepath.Join(dir, "cmd.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var row wsRowFile
+			if err := json.Unmarshal(b, &row); err != nil {
+				t.Fatal(err)
+			}
+			outcome, _, lookups, _, _ := wsO5Row(t, dir, row)
+			if outcome != o5Same || lookups != tc.expected {
+				t.Errorf("outcome %s, lookups %q; want same, %q", outcome, lookups, tc.expected)
+			}
+		})
+		if req.LLMapNameOnly != before {
+			t.Fatalf("corner: the knob is %v after %q, want %v", req.LLMapNameOnly, tc.description, before)
+		}
 	}
 }
