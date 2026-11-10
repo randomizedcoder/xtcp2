@@ -2257,6 +2257,66 @@ var commands = withArgs([]Command{
 		// prints and nothing is named (2).
 		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
 	},
+	// NX5b's `link afstats` forms: with no MPLS in the matrix by here, the
+	// rows hold `-j`'s empty array and the `dev` lookups, both ways.
+	{
+		Name: "-j link afstats", Slug: "link_afstats_json",
+		// new_json_obj's `[]`, around no device.
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "link afstats dev v2", Slug: "link_afstats_dev",
+		// The by-name get, then the same dump, filtered by index.
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link afstats dev nosuch", Slug: "link_afstats_nosuch",
+		// The get request's ENODEV: ip's "does not exist" on stderr, no dump, and
+		// exit 0, since do_iplink drops the return.
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+	// NX5c's `link xstats` forms, onto the Printer: bond's and bond_slave's
+	// 802.3ad nests, and bridge's filters.
+	{
+		Name: "link xstats type bond", Slug: "link_xstats_bond",
+		// The master-group dump, then bond0 named.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bond_slave", Slug: "link_xstats_bond_slave",
+		// The port-group dump, then la1 and la2 named.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j link xstats type bond_slave", Slug: "link_xstats_bond_slave_json",
+		// One object per port, its 802.3ad object inside.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bond 802.3ad", Slug: "link_xstats_bond_3ad",
+		// The selector changes nothing on the wire.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bond_slave dev la1", Slug: "link_xstats_bond_slave_dev",
+		// The by-name get, then the dump, filtered by index.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j link xstats type bridge", Slug: "link_xstats_bridge_json",
+		// br0's multicast object.
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bridge_slave stp", Slug: "link_xstats_bridge_slave_stp",
+		// v2's stp block alone.
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bridge_slave dev nosuch", Slug: "link_xstats_bridge_slave_nosuch",
+		// The get request's ENODEV is nodev: exit 255, no dump.
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
 	// G3-T06's link property writes. iplink_prop_mod resolves `dev` after
 	// its loop, so each is the by-name RTM_GETLINK, then the
 	// RTM_NEWLINKPROP or RTM_DELLINKPROP and its ack.

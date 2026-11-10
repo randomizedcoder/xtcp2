@@ -2795,9 +2795,9 @@ func TestNexthopGetRowsGated(t *testing.T) {
 	}
 }
 
-// TestLinkXstatsRowsGated pins G1-T04's three rows: implemented, gated after
-// two clean runs with no allowlist entry, each on the reads namespace's
-// bridge.
+// TestLinkXstatsRowsGated pins G1-T04's three rows and NX5b's and NX5c's
+// eleven: implemented, gated after two clean runs with no allowlist entry,
+// each on the reads namespace's bridge or bondReadSetup's bond.
 //
 // go test ./internal/goipparity/ -run TestLinkXstatsRowsGated
 func TestLinkXstatsRowsGated(t *testing.T) {
@@ -2806,8 +2806,8 @@ func TestLinkXstatsRowsGated(t *testing.T) {
 		t.Fatalf("EmbeddedAllowlist: %v", err)
 	}
 	type want struct {
-		implemented, gated, bridge bool
-		floor, setup, entries      int
+		implemented, gated, bridge, bond bool
+		floor, setup, entries            int
 	}
 	rows := []struct {
 		description string
@@ -2820,7 +2820,29 @@ func TestLinkXstatsRowsGated(t *testing.T) {
 			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
 		{"boundary: the AF_SPEC dump alone, nothing to name", "link afstats",
 			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
-		{"corner: a selector form not in the matrix is neither", "link xstats type bridge_slave stp", want{}},
+		{"positive: NX5b's -j, the empty array", "-j link afstats",
+			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
+		{"positive: NX5b's dev, the get then the dump", "link afstats dev v2",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"negative: NX5b's dev nosuch, the get alone", "link afstats dev nosuch",
+			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
+		{"positive: NX5c's bond master", "link xstats type bond",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's bond ports", "link xstats type bond_slave",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's bond ports as JSON", "-j link xstats type bond_slave",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's 802.3ad selector", "link xstats type bond 802.3ad",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's dev on a port", "link xstats type bond_slave dev la1",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's bridge as JSON", "-j link xstats type bridge",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"positive: NX5c's stp selector", "link xstats type bridge_slave stp",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"negative: NX5c's dev nosuch is nodev", "link xstats type bridge_slave dev nosuch",
+			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
+		{"corner: a selector form not in the matrix is neither", "link xstats type bridge_slave igmp", want{}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
@@ -2828,6 +2850,7 @@ func TestLinkXstatsRowsGated(t *testing.T) {
 			if c, lookupErr := Lookup(r.command); lookupErr == nil {
 				got.implemented, got.floor, got.setup = c.Implemented, c.Floor, len(c.Setup)
 				got.bridge = len(c.Setup) > 0 && c.Setup[0] == "link add br0 type bridge"
+				got.bond = len(c.Setup) > 0 && c.Setup[0] == "link add bond0 type bond mode 802.3ad"
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

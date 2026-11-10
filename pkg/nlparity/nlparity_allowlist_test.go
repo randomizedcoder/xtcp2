@@ -463,6 +463,21 @@ func TestAllowlistCommitted(t *testing.T) {
 		"stats show dev d0",
 		"stats show dev d0 group offload subgroup l3_stats",
 		"-j stats show dev d0 group offload",
+		// The eleven NX5b and NX5c link stats rows, gated on two link section
+		// runs at iproute2 7.3.0: all 812 rows GOIP_PARITY_PASS twice with
+		// identical verdicts, txns matching ip (1 to 3 per row) and control
+		// nl=0 stdout=0 on every link afstats and xstats row.
+		"-j link afstats",
+		"link afstats dev v2",
+		"link afstats dev nosuch",
+		"link xstats type bond",
+		"link xstats type bond_slave",
+		"-j link xstats type bond_slave",
+		"link xstats type bond 802.3ad",
+		"link xstats type bond_slave dev la1",
+		"-j link xstats type bridge",
+		"link xstats type bridge_slave stp",
+		"link xstats type bridge_slave dev nosuch",
 		// The twenty-one link write rows, gated on the phase 7 runs: all
 		// GOIP_PARITY_PASS twice with identical verdicts, txns matching ip
 		// with goip's GOIP_WRITE_OUT file counted as its write, control nl=0

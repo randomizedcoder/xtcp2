@@ -86,8 +86,8 @@ func wsStatsRows(t *testing.T) []wsStatsRow {
 
 // TestWsStatsCorpus replays every `ip stats` row of the NC4 corpus through
 // goip: ip's requests, a `stats set`'s write among them, its stdout byte for
-// byte, and its rc; and the `ip link afstats` rows, iplink.c's loop over the
-// same MPLS body. The `ip link xstats` rows are counted apart.
+// byte, and its rc; and the `ip link afstats` and `ip link xstats` rows,
+// iplink.c's loops over the same bodies.
 //
 // go test ./internal/goip/ -run TestWsStatsCorpus
 func TestWsStatsCorpus(t *testing.T) {
@@ -102,6 +102,8 @@ func TestWsStatsCorpus(t *testing.T) {
 		{description: "positive: `ip stats set`, on, off and a value parse_on_off refuses", prefix: "ip stats set", expected: 3},
 		{description: "positive: `ip link afstats`, -j's members with no object around them as ip prints them",
 			prefix: "ip link afstats", expected: 8},
+		{description: "positive: `ip link xstats`, bond, bond_slave, bridge and bridge_slave",
+			prefix: "ip link xstats", expected: 16},
 	}
 	rows := wsStatsRows(t)
 	for _, tc := range tests {

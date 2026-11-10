@@ -13,7 +13,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
@@ -22,45 +21,76 @@ import (
 // br0 (ifindex 14) and its port v2 (16).
 const linkReadsDir = guestDumpsDir + "reads/"
 
-// TestParseLinkXstatsArgs is iplink_ifla_xstats's and bridge_parse_xstats's
-// argument handling.
+// TestParseLinkXstatsArgs is iplink_ifla_xstats's and the kinds'
+// parse_ifla_xstats argument handling: the body and device chosen, the help
+// text for stdout, and the 255 of every refusal.
 //
 // go test ./internal/goip/ -run TestParseLinkXstatsArgs
 func TestParseLinkXstatsArgs(t *testing.T) {
+	type result struct {
+		id      string
+		kind    *linkXstatsKind
+		attr    uint16
+		ifindex int32
+		help    string
+		err     error
+		msg     string // in the error's text, when set
+	}
 	tests := []struct {
 		description string
 		args        string
-		expected    linkXstatsArgs
-		wantErr     error
+		expected    result
 	}{
-		{"positive: `type bridge`, both bodies", "type bridge", linkXstatsArgs{kind: kindBridgeCst}, nil},
-		{"positive: `type bridge_slave`", "type bridge_slave", linkXstatsArgs{kind: kindBridgeSlaveCst}, nil},
-		{"positive: `t` is type, by matches()", "t bridge", linkXstatsArgs{kind: kindBridgeCst}, nil},
-		{"positive: `igmp` selects the mcast body", "type bridge igmp", linkXstatsArgs{kind: kindBridgeCst, sel: render.LinkXstatsMcastCst}, nil},
-		{"positive: `stp` selects the stp body", "type bridge_slave stp", linkXstatsArgs{kind: kindBridgeSlaveCst, sel: render.LinkXstatsStpCst}, nil},
+		{"positive: `type bridge`, every body", "type bridge", result{id: "bridge", kind: linkXstatsBridge}},
+		{"positive: `type bond_slave` is bond's printer", "type bond_slave", result{id: "bond_slave", kind: linkXstatsBond}},
+		{"positive: `t` is type, by matches()", "t bridge", result{id: "bridge", kind: linkXstatsBridge}},
+		{"positive: `igmp` selects the mcast body", "type bridge igmp",
+			result{id: "bridge", kind: linkXstatsBridge, attr: bridgeXstatsMcastCst}},
+		{"positive: `lacp` selects 802.3ad", "type bond lacp", result{id: "bond", kind: linkXstatsBond, attr: xtcpnl.BondXstats3ad}},
+		{"positive: `dev` filters by its index", "type bridge_slave dev if4",
+			result{id: "bridge_slave", kind: linkXstatsBridge, ifindex: 4}},
 		{"corner: a later selector overrides an earlier one", "type bridge_slave stp mcast",
-			linkXstatsArgs{kind: kindBridgeSlaveCst, sel: render.LinkXstatsMcastCst}, nil},
-		{"negative: no argument at all", "", linkXstatsArgs{}, ErrInvalidArgument},
-		{"negative: `type` with no kind is incomplete", "type", linkXstatsArgs{}, ErrInvalidArgument},
-		{"negative: a first word other than type or help", "bridge", linkXstatsArgs{}, ErrInvalidArgument},
+			result{id: "bridge_slave", kind: linkXstatsBridge, attr: bridgeXstatsMcastCst}},
+		{"corner: a later `dev` overrides an earlier one", "type bond dev if3 dev if4",
+			result{id: "bond", kind: linkXstatsBond, ifindex: 4}},
+		{"corner: a selector is the kind's, so bond's `stp` is unknown", "type bond stp",
+			result{id: "bond", kind: linkXstatsBond, err: ErrLinkUsage}},
+		{"negative: no argument at all", "", result{err: ErrLinkUsage}},
+		{"negative: `type` with no kind is incomplete", "type", result{err: ErrLinkUsage}},
+		{"negative: a first word other than type or help", "bridge", result{err: ErrLinkUsage}},
 		{"negative: selectors are strcmp, so `st` is an unknown attribute", "type bridge st",
-			linkXstatsArgs{kind: kindBridgeCst}, ErrInvalidArgument},
-		{"negative: the bond kinds are not grounded", "type bond", linkXstatsArgs{kind: kindBondCst}, ErrNotImplemented},
-		{"negative: a kind with no xstats is not grounded", "type veth", linkXstatsArgs{kind: kindVethCst}, ErrNotImplemented},
-		{"negative: `dev` resolves a name no capture grounds", "type bridge dev br0",
-			linkXstatsArgs{kind: kindBridgeCst}, ErrNotImplemented},
-		{"boundary: `help` first is usage", "help", linkXstatsArgs{}, ErrNotImplemented},
-		{"boundary: `help` after the kind is the kind's usage", "type bridge help",
-			linkXstatsArgs{kind: kindBridgeCst}, ErrNotImplemented},
+			result{id: "bridge", kind: linkXstatsBridge, err: ErrLinkUsage}},
+		{"negative: a kind ip has but with no xstats", "type veth", result{id: "veth", err: ErrLinkUsage,
+			msg: "xstats: link type veth doesn't support xstats"}},
+		{"negative: a kind ip doesn't have", "type nosuch", result{id: "nosuch", err: ErrLinkUsage, msg: "invalid type"}},
+		{"negative: `dev` with no name is incomplete", "type bridge dev",
+			result{id: "bridge", kind: linkXstatsBridge, err: ErrLinkUsage}},
+		{"negative: `dev` naming no device is nodev", "type bridge dev nosuch",
+			result{id: "bridge", kind: linkXstatsBridge, err: ErrLinkUsage}},
+		{"boundary: `help` first is print_explain", "help", result{help: "Usage: ... xstats type TYPE [ ARGS ]\n"}},
+		{"boundary: `help` after the kind is the kind's, with its id", "type bond_slave help",
+			result{id: "bond_slave", kind: linkXstatsBond, help: "Usage: ... bond_slave [ 802.3ad ] [ dev DEVICE ]\n"}},
+		{"corner: the words before `help` still count", "type bridge dev nosuch help",
+			result{id: "bridge", kind: linkXstatsBridge, err: ErrLinkUsage}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := parseLinkXstatsArgs(strings.Fields(tc.args))
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			c := &runCtx{lltab: NewLLTab(), src: &enodevSource{}}
+			c.lltab.Fill([]xtcpnl.LinkInfo{{Index: 3, Name: "if3"}, {Index: 4, Name: "if4"}})
+			a, help, err := parseLinkXstatsArgs(c, strings.Fields(tc.args))
+			got := result{id: a.id, kind: a.kind, attr: a.attr, ifindex: a.ifindex, help: help}
+			if !errors.Is(err, tc.expected.err) {
+				t.Fatalf("err = %v, want %v", err, tc.expected.err)
 			}
+			if tc.expected.msg != "" && !strings.Contains(err.Error(), tc.expected.msg) {
+				t.Errorf("err = %v, want it to say %q", err, tc.expected.msg)
+			}
+			got.err, got.msg = tc.expected.err, tc.expected.msg
 			if got != tc.expected {
-				t.Errorf("args = %+v, want %+v", got, tc.expected)
+				t.Errorf("got %+v, want %+v", got, tc.expected)
+			}
+			if err != nil && exitCodeOf(err) != ExitMinusOne {
+				t.Errorf("rc %d, want 255", exitCodeOf(err))
 			}
 		})
 	}
@@ -302,6 +332,93 @@ func TestLinkAfstats(t *testing.T) {
 			err := linkAfstats(c, strings.Fields(tc.args))
 			if err != nil || out.String() != tc.expected || errOut.String() != tc.stderr {
 				t.Errorf("stdout %q\nstderr %q\nerr %v\nwant %q, %q", out.String(), errOut.String(), err, tc.expected, tc.stderr)
+			}
+		})
+	}
+}
+
+// TestLinkXstatsPrint is bridge_print_xstats and bond_print_xstats over
+// hand-built replies: the nests each prints, bond's break after the first
+// member, the `dev` and body filters, and a failed dump.
+//
+// go test ./internal/goip/ -run TestLinkXstatsPrint
+func TestLinkXstatsPrint(t *testing.T) {
+	hdr := func(ifindex uint32) []byte {
+		h := make([]byte, xtcpnl.IfStatsMsgSizeCst)
+		binary.NativeEndian.PutUint32(h[4:8], ifindex)
+		return h
+	}
+	u64 := func(v uint64) []byte { return binary.NativeEndian.AppendUint64(nil, v) }
+	lacp := func(tx uint64) []byte {
+		return rtattrBytes(xtcpnl.BondXstats3ad, rtattrBytes(xtcpnl.Bond3adStatLacpduTx, u64(tx)))
+	}
+	bond := func(at uint16, members ...[]byte) []byte {
+		return rtattrBytes(at, rtattrBytes(linkXstatsTypeBond, slices.Concat(members...)))
+	}
+	stp := rtattrBytes(bridgeXstatsStpCst, make([]byte, xtcpnl.BrStpXstatsSizeCst))
+	bridge := func(at uint16, members ...[]byte) []byte {
+		return rtattrBytes(at, rtattrBytes(linkXstatsTypeBridge, slices.Concat(members...)))
+	}
+	const (
+		pad    = "                    "
+		lacp5  = "if3             \n" + pad + "LACPDU Tx 5\n"
+		stpTxt = pad + "STP BPDU:  RX: 0 TX: 0\n" + pad + "STP TCN:   RX: 0 TX: 0\n" +
+			pad + "STP Transitions: Blocked: 0 Forwarding: 0\n"
+	)
+	master, port := uint16(unix.IFLA_STATS_LINK_XSTATS), uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE)
+	tests := []struct {
+		description string
+		args        string
+		json        bool
+		src         Source
+		expected    string
+		rc          int
+	}{
+		{description: "positive: a bond's 802.3ad counters", args: "type bond",
+			src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bond(master, lacp(5)))}}, expected: lacp5},
+		{description: "positive: json, one object per device", args: "type bond", json: true,
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bond(master, lacp(5)))}},
+			expected: `[{"ifname":"if3","802.3ad":{"lacpdu_tx":5}}]` + "\n"},
+		{description: "corner: bond looks at its first member alone", args: "type bond",
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bond(master, lacp(5), lacp(6)))}},
+			expected: lacp5},
+		{description: "corner: an unknown first member leaves bond with the name alone", args: "type bond",
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bond(master, rtattrBytes(9, nil), lacp(5)))}},
+			expected: "if3             \n"},
+		{description: "corner: both nests in one reply print twice", args: "type bond",
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bond(master, lacp(5)), bond(port, lacp(5)))}},
+			expected: lacp5 + lacp5},
+		{description: "negative: a nest of the other kind prints nothing", args: "type bridge",
+			src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bond(master, lacp(5)))}}},
+		{description: "positive: `stp` drops the other bodies", args: "type bridge_slave stp",
+			src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bridge(port,
+				rtattrBytes(bridgeXstatsMcastCst, make([]byte, xtcpnl.BrMcastStatsSizeCst)), stp))}},
+			expected: "if3             \n" + stpTxt},
+		{description: "positive: `dev` keeps that device's reply alone", args: "type bond dev if4",
+			src: typedStatsSource{unix.RTM_NEWSTATS: {slices.Concat(hdr(3), bond(master, lacp(5))),
+				slices.Concat(hdr(4), bond(master, lacp(6)))}},
+			expected: "if4             \n" + pad + "LACPDU Tx 6\n"},
+		{description: "boundary: no replies, and -j an empty array", args: "type bridge", json: true,
+			src: typedStatsSource{}, expected: "[]\n"},
+		{description: "negative: a short reply ends the dump, which closes the array and exits 255", args: "type bond", json: true,
+			src:      typedStatsSource{unix.RTM_NEWSTATS: {make([]byte, xtcpnl.IfStatsMsgSizeCst-1)}},
+			expected: "[]\n", rc: ExitMinusOne},
+		{description: "negative: a failed dump is the same", args: "type bridge", json: true,
+			src: &failSource{}, expected: "[]\n", rc: ExitMinusOne},
+		{description: "boundary: help prints on stdout, exit 0, and sends nothing", args: "type bridge help",
+			src: &failSource{}, expected: "Usage: ... bridge [ igmp ] [ dev DEVICE ]\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+			c := &runCtx{out: &out, errOut: &errOut, lltab: NewLLTab(), json: tc.json, src: tc.src}
+			c.lltab.Fill([]xtcpnl.LinkInfo{{Index: 3, Name: "if3"}, {Index: 4, Name: "if4"}})
+			rc := ExitOK
+			if err := linkXstats(c, strings.Fields(tc.args)); err != nil {
+				rc = exitCodeOf(err)
+			}
+			if out.String() != tc.expected || rc != tc.rc {
+				t.Errorf("stdout %q\nrc %d\nwant %q, %d", out.String(), rc, tc.expected, tc.rc)
 			}
 		})
 	}

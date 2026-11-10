@@ -2,15 +2,14 @@ package goip
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/sys/unix"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
-	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
@@ -28,111 +27,196 @@ const (
 	linkXstatsMissingCst = "xstats: missing argument"
 )
 
-// linkXstatsArgs is what `ip link xstats` was asked for: the kind and the
-// body selector, "" for both.
-type linkXstatsArgs struct {
-	kind string
-	sel  string
+// iplinkKinds are the link_util ids ip 7.3.0 is built with (ip/iplink_*.c
+// and friends), which get_link_kind finds by name; any other `type` is
+// invarg's "invalid type".
+var iplinkKinds = map[string]bool{
+	"amt": true, "bareudp": true, "batadv": true, kindBondCst: true, "bond_slave": true,
+	kindBridgeCst: true, kindBridgeSlaveCst: true, "can": true, "dsa": true, "dummy": true,
+	"erspan": true, "geneve": true, "gre": true, "gretap": true, "gtp": true, "hsr": true,
+	"ifb": true, "ip6erspan": true, "ip6gre": true, "ip6gretap": true, "ip6tnl": true,
+	"ipip": true, "ipoib": true, "ipvlan": true, "ipvtap": true, "macsec": true,
+	"macvlan": true, "macvtap": true, "netdevsim": true, kindNetkitCst: true, "nlmon": true,
+	"ovpn": true, "rmnet": true, "sit": true, "team": true, "tun": true, "vcan": true,
+	kindVethCst: true, "virt_wifi": true, "vlan": true, "vrf": true, "vrf_slave": true,
+	"vti": true, "vti6": true, kindVxcanCst: true, "vxlan": true, "wwan": true, "xfrm": true,
 }
 
-// parseLinkXstatsArgs is iplink_ifla_xstats (ip/iplink_xstats.c:22-59) then
-// bridge_parse_xstats (ip/iplink_bridge.c:1059-1080). The first word is
-// `type` or `help` by matches(), anything else invarg; the kind is looked up
-// by name, and goip knows bridge's two. The bond kinds print a different
-// layout, refused here, as is every other kind, whether iproute2 has it
-// without xstats or not at all. After the kind, `igmp`, `mcast` and `stp` are
-// strcmp, a later one overriding an earlier one; `dev` resolves a name no
-// capture grounds and is refused; `help` is usage; anything else is invarg.
-func parseLinkXstatsArgs(args []string) (linkXstatsArgs, error) {
-	var a linkXstatsArgs
+// linkXstatsKind is a link_util's print_ifla_xstats and parse_ifla_xstats:
+// bridge_print_xstats for bridge and bridge_slave, bond_print_xstats for
+// bond and bond_slave.
+type linkXstatsKind struct {
+	linkType uint16                                   // LINK_XSTATS_TYPE_*
+	sels     map[string]uint16                        // the parse's words, each a body
+	bodies   map[uint16]func(*render.Printer, []byte) // each body's print
+	help     string                                   // the kind's xstats help, %s its id
+	// firstOnly is bond_print_stats_attr's break: only the first member
+	// the selection keeps is looked at.
+	firstOnly bool
+}
+
+var (
+	linkXstatsBridge = &linkXstatsKind{
+		linkType: linkXstatsTypeBridge,
+		sels:     map[string]uint16{"igmp": bridgeXstatsMcastCst, "mcast": bridgeXstatsMcastCst, "stp": bridgeXstatsStpCst},
+		bodies: map[uint16]func(*render.Printer, []byte){
+			bridgeXstatsMcastCst: ipstatsBridgeMcast, bridgeXstatsStpCst: ipstatsBridgeStp,
+		},
+		help: "Usage: ... %s [ igmp ] [ dev DEVICE ]\n",
+	}
+	linkXstatsBond = &linkXstatsKind{
+		linkType:  linkXstatsTypeBond,
+		sels:      map[string]uint16{"lacp": xtcpnl.BondXstats3ad, "802.3ad": xtcpnl.BondXstats3ad},
+		bodies:    map[uint16]func(*render.Printer, []byte){xtcpnl.BondXstats3ad: ipstatsBond3ad},
+		help:      "Usage: ... %s [ 802.3ad ] [ dev DEVICE ]\n",
+		firstOnly: true,
+	}
+	linkXstatsKinds = map[string]*linkXstatsKind{
+		kindBridgeCst: linkXstatsBridge, kindBridgeSlaveCst: linkXstatsBridge,
+		kindBondCst: linkXstatsBond, "bond_slave": linkXstatsBond,
+	}
+)
+
+// linkXstatsArgs is what `ip link xstats` was asked for.
+type linkXstatsArgs struct {
+	id      string // the kind's name
+	kind    *linkXstatsKind
+	attr    uint16 // xstats_print_attr, 0 for every body
+	ifindex int32  // filter_index, 0 for every device
+}
+
+// parseLinkXstatsArgs is iplink_ifla_xstats (ip/iplink_xstats.c:22-59) and
+// the kind's parse_ifla_xstats (ip/iplink_bridge.c:1059, iplink_bond.c:935).
+// The first word is `type` or `help` by matches(); the kind is looked up by
+// name. After it the words are strcmp: a body (a later one wins), `dev`,
+// resolved where it stands (a later one wins), and `help`. help is the
+// returned text, for stdout and exit 0; every refusal exits 255.
+func parseLinkXstatsArgs(c *runCtx, args []string) (a linkXstatsArgs, help string, err error) {
 	if len(args) == 0 {
-		return a, fmt.Errorf("%w: %s", ErrInvalidArgument, linkXstatsMissingCst)
+		return a, "", linkUsage(fmt.Errorf("%w: %s", ErrInvalidArgument, linkXstatsMissingCst))
 	}
 	switch {
 	case matchesPrefix(args[0], linkXstatsTypeCst):
 		if len(args) < 2 {
-			return a, incompleteErr()
+			return a, "", linkUsage(incompleteErr())
 		}
 	case matchesPrefix(args[0], linkHelpKeywordCst):
-		return a, linkXstatsUsageErr()
+		return a, "Usage: ... xstats type TYPE [ ARGS ]\n", nil
 	default:
-		return a, invargErr("unknown argument", args[0])
+		return a, "", linkUsage(invargErr("unknown argument", args[0]))
 	}
-	a.kind = args[1]
-	switch a.kind {
-	case kindBridgeCst, kindBridgeSlaveCst:
-	default:
-		return a, fmt.Errorf("link xstats type %q: only bridge and bridge_slave are grounded: %w", a.kind, ErrNotImplemented)
+	a.id = args[1]
+	if !iplinkKinds[a.id] {
+		return a, "", linkUsage(invargErr("invalid type", a.id))
+	}
+	if a.kind = linkXstatsKinds[a.id]; a.kind == nil {
+		return a, "", linkUsage(fmt.Errorf("%w: xstats: link type %s doesn't support xstats", ErrInvalidArgument, a.id))
 	}
 	for i := 2; i < len(args); i++ {
+		if at, ok := a.kind.sels[args[i]]; ok {
+			a.attr = at
+			continue
+		}
 		switch args[i] {
-		case render.LinkXstatsIgmpCst, render.LinkXstatsMcastCst:
-			a.sel = render.LinkXstatsMcastCst
-		case render.LinkXstatsStpCst:
-			a.sel = render.LinkXstatsStpCst
 		case devKeywordCst:
-			return a, fmt.Errorf("link xstats type %s dev: %w", a.kind, ErrNotImplemented)
-		case linkHelpKeywordCst:
-			return a, linkXstatsUsageErr()
-		default:
-			return a, invargErr("unknown attribute", args[i])
-		}
-	}
-	return a, nil
-}
-
-// linkXstatsUsageErr is a help path: print_explain or the kind's help, then
-// exit 0. goip prints no help.
-func linkXstatsUsageErr() error {
-	return fmt.Errorf("%w: ip link xstats help is not implemented by goip", ErrNotImplemented)
-}
-
-// linkXstats is `ip link xstats type bridge|bridge_slave`: the RTM_GETSTATS
-// dump for the master or the port group, then bridge_print_xstats per
-// record. A record whose nest holds the bridge type is named with
-// ll_index_to_name, one RTM_GETLINK get each, as `stats show` names its
-// records; the rest print nothing and resolve nothing.
-func linkXstats(c *runCtx, args []string) error {
-	a, err := parseLinkXstatsArgs(args)
-	if err != nil {
-		return err
-	}
-	svc := service.New(c.src, c.nextSeq)
-	fetch := svc.IfStatsXstats
-	if a.kind == kindBridgeSlaveCst {
-		fetch = svc.IfStatsXstatsSlave
-	}
-	records, err := fetch()
-	if err != nil {
-		return err
-	}
-	views := make([]render.LinkXstatsView, 0, len(records))
-	for i := range records {
-		info := xtcpnl.IfStatsInfo(records[i])
-		// bridge_print_xstats prints the master group, then the port group;
-		// a dump answers the one it asked for.
-		for _, x := range []*xtcpnl.XstatsBodies{&info.XstatsBodies, &info.Slave} {
-			if !x.HasBridgeXstats {
-				continue
+			if i++; i >= len(args) {
+				return a, "", linkUsage(incompleteErr())
 			}
-			resolveIndexName(c, svc, int32(info.Ifindex))
-			v, _ := render.LinkXstatsViewOf(info.Ifindex, x, a.sel, c.lltab)
-			views = append(views, v)
+			if a.ifindex, err = genlNameToIndex(c, args[i]); err != nil {
+				return a, "", fmt.Errorf("link xstats: cannot find device %q: %w", args[i], err)
+			}
+			if a.ifindex == 0 {
+				return a, "", nodevExitErr(args[i])
+			}
+		case linkHelpKeywordCst:
+			return a, fmt.Sprintf(a.kind.help, a.id), nil
+		default:
+			return a, "", linkUsage(invargErr("unknown attribute", args[i]))
 		}
 	}
-	if c.json {
-		objs := make([]any, len(views))
-		for i := range views {
-			objs[i] = views[i].LinkXstatsJSON()
-		}
-		return json.NewEncoder(c.out).Encode(objs)
+	return a, "", nil
+}
+
+// linkXstats is `ip link xstats type KIND [ ARGS ]`: the RTM_GETSTATS dump
+// for the master group, or the port group for a `_slave` kind, then the
+// kind's print_ifla_xstats on each reply, inside one JSON array. A failed
+// dump closes the array and exits 255.
+func linkXstats(c *runCtx, args []string) error {
+	a, help, err := parseLinkXstatsArgs(c, args)
+	if err != nil {
+		return err
 	}
-	for i := range views {
-		if _, err := fmt.Fprint(c.out, views[i].Text()); err != nil {
-			return err
+	if help != "" {
+		_, err := fmt.Fprint(c.out, help)
+		return err
+	}
+	r := req.StatsShowXstatsDump(c.nextSeq())
+	if strings.Contains(a.id, "_slave") {
+		r = req.StatsShowXstatsSlaveDump(c.nextSeq())
+	}
+	p := render.NewPrinter(c.json)
+	p.NewObj()
+	bodies, err := c.src.Dump(r, uint16(unix.RTM_NEWSTATS))
+	if err == nil {
+		err = printLinkXstats(c, p, bodies, a)
+	}
+	if err != nil {
+		p.DeleteObj()
+		if _, werr := c.out.Write(p.Bytes()); werr != nil {
+			return werr
+		}
+		return linkUsage(fmt.Errorf("link xstats: %w; Dump terminated", err))
+	}
+	p.DeleteObj()
+	_, err = c.out.Write(p.Bytes())
+	return err
+}
+
+// printLinkXstats is bridge_print_xstats and bond_print_xstats over the
+// replies: a reply of another device than `dev` is skipped; otherwise its
+// master nest, then its port nest, each printed by printLinkXstatsAttr. A
+// reply too short for its header ends the dump.
+func printLinkXstats(c *runCtx, p *render.Printer, bodies [][]byte, a linkXstatsArgs) error {
+	for _, body := range bodies {
+		if len(body) < xtcpnl.IfStatsMsgSizeCst {
+			return fmt.Errorf("%w: BUG: wrong nlmsg len %d", ErrInvalidArgument, len(body)-xtcpnl.IfStatsMsgSizeCst)
+		}
+		idx := cint.Int(binary.NativeEndian.Uint32(body[4:8]))
+		if a.ifindex != 0 && idx != a.ifindex {
+			continue
+		}
+		tb := rtaTable(body[xtcpnl.IfStatsMsgSizeCst:], iflaStatsMaxCst, false)
+		for _, at := range []int{unix.IFLA_STATS_LINK_XSTATS, unix.IFLA_STATS_LINK_XSTATS_SLAVE} {
+			if tb[at] != nil {
+				printLinkXstatsAttr(c, p, tb[at], idx, a)
+			}
 		}
 	}
 	return nil
+}
+
+// printLinkXstatsAttr is bridge_print_stats_attr and bond_print_stats_attr:
+// nothing for a nest without the kind's link type; otherwise an object
+// named "%-16s\n", and in it each body the selection keeps.
+func printLinkXstatsAttr(c *runCtx, p *render.Printer, nest []byte, idx int32, a linkXstatsArgs) {
+	list := rtaTable(nest, linkXstatsTypeMaxCst, false)[a.kind.linkType]
+	if list == nil {
+		return
+	}
+	p.OpenObject("")
+	p.String(render.PrintAny, "ifname", "%-16s\n", genlIndexToName(c, idx))
+	for t, v := range rtaAttrs(list) {
+		if a.attr != 0 && t != a.attr {
+			continue
+		}
+		if show := a.kind.bodies[t]; show != nil {
+			show(p, v)
+		}
+		if a.kind.firstOnly {
+			break
+		}
+	}
+	p.CloseObject()
 }
 
 // parseLinkAfstatsArgs is iplink_afstats's loop (ip/iplink.c:1675-1692):
