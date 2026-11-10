@@ -33,7 +33,8 @@ type universeType struct {
 }
 
 // netlinkUniverse is every RTM_*, genl command and XFRM_MSG_* name in
-// iproute2 v7.1.0's ip/*.c and lib/*.c: 47 rtnetlink, 46 genl and 22 XFRM.
+// iproute2 v7.1.0's ip/*.c and lib/*.c: 47 rtnetlink, 46 genl and 22 XFRM,
+// and RTM_GETMULTICAST, which v7.3.0 adds.
 var netlinkUniverse = []universeType{
 	{name: "RTM_DELADDR", proto: unix.NETLINK_ROUTE, typ: unix.RTM_DELADDR, src: "ip/ipaddress.c:1524"},
 	{name: "RTM_DELADDRLABEL", proto: unix.NETLINK_ROUTE, typ: unix.RTM_DELADDRLABEL, src: "ip/ipaddrlabel.c:51"},
@@ -52,6 +53,8 @@ var netlinkUniverse = []universeType{
 	{name: "RTM_GETADDRLABEL", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETADDRLABEL, src: "lib/libnetlink.c:346"},
 	{name: "RTM_GETLINK", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETLINK, src: "ip/ipaddress.c:2070"},
 	{name: "RTM_GETMDB", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETMDB, src: "lib/libnetlink.c:446"},
+	// v7.3.0's ipmaddr dumps by netlink (b8cdda55); captured in ws-ip730.
+	{name: "RTM_GETMULTICAST", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETMULTICAST, src: "v7.3.0 lib/libnetlink.c:348"},
 	{name: "RTM_GETNEIGH", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETNEIGH, src: "ip/ipmonitor.c:118"},
 	{name: "RTM_GETNEIGHTBL", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETNEIGHTBL, src: "lib/libnetlink.c:430"},
 	{name: "RTM_GETNETCONF", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETNETCONF, src: "ip/ipnetconf.c:166"},
@@ -349,9 +352,9 @@ func TestNetlinkUniverse(t *testing.T) {
 		},
 		{
 			description: "negative: a universe type that cites no source",
-			universe:    uniWith(universeType{name: "RTM_GETMULTICAST", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETMULTICAST}),
-			excl:        universeExclusions, seen: with("RTM_GETMULTICAST"),
-			expected: "RTM_GETMULTICAST: cites no iproute2 source",
+			universe:    uniWith(universeType{name: "RTM_GETANYCAST", proto: unix.NETLINK_ROUTE, typ: unix.RTM_GETANYCAST}),
+			excl:        universeExclusions, seen: with("RTM_GETANYCAST"),
+			expected: "RTM_GETANYCAST: cites no iproute2 source",
 		},
 		{
 			description: "corner: a type both captured and excluded, so the exclusion is stale",
@@ -396,11 +399,11 @@ func TestNetlinkUniverseShape(t *testing.T) {
 		expected    string
 	}{
 		{
-			description: "boundary: 47 rtnetlink names, 46 genl commands and 22 XFRM types",
+			description: "boundary: 48 rtnetlink names, 46 genl commands and 22 XFRM types",
 			got: "route=" + strconv.Itoa(byProto[unix.NETLINK_ROUTE]) +
 				" generic=" + strconv.Itoa(byProto[unix.NETLINK_GENERIC]) +
 				" xfrm=" + strconv.Itoa(byProto[unix.NETLINK_XFRM]),
-			expected: "route=47 generic=46 xfrm=22",
+			expected: "route=48 generic=46 xfrm=22",
 		},
 		{
 			description: "positive: three exclusions, one of them bridge's (the brmpls rows capture RTM_GETVLAN, the mdb rows RTM_GETMDB)",

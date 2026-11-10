@@ -388,45 +388,153 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 
 ### NC5 — the tier closes
 
-- **NC5-T01.** Recount every new family's rows, rcs and message types. Update `TestNetlinkUniverse` if a new message type appears (`RTM_GETMULTICAST` and `RTM_NEWMULTICAST` are expected). Write Tier P's and Tier G's task tables into this plan from the rows, with each row's expected value.
+- **NC5-T01.**
+  - Recount every new family's rows, rcs and message types.
+  - Update `TestNetlinkUniverse` if a new message type appears: RTM_GETMULTICAST joined it (48 rtnetlink names).
+  - Write Tier P's and Tier G's task tables into this plan from the rows, with each row's expected value.
+
+| corpus | rows | rc 0 | refused by ip | by the kernel | other |
+|---|---|---|---|---|---|
+| `7_3_1/ws/linkns` | 12 | 6 | 4 | 2 | — |
+| `7_3_1/ws/mpls` | 115 | 90 | 10 | 14 | 1 ack-then-fail |
+| `7_3_1/ws/v730*` (7.2.0) | 42 | 12 | 25 | 0 | 5 ack-then-fail |
+| `7_3_1/ws-ip730/v730*` (7.3.0) | 42 | 24 | 12 | 3 | 1 kernel-ignored, 2 ack-then-fail |
+| `7_3_1/ws/stats` | 101 | 92 | 8 | 1 | — |
 
 ## Tier P: parsers, tests and benchmarks
 
-The outline; each item gets a table test from the captures, a parse benchmark and `FuzzParse*` seeds:
-- `NHA_DST_PORT` (`xtcpnl_nhmsg.go`);
-- the AF_MPLS route attributes (`RTA_NEWDST`, `RTA_VIA`, `RTA_TTL_PROPAGATE`);
-- `IFLA_OVPN_MODE`;
-- `SEG6_IPTUNNEL_TABLE` on reads;
-- `CPU_HIT` (stats64), `L3_STATS` (`rtnl_hw_stats64`) and AF_MPLS `MPLS_STATS_LINK` (`xtcpnl_ifstatsmsg.go`);
-- the `IFLA_STATS_GET_FILTERS` nest builder;
-- the `RTM_GETMULTICAST` dump builder;
-- the RTM_NEWMULTICAST replies at 7.3.0.
+Each task gets a table test from the captures, a parse benchmark over the corpus picks and `FuzzParse*` seeds from the captures. **Dropped from the outline:** CPU_HIT and L3_STATS bodies. No workbench device reports them: the subgroups print empty, and `l3_stats` is never in use without hardware. Their decoders would test hand-built bytes only.
+
+### NP1 `NHA_DST_PORT` on reads
+
+`NexthopInfo` gains the port (host order) and whether it was present. The kernel echoes it in RTM_NEWNEXTHOP (`ws-ip730/v730nh/*/netlink_route_show.pcap`).
+
+| description | input | expected |
+|---|---|---|
+| positive: a captured `dst_port 4789` | `v730nh/4789` show | 4789, present |
+| boundary: the largest port | `v730nh/65535` show | 65535 |
+| corner: an fdb nexthop with no port | `v730nh/fdb` show | absent |
+| negative: a one-byte attribute | hand-built | error, as for the other u16s |
+
+### NP2 the AF_MPLS route attributes
+
+`RTA_NEWDST` and `RTA_VIA` are already decoded. `RouteInfo` gains `RTA_TTL_PROPAGATE` (u8, and whether it was present).
+
+| description | input | expected |
+|---|---|---|
+| positive: `ttl-propagate enabled` | an `mpls` dump with it | 1, present |
+| positive: `disabled` | `mpls/show` (label 102) | 0, present |
+| corner: absent | `mpls/ec-001` dump | not present |
+| negative: a u32 | hand-built | error |
+| positive: a 30-label stack | `mpls/bd-*` dump | 30 labels, BoS on the last |
+
+### NP3 `IFLA_OVPN_MODE`
+
+`LinkInfo` gains the ovpn info data.
+
+| description | input | expected |
+|---|---|---|
+| positive: `mode mp` | `ws-ip730/v730ovpn/mp` readback | 1 |
+| positive: no mode given | `v730ovpn/plain` | 0 (p2p): the kernel reports its default |
+| negative: a u32 | hand-built | error |
+
+### NP4 `SEG6_IPTUNNEL_TABLE` on reads
+
+The route encap's seg6 table, after the SRH.
+
+| description | input | expected |
+|---|---|---|
+| positive: `lookup 100` | `ws-ip730/v730seg6/100` readback | 100 |
+| positive: `lookup main` | `v730seg6/main` | 254 |
+| corner: an encap with no table | a `lwtx` seg6 dump | not present |
+
+### NP5 AF_MPLS link stats
+
+The afstats group's AF_MPLS `MPLS_STATS_LINK` (struct mpls_link_stats).
+
+| description | input | expected |
+|---|---|---|
+| positive: a dummy's MPLS stats | `stats/afstats-*` | every counter 0, present |
+| boundary: the struct's size | hand-built, one byte short | error |
+
+### NP6 request builders
+
+The bytes are compared with the captured requests.
+
+| description | input | expected |
+|---|---|---|
+| positive: `group offload subgroup l3_stats` | the builder | the `stats/l3-stats-text` request: mask 0x8, nest `{4: 0x6}` |
+| boundary: a full sub-mask | `cpu_hit` with `l3_stats` | no nest, like `stats/two-subgroups-text` |
+| positive: an RTM_GETMULTICAST dump | AF_INET, then AF_INET6 | the two 24-byte `ws-ip730/v730maddr/all` requests |
 
 ## Tier G: goip and the matrix
 
-The outline; each phase's tables come from NC5-T01:
-- **NX1, O5 checks the lookups.** `useLLMap720(t)` in `TestWsGoipDifferential`. Every space's "lookups differ" should become 0.
-- **NX2, `link set … netns`.**
-  - The `netns_get_fd` open order, with `IFLA_NET_NS_FD` at the keyword's position, then the descriptor closed. `move_netns` makes `index` legal.
-  - O5 substitutes `$$` and zeroes the value on both sides.
-  - Matrix rows with an `accepted-divergence` entry, `request:RTM_SETLINK:IFLA_NET_NS_FD:write`.
-- **NX3, MPLS routes.**
-  - AF_MPLS in `routeFamilySupported`.
-  - `as` at the top level, in a hop and in `route get`.
-  - `ttl-propagate`.
-  - `gw_mpls_*` rows with a `mpls_router` Setup.
-- **NX4, the target moves to 7.3.0.**
-  - The pin (`flake.nix` overlay or nixpkgs, `upstream-pins.json`).
-  - Knobs as at the 7.1.0→7.2.0 move: `lacp_strict` printed, the `fdb ` space, the strict lladdr, and maddr via netlink.
-  - The keywords `lacp_strict`, `dst_port`, seg6 `lookup` and ovpn `mode`.
-  - `goip maddress show`.
-  - The `dpll-pin` comments corrected.
-  - The matrix under 7.3.0.
-- **NX5, `ip stats`.**
-  - The selection machinery and the filter nest.
-  - Render `hw_stats64`, `mpls_link_stats`, `hw_stats_info`, the `-j -s` keys and the stp body.
-  - The per-device loop in the pinned order.
-  - Matrix rows with a Setup.
+Each phase's rows are the Tier C corpus rows. O5 (`TestWsGoipDifferential`) reads `7_3_1/ws` and, for NX4, `7_3_1/ws-ip730`.
+
+### NX1 O5 checks the lookups
+
+| description | input | expected |
+|---|---|---|
+| positive: `useLLMap720` in O5 | every space | "lookups differ" 0 in `ws-differential.txt` |
+| negative: a mutant dropping the 0x100 bit | O5 | differences reported |
+| corner: the knob restored | after the test | `LLMapNameOnly` as before |
+
+### NX2 `link set … netns`
+
+goip opens the namespace as `netns_get_fd` does and sends `IFLA_NET_NS_FD` first. O5 substitutes `$$` and `$(ip netns identify $$)` and zeroes the descriptor on both sides.
+
+| description | input | expected |
+|---|---|---|
+| positive: by pid, name, path and pid path | `linkns/ec-001`…`ec-004` | `same` |
+| corner: the real move | `linkns/ec-005` (`netns 1`) | `same`; d0 leaves the namespace |
+| positive: add with an index | `linkns/add-index` | `same`: ifi_index 100, no `IFLA_NEW_IFINDEX` |
+| negative: pid 0, -1, a missing path, `netns` twice | `ng-001`, `002`, `003`, `005` | rc 255, nothing sent |
+| negative: a file that isn't a namespace | `ng-004` | sent; kernel EINVAL |
+| negative: with `link-netnsid` | `ng-006` | sent; kernel EINVAL |
+| positive: the 26 `linkattr` `netns $$` rows | `7_3_0/ws/linkattr` | from `refuses` to `same` |
+
+### NX3 MPLS routes
+
+AF_MPLS in `routeFamilySupported`; `as` at the top level, in a hop and in `route get`; `ttl-propagate` before the hops; `via` in another family as `RTA_VIA`.
+
+| description | input | expected |
+|---|---|---|
+| positive: the 90 rc-0 rows | `7_3_1/ws/mpls` | `same` |
+| negative: ip's 10 refusals | `ng-005`, `ng-008`…`ng-013`, `ng-018`, `ng-019`, `inet6-as` | the same rc, nothing sent |
+| corner: `ttl-propagate` after the hops | `ttl-after-hops` | rc 255 after the hops' lookups |
+| negative: the kernel's 14 | `ng-001`…`004`, `006`, `007` and `no-platform` (EINVAL); `ng-015`, `016`, `get-absent` (ENETUNREACH); `ng-017` (ENODEV); `dup` (EEXIST); `inet-get-as` (EINVAL) | `same` request, the kernel's rc |
+| negative: `dev nosuch` | `ng-014` | ENODEV at the device lookup; no route request |
+| corner: `as` twice | `mpls/as-twice` | both `RTA_NEWDST` sent |
+| corner: `as` on an IPv4 route | `mpls/inet-as` | `RTA_NEWDST` 200.0.0.0 |
+| positive: show, text and JSON | `mpls/show`, `show-json` | the same text, `ttl-propogate` spelled as `ip` spells it |
+
+### NX4 the target moves to 7.3.0
+
+The pin moves (the `flake.nix` overlay or nixpkgs, and `upstream-pins.json`). The matrix runs under 7.3.0, and the `dpll-pin` comments are corrected. The changes come from NC3's version diff (V015, V016) and the `v730` corpus:
+
+| description | input | expected |
+|---|---|---|
+| positive: `fdb ` ends in a space | 135 nexthop readbacks | goip prints it under 7.3.0, as a knob does at 7.2.0 |
+| positive: `dst_port` | `v730nh/*` at 7.3.0; the 14 replayed rows | `NHA_DST_PORT` be16 after `NHA_FDB`; 65536 and `x` rc 255 |
+| positive: `lacp_strict` | `v730bond/*` | the u8 sent; `-d` prints it on every bond |
+| positive: seg6 `lookup` | `v730seg6/*` | the table after the SRH; `0` and `nosuch` rc 255 |
+| positive: ovpn `mode` | `v730ovpn/*` | the u8; `x` rc 1 |
+| positive: `maddress show` | `v730maddr/*` | two RTM_GETMULTICAST dumps, the same text as 7.2.0 |
+| corner: `maddress show dev nosuch` | `v730maddr/nosuch` | rc 0 after ENODEV, no dump |
+| corner: the strict lladdr | `v730lladdr/*` | the same rcs, 7.3.0's error text |
+
+### NX5 `ip stats`
+
+The selection machinery and the filter nest; rendering of `hw_stats_info`, `mpls_link_stats`, the `-j -s` keys and the stp body; the per-device loop in the pinned order.
+
+| description | input | expected |
+|---|---|---|
+| positive: the bare show on each topology, four forms | `stats/show-*` | `same`, groups in `wsStatsOrder` |
+| positive: each group and subgroup | `stats/*-text` | mask and nest as O3 checks |
+| boundary: two subgroups making the full sub-mask | `stats/two-subgroups-*` | no nest |
+| corner: `link afstats dev d0` | | a dump, filtered by goip |
+| negative: the 8 refusals | `stats/err-*`, `set-x` | ip's rcs (22, 255, 1), nothing sent |
+| positive: `stats set` | `set-on`, `set-off` | RTM_SETSTATS with the u8 |
 
 ## See also
 
