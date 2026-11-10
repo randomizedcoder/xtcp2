@@ -29,6 +29,10 @@ var (
 	v730OK       = expect{RC: intp(0), RefusedBy: "none"}
 	v730IPRc1    = expect{RC: intp(1), RefusedBy: "iproute2"}
 	v730IPInvarg = expect{RC: intp(255), RefusedBy: "iproute2"}
+	// v730AckRc1 and v730AckInvarg are a refusal after ip looked the
+	// device up, an acknowledged request.
+	v730AckRc1    = expect{RC: intp(1), RefusedBy: "ack-then-fail"}
+	v730AckInvarg = expect{RC: intp(255), RefusedBy: "ack-then-fail"}
 )
 
 // v730LinkSetup is a dummy, up, with addresses in both families.
@@ -62,7 +66,7 @@ func v730Rows() []v730Row {
 			pre: []string{v730LinkSetup}, readback: bondRB, modules: bond, at720: v730IPRc1, at730: v730OK, axes: f("kind", "bond", "lacp_strict", "0")},
 		{id: "bond/set", desc: "lacp_strict on an existing bond", cmd: "ip link set dev b0 type bond lacp_strict on",
 			pre: []string{v730LinkSetup, "ip link add b0 type bond mode 802.3ad"}, readback: bondRB, modules: bond,
-			at720: v730IPRc1, at730: v730OK, axes: f("kind", "bond", "lacp_strict", "1")},
+			at720: v730AckRc1, at730: v730OK, axes: f("kind", "bond", "lacp_strict", "1")},
 		{id: "bond/x", desc: "lacp_strict neither on nor off", cmd: "ip link add b0 type bond mode 802.3ad lacp_strict x",
 			pre: []string{v730LinkSetup}, readback: bondRB, modules: bond, at720: v730IPRc1, at730: v730IPRc1},
 		{id: "bond/active-backup", desc: "lacp_strict outside 802.3ad (option not supported in mode)",
@@ -87,7 +91,7 @@ func v730Rows() []v730Row {
 			pre: []string{v730RouteSetup}, readback: nhRB, at720: v730IPInvarg, at730: v730OK, axes: f("fdb", "1", "dst_port", "4789")},
 		{id: "nh/nofdb", desc: "dst_port without fdb (Destination port can only be set on fdb nexthops that have a gateway)",
 			cmd: "ip nexthop add id 1 via 192.0.2.2 dev d0 dst_port 4789", pre: []string{v730RouteSetup}, readback: nhRB,
-			at720: v730IPInvarg, at730: *expKernelEINVAL, axes: f("dst_port", "4789")},
+			at720: v730AckInvarg, at730: *expKernelEINVAL, axes: f("dst_port", "4789")},
 		{id: "nh/replace", desc: "a replace that adds a port", cmd: "ip nexthop replace id 1 via 192.0.2.2 fdb dst_port 4790",
 			pre: []string{v730RouteSetup, "ip nexthop add id 1 via 192.0.2.2 fdb"}, readback: nhRB,
 			at720: v730IPInvarg, at730: v730OK, axes: f("fdb", "1", "dst_port", "4790")},
@@ -123,8 +127,9 @@ func v730Rows() []v730Row {
 		{id: "maddr/inet", desc: "maddress show, IPv4", cmd: "ip -4 maddress show", pre: []string{v730MaddrSetup}, at720: v730OK, at730: v730OK, axes: f("maddr", "inet")},
 		{id: "maddr/inet6", desc: "maddress show, IPv6", cmd: "ip -6 maddress show", pre: []string{v730MaddrSetup}, at720: v730OK, at730: v730OK, axes: f("maddr", "inet6")},
 		{id: "maddr/dev", desc: "maddress show dev d0", cmd: "ip maddress show dev d0", pre: []string{v730MaddrSetup}, at720: v730OK, at730: v730OK, axes: f("maddr", "all")},
-		{id: "maddr/nosuch", desc: "maddress show of a device that isn't there", cmd: "ip maddress show dev nosuch", pre: []string{v730MaddrSetup},
-			at720: v730OK, at730: v730OK, axes: f("maddr", "all")},
+		{id: "maddr/nosuch", desc: "maddress show of a device that isn't there, rc 0 at both: 7.3.0 drops its lookup's ENODEV",
+			cmd: "ip maddress show dev nosuch", pre: []string{v730MaddrSetup},
+			at720: v730OK, at730: expect{RC: intp(0), Errno: "ENODEV", RefusedBy: "kernel-ignored"}, axes: f("maddr", "all")},
 		{id: "maddr/json", desc: "maddress show as JSON", cmd: "ip -j maddress show", pre: []string{v730MaddrSetup}, at720: v730OK, at730: v730OK, axes: f("maddr", "all")},
 
 		// ll_addr_a2n: 7.3.0 rejects trailing garbage and names the whole
@@ -133,12 +138,12 @@ func v730Rows() []v730Row {
 			at720: v730OK, at730: v730OK},
 		{id: "lladdr/zz", desc: "a non-hex octet", cmd: "ip link set dev d0 address 00:11:zz", pre: []string{v730LinkSetup}, readback: linkRB,
 			at720: v730IPRc1, at730: v730IPRc1},
-		{id: "lladdr/0aq", desc: "hex then garbage, which 7.2.0 read as one octet", cmd: "ip link set dev d0 address 0aq", pre: []string{v730LinkSetup},
-			readback: linkRB, at720: v730IPRc1, at730: v730IPRc1},
+		{id: "lladdr/0aq", desc: "hex then garbage, which 7.2.0 read as one octet and refused for its length, after the device's lookup",
+			cmd: "ip link set dev d0 address 0aq", pre: []string{v730LinkSetup}, readback: linkRB, at720: v730AckRc1, at730: v730IPRc1},
 		{id: "lladdr/1ff", desc: "an octet past 255", cmd: "ip link set dev d0 address 1ff", pre: []string{v730LinkSetup}, readback: linkRB,
 			at720: v730IPRc1, at730: v730IPRc1},
 		{id: "lladdr/seven", desc: "seven octets on a six-octet device", cmd: "ip link set dev d0 address 00:11:22:33:44:55:66",
-			pre: []string{v730LinkSetup}, readback: linkRB, at720: v730IPRc1, at730: v730IPRc1},
+			pre: []string{v730LinkSetup}, readback: linkRB, at720: v730AckRc1, at730: v730AckRc1},
 		{id: "lladdr/trailing", desc: "a trailing colon", cmd: "ip link set dev d0 address 00:11:", pre: []string{v730LinkSetup}, readback: linkRB,
 			at720: v730IPRc1, at730: v730IPRc1},
 		{id: "lladdr/empty", desc: "an empty argument", cmd: "ip link set dev d0 address ''", pre: []string{v730LinkSetup}, readback: linkRB,
@@ -151,7 +156,7 @@ func v730Rows() []v730Row {
 			cmd: "ip link set m0 type macvlan macaddr set 00:11:22:33:44:55 bcqueuelen 10", pre: []string{v730MacvlanSetup}, readback: mvRB,
 			at720: v730OK, at730: v730OK},
 		{id: "lladdr/macvlan-zz", desc: "a macvlan macaddr add with a non-hex octet", cmd: "ip link set m0 type macvlan macaddr add 00:11:zz",
-			pre: []string{v730MacvlanSetup}, readback: mvRB, at720: v730IPRc1, at730: v730IPRc1},
+			pre: []string{v730MacvlanSetup}, readback: mvRB, at720: v730AckRc1, at730: v730AckRc1},
 	}
 }
 

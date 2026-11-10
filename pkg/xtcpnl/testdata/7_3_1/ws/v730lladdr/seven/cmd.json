@@ -1,0 +1,32 @@
+{
+ "cmd": "ip link set dev d0 address 00:11:22:33:44:55:66",
+ "desc": "negative: seven octets on a six-octet device",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "v730lladdr/seven",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip link show dev d0",
+   "name": "d"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

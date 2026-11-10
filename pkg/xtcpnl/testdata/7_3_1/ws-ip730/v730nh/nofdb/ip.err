@@ -1,0 +1,1 @@
+Error: Destination port can only be set on fdb nexthops that have a gateway.

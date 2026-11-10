@@ -1,0 +1,36 @@
+{
+ "cmd": "ip -6 route add 2001:db8:2::/64 encap seg6 mode encap segs 2001:db8:9::1 lookup 0 dev d0",
+ "desc": "negative: lookup 0, which ip takes for no table",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 255,
+  "refused_by": "iproute2"
+ },
+ "id": "v730seg6/0",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show",
+   "name": "show"
+  },
+  {
+   "cmd": "ip -j -6 route show",
+   "name": "showj"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

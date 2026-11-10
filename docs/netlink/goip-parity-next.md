@@ -313,13 +313,13 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 
 #### NC3-T03 capture both versions and O3
 
-- **The capture.** Capture `v730` at both versions, with the gate run on each.
+- **The capture.** Capture `v730` at both versions, with the gate run on each. 7.2.0's rows go in `testdata/7_3_1/ws/v730*` and 7.3.0's in `testdata/7_3_1/ws-ip730/v730*`; the corpus tests read both roots and check each row's `env.iproute2` against its root.
 - **O3** (`xtcpnl_ws_v730_test.go`) checks:
   - `IFLA_BOND_LACP_STRICT` u8 in `IFLA_INFO_DATA`;
   - `NHA_DST_PORT` be16 after `NHA_FDB`;
   - `SEG6_IPTUNNEL_TABLE` u32 after the SRH;
   - `IFLA_OVPN_MODE` u8;
-  - the 7.3.0 `maddress` rows' `RTM_GETMULTICAST` dumps (inet, then inet6; 152 bytes sent);
+  - the 7.3.0 `maddress` rows' `RTM_GETMULTICAST` dumps (inet, then inet6, one 24-byte request each; `-4` and `-6` one each; none after `dev nosuch`'s failed lookup);
   - the 7.2.0 `maddress` rows send no request.
 
 | description | input | expected |
@@ -327,6 +327,7 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 | positive: `dst_port 4789` at 7.3.0 | the row | `NHA_DST_PORT` 0x12b5 big-endian |
 | positive: `maddress show` at 7.3.0 | | two dumps, AF_INET then AF_INET6 |
 | positive: `maddress show` at 7.2.0 | | no netlink request |
+| corner: `maddress show dev nosuch` at 7.3.0 | | ENODEV from the lookup, rc 0, no dump (`kernel-ignored`) |
 | negative: hand-built, `dst_port` little-endian | | O3 problem byte order |
 | boundary: `dst_port 65536` | | rc as `ip` exits; no request |
 

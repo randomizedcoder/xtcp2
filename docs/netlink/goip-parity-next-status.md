@@ -5,12 +5,13 @@
 **Summary:**
 - The design and the task plan are in [goip-parity-next.md](goip-parity-next.md). This document tracks progress against them.
 - The plan is written (DOC001). It follows the closed plans: [goip-lwt-srv6.md](goip-lwt-srv6.md) and those before it.
-- NC0, NC1 and NC2 are done:
+- NC0 to NC3 are done:
   - the workbench runs rows with either iproute2 (`--ip`);
-  - the 12 `linkns` rows and the 115 `mpls` rows are captured at kernel 7.3.1, with their O3 tests.
+  - the 12 `linkns` rows and the 115 `mpls` rows are captured at kernel 7.3.1, with their O3 tests;
+  - every family has been replayed at 7.3.0 and diffed (`nlcapgen verdiff`), and the 42 `v730` rows are captured at both versions.
 - **Captures come first.** Tier C runs the workbench at iproute2 7.2.0 and 7.3.0. Tiers P and G are outlined until NC5-T01 writes their tables.
 
-**Next action:** NC3-T03, capture `v730` at both versions and its O3.
+**Next action:** NC4-T01, the `stats` family.
 
 ## Contents
 
@@ -34,7 +35,7 @@
 | [NC0](goip-parity-next.md#nc0--two-iproute2-versions-in-the-workbench) | two iproute2 versions in the workbench | NC0-T01 | done | V001–V003 |
 | [NC1](goip-parity-next.md#nc1--link-set--netns) | `link set … netns` rows | NC1-T01 | done | V004–V007 |
 | [NC2](goip-parity-next.md#nc2--mpls-family-routes) | MPLS-family route rows | NC2-T02 | done | V008–V012 |
-| [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | in progress | V013–V018 |
+| [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | done | V013–V021 |
 | [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | not started | — |
 | [NC5](goip-parity-next.md#nc5--the-tier-closes) | Tier C closes | NC5-T01 | not started | — |
 | [Tier P](goip-parity-next.md#tier-p-parsers-tests-and-benchmarks) | parsers, tests, benchmarks | — | not started | — |
@@ -50,7 +51,7 @@
 | [x] | [NC2-T02](goip-parity-next.md#nc2-t02-capture-and-o3) | capture, O3 | done | V010–V012 |
 | [x] | [NC3-T01](goip-parity-next.md#nc3-t01-every-family-at-730) | every family at 7.3.0, `verdiff` | done | V013–V015 |
 | [x] | [NC3-T02](goip-parity-next.md#nc3-t02-the-730-forms) | the `v730` family | done | V017–V018 |
-| [ ] | [NC3-T03](goip-parity-next.md#nc3-t03-capture-both-versions-and-o3) | capture both versions, O3 | not started | — |
+| [x] | [NC3-T03](goip-parity-next.md#nc3-t03-capture-both-versions-and-o3) | capture both versions, O3 | done | V019–V021 |
 | [ ] | [NC4-T01](goip-parity-next.md#nc4-t01-the-stats-family) | the `stats` family | not started | — |
 | [ ] | [NC4-T02](goip-parity-next.md#nc4-t02-capture-and-the-order) | capture, the group order, O3 | not started | — |
 | [ ] | [NC5-T01](goip-parity-next.md#nc5--the-tier-closes) | recount; write Tier P and G tables | not started | — |
@@ -78,6 +79,9 @@
 | V016 | 2026-11-09 | NC3-T01 | `verdiff` compares `ip.err` too (a NC3-T02 probe showed a stderr-only change); `TestDiffVerRows` gains a row, lint-baseline; the replay re-diffed | All pass. 194 version-only lines now, 15 of them stderr: the 14 `dst_port` rows' new texts, and `ss/ng-013`'s usage text, which no longer lists `-d, --dccp` or `dccp` (3c0b939e, "ss: stop displaying dccp sockets"). `linkns/ng-005`'s pid in its duplicate message is in the noise baseline too | this commit |
 | V017 | 2026-11-09 | NC3-T02 | A probe batch of 44 forms at 7.2.0 and at 7.3.0 on one boot; kernel errnos read in `bond_options.c`, `nexthop.c` and `nlattr.c`; then a calibration of both generated rows files | The plan doc's table. Kernel 7.3.1 takes `IFLA_BOND_LACP_STRICT`, `NHA_DST_PORT`, `SEG6_IPTUNNEL_TABLE` and `IFLA_OVPN_MODE`. `maddress show` prints the same at both versions, and `dev nosuch` is rc 0 at both. The strict `ll_addr_a2n` changes no rc, only the error text, and adds a stderr line to the macvlan `macaddr set` (the loop's probe for the end of the list). Calibration: `rows=42 ok=42` at each version | this commit |
 | V018 | 2026-11-09 | NC3-T02 | `go vet`; `go test -count=1 -race ./tools/nlcapgen/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestV730Family` checks the ids and commands at both versions, 16 rows' rcs and 5 properties. Mutants: 7.3.0's expectations at 7.2.0; a 7.3.0 word in a setup step; the ovpn module dropped; rc 1 written as positive. All 4 were killed. lint-baseline first found a `rangeValCopy`, fixed by indexing | this commit |
+| V019 | 2026-11-09 | NC3-T03 | Two fresh boots, each running `v730ip720.rows.jsonl` at 7.2.0 and `v730.rows.jsonl` at 7.3.0; `verdiff` of each version's two boots, and of 7.2.0 against 7.3.0 | `rows=42 ok=42` in all four batches. Each version's boots: 0 differences, readbacks and stderr included. 7.2.0 against 7.3.0: 37 of 42 rows differ (16 rcs, 23 type sequences, 57 outputs), as the table in the plan doc says. The first boot's rows are the corpus: `ws/v730*` (7.2.0) and `ws-ip730/v730*` (7.3.0, 112 KB) | this commit |
+| V020 | 2026-11-09 | NC3-T03 | `TestWsCorpusRows` over both roots | It first failed on 10 rows. The path check didn't know `ws-ip730`; it now does, and checks each row's `env.iproute2` against its root. 8 rows were ack-then-fail, not `iproute2`: `ip` looks the device up before refusing. One was new: 7.3.0's `maddress show dev nosuch` gets ENODEV for its lookup and exits 0. The oracle gains `kernel-ignored` for that, accepted only when a row names it, like `ack-then-fail`. The generator was corrected, the rows regenerated, and 10 captures' `cmd.json` given the new `expect` and `desc` | this commit |
+| V021 | 2026-11-09 | NC3-T03 | `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestWsV730Corpus` checks 34 rows, and 28 refusals send nothing. `TestV730Problems` has 16 rows; `TestWsRowProblem` gains 3 for `kernel-ignored`. Mutants: `NHA_DST_PORT` read little-endian; its place after `NHA_FDB`; 7.2.0's `maddress` expected to dump; a stray `lacp_strict` allowed; `kernel-ignored` matching nothing. All 5 were killed | this commit |
 
 ## Decision log
 
@@ -97,3 +101,5 @@
 - **A repeat run is verdiff's noise baseline.** Readbacks carry timers, socket order and padding that differ run to run, so a 7.2.0 repeat is diffed too, and only what it doesn't show is ip's. One repeat misses some noise by chance (3 timers, 12 orderings), so each remaining line was read.
 - **`v730` is a family of named rows, written once per version.** The matrix spaces have one expectation per row, but here the version decides it. Two rows files with the same ids let a capture at each version pair up in `verdiff`.
 - **The strict `ll_addr_a2n` regresses nothing a script would see in rc.** It does print a spurious `"bcqueuelen" is invalid lladdr.` when `macaddr set` is followed by another keyword. Recorded only: nothing goes to netdev.
+- **ip 7.3.0's `maddress show dev nosuch` ignores the kernel's ENODEV.** It exits 0 with no output, as 7.2.0 did from procfs. The oracle's `kernel-ignored` names it. goip's `maddress` (NX4) should match the rc and the silence.
+- **The `maddress` requests are 24 bytes, not the 152 the plan said:** a header and an `ifaddrmsg`, one dump per family.

@@ -657,10 +657,7 @@ const wsBudgetBytes = 64 << 20
 // TestWsSizeBudget holds each kernel version's workbench corpus to the
 // budget, so a rows file that grows past it is noticed when it is captured.
 func TestWsSizeBudget(t *testing.T) {
-	roots, err := filepath.Glob(filepath.Join("testdata", "*", "ws"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	roots := wsRoots(t)
 	if len(roots) == 0 {
 		t.Fatal("no testdata/*/ws")
 	}
