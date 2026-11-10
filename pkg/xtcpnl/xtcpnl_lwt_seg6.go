@@ -10,6 +10,10 @@ import (
 const (
 	Seg6IptunnelSRH uint16 = 1 // struct seg6_iptunnel_encap: int mode, then the SRH
 	Seg6IptunnelSrc uint16 = 2 // struct in6_addr, `tunsrc`
+	// Seg6IptunnelTable is u32, `lookup TABLE` (iproute2 7.3.0): the table
+	// the SID is looked up in after the encap. The kernel sends it only
+	// when set; it refuses 0 (seg6_build_state, net/ipv6/seg6_iptunnel.c).
+	Seg6IptunnelTable uint16 = 3
 )
 
 // SEG6_IPTUN_MODE_* (seg6_iptunnel.h), the modes seg6_mode_types names.
@@ -232,4 +236,56 @@ func putLwtNest(ab *AttrBuilder, encapAttr, typeAttr, typ uint16, body func() er
 		return err
 	}
 	return ab.PutU16(typeAttr, typ)
+}
+
+// ErrSeg6EncapSRH is a SEG6_IPTUNNEL_SRH on a read shorter than the mode
+// it starts with.
+var ErrSeg6EncapSRH = errors.New("xtcpnl: SEG6_IPTUNNEL_SRH is shorter than its mode")
+
+// Seg6EncapInfo is an LWTUNNEL_ENCAP_SEG6 RTA_ENCAP payload on a read, as
+// print_encap_seg6 (ip/iproute_lwtunnel.c) reads it.
+type Seg6EncapInfo struct {
+	Mode   int32  // struct seg6_iptunnel_encap's mode, SEG6_IPTUN_MODE_*
+	HasSRH bool   // SEG6_IPTUNNEL_SRH present: ip prints nothing without it
+	SRH    []byte // the SRH after the mode, as sent
+	TunSrc []byte // SEG6_IPTUNNEL_SRC, nil when absent
+	Lookup uint32 // SEG6_IPTUNNEL_TABLE, valid when HasLookup
+	// HasLookup says SEG6_IPTUNNEL_TABLE came at its full width; a short one
+	// is dropped, as for the route's scalars.
+	HasLookup bool
+}
+
+// ParseSeg6Encap decodes an LWTUNNEL_ENCAP_SEG6 RTA_ENCAP payload. The first
+// of a repeated attribute wins, as in parse_rtattr. The byte slices are
+// copied.
+func ParseSeg6Encap(val []byte) (Seg6EncapInfo, error) {
+	var (
+		s      Seg6EncapInfo
+		srhErr error
+		seen   attrSeen
+	)
+	err := WalkRTAttrsNested(val, func(atype uint16, v []byte) {
+		if !seen.first(atype) {
+			return
+		}
+		switch atype {
+		case Seg6IptunnelSRH:
+			if len(v) < seg6ModeLenCst {
+				srhErr = ErrSeg6EncapSRH
+				return
+			}
+			s.Mode = int32(binary.LittleEndian.Uint32(v))
+			s.SRH, s.HasSRH = CopyBytes(v[seg6ModeLenCst:]), true
+		case Seg6IptunnelSrc:
+			s.TunSrc = CopyBytes(v)
+		case Seg6IptunnelTable:
+			if len(v) >= 4 {
+				s.Lookup, s.HasLookup = binary.LittleEndian.Uint32(v), true
+			}
+		}
+	})
+	if err = errors.Join(err, srhErr); err != nil {
+		return Seg6EncapInfo{}, err
+	}
+	return s, nil
 }

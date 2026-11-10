@@ -11,9 +11,9 @@
   - every family has been replayed at 7.3.0 and diffed (`nlcapgen verdiff`), and the 42 `v730` rows are captured at both versions;
   - the 101 `stats` rows are captured, and the order the bare show prints groups in is pinned.
 - **Captures came first.** Tier C ran the workbench at iproute2 7.2.0 and 7.3.0. Tier P (NP1–NP6) and Tier G (NX1–NX5) now have their tables in the plan, written from those rows.
-- **Tier P is under way:** NP1 decodes `NHA_DST_PORT` on reads, NP2 `RTA_TTL_PROPAGATE`, NP3 `IFLA_OVPN_MODE`.
+- **Tier P is under way:** NP1 decodes `NHA_DST_PORT` on reads, NP2 `RTA_TTL_PROPAGATE`, NP3 `IFLA_OVPN_MODE`, NP4 the seg6 encap with `SEG6_IPTUNNEL_TABLE`.
 
-**Next action:** Tier P, NP4 (`SEG6_IPTUNNEL_TABLE` on reads).
+**Next action:** Tier P, NP5 (AF_MPLS link stats).
 
 ## Contents
 
@@ -60,9 +60,10 @@
 | [x] | [NP1](goip-parity-next.md#np1-nha_dst_port-on-reads) | `NHA_DST_PORT` on reads | done | V028 |
 | V029 | 2026-11-09 | NP2 | `TestParseNewRouteTTLPropagate`, `TestWsMplsShowCorpus`, `FuzzParseNewRoute` (30 s, 2 captured seeds added); `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `RouteInfo` gains `TTLPropagate` and `HasTTLPropagate`. The table has 8 rows; its 5 captured bodies are compared with the mpls show pcaps. The corpus test decodes all 78 AF_MPLS routes of the mpls shows and holds each one's ttl-propagate (29) and top-level `as` stack (49) to what ip printed. Mutants: presence never set, the value fixed at 1, the last byte read, a one-byte payload dropped. All 4 were killed. `setRouteAttr` is at gocyclo 25 (ceiling 30). misspell flagged the test regex for ip's misspelled key; a character class now matches it | this commit |
 | V030 | 2026-11-09 | NP3 | `TestParseOvpnInfoData`, `TestWsOvpnCorpus`, `FuzzParseNewLink` (30 s, an ovpn seed added); `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `LinkInfo` gains `Ovpn` (`OvpnInfo`: `Mode`, `HasMode`). The table has 12 rows, 3 of them the captured 7.3.0 readbacks decoded whole. The corpus test decodes all 4 ovpn links of the v730ovpn readbacks at both versions: each has a mode, and the 3 that ip 7.3.0 printed match. The tunnel, hsr, netkit and ovpn kinds moved from `setLinkInfoNest` (gocyclo 29) to `setLinkInfoDataByKind`; it is now 23. Mutants: last mode wins, a one-byte mode dropped, the last byte read, presence never set, the kind misnamed, the dispatch dropped. All 6 were killed | this commit |
+| V031 | 2026-11-09 | NP4 | `TestParseSeg6Encap`, `TestWsSeg6EncapCorpus`, `FuzzParseSeg6Encap` (30 s); `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `RouteEncap` gains `Seg6` (`Seg6EncapInfo`: mode, SRH, tunsrc, `Lookup` table), decoded for a route and for each hop; an SRH shorter than its mode is `ErrSeg6EncapSRH`. The table has 14 rows; its 4 captured payloads are compared with the v730seg6 shows and a seg6route6 dump. The corpus test decodes all 21 seg6 encaps in the workbench's text readbacks, routes' and hops', and holds each mode and table (3) to what ip printed. Mutants: the length check, the mode left in the SRH, a 4-byte table dropped, a big-endian table, the SRH error dropped, the mode's low byte alone, tunsrc dropped, first-wins dropped, the dispatch dropped. All 9 were killed. The low-byte mutant survived until rows with modes 256 and -1 | this commit |
 | [x] | [NP2](goip-parity-next.md#np2-the-af_mpls-route-attributes) | `RTA_TTL_PROPAGATE` | done | V029 |
 | [x] | [NP3](goip-parity-next.md#np3-ifla_ovpn_mode) | `IFLA_OVPN_MODE` | done | V030 |
-| [ ] | [NP4](goip-parity-next.md#np4-seg6_iptunnel_table-on-reads) | `SEG6_IPTUNNEL_TABLE` on reads | not started | — |
+| [x] | [NP4](goip-parity-next.md#np4-seg6_iptunnel_table-on-reads) | `SEG6_IPTUNNEL_TABLE` on reads | done | V031 |
 | [ ] | [NP5](goip-parity-next.md#np5-af_mpls-link-stats) | AF_MPLS link stats | not started | — |
 | [ ] | [NP6](goip-parity-next.md#np6-request-builders) | the stats-filter and multicast-dump builders | not started | — |
 | [ ] | [NX1](goip-parity-next.md#nx1-o5-checks-the-lookups) | O5 checks the lookups | not started | — |

@@ -442,13 +442,15 @@ Each task gets a table test from the captures, a parse benchmark over the corpus
 
 ### NP4 `SEG6_IPTUNNEL_TABLE` on reads
 
-The route encap's seg6 table, after the SRH.
+The route encap's seg6 table, after the SRH. `RouteEncap` gains the decoded seg6 payload (mode, SRH, tunsrc, table), for a route and for each hop.
 
 | description | input | expected |
 |---|---|---|
 | positive: `lookup 100` | `ws-ip730/v730seg6/100` readback | 100 |
 | positive: `lookup main` | `v730seg6/main` | 254 |
 | corner: an encap with no table | a `lwtx` seg6 dump | not present |
+| negative: an SRH shorter than its mode | hand-built | error |
+| negative: a short table | hand-built | not present, as for the route's scalars |
 
 ### NP5 AF_MPLS link stats
 
