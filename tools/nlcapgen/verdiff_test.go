@@ -54,6 +54,12 @@ func verRun(rc string, pcap []byte, out string) fstest.MapFS {
 	}
 }
 
+// verWith adds a file to a run.
+func verWith(m fstest.MapFS, name, data string) fstest.MapFS {
+	m[name] = &fstest.MapFile{Data: []byte(data)}
+	return m
+}
+
 func TestDiffVerRows(t *testing.T) {
 	const req = unix.NLM_F_REQUEST | unix.NLM_F_ACK
 	link := []byte{0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -77,6 +83,8 @@ func TestDiffVerRows(t *testing.T) {
 			"q/y missing only in -b; r/x missing only in -a"},
 		{"corner: seq and pid differ", verRun("0", base, "d0"),
 			verRun("0", verPcap(verNlmsg(unix.RTM_NEWLINK, req, 7, link), verNlmsg(unix.NLMSG_ERROR, 0, 7, make([]byte, 20))), "d0"), ""},
+		{"positive: stderr changed, the rc the same", verWith(verRun("0", base, "d0"), "r/x/ip.err", ""),
+			verWith(verRun("0", base, "d0"), "r/x/ip.err", `"bcqueuelen" is invalid lladdr.`), "r/x out ip.err"},
 		{"corner: random link-layer addresses", verRun("0", base, "link/ether 32:d3:65:88:85:d2 brd ff:ff:ff:ff:ff:ff"),
 			verRun("0", base, "link/ether 62:29:c0:72:9f:87 brd ff:ff:ff:ff:ff:ff"), ""},
 		{"corner: a bridge id's unpadded octets", verRun("0", base, "bridge_id 8000.ba:bf:53:28:e6:9a"),

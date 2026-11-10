@@ -23,8 +23,8 @@ import (
 // versions on one kernel (goip-parity-next.md, NC3-T01), row by row: the
 // exit status, the sequence of message types, each request's bytes (its
 // type, flags and body; seq and pid differ run to run and aren't
-// compared), and every .out file, ip's own and each readback's, with the
-// random link-layer addresses blanked. A row is
+// compared), and every .out file, ip's own and each readback's, and ip's
+// stderr, with the random link-layer addresses blanked. A row is
 // a directory holding cmd.json, named by its path under the run's root.
 
 // verRow is what verdiff compares of one row.
@@ -113,7 +113,7 @@ func loadVerRow(root fs.FS, dir string) (verRow, error) {
 			if r.msgs, err = verMsgs(b); err != nil {
 				return r, err
 			}
-		case strings.HasSuffix(name, ".out"):
+		case strings.HasSuffix(name, ".out"), name == "ip.err":
 			r.outs[name] = verNormalize(b)
 		}
 	}
