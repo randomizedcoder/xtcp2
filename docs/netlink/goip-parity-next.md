@@ -437,7 +437,8 @@ Each task gets a table test from the captures, a parse benchmark over the corpus
 |---|---|---|
 | positive: `mode mp` | `ws-ip730/v730ovpn/mp` readback | 1 |
 | positive: no mode given | `v730ovpn/plain` | 0 (p2p): the kernel reports its default |
-| negative: a u32 | hand-built | error |
+| corner: a u32 | hand-built | its first byte, as `ovpn_print_opt` reads it |
+| negative: an empty mode | hand-built | no mode: ip prints none |
 
 ### NP4 `SEG6_IPTUNNEL_TABLE` on reads
 

@@ -374,6 +374,8 @@ type LinkInfo struct {
 	Hsr *HsrInfo
 	// Netkit is IFLA_INFO_DATA decoded when Kind is "netkit".
 	Netkit *NetkitInfo
+	// Ovpn is IFLA_INFO_DATA decoded when Kind is "ovpn".
+	Ovpn *OvpnInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1058,6 +1060,13 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	if li.Kind == gtpKindCst {
 		li.Gtp = ParseGtpInfoData(infoData)
 	}
+	setLinkInfoDataByKind(li, infoData)
+}
+
+// setLinkInfoDataByKind decodes the IFLA_INFO_DATA of the kinds that share
+// one switch: the tunnels, hsr, netkit and ovpn. It is split from
+// setLinkInfoNest, which was one point short of the gocyclo ceiling.
+func setLinkInfoDataByKind(li *LinkInfo, infoData []byte) {
 	switch li.Kind {
 	case greKindCst, gretapKindCst, erspanKindCst, ip6greKindCst, ip6gretapKindCst, ip6erspanKindCst:
 		li.Gre = ParseGreInfoData(infoData)
@@ -1071,6 +1080,8 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 		li.Hsr = ParseHsrInfoData(infoData)
 	case netkitKindCst:
 		li.Netkit = ParseNetkitInfoData(infoData)
+	case ovpnKindCst:
+		li.Ovpn = ParseOvpnInfoData(infoData)
 	}
 }
 

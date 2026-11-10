@@ -1578,6 +1578,9 @@ func FuzzParseNewRoute(f *testing.F) {
 // FuzzParseNewLink ensures ParseNewLink never panics on arbitrary bytes.
 func FuzzParseNewLink(f *testing.F) {
 	f.Add(concat(ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, unix.IFF_UP), rtattr(unix.IFLA_IFNAME, append([]byte("eth0"), 0))))
+	// An ovpn link's IFLA_LINKINFO, as the kernel sends it for mode mp.
+	f.Add(concat(ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_NONE, 4, 0), rtattr(unix.IFLA_LINKINFO, concat(
+		rtattr(unix.IFLA_INFO_KIND, []byte("ovpn")), rtattr(unix.IFLA_INFO_DATA, rtattr(IflaOvpnMode, []byte{OvpnModeMP}))))))
 	f.Add([]byte{})
 	f.Fuzz(func(_ *testing.T, body []byte) {
 		_, _ = ParseNewLink(body)
