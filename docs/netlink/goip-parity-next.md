@@ -459,7 +459,8 @@ The afstats group's AF_MPLS `MPLS_STATS_LINK` (struct mpls_link_stats).
 | description | input | expected |
 |---|---|---|
 | positive: a dummy's MPLS stats | `stats/afstats-*` | every counter 0, present |
-| boundary: the struct's size | hand-built, one byte short | error |
+| boundary: the struct's size | hand-built, one byte short | not present; the afstats group is marked malformed and the record kept, as for its other members |
+| positive: each counter from its own field | hand-built, counters 1–9 | each in its field |
 
 ### NP6 request builders
 

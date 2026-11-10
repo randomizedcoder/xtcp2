@@ -119,8 +119,16 @@ type IfStatsInfo struct {
 	// without MPLS. The group still sets HasUnsupportedGroup, for obj_stats.
 	AfSpec    []uint16
 	HasAfSpec bool
-	// AfSpecMalformed records a nest whose walk stopped at a malformed member.
+	// AfSpecMalformed records a nest whose walk stopped at a malformed
+	// member, or an AF_MPLS member whose MPLS_STATS_LINK is shorter than
+	// struct mpls_link_stats (print_mpls_stats reads it unchecked).
 	AfSpecMalformed bool
+	// MplsLink is the AF_MPLS member's MPLS_STATS_LINK, the counters `ip
+	// stats show group afstats` and `ip link afstats` print; HasMplsLink
+	// records it. The first AF_MPLS member and its first MPLS_STATS_LINK
+	// win, as parse_rtattr keeps the first.
+	MplsLink    MplsLinkStats
+	HasMplsLink bool
 
 	// HwSInfo is IFLA_STATS_LINK_OFFLOAD_XSTATS's HW_S_INFO nest, the one
 	// offload body `ip monitor stats` prints (ipstats_print, ip/ipstats.c);
@@ -194,8 +202,13 @@ func ParseNewStats(body []byte) (IfStatsInfo, error) {
 			// rather than failing the record, so the walk's error is dropped
 			// and the members before it are kept.
 			si.HasUnsupportedGroup, si.HasAfSpec = true, true
-			if e := WalkRTAttrsNested(val, func(af uint16, _ []byte) {
+			mplsSeen := false
+			if e := WalkRTAttrsNested(val, func(af uint16, member []byte) {
 				si.AfSpec = append(si.AfSpec, af)
+				if af == unix.AF_MPLS && !mplsSeen {
+					mplsSeen = true
+					si.parseMplsStats(member)
+				}
 			}); e != nil {
 				si.AfSpecMalformed = true
 			}
@@ -302,4 +315,52 @@ func (x *XstatsBodies) parseXstats(val []byte) error {
 		return outerErr
 	}
 	return innerErr
+}
+
+// MplsStatsLink is MPLS_STATS_LINK (include/uapi/linux/mpls.h), the
+// AF_MPLS afstats member's struct mpls_link_stats. Type 0 is the u64 pad.
+const MplsStatsLink uint16 = 1
+
+// MplsLinkStatsSizeCst is sizeof(struct mpls_link_stats): nine u64s.
+const MplsLinkStatsSizeCst = 72
+
+// MplsLinkStats is struct mpls_link_stats, in its field order.
+type MplsLinkStats struct {
+	RxPackets uint64
+	TxPackets uint64
+	RxBytes   uint64
+	TxBytes   uint64
+	RxErrors  uint64
+	TxErrors  uint64
+	RxDropped uint64
+	TxDropped uint64
+	RxNoroute uint64
+}
+
+// parseMplsStats reads the AF_MPLS member's first MPLS_STATS_LINK. A longer
+// one is read for its known fields; a shorter one, or a malformed nest,
+// marks the group malformed and keeps the record, as the other afstats
+// members are kept.
+func (si *IfStatsInfo) parseMplsStats(member []byte) {
+	var link []byte
+	if err := WalkRTAttrsNested(member, func(atype uint16, v []byte) {
+		if atype == MplsStatsLink && link == nil {
+			link = v
+		}
+	}); err != nil {
+		si.AfSpecMalformed = true
+	}
+	switch {
+	case link == nil:
+		return
+	case len(link) < MplsLinkStatsSizeCst:
+		si.AfSpecMalformed = true
+		return
+	}
+	u := func(i int) uint64 { return binary.LittleEndian.Uint64(link[8*i:]) }
+	si.MplsLink = MplsLinkStats{
+		RxPackets: u(0), TxPackets: u(1), RxBytes: u(2), TxBytes: u(3),
+		RxErrors: u(4), TxErrors: u(5), RxDropped: u(6), TxDropped: u(7), RxNoroute: u(8),
+	}
+	si.HasMplsLink = true
 }
