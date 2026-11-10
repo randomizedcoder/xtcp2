@@ -266,6 +266,7 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 #### NC3-T01 every family at 7.3.0
 
 - **The replay.** Every committed family is replayed with `--ip iproute2_7_3_0` on a fresh boot: addr, neigh, route, rule, nexthop, link, linkattr, kwlive, lwt, lwtx, fdb, mdb, routeget, selftest and ss.
+- **What ran.** The plan's 15 families plus `fib` and `mpls` (4,091 rows): once at 7.3.0, and twice at 7.2.0, all on kernel 7.3.1, each run on a fresh boot. `tdc` (tc) and `ethtool` aren't goip's, so they weren't replayed. The second 7.2.0 run is the noise baseline. A difference counts as `ip`'s only when the two 7.2.0 runs agree on that row and kind.
 - **The diff report.** A new `nlcapgen verdiff` compares the 7.2.0 and 7.3.0 directories row by row: rc, message types, request bytes (seq and pid zeroed) and the `-j` readback. The report goes in the status doc.
   - **Expected from the source:**
     - bond `-d` readbacks gain `lacp_strict`;
@@ -281,6 +282,8 @@ nixpkgs (f9a75f41, 2026-11-05) still ships 7.2.0. The commits from 7.2.0 to 7.3.
 | positive: an rc changed | a fixture pair | the row and both rcs |
 | negative: a row in only one version | fixture | listed as missing, not skipped |
 | corner: seq and pid differ | fixture | not a difference |
+| corner: random link-layer addresses | `link/ether` and bridge ids (octets unpadded) | not a difference |
+| negative: an IPv6 address | `2001:db8::2` vs `::3` | a difference |
 
 #### NC3-T02 the 7.3.0 forms
 

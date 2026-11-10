@@ -10,7 +10,7 @@
   - the 12 `linkns` rows and the 115 `mpls` rows are captured at kernel 7.3.1, with their O3 tests.
 - **Captures come first.** Tier C runs the workbench at iproute2 7.2.0 and 7.3.0. Tiers P and G are outlined until NC5-T01 writes their tables.
 
-**Next action:** NC3-T01, every family replayed at iproute2 7.3.0.
+**Next action:** NC3-T02, the `v730` family.
 
 ## Contents
 
@@ -34,7 +34,7 @@
 | [NC0](goip-parity-next.md#nc0--two-iproute2-versions-in-the-workbench) | two iproute2 versions in the workbench | NC0-T01 | done | V001–V003 |
 | [NC1](goip-parity-next.md#nc1--link-set--netns) | `link set … netns` rows | NC1-T01 | done | V004–V007 |
 | [NC2](goip-parity-next.md#nc2--mpls-family-routes) | MPLS-family route rows | NC2-T02 | done | V008–V012 |
-| [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | not started | — |
+| [NC3](goip-parity-next.md#nc3--iproute2-730) | iproute2 7.3.0 replay and forms | NC3-T03 | in progress | V013–V015 |
 | [NC4](goip-parity-next.md#nc4--ip-stats) | `ip stats` rows | NC4-T02 | not started | — |
 | [NC5](goip-parity-next.md#nc5--the-tier-closes) | Tier C closes | NC5-T01 | not started | — |
 | [Tier P](goip-parity-next.md#tier-p-parsers-tests-and-benchmarks) | parsers, tests, benchmarks | — | not started | — |
@@ -48,7 +48,7 @@
 | [x] | [NC1-T01](goip-parity-next.md#nc1-t01-the-netns-forms) | the netns forms | done | V004–V007 |
 | [x] | [NC2-T01](goip-parity-next.md#nc2-t01-the-mpls-family) | the `mpls` family | done | V008–V009 |
 | [x] | [NC2-T02](goip-parity-next.md#nc2-t02-capture-and-o3) | capture, O3 | done | V010–V012 |
-| [ ] | [NC3-T01](goip-parity-next.md#nc3-t01-every-family-at-730) | every family at 7.3.0, `verdiff` | not started | — |
+| [x] | [NC3-T01](goip-parity-next.md#nc3-t01-every-family-at-730) | every family at 7.3.0, `verdiff` | done | V013–V015 |
 | [ ] | [NC3-T02](goip-parity-next.md#nc3-t02-the-730-forms) | the `v730` family | not started | — |
 | [ ] | [NC3-T03](goip-parity-next.md#nc3-t03-capture-both-versions-and-o3) | capture both versions, O3 | not started | — |
 | [ ] | [NC4-T01](goip-parity-next.md#nc4-t01-the-stats-family) | the `stats` family | not started | — |
@@ -72,6 +72,9 @@
 | V010 | 2026-11-09 | NC2-T02 | Two fresh-boot batches of `mpls.rows.jsonl` (kernel 7.3.1, iproute2 7.2.0, host load 43–58); each row's rc, message types and request bytes, and every readback's text, compared | `rows=115 ok=115 not_ok=0` both times. The boots agree on all 115 rows, byte for byte, readbacks included. The first is in `testdata/7_3_1/ws/mpls` (306 KB). `TestWsCorpusRows` corrected two rows' `refused_by` (V008), and the two captures' `cmd.json` were given the corrected `expect` and `desc`, as was `show-json`'s reworded `desc` | this commit |
 | V011 | 2026-11-09 | NC2-T02 | `go vet`; `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/... ./internal/goipparity/ ./tools/nlcapgen/ ./pkg/nlparity/`; mutation under `MemoryMax=6G` | All pass. `TestWsMplsCorpus`: O3 checks 101 requests, O4 84 tables. The 14 rows refused before sending send none; `dev nosuch` stops at ip's lookup. `TestMplsRequestProblem` has 15 rows and `TestMplsTableProblem` 8. Mutants: the TTL width check; the last `as` winning; the hop device; the hop stack; a del's label left behind. All 5 were killed. The last survived until `TestMplsTableProblem` was added | this commit |
 | V012 | 2026-11-09 | NC2-T02 | lint-baseline, netlink-audit, codespell | pass | this commit |
+| V013 | 2026-11-09 | NC3-T01 | `go vet`; `go test -count=1 -race ./tools/nlcapgen/`; mutation under `MemoryMax=6G`; lint-baseline, netlink-audit, codespell | All pass. `TestDiffVerRows` (13 rows) and `TestWriteVerdiff` (2). Mutants: the flags compare; the `.out` compare; the request mark in the types. All 3 were killed. A body-length branch that no input could reach was removed. A run on the NC1 gate boots first showed 120 readback differences, all random MACs and bridge ids; with them blanked it shows 0 | this commit |
+| V014 | 2026-11-09 | NC3-T01 | A replay of 17 families (4,091 rows) on fresh boots of kernel 7.3.1: at 7.2.0, at 7.3.0 (`--ip`), and at 7.2.0 again; `cmd.json` `env.iproute2` checked; `verdiff` of 7.2.0 against 7.3.0, and of 7.2.0 against itself | Every row ran its version (4,091 each). At 7.2.0 and in the repeat, every rc is as written. At 7.3.0, `nh4/ng-004` and `nh6/ng-004` (`dev d0 dst_port 4789`) change from rc 255 to 2. 7.2.0 against 7.3.0: 333 differences. 7.2.0 against itself: 166. All 25 request-byte differences are in both, so they are noise: padding that `ip` leaves uninitialized. | this commit |
+| V015 | 2026-11-09 | NC3-T01 | The version-only differences (in 7.2.0→7.3.0, not 7.2.0→7.2.0), each read | 178 lines. ip's: 14 rcs and 12 type sequences, all `dst_port` (ad2b2d95): 12 `fib_nexthops.sh` `fdb_port` rows, where 7.2.0 refuses the word and 7.3.0 sends `NHA_DST_PORT`, which the kernel judges (4 rc 0, 6 rc 2, 2 changed from 2 to 0), plus `nh4`/`nh6` `ng-004`. 135 nexthop readbacks and 2 `fib` outputs gain `fdb `'s trailing space. Noise that the repeat missed by chance: 3 `linkadd` bridge timers 0.01 s apart, `fdbbr/rn1-012`'s entry order, 11 `ss` socket orders | this commit |
 
 ## Decision log
 
@@ -83,3 +86,8 @@
 - **`linkns` is a space of its own, with named rows.** Adding to `linkattr`'s axes would renumber its committed `ec`/`ng` rows. And a create and a real move don't fit `linkattr`'s O3 model of a set on d0.
 - **MPLS rows set `platform_labels` through `/proc/sys`.** A pre step runs in the row's namespace, so the write is per row and needs no `sysctl` binary.
 - **`ParseNewRoute` is not changed for an IP route's RTA_NEWDST.** `ip route add … as 200` sends one, and the kernel ignores it, so no dump carries it. O3 reads that request raw.
+- **NC3-T01's findings.** Between 7.2.0 and 7.3.0, ip changed only `dst_port` and `fdb `'s trailing space in these 17 families. No request byte changed in any other row.
+  - `lacp_strict` didn't appear, because no replayed row makes a bond.
+  - No rc changed under the strict `ll_addr_a2n`, because no row uses a malformed lladdr.
+  - Both are left to NC3-T02's `v730` rows. Kernel 7.3.1 accepts `NHA_DST_PORT`: `dev d0 dst_port 4789` is refused by the kernel ("Destination port can only be set on fdb nexthops that have a gateway"), not by `ip`.
+- **A repeat run is verdiff's noise baseline.** Readbacks carry timers, socket order and padding that differ run to run, so a 7.2.0 repeat is diffed too, and only what it doesn't show is ip's. One repeat misses some noise by chance (3 timers, 12 orderings), so each remaining line was read.

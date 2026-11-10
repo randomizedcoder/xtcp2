@@ -20,6 +20,8 @@
 //	      lines it can't mine are written to -skipped with the reason
 //	coverage report, per message family, which attributes of the kernel's
 //	      policy table some request in the corpus sent (coverage.go)
+//	verdiff compare two runs of the same rows, made with two iproute2
+//	      versions, row by row (verdiff.go)
 //
 // Output is deterministic: the same input tree gives the same bytes, so a
 // regenerated rows file diffs cleanly against the committed one.
@@ -43,6 +45,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "       nlcapgen matrix -family NAME -seed N -random N -out ROWS")
 		fmt.Fprintln(stderr, "       nlcapgen kselftest -src DIR -out ROWS -skipped FILE")
 		fmt.Fprintln(stderr, "       nlcapgen coverage -linux DIR -ws DIR -out FILE")
+		fmt.Fprintln(stderr, "       nlcapgen verdiff -a DIR -b DIR -out FILE")
 		return 2
 	}
 	switch args[0] {
@@ -54,6 +57,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runKselftest(args[1:], stdout, stderr)
 	case "coverage":
 		return runCoverage(args[1:], stdout, stderr)
+	case "verdiff":
+		return runVerdiff(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "nlcapgen: unknown subcommand %q\n", args[0])
 		return 2
