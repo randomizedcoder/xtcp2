@@ -121,5 +121,5 @@ topic	xtcp	Kafka or NSQ topic
 uplinkCount	2	number of uplink slots to populate for LLDP/NIC enrichment (hosts are typically dual-homed = 2; max 2). Falls back to UPLINK_COUNT env.
 uplinkInterfaces		comma-separated explicit uplink interface names (e.g. "eth0,eth1") overriding default-route auto-detection for -enrichLldp/-enrichNic. Falls back to UPLINK_INTERFACES env.
 v	false	show version
-writeFiles	0	Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker
+writeFiles	0	Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker. Debugging only: needs a binary built with -tags capture
 xtcpProtoFile	/xtcp_flat_record.proto	xtcpProtoFile for registering with the schema registry

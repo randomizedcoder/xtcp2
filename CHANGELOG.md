@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- **The debug writers are build-time opt-ins.** The netlink capture writer (`-writeFiles` / `-capturePath`) is compiled in only with `-tags capture`, which no flavor or image sets; use `nix build .#xtcp2-capture`. The `file:` destination needs `-tags dest_file` and is in the full (development) flavor only, so `xtcp2-<dest>` slim flavors and their images no longer have it. Asking for either on a binary without it exits 64 at startup with the tag to rebuild with; `ConfigService.Set` refuses it with `FailedPrecondition`. A capture build reports `+capture` in its version line, and when armed logs a warning and sets `xtcp2_debug_capture_enabled 1`.
+
 ## 0.2.1 (2026-11)
 
 Fixes for what the first fleet rollout of 0.2.0 found: the link monitor baseline, the uplink columns, and container attribution. No schema, flag-default or `XtcpConfig` change; 0.2.0 clients and consumers work unchanged.

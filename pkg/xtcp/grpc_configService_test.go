@@ -72,7 +72,7 @@ func validSetConfig() *xtcp_config.XtcpConfig {
 		NlmsgSeq:               1,
 		Modulus:                1,
 		MarshalTo:              "protobufList",
-		Dest:                   "kafka:127.0.0.1:9092",
+		Dest:                   "udp:127.0.0.1:13000",
 		DebugLevel:             111,
 		GrpcPort:               8080,
 		CapturePath:            "/tmp",

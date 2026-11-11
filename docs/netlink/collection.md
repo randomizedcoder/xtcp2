@@ -252,7 +252,7 @@ Netlink dump replies can be large, so the receive buffer is tunable. The buffer 
 | `-packetSizeMply` | — | Buffer multiplier; buffer = `packetSize × packetSizeMply`. |
 | `-nlmsgSeq` | — | Starting netlink message sequence number (uint32). |
 | `-modulus` | — | Report every Nth inet_diag message to output (sampling/debug). |
-| `-writeFiles` / `-capturePath` | — | Dump raw netlink packets to files for generating test data. |
+| `-writeFiles` / `-capturePath` | `0` / `./` | Dump raw netlink packets to files for generating test data. Debugging only: compiled in only with `-tags capture` (`nix build .#xtcp2-capture`); other builds refuse `-writeFiles > 0` with exit 64. The files hold every socket's addresses. |
 
 ## See also
 

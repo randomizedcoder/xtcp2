@@ -47,6 +47,8 @@ func (x *XTCP) Init(ctx context.Context) {
 		return
 	}
 
+	x.announceCapture()
+
 	// initChanenls first, so that signaling channels are ready
 	x.initChannels()
 

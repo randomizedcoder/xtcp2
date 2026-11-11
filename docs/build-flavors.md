@@ -6,7 +6,14 @@ xtcp2 binaries are built along three orthogonal axes, so you can produce anythin
 2. **Destination flavor** — which message-destination clients are compiled in: `full` / `min` / `kafka` / `nats` / `nsq` / `valkey` / `s3parquet` (`nix/versions.nix` → `destinationFlavors`).
 3. **Enrichment flavor** — whether the two heavyweight enrichers are compiled in: `none` / `asn` / `locality` / `enrich` (both) (`nix/versions.nix` → `enrichmentFlavors`).
 
-Stdlib destinations (`null`, `stdout`, `stderr`, `file`, `tcp`, `http`, `https`, `udp`, `unix`, `unixgram`) are **always** compiled regardless of flavor. Only the library destinations (`kafka`, `nats`, `nsq`, `valkey`, `s3parquet`) are gated, by `//go:build dest_<scheme>`.
+Stdlib destinations (`null`, `stdout`, `stderr`, `tcp`, `http`, `https`, `udp`, `unix`, `unixgram`) are **always** compiled regardless of flavor. The library destinations (`kafka`, `nats`, `nsq`, `valkey`, `s3parquet`) are gated, by `//go:build dest_<scheme>`.
+
+Two **debug writers** are gated too, because they write to the filesystem wherever configuration points them:
+
+- **`file:` destination** (`//go:build dest_file`): compiled into the full (development) flavor only — `xtcp2`, `xtcp2-full-*` and the fat images. No slim flavor or slim image has it.
+- **Netlink capture writer** (`-writeFiles` / `-capturePath`, `//go:build capture`): writes raw netlink replies, which hold every socket's addresses, to disk. No flavor or image carries it; build `nix build .#xtcp2-capture` (the development build plus `capture`) when you need fixtures. A capture build says so in its version line (`version:…+capture`), and when armed it logs a warning and sets `xtcp2_debug_capture_enabled 1`.
+
+Asking a binary for a debug writer it lacks (`-writeFiles 1`, `-dest file:…`) exits with status 64 before anything starts, naming the tag to rebuild with; `ConfigService.Set` refuses the same config with `FailedPrecondition`. `nix flake check` runs `flavor-tags`, which fails if a slim flavor carries either tag.
 
 Likewise, most metadata enrichers (container, LLDP, NIC, nsid) are **always** compiled and merely toggled at runtime — each is pure Go with no third-party dependency, so carrying them costs nothing. Only **ASN** and **locality** are build-tag gated, by `//go:build enrich_asn` / `//go:build enrich_locality`: `pkg/ipasn` pulls in `parquet-go` and `gaissmai/bart`, and `pkg/localnet` pulls in `bart`. Left unconditional they would land in `xtcp2-min`, whose entire purpose is to be the stdlib-only slim daemon.
 
@@ -241,7 +248,9 @@ The absent ones are published as `0` deliberately: a binary built without the ta
 
 | File | Build tag | Compiled in |
 |---|---|---|
-| `destinations_core.go`, `destinations_null.go`, `destinations_udp.go`, `destinations_unix.go`, `destinations_unixgram.go` | (none) | always |
+| `destinations_core.go`, `destinations_null.go`, `destinations_stderr.go`, `destinations_udp.go`, `destinations_unix.go`, `destinations_unixgram.go` | (none) | always |
+| `destinations_file.go` | `//go:build dest_file` | only with `-tags dest_file` (full flavor) |
+| `netlinker_capture.go` / `netlinker_nocapture.go` | `//go:build capture` / `!capture` | the capture writer, or its no-op stub |
 | `destinations_kafka.go` | `//go:build dest_kafka` | only with `-tags dest_kafka` |
 | `destinations_nats.go` | `//go:build dest_nats` | only with `-tags dest_nats` |
 | `destinations_nsq.go` | `//go:build dest_nsq` | only with `-tags dest_nsq` |

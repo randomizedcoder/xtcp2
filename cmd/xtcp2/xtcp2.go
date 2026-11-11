@@ -450,7 +450,7 @@ func defineFlags() *mainFlags {
 	// packetSize of the buffer the netlinkers syscall.Recvfrom to read into
 	f.packetSize = flag.Uint64("packetSize", packetSizeCst, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
 	f.packetSizeMply = flag.Uint("packetSizeMply", packetSizeMplyCst, "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply")
-	f.writeFiles = flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker")
+	f.writeFiles = flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker. Debugging only: needs a binary built with -tags capture")
 	f.capturePath = flag.String("capturePath", capturePathCst, "Write files path")
 	f.modulus = flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
 	f.marshal = flag.String("marshal", marshalCst, "Marshaling of the exported data (protobufList, protoJson, protoText, msgpack, jsonl, csv, tsv)")
@@ -950,8 +950,17 @@ func startPyroscope(url, appName string, sampleHz, uploadSec uint, debugLevel ui
 // same package, called from tests) so the version-flag path is testable
 // without a subprocess.
 func versionString() string {
-	return fmt.Sprintf("xtcp commit:%s\tdate(UTC):%s\tversion:%s",
-		commit, date, version)
+	return fmt.Sprintf("xtcp commit:%s\tdate(UTC):%s\tversion:%s%s",
+		commit, date, version, buildSuffix())
+}
+
+// buildSuffix marks a binary that carries the netlink capture writer, so a
+// debug build is recognisable from its version line.
+func buildSuffix() string {
+	if xtcp.CaptureCompiledIn {
+		return "+capture"
+	}
+	return ""
 }
 
 // prepareConfig runs the env-override + validation portion of main() up
@@ -1066,6 +1075,15 @@ func runMain(ctx context.Context) int {
 		if debugLevel > 10 {
 			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
 		}
+	}
+
+	// Refuse a config that needs a debug writer this binary was built
+	// without (netlink capture, the file destination), before anything
+	// binds or starts. Checked after the soft-restart carry so that config
+	// is covered too.
+	if err := xtcp.CheckBuildSupport(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
 	}
 
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)

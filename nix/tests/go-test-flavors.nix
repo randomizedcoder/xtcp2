@@ -72,8 +72,18 @@ let
       tags = "dest_s3parquet enrich_asn enrich_locality";
     };
 
+    # Debug writers: the file destination (full flavor only) and the netlink
+    # capture writer (no shipped flavor). Their tagged tests and the
+    # compiled-in branches of the startup/Set refusals only build here.
+    file = {
+      tags = "dest_file";
+    };
+    capture = {
+      tags = "capture";
+    };
+
     all = {
-      tags = "dest_kafka dest_nats dest_nsq dest_valkey dest_s3parquet enrich_asn enrich_locality";
+      tags = "dest_kafka dest_nats dest_nsq dest_valkey dest_s3parquet dest_file capture enrich_asn enrich_locality";
     };
   };
 

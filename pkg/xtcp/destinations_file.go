@@ -1,3 +1,5 @@
+//go:build dest_file
+
 package xtcp
 
 import (
@@ -7,15 +9,11 @@ import (
 	"strings"
 )
 
-// stderr and file destinations: thin factories over the reusable writerDest.
-// Both are stdlib (no build tag). Pair with a line/tabular marshaller
-// (jsonl/csv/tsv/protoJson) — the marshaller frames each flush.
-
-// newStderrDest writes records to the process's stderr. Handy when stdout is
-// reserved for something else, or for `2>records.log`.
-func newStderrDest(_ context.Context, x *XTCP) (Destination, error) {
-	return &writerDest{x: x, w: os.Stderr, label: "destStderr"}, nil
-}
+// file destination: a thin factory over the reusable writerDest. It writes
+// records to a path chosen by configuration, so it is compiled in only with
+// `-tags dest_file` (the full/dev flavor); production flavors omit it. Pair
+// with a line/tabular marshaller (jsonl/csv/tsv/protoJson) — the marshaller
+// frames each flush.
 
 // newFileDest appends records to a file: `-dest file:/var/log/xtcp.jsonl`.
 // The file is created if missing and opened for append; the *os.File is
@@ -33,6 +31,5 @@ func newFileDest(_ context.Context, x *XTCP) (Destination, error) {
 }
 
 func init() {
-	RegisterDestination(schemeStderr, newStderrDest)
 	RegisterDestination(schemeFile, newFileDest)
 }

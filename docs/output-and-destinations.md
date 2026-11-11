@@ -50,8 +50,8 @@ The `protobufList` format is the production wire format: it frames each Envelope
 | `valkey` | `valkey:valkey:6379` | `dest_valkey` | `destinations_valkey.go` |
 | `s3parquet` | `s3parquet:...` | `dest_s3parquet` | `destinations_s3parquet.go` |
 | `stdout` | `stdout` | *(always built)* | `destinations_stdout.go` |
-| `stderr` | `stderr` | *(always built)* | `destinations_file.go` |
-| `file` | `file:/var/log/xtcp.jsonl` | *(always built)* | `destinations_file.go` |
+| `stderr` | `stderr` | *(always built)* | `destinations_stderr.go` |
+| `file` | `file:/var/log/xtcp.jsonl` | `dest_file` (full flavor only) | `destinations_file.go` |
 | `tcp` | `tcp:127.0.0.1:9000` | *(always built)* | `destinations_tcp.go` |
 | `http` / `https` | `http://host:8080/ingest` | *(always built)* | `destinations_http.go` |
 | `udp` | `udp:127.0.0.1:13000` | *(always built)* | `destinations_udp.go` |
@@ -59,7 +59,7 @@ The `protobufList` format is the production wire format: it frames each Envelope
 | `unixgram` | `unixgram:/tmp/xtcp.sock` | *(always built)* | `destinations_unixgram.go` |
 | `null` | `null` | *(always built)* | `destinations_null.go` |
 
-The stdlib destinations (`stdout`, `stderr`, `file`, `tcp`, `http`/`https`, `udp`, `unix`, `unixgram`, `null`) are always compiled in; the library-backed ones (`kafka`, `nats`, `nsq`, `valkey`, `s3parquet`) are only present when their build tag is set. `null` discards output and is handy for benchmarking the collection path in isolation.
+The stdlib destinations (`stdout`, `stderr`, `tcp`, `http`/`https`, `udp`, `unix`, `unixgram`, `null`) are always compiled in; the library-backed ones (`kafka`, `nats`, `nsq`, `valkey`, `s3parquet`) are only present when their build tag is set. `file` is a debug writer: it is in the full (development) flavor only, behind `dest_file`, so production flavors cannot be configured to write records to disk. `null` discards output and is handy for benchmarking the collection path in isolation.
 
 Notes on the stream sinks:
 
@@ -101,6 +101,7 @@ These exercise the analysis-friendly formats and sinks. xtcp2 needs `CAP_NET_ADM
 sudo ./result/bin/xtcp2 -dest stdout -marshal jsonl -d 1 | jq .
 
 # CSV of just the columns you care about, into a file → open in DuckDB/R
+# (file: needs the full flavor, e.g. `nix build .#xtcp2`)
 sudo ./result/bin/xtcp2 -dest file:/tmp/socks.csv -marshal csv -d 1 \
   -columns hostname,inetDiagMsgSocketSource,inetDiagMsgSocketSourcePort,inetDiagMsgState,inetDiagCongEnum,tcpInfoRtt
 duckdb -c "select inetDiagMsgState, count(*) from '/tmp/socks.csv' group by 1"
