@@ -3,6 +3,7 @@ package goip
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -367,6 +368,68 @@ func TestIpstatsProcess(t *testing.T) {
 			if out.String() != tc.expected || errOut.String() != tc.stderr || exit != tc.exit {
 				t.Errorf("stdout %q\nstderr %q\nexit %d (%v)\nwant %q, %q, %d", out.String(), errOut.String(), exit, err,
 					tc.expected, tc.stderr, tc.exit)
+			}
+		})
+	}
+}
+
+// fetchSource is a dump-only Source answering with fixed bodies, so
+// ipstatsFetch takes its replay path.
+type fetchSource struct {
+	bodies [][]byte
+	err    error
+}
+
+func (s *fetchSource) Dump([]byte, uint16) ([][]byte, error) { return s.bodies, s.err }
+
+// TestIpstatsFetch checks ipstatsFetch on a source that cannot talk: the
+// whole dump for no device, and for a device the one reply whose
+// ifindex is its own.
+//
+// go test ./internal/goip/ -run TestIpstatsFetch
+func TestIpstatsFetch(t *testing.T) {
+	body := func(ifindex uint32, tail ...byte) []byte {
+		b := make([]byte, xtcpnl.IfStatsMsgSizeCst, xtcpnl.IfStatsMsgSizeCst+len(tail))
+		binary.NativeEndian.PutUint32(b[4:8], ifindex)
+		return append(b, tail...)
+	}
+	b1, b2 := body(1, 0xaa), body(2, 0xbb)
+	short := body(3)[:xtcpnl.IfStatsMsgSizeCst-1]
+	dumpErr := errors.New("dump refused")
+	tests := []struct {
+		description string
+		src         *fetchSource
+		ifindex     uint32
+		expected    [][]byte
+		wantErr     error
+		wantRC      int
+	}{
+		{description: "positive: no device is the whole dump", src: &fetchSource{bodies: [][]byte{b1, b2}},
+			expected: [][]byte{b1, b2}},
+		{description: "positive: a device is its own reply alone", src: &fetchSource{bodies: [][]byte{b1, b2}},
+			ifindex: 2, expected: [][]byte{b2}},
+		{description: "negative: no reply for the device is ErrStatsShow, exit 1",
+			src: &fetchSource{bodies: [][]byte{b1, b2}}, ifindex: 3, wantErr: ErrStatsShow, wantRC: ExitFailure},
+		{description: "boundary: a reply shorter than the header is skipped, not read",
+			src: &fetchSource{bodies: [][]byte{short}}, ifindex: 3, wantErr: ErrStatsShow, wantRC: ExitFailure},
+		{description: "boundary: an empty dump for no device is no replies", src: &fetchSource{}},
+		{description: "negative: the dump's error passes through", src: &fetchSource{err: dumpErr}, ifindex: 1,
+			wantErr: dumpErr, wantRC: ExitFailure},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := ipstatsFetch(&runCtx{src: tc.src}, nil, tc.ifindex)
+			if !errors.Is(err, tc.wantErr) || (err == nil) != (tc.wantErr == nil) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if err != nil {
+				if rc := exitCodeOf(err); rc != tc.wantRC {
+					t.Errorf("exitCodeOf = %d, want %d", rc, tc.wantRC)
+				}
+				return
+			}
+			if !slices.EqualFunc(got, tc.expected, bytes.Equal) {
+				t.Errorf("got %x, want %x", got, tc.expected)
 			}
 		})
 	}

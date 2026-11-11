@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -107,14 +109,19 @@ func netnsNames() ([]string, error) {
 // kernel refuses, or the reply has no NETNSA_NSID; an unassigned nsid is
 // negative and ok.
 func netnsNsid(svc *service.Service, path string) (nsid int32, ok bool) {
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	fd, err := netnsOpen(path)
 	if err != nil {
 		return 0, false
 	}
-	ni, err := svc.NsidByFD(uint32(fd))
+	// open(2) returns a non-negative int, so the bound never fails.
+	u, uok := cint.U32(fd)
+	var ni model.Nsid
+	if uok {
+		ni, err = svc.NsidByFD(u)
+	}
 	// A failed close is EBADF, a bug in this file; the reply is not trusted
 	// then.
-	if cerr := unix.Close(fd); cerr != nil || err != nil || !ni.HasNSID {
+	if cerr := unix.Close(fd); cerr != nil || !uok || err != nil || !ni.HasNSID {
 		return 0, false
 	}
 	return ni.NSID, true
@@ -302,11 +309,15 @@ func netnsSet(c *runCtx, args []string) error {
 	// do_netns's invalid_name has refused any such name already, short of
 	// `ip -all`, which goip has not.
 	path := filepath.Join(netnsRunDir, args[0])
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	fd, err := netnsOpen(path)
 	if err != nil {
 		return fmt.Errorf("%w: %s: %w", ErrInvalidArgument, path, err)
 	}
-	b, err := xtcpnl.BuildSetNsidRequest(uint32(fd), nsid, c.nextSeq())
+	u, ok := cint.U32(fd)
+	if !ok {
+		return errors.Join(fmt.Errorf("%w: %s: descriptor %d", ErrInvalidArgument, path, fd), unix.Close(fd))
+	}
+	b, err := xtcpnl.BuildSetNsidRequest(u, nsid, c.nextSeq())
 	if cerr := unix.Close(fd); cerr != nil && err == nil {
 		err = cerr
 	}

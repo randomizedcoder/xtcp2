@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Hermetic table test for xtcp2-nlcap-ws's argument handling and row-json
 # (run by checks.nlcap-ws). Every case here must be decided before the CLI
 # needs a VM, so none of them boots one. NLCAP_WS_STATE points at an empty

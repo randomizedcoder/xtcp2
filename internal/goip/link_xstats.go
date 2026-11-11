@@ -330,10 +330,10 @@ func printAfStats(c *runCtx, p *render.Printer, bodies [][]byte, ifindex int32) 
 			if link == nil {
 				continue
 			}
-			p.FP("    mpls:")
+			p.FPf("    mpls:")
 			p.NL()
 			render.IPMplsLinkStats(p, mplsLinkStatsOf(link), "        ")
-			p.FP("\n")
+			p.FPf("\n")
 		}
 	}
 	return nil

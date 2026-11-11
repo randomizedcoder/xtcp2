@@ -84,7 +84,7 @@ const (
 // ssExpParse is a filter or state ss refuses before sending anything.
 // rc is set per value once the workbench has shown it.
 func ssExpParse(rc int) expect {
-	return expect{RC: intp(rc), RefusedBy: "iproute2"}
+	return expect{RC: intp(rc), RefusedBy: refIproute2}
 }
 
 func ssFilter(name, arg, pred string, kv ...string) value {
@@ -273,7 +273,7 @@ func buildSs(vals []value) row {
 		Proto:   "sock_diag",
 		Pre:     []preStep{{Cmd: ssSetup}},
 		Modules: ssModules,
-		Expect:  expect{RC: intp(0), RefusedBy: "none"},
+		Expect:  expect{RC: intp(0), RefusedBy: refNone},
 		Axes:    axes,
 	}
 }

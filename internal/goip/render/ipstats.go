@@ -29,7 +29,7 @@ type RtnlHwStats64 struct {
 // when extended (show_stats > 1); in text linkStatsText's block.
 func IPStats64(p *Printer, s xtcpnl.RtnlLinkStats64, extended bool) {
 	if !p.JSON() {
-		p.FP("%s", linkStatsText(s, extended))
+		p.FPf("%s", linkStatsText(s, extended))
 		return
 	}
 	p.OpenObject("rx")
@@ -132,7 +132,7 @@ func writePadded(b *strings.Builder, width int, s string) {
 // is as wide as "overrun".
 func IPHwStats64(p *Printer, s RtnlHwStats64) {
 	if !p.JSON() {
-		p.FP("%s", fiveColsText("    ", "mcast", len("overrun"),
+		p.FPf("%s", fiveColsText("    ", "mcast", len("overrun"),
 			[5]uint64{s.RxBytes, s.RxPackets, s.RxErrors, s.RxDropped, s.Multicast},
 			[4]uint64{s.TxBytes, s.TxPackets, s.TxErrors, s.TxDropped}))
 		return
@@ -155,7 +155,7 @@ func IPHwStats64(p *Printer, s RtnlHwStats64) {
 // IPMplsLinkStats is print_mpls_link_stats (ip/iplink.c:1529) with indent.
 func IPMplsLinkStats(p *Printer, s xtcpnl.MplsLinkStats, indent string) {
 	if !p.JSON() {
-		p.FP("%s", fiveColsText(indent, "noroute", len("noroute"),
+		p.FPf("%s", fiveColsText(indent, "noroute", len("noroute"),
 			[5]uint64{s.RxBytes, s.RxPackets, s.RxErrors, s.RxDropped, s.RxNoroute},
 			[4]uint64{s.TxBytes, s.TxPackets, s.TxErrors, s.TxDropped}))
 		return
@@ -182,7 +182,7 @@ const ipstatsPad16 = "                "
 // IPBridgeVlan is bridge_print_stats_vlan (ip/iplink_bridge.c:981) and
 // bridge_print_vlan_stats (lib/bridge.c:37).
 func IPBridgeVlan(p *Printer, v xtcpnl.BridgeVlanXstats) {
-	p.FP("%s  ", ipstatsPad16)
+	p.FPf("%s  ", ipstatsPad16)
 	p.OpenObject("")
 	p.U64(PrintAny, "vid", "%d", uint64(v.Vid))
 	if v.Flags != 0 {
@@ -196,10 +196,10 @@ func IPBridgeVlan(p *Printer, v xtcpnl.BridgeVlanXstats) {
 		p.CloseArray()
 	}
 	p.NL()
-	p.FP("%s    ", ipstatsPad16)
+	p.FPf("%s    ", ipstatsPad16)
 	p.U64(PrintAny, "rx_bytes", "RX: %d bytes", v.RxBytes)
 	p.U64(PrintAny, "rx_packets", " %d packets\n", v.RxPackets)
-	p.FP("%s    ", ipstatsPad16)
+	p.FPf("%s    ", ipstatsPad16)
 	p.U64(PrintAny, "tx_bytes", "TX: %d bytes", v.TxBytes)
 	p.U64(PrintAny, "tx_packets", " %d packets\n", v.TxPackets)
 	p.CloseObject()
@@ -220,12 +220,12 @@ func IPBridgeMcast(p *Printer, m xtcpnl.BrMcastStats) {
 	ipMcastVersions(p, "IGMP queries", "igmp_queries", m.IgmpV1queries, m.IgmpV2queries, &m.IgmpV3queries)
 	ipMcastVersions(p, "IGMP reports", "igmp_reports", m.IgmpV1reports, m.IgmpV2reports, &m.IgmpV3reports)
 	ipMcastLeaves(p, "IGMP leaves", "igmp_leaves", m.IgmpLeaves)
-	p.FP("%s    IGMP parse errors: ", ipstatsPad16)
+	p.FPf("%s    IGMP parse errors: ", ipstatsPad16)
 	p.U64(PrintAny, "igmp_parse_errors", "%d\n", m.IgmpParseErrors)
 	ipMcastVersions(p, "MLD queries", "mld_queries", m.MldV1queries, m.MldV2queries, nil)
 	ipMcastVersions(p, "MLD reports", "mld_reports", m.MldV1reports, m.MldV2reports, nil)
 	ipMcastLeaves(p, "MLD leaves", "mld_leaves", m.MldLeaves)
-	p.FP("%s    MLD parse errors: ", ipstatsPad16)
+	p.FPf("%s    MLD parse errors: ", ipstatsPad16)
 	p.U64(PrintAny, "mld_parse_errors", "%d\n", m.MldParseErrors)
 	p.CloseObject()
 }
@@ -234,9 +234,9 @@ func IPBridgeMcast(p *Printer, m xtcpnl.BrMcastStats) {
 // v1, v2 and, for IGMP, v3.
 func ipMcastVersions(p *Printer, title, key string, v1, v2 mcastDir, v3 *mcastDir) {
 	p.OpenObject(key)
-	p.FP("%s    %s:\n", ipstatsPad16, title)
+	p.FPf("%s    %s:\n", ipstatsPad16, title)
 	for dir, d := range []string{"rx", "tx"} {
-		p.FP("%s      ", ipstatsPad16)
+		p.FPf("%s      ", ipstatsPad16)
 		p.U64(PrintAny, d+"_v1", strings.ToUpper(d)+": v1 %d ", v1[dir])
 		if v3 == nil {
 			p.U64(PrintAny, d+"_v2", "v2 %d\n", v2[dir])
@@ -251,7 +251,7 @@ func ipMcastVersions(p *Printer, title, key string, v1, v2 mcastDir, v3 *mcastDi
 // ipMcastLeaves is the leaves object: RX and TX on one line.
 func ipMcastLeaves(p *Printer, title, key string, l mcastDir) {
 	p.OpenObject(key)
-	p.FP("%s    %s: ", ipstatsPad16, title)
+	p.FPf("%s    %s: ", ipstatsPad16, title)
 	p.U64(PrintAny, "rx", "RX: %d ", l[0])
 	p.U64(PrintAny, "tx", "TX: %d\n", l[1])
 	p.CloseObject()
@@ -260,13 +260,13 @@ func ipMcastLeaves(p *Printer, title, key string, l mcastDir) {
 // IPBridgeStp is bridge_print_stats_stp (ip/iplink_bridge.c:954).
 func IPBridgeStp(p *Printer, s xtcpnl.BridgeStpXstats) {
 	p.OpenObject("stp")
-	p.FP("%s    STP BPDU:  ", ipstatsPad16)
+	p.FPf("%s    STP BPDU:  ", ipstatsPad16)
 	p.U64(PrintAny, "rx_bpdu", "RX: %d ", s.RxBpdu)
 	p.U64(PrintAny, "tx_bpdu", "TX: %d\n", s.TxBpdu)
-	p.FP("%s    STP TCN:   ", ipstatsPad16)
+	p.FPf("%s    STP TCN:   ", ipstatsPad16)
 	p.U64(PrintAny, "rx_tcn", "RX: %d ", s.RxTcn)
 	p.U64(PrintAny, "tx_tcn", "TX: %d\n", s.TxTcn)
-	p.FP("%s    STP Transitions: ", ipstatsPad16)
+	p.FPf("%s    STP Transitions: ", ipstatsPad16)
 	p.U64(PrintAny, "transition_blk", "Blocked: %d ", s.TransitionBlk)
 	p.U64(PrintAny, "transition_fwd", "Forwarding: %d\n", s.TransitionFwd)
 	p.CloseObject()
@@ -293,7 +293,7 @@ func IPBond3ad(p *Printer, s *xtcpnl.Bond3adStats) {
 		if !s.Present[i] {
 			continue
 		}
-		p.FP("%s    ", ipstatsPad16)
+		p.FPf("%s    ", ipstatsPad16)
 		p.U64(PrintAny, l.key, l.text, s.Values[i])
 	}
 	p.CloseObject()

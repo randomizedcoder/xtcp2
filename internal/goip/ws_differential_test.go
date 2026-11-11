@@ -193,15 +193,14 @@ func useWsO5Netns(t *testing.T) {
 
 // wsO5ZeroNetnsFd zeroes a link write's IFLA_NET_NS_FD value: the
 // descriptor ip happened to get, which goip's needn't match.
-func wsO5ZeroNetnsFd(msg []byte) ([]byte, bool) {
+func wsO5ZeroNetnsFd(msg []byte) []byte {
 	if len(msg) < xtcpnl.NlMsgHdrSizeCst+unix.SizeofIfInfomsg {
-		return msg, false
+		return msg
 	}
 	if t := binary.LittleEndian.Uint16(msg[4:6]); t != unix.RTM_NEWLINK && t != unix.RTM_SETLINK {
-		return msg, false
+		return msg
 	}
 	out := slices.Clone(msg)
-	zeroed := false
 	for off := xtcpnl.NlMsgHdrSizeCst + unix.SizeofIfInfomsg; off+4 <= len(out); {
 		l := int(binary.LittleEndian.Uint16(out[off:]))
 		if l < 4 || off+l > len(out) {
@@ -209,11 +208,10 @@ func wsO5ZeroNetnsFd(msg []byte) ([]byte, bool) {
 		}
 		if binary.LittleEndian.Uint16(out[off+2:]) == unix.IFLA_NET_NS_FD && l == 8 {
 			binary.LittleEndian.PutUint32(out[off+4:], 0)
-			zeroed = true
 		}
 		off += (l + 3) &^ 3
 	}
-	return out, zeroed
+	return out
 }
 
 // wsO5Applies says whether O5 compares a row's args: a write verb, spelled
@@ -600,7 +598,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 	var writes [][]byte
 	if _, err := os.Stat(out); err == nil {
 		for _, m := range restoreWrites(t, out) {
-			w, _ := wsO5ZeroNetnsFd(wireBytesOf(m))
+			w := wsO5ZeroNetnsFd(wireBytesOf(m))
 			writes = append(writes, w)
 		}
 	}
@@ -615,7 +613,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		pad = pad || z
 		ipWrites[i], z = wsO5ZeroEncapPad(ipWrites[i])
 		encapPad = encapPad || z
-		ipWrites[i], _ = wsO5ZeroNetnsFd(ipWrites[i])
+		ipWrites[i] = wsO5ZeroNetnsFd(ipWrites[i])
 	}
 	lookups = wsO5Lookups("lookup", look, src.gets)
 	if d := wsO5Lookups("dump", dumps, src.dumpReqs); d != "" {

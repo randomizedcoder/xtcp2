@@ -3,6 +3,8 @@ package xtcpnl
 import (
 	"encoding/binary"
 	"errors"
+
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 )
 
 // SEG6_IPTUNNEL_* (include/uapi/linux/seg6_iptunnel.h): an `encap seg6`'s
@@ -281,7 +283,7 @@ func ParseSeg6Encap(val []byte) (Seg6EncapInfo, error) {
 				srhErr = ErrSeg6EncapSRH
 				return
 			}
-			s.Mode = int32(binary.LittleEndian.Uint32(v))
+			s.Mode = cint.Int(binary.LittleEndian.Uint32(v))
 			s.SRH, s.HasSRH = CopyBytes(v[seg6ModeLenCst:]), true
 		case Seg6IptunnelSrc:
 			s.TunSrc = CopyBytes(v)

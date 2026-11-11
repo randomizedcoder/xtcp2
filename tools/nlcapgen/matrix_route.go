@@ -44,16 +44,16 @@ func cv(name, arg string, facts map[string]string) value {
 var (
 	// rejectEINVAL is fib_create_info's "Gateway, device and multipath can
 	// not be specified for this route type".
-	expKernelEINVAL = &expect{RC: intp(2), Errno: "EINVAL", RefusedBy: "kernel"}
+	expKernelEINVAL = &expect{RC: intp(2), Errno: "EINVAL", RefusedBy: refKernel}
 	// a device-less nexthop: fib_check_nh_nongw finds no in_device.
-	expKernelENODEV = &expect{RC: intp(2), Errno: "ENODEV", RefusedBy: "kernel"}
+	expKernelENODEV = &expect{RC: intp(2), Errno: "ENODEV", RefusedBy: refKernel}
 	// a delete that matches no route: fib_table_delete, ip6_route_del.
-	expKernelESRCH = &expect{RC: intp(2), Errno: "ESRCH", RefusedBy: "kernel"}
+	expKernelESRCH = &expect{RC: intp(2), Errno: "ESRCH", RefusedBy: refKernel}
 	// invarg() exits -1 before anything is sent.
-	expIproute2Invarg = expect{RC: intp(255), RefusedBy: "iproute2"}
+	expIproute2Invarg = expect{RC: intp(255), RefusedBy: refIproute2}
 	// invarg() after parse_one_nh has looked dev up (an acknowledged
 	// RTM_GETLINK), as a nexthop's weight comes after its dev.
-	expIproute2InvargAfterDev = expect{RC: intp(255), RefusedBy: "ack-then-fail"}
+	expIproute2InvargAfterDev = expect{RC: intp(255), RefusedBy: refAckThenFail}
 )
 
 var routeVerbs = axis{Name: "verb", Values: []value{
@@ -166,7 +166,7 @@ func route4Space() *space {
 			{Axis: "table", Value: v("name", "table nosuch", nil), Expect: expIproute2Invarg, Why: "a table name rt_tables lacks"},
 			{Axis: "metric", Value: v("2^32", "metric 4294967296", nil), Expect: expIproute2Invarg, Why: "a metric past u32"},
 			{Axis: "proto", Value: v("256", "proto 256", nil), Expect: expIproute2Invarg, Why: "a protocol past u8"},
-			{Axis: "dst", Value: v("33", "198.51.100.0/33", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			{Axis: "dst", Value: v("33", "198.51.100.0/33", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "a prefix length past 32 (get_prefix exits 1)"},
 			{Axis: "dst", Value: v("hostbits", "198.51.100.1/24", f("dst", "198.51.100.1", "dst_len", "24")),
 				Expect: *expKernelEINVAL, Why: "host bits under the prefix length (Invalid prefix for given prefix length)"},
@@ -180,7 +180,7 @@ func route4Space() *space {
 			{Axis: "nh", Value: v("nodev", "dev nosuch", nil), Expect: expect{RC: intp(1)},
 				Why: "a device that does not exist (nodev returns -1)"},
 			{Axis: "type", Value: v("type-to", "unreachable to", f("type", "unreachable")),
-				Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+				Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why:    "to after the type: iproute_modify takes to only before it, as ip-route(8)'s to TYPE PREFIX"},
 		},
 	}
@@ -257,7 +257,7 @@ func route6Space() *space {
 			{Axis: "table", Value: v("2^32", "table 4294967296", nil), Expect: expIproute2Invarg, Why: "a table past u32"},
 			{Axis: "metric", Value: v("2^32", "metric 4294967296", nil), Expect: expIproute2Invarg, Why: "a metric past u32"},
 			{Axis: "pref", Value: v("256", "pref 256", nil), Expect: expIproute2Invarg, Why: "a router preference past u8"},
-			{Axis: "dst", Value: v("129", "2001:db8:2::/129", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			{Axis: "dst", Value: v("129", "2001:db8:2::/129", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "a prefix length past 128 (get_prefix exits 1)"},
 			{Axis: "nh", Value: v("via4", "via inet 192.0.2.1 dev d0", f("via_family", "2", "via", "192.0.2.1", "oif", "d0")),
 				Expect: *expKernelEINVAL, Why: "IPv6 does not support RTA_VIA"},
@@ -278,7 +278,7 @@ func route6Space() *space {
 	// (rt6_duplicate_nexthop in fib6_add_rt2node, net/ipv6/ip6_fib.c).
 	for _, t := range rejectTypes {
 		sp.Excl = append(sp.Excl, exclusion{A: "type=" + t, B: "nh=multipath",
-			Expect: &expect{RC: intp(2), Errno: "EEXIST", RefusedBy: "kernel"},
+			Expect: &expect{RC: intp(2), Errno: "EEXIST", RefusedBy: refKernel},
 			Why:    "a " + t + " route's nexthops all become lo without a gateway, so the second duplicates the first (EEXIST)"})
 	}
 	sp.Build = func(vals []value) row { return buildRoute("6", sp.Axes, vals, nil) }
@@ -356,7 +356,7 @@ func route4AddVerdict(pick map[string]string) (*expect, string) {
 	case "link":
 		switch nh {
 		case "via", "via-dev", "multipath":
-			return &expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: "kernel"},
+			return &expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: refKernel},
 				"a link-scope route's gateway must be local (Nexthop has invalid gateway)"
 		case "onlink":
 			return expKernelEINVAL, "onlink needs a scope below link (Nexthop has invalid scope)"
@@ -415,7 +415,7 @@ func buildRoute(fam string, axes []axis, vals []value, addV verdict) row {
 		Cmd:      head + verb.Arg + " " + tail,
 		Pre:      []preStep{{Cmd: routeSetup}},
 		Readback: []readback{{Name: "dump", Cmd: "ip -" + fam + " route show table all"}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 	r.Axes["family"] = fam
@@ -459,7 +459,7 @@ func deriveDupGone(name string, pos []row, goneErrno string, canDup func(*row) b
 			r.Pre = append(append([]preStep{}, p.Pre...), preStep{Cmd: p.Cmd})
 			r.ID = name + "/dup-" + string(rune('0'+dup))
 			r.Desc = "negative: " + strings.TrimPrefix(dropPrefix(p.Desc), " ") + ": added twice (EEXIST)"
-			r.Expect = expect{RC: intp(2), Errno: "EEXIST", RefusedBy: "kernel"}
+			r.Expect = expect{RC: intp(2), Errno: "EEXIST", RefusedBy: refKernel}
 			out = append(out, r)
 		case p.Axes["verb"] == "del" && gone < each:
 			gone++
@@ -467,7 +467,7 @@ func deriveDupGone(name string, pos []row, goneErrno string, canDup func(*row) b
 			r.Pre = append([]preStep{}, p.Pre[:len(p.Pre)-1]...)
 			r.ID = name + "/gone-" + string(rune('0'+gone))
 			r.Desc = "negative: " + strings.TrimPrefix(dropPrefix(p.Desc), " ") + ": deleted but never added (" + goneErrno + ")"
-			r.Expect = expect{RC: intp(2), Errno: goneErrno, RefusedBy: "kernel"}
+			r.Expect = expect{RC: intp(2), Errno: goneErrno, RefusedBy: refKernel}
 			out = append(out, r)
 		}
 	}

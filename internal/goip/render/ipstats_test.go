@@ -16,14 +16,14 @@ func TestPrinter(t *testing.T) {
 		p.Int(PrintAny, "ifindex", "%d:", 1)
 		p.String(PrintAny, "ifname", " %s:", "lo")
 		p.String(PrintJSON, "group", "", "link")
-		p.FP(" group %s", "link")
+		p.FPf(" group %s", "link")
 		p.NL()
 		p.OpenObject("stats64")
 		p.U64(PrintAny, "bytes", "%d bytes", 18446744073709551615)
 		p.OnOff(PrintAny, "on", " %s", true)
 		p.OpenArray("flags")
 		p.String(PrintAny, "", " %s", "PVID")
-		p.String(PrintAny, "", " %s", `a"b\c`)
+		p.String(PrintAny, "", " %s", "a\"b\\c\x01\x7f")
 		p.CloseArray()
 		p.CloseObject()
 		p.CloseObject()
@@ -37,10 +37,10 @@ func TestPrinter(t *testing.T) {
 		expected    string
 	}{
 		{"positive: text writes the FP and ANY formats", false,
-			"1: lo: group link\n18446744073709551615 bytes on PVID a\"b\\c"},
-		{"positive: json writes the members, comma-separated and escaped", true,
+			"1: lo: group link\n18446744073709551615 bytes on PVID a\"b\\c\x01\x7f"},
+		{"positive: json writes the members, comma-separated and escaped; corner: control bytes and DEL as \\u00XX, as jsonw_puts writes them", true,
 			`[{"ifindex":1,"ifname":"lo","group":"link","stats64":{"bytes":18446744073709551615,"on":true,` +
-				`"flags":["PVID","a\"b\\c"]}},{}]` + "\n"},
+				`"flags":["PVID","a\"b\\c\u0001\u007f"]}},{}]` + "\n"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -48,31 +48,6 @@ func TestPrinter(t *testing.T) {
 			seq(p)
 			if got := string(p.Bytes()); got != tc.expected {
 				t.Errorf("got  %q\nwant %q", got, tc.expected)
-			}
-		})
-	}
-}
-
-// TestJSONQuote is jsonw_puts' escapes.
-//
-// go test ./internal/goip/render/ -run TestJSONQuote
-func TestJSONQuote(t *testing.T) {
-	tests := []struct {
-		description string
-		in          string
-		expected    string
-	}{
-		{"positive: plain", "eth0", `"eth0"`},
-		{"positive: the five control characters", "\t\n\r\f\b", `"\t\n\r\f\b"`},
-		{"positive: quote and backslash", `"\`, `"\"\\"`},
-		{"corner: <, > and & pass, unlike encoding/json", "<&>", `"<&>"`},
-		{"corner: another control byte passes raw", "\x01", "\"\x01\""},
-		{"boundary: empty", "", `""`},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			if got := jsonQuote(tc.in); got != tc.expected {
-				t.Errorf("jsonQuote(%q) = %q, want %q", tc.in, got, tc.expected)
 			}
 		})
 	}

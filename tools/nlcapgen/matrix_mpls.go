@@ -26,8 +26,8 @@ const mplsSetup = "ip link add d0 type dummy && ip link set d0 addrgenmode none 
 // mplsVia4 is the plain next hop the derived rows use.
 const mplsVia4 = "via inet 10.0.0.2 dev d0"
 
-// mplsLabels returns n labels from 100 up, slash-separated, as as takes
-// them.
+// mplsLabels returns n labels from 100 up, slash-separated, as the `as`
+// keyword takes them.
 func mplsLabels(n int) string {
 	ls := make([]string, n)
 	for i := range ls {
@@ -119,15 +119,15 @@ func mplsSpace() *space {
 				Why: "a via with no family, read as an MPLS address (mpls address is expected)"},
 			{Axis: "via", Value: v("twice", "via inet 10.0.0.2 via inet 10.0.0.3 dev d0", nil), Expect: expIproute2Invarg,
 				Why: "two vias (use nexthop syntax to specify multiple via)"},
-			{Axis: "via", Value: v("nosuchdev", "via inet 10.0.0.2 dev nosuch", nil), Expect: expect{RC: intp(1), Errno: "ENODEV", RefusedBy: "kernel"},
+			{Axis: "via", Value: v("nosuchdev", "via inet 10.0.0.2 dev nosuch", nil), Expect: expect{RC: intp(1), Errno: "ENODEV", RefusedBy: refKernel},
 				Why: "a device that doesn't exist: ip's RTM_GETLINK for it is ENODEV (Cannot find device)"},
 			{Axis: "via", Value: v("offlink-nodev", "via inet 192.0.2.2", f("via", "inet:192.0.2.2")),
-				Expect: expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: "kernel"},
+				Expect: expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: refKernel},
 				Why:    "an off-link via with no device, which no route reaches"},
 			{Axis: "via", Value: v("ll-nodev", "via inet6 fe80::2", f("via", "inet6:fe80::2")),
-				Expect: expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: "kernel"},
+				Expect: expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: refKernel},
 				Why:    "a link-local via with no device"},
-			{Axis: "via", Value: v("none", "", nil), Expect: expect{RC: intp(2), Errno: "ENODEV", RefusedBy: "kernel"},
+			{Axis: "via", Value: v("none", "", nil), Expect: expect{RC: intp(2), Errno: "ENODEV", RefusedBy: refKernel},
 				Why: "no next hop at all"},
 			{Axis: "ttl", Value: v("maybe", "ttl-propagate maybe", nil), Expect: expIproute2Invarg,
 				Why: "a ttl-propagate that isn't enabled or disabled"},
@@ -142,7 +142,7 @@ func mplsSpace() *space {
 }
 
 // expIproute2Rc1 is a get_addr or get_prefix refusal, which exits 1.
-var expIproute2Rc1 = expect{RC: intp(1), RefusedBy: "iproute2"}
+var expIproute2Rc1 = expect{RC: intp(1), RefusedBy: refIproute2}
 
 // mplsRow is one MPLS row's shape: the setup with extra steps after it,
 // the two show readbacks, and the modules.
@@ -160,7 +160,7 @@ func mplsRow(cmd string, extra ...string) row {
 			{Name: "showj", Cmd: "ip -j -f mpls route show"},
 		},
 		Modules: mplsModules,
-		Expect:  expect{RC: intp(0), RefusedBy: "none"},
+		Expect:  expect{RC: intp(0), RefusedBy: refNone},
 	}
 }
 
@@ -187,13 +187,13 @@ func deriveMpls([]row) []row {
 		r.ID, r.Desc, r.Expect, r.Axes = "mpls/"+id, desc, exp, axes
 		return r
 	}
-	ok := expect{RC: intp(0), RefusedBy: "none"}
+	ok := expect{RC: intp(0), RefusedBy: refNone}
 	add100 := "ip -f mpls route add 100 " + mplsVia4
 	noPlatform := mplsRow("ip -f mpls route add 100 " + mplsVia4)
 	noPlatform.Pre = []preStep{{Cmd: linkSetup + " && ip link set d0 up && ip addr add 10.0.0.1/24 dev d0"}}
 	return []row{
 		named("dup", "negative: an add of a label that's there (File exists)", mplsRow(add100, add100),
-			expect{RC: intp(2), Errno: "EEXIST", RefusedBy: "kernel"}, f("verb", "add", "dst", "100", "via", "inet:10.0.0.2", "oif", "d0")),
+			expect{RC: intp(2), Errno: "EEXIST", RefusedBy: refKernel}, f("verb", "add", "dst", "100", "via", "inet:10.0.0.2", "oif", "d0")),
 		named("replace-there", "positive: a replace of a label that's there", mplsRow("ip -f mpls route replace 100 as 300 "+mplsVia4, add100),
 			ok, f("verb", "replace", "dst", "100", "as", "300", "via", "inet:10.0.0.2", "oif", "d0")),
 		named("del-absent", "corner: a del of a label that isn't there, which mpls_route_del doesn't check", mplsRow("ip -f mpls route del 100"),
@@ -205,7 +205,7 @@ func deriveMpls([]row) []row {
 		named("get", "positive: a get of a label", mplsRow("ip -f mpls route get 100", add100), ok, f("verb", "get", "dst", "100")),
 		named("get-as", "positive: a get with as", mplsRow("ip -f mpls route get 100 as 200", add100), ok, f("verb", "get", "dst", "100", "as", "200")),
 		named("get-absent", "negative: a get of a label that isn't there (Network is unreachable)", mplsRow("ip -f mpls route get 101", add100),
-			expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: "kernel"}, f("verb", "get", "dst", "101")),
+			expect{RC: intp(2), Errno: "ENETUNREACH", RefusedBy: refKernel}, f("verb", "get", "dst", "101")),
 		named("show", "positive: a show of a stack, a mixed multipath and a ttl-propagate", mplsRow("ip -f mpls route show",
 			"ip -f mpls route add 100 as 200/300 "+mplsVia4,
 			"ip -f mpls route add 101 nexthop as 200 "+mplsVia4+" nexthop via inet6 2001:db8::2 dev d0",
@@ -216,7 +216,7 @@ func deriveMpls([]row) []row {
 			"ip -f mpls route add 102 dev d0 ttl-propagate disabled"), ok, nil),
 		named("ttl-after-hops", "negative: ttl-propagate after the nexthops, refused once the hops' devices are looked up (\"nexthop\" or end of line is expected)",
 			mplsRow("ip -f mpls route add 100 nexthop as 300 "+mplsVia4+" nexthop as 400 via inet 10.0.0.3 dev d0 ttl-propagate enabled"),
-			expect{RC: intp(255), RefusedBy: "ack-then-fail"}, nil),
+			expect{RC: intp(255), RefusedBy: refAckThenFail}, nil),
 		named("inet-as", "corner: as on an IPv4 route, sent as the IPv4 address 200.0.0.0, which the kernel ignores",
 			mplsRow("ip route add 10.1.0.0/24 as 200 via 10.0.0.2"), ok, f("verb", "add", "newdst", "c8000000")),
 		named("inet6-as", "negative: as on an IPv6 route (inet6 address is expected)",

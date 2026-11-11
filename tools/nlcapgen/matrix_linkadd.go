@@ -74,16 +74,16 @@ func linkAddSpace() *space {
 			// past IFNAMSIZ - 1. The name keyword's check_ifname would
 			// refuse it in ip (W3c's linkset).
 			{Axis: "name", Value: v("long", "abcdefghijklmnop", f("name", "abcdefghijklmnop")),
-				Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: "kernel"}, Why: "a bare name of IFNAMSIZ characters"},
+				Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: refKernel}, Why: "a bare name of IFNAMSIZ characters"},
 			{Axis: "kind", Value: v("vlan-4095", "link d0 type vlan id 4095", f("kind", "vlan", "link", "d0", "vlan_id", "4095")),
-				Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: "kernel"}, Why: "VLAN id 4095, past VLAN_VID_MASK - 1 (Invalid VLAN id)"},
+				Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: refKernel}, Why: "VLAN id 4095, past VLAN_VID_MASK - 1 (Invalid VLAN id)"},
 			// vlan_parse_opt runs after iplink_parse has looked d0 up.
 			{Axis: "kind", Value: v("vlan-65536", "link d0 type vlan id 65536", nil), Expect: expIproute2InvargAfterDev,
 				Why: "a VLAN id past u16 (id is invalid)"},
 			{Axis: "kind", Value: v("vlan-nolink", "type vlan id 10", f("kind", "vlan", "vlan_id", "10")), Expect: *expKernelEINVAL,
 				Why: "a vlan with no lower device"},
 			{Axis: "kind", Value: v("nosuch", "type nosuch", f("kind", "nosuch")),
-				Expect: expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: "kernel"},
+				Expect: expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: refKernel},
 				Why:    "a kind no module provides (Unknown device type; EOPNOTSUPP, which Linux numbers as ENOTSUP)"},
 			{Axis: "mtu", Value: v("word", "mtu big", nil), Expect: expIproute2Invarg, Why: "an mtu that isn't a number"},
 		},
@@ -120,7 +120,7 @@ func deriveLinkAddDup(pos []row) []row {
 		r.Pre = append(append([]preStep{}, p.Pre...), preStep{Cmd: p.Cmd})
 		r.ID = "linkadd/dup-" + string(rune('1'+len(out)))
 		r.Desc = "negative: " + dropPrefix(p.Desc)[1:] + ": added twice (EEXIST)"
-		r.Expect = expect{RC: intp(2), Errno: "EEXIST", RefusedBy: "kernel"}
+		r.Expect = expect{RC: intp(2), Errno: "EEXIST", RefusedBy: refKernel}
 		out = append(out, r)
 	}
 	return out
@@ -138,7 +138,7 @@ func buildLinkAdd(vals []value) row {
 		Cmd:      "ip link add " + joinArgs(args...),
 		Pre:      []preStep{{Cmd: linkAddSetup}},
 		Readback: []readback{{Name: "dump", Cmd: "ip -d link show dev n0"}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 }

@@ -44,7 +44,7 @@ func TestAddrJudge(t *testing.T) {
 			exp, why := tc.judge(tc.pick)
 			got := ""
 			if exp != nil {
-				got = strings.TrimSpace(exp.RefusedBy + " " + exp.Errno)
+				got = strings.TrimSpace(string(exp.RefusedBy) + " " + exp.Errno)
 				if why == "" {
 					t.Error("a refusal with no reason")
 				}

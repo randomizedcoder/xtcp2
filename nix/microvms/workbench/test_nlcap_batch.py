@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from typing import ClassVar
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nlcap_batch  # noqa: E402
@@ -82,8 +83,7 @@ class Env:
         with open(self.rows, "w") as f:
             if raw is not None:
                 f.write(raw)
-            for r in rows:
-                f.write(json.dumps(r) + "\n")
+            f.writelines(json.dumps(r) + "\n" for r in rows)
         self.nlcap = self.stub("nlcap", STUB_NLCAP)
         self.ip = self.stub("ip", STUB_IP)
 
@@ -101,7 +101,7 @@ class Env:
         p = subprocess.run([sys.executable, "-I", nlcap_batch.__file__,
                             *args], capture_output=True, text=True,
                            env=dict(os.environ, NLCAP_OUT=self.out),
-                           timeout=60)
+                           timeout=60, check=False)
         return p.returncode, p.stdout + p.stderr
 
     def calls(self):
@@ -118,7 +118,7 @@ class Env:
 class TestRowsFile(unittest.TestCase):
     """Rows-file checks: each must exit 2 with NLCAP_ERR naming the fault."""
 
-    CASES = [
+    CASES: ClassVar[list[tuple]] = [
         ("negative: no cmd", [row(cmd="")], None, "no cmd"),
         ("negative: an id escaping the out dir", [row(id="../x")], None,
          "bad id"),
@@ -158,7 +158,7 @@ class TestRowsFile(unittest.TestCase):
 class TestRun(unittest.TestCase):
     """Rows that run: the calls made, the status and cmd.json."""
 
-    CASES = [
+    CASES: ClassVar[list[tuple]] = [
         # (description, rows, want exit, want call kinds, want status)
         ("positive: a full row", [FULL], 0,
          ["ns-add", "ip", "ip", "write", "capio", "ns-del"], "OK"),
@@ -230,7 +230,7 @@ class TestRun(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(e.out, "t/b")))
 
     def test_serial_runs_alone(self):
-        rows = [row(id="t/p%d" % i, cmd="SLEEP %d" % i) for i in range(3)]
+        rows = [row(id=f"t/p{i}", cmd=f"SLEEP {i}") for i in range(3)]
         rows.insert(2, row(id="t/s", cmd="SLEEP s", serial=True))
         e = Env(self, rows)
         rc, out = e.run("-j", "4")
@@ -263,7 +263,7 @@ class TestIpBin(unittest.TestCase):
         with open(os.path.join(e.tmp.name, "nlcap-env.log")) as f:
             return set(f.read().splitlines())
 
-    CASES = [
+    CASES: ClassVar[list[tuple]] = [
         # (description, use --ip-bin, pre step, want pre's ip, want
         # iproute2). The build sandbox has no ip on PATH, so only the
         # --ip-bin row's pre step calls one.
@@ -302,7 +302,7 @@ class TestIpBin(unittest.TestCase):
 
 
 class TestSegments(unittest.TestCase):
-    CASES = [
+    CASES: ClassVar[list[tuple]] = [
         ("positive: serial splits the run", "ppSp", ["pp", "S", "p"]),
         ("boundary: all parallel", "ppp", ["ppp"]),
         ("boundary: all serial", "SS", ["S", "S"]),

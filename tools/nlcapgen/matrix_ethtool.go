@@ -45,12 +45,12 @@ const ethENOTSUP = "ENOTSUP"
 // rc is the exit status the command gives a refusal (nl_sring 81, nl_spause
 // 76, nl_sfec 83, nl_schannels and nl_scoalesce 1).
 func ethKernel(rc int, errno, extack string) expect {
-	return expect{RC: intp(rc), Errno: errno, Extack: extack, RefusedBy: "kernel"}
+	return expect{RC: intp(rc), Errno: errno, Extack: extack, RefusedBy: refKernel}
 }
 
 // ethParse is an argument ethtool's nl_parser refuses (exit 1), after the
 // family lookup was acked.
-var ethParse = expect{RC: intp(1), RefusedBy: "ack-then-fail"}
+var ethParse = expect{RC: intp(1), RefusedBy: refAckThenFail}
 
 // ethNum is an axis of a numeric argument: absent, then each value, the
 // fact named for the argument. Values in bound are boundaries.
@@ -103,7 +103,7 @@ func ethBuild(word, show, set, get string) func(vals []value) row {
 			Pre:      []preStep{{Cmd: ethSetup}},
 			Modules:  ethModules,
 			Readback: []readback{{Name: "show", Cmd: "ethtool " + show + " eth0", Proto: "generic"}},
-			Expect:   expect{RC: intp(0), RefusedBy: "none"},
+			Expect:   expect{RC: intp(0), RefusedBy: refNone},
 			Axes:     axes,
 		}
 	}
@@ -423,7 +423,7 @@ func ethShowSpace() *space {
 			}},
 		},
 		Bad: []badValue{
-			{Axis: "dev", Value: v("nosuch", "nosuch0", nil), Expect: expect{RC: intp(1), Errno: "ENODEV", RefusedBy: "kernel"},
+			{Axis: "dev", Value: v("nosuch", "nosuch0", nil), Expect: expect{RC: intp(1), Errno: "ENODEV", RefusedBy: refKernel},
 				Why: "a device that does not exist"},
 		},
 	}
@@ -441,7 +441,7 @@ func ethShowSpace() *space {
 			Proto:   "generic",
 			Pre:     []preStep{{Cmd: ethSetup}},
 			Modules: ethModules,
-			Expect:  expect{RC: intp(0), RefusedBy: "none"},
+			Expect:  expect{RC: intp(0), RefusedBy: refNone},
 			Axes:    axes,
 		}
 	}
@@ -480,7 +480,7 @@ func ethShowJSON(sp *space, pos []row) []row {
 // operations, so each of those gets EOPNOTSUPP from its prepare_data.
 func ethShowJudge(p map[string]string) (*expect, string) {
 	if p["opt"] == "json" && p["cmd"] == "tsinfo" {
-		return &expect{RC: intp(1), RefusedBy: "iproute2"}, "-T, which prints no JSON"
+		return &expect{RC: intp(1), RefusedBy: refIproute2}, "-T, which prints no JSON"
 	}
 	if p["dev"] != "lo" {
 		return nil, ""
@@ -489,7 +489,7 @@ func ethShowJudge(p map[string]string) (*expect, string) {
 	case "tsinfo", "features":
 		return nil, ""
 	}
-	return &expect{RC: intp(1), Errno: ethENOTSUP, RefusedBy: "kernel"}, "lo lacks the " + p["cmd"] + " operation"
+	return &expect{RC: intp(1), Errno: ethENOTSUP, RefusedBy: refKernel}, "lo lacks the " + p["cmd"] + " operation"
 }
 
 // ethHasCmd says whether a row of rows runs cmd.

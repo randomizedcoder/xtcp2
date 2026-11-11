@@ -888,25 +888,26 @@ func BuildStatsRequest(ifindex uint32, f StatsFilter, seq uint32) ([]byte, error
 	}
 	var raw [reqAttrBufCst]byte
 	ab := NewAttrBuilder(raw[:])
-	var nest *NestMark
+	var nest NestMark
+	open := false
 	for _, sub := range subs {
 		if sub.mask == 0 || sub.mask == sub.full {
 			continue
 		}
-		if nest == nil {
+		if !open {
 			m, err := ab.BeginNest(unix.IFLA_STATS_GET_FILTERS | unix.NLA_F_NESTED)
 			if err != nil {
 				return nil, err
 			}
-			nest = &m
+			nest, open = m, true
 		}
 		if err := ab.PutU32(sub.group, sub.mask); err != nil {
 			return nil, err
 		}
 	}
 	var attrs []byte
-	if nest != nil {
-		if err := ab.EndNest(*nest); err != nil {
+	if open {
+		if err := ab.EndNest(nest); err != nil {
 			return nil, err
 		}
 		attrs = ab.Bytes()

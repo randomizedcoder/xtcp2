@@ -121,7 +121,7 @@ func TestLinkPDJudge(t *testing.T) {
 			exp, why := linkPDJudge(map[string]string{"protodown": tc.protodown, "reason": tc.reason})
 			got := ""
 			if exp != nil {
-				got = strings.TrimSpace(exp.RefusedBy + " " + exp.Errno)
+				got = strings.TrimSpace(string(exp.RefusedBy) + " " + exp.Errno)
 				if why == "" {
 					t.Error("a refusal with no reason")
 				}

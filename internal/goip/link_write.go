@@ -750,7 +750,12 @@ func (st *linkParseState) netns(v string) error {
 		return linkUsage(invargErr("Invalid \"netns\" value\n", v))
 	}
 	st.fds.add(fd)
-	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_NET_NS_FD, cint.Bits(int32(fd))))
+	// open(2) returns a non-negative int, so the bound never fails.
+	u, ok := cint.U32(fd)
+	if !ok {
+		return linkUsage(invargErr("Invalid \"netns\" value\n", v))
+	}
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_NET_NS_FD, u))
 	st.moveNetns = true
 	return nil
 }

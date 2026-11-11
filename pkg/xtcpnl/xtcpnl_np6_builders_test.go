@@ -173,3 +173,43 @@ func BenchmarkBuildDumpMulticastRequest(b *testing.B) {
 		}
 	}
 }
+
+// TestBuildRequestAllocs pins the builders to the one allocation their
+// returned request is: the filter nest is built on the stack.
+//
+// go test ./pkg/xtcpnl/ -run TestBuildRequestAllocs
+func TestBuildRequestAllocs(t *testing.T) {
+	tests := []struct {
+		description string
+		build       func()
+		expected    float64
+	}{
+		{"positive: a filter nest is one allocation", func() {
+			if _, err := BuildStatsRequest(0, StatsFilter{Mask: 1 << 3, Offload: 0x6}, 1); err != nil {
+				t.Fatal(err)
+			}
+		}, 1},
+		{"boundary: no nest, a full sub-mask, is one allocation", func() {
+			if _, err := BuildStatsRequest(2, StatsFilter{Mask: 1 << 3, Offload: statsOffloadFullCst}, 1); err != nil {
+				t.Fatal(err)
+			}
+		}, 1},
+		{"corner: every sub-mask partial, three members, is one allocation", func() {
+			if _, err := BuildStatsRequest(0, StatsFilter{Mask: 0x1e, Xstats: 0x2, XstatsSlave: 0x2, Offload: 0x2}, 1); err != nil {
+				t.Fatal(err)
+			}
+		}, 1},
+		{"positive: a multicast dump is one allocation", func() {
+			if BuildDumpMulticastRequest(unix.AF_INET6, 3, 1) == nil {
+				t.Fatal("nil request")
+			}
+		}, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := testing.AllocsPerRun(100, tc.build); got != tc.expected {
+				t.Errorf("allocs = %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}

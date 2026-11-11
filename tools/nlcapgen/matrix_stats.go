@@ -78,7 +78,7 @@ func statsRow(id, desc, cmd, setup string, exp expect, axes map[string]string, r
 }
 
 func statsFamily() []row {
-	ok := expect{RC: intp(0), RefusedBy: "none"}
+	ok := expect{RC: intp(0), RefusedBy: refNone}
 	errs := []struct {
 		id, args string
 		exp      expect
@@ -86,17 +86,17 @@ func statsFamily() []row {
 	}{
 		{"help", "stats help", ok, "the usage, rc 0"},
 		{"show-help", "stats show help", ok, "the usage, rc 0"},
-		{"group-bare", "stats show group", expect{RC: intp(255), RefusedBy: "iproute2"}, "group with no name (Command line is not complete)"},
-		{"orphan-subgroup", "stats show subgroup l3_stats", expect{RC: intp(22), RefusedBy: "iproute2"},
+		{"group-bare", "stats show group", expect{RC: intp(255), RefusedBy: refIproute2}, "group with no name (Command line is not complete)"},
+		{"orphan-subgroup", "stats show subgroup l3_stats", expect{RC: intp(22), RefusedBy: refIproute2},
 			"a subgroup with no group (requested without selecting a group first)"},
-		{"leaf-subgroup", "stats show group link subgroup x", expect{RC: intp(22), RefusedBy: "iproute2"},
+		{"leaf-subgroup", "stats show group link subgroup x", expect{RC: intp(22), RefusedBy: refIproute2},
 			"a subgroup inside a leaf group (requested inside leaf group link)"},
-		{"suite-no-subgroup", "stats show group xstats suite bond", expect{RC: intp(22), RefusedBy: "iproute2"},
+		{"suite-no-subgroup", "stats show group xstats suite bond", expect{RC: intp(22), RefusedBy: refIproute2},
 			"a suite with no subgroup (requested without selecting a subgroup first)"},
-		{"nosuch-group", "stats show group nosuch", expect{RC: intp(22), RefusedBy: "iproute2"}, "an unknown group (no group named nosuch)"},
-		{"dev-twice", "stats show dev d0 dev d0", expect{RC: intp(255), RefusedBy: "iproute2"}, "dev twice (either \"dev\" is duplicate)"},
-		{"nosuch-word", "stats show nosuch", expect{RC: intp(22), RefusedBy: "iproute2"}, `an unknown word (What is "nosuch"?)`},
-		{"nosuch-dev", "stats show dev nosuch", expect{RC: intp(1), Errno: "ENODEV", RefusedBy: "kernel"}, "a device that isn't there"},
+		{"nosuch-group", "stats show group nosuch", expect{RC: intp(22), RefusedBy: refIproute2}, "an unknown group (no group named nosuch)"},
+		{"dev-twice", "stats show dev d0 dev d0", expect{RC: intp(255), RefusedBy: refIproute2}, "dev twice (either \"dev\" is duplicate)"},
+		{"nosuch-word", "stats show nosuch", expect{RC: intp(22), RefusedBy: refIproute2}, `an unknown word (What is "nosuch"?)`},
+		{"nosuch-dev", "stats show dev nosuch", expect{RC: intp(1), Errno: "ENODEV", RefusedBy: refKernel}, "a device that isn't there"},
 	}
 	const sets = 3
 	rows := make([]row, 0, len(statsForms)*(len(statsTopologies)+len(statsShows))+sets+len(errs))
@@ -126,7 +126,7 @@ func statsFamily() []row {
 		statsRow("set-off", "positive: stats set l3_stats off after on", "ip stats set dev d0 l3_stats off",
 			statsDummy+" && ip stats set dev d0 l3_stats on", ok, f("l3_stats", "0"), setRB),
 		statsRow("set-x", "negative: stats set l3_stats neither on nor off", "ip stats set dev d0 l3_stats x", statsDummy,
-			expect{RC: intp(22), RefusedBy: "iproute2"}, nil, setRB),
+			expect{RC: intp(22), RefusedBy: refIproute2}, nil, setRB),
 	)
 	for _, e := range errs {
 		kind := "negative: "

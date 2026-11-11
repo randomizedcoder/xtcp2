@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -35,7 +36,12 @@ func ovpnData(errOut io.Writer, rest []string) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			modes = append(modes, uint8(m))
+			// m indexes ovpnModeNames, so the bound never fails.
+			mode, ok := cint.U8From64(m)
+			if !ok {
+				return nil, fmt.Errorf("%w: ovpn: mode %d", ErrInvalidArgument, m)
+			}
+			modes = append(modes, mode)
 		case bondHelpKeywordCst:
 			return nil, tunnelUsageErr("Usage: ... ovpn [ mode { p2p | mp } ]")
 		default:

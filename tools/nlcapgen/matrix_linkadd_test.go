@@ -24,7 +24,7 @@ func TestLinkAddJudge(t *testing.T) {
 			exp, why := linkAddJudge(map[string]string{"kind": tc.kind, "mtu": tc.mtu})
 			got := ""
 			if exp != nil {
-				got = strings.TrimSpace(exp.RefusedBy + " " + exp.Errno)
+				got = strings.TrimSpace(string(exp.RefusedBy) + " " + exp.Errno)
 				if why == "" {
 					t.Error("a refusal with no reason")
 				}
@@ -79,7 +79,7 @@ func TestDeriveLinkAddDup(t *testing.T) {
 		{"positive: three rows at most", string(rune('0' + len(out))), "3"},
 		{"negative: a refused row is not repeated", out[0].Cmd, "ip link add b"},
 		{"positive: its setup adds the link first", lastPre(out[0]), "ip link add b"},
-		{"positive: it expects EEXIST", out[0].Expect.Errno + " " + out[0].Expect.RefusedBy, "EEXIST kernel"},
+		{"positive: it expects EEXIST", out[0].Expect.Errno + " " + string(out[0].Expect.RefusedBy), "EEXIST kernel"},
 		{"positive: ids count from 1", out[0].ID + " " + out[2].ID, "linkadd/dup-1 linkadd/dup-3"},
 		{"positive: a negative desc", out[0].Desc, "negative: x: added twice (EEXIST)"},
 		{"corner: the source row keeps its setup", lastPre(pos[1]), linkAddSetup},

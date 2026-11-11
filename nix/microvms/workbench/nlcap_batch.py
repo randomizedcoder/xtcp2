@@ -95,16 +95,16 @@ def check_readback(where, rbs):
             raise RowError(where + ": readback needs name and cmd")
         name = rb.get("name", "")
         if not isinstance(name, str) or not NAME_RE.match(name):
-            raise RowError(where + ": bad readback name %r" % (name,))
+            raise RowError(where + f": bad readback name {name!r}")
         if name == "ip" or name in seen:
-            raise RowError(where + ": readback name %r reused" % name)
+            raise RowError(where + f": readback name {name!r} reused")
         if rb.get("proto", "route") not in PROTOS:
-            raise RowError(where + ": readback proto %r" % rb.get("proto"))
+            raise RowError(where + f": readback proto {rb.get('proto')!r}")
         seen.add(name)
 
 
 def check_row(lineno, row):
-    where = "line %d" % lineno
+    where = f"line {lineno}"
     if not isinstance(row, dict):
         raise RowError(where + ": not an object")
     unknown = sorted(set(row) - KNOWN)
@@ -112,8 +112,8 @@ def check_row(lineno, row):
         raise RowError(where + ": unknown field " + ", ".join(unknown))
     rid = row.get("id")
     if not isinstance(rid, str) or not ID_RE.match(rid):
-        raise RowError(where + ": bad id %r" % (rid,))
-    where = "%s (%s)" % (where, rid)
+        raise RowError(where + f": bad id {rid!r}")
+    where = f"{where} ({rid})"
     desc = row.get("desc")
     if not isinstance(desc, str) or not desc.startswith(PREFIXES):
         raise RowError(where + ": desc must start with one of "
@@ -122,7 +122,7 @@ def check_row(lineno, row):
     if not isinstance(cmd, str) or not cmd.strip():
         raise RowError(where + ": no cmd")
     if row.get("proto", "route") not in PROTOS:
-        raise RowError(where + ": proto %r" % row.get("proto"))
+        raise RowError(where + f": proto {row.get('proto')!r}")
     floor = row.get("floor", 0)
     if not isinstance(floor, int) or isinstance(floor, bool) or floor < 0:
         raise RowError(where + ": floor must be an int >= 0")
@@ -148,11 +148,11 @@ def load_rows(path, only):
             try:
                 row = json.loads(line)
             except ValueError as e:
-                raise RowError("line %d: %s" % (lineno, e))
+                raise RowError(f"line {lineno}: {e}")
             pre = check_row(lineno, row)
             if row["id"] in seen:
-                raise RowError("line %d: id %s repeats line %d"
-                               % (lineno, row["id"], seen[row["id"]]))
+                raise RowError(f"line {lineno}: id {row['id']} repeats line "
+                               f"{seen[row['id']]}")
             seen[row["id"]] = lineno
             rows.append((row, pre))
     if not rows:
@@ -195,11 +195,11 @@ class Runner:
             e["NLCAP_IP_BIN"] = self.ip_bin
             e["PATH"] = self.ip_bin + os.pathsep + e.get("PATH", "")
         p = subprocess.run(args, cwd=cwd, env=e, capture_output=True,
-                           text=True)
+                           text=True, check=False)
         return p.returncode, p.stdout + p.stderr
 
     def run_row(self, slot, row, pre):
-        ns = "ws%d" % slot
+        ns = f"ws{slot}"
         rid = row["id"]
         rdir = os.path.join(self.outdir, rid)
         os.makedirs(rdir, exist_ok=True)
@@ -242,7 +242,7 @@ class Runner:
             result["status"] = "RC_MISMATCH"
         for rb in row.get("readback", []):
             rbp = rb.get("proto", "route")
-            name = "netlink_%s_%s" % (rbp, rb["name"])
+            name = f"netlink_{rbp}_{rb['name']}"
             rc, out = self.call([self.nlcap, "capio", "--proto", rbp, ns,
                                  rid, name, "0", rb["cmd"],
                                  rb["name"] + ".out"])
@@ -270,7 +270,7 @@ class Runner:
 def guest_env(ip):
     def out(args):
         try:
-            p = subprocess.run(args, capture_output=True, text=True)
+            p = subprocess.run(args, capture_output=True, text=True, check=False)
         except OSError:
             return ""
         return p.stdout.strip()
@@ -282,10 +282,11 @@ def load_modules(rows, log):
     mods = sorted({m for r, _ in rows for m in r.get("modules", [])})
     bad = []
     for m in mods:
-        p = subprocess.run(["modprobe", m], capture_output=True, text=True)
+        p = subprocess.run(["modprobe", m], capture_output=True, text=True,
+                           check=False)
         if p.returncode != 0:
             bad.append(m)
-            print("NLCAP_MODULE_FAIL %s %s" % (m, p.stderr.strip()),
+            print(f"NLCAP_MODULE_FAIL {m} {p.stderr.strip()}",
                   file=log)
     return mods, bad
 
@@ -309,8 +310,8 @@ def run_all(runner, rows, jobs):
                     slots.append(pending.pop(fut))
                     rid, res = fut.result()
                     results[rid] = res
-                    print("NLCAP_ROW %s %s rc=%s" % (
-                        res["status"], rid, res.get("rc", "-")), flush=True)
+                    print(f"NLCAP_ROW {res['status']} {rid} rc={res.get('rc', '-')}",
+                          flush=True)
     return results
 
 
@@ -341,7 +342,7 @@ def main(argv=None):
         fail(str(e))
     os.makedirs(a.outdir, exist_ok=True)
     if not a.no_modules:
-        mods, bad = load_modules(rows, sys.stderr)
+        _mods, bad = load_modules(rows, sys.stderr)
         if bad:
             fail("modules failed to load: " + ", ".join(bad))
     runner = Runner(a.nlcap, a.ip, os.path.abspath(a.outdir),
@@ -354,8 +355,8 @@ def main(argv=None):
                                 **results[row["id"]]}, sort_keys=True))
             f.write("\n")
     bad = [r for r in results.values() if r["status"] != "OK"]
-    print("NLCAP_BATCH_DONE rows=%d ok=%d not_ok=%d"
-          % (len(results), len(results) - len(bad), len(bad)), flush=True)
+    print(f"NLCAP_BATCH_DONE rows={len(results)} "
+          f"ok={len(results) - len(bad)} not_ok={len(bad)}", flush=True)
     return 1 if bad else 0
 
 

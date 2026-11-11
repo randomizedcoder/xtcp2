@@ -109,7 +109,7 @@ const ipstatsOffloadCst = "offload"
 // The tree, as ipstats.c declares it. The subs are in declaration order,
 // which `help` lists and the selection walks; rank is print order.
 var (
-	ipstatsLink = &ipstatsDesc{name: "link", rank: 1,
+	ipstatsLink = &ipstatsDesc{name: objLinkCst, rank: 1,
 		pack: func(f *ipstatsFilters) { f.enable(unix.IFLA_STATS_LINK_64, 0) },
 		show: func(a *ipstatsAttrs, p *render.Printer, ext bool) error {
 			p.NL()
@@ -446,7 +446,7 @@ func ipstatsFetch(c *runCtx, r []byte, ifindex uint32) ([][]byte, error) {
 			return [][]byte{b}, nil
 		}
 	}
-	return nil, fmt.Errorf("goip: no RTM_NEWSTATS for ifindex %d", ifindex)
+	return nil, fmt.Errorf("%w: no RTM_NEWSTATS for ifindex %d", ErrStatsShow, ifindex)
 }
 
 // ipstatsAttrs is struct ipstats_stat_show_attrs: the reply's top-level
@@ -536,8 +536,8 @@ func ipstatsProcess(c *runCtx, p *render.Printer, body []byte, enabled []ipstats
 				break
 			}
 			p.String(render.PrintJSON, ipstatsLevels[i], "", name)
-			p.FP(" %s ", ipstatsLevels[i])
-			p.FP("%s", name)
+			p.FPf(" %s ", ipstatsLevels[i])
+			p.FPf("%s", name)
 		}
 		if err := e.desc.show(a, p, extended); err != nil {
 			return err

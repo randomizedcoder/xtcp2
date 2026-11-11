@@ -26,13 +26,13 @@ type v730Row struct {
 }
 
 var (
-	v730OK       = expect{RC: intp(0), RefusedBy: "none"}
-	v730IPRc1    = expect{RC: intp(1), RefusedBy: "iproute2"}
-	v730IPInvarg = expect{RC: intp(255), RefusedBy: "iproute2"}
+	v730OK       = expect{RC: intp(0), RefusedBy: refNone}
+	v730IPRc1    = expect{RC: intp(1), RefusedBy: refIproute2}
+	v730IPInvarg = expect{RC: intp(255), RefusedBy: refIproute2}
 	// v730AckRc1 and v730AckInvarg are a refusal after ip looked the
 	// device up, an acknowledged request.
-	v730AckRc1    = expect{RC: intp(1), RefusedBy: "ack-then-fail"}
-	v730AckInvarg = expect{RC: intp(255), RefusedBy: "ack-then-fail"}
+	v730AckRc1    = expect{RC: intp(1), RefusedBy: refAckThenFail}
+	v730AckInvarg = expect{RC: intp(255), RefusedBy: refAckThenFail}
 )
 
 // v730LinkSetup is a dummy, up, with addresses in both families.
@@ -71,7 +71,7 @@ func v730Rows() []v730Row {
 			pre: []string{v730LinkSetup}, readback: bondRB, modules: bond, at720: v730IPRc1, at730: v730IPRc1},
 		{id: "bond/active-backup", desc: "lacp_strict outside 802.3ad (option not supported in mode)",
 			cmd: "ip link add b0 type bond mode active-backup lacp_strict on", pre: []string{v730LinkSetup}, readback: bondRB, modules: bond,
-			at720: v730IPRc1, at730: expect{RC: intp(2), Errno: "EACCES", RefusedBy: "kernel"}, axes: f("kind", "bond", "lacp_strict", "1")},
+			at720: v730IPRc1, at730: expect{RC: intp(2), Errno: "EACCES", RefusedBy: refKernel}, axes: f("kind", "bond", "lacp_strict", "1")},
 
 		// nexthop dst_port: 7.2.0 refuses the word (invarg).
 		{id: "nh/fdb", desc: "an fdb nexthop with no port, whose show 7.3.0 ends in a space", cmd: "ip nexthop add id 1 via 192.0.2.2 fdb",
@@ -81,7 +81,7 @@ func v730Rows() []v730Row {
 		{id: "nh/65535", desc: "the largest dst_port", cmd: "ip nexthop add id 1 via 192.0.2.2 fdb dst_port 65535",
 			pre: []string{v730RouteSetup}, readback: nhRB, at720: v730IPInvarg, at730: v730OK, axes: f("fdb", "1", "dst_port", "65535")},
 		{id: "nh/0", desc: "dst_port 0, under the policy's minimum (integer out of range)", cmd: "ip nexthop add id 1 via 192.0.2.2 fdb dst_port 0",
-			pre: []string{v730RouteSetup}, readback: nhRB, at720: v730IPInvarg, at730: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: "kernel"},
+			pre: []string{v730RouteSetup}, readback: nhRB, at720: v730IPInvarg, at730: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: refKernel},
 			axes: f("fdb", "1", "dst_port", "0")},
 		{id: "nh/65536", desc: "a dst_port past 16 bits", cmd: "ip nexthop add id 1 via 192.0.2.2 fdb dst_port 65536",
 			pre: []string{v730RouteSetup}, readback: nhRB, at720: v730IPInvarg, at730: v730IPInvarg},
@@ -129,7 +129,7 @@ func v730Rows() []v730Row {
 		{id: "maddr/dev", desc: "maddress show dev d0", cmd: "ip maddress show dev d0", pre: []string{v730MaddrSetup}, at720: v730OK, at730: v730OK, axes: f("maddr", "all")},
 		{id: "maddr/nosuch", desc: "maddress show of a device that isn't there, rc 0 at both: 7.3.0 drops its lookup's ENODEV",
 			cmd: "ip maddress show dev nosuch", pre: []string{v730MaddrSetup},
-			at720: v730OK, at730: expect{RC: intp(0), Errno: "ENODEV", RefusedBy: "kernel-ignored"}, axes: f("maddr", "all")},
+			at720: v730OK, at730: expect{RC: intp(0), Errno: "ENODEV", RefusedBy: refKernelIgnored}, axes: f("maddr", "all")},
 		{id: "maddr/json", desc: "maddress show as JSON", cmd: "ip -j maddress show", pre: []string{v730MaddrSetup}, at720: v730OK, at730: v730OK, axes: f("maddr", "all")},
 
 		// ll_addr_a2n: 7.3.0 rejects trailing garbage and names the whole

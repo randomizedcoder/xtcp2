@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+
+	"github.com/randomizedcoder/xtcp2/internal/jsonw"
 )
 
 // PrintKind is json_print.c's enum output_type: which of the two outputs a
@@ -11,10 +13,11 @@ import (
 type PrintKind int
 
 const (
-	// PrintFP writes the text alone, PrintJSON the JSON member alone, and
-	// PrintAny whichever the printer is producing.
+	// PrintFP is PRINT_FP: the text alone.
 	PrintFP PrintKind = iota
+	// PrintJSON is PRINT_JSON: the JSON member alone.
 	PrintJSON
+	// PrintAny is PRINT_ANY: whichever the printer is producing.
 	PrintAny
 )
 
@@ -94,8 +97,8 @@ func (p *Printer) CloseArray() {
 	}
 }
 
-// FP is print_string(PRINT_FP, NULL, format, …): text only.
-func (p *Printer) FP(format string, a ...any) {
+// FPf is print_string(PRINT_FP, NULL, format, …): text only.
+func (p *Printer) FPf(format string, a ...any) {
 	if !p.json {
 		fmt.Fprintf(&p.b, format, a...)
 	}
@@ -113,7 +116,7 @@ func (p *Printer) Int(kind PrintKind, key, format string, v int64) {
 
 // String is print_string, a JSON string; an array element when key is "".
 func (p *Printer) String(kind PrintKind, key, format, v string) {
-	p.value(kind, key, format, jsonQuote(v), v)
+	p.value(kind, key, format, string(jsonw.Append(nil, v)), v)
 }
 
 // OnOff is print_on_off: a JSON boolean, "on" or "off" in text.
@@ -145,7 +148,7 @@ func (p *Printer) name(key string) {
 		p.first[n-1] = false
 	}
 	if key != "" {
-		p.b.WriteString(jsonQuote(key))
+		p.b.Write(jsonw.Append(p.b.AvailableBuffer(), key))
 		p.b.WriteByte(':')
 	}
 }
@@ -160,33 +163,4 @@ func (p *Printer) close(c byte) {
 		p.first = p.first[:len(p.first)-1]
 	}
 	p.b.WriteByte(c)
-}
-
-// jsonQuote is jsonw_puts: the quote, the backslash and five control
-// characters escaped, every other byte as it is.
-func jsonQuote(s string) string {
-	var b bytes.Buffer
-	b.WriteByte('"')
-	for i := 0; i < len(s); i++ {
-		switch c := s[i]; c {
-		case '\t':
-			b.WriteString(`\t`)
-		case '\n':
-			b.WriteString(`\n`)
-		case '\r':
-			b.WriteString(`\r`)
-		case '\f':
-			b.WriteString(`\f`)
-		case '\b':
-			b.WriteString(`\b`)
-		case '\\':
-			b.WriteString(`\\`)
-		case '"':
-			b.WriteString(`\"`)
-		default:
-			b.WriteByte(c)
-		}
-	}
-	b.WriteByte('"')
-	return b.String()
 }

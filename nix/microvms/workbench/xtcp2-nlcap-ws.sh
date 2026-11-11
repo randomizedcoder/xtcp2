@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # xtcp2-nlcap-ws: the host side of the nl_mon capture workbench.
 #
 # docs/netlink/coverage-status.md, "Workbench and generated rows". Boots the

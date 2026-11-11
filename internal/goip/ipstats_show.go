@@ -27,7 +27,7 @@ func ipstatsShowHwSInfo(a *ipstatsAttrs, p *render.Printer, _ bool) error {
 	}
 	p.OpenObject("info")
 	if h.present {
-		p.FP("    %s", "l3_stats")
+		p.FPf("    %s", "l3_stats")
 		p.OpenObject("l3_stats")
 		h.printOne(p)
 		p.CloseObject()

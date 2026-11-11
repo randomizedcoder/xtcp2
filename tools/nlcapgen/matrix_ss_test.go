@@ -71,7 +71,7 @@ func TestSsFamilyExcl(t *testing.T) {
 		if i > 0 && excl[i-1].A+excl[i-1].B >= e.A+e.B {
 			t.Errorf("exclusion %d out of order: %s %s", i, e.A, e.B)
 		}
-		if e.Expect == nil || *e.Expect.RC != 1 || e.Expect.RefusedBy != "iproute2" {
+		if e.Expect == nil || *e.Expect.RC != 1 || e.Expect.RefusedBy != refIproute2 {
 			t.Errorf("exclusion %d: expect %+v", i, e.Expect)
 		}
 	}
@@ -117,7 +117,7 @@ func TestMatrixSsRows(t *testing.T) {
 		}},
 		{"positive: every refusal is ss's own, exit 1 or 255", func(r *row) bool {
 			rc := *r.Expect.RC
-			return rc == 0 || ((rc == 1 || rc == 255) && r.Expect.RefusedBy == "iproute2")
+			return rc == 0 || ((rc == 1 || rc == 255) && r.Expect.RefusedBy == refIproute2)
 		}},
 		{"positive: every accepted row carries the facts the oracle reads", func(r *row) bool {
 			return *r.Expect.RC != 0 || (r.Axes["proto"] != "" && r.Axes["families"] != "" && r.Axes["states"] != "" && r.Axes["ext"] != "")

@@ -63,12 +63,28 @@ type readback struct {
 // expect is what the run must show; see wsExpect in
 // pkg/xtcpnl/xtcpnl_ws_corpus_test.go for the meaning of each field.
 type expect struct {
-	RC        *int   `json:"rc,omitempty"`
-	Errno     string `json:"errno,omitempty"`
-	Extack    string `json:"extack,omitempty"`
-	RefusedBy string `json:"refused_by,omitempty"`
-	Match     *match `json:"match,omitempty"`
+	RC        *int    `json:"rc,omitempty"`
+	Errno     string  `json:"errno,omitempty"`
+	Extack    string  `json:"extack,omitempty"`
+	RefusedBy refuser `json:"refused_by,omitempty"`
+	Match     *match  `json:"match,omitempty"`
 }
+
+// refuser is who refuses a row, as wsExpect's refused_by reads it.
+type refuser string
+
+const (
+	// refNone is a row nothing refuses.
+	refNone refuser = "none"
+	// refIproute2 is a refusal ip makes before it sends.
+	refIproute2 refuser = "iproute2"
+	// refKernel is one the kernel answers with an errno.
+	refKernel refuser = "kernel"
+	// refKernelIgnored is a request the kernel acks without acting on.
+	refKernelIgnored refuser = "kernel-ignored"
+	// refAckThenFail is a kernel ack followed by ip's own failure.
+	refAckThenFail refuser = "ack-then-fail"
+)
 
 // match counts a regexp's matches in a readback's stdout, the way tdc's
 // matchPattern and matchCount do.
