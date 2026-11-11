@@ -52,15 +52,15 @@ F2, F3 and F4 are independent of each other and can run in parallel once F1 has 
 
 No code. Each item ends as a recorded decision in the focused doc's [open questions](focused-container-hardening.md#open-questions) or as an artifact a later gate reads.
 
-- [ ] **F0.1 — Scrape topology** (OQ1, blocks FP-3's default and FP-16): can the fleet's scrape agent read a UDS? Record: `uds` (mount the socket into the agent) or `tcp` (explicit `metrics` listener with a token). Test on one host with a hand-made socket before answering.
-- [ ] **F0.2 — Production flavor** (OQ2, blocks FP-15): is the production image `xtcp2:s3parquet-<enrich>`? If any non-Parquet destination is in production use, list it; it stays in the flavor matrix and FP-15 documents it.
-- [ ] **F0.3 — Host sockets** (OQ3, blocks FP-15): does reporting need the host's own sockets? Decides `network_mode: host` in the reference spec.
-- [ ] **F0.4 — S3 credential scope** (OQ4, blocks FP-16): can every bucket issue a `PutObject`-only key, and can `S3_SKIP_BUCKET_PROBE` be set fleet-wide? Try one upload with such a key against each S3 implementation in use.
+- [x] **F0.1 — Scrape topology** (OQ1, blocks FP-3's default and FP-16): **decided `uds`** (2026-11-11). The socket is mounted into the scrape agent; the explicit `tcp` `metrics` listener with a token is the fallback. Still to do before FP-16: prove it on one host with a hand-made socket.
+- [x] **F0.2 — Production flavor** (OQ2, blocks FP-15): **decided Parquet-only** (2026-11-11). The production image is `xtcp2:s3parquet-<enrich>`; the fat image is development only.
+- [x] **F0.3 — Host sockets** (OQ3, blocks FP-15): **decided all sockets** (2026-11-11). The collector reports the default namespace and every container, so `network_mode: host` stays in the reference spec.
+- [x] **F0.4 — S3 credential scope** (OQ4, blocks FP-16): **decided `PutObject`-only** (2026-11-11), the recommended configuration, with `S3_SKIP_BUCKET_PROBE` set. Still to do before FP-16: one upload with such a key against each S3 implementation in use (`s3_putonly_key`).
 - [ ] **F0.5 — Golden records**: capture one poll's Parquet output on a representative host with the current image and capability set. FP-9's zero-`NET_ADMIN` proof and FP-12's enrichment-parity check diff against it. Store it as a CI fixture, scrubbed of addresses.
 - [ ] **F0.6 — Resource baseline**: collector CPU, RSS, poll p99, S3 object rate on the same host over 24 h. F2's caps and F4's broker are judged against it.
 - [ ] **F0.7 — Client inventory**: every consumer of `:8889` and `:9088` today (scrape agents, `xtcp2ctl`/`xtcp2client` users, dashboards, health probes). Each needs a row in FP-16's migration table.
 
-**Exit:** OQ1–OQ4 answered in the focused doc; fixtures committed; client inventory attached to FP-16.
+**Exit:** OQ1–OQ4 answered in the focused doc (done 2026-11-11); fixtures committed; client inventory attached to FP-16.
 
 ## Phase F1 — Safe defaults
 
@@ -262,7 +262,7 @@ The largest PR of the phase; land it in three commits that each pass CI.
 
 ### FP-15 — reference container spec and images (B1–B6, D2)
 
-- [ ] `deploy/reference/docker-compose.yml` (new): collector — `cap_drop: [ALL]`, `cap_add: [SYS_ADMIN]`, `read_only`, `tmpfs: /tmp`, `no-new-privileges`, default seccomp, AppArmor profile, `network_mode: host` (per F0.3), no `pid:`/`ipc:` host, volumes `/run/netns:ro`, `/run/docker/netns:ro`, state dir `rw`, `/run/xtcp2` shared socket dir, secrets as `_FILE` mounts, memory and CPU limits. Broker — `network_mode: none`, `cap_drop: [ALL]`, non-root uid with the `docker` gid, `read_only`, `pids_limit: 64`, 64 MiB, `docker.sock` mount.
+- [ ] `deploy/reference/docker-compose.yml` (new): collector — `cap_drop: [ALL]`, `cap_add: [SYS_ADMIN]`, `read_only`, `tmpfs: /tmp`, `no-new-privileges`, default seccomp, AppArmor profile, `network_mode: host` (F0.3: all sockets, host namespace included), no `pid:`/`ipc:` host, volumes `/run/netns:ro`, `/run/docker/netns:ro`, state dir `rw`, `/run/xtcp2` shared socket dir, secrets as `_FILE` mounts, memory and CPU limits. Broker — `network_mode: none`, `cap_drop: [ALL]`, non-root uid with the `docker` gid, `read_only`, `pids_limit: 64`, 64 MiB, `docker.sock` mount.
 - [ ] `nix/containers/default.nix`: images stop exposing 8889; a `xtcp2-dockerbroker` entrypoint variant; slim flavor documented as the production image, the fat image as development.
 - [ ] A container-oriented NixOS option set (`virtualisation.oci-containers` wrapper) with the same defaults, beside the bare-metal module.
 - [ ] `build/containers/redpanda/docker-compose.yml`: header comment "development only; privileged; do not copy", `XTCP_INSECURE_ALLOW_UNCONFINED` set explicitly so it keeps running after FP-13.
@@ -286,7 +286,7 @@ Deployment repo. Two passes, one per release.
 
 Ordered; each step is safe on its own and is canaried before the fleet converge.
 
-- [ ] 1. **Scrape path first** (F0.1): either mount `/run/xtcp2` into the scrape agent and point it at the socket, or add the explicit `tcp` `metrics` listener with a token to the role. Verify scrapes on the *old* image where possible (token ignored) so the image bump is not the first time the path is exercised.
+- [ ] 1. **Scrape path first** (F0.1, decided `uds`): mount `/run/xtcp2` into the scrape agent and point it at the socket. Where an agent cannot read a UDS, add the explicit `tcp` `metrics` listener with a token to the role instead. Verify scrapes on the *old* image where possible (token ignored) so the image bump is not the first time the path is exercised.
 - [ ] 2. **Secrets as files**: S3 keys and the listener token delivered as mounted files; `_FILE` env set; flags removed.
 - [ ] 3. **S3 credential scope** (F0.4): rotate to the `PutObject`-only key; `S3_SKIP_BUCKET_PROBE=1`; `https://` endpoint.
 - [ ] 4. **Clients** (F0.7): each inventoried consumer of `:8889` moved to the UDS + token form or retired. A consumer that needs gRPC gets an explicit `grpc-read` UDS listener; nothing gets `grpc-admin` without a named owner.

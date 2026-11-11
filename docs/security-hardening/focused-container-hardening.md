@@ -151,7 +151,7 @@ Nothing else is served. `-promListen`, `-grpcListenAddress`, `-linkMonitorIPList
 
 **Remote scraping.** A Prometheus server cannot scrape a UDS. A deployment that scrapes remotely adds an explicit `tcp` listener serving `metrics` (and `health`) only, with `raw` auth; Prometheus sends the token via `authorization.credentials_file`. Or a local agent bridges the socket. Either way it is an explicit choice, which is the point.
 
-**Migration.** The default flip changes the scrape topology of any fleet that scrapes `:9088` over TCP today (typically a scrape agent reaching container subnets through a firewall rule). The rollout therefore has an ordered step before the release: (1) check whether the fleet's scrape agent can read a UDS; (2) if yes, mount the socket into the agent and drop the firewall rule; if no, add the explicit `tcp` `metrics` listener with a token to the role **before** bumping the image, so the upgrade never produces a host with no scrape. Open question 1 is this decision.
+**Migration.** The default flip changes the scrape topology of any fleet that scrapes `:9088` over TCP today (typically a scrape agent reaching container subnets through a firewall rule). The rollout therefore has an ordered step before the release: (1) check whether the fleet's scrape agent can read a UDS; (2) if yes, mount the socket into the agent and drop the firewall rule; if no, add the explicit `tcp` `metrics` listener with a token to the role **before** bumping the image, so the upgrade never produces a host with no scrape. Open question 1 settled this: the UDS path is available, so (2) is the reference and the `tcp` listener is the fallback.
 
 **Shared code.** `cmd/go-link-monitor` serves the same HTTP classes from its own listener; it takes the same `listeners` package so both binaries behave identically.
 
@@ -287,9 +287,11 @@ Table-driven; every table carries positive (P), negative (N), boundary (B) and c
 
 ## Open questions
 
-1. Is `:9088` scraped from a remote host, or by a local agent? With the listener model the default is a UDS; a remote scrape is an explicit `tcp` listener serving `metrics` with bearer auth. The answer decides what the reference deployment ships.
-2. Can the production flavor be Parquet-only (`xtcp2:s3parquet`)? That removes every network destination library from the binary.
-3. Does the fleet need the host's own sockets, or only container namespaces? If only containers, `network_mode: host` can go too.
-4. Does the bucket side allow a PutObject-only key and skipping the bucket probe for every deployment?
+All four were answered on 2026-11-11.
+
+1. *Is `:9088` scraped from a remote host, or by a local agent?* **Answered: scraping over a UDS is an option.** The reference deployment ships the default UDS `metrics` listener with the socket mounted into the scrape agent. The explicit `tcp` listener with bearer auth stays available but is not the reference.
+2. *Can the production flavor be Parquet-only (`xtcp2:s3parquet`)?* **Answered: yes.** The production image is the Parquet-only flavor; every other network destination library is out of that binary (D2).
+3. *Does the fleet need the host's own sockets, or only container namespaces?* **Answered: all of them.** xtcp2 exists to report every TCP socket on the machine, in the default namespace and in every container. `network_mode: host` stays in the reference spec (B2), and the host network namespace remains in the collector's reach in the residual risk.
+4. *Does the bucket side allow a PutObject-only key and skipping the bucket probe?* **Answered: yes.** A `PutObject`-only key with `S3_SKIP_BUCKET_PROBE` is the recommended configuration and what the reference deployment documents.
 
 Decided (2026-11-10): every listener UDS + bearer auth by default, with endpoint classes mapped to listeners so auth is per endpoint (A1); the Docker broker is in scope because container enrichment is a production feature (B4); the netlink capture writer stays as a compile-time opt-in with warnings (A5).
