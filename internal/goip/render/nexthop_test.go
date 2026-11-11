@@ -38,6 +38,12 @@ var nhViewTabNames = fakeNames{
 // two refusals goip keeps are an unknown group type and any group on the route
 // nh_info path (NexthopInfoText).
 //
+// nhMplsEncap is kwnh/ec-001's `encap mpls 101`, decoded.
+func nhMplsEncap() *xtcpnl.RouteEncap {
+	return &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_MPLS, HasType: true, Raw: []byte{0},
+		MPLS: &xtcpnl.MPLSEncap{Labels: []xtcpnl.MPLSLabel{{Label: 101, BoS: true}}}}
+}
+
 // go test ./internal/goip/render/ -run TestNexthopText
 func TestNexthopText(t *testing.T) {
 	tests := []struct {
@@ -233,6 +239,22 @@ func TestNexthopText(t *testing.T) {
 				ID: 6, Gateway: v4(192, 0, 2, 21), Fdb: true,
 			},
 			want: "id 6 via 192.0.2.21 onlink fdb",
+		},
+		{
+			description: "positive: kwnh/ec-001 — encap mpls 101 after the id, before via",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK,
+				ID: 51, OIF: 3, Gateway: v4(192, 0, 2, 10), Encap: nhMplsEncap(),
+			},
+			want: "id 51  encap mpls  101 via 192.0.2.10 dev goip0 scope link ",
+		},
+		{
+			description: "corner: an undecoded encap type prints no encap",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK, ID: 61, OIF: 3, Gateway: v4(192, 0, 2, 10),
+				Encap: &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_IP, HasType: true, Raw: []byte{0}},
+			},
+			want: "id 61 via 192.0.2.10 dev goip0 scope link ",
 		},
 		{
 			description: "negative: an unknown group type (neither mpath nor resilient) is refused",
@@ -447,6 +469,14 @@ func TestNexthopViewJSON(t *testing.T) {
 				ResGroup: xtcpnl.ResGroup{Buckets: 1, IdleTimer: 999999999, UnbalancedTime: 150},
 			},
 			wantExact: `{"id":23,"group":[{"id":1}],"type":"resilient","resilient_args":{"buckets":1,"idle_timer":1e+07,"unbalanced_timer":0,"unbalanced_time":1.5},"flags":[]}`,
+		},
+		{
+			description: "positive: kwnh/ec-001 — the encap object before gateway",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK,
+				ID: 51, OIF: 3, Gateway: v4(192, 0, 2, 10), Encap: nhMplsEncap(),
+			},
+			wantExact: `{"id":51,"encap":{"encap_type":"mpls","dst":"101"},"gateway":"192.0.2.10","dev":"goip0","scope":"link","flags":[]}`,
 		},
 		{
 			description: "negative: an unknown group type (neither mpath nor resilient) is declined",

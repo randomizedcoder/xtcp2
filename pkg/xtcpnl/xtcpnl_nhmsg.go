@@ -3,6 +3,8 @@ package xtcpnl
 import (
 	"encoding/binary"
 	"errors"
+
+	"golang.org/x/sys/unix"
 )
 
 // This file decodes RTM_NEWNEXTHOP, the reply to the RTM_GETNEXTHOP single-get
@@ -136,6 +138,9 @@ type NexthopInfo struct {
 	HasResGroup bool          // NHA_RES_GROUP present (resilient)
 	ResGroup    ResGroup      // decoded NHA_RES_GROUP, valid when HasResGroup
 	RespOpFlags uint32        // NHA_OP_FLAGS from the reply (weight gate)
+	// Encap is NHA_ENCAP_TYPE and NHA_ENCAP, decoded as a route's
+	// RTA_ENCAP_TYPE and RTA_ENCAP are; nil when neither is present.
+	Encap *RouteEncap
 }
 
 // DeserializeNhmsg does an offset read of the fixed nhmsg header.
@@ -203,6 +208,10 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			if len(val) >= 4 {
 				nh.RespOpFlags = binary.LittleEndian.Uint32(val[0:4])
 			}
+		case NhaEncapType:
+			setEncapAttr(&nh.Encap, uint16(unix.RTA_ENCAP_TYPE), val)
+		case NhaEncap:
+			setEncapAttr(&nh.Encap, uint16(unix.RTA_ENCAP), val)
 		}
 	})
 	if err = errors.Join(err, perr); err != nil {
@@ -212,6 +221,9 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 		return nh, err
 	}
 	if err := decodeResGroup(&nh, resGroupRaw); err != nil {
+		return nh, err
+	}
+	if err := nh.Encap.decode(); err != nil {
 		return nh, err
 	}
 	return nh, nil

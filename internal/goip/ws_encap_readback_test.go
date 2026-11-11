@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// NX6a (goip-parity-next.md): route show's RTA_ENCAP, held to every
-// readback of the lwt and seg6 spaces.
+// NX6a and NX6b (goip-parity-next.md): route show's RTA_ENCAP and nexthop
+// show's NHA_ENCAP, held to every readback of the lwt and seg6 spaces.
 
 // wsEncapDecoded are the encap types render.EncapViewOf prints.
 var wsEncapDecoded = []string{"mpls", "seg6"}
@@ -51,6 +51,9 @@ func TestWsEncapReadbacks(t *testing.T) {
 		{description: "corner: lwtx requests, every route refused, so no encap", space: "lwtxreq", readbacks: 6},
 		{description: "positive: lwtx hops, seg6 per hop", space: "lwtxhop", readbacks: 4, decoded: 4},
 		{description: "corner: MPLS-family routes under -f mpls, which carry no RTA_ENCAP", space: "mpls", readbacks: 230},
+		{description: "positive: nexthop objects, mpls", space: "kwnh", readbacks: 8, decoded: 7},
+		{description: "negative: nexthop objects, ip and ip6, not decoded", space: "lwtnh", readbacks: 6, gap: 6},
+		{description: "positive: nexthop objects, seg6 among seg6local", space: "lwtxnh", readbacks: 4, decoded: 2, gap: 2},
 		{description: "negative: seg6local routes, not decoded", space: "seg6local", readbacks: 21, gap: 15},
 		{description: "negative: ila routes, not decoded", space: "ila", readbacks: 10, gap: 6},
 		{description: "negative: xfrm routes, not decoded", space: "xfrm", readbacks: 9, gap: 6},
@@ -76,9 +79,6 @@ func TestWsEncapReadbacks(t *testing.T) {
 					t.Fatal(err)
 				}
 				for _, r := range row.Readback {
-					if !strings.Contains(r.Cmd, " route ") {
-						continue // nexthop show prints NHA_ENCAP, not yet rendered
-					}
 					out, err := os.ReadFile(filepath.Join(dir, r.Name+".out"))
 					if err != nil {
 						t.Fatal(err)

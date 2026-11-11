@@ -55,6 +55,10 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 			writeResGroup(&b, nh.ResGroup)
 		}
 	}
+	// lwt_print_encap (ip/ipnexthop.c:570), after the group, before via.
+	if e := EncapViewOf(nh.Encap); e != nil {
+		b.WriteString(e.Text())
+	}
 	if len(nh.Gateway) > 0 {
 		fmt.Fprintf(&b, "via %s ", addrString(nh.Gateway, nh.Family))
 	}
@@ -147,6 +151,7 @@ type NexthopView struct {
 	Group     []nhGroupMember // nil when not a group
 	Resilient bool            // emits "type":"resilient"
 	ResArgs   *nhResArgs      // non-nil for a resilient group with NHA_RES_GROUP
+	Encap     *EncapView      // nil when absent or undecoded (EncapViewOf)
 	Gateway   string          // "" when absent
 	Dev       string          // "" when absent
 	Scope     string          // "" when suppressed (universe and not -d)
@@ -202,6 +207,7 @@ func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopVi
 			}
 		}
 	}
+	v.Encap = EncapViewOf(nh.Encap)
 	if len(nh.Gateway) > 0 {
 		v.Gateway = addrString(nh.Gateway, nh.Family)
 	}
@@ -277,6 +283,15 @@ func (v NexthopView) MarshalJSON() ([]byte, error) {
 			return nil, err
 		}
 		b.Write(r)
+	}
+	if v.Encap != nil {
+		sep()
+		b.WriteString(`"encap":`)
+		e, err := v.Encap.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+		b.Write(e)
 	}
 	if v.Gateway != "" {
 		if err := str("gateway", v.Gateway); err != nil {

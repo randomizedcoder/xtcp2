@@ -602,7 +602,7 @@ ip sends RTA_METRICS without `NLA_F_NESTED`, and `rta_addattr_l` leaves RTAX_CC_
 
 ### NX6a `route show` prints RTA_ENCAP, mpls and seg6
 
-`lwt_print_encap` for the two types xtcpnl decodes, through `render.Printer` in ip's call order: after `as to` on the route, and first in each multipath hop. The SRH is read by `xtcpnl.ParseSRH`, print_srh's walk with the lengths checked. Every other type still prints no encap, rather than its type with the payload missing. `nexthop show`'s NHA_ENCAP needs the nexthop decoder to keep it, and is NX6b.
+`lwt_print_encap` for the two types xtcpnl decodes, through `render.Printer` in ip's call order: after `as to` on the route, and first in each multipath hop. The SRH is read by `xtcpnl.ParseSRH`, print_srh's walk with the lengths checked. Every other type still prints no encap, rather than its type with the payload missing. `nexthop show`'s NHA_ENCAP is NX6b.
 
 | description | input | expected |
 |---|---|---|
@@ -613,6 +613,19 @@ ip sends RTA_METRICS without `NLA_F_NESTED`, and `rta_addattr_l` leaves RTAX_CC_
 | negative: an undecoded type | `encap ip …` | no encap tokens; its readbacks are counted as differing |
 | corner: seg6 without its SRH | | ` encap seg6 ` alone |
 | corner: an SRH too short for its first_segment | | `ErrSRH`, no segments printed |
+
+### NX6b `nexthop show` prints NHA_ENCAP, mpls and seg6
+
+`xtcpnl.ParseNewNexthop` keeps NHA_ENCAP_TYPE and NHA_ENCAP as a `RouteEncap`, decoded as a route's are, and `nexthop show` prints NX6a's `EncapView` where `print_nh` calls `lwt_print_encap`: after the group, before `via`, text and JSON.
+
+| description | input | expected |
+|---|---|---|
+| positive: mpls 101, with and without ttl | hand-built bodies | the labels and ttl decoded |
+| positive: the encap before its type | | decoded the same |
+| positive: kwnh/ec-001 captured | `nexthop add id 51 encap mpls 101 via …` | `id 51  encap mpls  101 via …`, `"encap":{…}` before `"gateway"` |
+| positive: the corpus | `TestWsEncapReadbacks`, kwnh and lwtxnh | every mpls and seg6 nexthop readback as ip printed it |
+| negative: a label stack cut short | | the parse fails, as for a route |
+| corner: an undecoded type, or NHA_ENCAP without its type | | kept raw; nothing printed |
 
 ## See also
 
