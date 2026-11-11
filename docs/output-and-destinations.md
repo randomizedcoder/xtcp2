@@ -147,11 +147,13 @@ docker logs xtcp2            # header + humanized rows
 | `-resolveContainerId` | `false` | Resolve each socket's owning container id/runtime from its cgroup into `container_id`/`container_runtime` (`CONTAINER_ID_RESOLVE`). Needs `/sys/fs/cgroup` (mount it + `--cgroupns=host` in a container). |
 | `-ipv4Ttl` | `3` | Outgoing IPv4 TTL on xtcp2's TCP listeners (Prometheus + gRPC); `0` = kernel default. The low default keeps replies from travelling far if the host is internet-exposed; raise it for a scraper more than two routers away (`IPV4_TTL`). |
 | `-ipv6HopLimit` | `3` | Outgoing IPv6 unicast hop limit on xtcp2's TCP listeners; `0` = kernel default (`IPV6_HOP_LIMIT`). |
-| `-s3Endpoint` | — | S3 endpoint URL (or `S3_ENDPOINT`). |
+| `-s3Endpoint` | — | S3 endpoint (or `S3_ENDPOINT`). `https://host[:port]` and a bare `host[:port]` use TLS; `http://` is refused unless `-s3AllowInsecure`. |
 | `-s3Bucket` | — | S3 bucket (or `S3_BUCKET`); must already exist. |
 | `-s3Prefix` | — | Key prefix within the bucket. |
-| `-s3AccessKey` / `-s3SecretKey` | — | S3 credentials (or `S3_ACCESS_KEY` / `S3_SECRET_KEY`); never logged. |
+| `-s3AccessKey` / `-s3SecretKey` | — | S3 credentials; never logged. Use `S3_ACCESS_KEY_FILE` / `S3_SECRET_KEY_FILE` (a mode `0400` file); the flags are refused by production flavors and warn elsewhere. See [security](security.md#secret-handling-and-rotation). |
 | `-s3Region` | `us-east-1` | S3 region. |
+| `-s3AllowInsecure` | `false` | Allow a plaintext `http://` endpoint (`S3_ALLOW_INSECURE`): the credential and every object cross the network unencrypted. For local test fixtures; sets `xtcp2_s3_insecure 1`. |
+| `-s3CAFile` | — | PEM CA bundle trusted for the endpoint on top of the system roots (`S3_CA_FILE`). TLS 1.2 is the minimum. |
 | `-s3SkipBucketProbe` | `false` | Skip the startup `BucketExists` probe (a `HeadBucket` needing `s3:ListBucket`; or `S3_SKIP_BUCKET_PROBE`). Set for a write-only `s3:PutObject`-only credential. |
 | `-s3ParquetFlushBytes` | `0` → 63 MiB | Parquet builder flush threshold (uncompressed). |
 | `-destWriteFiles` | — | Also write marshalled output to N files (debugging). |

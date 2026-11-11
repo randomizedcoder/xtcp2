@@ -1492,6 +1492,15 @@ type XtcpConfig struct {
 	// daemon can start without list permission. Default false keeps the
 	// fail-fast probe for normal deployments.
 	S3SkipBucketProbe bool `protobuf:"varint,106,opt,name=s3_skip_bucket_probe,json=s3SkipBucketProbe,proto3" json:"s3_skip_bucket_probe,omitempty"`
+	// Allow a plaintext http:// S3 endpoint. The credential and every
+	// uploaded object would cross the network in the clear, so the daemon
+	// refuses http:// unless this is set; a bare host:port and https:// both
+	// use TLS. For local test fixtures only. Sets the xtcp2_s3_insecure gauge.
+	S3AllowInsecure bool `protobuf:"varint,107,opt,name=s3_allow_insecure,json=s3AllowInsecure,proto3" json:"s3_allow_insecure,omitempty"`
+	// PEM bundle of CA certificates to trust for the S3 endpoint, in addition
+	// to the system roots. For a private CA in front of an S3-compatible
+	// store. Empty = system roots only.
+	S3CaFile string `protobuf:"bytes,108,opt,name=s3_ca_file,json=s3CaFile,proto3" json:"s3_ca_file,omitempty"`
 	// Soft cap on the in-memory Parquet builder's accumulated
 	// uncompressed row bytes before the worker finalizes the file and
 	// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).
@@ -1972,6 +1981,20 @@ func (x *XtcpConfig) GetS3SkipBucketProbe() bool {
 	return false
 }
 
+func (x *XtcpConfig) GetS3AllowInsecure() bool {
+	if x != nil {
+		return x.S3AllowInsecure
+	}
+	return false
+}
+
+func (x *XtcpConfig) GetS3CaFile() string {
+	if x != nil {
+		return x.S3CaFile
+	}
+	return ""
+}
+
 func (x *XtcpConfig) GetS3ParquetFlushThresholdBytes() uint32 {
 	if x != nil {
 		return x.S3ParquetFlushThresholdBytes
@@ -2402,7 +2425,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0e_error_classesB\x15\n" +
 	"\x13_metrics_categoriesB\x1a\n" +
 	"\x18_metrics_interface_pathsB\x13\n" +
-	"\x11_metrics_all_path\"\x8b%\n" +
+	"\x11_metrics_all_path\"\xea%\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2461,7 +2484,10 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\ts3_prefix\x18g \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\bs3Prefix\x12*\n" +
 	"\rs3_access_key\x18h \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3AccessKey\x12*\n" +
 	"\rs3_secret_key\x18i \x01(\tB\x06\xbaH\x03\xc8\x01\x00R\vs3SecretKey\x127\n" +
-	"\x14s3_skip_bucket_probe\x18j \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x11s3SkipBucketProbe\x12N\n" +
+	"\x14s3_skip_bucket_probe\x18j \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x11s3SkipBucketProbe\x122\n" +
+	"\x11s3_allow_insecure\x18k \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x0fs3AllowInsecure\x12)\n" +
+	"\n" +
+	"s3_ca_file\x18l \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\x80 R\bs3CaFile\x12N\n" +
 	" s3_parquet_flush_threshold_bytes\x18n \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x1cs3ParquetFlushThresholdBytes\x12R\n" +
 	"\x11s3_flush_interval\x18o \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x0fs3FlushInterval\x129\n" +
 	"\x13s3_flush_jitter_pct\x18p \x01(\rB\n" +

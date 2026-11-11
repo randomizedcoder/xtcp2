@@ -20,7 +20,9 @@ func exitCodeFor(err error) int {
 	switch {
 	case err == nil:
 		return exitOK
-	case errors.Is(err, xtcp.ErrNotCompiledIn):
+	case errors.Is(err, errUsage),
+		errors.Is(err, xtcp.ErrNotCompiledIn),
+		errors.Is(err, xtcp.ErrInsecureTransport):
 		return exitUsage
 	default:
 		return exitFailure

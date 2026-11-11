@@ -132,7 +132,7 @@ let
   # slim again — before the enrichment build tags, pkg/ipasn dragged parquet-go
   # into every one of them including `min`.
   xtcp2ByFlavor = lib.mapAttrs (
-    _dest: destList:
+    dest: destList:
     lib.mapAttrs (
       _enrich: enrichList:
       mkGoBinary {
@@ -146,6 +146,8 @@ let
         variant = "default";
         destinations = destList;
         enrichments = enrichList;
+        # Every slim flavor is a production build; `full` is development.
+        production = dest != "full";
       }
     ) versions.enrichmentFlavors
   ) versions.destinationFlavors;

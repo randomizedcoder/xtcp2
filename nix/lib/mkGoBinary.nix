@@ -70,6 +70,11 @@ in
   # [ "capture" ] for the netlink capture writer. Each tag is appended to the
   # pname so the derivation is distinct from the plain build.
   extraTags ? [ ],
+  # Production flavor: links -X main.flavorProduction=true, which makes
+  # xtcp2 refuse a credential passed as a flag (cmd/xtcp2/secrets.go). The
+  # slim per-destination flavors set it; the full (development) build and
+  # every other binary do not.
+  production ? false,
   # When coverage=true, the comma-separated package patterns whose code
   # gets instrumented. Defaults to the full xtcp2 namespace.
   coverPkg ? "github.com/randomizedcoder/xtcp2/...",
@@ -142,6 +147,7 @@ buildGoModule {
       "-X main.date=${date}"
       "-X main.version=${version}"
     ]
+    ++ lib.optional production "-X main.flavorProduction=true"
     ++ extraLdflags;
 
   # Strip and trim paths. When coverage=true, also append `-cover` +

@@ -2266,6 +2266,8 @@ let
     [
       "-dest"
       "s3parquet:http://127.0.0.1:9000"
+      # The in-VM Garage fixture is plaintext http; xtcp2 refuses that without the opt-in.
+      "-s3AllowInsecure"
       "-marshal"
       "protobufList"
       "-frequency"
@@ -2320,6 +2322,8 @@ let
   xtcp2ClickPipeParquetArgs = [
     "-dest"
     "s3parquet:http://127.0.0.1:9000"
+    # The in-VM Garage fixture is plaintext http; xtcp2 refuses that without the opt-in.
+    "-s3AllowInsecure"
     "-marshal"
     "protobufList"
     "-frequency"
@@ -2538,6 +2542,8 @@ let
   xtcp2S3ParquetArgs = [
     "-dest"
     "s3parquet:http://127.0.0.1:9000"
+    # The in-VM Garage fixture is plaintext http; xtcp2 refuses that without the opt-in.
+    "-s3AllowInsecure"
     "-marshal"
     "protobufList"
     "-frequency"
