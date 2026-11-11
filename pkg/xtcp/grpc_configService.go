@@ -271,7 +271,14 @@ func (c *xtcpConfigService) redactedConfig() (*xtcp_config.XtcpConfig, error) {
 func RedactSecrets(cfg *xtcp_config.XtcpConfig) {
 	cfg.S3SecretKey = ""
 	cfg.S3AccessKey = ""
-	for _, a := range []*xtcp_config.ListenerAuth{cfg.ListenerAuth, cfg.AdminListenerAuth} {
+	auths := []*xtcp_config.ListenerAuth{cfg.ListenerAuth, cfg.AdminListenerAuth}
+	// Per-listener credentials are file paths (listeners refuse them inline),
+	// so there is nothing to carry across a soft restart; blank any inline
+	// value anyway so a response can never echo one.
+	for _, l := range cfg.GetListeners() {
+		auths = append(auths, l.GetAuth(), l.GetAdminAuth())
+	}
+	for _, a := range auths {
 		if a != nil {
 			a.RawToken = ""
 			a.HmacSharedKey = ""

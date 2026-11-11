@@ -65,5 +65,63 @@ class ListenerAuthMode extends $pb.ProtobufEnum {
   const ListenerAuthMode._(super.value, super.name);
 }
 
+/// EndpointClass groups the paths and RPCs a listener can serve. Every served
+/// path or RPC belongs to exactly one class, and a class is served by at most
+/// one listener; a class no listener names is not served at all.
+class EndpointClass extends $pb.ProtobufEnum {
+  static const EndpointClass ENDPOINT_CLASS_UNSPECIFIED =
+      EndpointClass._(0, _omitEnumNames ? '' : 'ENDPOINT_CLASS_UNSPECIFIED');
+
+  /// /healthz, /readyz.
+  static const EndpointClass ENDPOINT_CLASS_HEALTH =
+      EndpointClass._(1, _omitEnumNames ? '' : 'ENDPOINT_CLASS_HEALTH');
+
+  /// The core Prometheus path (-promPath, /metrics).
+  static const EndpointClass ENDPOINT_CLASS_METRICS =
+      EndpointClass._(2, _omitEnumNames ? '' : 'ENDPOINT_CLASS_METRICS');
+
+  /// The link monitor detail paths: /metrics/<category>[/<iface>] and
+  /// /metrics-all[/<iface>].
+  static const EndpointClass ENDPOINT_CLASS_METRICS_DETAIL =
+      EndpointClass._(3, _omitEnumNames ? '' : 'ENDPOINT_CLASS_METRICS_DETAIL');
+
+  /// /ip and /i (goip show, GET-only). Needs link_monitor.ip_paths.
+  static const EndpointClass ENDPOINT_CLASS_IP =
+      EndpointClass._(4, _omitEnumNames ? '' : 'ENDPOINT_CLASS_IP');
+
+  /// /debug/pprof/* except cmdline, which is never served.
+  static const EndpointClass ENDPOINT_CLASS_DEBUG =
+      EndpointClass._(5, _omitEnumNames ? '' : 'ENDPOINT_CLASS_DEBUG');
+
+  /// gRPC read methods: FlatRecords, ConfigService.Get, the link monitor's
+  /// GetStatus/List*, health and reflection. Admin methods answer
+  /// Unimplemented on a listener that serves only this class.
+  static const EndpointClass ENDPOINT_CLASS_GRPC_READ =
+      EndpointClass._(6, _omitEnumNames ? '' : 'ENDPOINT_CLASS_GRPC_READ');
+
+  /// Every gRPC method, admin ones included (Set*, TriggerPoll*,
+  /// PollFlatRecords, Rebaseline, Resync).
+  static const EndpointClass ENDPOINT_CLASS_GRPC_ADMIN =
+      EndpointClass._(7, _omitEnumNames ? '' : 'ENDPOINT_CLASS_GRPC_ADMIN');
+
+  static const $core.List<EndpointClass> values = <EndpointClass>[
+    ENDPOINT_CLASS_UNSPECIFIED,
+    ENDPOINT_CLASS_HEALTH,
+    ENDPOINT_CLASS_METRICS,
+    ENDPOINT_CLASS_METRICS_DETAIL,
+    ENDPOINT_CLASS_IP,
+    ENDPOINT_CLASS_DEBUG,
+    ENDPOINT_CLASS_GRPC_READ,
+    ENDPOINT_CLASS_GRPC_ADMIN,
+  ];
+
+  static final $core.List<EndpointClass?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 7);
+  static EndpointClass? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const EndpointClass._(super.value, super.name);
+}
+
 const $core.bool _omitEnumNames =
     $core.bool.fromEnvironment('protobuf.omit_enum_names');
