@@ -25,6 +25,7 @@
 - [Tier C: captures](#tier-c-captures)
 - [Tier P: parsers, tests and benchmarks](#tier-p-parsers-tests-and-benchmarks)
 - [Tier G: goip and the matrix](#tier-g-goip-and-the-matrix)
+- [Follow-ups after Tier G](#follow-ups-after-tier-g)
 - [See also](#see-also)
 
 ## Reference sources
@@ -581,6 +582,37 @@ NX5 is done in three parts:
 | corner: `link afstats dev d0` | | a dump, filtered by goip |
 | negative: the 8 refusals | `stats/err-*`, `set-x` | ip's rcs (22, 255, 1), nothing sent |
 | positive: `stats set` | `set-on`, `set-off` | RTM_SETSTATS with the u8 |
+
+## Follow-ups after Tier G
+
+Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP.
+
+### NF1 nlparity sets RTA_METRICS padding aside
+
+ip sends RTA_METRICS without `NLA_F_NESTED`, and `rta_addattr_l` leaves RTAX_CC_ALGO's padding as the stack had it, so `route_write_replace_nfs` failed whenever the byte wasn't zero (V038). `diffAttrs` now compares a route's RTA_METRICS as `samePastPadding` does, as it already did RTA_MULTIPATH's hops.
+
+| description | input | expected |
+|---|---|---|
+| positive: only RTAX_CC_ALGO's padding differs | `cubic\0p\0` against `cubic\0\0\0` | no finding |
+| negative: a metric's value differs | RTAX_MTU 1500 against 1501 | one value finding |
+| negative: the algorithm differs | `cubic` against `cubid` | one value finding |
+| negative: the same type in a link message | type 8 in RTM_NEWLINK | compared whole, one finding |
+| boundary: identical | | no finding |
+| corner: a metric running past the payload | | compared whole, one finding |
+
+### NX6a `route show` prints RTA_ENCAP, mpls and seg6
+
+`lwt_print_encap` for the two types xtcpnl decodes, through `render.Printer` in ip's call order: after `as to` on the route, and first in each multipath hop. The SRH is read by `xtcpnl.ParseSRH`, print_srh's walk with the lengths checked. Every other type still prints no encap, rather than its type with the payload missing. `nexthop show`'s NHA_ENCAP needs the nexthop decoder to keep it, and is NX6b.
+
+| description | input | expected |
+|---|---|---|
+| positive: mpls, a label stack and ttl | `encap mpls 100/200 ttl 10` | ` encap mpls  100/200 ttl 10 `, `{"encap_type":"mpls","dst":"100/200","ttl":10}` |
+| positive: seg6, tunsrc, hmac and lookup | | `mode … tunsrc … segs N [ … ] hmac 1A lookup main `, hmac `"0x1a"` in JSON |
+| positive: a hop's encap | `nexthop encap mpls 100 via …` | `nexthop  encap mpls  100 via …` |
+| positive: the corpus | `TestWsEncapReadbacks`, `TestWsV730Readbacks` | every readback of an mpls or seg6 route as ip printed it, text and JSON |
+| negative: an undecoded type | `encap ip …` | no encap tokens; its readbacks are counted as differing |
+| corner: seg6 without its SRH | | ` encap seg6 ` alone |
+| corner: an SRH too short for its first_segment | | `ErrSRH`, no segments printed |
 
 ## See also
 

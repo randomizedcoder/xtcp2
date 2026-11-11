@@ -564,6 +564,10 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 			sameHopsPastPadding(rs[0], ss[0]) {
 			continue
 		}
+		if msgAttrFamily(m) == AttrFamilyRTA && a.BareType() == uint16(unix.RTA_METRICS) &&
+			samePastPadding(rs[0], ss[0]) {
+			continue
+		}
 
 		// IFLA_AF_SPEC is descended into rather than reported as one blob,
 		// because a locus has to be narrow enough to allowlist. Normalization
@@ -604,6 +608,11 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 // (goip-live-forms-status.md, LF3-T02). Two payloads that do not both parse
 // to the end, or differ in any attribute's type, order or value, are not the
 // same.
+//
+// RTA_METRICS goes through it too, though ip sends it without the flag:
+// rta_addattr_l copies RTAX_CC_ALGO's string into an uninitialised stack
+// buffer and leaves its padding as found, so `cubic` can arrive as
+// "cubic\x00p\x00" (goip-parity-next-status.md, NX3a).
 func samePastPadding(ref, sub []byte) bool {
 	ra, rrem := SubAttrs(ref)
 	sa, srem := SubAttrs(sub)
