@@ -1,6 +1,6 @@
 # Focused container hardening: what is left to secure once the admin surface is off
 
-**Status:** proposal (2026-11-10). Companion to [implementation-plan.md](implementation-plan.md); it does not replace the phased plan, it re-prioritizes it under narrower assumptions.
+**Status:** proposal (2026-11-10). Companion to [implementation-plan.md](implementation-plan.md); it does not replace the phased plan, it re-prioritizes it under narrower assumptions. Execution order, PR-level steps and gates: [focused-implementation-plan.md](focused-implementation-plan.md).
 
 ## Contents
 
