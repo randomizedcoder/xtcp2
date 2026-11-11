@@ -41,6 +41,12 @@ func wsReadbackArgv(cmd string) (*runCtx, string, []string, error) {
 			c.showDetails++
 		case "-s":
 			c.showStats++
+		case "-f":
+			if len(f) < 2 || readFamily(f[1]) == unix.AF_UNSPEC {
+				return nil, "", nil, fmt.Errorf("-f without a family in %q", cmd)
+			}
+			c.family = readFamily(f[1])
+			f = f[1:]
 		default:
 			return nil, "", nil, fmt.Errorf("option %s in %q", f[0], cmd)
 		}
@@ -92,12 +98,6 @@ func wsReadbackDiffers(t *testing.T, dir, name, cmd string) string {
 	return strings.Join(why, "; ")
 }
 
-// wsV730EncapGap is the readbacks of a seg6 route, which goip prints
-// without its encap: route show renders no RTA_ENCAP (render/route.go, "What
-// this renderer does not print"). At 7.2.0 ip refused each route, so there
-// is nothing to differ.
-var wsV730EncapGap = []string{"100/show", "100/showj", "inline/show", "inline/showj", "main/show", "main/showj"}
-
 // TestWsV730Readbacks replays each v730 row's readbacks: goip sends ip's
 // requests and prints what ip printed, at the release the row ran, except
 // the readbacks a row names as differing.
@@ -119,8 +119,7 @@ func TestWsV730Readbacks(t *testing.T) {
 		{description: "positive: the bond rows at 7.2.0", space: "v730bond", readbacks: 12},
 		{description: "positive: the bond rows at 7.3.0, lacp_strict printed", space: wsO5IP730Prefix + "v730bond", readbacks: 12},
 		{description: "positive: the seg6 rows at 7.2.0, every route refused", space: "v730seg6", readbacks: 12},
-		{description: "negative: the seg6 rows at 7.3.0, the encap not printed", space: wsO5IP730Prefix + "v730seg6", readbacks: 12,
-			differs: wsV730EncapGap},
+		{description: "positive: the seg6 rows at 7.3.0, the encap and its lookup printed", space: wsO5IP730Prefix + "v730seg6", readbacks: 12},
 		{description: "positive: the ovpn rows at 7.2.0, the kind with nothing after it", space: "v730ovpn", readbacks: 8},
 		{description: "positive: the ovpn rows at 7.3.0, mode printed", space: wsO5IP730Prefix + "v730ovpn", readbacks: 8},
 	}

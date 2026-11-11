@@ -48,8 +48,9 @@ import (
 //     "none of them appears on any route in the two committed topologies" —
 //     was true of the ATTRIBUTE's non-zero members and false of the attribute
 //     itself, which every IPv6 route in the corpus carries.
-//   - RTA_NEWDST (`as to`) and RTA_ENCAP, which are the MPLS and lightweight-
-//     tunnel surfaces; RTA_ENCAP alone is a second parser.
+//   - RTA_ENCAP of any type but mpls and seg6, which xtcpnl keeps raw:
+//     EncapViewOf renders the two it decodes, and a route with another
+//     prints no encap at all rather than its type alone.
 //   - `nh_info`, which print_route emits only under `-d`, and
 //     print_rta_multipath's `Oifs: ` form for a cloned multicast route. goip
 //     rejects `route show cache`, and routeFilter drops a cloned route a dump
@@ -297,6 +298,8 @@ type ViaView struct {
 // NextHopView is one RTA_MULTIPATH entry as print_rta_multipath renders it
 // (ip/iproute.c:694-766).
 type NextHopView struct {
+	// Encap is the hop's RTA_ENCAP, printed first (EncapViewOf).
+	Encap *EncapView `json:"encap,omitempty"`
 	// To is the hop's RTA_NEWDST, printed before its gateway.
 	To      string   `json:"to,omitempty"`
 	Gateway string   `json:"gateway,omitempty"`
@@ -320,6 +323,9 @@ type NextHopView struct {
 func (v NextHopView) Text() string {
 	var b strings.Builder
 	b.WriteString("\n\tnexthop ")
+	if v.Encap != nil {
+		b.WriteString(v.Encap.Text())
+	}
 	if v.To != "" {
 		fmt.Fprintf(&b, "as to %s ", v.To)
 	}
@@ -667,6 +673,10 @@ type RouteView struct {
 	// (print_rta_newdst).
 	To string `json:"to,omitempty"`
 
+	// Encap is RTA_ENCAP, which print_route prints after RTA_NEWDST
+	// (EncapViewOf).
+	Encap *EncapView `json:"encap,omitempty"`
+
 	Tos string `json:"tos,omitempty"`
 
 	// Gateway is RTA_GATEWAY and Via is RTA_VIA. Both render a `via` token and
@@ -876,6 +886,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 	// even though its real family is AF_INET.
 	applyRouteCacheinfo(&v, ri.Family, ri.CacheInfo, f.Stats)
 	v.Metrics = RouteMetricsViewOf(ri.Metrics)
+	v.Encap = EncapViewOf(ri.Encap)
 	if ri.Iif != 0 {
 		v.Iif = tab.IndexToName(int32(ri.Iif))
 	}
@@ -1140,6 +1151,7 @@ func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab) NextHopView 
 		Dev:   tab.IndexToName(nh.Ifindex),
 		Flags: RtFlagTokens(uint32(nh.Flags)),
 		To:    mplsLabelsString(nh.NewDst),
+		Encap: EncapViewOf(nh.Encap),
 	}
 	if nh.Gateway != nil {
 		// The family is the ROUTE's, not the nexthop's: print_rta_multipath
@@ -1190,6 +1202,9 @@ func (v RouteView) Text() string {
 	}
 	if v.To != "" {
 		fmt.Fprintf(&b, "as to %s ", v.To)
+	}
+	if v.Encap != nil {
+		b.WriteString(v.Encap.Text())
 	}
 	if v.Tos != "" {
 		fmt.Fprintf(&b, "tos %s ", v.Tos)

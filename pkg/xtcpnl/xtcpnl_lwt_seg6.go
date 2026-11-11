@@ -118,6 +118,43 @@ func SRH(nsegs int, segs [][16]byte, hmacKeyID uint32) ([]byte, error) {
 	return b, nil
 }
 
+// SRHInfo is what print_srh reads from a segment routing header: the
+// segments in its print order, first_segment down to 0, and the HMAC TLV's
+// key id when SR6_FLAG1_HMAC is set.
+type SRHInfo struct {
+	Segs      [][]byte // each 16 bytes, segments[first_segment] first
+	HmacKeyID uint32   // valid when HasHmac
+	HasHmac   bool
+}
+
+// ParseSRH reads an SRH as print_srh does. print_srh trusts the kernel's
+// lengths; ParseSRH checks them, and an SRH too short for its first_segment,
+// or an HMAC flag whose TLV runs past the end, is ErrSRH. The segments
+// alias b.
+func ParseSRH(b []byte) (SRHInfo, error) {
+	if len(b) < srhHdrLenCst {
+		return SRHInfo{}, ErrSRH
+	}
+	n := int(b[4]) + 1 // first_segment
+	if len(b) < srhHdrLenCst+srhSegLenCst*n {
+		return SRHInfo{}, ErrSRH
+	}
+	s := SRHInfo{Segs: make([][]byte, n)}
+	for i := range n {
+		off := srhHdrLenCst + srhSegLenCst*(n-1-i)
+		s.Segs[i] = b[off : off+srhSegLenCst]
+	}
+	if b[5]&sr6FlagHmacCst != 0 {
+		// The TLV is the header's last 40 bytes: ((hdrlen + 1) << 3) - 40.
+		off := (int(b[1])+1)<<3 - srhHmacTLVLenCst
+		if off < srhHdrLenCst || off+8 > len(b) {
+			return SRHInfo{}, ErrSRH
+		}
+		s.HmacKeyID, s.HasHmac = binary.BigEndian.Uint32(b[off+4:]), true
+	}
+	return s, nil
+}
+
 // Seg6Encap is `encap seg6 …`: the mode (-1 for none), parse_srh's SRH,
 // `tunsrc`'s 16 bytes, or nil, and iproute2 7.3.0's `lookup` table, sent as
 // SEG6_IPTUNNEL_TABLE after them when nonzero.

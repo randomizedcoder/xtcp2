@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -296,4 +297,160 @@ func FuzzParseSeg6Encap(f *testing.F) {
 			t.Fatalf("two decodes differ: %+v / %+v (%v)", a, b, err)
 		}
 	})
+}
+
+// srhHex is a hex SRH with first_segment and flags set, then segs.
+func srhHex(hdrlen, first, flags string, segs ...string) string {
+	return "00" + hdrlen + "04" + first + first + flags + "0000" + strings.Join(segs, "")
+}
+
+// NX6a: print_srh's read of an SRH, for route show's encap.
+//
+// go test ./pkg/xtcpnl/ -run TestParseSRH
+func TestParseSRH(t *testing.T) {
+	const (
+		s1 = "20010db8000900000000000000000001"
+		s2 = "20010db8000900000000000000000002"
+		// hmacTLV is sr6_tlv_hmac with key id 7 and its 32 bytes zero.
+		hmacTLV = "05260000" + "00000007" + "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+	tests := []struct {
+		description string
+		srh         string
+		expected    string // the segments in print order, then the hmac
+		wantErr     error
+	}{
+		{"positive: one segment", srhHex("02", "00", "00", s1), "[2001:db8:9::1]", nil},
+		{"positive: two segments print last slot first", srhHex("04", "01", "00", s1, s2), "[2001:db8:9::2 2001:db8:9::1]", nil},
+		{"positive: an hmac key id", srhHex("07", "00", "08", s1, hmacTLV), "[2001:db8:9::1] hmac 7", nil},
+		{"positive: inline's zero slot 0 still prints", srhHex("04", "01", "00", strings.Repeat("0", 32), s1), "[2001:db8:9::1 ::]", nil},
+		{"boundary: one byte short of first_segment's slot", srhHex("02", "00", "00", s1)[:46], "", ErrSRH},
+		{"negative: too short for its first_segment", srhHex("04", "01", "00", s1), "", ErrSRH},
+		{"negative: the hmac flag with no TLV", srhHex("02", "00", "08", s1), "", ErrSRH},
+		{"negative: the hmac TLV's offset inside the header", srhHex("00", "00", "08", s1), "", ErrSRH},
+		{"corner: shorter than the header", "00020400", "", ErrSRH},
+		{"corner: empty", "", "", ErrSRH},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			b, err := hex.DecodeString(tc.srh)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, err := ParseSRH(b)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err %v, want %v", err, tc.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			segs := make([]string, len(s.Segs))
+			for i, a := range s.Segs {
+				segs[i] = netipAddr(t, a)
+			}
+			got := fmt.Sprint(segs)
+			if s.HasHmac {
+				got += fmt.Sprintf(" hmac %d", s.HmacKeyID)
+			}
+			if got != tc.expected {
+				t.Errorf("got %q, expected %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestParseSRHRoundTrip reads back what SRH builds.
+//
+// go test ./pkg/xtcpnl/ -run TestParseSRHRoundTrip
+func TestParseSRHRoundTrip(t *testing.T) {
+	a := [16]byte{0x20, 0x01, 0x0d, 0xb8, 15: 1}
+	b := [16]byte{0x20, 0x01, 0x0d, 0xb8, 15: 2}
+	tests := []struct {
+		description string
+		nsegs       int
+		segs        [][16]byte
+		hmac        uint32
+		expected    string
+	}{
+		{"positive: encap's one segment", 1, [][16]byte{a}, 0, "[2001:db8::1]"},
+		{"positive: two segments, argv order", 2, [][16]byte{a, b}, 0, "[2001:db8::1 2001:db8::2]"},
+		{"positive: with hmac", 2, [][16]byte{a, b}, 0xfffffffe, "[2001:db8::1 2001:db8::2] hmac 4294967294"},
+		{"corner: inline's extra slot", 2, [][16]byte{a}, 0, "[2001:db8::1 ::]"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			raw, err := SRH(tc.nsegs, tc.segs, tc.hmac)
+			if err != nil {
+				t.Fatal(err)
+			}
+			s, err := ParseSRH(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			segs := make([]string, len(s.Segs))
+			for i, x := range s.Segs {
+				segs[i] = netipAddr(t, x)
+			}
+			got := fmt.Sprint(segs)
+			if s.HasHmac {
+				got += fmt.Sprintf(" hmac %d", s.HmacKeyID)
+			}
+			if got != tc.expected {
+				t.Errorf("got %q, expected %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// netipAddr is a 16-byte address as text.
+func netipAddr(t *testing.T, b []byte) string {
+	t.Helper()
+	a, ok := netip.AddrFromSlice(b)
+	if !ok {
+		t.Fatalf("%x is not an address", b)
+	}
+	return a.String()
+}
+
+// FuzzParseSRH ensures ParseSRH never panics, and that every segment it
+// returns is 16 bytes.
+func FuzzParseSRH(f *testing.F) {
+	for _, s := range []string{
+		srhHex("02", "00", "00", "20010db8000900000000000000000001"),
+		srhHex("07", "00", "08", "20010db8000900000000000000000001",
+			"0526000000000007"+strings.Repeat("0", 64)),
+	} {
+		b, err := hex.DecodeString(s)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(b)
+	}
+	f.Add([]byte{})
+	f.Fuzz(func(t *testing.T, b []byte) {
+		s, err := ParseSRH(b)
+		if err != nil {
+			return
+		}
+		for _, x := range s.Segs {
+			if len(x) != 16 {
+				t.Fatalf("a %d-byte segment from %x", len(x), b)
+			}
+		}
+	})
+}
+
+// go test ./pkg/xtcpnl/ -run '^$' -bench BenchmarkParseSRH -benchmem
+func BenchmarkParseSRH(b *testing.B) {
+	raw, err := hex.DecodeString(srhHex("04", "01", "00",
+		"20010db8000900000000000000000001", "20010db8000900000000000000000002"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := ParseSRH(raw); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

@@ -111,7 +111,7 @@ func MrouteViewOf(ri *xtcpnl.RouteInfo, deleted bool, names NameTab, o MrouteOpt
 // mrouteAddr is rt_addr_n2a_r, or "unknown" when the attribute is absent.
 func mrouteAddr(b []byte, fam uint8) string {
 	if b == nil {
-		return "unknown"
+		return unknownCst
 	}
 	return addrString(b, fam)
 }

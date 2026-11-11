@@ -20,9 +20,9 @@ import (
 // AmtKindCst is the amt kind, exported for the `-d` gate.
 const AmtKindCst = "amt"
 
-// overlayUnknownCst is gtp_role_to_string's name for a value past its
-// table, which goip uses for amt's mode too.
-const overlayUnknownCst = "unknown"
+// unknownCst is iproute2's name for a value past a table:
+// gtp_role_to_string's, amt's mode, ila's, mroute's and format_encap_type's.
+const unknownCst = "unknown"
 
 // amtData is amt_print_opt over the decoded IFLA_INFO_DATA.
 func amtData(a *xtcpnl.AmtInfo, names NameTab) *KindData {
@@ -31,7 +31,7 @@ func amtData(a *xtcpnl.AmtInfo, names NameTab) *KindData {
 		return k
 	}
 	if a.HasMode {
-		mode := overlayUnknownCst
+		mode := unknownCst
 		if a.Mode < uint32(len(xtcpnl.AmtModeNames)) {
 			mode = xtcpnl.AmtModeNames[a.Mode]
 		}

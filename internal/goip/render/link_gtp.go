@@ -21,7 +21,7 @@ func gtpData(g *xtcpnl.GtpInfo) *KindData {
 		return k
 	}
 	if g.HasRole {
-		role := overlayUnknownCst
+		role := unknownCst
 		if g.Role < uint32(len(xtcpnl.GtpRoleNames)) {
 			role = xtcpnl.GtpRoleNames[g.Role]
 		}
