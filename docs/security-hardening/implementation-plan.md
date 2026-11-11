@@ -8,6 +8,8 @@
 
 Reading order for an implementer: skim the advisory's §2 (primitives) and §4 (permission model), then execute the phases below, dipping into the workstream sections of the hardening plan as each PR needs detail.
 
+> **Focused subset (2026-11-10).** For container deployments with the admin surface off by default, [focused-container-hardening.md](focused-container-hardening.md) re-prioritizes this plan: the listener model (every listener UDS + auth by default), the container spec, tenant-volume bounds, the Docker broker pulled forward from Phase 5, and the capture writer as a compile-time opt-in; the writer split and the netlink broker are deferred. Read it first if that describes your deployment.
+
 ## Contents
 
 - [Phase 0 — Immediate ops response (start today, no release)](#phase-0--immediate-ops-response-start-today-no-release)
