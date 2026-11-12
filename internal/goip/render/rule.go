@@ -163,15 +163,19 @@ const ruleDscpMaxMaskCst = 0x3F
 // RuleViewOf builds the view for one decoded rule, the first an ip process
 // prints.
 func RuleViewOf(ri xtcpnl.RuleInfo) RuleView {
-	var d Dsfield
-	return RuleViewOfIn(ri, &d)
+	var (
+		d Dsfield
+		r Realms
+	)
+	return RuleViewOfIn(ri, &d, &r)
 }
 
 // RuleViewOfIn builds the view for one decoded rule in a process whose DS
-// field table is d, which the rule's tos and dscp may load.
+// field table is d, which the rule's tos and dscp may load, and whose realm
+// table is r, which its realms may load.
 //
 // Every branch is in print_rule's order and cites its line.
-func RuleViewOfIn(ri xtcpnl.RuleInfo, d *Dsfield) RuleView {
+func RuleViewOfIn(ri xtcpnl.RuleInfo, d *Dsfield, r *Realms) RuleView {
 	hostLen := afBitLen(ri.Family)
 
 	v := RuleView{
@@ -240,7 +244,7 @@ func RuleViewOfIn(ri xtcpnl.RuleInfo, d *Dsfield) RuleView {
 	}
 
 	setRuleTable(&v, ri)
-	setRuleFlow(&v, ri)
+	setRuleFlow(&v, ri, r)
 	setRuleAction(&v, ri)
 
 	// :551-557. The `-d` half of the guard is applied by the caller, which
@@ -340,14 +344,12 @@ func setRuleTable(v *RuleView, ri xtcpnl.RuleInfo) {
 // "flow_from" key, so the text keeps the keyword while the JSON loses half the
 // pair. That asymmetry is why FlowFrom is a field rather than a prefix baked
 // into FlowTo.
-func setRuleFlow(v *RuleView, ri xtcpnl.RuleInfo) {
+func setRuleFlow(v *RuleView, ri xtcpnl.RuleInfo, r *Realms) {
 	if !ri.HasFlow {
 		return
 	}
-	if from := ri.Flow >> 16; from != 0 {
-		v.FlowFrom = realmName(from)
-	}
-	v.FlowTo = realmName(ri.Flow & 0xFFFF)
+	f := FlowViewOf(ri.Flow, r)
+	v.FlowFrom, v.FlowTo = f.From, f.To
 }
 
 // setRuleAction is :524-548: four mutually exclusive arms, in source order.
@@ -818,11 +820,4 @@ func hex0x(v uint64) string {
 		return "0"
 	}
 	return "0x" + strconv.FormatUint(v, 16)
-}
-
-// realmName is rtnl_rtrealm_n2a (lib/rt_names.c), whose table is loaded from
-// /etc/iproute2/rt_realms. goip does not carry that file yet (NX7e), so this
-// is always the `%d` fallback.
-func realmName(id uint32) string {
-	return strconv.FormatUint(uint64(id), 10)
 }

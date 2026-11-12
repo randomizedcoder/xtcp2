@@ -40,9 +40,9 @@ import (
 // so they are absent rather than wrong. None of them appears on any route in
 // the two committed topologies:
 //
-//   - RTA_FLOW (`realms`) and RTA_TTL_PROPAGATE — not decoded into
-//     xtcpnl.RouteInfo. RTA_MARK and RTA_UID left this list with `route get`,
-//     the one command whose reply carries them. RTA_CACHEINFO used to be on
+//   - RTA_MARK, RTA_UID and RTA_FLOW (`realms`, NX7e) were on this list and
+//     are not any more: the first two left with `route get`, the one command
+//     whose reply carries them. RTA_CACHEINFO used to be on
 //     this list and is not
 //     any more; see applyRouteCacheinfo, and note that the claim it carried —
 //     "none of them appears on any route in the two committed topologies" —
@@ -313,7 +313,9 @@ type NextHopView struct {
 	To      string   `json:"to,omitempty"`
 	Gateway string   `json:"gateway,omitempty"`
 	Via     *ViaView `json:"via,omitempty"`
-	Dev     string   `json:"dev"`
+	// Flow is the path's RTA_FLOW, after its gateway (ip/iproute.c:737-738).
+	Flow *FlowView `json:"flow,omitempty"`
+	Dev  string    `json:"dev"`
 	// Weight is nil for an AF_MPLS route, the one family whose nexthops print
 	// no weight (ip/iproute.c:754). Everywhere else it is rtnh_hops + 1, so a
 	// two-way split configured `weight 1` / `weight 3` arrives as 0 and 2 and
@@ -343,6 +345,9 @@ func (v NextHopView) Text() string {
 	}
 	if v.Via != nil {
 		fmt.Fprintf(&b, "via %s %s ", v.Via.Family, v.Via.Host)
+	}
+	if v.Flow != nil {
+		b.WriteString(v.Flow.Text())
 	}
 	fmt.Fprintf(&b, "dev %s ", v.Dev)
 	if v.Weight != nil {
@@ -631,6 +636,11 @@ type RouteShowFilter struct {
 	// corpus states this — it comes from the guard.
 	Details bool
 
+	// Realms is the process's rt_realms state, shared across a dump's routes
+	// so a realm 0 prints as ip's would after the routes before it; nil is a
+	// fresh process.
+	Realms *Realms
+
 	// Stats is show_stats, and on this object it gates three tokens that a
 	// route DUMP can never populate: `users`, `used` and `age`
 	// (print_rta_cacheinfo, ip/iproute.c:514-525).
@@ -713,6 +723,9 @@ type RouteView struct {
 	// text form changes base at 16, `mark %u ` below and `mark 0x%llx ` from
 	// there, while the JSON form is always the number.
 	Mark uint32 `json:"mark,omitempty"`
+
+	// Flow is RTA_FLOW, `realm 5` or `realms 1/2` (ip/iproute.c:963-964).
+	Flow *FlowView `json:"flow,omitempty"`
 
 	// UID is RTA_UID, printed on presence like Metric, so root's lookup prints
 	// `uid 0` (:966-968).
@@ -878,11 +891,11 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		metric := ri.Priority
 		v.Metric = &metric
 	}
-	v.Mark = ri.Mark
-	if ri.HasUID {
-		uid := ri.UID
-		v.UID = &uid
+	realms := f.Realms
+	if realms == nil {
+		realms = new(Realms)
 	}
+	setRouteMarkFlowUID(&v, ri, realms)
 	// The raw rtm_family, as for the cacheinfo below: only the AF_INET arm
 	// calls print_cache_flags (:970-972), so a cloned IPv6 route has no line.
 	if ri.Family == unix.AF_INET && ri.Flags&unix.RTM_F_CLONED != 0 {
@@ -908,7 +921,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		v.TTLPropagate = &p
 	}
 	for i := range ri.Multipath {
-		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab, f.Stats))
+		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab, f.Stats, realms))
 	}
 	return v
 }
@@ -1155,7 +1168,7 @@ func routePref(pref uint8) (any, string) {
 }
 
 // nextHopView is one iteration of print_rta_multipath's loop.
-func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab, stats bool) NextHopView {
+func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab, stats bool, realms *Realms) NextHopView {
 	v := NextHopView{
 		Dev:   tab.IndexToName(nh.Ifindex),
 		Flags: RtFlagTokens(uint32(nh.Flags)),
@@ -1174,11 +1187,43 @@ func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab, stats bool) 
 			Host:   addrString(nh.Via.Addr, viaFamily),
 		}
 	}
+	if nh.HasFlow {
+		v.Flow = FlowViewOf(nh.Flow, realms)
+	}
 	if family != unix.AF_MPLS {
 		w := int(nh.Weight())
 		v.Weight = &w
 	}
 	return v
+}
+
+// setRouteMarkFlowUID sets the three tokens print_route prints between the
+// flags and the cacheinfo (ip/iproute.c:948-968): mark, realms and uid.
+func setRouteMarkFlowUID(v *RouteView, ri xtcpnl.RouteInfo, realms *Realms) {
+	v.Mark = ri.Mark
+	if ri.HasFlow {
+		v.Flow = FlowViewOf(ri.Flow, realms)
+	}
+	if ri.HasUID {
+		uid := ri.UID
+		v.UID = &uid
+	}
+}
+
+// writeMarkFlowUID writes setRouteMarkFlowUID's tokens: mark's text changes
+// base at 16.
+func (v RouteView) writeMarkFlowUID(b *strings.Builder) {
+	if v.Mark >= markHexFromCst {
+		fmt.Fprintf(b, "mark 0x%x ", v.Mark)
+	} else if v.Mark != 0 {
+		fmt.Fprintf(b, "mark %d ", v.Mark)
+	}
+	if v.Flow != nil {
+		b.WriteString(v.Flow.Text())
+	}
+	if v.UID != nil {
+		fmt.Fprintf(b, "uid %d ", *v.UID)
+	}
 }
 
 // Text renders one route, newline terminated.
@@ -1245,14 +1290,7 @@ func (v RouteView) Text() string {
 	for _, f := range v.Flags {
 		fmt.Fprintf(&b, "%s ", f)
 	}
-	if v.Mark >= markHexFromCst {
-		fmt.Fprintf(&b, "mark 0x%x ", v.Mark)
-	} else if v.Mark != 0 {
-		fmt.Fprintf(&b, "mark %d ", v.Mark)
-	}
-	if v.UID != nil {
-		fmt.Fprintf(&b, "uid %d ", *v.UID)
-	}
+	v.writeMarkFlowUID(&b)
 	b.WriteString(v.cacheText)
 	// print_rta_cacheinfo's seven tokens, in its own order. Note `ts` alone
 	// carries NO trailing space in its format string — `"ts 0x%llx"` against

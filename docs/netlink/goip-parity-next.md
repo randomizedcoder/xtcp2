@@ -811,6 +811,26 @@ xtcpnl's decode (`TestParseNewLinkProtoDown`): on; a value as the kernel sends i
 
 The new LinkInfo fields move four of linkmonitor's recorded-contract digests (`TestRecordedContracts`, regenerated with `-update`): every recorded link now carries `HasProtoDown`.
 
+#### NX7e route `realm` and `realms`
+
+print_rta_flow (ip/iproute.c:536-561) prints RTA_FLOW as `realm TO ` or, when FROM (the high 16 bits) is non-zero, `realms FROM/TO `. On a route it comes after `mark` (:963-964); on a multipath path, after the gateway and before `dev` (:737-738). JSON is `"flow":{"from","to"}`, `from` only when non-zero. goip decoded RTA_FLOW nowhere. xtcpnl now reads it on a route and on each path (`Flow`, `HasFlow`, the first of a repeat), and `render.FlowViewOf` prints it.
+
+The names come from rt_realms through rtnl_rtrealm_n2a, which has rt_dsfield's lazy load (R2): the built-in table names realm 0 `unknown`, and the stock file, loaded by the first lookup of any other realm below 256, renames it `cosmos`. `render.Realms` is that state, shared across a `route show` or `rule show` dump (`RouteShowFilter.Realms`, `RuleViewOfIn`) and across `ip monitor`. Rule show printed `realms 0` as `0`; it now goes through the same table. A realm of 256 or more prints as its number. goip has no `-n`, under which ip prints numbers throughout; `route show realms` stays refused, so its suppression of the token never applies.
+
+| description | input | expected |
+|---|---|---|
+| positive: realm 5 | RTA_FLOW 5 | `scope link realm 5 `, `"flow":{"to":"5"}` |
+| positive: realms 1/2 | 0x10002 | `realms 1/2 `, `"flow":{"from":"1","to":"2"}` |
+| positive: a path's realm | path RTA_FLOW 3 | `nexthop via 192.0.2.1 realm 3 dev …` |
+| negative: no RTA_FLOW | | no token, no key |
+| boundary: realm 0 first | | `realm unknown ` |
+| boundary: realm 256 | | `256`, and the table stays unloaded |
+| corner: realm 0 after realm 5 in one dump | route show, rule show, monitor | `cosmos` |
+| corner: realms 2/0 | FROM is looked up first | `realms 2/cosmos ` |
+| positive: O9 | `TestWsReadbacks` | kwroute4 13 of 13: every readback in the corpus matches |
+
+xtcpnl (`TestParseNewRouteFlow`): realm 5; 1/2; none; realm 0 present; a short value dropped; the first of a repeat; a path's realm; a path's short value; a path's repeat; a path with none.
+
 #### NX7f the stock name tables, compiled in
 
 goip compiles in the files the parity guest reads (`internal/goip/render/names.go`):

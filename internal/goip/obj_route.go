@@ -466,6 +466,7 @@ func renderRoutes(c *runCtx, svc *service.Service, routes []model.Route, sel *ro
 		ProtoMask: sel.ProtoMask,
 		Details:   c.detailed(),
 		Stats:     c.stats(),
+		Realms:    new(render.Realms),
 	}
 	views := make([]render.RouteView, 0, len(routes))
 	for i := range routes {

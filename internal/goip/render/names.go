@@ -275,3 +275,58 @@ func StrxfProto(proto uint8) string {
 	}
 	return strconv.Itoa(int(proto))
 }
+
+// rtRealmsMaxCst is one past rtnl_rtrealm_tab's last slot; a larger realm
+// prints as its number without a lookup.
+const rtRealmsMaxCst = 256
+
+// Realms is rtnl_rtrealm_n2a's table (lib/rt_names.c:438-470) in one ip
+// process, with the lazy load Dsfield has (R2): the built-in table names
+// realm 0 "unknown", and the stock rt_realms, loaded by the first lookup of
+// an empty slot, renames it "cosmos" and names nothing else. So `realm 0`
+// prints "unknown" until another realm below 256 has been looked up in the
+// same process, and "cosmos" after. The zero value has looked nothing up.
+type Realms struct {
+	loaded bool
+}
+
+// N2A is rtnl_rtrealm_n2a.
+func (r *Realms) N2A(id uint32) string {
+	switch {
+	case id >= rtRealmsMaxCst:
+		return strconv.FormatUint(uint64(id), 10)
+	case id == 0 && !r.loaded:
+		return "unknown"
+	}
+	r.loaded = true
+	if id == 0 {
+		return "cosmos"
+	}
+	return strconv.FormatUint(uint64(id), 10)
+}
+
+// FlowView is print_rta_flow's RTA_FLOW: TO in the low 16 bits, FROM in the
+// high, FROM printed only when non-zero. JSON is {"from", "to"}; the text
+// is `realm TO ` or `realms FROM/TO `.
+type FlowView struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to"`
+}
+
+// FlowViewOf names RTA_FLOW's two halves, FROM first, as ip looks them up.
+func FlowViewOf(flow uint32, r *Realms) *FlowView {
+	var v FlowView
+	if from := flow >> 16; from != 0 {
+		v.From = r.N2A(from)
+	}
+	v.To = r.N2A(flow & 0xFFFF)
+	return &v
+}
+
+// Text is print_rta_flow's text form.
+func (v *FlowView) Text() string {
+	if v.From != "" {
+		return "realms " + v.From + "/" + v.To + " "
+	}
+	return "realm " + v.To + " "
+}

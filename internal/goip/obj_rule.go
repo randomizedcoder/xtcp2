@@ -129,7 +129,10 @@ func ruleShow(c *runCtx) error {
 	}
 	// One ip process, so one DS field table across the rules: an earlier
 	// rule's tos or dscp decides how a later dscp 0 prints.
-	var ds render.Dsfield
+	var (
+		ds     render.Dsfield
+		realms render.Realms
+	)
 	views := make([]render.RuleView, 0, len(decoded))
 	for i := range decoded {
 		ri := decoded[i]
@@ -149,7 +152,7 @@ func ruleShow(c *runCtx) error {
 		if !c.detailed() && (ri.Protocol == 0 || ri.Protocol == unix.RTPROT_KERNEL) {
 			ri.HasProtocol = false
 		}
-		views = append(views, render.RuleViewOfIn(ri, &ds))
+		views = append(views, render.RuleViewOfIn(ri, &ds, &realms))
 	}
 
 	if c.json {

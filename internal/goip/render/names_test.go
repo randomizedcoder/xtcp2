@@ -235,7 +235,7 @@ func TestRuleViewOfInSharesTable(t *testing.T) {
 			var d Dsfield
 			var v RuleView
 			for _, ri := range tc.rules {
-				v = RuleViewOfIn(ri, &d)
+				v = RuleViewOfIn(ri, &d, new(Realms))
 			}
 			if v.Dscp != tc.expected {
 				t.Errorf("got %q, expected %q", v.Dscp, tc.expected)
