@@ -189,17 +189,8 @@ const (
 	routeHelpKeywordCst = "help"
 )
 
-// The error text iproute_modify's helpers print, from lib/utils.c.
-func duparg2Err(key, arg string) error {
-	return fmt.Errorf("%w: Error: either %q is duplicate, or %q is garbage", ErrInvalidArgument, key, arg)
-}
-
 func routeUsageErr() error {
 	return fmt.Errorf("%w: ip route: no destination; iproute2 prints its usage", ErrInvalidArgument)
-}
-
-func routeHelpErr() error {
-	return fmt.Errorf("%w: ip route help is not implemented by goip", ErrNotImplemented)
 }
 
 // vrfTabler is ipvrf_get_table: a VRF device's table, or 0.
@@ -270,14 +261,6 @@ func parseRouteWriteArgs(verb *routeWriteVerb, family uint8, args []string, reso
 		return xtcpnl.RouteWrite{}, err
 	}
 	return st.w, nil
-}
-
-// nextArg is NEXT_ARG: the index of the value, or incomplete_command.
-func nextArg(args []string, i int) (int, error) {
-	if i+1 >= len(args) {
-		return i, incompleteErr()
-	}
-	return i + 1, nil
 }
 
 func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int, error) {
