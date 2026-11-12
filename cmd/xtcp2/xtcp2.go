@@ -275,6 +275,8 @@ type mainFlags struct {
 	s3SecretKey         *string
 	s3Region            *string
 	s3SkipBucketProbe   *bool
+	s3AllowInsecure     *bool
+	s3CAFile            *string
 	s3ParquetFlushBytes *uint
 
 	pollJitterPct             *uint
@@ -450,7 +452,7 @@ func defineFlags() *mainFlags {
 	// packetSize of the buffer the netlinkers syscall.Recvfrom to read into
 	f.packetSize = flag.Uint64("packetSize", packetSizeCst, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
 	f.packetSizeMply = flag.Uint("packetSizeMply", packetSizeMplyCst, "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply")
-	f.writeFiles = flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker")
+	f.writeFiles = flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker. Debugging only: needs a binary built with -tags capture")
 	f.capturePath = flag.String("capturePath", capturePathCst, "Write files path")
 	f.modulus = flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
 	f.marshal = flag.String("marshal", marshalCst, "Marshaling of the exported data (protobufList, protoJson, protoText, msgpack, jsonl, csv, tsv)")
@@ -497,10 +499,12 @@ func defineS3Flags(f *mainFlags) {
 	f.s3Endpoint = flag.String("s3Endpoint", s3EndpointCst, "s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...")
 	f.s3Bucket = flag.String("s3Bucket", s3BucketCst, "s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.")
 	f.s3Prefix = flag.String("s3Prefix", s3PrefixCst, "s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.")
-	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env, or S3_ACCESS_KEY_FILE (path to a file holding the key). Never logged.")
-	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env, or S3_SECRET_KEY_FILE (path to a file holding the key). Never logged.")
+	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Prefer S3_ACCESS_KEY_FILE (path to a file, mode 0400, holding the key): a flag value shows in ps and docker inspect, warns, and is refused by production builds. Never logged.")
+	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Prefer S3_SECRET_KEY_FILE (path to a file, mode 0400, holding the key): a flag value shows in ps and docker inspect, warns, and is refused by production builds. Never logged.")
 	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
 	f.s3SkipBucketProbe = flag.Bool("s3SkipBucketProbe", s3SkipBucketProbeCst, "s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.")
+	f.s3AllowInsecure = flag.Bool("s3AllowInsecure", false, "s3parquet: allow a plaintext http:// endpoint. The credential and every object cross the network unencrypted; for local test fixtures only. A bare host:port and https:// use TLS. Falls back to S3_ALLOW_INSECURE env.")
+	f.s3CAFile = flag.String("s3CAFile", "", "s3parquet: PEM bundle of CA certificates to trust for the S3 endpoint, on top of the system roots. Falls back to S3_CA_FILE env.")
 	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
 	f.s3FlushInterval = flag.Duration("s3FlushInterval", s3FlushIntervalCst, "s3parquet: staleness ceiling — force-flush the in-memory Parquet object after this long even if under the byte cap. 0 = derive as max(-frequency, 30m).")
 	f.s3FlushJitterPct = flag.Uint("s3FlushJitterPct", s3FlushJitterPctCst, "s3parquet: jitter as a percent (0-100) of -s3FlushInterval, applied to the timed flush so the fleet doesn't ceiling-flush in lockstep. 0 disables.")
@@ -668,6 +672,8 @@ func printS3Flags(f *mainFlags) {
 	// they would leak via console logs, lifecycle test scrapers, etc.
 	fmt.Println("*s3Region:", *f.s3Region)
 	fmt.Println("*s3SkipBucketProbe:", *f.s3SkipBucketProbe)
+	fmt.Println("*s3AllowInsecure:", *f.s3AllowInsecure)
+	fmt.Println("*s3CAFile:", *f.s3CAFile)
 	fmt.Println("*s3ParquetFlushBytes:", *f.s3ParquetFlushBytes)
 	fmt.Println("*pollJitterPct:", *f.pollJitterPct)
 	fmt.Println("*s3FlushInterval:", *f.s3FlushInterval)
@@ -781,6 +787,8 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3SecretKey:                  *f.s3SecretKey,
 		S3Region:                     *f.s3Region,
 		S3SkipBucketProbe:            *f.s3SkipBucketProbe,
+		S3AllowInsecure:              *f.s3AllowInsecure,
+		S3CaFile:                     *f.s3CAFile,
 		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
 		PollJitterPct:                uint32(*f.pollJitterPct),
 		S3FlushInterval:              durationpb.New(*f.s3FlushInterval),
@@ -950,8 +958,17 @@ func startPyroscope(url, appName string, sampleHz, uploadSec uint, debugLevel ui
 // same package, called from tests) so the version-flag path is testable
 // without a subprocess.
 func versionString() string {
-	return fmt.Sprintf("xtcp commit:%s\tdate(UTC):%s\tversion:%s",
-		commit, date, version)
+	return fmt.Sprintf("xtcp commit:%s\tdate(UTC):%s\tversion:%s%s",
+		commit, date, version, buildSuffix())
+}
+
+// buildSuffix marks a binary that carries the netlink capture writer, so a
+// debug build is recognizable from its version line.
+func buildSuffix() string {
+	if xtcp.CaptureCompiledIn {
+		return "+capture"
+	}
+	return ""
 }
 
 // prepareConfig runs the env-override + validation portion of main() up
@@ -977,7 +994,6 @@ func prepareConfig(f *mainFlags) (*xtcp_config.XtcpConfig, bool) {
 		printConfig(c, "Before environmentOverrideConfig")
 	}
 	environmentOverrideConfig(c, debugLevel)
-	warnListenerAuthSecretSource(f)
 	if debugLevel > 100 {
 		printConfig(c, "After environmentOverrideConfig")
 	}
@@ -1019,6 +1035,48 @@ func finishMain(code int, reexec func(*xtcp_config.XtcpConfig)) int {
 	return code
 }
 
+// startupConfig builds the config the daemon runs: flags and env, the
+// _FILE secrets, the soft-restart carry, then the checks that refuse it
+// before anything binds or starts. A nil config means exit with the code.
+func startupConfig(f *mainFlags) (*xtcp_config.XtcpConfig, int) {
+	c, done := prepareConfig(f)
+	if done {
+		return nil, 0
+	}
+	if err := applySecretFiles(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+
+	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
+	// config in the environment, that config wins over the flag/env-derived one.
+	// A malformed value is fatal — the restart intent is explicit, so silently
+	// falling back to the flag config would be surprising and wrong.
+	if envc, ok, err := loadReconfigureConfig(); err != nil {
+		fatalf("reconfigure: invalid %s: %v", reconfigureEnvKey, err)
+		return nil, 1
+	} else if ok {
+		c = envc
+		if debugLevel > 10 {
+			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
+		}
+	}
+
+	// Refuse a config that needs a debug writer this binary was built
+	// without (netlink capture, the file destination), before anything
+	// binds or starts. Checked after the soft-restart carry so that config
+	// is covered too.
+	if err := xtcp.CheckBuildSupport(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+	if err := xtcp.CheckS3Transport(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+	return c, 0
+}
+
 // runMain wires the production main body. Extracted so tests can run
 // it with stubbed daemonRunner / promHandlerStarter.
 func runMain(ctx context.Context) int {
@@ -1034,8 +1092,17 @@ func runMain(ctx context.Context) int {
 		fmt.Fprintln(os.Stderr, "xtcp2:", err)
 		return 2
 	}
+	if err := checkSecretFlags(flag.CommandLine, productionBuild()); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
+	}
 	healthAuth := buildListenerAuth(f)
-	envOverrideListenerAuth(&xtcp_config.XtcpConfig{ListenerAuth: healthAuth}, 0)
+	healthCfg := &xtcp_config.XtcpConfig{ListenerAuth: healthAuth}
+	envOverrideListenerAuth(healthCfg, 0)
+	if err := applyListenerSecretFiles(healthCfg); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
+	}
 
 	// Container HEALTHCHECK mode: probe the local /readyz and exit, without
 	// starting the daemon. The scratch image has no shell/curl, so the binary
@@ -1049,23 +1116,9 @@ func runMain(ctx context.Context) int {
 		return runHealthcheck(runCtx, *f.promListenNetwork, *f.promListen, authn, listenerauth.ClientAuth{RawToken: healthAuth.GetRawToken(), HMACSharedKey: healthAuth.GetHmacSharedKey()})
 	}
 
-	c, done := prepareConfig(f)
-	if done {
-		return 0
-	}
-
-	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
-	// config in the environment, that config wins over the flag/env-derived one.
-	// A malformed value is fatal — the restart intent is explicit, so silently
-	// falling back to the flag config would be surprising and wrong.
-	if envc, ok, err := loadReconfigureConfig(); err != nil {
-		fatalf("reconfigure: invalid %s: %v", reconfigureEnvKey, err)
-		return 1
-	} else if ok {
-		c = envc
-		if debugLevel > 10 {
-			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
-		}
+	c, code := startupConfig(f)
+	if c == nil {
+		return code
 	}
 
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
@@ -1568,8 +1621,9 @@ func envOverrideListenerAuth(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	admin.FailureJitterMax = a.FailureJitterMax
 }
 
-// envOverrideAuthCredential applies <prefix>AUTH_MODE, <prefix>RAW_TOKEN[_FILE]
-// and <prefix>HMAC_SHARED_KEY[_FILE].
+// envOverrideAuthCredential applies <prefix>AUTH_MODE, <prefix>RAW_TOKEN and
+// <prefix>HMAC_SHARED_KEY. The _FILE forms are read afterwards by
+// applySecretFiles, which can fail startup on a bad file.
 func envOverrideAuthCredential(a *xtcp_config.ListenerAuth, prefix, what string, debugLevel uint) {
 	if v, ok := envString(prefix + "AUTH_MODE"); ok {
 		if mode, err := listenerauth.ParseMode(v); err == nil {
@@ -1577,48 +1631,14 @@ func envOverrideAuthCredential(a *xtcp_config.ListenerAuth, prefix, what string,
 			logEnv(prefix+"AUTH_MODE", what+" auth mode set", debugLevel)
 		}
 	}
-	if v, ok := secretEnv(prefix+"RAW_TOKEN", prefix+"RAW_TOKEN_FILE"); ok {
+	if v, ok := os.LookupEnv(prefix + "RAW_TOKEN"); ok {
 		a.RawToken = v
 		logEnv(prefix+"RAW_TOKEN", what+" raw token set", debugLevel)
 	}
-	if v, ok := secretEnv(prefix+"HMAC_SHARED_KEY", prefix+"HMAC_SHARED_KEY_FILE"); ok {
+	if v, ok := os.LookupEnv(prefix + "HMAC_SHARED_KEY"); ok {
 		a.HmacSharedKey = v
 		logEnv(prefix+"HMAC_SHARED_KEY", what+" HMAC key set", debugLevel)
 	}
-}
-
-func secretEnv(inlineKey, fileKey string) (string, bool) {
-	if path, ok := os.LookupEnv(fileKey); ok && path != "" {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return "", false
-		}
-		return strings.TrimSpace(string(b)), true
-	}
-	return os.LookupEnv(inlineKey)
-}
-
-func warnListenerAuthSecretSource(f *mainFlags) {
-	if *f.listenerRawToken != "" && !envSet("LISTENER_RAW_TOKEN", "LISTENER_RAW_TOKEN_FILE") {
-		log.Print("listener auth raw token came from CLI/config; prefer LISTENER_RAW_TOKEN or LISTENER_RAW_TOKEN_FILE")
-	}
-	if *f.listenerHMACKey != "" && !envSet("LISTENER_HMAC_SHARED_KEY", "LISTENER_HMAC_SHARED_KEY_FILE") {
-		log.Print("listener auth HMAC key came from CLI/config; prefer LISTENER_HMAC_SHARED_KEY or LISTENER_HMAC_SHARED_KEY_FILE")
-	}
-	if *f.listenerAdminToken != "" && !envSet("LISTENER_ADMIN_RAW_TOKEN", "LISTENER_ADMIN_RAW_TOKEN_FILE") {
-		log.Print("listener admin raw token came from CLI/config; prefer LISTENER_ADMIN_RAW_TOKEN or LISTENER_ADMIN_RAW_TOKEN_FILE")
-	}
-	if *f.listenerAdminHMAC != "" && !envSet("LISTENER_ADMIN_HMAC_SHARED_KEY", "LISTENER_ADMIN_HMAC_SHARED_KEY_FILE") {
-		log.Print("listener admin HMAC key came from CLI/config; prefer LISTENER_ADMIN_HMAC_SHARED_KEY or LISTENER_ADMIN_HMAC_SHARED_KEY_FILE")
-	}
-}
-
-func envSet(inlineKey, fileKey string) bool {
-	if v, ok := os.LookupEnv(fileKey); ok && v != "" {
-		return true
-	}
-	_, ok := os.LookupEnv(inlineKey)
-	return ok
 }
 
 // envUint64 parses an env var as base-10 int64 and yields it as uint64.
@@ -1722,31 +1742,6 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
-}
-
-// envStringFromFile reads a secret from the file whose path is the value of
-// the `key` env var (the Docker `_FILE` convention, e.g.
-// S3_SECRET_KEY_FILE=/run/secrets/s3). This keeps the secret out of the
-// process environment (visible via `docker inspect` / /proc/<pid>/environ)
-// and out of argv — the env only names a path, the bytes live in a file.
-//
-// The file contents are trimmed of surrounding whitespace (handles a trailing
-// newline from `echo`/`aws ssm get-parameter`). Returns ("", false) when the
-// env var is unset/empty, or when the named file can't be read — in the latter
-// case it logs a non-secret error so a misconfiguration is visible, and the
-// downstream destination fails fast on the resulting empty credential rather
-// than running half-configured. The file's contents are never logged.
-func envStringFromFile(key string) (string, bool) {
-	path, ok := os.LookupEnv(key)
-	if !ok || path == "" {
-		return "", false
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		log.Printf("key:%s error reading secret file: %v", key, err)
-		return "", false
-	}
-	return strings.TrimSpace(string(b)), true
 }
 
 func logEnv(key, msg string, debugLevel uint) {
@@ -1859,18 +1854,6 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.S3SecretKey = v
 		logEnv("S3_SECRET_KEY", "set", debugLevel)
 	}
-	// File-based variants (Docker `_FILE` convention). Applied after the
-	// inline S3_ACCESS_KEY / S3_SECRET_KEY blocks so a mounted/baked secret
-	// file wins when both are set. The env var holds only the path; the
-	// credential bytes live in the file. Value is never logged.
-	if v, ok := envStringFromFile("S3_ACCESS_KEY_FILE"); ok {
-		c.S3AccessKey = v
-		logEnv("S3_ACCESS_KEY_FILE", "set", debugLevel)
-	}
-	if v, ok := envStringFromFile("S3_SECRET_KEY_FILE"); ok {
-		c.S3SecretKey = v
-		logEnv("S3_SECRET_KEY_FILE", "set", debugLevel)
-	}
 	if v, ok := envString("S3_REGION"); ok {
 		c.S3Region = v
 		logEnv("S3_REGION", fmt.Sprintf("c.S3Region:%s", v), debugLevel)
@@ -1878,6 +1861,14 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envBool("S3_SKIP_BUCKET_PROBE"); ok {
 		c.S3SkipBucketProbe = v
 		logEnv("S3_SKIP_BUCKET_PROBE", fmt.Sprintf("c.S3SkipBucketProbe:%t", v), debugLevel)
+	}
+	if v, ok := envBool("S3_ALLOW_INSECURE"); ok {
+		c.S3AllowInsecure = v
+		logEnv("S3_ALLOW_INSECURE", fmt.Sprintf("c.S3AllowInsecure:%t", v), debugLevel)
+	}
+	if v, ok := envString("S3_CA_FILE"); ok {
+		c.S3CaFile = v
+		logEnv("S3_CA_FILE", fmt.Sprintf("c.S3CaFile:%s", v), debugLevel)
 	}
 	if v, ok := envUint32("S3_PARQUET_FLUSH_BYTES"); ok {
 		c.S3ParquetFlushThresholdBytes = v

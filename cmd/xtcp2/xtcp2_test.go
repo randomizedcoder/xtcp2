@@ -342,7 +342,7 @@ func TestEnvOverrideS3SecretFile(t *testing.T) {
 	accessPath := filepath.Join(dir, "access")
 	secretPath := filepath.Join(dir, "secret")
 	// Trailing newline is intentional — mimics `echo`/`aws ssm get-parameter`
-	// output; envStringFromFile must trim it.
+	// output; readSecretFile must trim it.
 	if err := os.WriteFile(accessPath, []byte("AKIAFROMFILE\n"), 0o400); err != nil {
 		t.Fatal(err)
 	}
@@ -357,24 +357,14 @@ func TestEnvOverrideS3SecretFile(t *testing.T) {
 	t.Setenv("S3_ACCESS_KEY_FILE", accessPath)
 	t.Setenv("S3_SECRET_KEY_FILE", secretPath)
 	envOverrideMarshalAndDest(c, 0)
+	if err := applySecretFiles(c); err != nil {
+		t.Fatalf("applySecretFiles: %v", err)
+	}
 	if c.S3AccessKey != "AKIAFROMFILE" {
 		t.Errorf("S3AccessKey = %q, want trimmed file contents", c.S3AccessKey)
 	}
 	if c.S3SecretKey != "secretFromFile" {
 		t.Errorf("S3SecretKey = %q, want trimmed file contents", c.S3SecretKey)
-	}
-}
-
-// TestEnvStringFromFileMissing: an unset env var, or a path that can't be
-// read, yields (_, false) and leaves config untouched (fail-fast downstream
-// rather than running with an empty credential silently overwriting a good one).
-func TestEnvStringFromFileMissing(t *testing.T) {
-	if v, ok := envStringFromFile("S3_SECRET_KEY_FILE_UNSET_FOR_TEST"); ok || v != "" {
-		t.Errorf("unset env: got (%q, %v), want (\"\", false)", v, ok)
-	}
-	t.Setenv("S3_SECRET_KEY_FILE_BADPATH", filepath.Join(t.TempDir(), "does-not-exist"))
-	if v, ok := envStringFromFile("S3_SECRET_KEY_FILE_BADPATH"); ok || v != "" {
-		t.Errorf("missing file: got (%q, %v), want (\"\", false)", v, ok)
 	}
 }
 
@@ -972,6 +962,8 @@ func TestPrintFlags(t *testing.T) {
 	f.s3SecretKey = &s
 	f.s3Region = &s
 	f.s3SkipBucketProbe = &b
+	f.s3AllowInsecure = &b
+	f.s3CAFile = &s
 	f.s3ParquetFlushBytes = &n
 	f.pollJitterPct = &n
 	f.s3FlushInterval = &d
@@ -1188,6 +1180,8 @@ func TestBuildConfig(t *testing.T) {
 		s3SecretKey:               &mar,
 		s3Region:                  &mar,
 		s3SkipBucketProbe:         &iu,
+		s3AllowInsecure:           &iu,
+		s3CAFile:                  &mar,
 		location:                  &mar,
 		hostname:                  &mar,
 		resolveContainerId:        &iu,

@@ -952,6 +952,22 @@ message XtcpConfig {
 		(buf.validate.field).required = false
 	];
 
+	// Allow a plaintext http:// S3 endpoint. The credential and every
+	// uploaded object would cross the network in the clear, so the daemon
+	// refuses http:// unless this is set; a bare host:port and https:// both
+	// use TLS. For local test fixtures only. Sets the xtcp2_s3_insecure gauge.
+	bool s3_allow_insecure                           = 107 [
+		(buf.validate.field).required = false
+	];
+
+	// PEM bundle of CA certificates to trust for the S3 endpoint, in addition
+	// to the system roots. For a private CA in front of an S3-compatible
+	// store. Empty = system roots only.
+	string s3_ca_file                                = 108 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string.max_len = 4096
+	];
+
 	// Soft cap on the in-memory Parquet builder's accumulated
 	// uncompressed row bytes before the worker finalizes the file and
 	// uploads. Default 0 → 63 MiB (S3ParquetFlushThresholdBytesCst).

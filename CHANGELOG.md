@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- **S3 uses TLS unless told otherwise.** A bare `host:port` S3 endpoint now uses TLS (it was plaintext), and `http://` is refused at startup (exit 64) unless `-s3AllowInsecure` / `S3_ALLOW_INSECURE=true`, which logs a warning and sets `xtcp2_s3_insecure 1`. TLS 1.2 is the minimum; `-s3CAFile` / `S3_CA_FILE` adds a private CA. `ConfigService.Set` refuses a plaintext endpoint without the opt-in.
+- **Credentials on the command line.** The production (slim) flavors refuse `-s3AccessKey`, `-s3SecretKey` and the four `-listener*` secret flags with exit 64; development builds warn, now for the S3 flags too and even when the env var is also set. Use the `_FILE` variables.
+- **`_FILE` secrets are checked.** A missing or unreadable `*_FILE` path, a non-regular file, or one readable by group or others stops startup with exit 64. It used to be ignored silently (listener tokens) or logged (S3 keys), leaving the credential empty. Mount secrets mode `0400`.
+- **The debug writers are build-time opt-ins.** The netlink capture writer (`-writeFiles` / `-capturePath`) is compiled in only with `-tags capture`, which no flavor or image sets; use `nix build .#xtcp2-capture`. The `file:` destination needs `-tags dest_file` and is in the full (development) flavor only, so `xtcp2-<dest>` slim flavors and their images no longer have it. Asking for either on a binary without it exits 64 at startup with the tag to rebuild with; `ConfigService.Set` refuses it with `FailedPrecondition`. A capture build reports `+capture` in its version line, and when armed logs a warning and sets `xtcp2_debug_capture_enabled 1`.
+
 ## 0.2.1 (2026-11)
 
 Fixes for what the first fleet rollout of 0.2.0 found: the link monitor baseline, the uplink columns, and container attribution. No schema, flag-default or `XtcpConfig` change; 0.2.0 clients and consumers work unchanged.

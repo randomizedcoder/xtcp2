@@ -265,7 +265,7 @@ In the microvms, xtcp2 runs as a NixOS systemd service (`xtcp2.service`, defined
 | minimal / soak / tcp-stress / coverage | `null` | No downstream; the point is the netlink readout (minimal also writes a `file:` dest for the `OUTPUT_CONTENT` check) |
 | clickhouse-pipeline / -stress / -rate | `kafka:localhost:19092` | Real Kafka → ClickHouse destination (rate disables poll jitter via `-pollJitterPct 0`) |
 | clickhouse-http | `http://localhost:18123/?query=INSERT+INTO+xtcp.xtcp_flat_records+FORMAT+ProtobufList&format_schema=…&password=…` | Direct HTTP→ClickHouse ProtobufList insert (no Kafka); the daemon POSTs the batch to the verbatim URL |
-| s3parquet / -long / -stress / -lowfreq | `s3parquet:http://127.0.0.1:9000` | In-VM Garage (S3 API on :9000); parquet upload path |
+| s3parquet / -long / -stress / -lowfreq | `s3parquet:http://127.0.0.1:9000` + `-s3AllowInsecure` | In-VM Garage (plaintext S3 API on :9000); parquet upload path |
 | valkey / nats / nsq | `valkey:127.0.0.1:6379` / `nats:127.0.0.1:4222` / `nsq:127.0.0.1:4150` | Native in-VM broker; `-topic xtcp2-records`, `-marshal protobufList` |
 | tcp-sink / udp-sink / unix-sink / unixgram-sink | `tcp:localhost:13001` / `udp:localhost:13001` / `unix:/run/xtcp2-sink.sock` / `unixgram:/run/xtcp2-sink.sock` | Raw socket → an in-VM `ncat`/`socat` receiver |
 

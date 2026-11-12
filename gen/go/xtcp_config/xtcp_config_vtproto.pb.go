@@ -1510,6 +1510,27 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xf0
 	}
+	if len(m.S3CaFile) > 0 {
+		i -= len(m.S3CaFile)
+		copy(dAtA[i:], m.S3CaFile)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3CaFile)))
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xe2
+	}
+	if m.S3AllowInsecure {
+		i--
+		if m.S3AllowInsecure {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xd8
+	}
 	if m.S3SkipBucketProbe {
 		i--
 		if m.S3SkipBucketProbe {
@@ -2425,6 +2446,13 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	if m.S3SkipBucketProbe {
 		n += 3
+	}
+	if m.S3AllowInsecure {
+		n += 3
+	}
+	l = len(m.S3CaFile)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	if m.S3ParquetFlushThresholdBytes != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3ParquetFlushThresholdBytes))
@@ -6196,6 +6224,58 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.S3SkipBucketProbe = bool(v != 0)
+		case 107:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3AllowInsecure", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.S3AllowInsecure = bool(v != 0)
+		case 108:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3CaFile", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3CaFile = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		case 110:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field S3ParquetFlushThresholdBytes", wireType)

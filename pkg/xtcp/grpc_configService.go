@@ -176,6 +176,18 @@ func (c *xtcpConfigService) Set(
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
+	// Same reasoning for the build-tag-gated debug writers (the netlink
+	// capture writer, the file destination): a binary built without them
+	// cannot be restarted into using them.
+	if err := CheckBuildSupport(in.Config); err != nil {
+		c.pC.WithLabelValues("Set", "notCompiledIn", "error").Inc()
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	if err := CheckS3Transport(in.Config); err != nil {
+		c.pC.WithLabelValues("Set", "s3Transport", "error").Inc()
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
 	// Secret preservation: an operator does Get → edit → Set, and Get redacts
 	// the S3 credentials (see below). Empty credential fields therefore mean
 	// "unchanged", not "clear" — inherit them from the running config so a

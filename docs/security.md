@@ -241,11 +241,20 @@ to your operational policy without logging bearer values.
 | Admin HMAC key | `-listenerAdminAuthMode hmac-utc-minute` / `LISTENER_ADMIN_AUTH_MODE=hmac-utc-minute` | `LISTENER_ADMIN_HMAC_SHARED_KEY_FILE` |
 
 Direct environment values omit `_FILE`. CLI secret flags are `-listenerRawToken`,
-`-listenerAdminRawToken`, `-listenerHMACSharedKey`, and
-`-listenerAdminHMACSharedKey`. Prefer files to avoid secrets in argv, shell history,
-deployment manifests, or inline environment inspection. Provision independent,
-high-entropy values with restrictive ownership/modes through your secret manager;
-the loader does not generate or assess their entropy. File contents are trimmed.
+`-listenerAdminRawToken`, `-listenerHMACSharedKey`, `-listenerAdminHMACSharedKey`,
+`-s3AccessKey` and `-s3SecretKey`. A value on the command line is visible in `ps`,
+`/proc/<pid>/cmdline` and `docker inspect`, so the production (slim) flavors refuse
+these flags with exit 64, and development builds log a warning naming the `_FILE`
+variable to use instead. Use the `_FILE` form. Provision independent, high-entropy
+values through your secret manager; the loader does not generate or assess their
+entropy. File contents are trimmed.
+
+A `_FILE` path is checked before it is used: a missing or unreadable path, a
+non-regular file, or a file with any permission bit for group or others (for
+example `0644`, or `0444` from a Nix store path) stops startup with exit 64
+rather than leaving the credential empty. Mount secrets mode `0400` (Kubernetes:
+`defaultMode: 0400`; Compose: a host file with mode `0400`). Symlinks are
+followed, so Kubernetes secret volumes work.
 Do not put literal secrets into Nix expressions or derivations that enter the store.
 
 `-listenerSignedSkewMinutes` / `LISTENER_SIGNED_SKEW_MINUTES` and

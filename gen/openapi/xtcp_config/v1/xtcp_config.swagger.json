@@ -781,6 +781,14 @@
           "type": "boolean",
           "description": "Skip the startup S3 BucketExists probe. The probe issues a\nHeadBucket, which requires the s3:ListBucket permission. Set true\nwhen the upload credential is deliberately scoped to s3:PutObject\nonly (write-only key, e.g. a baked deployment credential) so the\ndaemon can start without list permission. Default false keeps the\nfail-fast probe for normal deployments."
         },
+        "s3AllowInsecure": {
+          "type": "boolean",
+          "description": "Allow a plaintext http:// S3 endpoint. The credential and every\nuploaded object would cross the network in the clear, so the daemon\nrefuses http:// unless this is set; a bare host:port and https:// both\nuse TLS. For local test fixtures only. Sets the xtcp2_s3_insecure gauge."
+        },
+        "s3CaFile": {
+          "type": "string",
+          "description": "PEM bundle of CA certificates to trust for the S3 endpoint, in addition\nto the system roots. For a private CA in front of an S3-compatible\nstore. Empty = system roots only."
+        },
         "s3ParquetFlushThresholdBytes": {
           "type": "integer",
           "format": "int64",
