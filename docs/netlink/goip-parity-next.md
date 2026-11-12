@@ -585,7 +585,7 @@ NX5 is done in three parts:
 
 ## Follow-ups after Tier G
 
-Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps, NX6d to ila and xfrm, and NX6e to seg6local.
+Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps, NX6d to ila and xfrm, and NX6e to seg6local. NX7 holds every other readback in the corpus to ip.
 
 ### NF1 nlparity sets RTA_METRICS padding aside
 
@@ -707,6 +707,37 @@ ip resolves `link_dev` before the `dev` it prints after it: print_route's encap 
 | corner: a BPF nest with no name; a name with no NUL | | `endpoint`, JSON `<unknown>`; the name whole |
 | corner: flavor bits with no name | bits 0 and 5 | `flavors  `, JSON `[]` |
 | corner: iif and oif both uncached | | resolved iif first, then oif |
+
+### NX7 `show` readbacks print what ip printed
+
+The encap and v730 readback tests cover only their own spaces. O9 (`TestWsReadbacks`) replays every workbench row's readbacks through goip, over the row's own dump capture. goip must print ip's stdout and send ip's requests. Each readback that doesn't is listed in `internal/goip/testdata/ws-readbacks.txt`, named by the first word of ip's line that goip lacks, or by goip's refusal. Each task below shrinks that list; regenerate it with `-update-ws-readbacks`.
+
+At NX7-0, 2003 readbacks match and 414 differ:
+
+| Task | Gap | Readbacks | Spaces |
+|---|---|---|---|
+| NX7a | neigh `proto` (NDA_PROTOCOL) | 63 | neigh4, neigh6 |
+| NX7b | link `mtu` and `qlen` when 0 | 60 | linkset, linkadd |
+| NX7c | link `alias` (IFLA_IFALIAS) | 36 | linkset |
+| NX7d | `protodown` and `protodown_reason`, with ip's faults (P14) | 11 | linkpd |
+| NX7e | route `realm` and `realms` (RTA_FLOW) | 4 | kwroute4 |
+| — | rule `tos` names from rt_dsfield (`EF` where goip prints `0xb8`) | 8 | rule6 |
+| — | rule show refused: FRA_DSCP (88) and FRA_IP_PROTO (144), by the no-config-files rule | 232 | rule4, rule6 |
+
+The last two rows are a decision, not a task yet (status doc, decision log).
+
+`TestWsReadbackFirstGap` checks how a readback is named:
+
+| description | input | expected |
+|---|---|---|
+| positive: the same output and requests | | not listed |
+| positive: a word ip prints and goip lacks | `… STALE ` against `… STALE proto static ` | `lacks "proto"` |
+| negative: goip refuses | goip's error, rc 1 | `refuses "rule pref N: …"`, numbers as N |
+| negative: the same output from other requests | | `requests` |
+| boundary: a refusal where ip printed nothing | an empty `.out` | not listed |
+| corner: goip prints a word more | | `adds words` |
+| corner: only the spacing differs | | `spacing` |
+| corner: a whole line goip lacks | `    alias hello` | `lacks "alias"` |
 
 ## See also
 
