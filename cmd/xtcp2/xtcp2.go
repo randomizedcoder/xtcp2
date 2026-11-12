@@ -1035,6 +1035,48 @@ func finishMain(code int, reexec func(*xtcp_config.XtcpConfig)) int {
 	return code
 }
 
+// startupConfig builds the config the daemon runs: flags and env, the
+// _FILE secrets, the soft-restart carry, then the checks that refuse it
+// before anything binds or starts. A nil config means exit with the code.
+func startupConfig(f *mainFlags) (*xtcp_config.XtcpConfig, int) {
+	c, done := prepareConfig(f)
+	if done {
+		return nil, 0
+	}
+	if err := applySecretFiles(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+
+	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
+	// config in the environment, that config wins over the flag/env-derived one.
+	// A malformed value is fatal — the restart intent is explicit, so silently
+	// falling back to the flag config would be surprising and wrong.
+	if envc, ok, err := loadReconfigureConfig(); err != nil {
+		fatalf("reconfigure: invalid %s: %v", reconfigureEnvKey, err)
+		return nil, 1
+	} else if ok {
+		c = envc
+		if debugLevel > 10 {
+			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
+		}
+	}
+
+	// Refuse a config that needs a debug writer this binary was built
+	// without (netlink capture, the file destination), before anything
+	// binds or starts. Checked after the soft-restart carry so that config
+	// is covered too.
+	if err := xtcp.CheckBuildSupport(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+	if err := xtcp.CheckS3Transport(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+	return c, 0
+}
+
 // runMain wires the production main body. Extracted so tests can run
 // it with stubbed daemonRunner / promHandlerStarter.
 func runMain(ctx context.Context) int {
@@ -1074,40 +1116,9 @@ func runMain(ctx context.Context) int {
 		return runHealthcheck(runCtx, *f.promListenNetwork, *f.promListen, authn, listenerauth.ClientAuth{RawToken: healthAuth.GetRawToken(), HMACSharedKey: healthAuth.GetHmacSharedKey()})
 	}
 
-	c, done := prepareConfig(f)
-	if done {
-		return 0
-	}
-	if err := applySecretFiles(c); err != nil {
-		fmt.Fprintln(os.Stderr, "xtcp2:", err)
-		return exitCodeFor(err)
-	}
-
-	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
-	// config in the environment, that config wins over the flag/env-derived one.
-	// A malformed value is fatal — the restart intent is explicit, so silently
-	// falling back to the flag config would be surprising and wrong.
-	if envc, ok, err := loadReconfigureConfig(); err != nil {
-		fatalf("reconfigure: invalid %s: %v", reconfigureEnvKey, err)
-		return 1
-	} else if ok {
-		c = envc
-		if debugLevel > 10 {
-			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
-		}
-	}
-
-	// Refuse a config that needs a debug writer this binary was built
-	// without (netlink capture, the file destination), before anything
-	// binds or starts. Checked after the soft-restart carry so that config
-	// is covered too.
-	if err := xtcp.CheckBuildSupport(c); err != nil {
-		fmt.Fprintln(os.Stderr, "xtcp2:", err)
-		return exitCodeFor(err)
-	}
-	if err := xtcp.CheckS3Transport(c); err != nil {
-		fmt.Fprintln(os.Stderr, "xtcp2:", err)
-		return exitCodeFor(err)
+	c, code := startupConfig(f)
+	if c == nil {
+		return code
 	}
 
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
