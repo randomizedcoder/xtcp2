@@ -148,6 +148,7 @@ func nexthopShowID(c *runCtx, id uint32) error {
 	if err != nil {
 		return err
 	}
+	resolveEncapName(c, svc, nh.Encap)
 	resolveIndexName(c, svc, nh.OIF)
 	if c.json {
 		// ip -j nexthop show id N keeps the dump's array wrapper around the one
@@ -223,6 +224,7 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 		return err
 	}
 	for i := range nhs {
+		resolveEncapName(c, svc, nhs[i].Encap)
 		resolveIndexName(c, svc, nhs[i].OIF)
 	}
 

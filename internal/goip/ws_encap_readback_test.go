@@ -9,12 +9,12 @@ import (
 	"testing"
 )
 
-// NX6a, NX6b and NX6c (goip-parity-next.md): route show's RTA_ENCAP and
+// NX6a, NX6b, NX6c and NX6d (goip-parity-next.md): route show's RTA_ENCAP and
 // nexthop show's NHA_ENCAP, held to every readback of the lwt and seg6
 // spaces.
 
 // wsEncapDecoded are the encap types render.EncapViewOf prints.
-var wsEncapDecoded = []string{"mpls", "seg6", "ip", "ip6"}
+var wsEncapDecoded = []string{"mpls", "seg6", "ip", "ip6", "ila", "xfrm"}
 
 // wsEncapTypes are the types after each `encap` in ip's output, less
 // seg6's `mode encap`.
@@ -56,8 +56,8 @@ func TestWsEncapReadbacks(t *testing.T) {
 		{description: "positive: nexthop objects, ip and ip6", space: "lwtnh", readbacks: 6, decoded: 6},
 		{description: "positive: nexthop objects, seg6 among seg6local", space: "lwtxnh", readbacks: 4, decoded: 2, gap: 2},
 		{description: "negative: seg6local routes, not decoded", space: "seg6local", readbacks: 21, gap: 15},
-		{description: "negative: ila routes, not decoded", space: "ila", readbacks: 10, gap: 6},
-		{description: "negative: xfrm routes, not decoded", space: "xfrm", readbacks: 9, gap: 6},
+		{description: "positive: ila routes, the kernel's defaults among them", space: "ila", readbacks: 10, decoded: 6},
+		{description: "positive: xfrm routes, link_dev among them", space: "xfrm", readbacks: 9, decoded: 6},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

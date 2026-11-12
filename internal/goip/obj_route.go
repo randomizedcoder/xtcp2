@@ -791,13 +791,26 @@ func routeMatchesOif(r *model.Route, oif uint32) bool {
 func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route, oifMask bool) {
 	for i := range routes {
 		r := &routes[i]
+		resolveEncapName(c, svc, r.Encap)
 		if !oifMask {
 			resolveIndexName(c, svc, int32(r.Oif))
 		}
 		resolveIndexName(c, svc, int32(r.Iif))
 		for j := range r.Multipath {
+			resolveEncapName(c, svc, r.Multipath[j].Encap)
 			resolveIndexName(c, svc, r.Multipath[j].Ifindex)
 		}
+	}
+}
+
+// resolveEncapName is lwt_print_encap's one ll_index_to_name, an xfrm
+// encap's link_dev. print_route prints the encap before the dev
+// (ip/iproute.c:887, :900), and print_rta_multipath a hop's before the
+// hop's dev (:727, :744), as print_nexthop does (ip/ipnexthop.c:571, :580),
+// so each caller resolves it first.
+func resolveEncapName(c *runCtx, svc *service.Service, e *xtcpnl.RouteEncap) {
+	if e != nil && e.Xfrm != nil && e.Xfrm.HasLink {
+		resolveIndexName(c, svc, int32(e.Xfrm.Link))
 	}
 }
 

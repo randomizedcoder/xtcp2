@@ -14,9 +14,10 @@ import (
 // own tokens, as text and as the "encap" JSON object, each built by the
 // same print_* calls in ip's order.
 //
-// Only the types xtcpnl decodes render: mpls, seg6, ip and ip6. Another
+// Only the types xtcpnl decodes render: mpls, seg6, ip, ip6, ila and xfrm.
+// Another
 // type's route prints without its encap, as before NX6a: lwt_print_encap
-// would print ` encap ila ` and then the payload, and a keyword with its
+// would print ` encap rpl ` and then the payload, and a keyword with its
 // payload missing is worse than both missing (route.go, "What this renderer
 // does not print").
 type EncapView struct {
@@ -33,14 +34,15 @@ func (v *EncapView) MarshalJSON() ([]byte, error) { return v.json, nil }
 
 // EncapViewOf renders e, or is nil when ip prints no encap or goip doesn't
 // decode its type. lwt_print_encap's callers test RTA_ENCAP, and it tests
-// RTA_ENCAP_TYPE, so both must be present.
-func EncapViewOf(e *xtcpnl.RouteEncap) *EncapView {
-	if e == nil || !e.HasType || e.Raw == nil || (e.MPLS == nil && e.Seg6 == nil && e.IP == nil) {
+// RTA_ENCAP_TYPE, so both must be present. tab names xfrm's link_dev.
+func EncapViewOf(e *xtcpnl.RouteEncap, tab NameTab) *EncapView {
+	if e == nil || !e.HasType || e.Raw == nil ||
+		(e.MPLS == nil && e.Seg6 == nil && e.IP == nil && e.Ila == nil && e.Xfrm == nil) {
 		return nil
 	}
 	text, js := NewPrinter(false), NewPrinter(true)
 	for _, p := range []*Printer{text, js} {
-		printEncap(p, e)
+		printEncap(p, e, tab)
 	}
 	return &EncapView{text: string(text.Bytes()), json: js.Bytes()}
 }
@@ -49,7 +51,7 @@ func EncapViewOf(e *xtcpnl.RouteEncap) *EncapView {
 //
 // ip opens the object as "encap"; here it is unnamed, because MarshalJSON
 // is the member's value and the struct tag carries the key.
-func printEncap(p *Printer, e *xtcpnl.RouteEncap) {
+func printEncap(p *Printer, e *xtcpnl.RouteEncap, tab NameTab) {
 	p.OpenObject("")
 	p.String(PrintAny, "encap_type", " encap %s ", encapTypeName(e.Type))
 	switch {
@@ -59,8 +61,47 @@ func printEncap(p *Printer, e *xtcpnl.RouteEncap) {
 		printEncapSeg6(p, e.Seg6)
 	case e.IP != nil:
 		printEncapIP(p, e.IP, e.Type == unix.LWTUNNEL_ENCAP_IP6)
+	case e.Ila != nil:
+		printEncapIla(p, e.Ila)
+	case e.Xfrm != nil:
+		printEncapXfrm(p, e.Xfrm, tab)
 	}
 	p.CloseObject()
+}
+
+// ilaHookNames is ila_hook_type2name (ip/ila_common.h).
+var ilaHookNames = map[uint8]string{
+	xtcpnl.ILAHookRouteOutput: "output",
+	xtcpnl.ILAHookRouteInput:  "input",
+}
+
+// printEncapIla is print_encap_ila. Each format leads with a space and
+// ends with one, so the text reads `encap ila  2001:0:0:2  csum-mode …`.
+// A value with no name is "unknown", as in `ip ila show`.
+func printEncapIla(p *Printer, e *xtcpnl.IlaEncapInfo) {
+	if e.HasLocator {
+		p.String(PrintAny, "locator", " %s ", addr64String(e.Locator))
+	}
+	if e.HasCsumMode {
+		p.String(PrintAny, "csum_mode", " csum-mode %s ", ilaName(ilaCsumNames, e.CsumMode))
+	}
+	if e.HasIdentType {
+		p.String(PrintAny, "ident_type", " ident-type %s ", ilaName(ilaIdentNames, e.IdentType))
+	}
+	if e.HasHookType {
+		p.String(PrintAny, "hook_type", " hook-type %s ", ilaName(ilaHookNames, e.HookType))
+	}
+}
+
+// printEncapXfrm is print_encap_xfrm: the if_id, then the link through
+// ll_index_to_name, so 0 is "*" and an unknown index if%u.
+func printEncapXfrm(p *Printer, e *xtcpnl.XfrmEncapInfo, tab NameTab) {
+	if e.HasIfID {
+		p.U64(PrintAny, "if_id", "if_id %d ", uint64(e.IfID))
+	}
+	if e.HasLink {
+		p.String(PrintAny, "link_dev", "link_dev %s ", tab.IndexToName(int32(e.Link)))
+	}
 }
 
 // printEncapMPLS is print_encap_mpls. The label stack's format has a space

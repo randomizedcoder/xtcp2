@@ -56,7 +56,7 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 		}
 	}
 	// lwt_print_encap (ip/ipnexthop.c:570), after the group, before via.
-	if e := EncapViewOf(nh.Encap); e != nil {
+	if e := EncapViewOf(nh.Encap, tab); e != nil {
 		b.WriteString(e.Text())
 	}
 	if len(nh.Gateway) > 0 {
@@ -207,7 +207,7 @@ func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopVi
 			}
 		}
 	}
-	v.Encap = EncapViewOf(nh.Encap)
+	v.Encap = EncapViewOf(nh.Encap, tab)
 	if len(nh.Gateway) > 0 {
 		v.Gateway = addrString(nh.Gateway, nh.Family)
 	}

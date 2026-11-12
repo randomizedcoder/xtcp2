@@ -585,7 +585,7 @@ NX5 is done in three parts:
 
 ## Follow-ups after Tier G
 
-Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps.
+Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps, and NX6d to ila and xfrm.
 
 ### NF1 nlparity sets RTA_METRICS padding aside
 
@@ -652,6 +652,29 @@ ip sends RTA_METRICS without `NLA_F_NESTED`, and `rta_addattr_l` leaves RTAX_CC_
 | corner: an empty geneve nest | | `geneve_opts` alone, `"geneve_opts":[]` |
 | corner: vxlan sent before geneve | | geneve printed |
 | corner: an opts nest of no known kind | | nothing after the scalars |
+
+### NX6d `route show` and `nexthop show` print the ila and xfrm encaps
+
+`xtcpnl.ParseIlaEncap` and `ParseXfrmEncap` read the payloads as print_encap_ila and print_encap_xfrm do. The first of a repeated attribute wins, and a short scalar is dropped. ila's locator is read big-endian, so addr64_n2a's four groups are its 16-bit words from the top. xfrm's if_id and link are host-order u32s.
+
+`EncapViewOf` prints them through the same call sequence, and now takes the `NameTab`:
+- ila: the locator, then `csum-mode`, `ident-type` and `hook-type`. Each format has a space before and after, so the text has double spaces (`encap ila  2001:0:0:2  csum-mode no-action`). A value with no name prints `unknown`, from the tables `ip ila show` uses.
+- xfrm: `if_id`, then `link_dev` through ll_index_to_name: `*` for 0, `if%u` for an index not in the cache.
+
+ip resolves `link_dev` before the `dev` it prints after it: print_route's encap comes before RTA_OIF, a hop's before the hop's dev, and print_nexthop's before NHA_OIF. So `resolveEncapName` resolves it first in each of `route show`, `route get` and `nexthop show`, and the RTM_GETLINK for an uncached index goes out in ip's order.
+
+| description | input | expected |
+|---|---|---|
+| positive: captured ila ec-001 and ec-003 | the dump pcaps' payloads | the locator, and the csum-mode, ident-type and hook-type the kernel fills in |
+| positive: captured xfrm ec-001 to ec-003 | | if_id 1 and 7, link 3 |
+| positive: the corpus | `TestWsEncapReadbacks`: ila and xfrm | all 12 readbacks as ip printed them; they all differed before |
+| positive: ila's text | every attribute | ` encap ila  2001:0:0:2  csum-mode no-action  ident-type luid  hook-type output ` |
+| positive: xfrm with a cached link | if_id 1, link 4 (`d0`) | ` encap xfrm if_id 1 link_dev d0 `, `{"encap_type":"xfrm","if_id":1,"link_dev":"d0"}` |
+| negative: an attribute longer than its payload | | `ErrRTAttrSmall` |
+| boundary: if_id 0 and 4294967295; a 7-byte locator; a 3-byte link | | printed; printed; dropped; dropped |
+| corner: link 0, or one not in the cache | | `link_dev *`, `link_dev if99` |
+| corner: ila values with no name | 9 | `unknown` for each |
+| corner: a repeated attribute | | the first wins, even when it is short and dropped |
 
 ## See also
 

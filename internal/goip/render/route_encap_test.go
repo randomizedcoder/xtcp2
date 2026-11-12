@@ -44,6 +44,14 @@ func TestEncapViewOf(t *testing.T) {
 	dst4 := xtcpnl.IPEncapInfo{ID: 1, Dst: []byte{203, 0, 113, 5}, HasID: true}
 	opts := func(o xtcpnl.IPEncapOpts) xtcpnl.IPEncapInfo { e := dst4; e.Opts = &o; return e }
 	tunsrc, _ := hex.DecodeString(s2)
+	ila := func(e xtcpnl.IlaEncapInfo) *xtcpnl.RouteEncap {
+		return &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_ILA, HasType: true, Raw: raw, Ila: &e}
+	}
+	xfrm := func(e xtcpnl.XfrmEncapInfo) *xtcpnl.RouteEncap {
+		return &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_XFRM, HasType: true, Raw: raw, Xfrm: &e}
+	}
+	const loc = 0x2001_0000_0000_0002
+	tab := fakeNames{4: {name: "d0"}}
 	tests := []struct {
 		description string
 		e           *xtcpnl.RouteEncap
@@ -109,7 +117,33 @@ func TestEncapViewOf(t *testing.T) {
 			" encap ip id 1 dst 203.0.113.5 ", `{"encap_type":"ip","id":1,"dst":"203.0.113.5"}`},
 		{"corner: ip with no attributes prints the type alone", ip(unix.LWTUNNEL_ENCAP_IP, xtcpnl.IPEncapInfo{}),
 			" encap ip ", `{"encap_type":"ip"}`},
-		{"negative: an undecoded type prints nothing", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_ILA, HasType: true, Raw: raw}, "", ""},
+		{"positive: ila, every attribute, as the kernel fills them",
+			ila(xtcpnl.IlaEncapInfo{Locator: loc, CsumMode: xtcpnl.ILACsumNoAction, IdentType: xtcpnl.ILAAtypeLUID,
+				HookType: xtcpnl.ILAHookRouteOutput, HasLocator: true, HasCsumMode: true, HasIdentType: true, HasHookType: true}),
+			" encap ila  2001:0:0:2  csum-mode no-action  ident-type luid  hook-type output ",
+			`{"encap_type":"ila","locator":"2001:0:0:2","csum_mode":"no-action","ident_type":"luid","hook_type":"output"}`},
+		{"positive: ila adj-transport and the input hook",
+			ila(xtcpnl.IlaEncapInfo{Locator: loc, HookType: xtcpnl.ILAHookRouteInput, HasLocator: true, HasCsumMode: true, HasHookType: true}),
+			" encap ila  2001:0:0:2  csum-mode adj-transport  hook-type input ",
+			`{"encap_type":"ila","locator":"2001:0:0:2","csum_mode":"adj-transport","hook_type":"input"}`},
+		{"boundary: ila locator all ones and all zeros groups",
+			ila(xtcpnl.IlaEncapInfo{Locator: 0xffff_0000_ffff_0000, HasLocator: true}),
+			" encap ila  ffff:0:ffff:0 ", `{"encap_type":"ila","locator":"ffff:0:ffff:0"}`},
+		{"corner: ila values with no name print unknown",
+			ila(xtcpnl.IlaEncapInfo{CsumMode: 9, IdentType: 9, HookType: 9, HasCsumMode: true, HasIdentType: true, HasHookType: true}),
+			" encap ila  csum-mode unknown  ident-type unknown  hook-type unknown ",
+			`{"encap_type":"ila","csum_mode":"unknown","ident_type":"unknown","hook_type":"unknown"}`},
+		{"corner: ila with no attributes prints the type alone", ila(xtcpnl.IlaEncapInfo{}), " encap ila ", `{"encap_type":"ila"}`},
+		{"positive: xfrm if_id alone", xfrm(xtcpnl.XfrmEncapInfo{IfID: 7, HasIfID: true}),
+			" encap xfrm if_id 7 ", `{"encap_type":"xfrm","if_id":7}`},
+		{"positive: xfrm if_id and a cached link_dev", xfrm(xtcpnl.XfrmEncapInfo{IfID: 1, Link: 4, HasIfID: true, HasLink: true}),
+			" encap xfrm if_id 1 link_dev d0 ", `{"encap_type":"xfrm","if_id":1,"link_dev":"d0"}`},
+		{"boundary: xfrm if_id 4294967295 and link 0, which ll_index_to_name names *",
+			xfrm(xtcpnl.XfrmEncapInfo{IfID: 4294967295, HasIfID: true, HasLink: true}),
+			" encap xfrm if_id 4294967295 link_dev * ", `{"encap_type":"xfrm","if_id":4294967295,"link_dev":"*"}`},
+		{"corner: xfrm link not in the cache prints if%u", xfrm(xtcpnl.XfrmEncapInfo{Link: 99, HasLink: true}),
+			" encap xfrm link_dev if99 ", `{"encap_type":"xfrm","link_dev":"if99"}`},
+		{"negative: an undecoded type prints nothing", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_RPL, HasType: true, Raw: raw}, "", ""},
 		{"negative: RTA_ENCAP without RTA_ENCAP_TYPE", &xtcpnl.RouteEncap{Raw: raw}, "", ""},
 		{"negative: RTA_ENCAP_TYPE without RTA_ENCAP", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_MPLS, HasType: true,
 			MPLS: &xtcpnl.MPLSEncap{}}, "", ""},
@@ -117,7 +151,7 @@ func TestEncapViewOf(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			v := EncapViewOf(tc.e)
+			v := EncapViewOf(tc.e, tab)
 			if v == nil {
 				if tc.text != "" {
 					t.Fatalf("no view, expected %q", tc.text)
