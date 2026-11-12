@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 )
 
 // O9, the readback differential (goip-parity-next.md, NX7): every workbench
@@ -81,6 +83,7 @@ func wsReadbackFirstGap(r wsReadback) string {
 
 func TestWsReadbacks(t *testing.T) {
 	useLLMap720(t)
+	useQlen720(t)
 	t.Cleanup(func() { useWsO5Release("") })
 	var report []string
 	head := make([]string, 0, len(wsO5Spaces))
@@ -140,6 +143,16 @@ func TestWsReadbacks(t *testing.T) {
 	for _, l := range wsO5GoldenDiff(string(want), got) {
 		t.Error(l)
 	}
+}
+
+// useQlen720 sets render.RenderQlenZero, as the workbench's iproute2 7.2.0
+// prints a present txqlen of 0; main_test.go clears it for the 7.1.x
+// fixtures.
+func useQlen720(t *testing.T) {
+	t.Helper()
+	prev := render.RenderQlenZero
+	render.RenderQlenZero = true
+	t.Cleanup(func() { render.RenderQlenZero = prev })
 }
 
 // TestWsReadbackFirstGap checks how a differing readback is named.

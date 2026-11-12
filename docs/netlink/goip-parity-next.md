@@ -753,6 +753,22 @@ print_neigh prints `proto %s` after the state when NDA_PROTOCOL is non-zero (ip/
 | corner: only the spacing differs | | `spacing` |
 | corner: a whole line goip lacks | `    alias hello` | `lacks "alias"` |
 
+#### NX7b link `mtu` and `qlen` when 0
+
+Two causes, one of them in the test:
+
+- **`mtu`:** print_linkinfo prints `mtu %u ` whenever IFLA_MTU is present (ip/ipaddress.c:1021-1024). goip printed it only when the MTU was non-zero, so a dummy at `mtu 0` (linkset bd-001, ec-003) lost the token. `LinkView.MTU` is now a pointer, set when IFLA_MTU is present or non-zero; a hand-built LinkInfo marks presence with a non-zero MTU. JSON gains `"mtu":0`.
+- **`qlen`:** goip already prints `qlen 0` under iproute2 7.2.0 (`render.RenderQlenZero`). But the package's `main_test.go` turns the knob off for the 7.1.x fixtures, and O9 ran with it off. `TestWsReadbacks` now sets it, as `TestCorpus730MatchesSidecarsAt720` does (`useQlen720`).
+
+| description | input | expected |
+|---|---|---|
+| positive: a present 1500 | | `mtu 1500 `, `"mtu":1500` |
+| boundary: a present 0 | linkset bd-001 | `mtu 0 `, `"mtu":0` |
+| negative: no IFLA_MTU | | no `mtu` |
+| corner: a non-zero MTU without HasMTU | a hand-built LinkInfo | printed |
+| boundary: the largest u32 | 4294967295 | `mtu 4294967295 ` |
+| positive: the corpus | `TestWsReadbacks` | linkadd 111 of 111; no `mtu` or `qlen` gap; 17 more linkset rows reach their `alias` line (`alias` 36 → 53) |
+
 #### NX7f the stock name tables, compiled in
 
 goip compiles in the files the parity guest reads (`internal/goip/render/names.go`):

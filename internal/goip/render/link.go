@@ -41,7 +41,8 @@ type LinkView struct {
 	IfName string   `json:"ifname"`
 	Flags  []string `json:"flags"`
 
-	MTU       uint32  `json:"mtu,omitempty"`
+	// MTU is nil without IFLA_MTU; print_linkinfo prints a present 0.
+	MTU       *uint32 `json:"mtu,omitempty"`
 	Qdisc     string  `json:"qdisc,omitempty"`
 	Master    string  `json:"master,omitempty"`
 	OperState string  `json:"operstate,omitempty"`
@@ -214,6 +215,16 @@ func (t LinkTarget) String() string {
 	return t.Name
 }
 
+// linkMTU is IFLA_MTU when present (ip/ipaddress.c:1021-1024), 0 included.
+// A non-zero MTU was present, which is how a hand-built LinkInfo says so.
+func linkMTU(li xtcpnl.LinkInfo) *uint32 {
+	if !li.HasMTU && li.MTU == 0 {
+		return nil
+	}
+	mtu := li.MTU
+	return &mtu
+}
+
 // LinkViewOf resolves a decoded link against the index cache.
 //
 // # print_name_and_link, which is where the subtlety lives
@@ -250,9 +261,9 @@ func (t LinkTarget) String() string {
 // interface documents at its method.
 func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 	v := LinkView{
+		MTU:       linkMTU(li),
 		IfIndex:   li.Index,
 		IfName:    li.Name,
-		MTU:       li.MTU,
 		Qdisc:     li.Qdisc,
 		OperState: operStateName(li.OperState),
 		LinkMode:  linkModeName(li.LinkMode),
@@ -427,8 +438,8 @@ func (v LinkView) Text() string {
 	fmt.Fprintf(&b, "%d: %s: ", v.IfIndex, name)
 	b.WriteString(joinFlags(v.Flags))
 
-	if v.MTU != 0 {
-		fmt.Fprintf(&b, "mtu %d ", v.MTU)
+	if v.MTU != nil {
+		fmt.Fprintf(&b, "mtu %d ", *v.MTU)
 	}
 	if v.Qdisc != "" {
 		fmt.Fprintf(&b, "qdisc %s ", v.Qdisc)
