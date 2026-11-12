@@ -34,8 +34,6 @@ const (
 	xfrmRtaBufCst = 2048
 	// xfrmAlgoKeyBufCst is XFRM_ALGO_KEY_BUF_SIZE, the longest key.
 	xfrmAlgoKeyBufCst = 512
-	// xfrmCtxBufCst is CTX_BUF_SIZE, ctx's buffer, which ip overruns.
-	xfrmCtxBufCst = 256
 	// xfrmDeleteallBufCst is NLMSG_DELETEALL_BUF_SIZE, deleteall's buffer.
 	xfrmDeleteallBufCst = 8192
 	// xfrmReplayESNMaxCst is XFRMA_REPLAY_ESN_MAX.
@@ -55,8 +53,6 @@ const (
 	xfrmPcpuUnsetCst   = 0xffffffff
 	// xfrmMarkLenCst is struct xfrm_mark's 8 bytes.
 	xfrmMarkLenCst  = 8
-	xfrmDirCst      = "dir"
-	xfrmDirOutCst   = "out"
 	xfrmPcpuCst     = "pcpu-num"
 	xfrmSeqCst      = "seq"
 	xfrmMaskWordCst = "mask"
@@ -642,17 +638,6 @@ func (m *xfrmModify) secCtx(a *xfrmArgs) error {
 	b := xfrmSecCtxBytes(s)
 	_, err := m.req.add(xtcpnl.XfrmAttrSecCtx, b)
 	return err
-}
-
-// xfrmSecCtxBytes is xfrm_sctx_parse's struct and the context.
-func xfrmSecCtxBytes(s string) []byte {
-	slen := len(s) + 1
-	b := binary.LittleEndian.AppendUint16(nil, uint16(xtcpnl.XfrmUserSecCtxSizeCst+slen))
-	b = binary.LittleEndian.AppendUint16(b, xtcpnl.XfrmAttrSecCtx)
-	b = append(b, 1, 1)
-	b = binary.LittleEndian.AppendUint16(b, uint16(slen))
-	b = append(b, s...)
-	return append(b, 0)
 }
 
 // offloadDev is offload: crypto or packet, then dev and its index, then

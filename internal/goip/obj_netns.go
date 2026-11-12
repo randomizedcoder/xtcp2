@@ -326,3 +326,12 @@ func netnsSet(c *runCtx, args []string) error {
 	}
 	return writeAddrOut(b)
 }
+
+// netnsOpen opens a namespace file read-only, a variable so the tests can
+// answer from paths of their own. ip opens without O_NONBLOCK, so a FIFO
+// named as the namespace hangs it until a writer comes; goip opens at once,
+// and the kernel refuses the descriptor as it does any file that is not a
+// namespace.
+var netnsOpen = func(path string) (int, error) {
+	return unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NONBLOCK, 0)
+}

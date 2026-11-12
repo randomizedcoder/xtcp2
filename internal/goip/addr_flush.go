@@ -65,8 +65,6 @@ func (b *flushBuf) end() {
 	}
 }
 
-func nlmsgAlign(n int) int { return (n + 3) &^ 3 }
-
 // flushKey is an address as the kernel finds it to delete: by family,
 // device, prefix length and the two addresses. It is the identity round 2
 // subtracts by. The bytes are not, because a dynamic address's
