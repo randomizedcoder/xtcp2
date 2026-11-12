@@ -167,15 +167,15 @@ func (m *mptcpRun) endpoint(args []string) error {
 	verb, rest := args[0], args[1:]
 	switch {
 	case matchesPrefix(verb, mptcpAddCst):
-		return m.modify(xtcpnl.MPTCPPMCmdAddAddr, rest)
+		return writeOps.mptcpModify(m, xtcpnl.MPTCPPMCmdAddAddr, rest)
 	case matchesPrefix(verb, mptcpChangeCst):
-		return m.modify(xtcpnl.MPTCPPMCmdSetFlags, rest)
+		return writeOps.mptcpModify(m, xtcpnl.MPTCPPMCmdSetFlags, rest)
 	case matchesPrefix(verb, mptcpDeleteCst):
-		return m.modify(xtcpnl.MPTCPPMCmdDelAddr, rest)
+		return writeOps.mptcpModify(m, xtcpnl.MPTCPPMCmdDelAddr, rest)
 	case matchesPrefix(verb, mptcpShowCst):
 		return m.show(rest)
 	case matchesPrefix(verb, mptcpFlushCst):
-		return m.write(xtcpnl.MPTCPPMCmdFlushAddrs, nil)
+		return writeOps.mptcpWrite(m, xtcpnl.MPTCPPMCmdFlushAddrs, nil)
 	}
 	return mptcpUnknown(verb)
 }
@@ -316,7 +316,7 @@ func (m *mptcpRun) limits(cmd uint8, args []string) error {
 		return err
 	}
 	if cmd == xtcpnl.MPTCPPMCmdSetLimits {
-		return m.write(cmd, attrs)
+		return writeOps.mptcpWrite(m, cmd, attrs)
 	}
 	typ, body, err := m.talk(cmd, attrs)
 	if err != nil {

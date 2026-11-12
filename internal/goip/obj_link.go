@@ -38,10 +38,10 @@ func runLink(c *runCtx, args []string) error {
 	case linkAfstatsVerbCst:
 		return linkAfstats(c, args[1:])
 	case linkPropertyVerbCst:
-		return linkProperty(c, args[1:])
+		return writeOps.linkProperty(c, args[1:])
 	}
-	if w := lookupLinkWriteVerb(v.name); w != nil {
-		return linkWrite(c, w, args[1:])
+	if ok, err := writeOps.link(c, v.name, args[1:]); ok {
+		return err
 	}
 	return fmt.Errorf("link %q: %w", v.name, ErrNotImplemented)
 }

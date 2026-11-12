@@ -70,7 +70,7 @@ func runNetns(c *runCtx, args []string) error {
 	case matchesPrefix(v, netnsHelpVerbCst), matchesPrefix(v, netnsAddVerbCst):
 		return fmt.Errorf("netns %s: %w", v, ErrNotImplemented)
 	case matchesPrefix(v, netnsSetVerbCst):
-		return netnsSet(c, args[1:])
+		return writeOps.netnsSet(c, args[1:])
 	case matchesAny(v, netnsOtherVerbs):
 		return fmt.Errorf("netns %s: %w", v, ErrNotImplemented)
 	default:

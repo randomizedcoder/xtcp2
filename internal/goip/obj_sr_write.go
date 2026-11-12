@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -43,4 +44,18 @@ func srWriteAttrs(c *runCtx, r *srReq) ([]byte, error) {
 		}
 	}
 	return b.Bytes(), nil
+}
+
+// srWrite is seg6_do_cmd's set: the request, NLM_F_ACK, to GOIP_WRITE_OUT.
+func srWrite(c *runCtx, id uint16, r *srReq) error {
+	attrs, err := srWriteAttrs(c, r)
+	if err != nil {
+		return err
+	}
+	req, err := xtcpnl.BuildGenlWriteRequest(xtcpnl.Seg6GenlName, id, r.cmd, xtcpnl.Seg6GenlVersion,
+		unix.NLM_F_ACK, c.nextSeq(), attrs)
+	if err != nil {
+		return err
+	}
+	return writeAddrOut(req)
 }

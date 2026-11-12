@@ -47,9 +47,9 @@ func runToken(c *runCtx, args []string) error {
 	case matchesAny(v, tokenListVerbs):
 		return tokenList(c, svc, args[1:])
 	case matchesPrefix(v, iftokSetVerbCst), matchesPrefix(v, iftokAddVerbCst):
-		return tokenSet(c, args[1:], false)
+		return writeOps.tokenSet(c, args[1:], false)
 	case matchesPrefix(v, iftokDeleteVerbCst):
-		return tokenSet(c, args[1:], true)
+		return writeOps.tokenSet(c, args[1:], true)
 	case matchesPrefix(v, iftokGetVerbCst):
 		return tokenList(c, svc, args[1:])
 	case matchesPrefix(v, iftokHelpCst):

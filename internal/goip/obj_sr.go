@@ -231,16 +231,7 @@ func srDoCmd(c *runCtx, r *srReq) error {
 	case xtcpnl.Seg6CmdGetTunsrc:
 		return srTunsrcShow(c, id)
 	}
-	attrs, err := srWriteAttrs(c, r)
-	if err != nil {
-		return err
-	}
-	req, err := xtcpnl.BuildGenlWriteRequest(xtcpnl.Seg6GenlName, id, r.cmd, xtcpnl.Seg6GenlVersion,
-		unix.NLM_F_ACK, c.nextSeq(), attrs)
-	if err != nil {
-		return err
-	}
-	return writeAddrOut(req)
+	return writeOps.srWrite(c, id, r)
 }
 
 // srHmacShow is the DUMPHMAC dump: each key's line, or under -j one array

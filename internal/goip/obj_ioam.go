@@ -281,16 +281,7 @@ func ioamDoCmd(c *runCtx, r *ioamReq) error {
 	case r.cmd == xtcpnl.IOAM6CmdDumpNamespaces, r.cmd == xtcpnl.IOAM6CmdDumpSchemas:
 		return ioamShow(c, id, r.cmd)
 	}
-	attrs, err := ioamWriteAttrs(r)
-	if err != nil {
-		return err
-	}
-	req, err := xtcpnl.BuildGenlWriteRequest(xtcpnl.IOAM6GenlName, id, r.cmd, xtcpnl.IOAM6GenlVersion,
-		unix.NLM_F_ACK, c.nextSeq(), attrs)
-	if err != nil {
-		return err
-	}
-	return writeAddrOut(req)
+	return writeOps.ioamWrite(c, id, r)
 }
 
 // ioamShow is a DUMP_NAMESPACES or DUMP_SCHEMAS dump: each answer's line,

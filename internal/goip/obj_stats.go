@@ -19,7 +19,7 @@ func runStats(c *runCtx, args []string) error {
 	case showVerbCst:
 		return runStatsShow(c, args[1:], c.showStats+c.showDetails+1)
 	case statsSetVerbCst:
-		return statsSet(c, args[1:])
+		return writeOps.statsSet(c, args[1:])
 	}
 	return fmt.Errorf("%w: Command %q is unknown, try \"ip stats help\"", ErrInvalidArgument, args[0])
 }

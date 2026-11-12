@@ -52,14 +52,14 @@ func runNexthop(c *runCtx, args []string) error {
 			return fmt.Errorf("nexthop %q: %w", args[0], ErrNotImplemented)
 		}
 		if v.kind != verbShow {
-			if w := lookupNexthopWriteVerb(v.name); w != nil {
-				return nexthopModify(c, w, args[1:])
+			if ok, err := writeOps.nexthop(c, v.name, args[1:]); ok {
+				return err
 			}
 			switch v.name {
 			case nexthopGetVerbCst:
 				return nexthopGet(c, args[1:])
 			case routeFlushVerbCst:
-				return nexthopFlush(c, args[1:])
+				return writeOps.nexthopFlush(c, args[1:])
 			case nexthopBucketVerbCst:
 				return runNexthopBucket(c, args[1:])
 			}

@@ -48,8 +48,8 @@ func runRoute(c *runCtx, args []string) error {
 		}
 		rest := args[1:]
 		if v.kind != verbShow {
-			if w := lookupRouteWriteVerb(v.name); w != nil {
-				return routeWrite(c, w, rest)
+			if ok, err := writeOps.route(c, v.name, rest); ok {
+				return err
 			}
 			if c.family == unix.AF_MPLS && v.name != routeGetVerbCst {
 				return routeMplsUnserved(v.name)
@@ -58,11 +58,11 @@ func runRoute(c *runCtx, args []string) error {
 			case routeGetVerbCst:
 				return routeGet(c, rest)
 			case routeFlushVerbCst:
-				return routeFlush(c, rest)
+				return writeOps.routeFlush(c, rest)
 			case routeSaveVerbCst:
 				return routeSave(c, rest)
 			case routeRestoreVerbCst:
-				return routeRestore(c, rest)
+				return writeOps.routeRestore(c, rest)
 			case routeShowdumpVerbCst:
 				return routeShowdump(c, rest)
 			}

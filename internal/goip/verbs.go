@@ -115,10 +115,12 @@ func chain(parts ...[]verb) []verb {
 	return out
 }
 
-// The write verbs of link, address and route, in their write tables'
-// order (linkWriteVerbs, addrWriteVerbs, routeWriteVerbs). The chains carry
-// only the names, so a build without the write paths still knows a write
-// verb when it sees one; TestWriteSegmentsMatchTables keeps the copies equal.
+// The write verbs of link, address, route, neigh and nexthop, in their
+// write lookups' order (linkWriteVerbs, addrWriteVerbs, routeWriteVerbs,
+// lookupNeighWriteVerb, nexthopWriteVerbs). The chains carry only the names,
+// so a build without the write paths still knows a write verb when it sees
+// one, and writeOps' stubs claim exactly these; TestWriteSegmentsMatchTables
+// keeps the copies equal.
 var (
 	linkWriteSegment = []verb{
 		{name: addrVerbAddCst, kind: verbWrite},
@@ -144,6 +146,8 @@ var (
 		{name: "test", kind: verbWrite},
 		{name: addrVerbDeleteCst, kind: verbWrite},
 	}
+	neighWriteSegment   = []verb{addVerb, changeVerb, chgVerb, replaceVerb, deleteVerb}
+	nexthopWriteSegment = []verb{addVerb, replaceVerb, deleteVerb}
 )
 
 // The verb chains, one per implemented object, each in its do_ip* function's
@@ -169,7 +173,8 @@ var (
 	)
 	// neighVerbs is do_ipneigh (ip/ipneigh.c:747-764).
 	neighVerbs = chain(
-		[]verb{addVerb, changeVerb, chgVerb, replaceVerb, deleteVerb, getVerb},
+		neighWriteSegment,
+		[]verb{getVerb},
 		showLstList,
 		[]verb{flushVerb, helpVerb},
 	)
@@ -200,7 +205,7 @@ var (
 	netconfVerbs = chain(showLstList, []verb{helpVerb})
 	// nexthopVerbs is do_ipnh (ip/ipnexthop.c:1442-1465).
 	nexthopVerbs = chain(
-		[]verb{addVerb, replaceVerb, deleteVerb},
+		nexthopWriteSegment,
 		listShowLst,
 		[]verb{getVerb, flushVerb, {name: "bucket", kind: verbOther}, helpVerb},
 	)

@@ -79,16 +79,16 @@ var xfrmPolicyVerbs = []struct {
 	verbs []string
 	run   func(*runCtx, []string) error
 }{
-	{[]string{xfrmAddCst}, func(c *runCtx, a []string) error { return xfrmPolicyModify(c, xtcpnl.XfrmMsgNewPolicy, a) }},
-	{[]string{xfrmUpdateCst}, func(c *runCtx, a []string) error { return xfrmPolicyModify(c, xtcpnl.XfrmMsgUpdPolicy, a) }},
-	{[]string{fouDeleteCst}, xfrmPolicyDelete},
-	{[]string{xfrmDeleteallCst, "delall"}, xfrmPolicyDeleteallRun},
+	{[]string{xfrmAddCst}, func(c *runCtx, a []string) error { return writeOps.xfrmPolicyModify(c, xtcpnl.XfrmMsgNewPolicy, a) }},
+	{[]string{xfrmUpdateCst}, func(c *runCtx, a []string) error { return writeOps.xfrmPolicyModify(c, xtcpnl.XfrmMsgUpdPolicy, a) }},
+	{[]string{fouDeleteCst}, func(c *runCtx, a []string) error { return writeOps.xfrmPolicyDelete(c, a) }},
+	{[]string{xfrmDeleteallCst, "delall"}, func(c *runCtx, a []string) error { return writeOps.xfrmPolicyDeleteall(c, a) }},
 	{[]string{listVerbCst, showVerbCst, lstVerbCst}, xfrmPolicyList},
 	{[]string{nexthopGetVerbCst}, xfrmPolicyGet},
-	{[]string{xfrmFlushCst}, xfrmPolicyFlush},
+	{[]string{xfrmFlushCst}, func(c *runCtx, a []string) error { return writeOps.xfrmPolicyFlush(c, a) }},
 	{[]string{xfrmCountCst}, func(c *runCtx, _ []string) error { return xfrmPolicyCount(c) }},
-	{[]string{iftokSetVerbCst}, xfrmPolicySet},
-	{[]string{"setdefault"}, xfrmPolicySetDefault},
+	{[]string{iftokSetVerbCst}, func(c *runCtx, a []string) error { return writeOps.xfrmPolicySet(c, a) }},
+	{[]string{"setdefault"}, func(c *runCtx, a []string) error { return writeOps.xfrmPolicySetDefault(c, a) }},
 	{[]string{"getdefault"}, func(c *runCtx, _ []string) error { return xfrmPolicyGetDefault(c) }},
 	{[]string{xfrmHelpCst}, func(*runCtx, []string) error {
 		return fmt.Errorf("%w: %s", ErrXfrmUsage, xfrmPolicyUsageCst)
