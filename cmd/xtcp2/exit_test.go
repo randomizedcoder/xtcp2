@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
@@ -73,13 +72,13 @@ func TestRunMain_debugWritersNotCompiledIn(t *testing.T) {
 			os.Args = append([]string{"xtcp2"}, tc.args...)
 			t.Cleanup(func() { os.Args = prevArgs })
 
-			prevProm := promHandlerStarter
-			promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
-			t.Cleanup(func() { promHandlerStarter = prevProm })
+			stubListeners(t)
 
 			prevDaemon := daemonRunner
 			started := false
-			daemonRunner = func(context.Context, context.CancelFunc, *xtcp_config.XtcpConfig) { started = true }
+			daemonRunner = func(context.Context, context.CancelFunc, *xtcp_config.XtcpConfig, []xtcp.GRPCListener) {
+				started = true
+			}
 			t.Cleanup(func() { daemonRunner = prevDaemon })
 
 			wantRC, wantStarted := exitUsage, false

@@ -3,16 +3,15 @@ package xtcp
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
+	"net"
 	"time"
 
 	linkmonitorpb "github.com/randomizedcoder/xtcp2/gen/go/linkmonitor"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
-	"github.com/randomizedcoder/xtcp2/pkg/listener"
-	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
 	grpchealth "google.golang.org/grpc/health"
@@ -42,18 +41,24 @@ const (
 	KeepaliveMinTime = 60 * time.Second
 )
 
-func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
+// GRPCListener is a bound listener that serves gRPC endpoint classes. The
+// caller (cmd/xtcp2) binds every listener before the daemon starts, so a bad
+// address fails startup, and hands the gRPC ones to SetGRPCListeners.
+type GRPCListener struct {
+	Spec     listeners.Spec
+	Listener net.Listener
+}
 
-	ep, err := listener.EndpointFromProto(x.config.GetGrpcListener(), listener.NetworkTCP, fmt.Sprintf(":%d", x.config.GrpcPort))
-	if err != nil {
-		log.Fatalf("failed to resolve gRPC listener: %v", err)
-	}
-	lis, err := listener.Listen(ctx, ep, x.config.Ipv4Ttl, x.config.Ipv6HopLimit)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
+// SetGRPCListeners gives the daemon the gRPC listeners to serve. Call it
+// after NewXTCP and before Run. With none, no gRPC server runs: a class no
+// listener names is not served.
+func (x *XTCP) SetGRPCListeners(ls []GRPCListener) {
+	x.grpcListeners = ls
+}
 
-	opts := []grpc.ServerOption{
+// grpcServerOptions is the transport tuning every gRPC listener shares.
+func grpcServerOptions() []grpc.ServerOption {
+	return []grpc.ServerOption{
 		grpc.ReadBufferSize(ReadBufferSize),
 		grpc.WriteBufferSize(WriteBufferSize),
 		// https://pkg.go.dev/google.golang.org/grpc#MaxRecvMsgSize
@@ -75,56 +80,112 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 				PermitWithoutStream: true,
 			}),
 	}
-	policy, err := listenerauth.NewPolicy(x.config.GetListenerAuth(), x.config.GetAdminListenerAuth(), grpcMethodAccess())
-	if err != nil {
-		log.Fatalf("listener auth config invalid: %v", err)
-	}
-	if policy.Enabled() {
-		opts = append(opts, grpc.UnaryInterceptor(policy.UnaryServerInterceptor()), grpc.StreamInterceptor(policy.StreamServerInterceptor()))
-	}
-	grpcServer := grpc.NewServer(opts...)
-	// grpc.ForceServerCodec(gzip.Name),
+}
 
-	// https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md#enable-server-reflection
-	// https://github.com/fullstorydev/grpcurl?tab=readme-ov-file#server-reflection
-	reflection.Register(grpcServer)
-
+// startGRPCServers serves each gRPC listener on its own server, with that
+// listener's credentials. The services are built once and shared. A listener
+// serving grpc-admin gets every method; one serving only grpc-read gets
+// read-only adapters, so the admin handlers are not registered there at all
+// and answer Unimplemented whatever the auth policy says.
+func (x *XTCP) startGRPCServers(ctx context.Context) {
+	if len(x.grpcListeners) == 0 {
+		return
+	}
+	// Built here, synchronously in Run before the poller starts, so the
+	// poll path's flatRecordServiceSend sees it set or (no gRPC) nil.
 	x.flatRecordService = NewXtcpFlatRecordService(ctx, x.registry, &x.pollRequestCh, x.debugLevel)
-	xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(grpcServer, x.flatRecordService)
-
 	x.configService = NewXtcpConfigService(ctx, x.registry, x.config, &x.changePollFrequencyCh, &x.pollRequestCh, &x.pollBurstCh, &x.setS3FlushCh, &x.envelopeMu, x.reconfigureFunc, x.debugLevel)
-	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
-
 	linkMonitorService, err := x.newLinkMonitorService()
 	if err != nil {
-		log.Fatalf("link monitor service: %v", err)
+		x.fatalf("link monitor service: %v", err)
+		return
 	}
-	linkmonitorpb.RegisterLinkMonitorServiceServer(grpcServer, linkMonitorService)
-
 	// Standard gRPC health service (grpc.health.v1) so k8s gRPC probes work.
 	// Starts NOT_SERVING; setReady flips it to SERVING once the daemon polls.
 	x.grpcHealth = grpchealth.NewServer()
 	x.grpcHealth.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
-	healthpb.RegisterHealthServer(grpcServer, x.grpcHealth)
+	methods := grpcMethodAccess()
 
-	// Stop the gRPC server when ctx fires. grpcServer.Serve blocks
-	// indefinitely on lis.Accept and is NOT ctx-aware on its own —
-	// without this goroutine the gRPC server outlives Run() and would
-	// leak in any embedded / test caller that runs the daemon more
-	// than once in a process. GracefulStop drains in-flight RPCs
-	// before closing the listener.
+	for _, l := range x.grpcListeners {
+		policy, err := l.Spec.Policy(methods)
+		if err != nil {
+			x.fatalf("gRPC listener %q auth: %v", l.Spec.Name, err)
+			return
+		}
+		opts := grpcServerOptions()
+		if policy.Enabled() {
+			opts = append(opts, grpc.UnaryInterceptor(policy.UnaryServerInterceptor()), grpc.StreamInterceptor(policy.StreamServerInterceptor()))
+		}
+		srv := grpc.NewServer(opts...)
+		// https://github.com/grpc/grpc-go/blob/master/Documentation/server-reflection-tutorial.md#enable-server-reflection
+		reflection.Register(srv)
+		healthpb.RegisterHealthServer(srv, x.grpcHealth)
+		if l.Spec.Serves(listeners.GRPCAdmin) {
+			xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, x.flatRecordService)
+			xtcp_config.RegisterConfigServiceServer(srv, x.configService)
+			linkmonitorpb.RegisterLinkMonitorServiceServer(srv, linkMonitorService)
+		} else {
+			xtcp_flat_record.RegisterXTCPFlatRecordServiceServer(srv, readOnlyFlatRecords{s: x.flatRecordService})
+			xtcp_config.RegisterConfigServiceServer(srv, readOnlyConfig{s: x.configService})
+			linkmonitorpb.RegisterLinkMonitorServiceServer(srv, readOnlyLinkMonitor{s: linkMonitorService})
+		}
+		go serveGRPC(ctx, l, srv)
+	}
+}
+
+// serveGRPC serves one listener until ctx ends. grpc.Server.Serve is not
+// ctx-aware, so GracefulStop runs on ctx.Done, draining in-flight RPCs;
+// without it the server would outlive Run in an embedded or test caller.
+func serveGRPC(ctx context.Context, l GRPCListener, srv *grpc.Server) {
 	go func() {
 		<-ctx.Done()
-		grpcServer.GracefulStop()
+		srv.GracefulStop()
 	}()
-
-	// grpcServer.Serve returns grpc.ErrServerStopped when
-	// GracefulStop / Stop completes — that's the normal shutdown path
-	// here, not an error worth logging. Filter it so a clean SIGTERM
-	// doesn't produce a misleading "Serve err:..." log line every run.
-	if serveErr := grpcServer.Serve(lis); serveErr != nil && !errors.Is(serveErr, grpc.ErrServerStopped) {
-		log.Printf("startGRPCflatRecordService grpcServer.Serve err:%v", serveErr)
+	// Serve returns grpc.ErrServerStopped after GracefulStop: the normal
+	// shutdown, not an error worth logging.
+	if err := srv.Serve(l.Listener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+		log.Printf("gRPC listener %q: serve: %v", l.Spec.Name, err)
 	}
+}
+
+// readOnlyFlatRecords serves FlatRecords (observing polls) and leaves
+// PollFlatRecords (driving them) Unimplemented.
+type readOnlyFlatRecords struct {
+	xtcp_flat_record.UnimplementedXTCPFlatRecordServiceServer
+	s *xtcpFlatRecordService
+}
+
+func (r readOnlyFlatRecords) FlatRecords(req *xtcp_flat_record.FlatRecordsRequest, stream grpc.ServerStreamingServer[xtcp_flat_record.FlatRecordsResponse]) error {
+	return r.s.FlatRecords(req, stream)
+}
+
+// readOnlyConfig serves Get and leaves every mutating method Unimplemented.
+type readOnlyConfig struct {
+	xtcp_config.UnimplementedConfigServiceServer
+	s *xtcpConfigService
+}
+
+func (r readOnlyConfig) Get(ctx context.Context, in *xtcp_config.GetRequest) (*xtcp_config.GetResponse, error) {
+	return r.s.Get(ctx, in)
+}
+
+// readOnlyLinkMonitor serves the status and list methods and leaves
+// Rebaseline and Resync Unimplemented.
+type readOnlyLinkMonitor struct {
+	linkmonitorpb.UnimplementedLinkMonitorServiceServer
+	s linkmonitorpb.LinkMonitorServiceServer
+}
+
+func (r readOnlyLinkMonitor) GetStatus(ctx context.Context, in *linkmonitorpb.GetStatusRequest) (*linkmonitorpb.GetStatusResponse, error) {
+	return r.s.GetStatus(ctx, in)
+}
+
+func (r readOnlyLinkMonitor) ListInterfaces(ctx context.Context, in *linkmonitorpb.ListInterfacesRequest) (*linkmonitorpb.ListInterfacesResponse, error) {
+	return r.s.ListInterfaces(ctx, in)
+}
+
+func (r readOnlyLinkMonitor) ListCollectors(ctx context.Context, in *linkmonitorpb.ListCollectorsRequest) (*linkmonitorpb.ListCollectorsResponse, error) {
+	return r.s.ListCollectors(ctx, in)
 }
 
 // setReady flips the process readiness in one place: the HTTP /readyz flag and

@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 127
+	mainFlagsFieldCountCst = 128
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -275,6 +275,7 @@ func populatedMainFlags() *mainFlags {
 		promUnixSocketMode: u(133),
 		promUnlinkStaleUDS: b(true),
 		promPath:           s("promPath-v"),
+		listeners:          &listenerFlag{"listener-v"},
 		healthcheck:        b(false),
 		goMaxProcs:         u(134),
 		maxThreads:         i(135),
@@ -740,6 +741,8 @@ func TestPopulatedMainFlagsValuesAreDistinct(t *testing.T) {
 			key = fmt.Sprintf("int:%d", elem.Int())
 		case reflect.Uint, reflect.Uint64:
 			key = fmt.Sprintf("uint:%d", elem.Uint())
+		case reflect.Slice: // listenerFlag
+			key = "slice:" + strings.Join(*f.listeners, ";")
 		default:
 			t.Errorf("mainFlags.%s has unhandled element kind %s", field.Name, field.Type.Elem().Kind())
 			continue

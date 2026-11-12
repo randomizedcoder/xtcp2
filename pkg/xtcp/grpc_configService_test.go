@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 )
 
 // newConfigServiceFixture builds an xtcpConfigService directly,
@@ -804,5 +805,39 @@ func TestConfigService_Get_redactsSecrets(t *testing.T) {
 	// The live config must be untouched.
 	if c.config.S3SecretKey != "live-secret" || c.config.S3AccessKey != "live-access" {
 		t.Error("Get must not mutate the live config's credentials")
+	}
+}
+
+// TestConfigService_Set_listeners: Set refuses a listener config the restart
+// would refuse at startup, before the running daemon stops.
+func TestConfigService_Set_listeners(t *testing.T) {
+	sock := func(name string, serves ...xtcp_config.EndpointClass) *xtcp_config.Listener {
+		return &xtcp_config.Listener{Name: name, Endpoint: &xtcp_config.ListenerEndpoint{Address: "/run/xtcp2/" + name + ".sock"}, Serves: serves}
+	}
+	tests := []struct {
+		name, category, description string
+		listeners                   []*xtcp_config.Listener
+		expected                    codes.Code
+	}{
+		{"default", "positive", "no listeners (the default socket) passes on to the restart hook", nil, codes.Unavailable},
+		{"valid", "positive", "a valid listener set passes", []*xtcp_config.Listener{sock("m", listeners.Health, listeners.Metrics)}, codes.Unavailable},
+		{"class_twice", "negative", "a class served by two listeners",
+			[]*xtcp_config.Listener{sock("a", listeners.Metrics), sock("b", listeners.Metrics)}, codes.InvalidArgument},
+		{"inline_token", "negative", "a listener carrying its token inline",
+			[]*xtcp_config.Listener{{Name: "m", Endpoint: &xtcp_config.ListenerEndpoint{Address: "/run/m.sock"},
+				Auth: &xtcp_config.ListenerAuth{RawToken: "x"}, Serves: []xtcp_config.EndpointClass{listeners.Metrics}}}, codes.InvalidArgument},
+		{"untyped_tcp", "corner", "a TCP address without network=tcp",
+			[]*xtcp_config.Listener{{Name: "m", Endpoint: &xtcp_config.ListenerEndpoint{Address: ":9088"}, Serves: []xtcp_config.EndpointClass{listeners.Metrics}}}, codes.InvalidArgument},
+	}
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			c, _ := newConfigServiceFixture(t)
+			cfg := validSetConfig()
+			cfg.Listeners = tc.listeners
+			_, err := c.Set(context.Background(), &xtcp_config.SetRequest{Config: cfg})
+			if got := status.Code(err); got != tc.expected {
+				t.Errorf("%s: code = %v (%v), want %v", tc.description, got, err, tc.expected)
+			}
+		})
 	}
 }

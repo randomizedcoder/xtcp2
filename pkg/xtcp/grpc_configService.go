@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -185,6 +186,13 @@ func (c *xtcpConfigService) Set(
 	}
 	if err := CheckS3Transport(in.Config); err != nil {
 		c.pC.WithLabelValues("Set", "s3Transport", "error").Inc()
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	// The listener rules (one listener per class, no inline credentials, auth
+	// off only on a socket or loopback, ...) the restart would otherwise
+	// refuse at startup, after this daemon has already stopped.
+	if _, err := listeners.Validate(in.Config); err != nil {
+		c.pC.WithLabelValues("Set", "listeners", "error").Inc()
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 

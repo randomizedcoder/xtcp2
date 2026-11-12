@@ -118,6 +118,53 @@ func authFor(l *xtcp_config.Listener, admin bool) *xtcp_config.ListenerAuth {
 	return l.Auth
 }
 
+// FormatSpec is l in ParseSpec's form, for logs and the deprecation hint.
+// Unset fields are left out; credentials are files, so nothing secret is
+// printed.
+func FormatSpec(l *xtcp_config.Listener) string {
+	ep := l.GetEndpoint()
+	cls := make([]string, 0, len(l.GetServes()))
+	for _, c := range l.GetServes() {
+		cls = append(cls, ClassName(c))
+	}
+	kv := []string{"name=" + l.GetName(), "serves=" + strings.Join(cls, "+"), "address=" + ep.GetAddress()}
+	switch ep.GetNetwork() {
+	case xtcp_config.ListenerNetwork_LISTENER_NETWORK_TCP:
+		kv = append(kv, "network=tcp")
+	case xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX:
+		kv = append(kv, "network=unix")
+	}
+	if m := ep.GetUnixSocketMode(); m != 0 {
+		kv = append(kv, fmt.Sprintf("mode=%#o", m))
+	}
+	for _, a := range []struct {
+		prefix, modeKey string
+		auth            *xtcp_config.ListenerAuth
+	}{{"", "auth", l.GetAuth()}, {"admin", "adminAuth", l.GetAdminAuth()}} {
+		if a.auth == nil {
+			continue
+		}
+		if m := a.auth.GetMode(); m != xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED {
+			kv = append(kv, a.modeKey+"="+listenerauth.ModeString(m))
+		}
+		if p := a.auth.GetRawTokenFile(); p != "" {
+			kv = append(kv, fileKey(a.prefix, "tokenFile")+"="+p)
+		}
+		if p := a.auth.GetHmacSharedKeyFile(); p != "" {
+			kv = append(kv, fileKey(a.prefix, "hmacKeyFile")+"="+p)
+		}
+	}
+	return strings.Join(kv, ",")
+}
+
+// fileKey is "tokenFile" or, with prefix "admin", "adminTokenFile".
+func fileKey(prefix, key string) string {
+	if prefix == "" {
+		return key
+	}
+	return prefix + strings.ToUpper(key[:1]) + key[1:]
+}
+
 // ParseList parses the LISTENERS form: specs separated by ';'.
 func ParseList(s string) ([]*xtcp_config.Listener, error) {
 	var out []*xtcp_config.Listener

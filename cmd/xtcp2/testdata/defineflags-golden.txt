@@ -23,7 +23,7 @@ grpcListenNetwork		gRPC listener network: empty/tcp for TCP, unix for a Unix dom
 grpcPort	8889	GRPC listening port
 grpcUnixSocketMode	384	gRPC Unix socket file mode, e.g. 0600 or 0660. Falls back to GRPC_UNIX_SOCKET_MODE env.
 grpcUnlinkStaleUnixSocket	true	remove an existing stale gRPC Unix socket before binding. Falls back to GRPC_UNLINK_STALE_UNIX_SOCKET env.
-healthcheck	false	probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.
+healthcheck	false	probe /readyz on the listener serving health and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); reads the same listener flags and env as the daemon.
 hostname		hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).
 ioUring	false	Opt in to io_uring for netlink reads, one multishot recv per socket (Linux 6.1+). Destination writes stay syscalls
 ioUringCqeBatch	128	io_uring max CQEs reaped per PeekBatchCQE call (1-4096)
@@ -63,6 +63,7 @@ linkMonitorStatsExclude	^$	regexp of interfaces excluded from statistics. Falls 
 linkMonitorStatsInclude	.*	regexp of interfaces whose statistics are collected. Falls back to LINK_MONITOR_STATS_INCLUDE env.
 linkMonitorStatsInterval	15s	interface statistics collection interval (positive). Falls back to LINK_MONITOR_STATS_INTERVAL env.
 linkMonitorWatchInterval	1m0s	on demand: error and state polling interval (positive). Falls back to LINK_MONITOR_WATCH_INTERVAL env.
+listener		a listener, repeatable: name=<name>,serves=<class>[+<class>...],address=<path|host:port>[,network=unix|tcp][,mode=0600][,unlinkStale=true][,auth=raw|hmac-utc-minute|disabled][,tokenFile=<path>][,hmacKeyFile=<path>][,adminAuth=raw|hmac-utc-minute][,adminTokenFile=<path>][,adminHmacKeyFile=<path>]. Classes: health, metrics, metrics-detail, ip, debug, grpc-read, grpc-admin; each served by one listener. Credentials are files only. With none, xtcp2 serves health, metrics and metrics-detail on /run/xtcp2/metrics.sock (mode 0600, raw bearer token from LISTENER_RAW_TOKEN_FILE). Replaces the deprecated -prom*/-grpc*/-linkMonitorIPListen flags. Falls back to LISTENERS env, specs separated by ';'.
 listenerAdminAuthMode		admin listener auth mode: disabled, raw, hmac-utc-minute. When set, admin RPCs and /debug/pprof require this credential and the shared listener credential becomes read-only. Falls back to LISTENER_ADMIN_AUTH_MODE env.
 listenerAdminHMACSharedKey		admin listener auth HMAC shared key. Prefer LISTENER_ADMIN_HMAC_SHARED_KEY or LISTENER_ADMIN_HMAC_SHARED_KEY_FILE; never logged.
 listenerAdminRawToken		admin listener auth raw bearer token. Prefer LISTENER_ADMIN_RAW_TOKEN or LISTENER_ADMIN_RAW_TOKEN_FILE; never logged.

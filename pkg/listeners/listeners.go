@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -382,9 +383,19 @@ func readFiles(label string, a *xtcp_config.ListenerAuth, read SecretReader) err
 	return nil
 }
 
-// Listen binds s. A loopback TCP listener closes connections from
-// non-loopback peers, calling rejected for each.
+// socketDirMode is the mode of a socket directory Listen creates: the
+// socket's own mode then decides who connects.
+const socketDirMode = 0o750
+
+// Listen binds s, creating a Unix socket's directory (DefaultSocketPath's
+// /run/xtcp2) when it is missing. A loopback TCP listener closes
+// connections from non-loopback peers, calling rejected for each.
 func (s Spec) Listen(ctx context.Context, rejected func(net.Addr, error)) (net.Listener, error) {
+	if s.Endpoint.Network == listener.NetworkUnix {
+		if err := os.MkdirAll(filepath.Dir(s.Endpoint.Address), socketDirMode); err != nil {
+			return nil, fmt.Errorf("listener %q: %w", s.Name, err)
+		}
+	}
 	ln, err := listener.Listen(ctx, s.Endpoint, s.IPv4TTL, s.IPv6HopLimit)
 	if err != nil {
 		return nil, fmt.Errorf("listener %q: %w", s.Name, err)
