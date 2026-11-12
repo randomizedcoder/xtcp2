@@ -23,7 +23,7 @@ func seg6ActionName(a uint32) string {
 		return "<invalid>"
 	}
 	if seg6ActionNames[a] == "" {
-		return "<unknown>"
+		return unknownNameCst
 	}
 	return seg6ActionNames[a]
 }
@@ -78,7 +78,7 @@ func printEncapSeg6Local(p *Printer, s *xtcpnl.Seg6LocalInfo, tab NameTab, stats
 func printEncapBPFProg(p *Printer, label, name string, hasName bool) {
 	if p.JSON() {
 		if !hasName {
-			name = "<unknown>"
+			name = unknownNameCst
 		}
 		p.String(PrintJSON, label, "", name)
 		return

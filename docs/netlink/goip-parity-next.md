@@ -721,11 +721,11 @@ At NX7-0, 2003 readbacks match and 414 differ:
 | NX7c | link `alias` (IFLA_IFALIAS) | 36 | linkset |
 | NX7d | `protodown` and `protodown_reason`, with ip's faults (P14) | 11 | linkpd |
 | NX7e | route `realm` and `realms` (RTA_FLOW) | 4 | kwroute4 |
-| — | rule `tos` names from rt_dsfield (`EF` where goip prints `0xb8`) | 8 | rule6 |
-| — | neigh `proto openr`, from the stock rt_protos (goip prints `99`) | 23 of NX7a's 63 | neigh4, neigh6 |
-| — | rule show refused: FRA_DSCP (88) and FRA_IP_PROTO (144), by the no-config-files rule | 232 | rule4, rule6 |
+| NX7f | rule `tos` names from rt_dsfield (`EF` where goip printed `0xb8`) | 8 | rule6 |
+| NX7f | neigh `proto openr`, from the stock rt_protos (goip printed `99`) | 23 of NX7a's 63 | neigh4, neigh6 |
+| NX7f | rule show refused: FRA_DSCP (88) and FRA_IP_PROTO (144), by the no-config-files rule | 232 | rule4, rule6 |
 
-The last three rows are a decision, not a task yet (status doc, decision log): ip names each value from a file iproute2 installs (`rt_dsfield`, `rt_protos`) or from `/etc/protocols`, and goip reads no files.
+The NX7f rows were a decision first: ip names each value from a file iproute2 installs (`rt_dsfield`, `rt_protos`) or from `/etc/protocols`, and goip read no files. The decision (status doc, decision log) is to compile in the files the parity guest has.
 
 #### NX7a neigh `proto`
 
@@ -752,6 +752,57 @@ print_neigh prints `proto %s` after the state when NDA_PROTOCOL is non-zero (ip/
 | corner: goip prints a word more | | `adds words` |
 | corner: only the spacing differs | | `spacing` |
 | corner: a whole line goip lacks | `    alias hello` | `lacks "alias"` |
+
+#### NX7f the stock name tables, compiled in
+
+goip compiles in the files the parity guest reads (`internal/goip/render/names.go`):
+
+- `rt_dsfield` as iproute2 7.2.0 and 7.3.0 ship it: `default`, AF11–AF43, CS1–CS7, EF;
+- `rt_protos`' two names the built-in table lacks, `84 ovn` and `99 openr`;
+- `/etc/protocols` from NixOS's iana-etc 20251215: 137 lines, each a name, a number and one alias.
+
+A name a host adds to any of these is unknown to goip, which prints the number, as ip does without that line.
+
+What uses them:
+
+- **Reads:**
+  - rule `tos`, `ipproto` (`inet_proto_n2a`, `ipproto-N` for none) and `dscp` (`rtnl_dscp_n2a`; the `%#x/%#x` text arm for a partial mask);
+  - route `tos`;
+  - `proto` in route, nexthop, neigh and rule;
+  - an XFRM selector's protocol (`strxf_proto`, the number for none).
+- **Writes:** getprotobyname for rule and fou `ipproto` and the XFRM selector `proto`. It matches a name or its alias, case-sensitively. An unknown name now gets ip's own refusal (`Invalid "ipproto" value`, `invalid ipproto`, `PROTO value is invalid`) instead of not-implemented.
+- **Removed:** `checkRuleRenderable`, and the not-implemented paths in fou, XFRM and rule.
+
+**ip's lazy load, replicated.** `rtnl_rtdsfield_tab` starts as `[0] = "0"`, and the file loads only when a lookup finds an empty slot. So DS field 0 prints `0` until another tos or dscp lookup in the same process has loaded the file, and `default` after that. The 32 corpus readbacks with `dscp 0` print `0`.
+
+- `render.Dsfield` holds one process's state.
+- `ruleShow` shares it across a dump's rules.
+- `ip monitor` keeps it for its whole run, and a printed route's tos loads it.
+- The bug is in the upstream notes (`iproute2-rt-names-table-load.md`, R2), along with an off-by-one in `rtnl_tab_initialize` (R1).
+
+| description | input | expected |
+|---|---|---|
+| positive: EF | tos 0xb8 | `EF`; the table loads |
+| negative: a DS field with no line | 0x10 | `0x10` |
+| corner: DS field 0 before a load | the first lookup | `0`; nothing loads |
+| corner: DS field 0 after a load | | `default` |
+| positive: dscp 46 | | `EF` |
+| negative: dscp 4 | | `4` |
+| boundary: dscp 63 | | `63`; the table loads |
+| boundary: dscp 64 | | `64`; shifted past the table, nothing loads |
+| positive: ipproto tcp | after uidrange, before sport | ` ipproto tcp`, JSON `"ipproto":"tcp"` |
+| negative: ipproto 255 | | `ipproto-255` |
+| positive: dscp 8, mask 0x30 | | text ` dscp 0x8/0x30`; JSON `"dscp":"CS1","dscp_mask":"0x30"` |
+| boundary: dscp 0, mask 0x30 | | ` dscp 0/0x30`: C's `%#x` of 0 |
+| corner: tos then dscp 0 on one rule | | `tos EF … dscp default` |
+| corner: `ip monitor`, a route with tos, then a rule with dscp 0 | | the rule prints `dscp default` |
+| positive: getprotobyname by alias | `rule add ipproto TCP` | FRA_IP_PROTO 6 |
+| corner: a name that starts with a digit | `ipproto 3pc` | 34 |
+| negative: a name iana-etc lacks | `ipproto ospf` (89 is `ospfigp`) | `Invalid "ipproto" value`, rc 255 |
+| negative: xfrm `sel proto ospf` | | `PROTO value is invalid`, rc 255 |
+| corner: xfrm `sel proto 200 sport 1` | | refused naming `PROTO value "200"` |
+| positive: route proto 84 | | `proto ovn` |
+| positive: the corpus | `TestWsReadbacks` | rule4 and rule6 203 of 203; neigh4 138 of 138; neigh6 137 of 137 |
 
 ## See also
 

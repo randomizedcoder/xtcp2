@@ -55,8 +55,7 @@ type AddrLabelView struct {
 // through ll_index_to_name, which resolves against the running machine's
 // interface list and so is not reproducible from the netlink bytes alone. No
 // capture carries such an entry, so rendering one would be ungrounded. This
-// follows the checkRuleRenderable precedent (obj_rule.go) and the nexthop
-// unknown-group refusal (NexthopViewOf).
+// follows the nexthop unknown-group refusal (NexthopViewOf).
 func AddrLabelViewOf(ai xtcpnl.AddrLabelInfo) (AddrLabelView, error) {
 	if ai.Index != 0 {
 		return AddrLabelView{}, fmt.Errorf("addrlabel dev index %d: %w", ai.Index, ErrAddrLabelPerDev)

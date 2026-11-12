@@ -28,7 +28,6 @@ type XfrmOpt struct {
 	Nokeys    bool
 	Family    uint8
 	IndexName func(int32) string
-	ProtoName func(uint8) string
 	Zone      *time.Location
 }
 
@@ -280,7 +279,7 @@ func (o *XfrmOpt) xfrmSelector(b *strings.Builder, sel *xtcpnl.XfrmSelector, fam
 	fmt.Fprintf(b, "src %s/%d ", xfrmAddrN2a(f, sel.Saddr), sel.PrefixlenS)
 	fmt.Fprintf(b, "dst %s/%d ", xfrmAddrN2a(f, sel.Daddr), sel.PrefixlenD)
 	if sel.Proto != 0 {
-		b.WriteString("proto " + o.ProtoName(sel.Proto) + " ")
+		b.WriteString("proto " + StrxfProto(sel.Proto) + " ")
 	}
 	switch sel.Proto {
 	case unix.IPPROTO_ICMP, unix.IPPROTO_ICMPV6:

@@ -1,7 +1,7 @@
 # route4: 190 same, 0 differ
 # route6: 153 same, 0 differ
-# rule4: 85 same, 118 differ
-# rule6: 81 same, 122 differ
+# rule4: 203 same, 0 differ
+# rule6: 203 same, 0 differ
 # nh4: 80 same, 0 differ
 # nh6: 80 same, 0 differ
 # nhgrp: 120 same, 0 differ
@@ -10,8 +10,8 @@
 # fibrule: 0 same, 0 differ
 # addr4: 132 same, 0 differ
 # addr6: 128 same, 0 differ
-# neigh4: 127 same, 11 differ
-# neigh6: 125 same, 12 differ
+# neigh4: 138 same, 0 differ
+# neigh6: 137 same, 0 differ
 # linkset: 60 same, 70 differ
 # linkadd: 85 same, 26 differ
 # linkattr: 52 same, 0 differ
@@ -48,280 +48,13 @@
 # ip730/v730seg6: 12 same, 0 differ
 # ip730/v730ovpn: 8 same, 0 differ
 # ip730/v730maddr: 0 same, 0 differ
-# gap: 8 readbacks: lacks "EF"
 # gap: 36 readbacks: lacks "alias"
 # gap: 3 readbacks: lacks "ff:ff:ff:ff:ff:ffprotodown_reason"
 # gap: 21 readbacks: lacks "mtu"
-# gap: 23 readbacks: lacks "openr"
 # gap: 8 readbacks: lacks "protodown"
 # gap: 39 readbacks: lacks "qlen"
 # gap: 3 readbacks: lacks "realm"
 # gap: 1 readbacks: lacks "realms"
-# gap: 88 readbacks: refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files"
-# gap: 144 readbacks: refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files"
-rule4/bd-001/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/bd-002/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/bd-003/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/dup-1/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/dup-2/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/dup-3/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/ec-003/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/ec-004/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/ec-005/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/ec-006/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/ec-007/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/ec-008/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-001/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-004/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-005/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-006/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-010/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-012/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-014/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-015/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-020/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-021/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-023/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-028/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-029/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-031/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-032/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-033/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-034/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-035/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-036/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-037/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-038/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-039/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-040/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-042/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-043/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-045/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-046/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-047/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-048/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-049/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-050/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-051/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-052/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-053/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-054/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-055/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-056/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-057/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-058/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-059/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-061/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-062/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-063/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-064/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-065/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-066/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-067/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-068/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-069/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-071/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-072/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-073/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-074/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-075/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-079/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-080/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-081/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-082/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-083/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-084/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-085/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-086/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-087/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-088/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-089/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-090/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-091/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-092/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-093/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-096/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-097/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-098/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-099/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-100/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-101/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-102/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-103/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-104/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-105/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-106/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-107/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-108/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-109/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/pw-110/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-111/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-112/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-113/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/pw-114/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/rn1-009/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/rn1-015/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-016/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/rn1-018/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-019/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-021/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/rn1-022/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-023/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-025/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-026/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/rn1-032/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-033/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-034/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-036/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-037/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-038/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule4/rn1-039/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -4 rule show
-rule4/rn1-040/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -4 rule show
-rule6/bd-001/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/bd-002/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/bd-003/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/dup-1/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/dup-2/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/dup-3/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/ec-003/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/ec-004/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/ec-005/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/ec-006/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/ec-007/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/ec-008/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/ec-009/dump lacks "EF" | ip -6 rule show
-rule6/pw-001/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-004/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-005/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-006/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-010/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-012/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-014/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-015/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-019/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-020/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-021/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-026/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-027/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-028/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-030/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-031/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-033/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-034/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-035/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-036/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-037/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-038/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-039/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-040/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-041/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-042/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-044/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-045/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-046/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-048/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-049/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-050/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-051/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-052/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-054/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-055/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-056/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-058/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-059/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-060/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-061/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-062/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-064/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-065/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-066/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-068/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-069/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-070/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-072/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-073/dump lacks "EF" | ip -6 rule show
-rule6/pw-074/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-075/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-076/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-078/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-079/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-080/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-085/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-086/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-087/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-088/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-090/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-091/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-092/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-093/dump lacks "EF" | ip -6 rule show
-rule6/pw-095/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-096/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-097/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-098/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/pw-099/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-100/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-101/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-102/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-103/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-104/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-105/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-106/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-107/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-108/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-109/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-110/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-111/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-112/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-113/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-114/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/pw-115/dump lacks "EF" | ip -6 rule show
-rule6/pw-116/dump lacks "EF" | ip -6 rule show
-rule6/pw-117/dump lacks "EF" | ip -6 rule show
-rule6/pw-118/dump lacks "EF" | ip -6 rule show
-rule6/pw-119/dump lacks "EF" | ip -6 rule show
-rule6/rn1-009/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/rn1-015/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-016/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/rn1-017/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/rn1-018/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-019/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-021/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/rn1-022/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-023/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-025/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-026/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/rn1-028/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/rn1-032/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-033/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-034/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-036/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-037/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-038/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-rule6/rn1-039/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
-rule6/rn1-040/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-neigh4/ec-003/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/pw-002/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/pw-008/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/pw-042/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/pw-049/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/pw-054/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/rn1-008/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/rn1-012/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/rn1-024/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/rn1-026/dump lacks "openr" | ip -4 neigh show dev d0
-neigh4/rn1-028/dump lacks "openr" | ip -4 neigh show dev d0
-neigh6/ec-003/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/pw-002/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/pw-008/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/pw-014/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/pw-042/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/pw-049/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/pw-054/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/rn1-008/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/rn1-012/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/rn1-024/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/rn1-026/dump lacks "openr" | ip -6 neigh show dev d0
-neigh6/rn1-028/dump lacks "openr" | ip -6 neigh show dev d0
 linkset/bd-001/dump lacks "mtu" | ip -d link show
 linkset/bd-002/dump lacks "alias" | ip -d link show
 linkset/ec-002/dump lacks "alias" | ip -d link show

@@ -82,7 +82,8 @@ func wsReadbackFirstGap(r wsReadback) string {
 func TestWsReadbacks(t *testing.T) {
 	useLLMap720(t)
 	t.Cleanup(func() { useWsO5Release("") })
-	var head, report []string
+	var report []string
+	head := make([]string, 0, len(wsO5Spaces))
 	gaps := map[string]int{}
 	for _, sp := range wsO5Spaces {
 		useWsO5Release(sp)
@@ -121,6 +122,7 @@ func TestWsReadbacks(t *testing.T) {
 		keys = append(keys, k)
 	}
 	slices.Sort(keys)
+	head = slices.Grow(head, len(keys)+len(report))
 	for _, k := range keys {
 		head = append(head, fmt.Sprintf("# gap: %d readbacks: %s", gaps[k], k))
 	}

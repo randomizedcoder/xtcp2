@@ -127,10 +127,9 @@ func ruleShow(c *runCtx) error {
 	for i := range rules {
 		decoded[i] = xtcpnl.RuleInfo(rules[i])
 	}
-	if err := checkRuleRenderable(decoded); err != nil {
-		return err
-	}
-
+	// One ip process, so one DS field table across the rules: an earlier
+	// rule's tos or dscp decides how a later dscp 0 prints.
+	var ds render.Dsfield
 	views := make([]render.RuleView, 0, len(decoded))
 	for i := range decoded {
 		ri := decoded[i]
@@ -150,7 +149,7 @@ func ruleShow(c *runCtx) error {
 		if !c.detailed() && (ri.Protocol == 0 || ri.Protocol == unix.RTPROT_KERNEL) {
 			ri.HasProtocol = false
 		}
-		views = append(views, render.RuleViewOf(ri))
+		views = append(views, render.RuleViewOfIn(ri, &ds))
 	}
 
 	if c.json {
@@ -159,55 +158,6 @@ func ruleShow(c *runCtx) error {
 	for i := range views {
 		if _, err := fmt.Fprint(c.out, views[i].Text()); err != nil {
 			return err
-		}
-	}
-	return nil
-}
-
-// checkRuleRenderable refuses a dump carrying an attribute print_rule renders
-// through a name table goip does not have.
-//
-// # The two, and why they are one case rather than two decisions
-//
-// FRA_IP_PROTO prints ` ipproto %s` through inet_proto_n2a (ip/iprule.c:405-410),
-// which is getprotobynumber and therefore /etc/protocols. FRA_DSCP prints
-// ` dscp %s` through rtnl_dscp_n2a (:559-581), which is rtnl_dsfield_get_name
-// and therefore /etc/iproute2/rt_dsfield. Both resolve a number to a name out
-// of a file on whichever machine runs `ip`, and render's package doc has said
-// since it was written that goip reads no config files — which is also why
-// dsfieldName is pinned to its numeric fallback rather than carrying a table.
-//
-// Rendering them numerically would produce ` ipproto 6` where `ip` prints
-// ` ipproto tcp`: a plausible line, reported by the parity harness as a
-// rendering bug on that one rule, with nothing to say a name table is absent.
-// Refusing follows the IFLA_INFO_DATA precedent (obj_link.go's
-// checkDetailSupported) and the `-s -s` one: an explicit error names the
-// missing feature where it was asked for.
-//
-// # Unlike the -d refusals, this one is unconditional
-//
-// checkDetailSupported returns early unless -d was given, because
-// IFLA_INFO_DATA only prints under -d. Both attributes here print on a BARE
-// `ip rule show`, so there is no flag to gate on.
-//
-// # Measured, which is what makes the refusal cheap
-//
-// No rule in the captured topology carries either attribute, and that is on
-// purpose — netlink-topology.exp's build_clean_rules says so at the two lines
-// it does not write. So `ip rule show` is refused nowhere the parity harness
-// runs, while a rule added by hand on a real box is refused loudly instead of
-// rendered wrong.
-func checkRuleRenderable(rules []xtcpnl.RuleInfo) error {
-	for i := range rules {
-		ri := &rules[i]
-		switch {
-		case ri.HasIPProto:
-			return fmt.Errorf("rule pref %d: iproute2 renders FRA_IP_PROTO through "+
-				"/etc/protocols and goip reads no config files: %w", ri.Priority, ErrNotImplemented)
-		case ri.HasDscp:
-			return fmt.Errorf("rule pref %d: iproute2 renders FRA_DSCP through "+
-				"/etc/iproute2/rt_dsfield and goip reads no config files: %w",
-				ri.Priority, ErrNotImplemented)
 		}
 	}
 	return nil

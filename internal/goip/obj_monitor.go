@@ -331,6 +331,9 @@ type monitor struct {
 	netns     netnsMap
 	netnsName func(int32) (string, bool)
 	now       func() time.Time
+	// dsfield is the process's DS field table, which a route's tos loads
+	// for a later rule's dscp.
+	dsfield render.Dsfield
 }
 
 func newMonitor(c *runCtx, a *monitorArgs) *monitor {
@@ -511,6 +514,9 @@ func (m *monitor) route(msg *monitorMsg) (out, errOut string, err error) {
 	}
 	f := render.RouteShowFilter{OifMask: m.ifindex > 0, Details: m.c.detailed(), Stats: m.c.stats()}
 	v := render.RouteViewOf(ri, m.c.lltab, f)
+	if ri.Tos != 0 {
+		m.dsfield.Load() // print_route's rtnl_dsfield_n2a
+	}
 	return m.headers("[ROUTE]", msg.nsid) + deleted(del) + v.Text(), "", nil
 }
 
@@ -646,13 +652,10 @@ func (m *monitor) rule(msg *monitorMsg) (out, errOut string, err error) {
 	if m.c.family != unix.AF_UNSPEC && ri.Family != m.c.family {
 		return "", "", nil
 	}
-	if rerr := checkRuleRenderable([]xtcpnl.RuleInfo{ri}); rerr != nil {
-		return "", refusal(&msg.hdr, rerr), nil
-	}
 	if !m.c.detailed() && (ri.Protocol == 0 || ri.Protocol == unix.RTPROT_KERNEL) {
 		ri.HasProtocol = false
 	}
-	v := render.RuleViewOf(ri)
+	v := render.RuleViewOfIn(ri, &m.dsfield)
 	return m.headers("[RULE]", msg.nsid) + deleted(msg.hdr.Type == unix.RTM_DELRULE) + v.Text(), "", nil
 }
 

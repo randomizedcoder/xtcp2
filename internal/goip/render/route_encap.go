@@ -9,6 +9,10 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
+// unknownNameCst is what ip prints for a name it cannot find: a seg6local
+// action or BPF program, an SRH's HMAC algorithm.
+const unknownNameCst = "<unknown>"
+
 // EncapView is lwt_print_encap's output for a route's RTA_ENCAP, or one
 // multipath hop's (ip/iproute_lwtunnel.c): the `encap_type` and the type's
 // own tokens, as text and as the "encap" JSON object, each built by the
@@ -294,7 +298,7 @@ var seg6ModeNames = [...]string{
 // so "<unknown>" is a defensive arm, as in ip.
 func seg6ModeName(mode int32) string {
 	if mode < 0 || int(mode) >= len(seg6ModeNames) {
-		return "<unknown>"
+		return unknownNameCst
 	}
 	return seg6ModeNames[mode]
 }

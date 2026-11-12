@@ -255,8 +255,9 @@ func TestXfrmMonitorArgs(t *testing.T) {
 		{description: "boundary: an async event with no flags", args: "monitor", groups: all,
 			msgs: []monitorMsg{aeFlags(0, unix.IPPROTO_AH)}, stdout: "Async event  (0x0) \n\tsrc 192.0.2.1 dst " +
 				"192.0.2.2  reqid 0x1 protocol ah  SPI 0x100\n"},
-		{description: "negative: an async event's protocol goip cannot name", args: "monitor", groups: all,
-			msgs: []monitorMsg{aeFlags(0x10, 108)}, exit: ExitUsage, text: "protocol 108"},
+		{description: "positive: an async event's protocol by its /etc/protocols name", args: "monitor", groups: all,
+			msgs: []monitorMsg{aeFlags(0x10, 108)}, stdout: "Async event  (0x10)  replay update \n\tsrc 192.0.2.1 dst " +
+				"192.0.2.2  reqid 0x1 protocol ipcomp  SPI 0x100\n"},
 		{description: "negative: an async event short of its struct is not implemented", args: "monitor",
 			groups: all, msgs: []monitorMsg{xfrmMonMsg(xtcpnl.XfrmMsgNewAE, 1, 2)}, exit: ExitUsage,
 			text: "an async event"},

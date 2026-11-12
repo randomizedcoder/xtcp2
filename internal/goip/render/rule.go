@@ -70,6 +70,9 @@ type RuleView struct {
 	UIDStart *uint32
 	UIDEnd   *uint32
 
+	// IPProto is inet_proto_n2a's FRA_IP_PROTO (:405-410).
+	IPProto string
+
 	// The port blocks carry three fields each because the single-value arm
 	// and the range arm use different JSON KEYS, not merely different text
 	// (:412-472). Mask is set only on the single-value arm, where iproute2
@@ -116,6 +119,14 @@ type RuleView struct {
 
 	Protocol string
 
+	// Dscp is rtnl_dscp_n2a's FRA_DSCP, the JSON value and, when DscpHex is
+	// empty, the text's (:560-581). DscpMask is FRA_DSCP_MASK in print_0xhex's
+	// form, JSON only. DscpHex is the text's `%#x/%#x` arm, for a mask short
+	// of DSCP_MAX_MASK.
+	Dscp     string
+	DscpMask string
+	DscpHex  string
+
 	Flowlabel     string
 	FlowlabelMask string
 }
@@ -145,13 +156,22 @@ const rulePortMaxMaskCst uint16 = 0xFFFF
 // label. A mask equal to it goes to JSON only (:591-596).
 const ruleFlowlabelMaxMaskCst uint32 = 0x000FFFFF
 
-// RuleViewOf builds the view for one decoded rule.
-//
-// Every branch is in print_rule's order and cites its line. The two attributes
-// goip decodes and does not render — FRA_IP_PROTO and FRA_DSCP — are absent
-// here on purpose and are refused before this is reached, by
-// checkRuleRenderable in the goip package.
+// ruleDscpMaxMaskCst is iprule.c's DSCP_MAX_MASK, the six DSCP bits. A
+// mask equal to it prints the DSCP's name in text.
+const ruleDscpMaxMaskCst = 0x3F
+
+// RuleViewOf builds the view for one decoded rule, the first an ip process
+// prints.
 func RuleViewOf(ri xtcpnl.RuleInfo) RuleView {
+	var d Dsfield
+	return RuleViewOfIn(ri, &d)
+}
+
+// RuleViewOfIn builds the view for one decoded rule in a process whose DS
+// field table is d, which the rule's tos and dscp may load.
+//
+// Every branch is in print_rule's order and cites its line.
+func RuleViewOfIn(ri xtcpnl.RuleInfo, d *Dsfield) RuleView {
 	hostLen := afBitLen(ri.Family)
 
 	v := RuleView{
@@ -189,7 +209,7 @@ func RuleViewOf(ri xtcpnl.RuleInfo) RuleView {
 	// :346-350. Guarded on the VALUE, because tos is a header field and so is
 	// always present.
 	if ri.Tos != 0 {
-		v.Tos = dsfieldName(ri.Tos)
+		v.Tos = d.N2A(ri.Tos)
 	}
 
 	setRuleFwmark(&v, ri)
@@ -207,6 +227,9 @@ func RuleViewOf(ri xtcpnl.RuleInfo) RuleView {
 	if ri.HasUidRange {
 		v.UIDStart = ruleU32Ptr(ri.UidRange.Start)
 		v.UIDEnd = ruleU32Ptr(ri.UidRange.End)
+	}
+	if ri.HasIPProto {
+		v.IPProto = InetProtoN2A(ri.IPProto)
 	}
 
 	setRulePorts(&v, ri)
@@ -228,6 +251,7 @@ func RuleViewOf(ri xtcpnl.RuleInfo) RuleView {
 		v.Protocol = routeProtoName(ri.Protocol)
 	}
 
+	setRuleDscp(&v, ri, d)
 	setRuleFlowlabel(&v, ri)
 
 	return v
@@ -367,6 +391,23 @@ func setRuleAction(v *RuleView, ri xtcpnl.RuleInfo) {
 	}
 }
 
+// setRuleDscp is :560-581. Each arm calls rtnl_dscp_n2a, the text-only
+// hex arm too, since its JSON print's argument is evaluated in text mode:
+// the lookup loads the DS field table whichever line prints.
+func setRuleDscp(v *RuleView, ri xtcpnl.RuleInfo, d *Dsfield) {
+	if !ri.HasDscp {
+		return
+	}
+	v.Dscp = d.DscpN2A(ri.Dscp)
+	if !ri.HasDscpMask {
+		return
+	}
+	v.DscpMask = hex0x(uint64(ri.DscpMask))
+	if ri.DscpMask != ruleDscpMaxMaskCst {
+		v.DscpHex = hex0x(uint64(ri.Dscp)) + "/" + v.DscpMask
+	}
+}
+
 // setRuleFlowlabel is :583-596, the third place in print_rule where the two
 // output modes emit a different NUMBER of values rather than a different
 // spelling of one.
@@ -438,6 +479,11 @@ func (v RuleView) Text() string {
 		b.WriteString(strconv.FormatUint(uint64(*v.UIDEnd), 10))
 	}
 
+	if v.IPProto != "" {
+		b.WriteString(" ipproto ")
+		b.WriteString(v.IPProto)
+	}
+
 	writeRulePortText(&b, "sport", v.Sport, v.SportMask, v.SportStart, v.SportEnd)
 	writeRulePortText(&b, "dport", v.Dport, v.DportMask, v.DportStart, v.DportEnd)
 
@@ -468,9 +514,26 @@ func (v RuleView) Text() string {
 
 	writeRuleActionText(&b, v)
 
+	writeRuleTailText(&b, v)
+
+	b.WriteByte('\n')
+	return b.String()
+}
+
+// writeRuleTailText writes what print_rule prints after the action:
+// proto, dscp and flowlabel (:551-597).
+func writeRuleTailText(b *strings.Builder, v RuleView) {
 	if v.Protocol != "" {
 		b.WriteString(" proto ")
 		b.WriteString(v.Protocol)
+	}
+	switch {
+	case v.DscpHex != "":
+		b.WriteString(" dscp ")
+		b.WriteString(v.DscpHex)
+	case v.Dscp != "":
+		b.WriteString(" dscp ")
+		b.WriteString(v.Dscp)
 	}
 	if v.Flowlabel != "" {
 		b.WriteString(" flowlabel ")
@@ -482,9 +545,6 @@ func (v RuleView) Text() string {
 			b.WriteString(v.FlowlabelMask)
 		}
 	}
-
-	b.WriteByte('\n')
-	return b.String()
 }
 
 // writeRuleIfaceText writes ` iif NAME` or ` oif NAME` with its optional
@@ -620,6 +680,7 @@ func (v RuleView) MarshalJSON() ([]byte, error) {
 
 	kvs = appendRuleKV(kvs, "uid_start", v.UIDStart)
 	kvs = appendRuleKV(kvs, "uid_end", v.UIDEnd)
+	kvs = appendRuleStr(kvs, "ipproto", v.IPProto)
 	kvs = appendRulePortKV(kvs, "sport", v.Sport, v.SportMask, v.SportStart, v.SportEnd)
 	kvs = appendRulePortKV(kvs, "dport", v.Dport, v.DportMask, v.DportStart, v.DportEnd)
 	kvs = appendRuleKV(kvs, "tun_id", v.TunID)
@@ -632,6 +693,8 @@ func (v RuleView) MarshalJSON() ([]byte, error) {
 
 	kvs = appendRuleActionKV(kvs, v)
 	kvs = appendRuleStr(kvs, "protocol", v.Protocol)
+	kvs = appendRuleStr(kvs, "dscp", v.Dscp)
+	kvs = appendRuleStr(kvs, "dscp_mask", v.DscpMask)
 	kvs = appendRuleStr(kvs, "flowlabel", v.Flowlabel)
 	kvs = appendRuleStr(kvs, "flowlabel_mask", v.FlowlabelMask)
 
@@ -758,8 +821,8 @@ func hex0x(v uint64) string {
 }
 
 // realmName is rtnl_rtrealm_n2a (lib/rt_names.c), whose table is loaded from
-// /etc/iproute2/rt_realms. goip reads no config files — see the package doc —
-// so this is always the `%d` fallback, the position dsfieldName already takes.
+// /etc/iproute2/rt_realms. goip does not carry that file yet (NX7e), so this
+// is always the `%d` fallback.
 func realmName(id uint32) string {
 	return strconv.FormatUint(uint64(id), 10)
 }

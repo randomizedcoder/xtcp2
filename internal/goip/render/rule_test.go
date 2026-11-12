@@ -501,10 +501,9 @@ func TestRuleViewOfText(t *testing.T) {
 		},
 		{
 			// tos is a header field, so it is always present and the guard is
-			// on the VALUE. dsfieldName is pinned to its numeric fallback,
-			// because the name table lives in /etc/iproute2/rt_dsfield and
-			// goip reads no config files.
-			description: "corner: constructed — a nonzero tos prints its numeric dsfield name",
+			// on the VALUE. 0x10 has no line in rt_dsfield, so it prints in
+			// rtnl_dsfield_n2a's 0x%02x.
+			description: "corner: constructed — a nonzero tos rt_dsfield does not name prints in hex",
 			in: xtcpnl.RuleInfo{
 				Family: unix.AF_INET, Action: unix.FR_ACT_TO_TBL, Tos: 0x10,
 				Priority: 66, HasPriority: true,

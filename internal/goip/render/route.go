@@ -58,22 +58,19 @@ import (
 //     sends anyway, which is what `ip` does too. `route get` is the one command
 //     that renders a cloned route, and its `cache` line is applyRouteCacheFlags.
 //
-// # Config files are not read, per the package's standing divergence
+// # Name tables
 //
 // rtnl_rtprot_n2a, rtnl_rttable_n2a and rtnl_dsfield_n2a each consult
 // /etc/iproute2/rt_protos, rt_tables and rt_dsfield (plus a CONF_USR_DIR copy
-// and a .d directory) on top of their built-in tables. The built-in tables are
-// transcribed below; the file contents are not read. Three consequences worth
-// naming, because each is a real host where goip and `ip` differ:
+// and a .d directory) on top of their built-in tables. goip compiles in the
+// built-in tables and the files iproute2 ships (names.go), not a host's own:
 //
 //   - rt_protos ships two names that have no built-in entry, `84 ovn` and
-//     `99 openr`, so a route installed by either renders as its number here.
+//     `99 openr`, which routeProtoNames carries.
 //   - rt_tables' built-in hash holds only default/main/local, so a numbered
 //     table a host has named renders as its number.
-//   - rtnl_rtdsfield_tab is built in as exactly one entry, `[0] = "0"`, and
-//     everything else — the whole AF/CS/EF set — comes from the file. Since
-//     print_route emits the `tos` token only when rtm_tos is non-zero, the one
-//     built-in entry is unreachable and every tos goip prints is numeric.
+//   - the tos print_route emits only when rtm_tos is non-zero is
+//     rtnl_dsfield_n2a's name, EF and the AF and CS classes, else 0x%02x.
 
 // icmpv6RouterPref are the RFC 4191 router preference values print_rt_pref
 // switches on. They are ICMPV6_ROUTER_PREF_* from
@@ -90,7 +87,9 @@ const (
 )
 
 // routeProtoNames is rtnl_rtprot_tab's static initializer
-// (lib/rt_names.c:127-151), the RTPROT_* names.
+// (lib/rt_names.c:127-151), the RTPROT_* names, plus the two the rt_protos
+// file iproute2 ships adds, ovn and openr, which a lookup that misses the
+// static table loads.
 var routeProtoNames = map[uint8]string{
 	unix.RTPROT_UNSPEC:     "unspec",
 	unix.RTPROT_REDIRECT:   "redirect",
@@ -113,7 +112,15 @@ var routeProtoNames = map[uint8]string{
 	unix.RTPROT_OSPF:       "ospf",
 	unix.RTPROT_RIP:        "rip",
 	unix.RTPROT_EIGRP:      "eigrp",
+	rtprotOvnCst:           "ovn",
+	rtprotOpenrCst:         "openr",
 }
+
+// The rt_protos file's two values with no RTPROT_* constant.
+const (
+	rtprotOvnCst   = 84
+	rtprotOpenrCst = 99
+)
 
 // routeProtoName is rtnl_rtprot_n2a (lib/rt_names.c:264-278), whose fallback
 // is `%u`.
@@ -189,10 +196,11 @@ func routeTableName(id uint32) string {
 	return strconv.FormatUint(uint64(id), 10)
 }
 
-// dsfieldName is rtnl_dsfield_n2a (lib/rt_names.c:606-620) with no config file
-// to read, so it is always the `0x%02x` fallback. See the file header.
+// dsfieldName is rtnl_dsfield_n2a (lib/rt_names.c:606-620) in an ip that
+// prints one DS field: a route's tos, never 0 when printed.
 func dsfieldName(tos uint8) string {
-	return fmt.Sprintf("0x%02x", tos)
+	var d Dsfield
+	return d.N2A(tos)
 }
 
 // rtFlagNames is print_rt_flags' sequence of tests (ip/iproute.c:388-417) in
