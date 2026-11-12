@@ -722,9 +722,23 @@ At NX7-0, 2003 readbacks match and 414 differ:
 | NX7d | `protodown` and `protodown_reason`, with ip's faults (P14) | 11 | linkpd |
 | NX7e | route `realm` and `realms` (RTA_FLOW) | 4 | kwroute4 |
 | — | rule `tos` names from rt_dsfield (`EF` where goip prints `0xb8`) | 8 | rule6 |
+| — | neigh `proto openr`, from the stock rt_protos (goip prints `99`) | 23 of NX7a's 63 | neigh4, neigh6 |
 | — | rule show refused: FRA_DSCP (88) and FRA_IP_PROTO (144), by the no-config-files rule | 232 | rule4, rule6 |
 
-The last two rows are a decision, not a task yet (status doc, decision log).
+The last three rows are a decision, not a task yet (status doc, decision log): ip names each value from a file iproute2 installs (`rt_dsfield`, `rt_protos`) or from `/etc/protocols`, and goip reads no files.
+
+#### NX7a neigh `proto`
+
+print_neigh prints `proto %s` after the state when NDA_PROTOCOL is non-zero (ip/ipneigh.c:465-470), through rtnl_rtprot_n2a, and the JSON key `"protocol"` comes last. goip names it from `routeProtoName`, the static table `route show` uses. That covers 40 of the 63 readbacks. The other 23 are `proto openr` (99), a name only the stock `rt_protos` file has; goip prints `proto 99` there, and they wait on the decision above.
+
+| description | input | expected |
+|---|---|---|
+| positive: static | neigh4 ec-002 | `… router REACHABLE proto static `; JSON `…,"state":["REACHABLE"],"protocol":"static"}` |
+| positive: a value with no name | 255 | `proto 255`, `"protocol":"255"` |
+| negative: no NDA_PROTOCOL | | no `proto` |
+| boundary: NDA_PROTOCOL 0 | | no `proto`: ip tests the value |
+| corner: a protocol with no state | kernel, state 0 | `… lladdr 02:00:00:00:00:01 proto kernel `; the key last |
+| positive: the corpus | `TestWsReadbacks` | 40 neigh readbacks now match; 23 `lacks "openr"` |
 
 `TestWsReadbackFirstGap` checks how a readback is named:
 

@@ -10,8 +10,8 @@
 # fibrule: 0 same, 0 differ
 # addr4: 132 same, 0 differ
 # addr6: 128 same, 0 differ
-# neigh4: 107 same, 31 differ
-# neigh6: 105 same, 32 differ
+# neigh4: 127 same, 11 differ
+# neigh6: 125 same, 12 differ
 # linkset: 60 same, 70 differ
 # linkadd: 85 same, 26 differ
 # linkattr: 52 same, 0 differ
@@ -52,7 +52,7 @@
 # gap: 36 readbacks: lacks "alias"
 # gap: 3 readbacks: lacks "ff:ff:ff:ff:ff:ffprotodown_reason"
 # gap: 21 readbacks: lacks "mtu"
-# gap: 63 readbacks: lacks "proto"
+# gap: 23 readbacks: lacks "openr"
 # gap: 8 readbacks: lacks "protodown"
 # gap: 39 readbacks: lacks "qlen"
 # gap: 3 readbacks: lacks "realm"
@@ -299,69 +299,29 @@ rule6/rn1-037/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /
 rule6/rn1-038/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
 rule6/rn1-039/dump refuses "rule pref N: iproute2 renders FRA_DSCP through /etc/iproute2/rt_dsfield and goip reads no config files" | ip -6 rule show
 rule6/rn1-040/dump refuses "rule pref N: iproute2 renders FRA_IP_PROTO through /etc/protocols and goip reads no config files" | ip -6 rule show
-neigh4/ec-002/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/ec-003/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-001/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-002/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-005/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-008/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-030/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-031/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-032/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-034/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-035/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-042/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-047/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-048/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-049/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-050/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-054/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/pw-056/dump lacks "proto" | ip -4 neigh show proxy dev d0
-neigh4/pw-061/dump lacks "proto" | ip -4 neigh show proxy dev d0
-neigh4/rn1-001/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-003/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-008/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-009/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-011/dump lacks "proto" | ip -4 neigh show proxy dev d0
-neigh4/rn1-012/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-013/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-024/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-026/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-028/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-032/dump lacks "proto" | ip -4 neigh show dev d0
-neigh4/rn1-037/dump lacks "proto" | ip -4 neigh show dev d0
-neigh6/ec-002/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/ec-003/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-001/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-002/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-005/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-008/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-014/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-030/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-031/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-032/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-034/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-035/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-042/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-047/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-049/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-050/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-054/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/pw-056/dump lacks "proto" | ip -6 neigh show proxy dev d0
-neigh6/pw-061/dump lacks "proto" | ip -6 neigh show proxy dev d0
-neigh6/rn1-001/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-003/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-008/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-011/dump lacks "proto" | ip -6 neigh show proxy dev d0
-neigh6/rn1-012/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-013/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-024/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-026/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-028/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-030/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-032/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-035/dump lacks "proto" | ip -6 neigh show dev d0
-neigh6/rn1-037/dump lacks "proto" | ip -6 neigh show dev d0
+neigh4/ec-003/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/pw-002/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/pw-008/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/pw-042/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/pw-049/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/pw-054/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/rn1-008/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/rn1-012/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/rn1-024/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/rn1-026/dump lacks "openr" | ip -4 neigh show dev d0
+neigh4/rn1-028/dump lacks "openr" | ip -4 neigh show dev d0
+neigh6/ec-003/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/pw-002/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/pw-008/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/pw-014/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/pw-042/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/pw-049/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/pw-054/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/rn1-008/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/rn1-012/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/rn1-024/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/rn1-026/dump lacks "openr" | ip -6 neigh show dev d0
+neigh6/rn1-028/dump lacks "openr" | ip -6 neigh show dev d0
 linkset/bd-001/dump lacks "mtu" | ip -d link show
 linkset/bd-002/dump lacks "alias" | ip -d link show
 linkset/ec-002/dump lacks "alias" | ip -d link show
