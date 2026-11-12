@@ -1,4 +1,4 @@
-// Command goip is a read-only Go reimplementation of a subset of ip(8).
+// Command goip is a Go reimplementation of a subset of ip(8).
 //
 // It exists as a coverage test for pkg/xtcpnl, not as an `ip` replacement.
 // Cloning `ip` forces the library to exercise every message and attribute a
@@ -6,9 +6,11 @@
 // "did we cover this?" into a diff that can fail a build. See
 // docs/netlink/coverage-expansion.md.
 //
-// goip never creates, deletes or sets anything: pkg/xtcpnl's request encoder
-// rejects every message type outside RTM_GET* and the NLMSG_* control types,
-// so the read-only property is enforced in code rather than by convention.
+// goip never applies a write. Its write verbs (add, set, delete, flush,
+// restore, …) build ip's request as a dry run, written to GOIP_WRITE_OUT,
+// and compile only with -tags goip_write, which the Nix goip build sets.
+// Without the tag they are ErrWriteNotCompiled, as they always are in the
+// daemons that serve /ip; see docs/build-flavors.md.
 package main
 
 import (

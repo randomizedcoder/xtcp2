@@ -87,6 +87,14 @@ add|change|replace|delete|flush`, `goip rule add|delete|flush|restore`,
 now do too, and refuse with
 `ErrWriteNotApplied` when the hook is unset.
 
+Every write verb, and every write builder in `pkg/xtcpnl`, compiles only with
+`-tags goip_write`, which `cmd/goip` and `cmd/goip-parity` alone are built
+with. The daemons that serve `goip show` over HTTP (`xtcp2` and
+`go-link-monitor`, at `/ip`) are built without it: `/ip` refuses a write verb
+by name with 400, and behind that refusal the verb is `ErrWriteNotCompiled`,
+with no encoder in the binary. `checks.no-write-encoders` proves that with `go list -deps` and
+`go tool nm`; see [build flavors](../build-flavors.md#goip-write-verbs).
+
 Supported families have expanded beyond those initial paths; the
 [coverage tracker](coverage-status.md) records current supported operations.
 Coverage of parsing and dry-run requests does not establish live mutation
