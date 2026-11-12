@@ -1,9 +1,10 @@
+//go:build goip_write
+
 package goip
 
 import (
 	"bytes"
 	"encoding/binary"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,23 +13,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// restoreReplay answers restore's link dump from the slug's pcap and records
-// each dump request: whole, for its seq, and with seq and pid zeroed.
-type restoreReplay struct {
-	*linkReplay
-	dumpReqs [][]byte
-	dumpSeqs []uint32
-}
-
 func newRestoreReplay(t *testing.T, slug string) *restoreReplay {
 	t.Helper()
 	return &restoreReplay{linkReplay: newLinkReplay(t, addrSaveSlugFile(slug, "ip.pcap"))}
-}
-
-func (r *restoreReplay) Dump(request []byte, msgType uint16) ([][]byte, error) {
-	r.dumpReqs = append(r.dumpReqs, zeroSeqPidCopy(request))
-	r.dumpSeqs = append(r.dumpSeqs, binary.LittleEndian.Uint32(request[8:12]))
-	return r.linkReplay.Dump(request, msgType)
 }
 
 // restoreIP is what ip sent for a restore slug, and how many of its writes
@@ -57,20 +44,6 @@ func restoreIPOf(t *testing.T, slug string) restoreIP {
 		}
 	}
 	return ip
-}
-
-// restoreWrites is the messages restore wrote to path, each whole.
-func restoreWrites(t *testing.T, path string) []nlparity.Msg {
-	t.Helper()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	msgs, err := nlparity.ParseWriteRequests(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return msgs
 }
 
 // TestAddrRestoreMatchesIpBytes is A9-T02's evidence (design table 9, rows 3,

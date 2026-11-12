@@ -1,3 +1,5 @@
+//go:build goip_write
+
 // Package goipparity is the implementation behind cmd/goip-parity: the
 // comparator that decides whether goip asked the kernel the same questions
 // `ip` did, and whether it rendered the same objects back.

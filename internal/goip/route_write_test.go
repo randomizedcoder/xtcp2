@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import (
@@ -441,18 +443,6 @@ func (f *fakeLinks) vrfTable(name string) (uint32, error) {
 		return 0, errFakeResolve
 	}
 	return fakeVrfTables[name], nil
-}
-
-func equalStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // equalRouteWrite compares two RouteWrites by the request they encode, so a

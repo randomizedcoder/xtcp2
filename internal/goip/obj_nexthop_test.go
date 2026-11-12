@@ -425,6 +425,7 @@ func TestNexthopShowRefusals(t *testing.T) {
 			t.Setenv("GOIP_REPLAY", nexthopDumpPcap)
 			var stdout, stderr bytes.Buffer
 			code := Run(tc.args, &stdout, &stderr)
+			skipIfNotCompiledText(t, stderr.String())
 			if code != ExitUsage {
 				t.Fatalf("Run(%q) = %d, want ExitUsage (%d); stderr=%s", tc.args, code, ExitUsage, stderr.String())
 			}

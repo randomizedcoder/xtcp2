@@ -818,6 +818,7 @@ func TestRunAddrArgs(t *testing.T) {
 
 			var out, errOut bytes.Buffer
 			code := Run(tc.args, &out, &errOut)
+			skipIfNotCompiledText(t, errOut.String())
 			if code != tc.wantExit {
 				t.Errorf("exit = %d, want %d (stderr %q)", code, tc.wantExit, errOut.String())
 			}

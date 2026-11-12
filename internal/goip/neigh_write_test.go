@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import (
@@ -7,42 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
-
-// runNeighCtx runs `ip neigh` args on c, as runRouteCtx runs `ip route`.
-func runNeighCtx(c *runCtx, args []string) (int, string, string) {
-	var out, errOut bytes.Buffer
-	if c.out == nil {
-		c.out = &out
-	}
-	c.errOut = &errOut
-	if c.lltab == nil {
-		c.lltab = NewLLTab()
-	}
-	if err := runNeigh(c, args); err != nil {
-		errOut.WriteString("goip: " + err.Error() + "\n")
-		return exitCodeOf(err), out.String(), errOut.String()
-	}
-	return ExitOK, out.String(), errOut.String()
-}
-
-// captureRequests is a capture's requests, each with seq and pid zeroed.
-func captureRequests(t *testing.T, pcap string) [][]byte {
-	t.Helper()
-	capt, err := nlparity.ParseRouteCaptureFile(pcap)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqs := capt.Requests()
-	out := make([][]byte, 0, len(reqs))
-	for _, m := range reqs {
-		out = append(out, wireBytesOf(m))
-	}
-	return out
-}
 
 // TestNeighModifyMatchesIp replays each C1-T02 neigh write capture: goip
 // sends ip's link dump, byte for byte with seq and pid zeroed, and writes

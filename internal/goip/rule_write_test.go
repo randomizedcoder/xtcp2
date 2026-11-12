@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import (
@@ -13,43 +15,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// runRuleCtx runs `ip rule` args on c, as runRouteCtx runs `ip route`.
-func runRuleCtx(c *runCtx, args []string) (int, string, string) {
-	var out, errOut bytes.Buffer
-	if c.out == nil {
-		c.out = &out
-	}
-	c.errOut = &errOut
-	if c.lltab == nil {
-		c.lltab = NewLLTab()
-	}
-	if err := runRule(c, args); err != nil {
-		errOut.WriteString("goip: " + err.Error() + "\n")
-		return exitCodeOf(err), out.String(), errOut.String()
-	}
-	return ExitOK, out.String(), errOut.String()
-}
-
-// ruleReplay is a restoreReplay that also answers DumpMsgs, the whole replies
-// save and flush read, recording the request as Dump does. failRules fails
-// the rule dump.
-type ruleReplay struct {
-	*restoreReplay
-	failRules bool
-}
-
 func newRuleReplay(t *testing.T, slug string) *ruleReplay {
 	t.Helper()
 	return &ruleReplay{restoreReplay: &restoreReplay{linkReplay: newLinkReplay(t, routeRtnlDir+slug+"/ip.pcap")}}
-}
-
-func (r *ruleReplay) DumpMsgs(request []byte, msgType uint16) ([][]byte, error) {
-	r.dumpReqs = append(r.dumpReqs, zeroSeqPidCopy(request))
-	r.dumpSeqs = append(r.dumpSeqs, binary.LittleEndian.Uint32(request[8:12]))
-	if r.failRules {
-		return nil, errFailSource
-	}
-	return r.inner.DumpMsgs(request, msgType)
 }
 
 // TestRuleModifyMatchesIp replays each C1 rule write capture: goip sends
@@ -118,18 +86,6 @@ func TestRuleModifyMatchesIp(t *testing.T) {
 			}
 		})
 	}
-}
-
-// fraOf is one FIB rule attribute.
-func fraOf(typ uint16, val ...byte) []byte {
-	b := make([]byte, 4, 4+len(val)+3)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(4+len(val)))
-	binary.LittleEndian.PutUint16(b[2:4], typ)
-	b = append(b, val...)
-	for len(b)%4 != 0 {
-		b = append(b, 0)
-	}
-	return b
 }
 
 // TestParseRuleWriteArgs is iprule_modify's loop and the checks after it, on
@@ -552,4 +508,21 @@ func TestRunRuleVerbs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ruleReplay is a restoreReplay that also answers DumpMsgs, the whole replies
+// save and flush read, recording the request as Dump does. failRules fails
+// the rule dump.
+type ruleReplay struct {
+	*restoreReplay
+	failRules bool
+}
+
+func (r *ruleReplay) DumpMsgs(request []byte, msgType uint16) ([][]byte, error) {
+	r.dumpReqs = append(r.dumpReqs, zeroSeqPidCopy(request))
+	r.dumpSeqs = append(r.dumpSeqs, binary.LittleEndian.Uint32(request[8:12]))
+	if r.failRules {
+		return nil, errFailSource
+	}
+	return r.inner.DumpMsgs(request, msgType)
 }

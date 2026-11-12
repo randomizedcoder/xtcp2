@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package xtcpnl
 
 // BuildGenlWriteRequest is BuildGenlRequest for the write path: only a

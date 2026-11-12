@@ -163,7 +163,9 @@ func TestIpstatsHelp(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			var out, errOut bytes.Buffer
 			c := &runCtx{out: &out, errOut: &errOut, lltab: NewLLTab()}
-			if err := runStats(c, tc.args); err != nil {
+			err := runStats(c, tc.args)
+			skipIfNotCompiled(t, err)
+			if err != nil {
 				t.Fatal(err)
 			}
 			if out.Len() != 0 || errOut.String() != tc.expected {

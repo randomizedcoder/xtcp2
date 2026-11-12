@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import (
@@ -12,10 +14,6 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
-
-// addrWriteCorpusDir holds the A0-T04 address write captures; a row that
-// names a slug reads that slug's ip.err.
-const addrWriteCorpusDir = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr"
 
 // TestLookupAddrWriteVerb is do_ipaddr's chain up to the list verbs.
 //

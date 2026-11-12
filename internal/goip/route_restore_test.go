@@ -1,10 +1,11 @@
+//go:build goip_write
+
 package goip
 
 import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -198,10 +199,4 @@ func TestRouteRestore(t *testing.T) {
 			t.Errorf("rc %d, %d requests, stderr %q", rc, src.requests, stderr)
 		}
 	})
-}
-
-// writtenFile reports whether goip wrote GOIP_WRITE_OUT at path.
-func writtenFile(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

@@ -189,7 +189,7 @@ func exitCodeOf(err error) int {
 	case errors.Is(err, ErrMonitorSetup), errors.Is(err, ErrMonitorFile):
 		return ExitUsage
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
-		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),
+		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrWriteNotCompiled), errors.Is(err, ErrSaveTerminated),
 		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated),
 		errors.Is(err, ErrTCPMetricsDumpTerminated), errors.Is(err, ErrGenlResolve),
 		errors.Is(err, ErrSrReply), errors.Is(err, ErrSrDumpTerminated),

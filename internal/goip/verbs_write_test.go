@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import "testing"
@@ -45,6 +47,21 @@ func TestWriteSegmentsMatchTables(t *testing.T) {
 			description: "routeWriteSegment equals routeWriteVerbs, prepend/append/test included",
 			segment:     routeWriteSegment,
 			expected:    tableSegment(routeWriteVerbs, func(v *routeWriteVerb) (string, bool) { return v.name, v.exact }),
+		},
+		{
+			name:        "neigh",
+			category:    "B",
+			description: "neighWriteSegment equals lookupNeighWriteVerb's arms, exact chg after change",
+			segment:     neighWriteSegment,
+			expected: tableSegment([]neighWriteVerb{neighAddVerb, neighChangeVerb, {name: addrVerbChgCst}, neighReplaceVerb,
+				neighDeleteVerb}, func(v *neighWriteVerb) (string, bool) { return v.name, v.name == addrVerbChgCst }),
+		},
+		{
+			name:        "nexthop",
+			category:    "B",
+			description: "nexthopWriteSegment equals nexthopWriteVerbs",
+			segment:     nexthopWriteSegment,
+			expected:    tableSegment(nexthopWriteVerbs, func(v *nexthopWriteVerb) (string, bool) { return v.name, false }),
 		},
 	}
 	for _, tt := range tests {

@@ -1,7 +1,8 @@
+//go:build goip_write
+
 package goip
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -11,43 +12,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
 
 // The expected bytes below are built by hand from rtattr headers, not by the
 // AttrBuilder under test: a length, a type, the payload, zero padding to 4.
-
-func nla(atype uint16, payload ...[]byte) []byte {
-	var body []byte
-	for _, p := range payload {
-		body = append(body, p...)
-	}
-	n, ok := cint.U16(4 + len(body))
-	if !ok {
-		panic("nla: an attribute past 64 KiB")
-	}
-	b := make([]byte, 4, 4+len(body)+3)
-	binary.LittleEndian.PutUint16(b[0:2], n)
-	binary.LittleEndian.PutUint16(b[2:4], atype)
-	b = append(b, body...)
-	for len(b)%4 != 0 {
-		b = append(b, 0)
-	}
-	return b
-}
-
-func le16(v uint16) []byte { return binary.LittleEndian.AppendUint16(nil, v) }
-func le32(v uint32) []byte { return binary.LittleEndian.AppendUint32(nil, v) }
-
-func catBytes(parts ...[]byte) []byte {
-	var out []byte
-	for _, p := range parts {
-		out = append(out, p...)
-	}
-	return out
-}
 
 // bondArgsResolver answers ll_name_to_index for the tests: eth0 is 3, and
 // every other name is 0, no such device.

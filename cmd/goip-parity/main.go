@@ -1,3 +1,5 @@
+//go:build goip_write
+
 // Command goip-parity is the comparator half of the netlink parity harness.
 //
 // It reads the `ip` → goip → `ip` capture triples a run produced and reports

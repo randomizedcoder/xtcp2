@@ -103,6 +103,7 @@ func TestRunOutputModes(t *testing.T) {
 			t.Setenv(writeOutEnvCst, out)
 			var stdout, stderr bytes.Buffer
 			code := Run(strings.Fields(tc.args), &stdout, &stderr)
+			skipIfNotCompiledText(t, stderr.String())
 			if code != tc.expected.code {
 				t.Errorf("code = %d, want %d; stderr %q", code, tc.expected.code, stderr.String())
 			}
