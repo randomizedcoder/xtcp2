@@ -35,6 +35,10 @@ const (
 	DefaultName = "metrics"
 	// DefaultSocketPath is the default listener's Unix socket.
 	DefaultSocketPath = "/run/xtcp2/metrics.sock"
+	// DefaultGRPCSocketPath is where xtcp2ctl and xtcp2client look for the
+	// gRPC listener. No gRPC listener runs unless one is configured; this is
+	// the documented place for it.
+	DefaultGRPCSocketPath = "/run/xtcp2/grpc.sock"
 
 	// loopbackTTL is the TTL and hop limit of a loopback TCP listener:
 	// replies never pass a router.

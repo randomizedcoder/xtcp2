@@ -16,6 +16,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/recordfmt"
 	"google.golang.org/grpc"
@@ -44,11 +45,9 @@ const (
 	signalChannelSizeCst = 10
 
 	tagertHostnameCst = "localhost"
-	// grpcPortCst MUST match the xtcp2 daemon's default in cmd/xtcp2
-	// (currently 8889). Keeping these in sync is a footgun — a future
-	// CLAUDE: the daemon's port is exposed via a const in cmd/xtcp2,
-	// and shipping them out-of-step turns every gRPC roundtrip into a
-	// silent connection refused.
+	// grpcPortCst is the port for -network tcp: the daemon's deprecated
+	// -grpcPort default. The default is the Unix socket,
+	// listeners.DefaultGRPCSocketPath.
 	grpcPortCst = "8889"
 
 	pollFrequencyCst = 10 * time.Second
@@ -122,10 +121,10 @@ func main() {
 func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("xtcp2client", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	networkFlag := fs.String("network", listener.NetworkTCP, "gRPC network: tcp or unix")
-	target := fs.String("target", tagertHostnameCst, "Target hostanme")
-	port := fs.String("port", grpcPortCst, "Target gRPC port (must match the xtcp2 daemon's -grpcPort flag)")
-	unixSocket := fs.String("unixSocket", "", "Target gRPC Unix socket path when -network unix")
+	networkFlag := fs.String("network", listener.NetworkUnix, "gRPC network: unix or tcp")
+	target := fs.String("target", tagertHostnameCst, "Target hostname when -network tcp")
+	port := fs.String("port", grpcPortCst, "Target gRPC port when -network tcp")
+	unixSocket := fs.String("unixSocket", listeners.DefaultGRPCSocketPath, "Target gRPC Unix socket path when -network unix")
 	poll := fs.Bool("poll", false, "poll mode means the client will trigger polling via the PollFlatRecords service")
 	pollFrequency := fs.Duration("pollFrequency", pollFrequencyCst, "poll mode frequency")
 	workers := fs.Int("workers", 10, "workers")

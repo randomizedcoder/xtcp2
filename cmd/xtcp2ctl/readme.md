@@ -21,13 +21,19 @@ Two tiers of change — pick the least disruptive one that does the job:
 ```sh
 # Build (produces ./result/bin/xtcp2ctl)
 nix build .#xtcp2ctl
-alias xtcp2ctl=./result/bin/xtcp2ctl        # all commands accept -target / -port, or -network unix
+alias xtcp2ctl=./result/bin/xtcp2ctl        # connects to unix:/run/xtcp2/grpc.sock
+
+# The daemon serves gRPC only on a listener configured for it:
+#   xtcp2 -listener name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock,tokenFile=/run/secrets/xtcp2-read,adminTokenFile=/run/secrets/xtcp2-admin
+export XTCP2_GRPC_AUTH_TOKEN_FILE=/run/secrets/xtcp2-read
+export XTCP2_GRPC_ADMIN_TOKEN_FILE=/run/secrets/xtcp2-admin
 
 # Inspect the running config (S3 creds redacted)
 xtcp2ctl get
 
-# Inspect over a local Unix domain socket
-xtcp2ctl get -network unix -unixSocket /run/xtcp2/grpc.sock
+# Another socket, or TCP
+xtcp2ctl get -unixSocket /run/other/grpc.sock
+xtcp2ctl get -network tcp -target 127.0.0.1 -port 8889
 
 # Hot changes — take effect immediately
 xtcp2ctl set-poll-frequency -frequency 30s -timeout 5s
@@ -60,16 +66,16 @@ Because empty credential fields are treated as *unchanged*, the redacted
 | `set-s3` | `-flush-interval`, `-threshold-bytes` (at least one) | hot |
 | `reconfigure` | `-file` (`-` = stdin) | soft restart |
 
-Common flags on every command: `-network` (`tcp` or `unix`), `-target` (default
-`localhost`), `-port` (default `8889`, must match the daemon's `-grpcPort`),
-`-unixSocket` (required with `-network unix`), and `-d` (debug level). Run
+Common flags on every command: `-network` (`unix` or `tcp`, default `unix`),
+`-unixSocket` (default `/run/xtcp2/grpc.sock`), `-target` and `-port` (with
+`-network tcp`; default `localhost` and `8889`), and `-d` (debug level). Run
 `xtcp2ctl <command> -h` for per-command flags.
 
-> **Security.** This slice adds UDS transport support, but token authentication
-> is not enforced yet. `get` redacts S3 credentials and listener auth secrets,
-> but any client that can reach the listener can reconfigure or restart the
-> daemon. Prefer a UDS with restrictive filesystem ownership/mode for local
-> operators, or bind TCP to loopback / a trusted network.
+> **Security.** Admin commands (everything but `get` and the link read
+> commands) need the listener's admin credential when it has one; a listener
+> serving `grpc-read` alone answers them `Unimplemented`. `get` redacts S3
+> credentials and listener auth secrets. See
+> [listeners](../../docs/security.md#listeners).
 
 A slim single-binary container image is also published as `.#oci-xtcp2ctl`
 (see [build flavors](../../docs/build-flavors.md)).
