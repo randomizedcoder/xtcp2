@@ -68,59 +68,80 @@ No code. Each item ends as a recorded decision in the focused doc's [open questi
 
 ### FP-1 — build-time opt-ins for the debug writers (A5; phased-plan PR-1)
 
-- [ ] `pkg/xtcp/netlinker.go`: move `captureToFileIfEnabled` behind `//go:build capture`; a stub in `netlinker_nocapture.go` for the default build.
-- [ ] `pkg/xtcp/destinations_file.go`: `//go:build dest_file`, matching the existing `dest_<scheme>` convention; `stderr` stays in the default build.
-- [ ] Startup: `-writeFiles > 0` or `-dest file:` on a build without the tag is fatal with the rebuild hint (the existing `destinationLookupError` path); exit 64.
-- [ ] With `capture` compiled in and armed: startup warning naming `-capturePath`, `xtcp2_debug_capture_enabled` gauge, `+capture` suffix in the version string. Compiled in but idle: none of the three.
-- [ ] `nix/versions.nix`: `capture` and `dest_file` in the full/dev flavor only; every production flavor omits both. [build-flavors.md](../build-flavors.md) updated.
+- [x] `pkg/xtcp/netlinker.go`: move `captureToFileIfEnabled` behind `//go:build capture`; a stub in `netlinker_nocapture.go` for the default build.
+- [x] `pkg/xtcp/destinations_file.go`: `//go:build dest_file`, matching the existing `dest_<scheme>` convention; `stderr` stays in the default build.
+- [x] Startup: `-writeFiles > 0` or `-dest file:` on a build without the tag is fatal with the rebuild hint (the existing `destinationLookupError` path); exit 64.
+- [x] With `capture` compiled in and armed: startup warning naming `-capturePath`, `xtcp2_debug_capture_enabled` gauge, `+capture` suffix in the version string. Compiled in but idle: none of the three. *Done stricter:* the `+capture` suffix appears whenever the tag is compiled in, because `-version` cannot know the runtime setting.
+- [x] `nix/versions.nix`: `capture` and `dest_file` in the full/dev flavor only; every production flavor omits both. [build-flavors.md](../build-flavors.md) updated. *Done stricter:* `dest_file` is in the full flavor; `capture` is in no shipped flavor or image, only the separate `xtcp2-capture` package. `ConfigService.Set` also refuses `write_files > 0` on a build without `capture`.
 
 **Tests:** FD `capture_not_compiled`, `capture_compiled_warns`, `capture_compiled_idle`; per-flavor build check that the symbol is absent (`go tool nm`).
 **Acceptance:** `nix build .#xtcp2-s3parquet` has no `captureToFileIfEnabled` or `newFileDest` symbol; the full flavor still captures.
+**Status:** done on `sec/fp1-debug-writer-tags`. `checks.flavor-tags` reads each binary's recorded build tags (they survive stripping) rather than symbol names.
 
 ### FP-2 — secrets and S3 transport (A3, A4)
 
-- [ ] `cmd/xtcp2/xtcp2.go`: in production flavors a non-empty `-s3SecretKey`, `-s3AccessKey`, `-listener*RawToken`, `-listener*HMACSharedKey` is fatal (exit 64), message naming the `_FILE` env. Dev flavor keeps the warning, and gains one for the S3 flags, which today are silent.
-- [ ] "Production flavor" is a build-time constant set by the flavor matrix (`-X main.flavorProduction=true`), not a runtime switch.
-- [ ] Startup config dump prints `<redacted>` for every secret-bearing field; a descriptor-walking test fails when a new field named `*key*`/`*token*`/`*secret*` is not in the redaction set.
-- [ ] `pkg/xtcp/destinations_s3parquet.go`: `http://` endpoints refused without `-s3AllowInsecure` (`xtcp2_s3_insecure` gauge when allowed); TLS minimum 1.2 on the minio transport; `-s3CAFile` / `S3_CA_FILE`.
-- [ ] `_FILE` sources: refuse a secret file that is group- or world-readable.
+- [x] `cmd/xtcp2/xtcp2.go`: in production flavors a non-empty `-s3SecretKey`, `-s3AccessKey`, `-listener*RawToken`, `-listener*HMACSharedKey` is fatal (exit 64), message naming the `_FILE` env. Dev flavor keeps the warning, and gains one for the S3 flags, which today are silent.
+- [x] "Production flavor" is a build-time constant set by the flavor matrix (`-X main.flavorProduction=true`), not a runtime switch.
+- [x] Startup config dump prints `<redacted>` for every secret-bearing field; a descriptor-walking test fails when a new field named `*key*`/`*token*`/`*secret*` is not in the redaction set.
+- [x] `pkg/xtcp/destinations_s3parquet.go`: `http://` endpoints refused without `-s3AllowInsecure` (`xtcp2_s3_insecure` gauge when allowed); TLS minimum 1.2 on the minio transport; `-s3CAFile` / `S3_CA_FILE`.
+- [x] `_FILE` sources: refuse a secret file that is group- or world-readable.
 
 **Tests:** Test FB (all rows) + `secret_file_mode` (N: 0644 file → fatal).
 **Acceptance:** `ps`, `docker inspect` and the startup log of the reference deployment contain no secret.
+**Status:** done on `sec/fp2-secrets-s3-tls`. Also: a bare `host:port` S3 endpoint now uses TLS; a missing or unreadable `_FILE` path is fatal (it was silently ignored); the flag-and-env-both case now warns. `checks.flavor-tags` tests the production mark by behavior (a slim binary refuses `-s3SecretKey` with exit 64), because `-trimpath` leaves `-ldflags` out of the recorded build settings.
 
 ### FP-3 — listener model (A1, A2)
 
 The largest PR of the phase; land it in three commits that each pass CI.
 
 1. **Config and package**
-   - [ ] `proto/xtcp_config/v1/xtcp_config.proto`: `Listener`, `EndpointClass` enum, `repeated Listener listeners`; protovalidate per the focused doc; regenerate `gen/`.
-   - [ ] New `pkg/listeners`: builds listeners from config; owns the cross-listener rules (class on ≤ 1 listener, HTTP/gRPC not mixed, `disabled` only on UDS/loopback/health-only, `grpc-admin`/`debug` need admin auth, address-is-path ⇒ unix, TCP must be typed); returns typed errors mapped to exit 64.
+   - [x] `proto/xtcp_config/v1/xtcp_config.proto`: `Listener`, `EndpointClass` enum, `repeated Listener listeners`; protovalidate per the focused doc; regenerate `gen/`.
+   - [x] New `pkg/listeners`: builds listeners from config; owns the cross-listener rules (class on ≤ 1 listener, HTTP/gRPC not mixed, `disabled` only on UDS/loopback/health-only, `grpc-admin`/`debug` need admin auth, address-is-path ⇒ unix, TCP must be typed); returns typed errors mapped to exit 64.
    - [ ] Reuse, do not fork: `pkg/listener` (endpoints, TTL/hop-limit 3), `pkg/listenerauth` (`Policy`, `PathAccess`), and `pkg/ipc`'s peer-uid check once FP-10 lands (until then UDS mode 0600 is the gate; FP-10 adds the handshake check without a config change).
 2. **Daemon wiring**
-   - [ ] `cmd/xtcp2/prom_server.go`: one mux per HTTP listener, built from its `serves` list; `/debug/pprof/cmdline` never registered; pprof registered only where `debug` is served.
-   - [ ] `pkg/xtcp/xtcp.go:395`, `grpc_server.go`: the gRPC server starts only if a listener serves a `grpc-*` class; services registered per class (`grpc-read` registers no `Set*`/`Trigger*`/`Rebaseline`/`Resync` handlers at all, so a policy bug cannot expose them).
-   - [ ] `cmd/xtcp2/ip_server.go`: `/ip`,`/i` become the `ip` class; `-linkMonitorIPListen` expands to a loopback listener serving `ip`.
-   - [ ] Defaults: no config ⇒ one UDS listener `/run/xtcp2/metrics.sock`, 0600, `raw`, `[health, metrics, metrics-detail]`. A missing token is fatal.
-   - [ ] Legacy flags and env (`-promListen*`, `-grpcListen*`, `-grpcPort`, `-listenerAuthMode`, …) expand into `listeners` entries with a deprecation line; setting both forms is fatal.
-   - [ ] `xtcp2 -healthcheck` resolves the listener that serves `health` from the same config (UDS or TCP) instead of assuming a TCP port; the OCI images' `HEALTHCHECK` keeps working unchanged.
-   - [ ] `xtcp2_listener_active{name,network,class}` gauge.
+   - [x] `cmd/xtcp2/prom_server.go`: one mux per HTTP listener, built from its `serves` list; `/debug/pprof/cmdline` never registered; pprof registered only where `debug` is served.
+   - [x] `pkg/xtcp/xtcp.go:395`, `grpc_server.go`: the gRPC server starts only if a listener serves a `grpc-*` class; services registered per class (`grpc-read` registers no `Set*`/`Trigger*`/`Rebaseline`/`Resync` handlers at all, so a policy bug cannot expose them).
+   - [x] `cmd/xtcp2/ip_server.go`: `/ip`,`/i` become the `ip` class; `-linkMonitorIPListen` expands to a loopback listener serving `ip`.
+   - [x] Defaults: no config ⇒ one UDS listener `/run/xtcp2/metrics.sock`, 0600, `raw`, `[health, metrics, metrics-detail]`. A missing token is fatal.
+   - [x] Legacy flags and env (`-promListen*`, `-grpcListen*`, `-grpcPort`, `-listenerAuthMode`, …) expand into `listeners` entries with a deprecation line; setting both forms is fatal.
+   - [x] `xtcp2 -healthcheck` resolves the listener that serves `health` from the same config (UDS or TCP) instead of assuming a TCP port; the OCI images' `HEALTHCHECK` keeps working unchanged.
+   - [x] `xtcp2_listener_active{name,network,class}` gauge.
 3. **Clients and the sibling binary**
-   - [ ] `cmd/go-link-monitor`: same `pkg/listeners`; its defaults flip the same way.
-   - [ ] `cmd/xtcp2ctl`, `cmd/xtcp2client`: `-socket <path>` and `-tokenFile`; examples in their READMEs use the UDS form.
-   - [ ] `nix/modules/xtcp2-service.nix`: `listeners` option; `RuntimeDirectory=xtcp2`; the module's own scrape example updated.
+   - [ ] `cmd/go-link-monitor`: same `pkg/listeners`; its defaults flip the same way. *Deferred to FP-3b:* the standalone binary keeps its current listeners for R1.
+   - [x] `cmd/xtcp2ctl`, `cmd/xtcp2client`: dial `unix:/run/xtcp2/grpc.sock` by default (`-unixSocket`, `-auth-token-file`); `-network tcp` reaches a TCP listener; READMEs use the UDS form.
+   - [x] `nix/modules/xtcp2-service.nix`: `listeners` and `listenerTokenFile` options; `RuntimeDirectory=xtcp2`; with no token file the module generates one once under `/var/lib/xtcp2`. The OCI daemon images expose no ports.
 
 **Tests:** Test FA (all 17 rows) as `TestListeners`; an integration test per class that the path/RPC is 404/`Unimplemented` on every listener that does not serve it; the existing listenerauth tests unchanged.
 **Acceptance:** `ss -ltnp` in a default container shows no TCP listener owned by xtcp2; a scrape with the token over the socket succeeds; without it, 401.
 **Depends on:** F0.1 (default stays UDS either way; F0.1 decides what FP-16 configures).
+**Status:** done on `sec/fp3-listener-model` (three commits plus the clients), except go-link-monitor (FP-3b). `PollFlatRecords` is an admin method, so a `grpc-read` listener does not serve it. An unset auth mode is inferred from the credential given. MicroVMs green: uds-security lifecycle, scrape-auth, linkmonitor, ip-listen.
 
 ### FP-4 — supply-chain checks (D1)
 
-- [ ] `nix/checks/govulncheck.nix` next to `go-sec.nix`, wired into `flake check`; vendored vulnerability DB pinned in `nix/versions.nix` so the check is reproducible and offline.
-- [ ] `go mod verify` in the build derivation.
-- [ ] SBOM (SPDX or CycloneDX) generated per OCI image and attached as an image artifact.
-- [ ] A scheduled CI job re-runs `govulncheck` against a fresh DB weekly and opens an issue on a finding.
+- [x] `nix/checks/govulncheck.nix` next to `go-sec.nix`, wired into `flake check`; vulnerability DB pinned so the check is reproducible and offline. *Done as:* the pin is a `golang/vulndb` commit in `nix/lib/govulndb.nix`; the check scans with no tags and with every flavor tag, and fails on a reachable finding not in its `accepted` list (one entry: GO-2026-6859, `net/http`, fixed in go1.27.4, until the toolchain bump).
+- [x] `go mod verify`. *Done as:* part of `nix run .#govulncheck-fresh`; the sandboxed build already pins every module by the vendor hash.
+- [x] SBOM. *Done as:* CycloneDX per binary, `nix build .#sbom-<binary>`; attaching it to the OCI images is left to FP-15.
+- [x] Fresh-database run. *Done as:* `nix run .#govulncheck-fresh` instead of a scheduled job, since there is no hosted CI to schedule it.
 
-**Tests:** FD `govulncheck_clean` (a seeded vulnerable module version fails the check).
+**Tests:** FD `govulncheck_clean` (a seeded vulnerable module version fails the check). *Checked by hand:* with the accepted list emptied, the check fails on GO-2026-6859; an automated seeded-module test is a TODO.
+**Status:** done on `sec/fp4-govulncheck`.
+
+### Phase F1 TODOs
+
+Non-blocking shortfalls found while implementing F1; none blocks R1.
+
+| TODO | Where |
+|---|---|
+| go-link-monitor adopts `pkg/listeners` and the same defaults | FP-3b |
+| `build/containers/docker-compose*.yml` still publish 9088/8889 | FP-15 |
+| A non-root scraper needs a group-owned metrics socket (a `group` listener option) | FP-16 |
+| Seeded-module test for the govulncheck gate (`govulncheck_clean`) | FP-4 follow-up |
+| Toolchain to go1.27.4, then drop GO-2026-6859 from the accepted list | next toolchain bump |
+| `uds_wrong_peer_uid` row | FP-10 |
+| A TLS 1.1 S3 endpoint refused (Test FB row) | FP-2 follow-up |
+| `TestS3ParquetDest_timeFlush` flake; `regen-protos` drift | existing |
+| `pkg/listener` socket tests fail under `nix develop` (TMPDIR too long for `sun_path`) | existing |
+| MicroVM serial ports are fixed per arch, so two sessions cannot run lifecycle VMs at once | test harness |
 
 ### Phase F1 release gate (R1)
 
