@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"golang.org/x/sys/unix"
 )
 
@@ -190,8 +192,13 @@ func runReexecChild(mode string) error {
 	testArgs, testFlags := os.Args, flag.CommandLine
 	os.Args = args
 	flag.CommandLine = flag.NewFlagSet(args[0], flag.ContinueOnError)
-	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
-	daemonRunner = func(_ context.Context, _ context.CancelFunc, _ *xtcp_config.XtcpConfig) {
+	listenersStarter = func(context.Context, *sync.WaitGroup, []listeners.Spec, string) ([]xtcp.GRPCListener, error) {
+		return nil, nil
+	}
+	if err := os.Setenv("LISTENER_AUTH_MODE", "disabled"); err != nil {
+		return err
+	}
+	daemonRunner = func(context.Context, context.CancelFunc, *xtcp_config.XtcpConfig, []xtcp.GRPCListener) {
 		// Run long enough for the profile's timer to be armed, then ask for
 		// the restart the way runDaemonDefault does once it has drained.
 		burnCPU(50 * time.Millisecond)

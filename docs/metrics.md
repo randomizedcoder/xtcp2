@@ -323,7 +323,7 @@ grep -rnoE '\.(pC|pH|pG|pGV)\.WithLabelValues\([^)]*\)' --include=*.go pkg/xtcp 
 To see what a running daemon exports, including the dynamic label values:
 
 ```sh
-curl -s localhost:9088/metrics | grep -E '^xtcp_'
+curl -s --unix-socket /run/xtcp2/metrics.sock -H "Authorization: Bearer $(cat /etc/xtcp2/token)" http://xtcp2/metrics | grep -E '^xtcp_'
 ```
 
 ## See also

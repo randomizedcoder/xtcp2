@@ -97,6 +97,9 @@ in
   # Reachable known vulnerabilities, against a pinned offline database.
   govulncheck = import ./govulncheck.nix { inherit pkgs vendoredSource; };
 
+  # Slim flavors must not carry the debug writers (dest_file, capture).
+  flavor-tags = import ./flavor-tags.nix { inherit pkgs lib binaries; };
+
   # The lint ratchet, and the only check here that is GREEN at baseline. The
   # three tier checks above report a tier's whole finding list, which has been
   # non-empty for long enough that their red carries no information; this one

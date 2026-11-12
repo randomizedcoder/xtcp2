@@ -28,29 +28,33 @@ cd xtcp2
 # 2. Build the main daemon (or `nix develop` for a full dev shell)
 nix build .#xtcp2
 
-# 3. Run it against the local host, discarding output, with verbose logging
-sudo ./result/bin/xtcp2 -dest null -d 333
+# 3. A bearer token for its listeners, readable only by root
+sudo install -d -m 0700 /etc/xtcp2
+sudo sh -c 'umask 077; head -c 32 /dev/urandom | base64 > /etc/xtcp2/token'
+
+# 4. Run it against the local host, discarding output, with verbose logging.
+#    Metrics on /run/xtcp2/metrics.sock (the default), gRPC on /run/xtcp2/grpc.sock.
+sudo LISTENER_RAW_TOKEN_FILE=/etc/xtcp2/token ./result/bin/xtcp2 -dest null -d 333 \
+  -listener name=metrics,serves=health+metrics+metrics-detail,address=/run/xtcp2/metrics.sock \
+  -listener name=grpc,serves=grpc-admin,address=/run/xtcp2/grpc.sock
 ```
 
-Stream to Kafka/Redpanda instead:
-
-```sh
-sudo ./result/bin/xtcp2 -dest kafka:127.0.0.1:9092 -topic xtcp
-```
+xtcp2 opens no TCP port unless a listener asks for one, and refuses to start without a token; see [listeners](docs/security.md#listeners). Stream to Kafka/Redpanda instead with `-dest kafka:127.0.0.1:9092 -topic xtcp`.
 
 Inspect TCP records live over gRPC, in a second terminal:
 
 ```sh
 nix build .#xtcp2client -o result-client
-./result-client/bin/xtcp2client     # streams XtcpFlatRecord from the running daemon
+sudo XTCP2_GRPC_AUTH_TOKEN_FILE=/etc/xtcp2/token ./result-client/bin/xtcp2client     # streams XtcpFlatRecord
 ```
 
 The daemon also enables its embedded link monitor by default. Inspect it from another terminal:
 
 ```sh
-curl -fsS http://localhost:9088/metrics          # daemon metrics and link-health summary
-curl -fsS http://localhost:9088/metrics/link     # link detail
-curl -fsS http://localhost:9088/metrics/driver   # detailed driver/PHY counters
+xc() { sudo curl -fsS --unix-socket /run/xtcp2/metrics.sock -H "Authorization: Bearer $(sudo cat /etc/xtcp2/token)" "http://xtcp2$1"; }
+xc /metrics          # daemon metrics and link-health summary
+xc /metrics/link     # link detail
+xc /metrics/driver   # detailed driver/PHY counters
 ```
 
 For link monitoring alone, run the standalone exporter:
@@ -79,8 +83,7 @@ Run `./result/bin/xtcp2 -help` for the full flag list. Common flags:
 | `-marshal` | `protobufList` | Wire format (`protobufList`, `protoJson`, `protoText`, `msgpack`, `jsonl`, `csv`, `tsv`) |
 | `-netlinkers` | `2` | Parallel decoders per socket (one receiver reads each socket) |
 | `-deserializers` | `all` | Which inet_diag attributes to decode |
-| `-promListen` | `:9088` | Prometheus metrics listener |
-| `-grpcPort` | `8889` | gRPC API port |
+| `-listener` | `/run/xtcp2/metrics.sock` | A listener, repeatable: socket or TCP address, credentials, and what it serves ([listeners](docs/security.md#listeners)) |
 | `-linkMonitor` | `true` | Embedded Ethernet/RDMA link monitor |
 | `-d` | `111` | Debug verbosity (higher = more) |
 
@@ -102,7 +105,7 @@ The `goip` tool and its supporting Go code implement an expanding subset of ipro
 
 Optional `/ip/...` HTTP paths expose supported read-only goip commands for remote investigation, including forms such as `/ip/addr/show/dev/eth0` and `/ip/link`. Enable them with `-linkMonitorIPPaths` in xtcp2 or `-ip.paths` in the standalone monitor. `goip-parity` checks requests and output against iproute2; coverage is evolving, so goip is not yet a complete replacement. Its implemented write verbs currently produce **dry-run request files only**, not kernel changes.
 
-xtcp2 can instead move `/ip` and `/i` to a dedicated loopback listener with `-linkMonitorIPListen 127.0.0.1:9089`. That listener deliberately has no bearer authentication and rejects non-loopback peers; see the [security tradeoffs](docs/security.md#optional-loopback-inspection-listener) before enabling it.
+xtcp2 can serve `/ip` and `/i` on a dedicated loopback listener, `-listener name=ip,serves=ip,address=127.0.0.1:9089,network=tcp,auth=disabled`. That listener deliberately has no bearer authentication and rejects non-loopback peers; see the [security tradeoffs](docs/security.md#optional-loopback-inspection-listener) before enabling it.
 
 Details: [netlink and goip overview](docs/netlink/README.md), [coverage and parity status](docs/netlink/coverage-status.md), [HTTP command paths](cmd/go-link-monitor/IP-ARGV-PATHS-DESIGN.md).
 

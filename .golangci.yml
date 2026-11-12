@@ -28,6 +28,8 @@ run:
     - dest_s3parquet
     - enrich_asn
     - enrich_locality
+    - capture
+    - dest_file
 
 formatters:
   enable:

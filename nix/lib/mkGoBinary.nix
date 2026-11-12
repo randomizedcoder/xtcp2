@@ -66,6 +66,15 @@ in
   # coverage harness (nix/microvms/) to capture integration-test
   # coverage that unit tests alone can't reach.
   coverage ? false,
+  # Extra build tags beyond the destination and enrichment axes, e.g.
+  # [ "capture" ] for the netlink capture writer. Each tag is appended to the
+  # pname so the derivation is distinct from the plain build.
+  extraTags ? [ ],
+  # Production flavor: links -X main.flavorProduction=true, which makes
+  # xtcp2 refuse a credential passed as a flag (cmd/xtcp2/secrets.go). The
+  # slim per-destination flavors set it; the full (development) build and
+  # every other binary do not.
+  production ? false,
   # When coverage=true, the comma-separated package patterns whose code
   # gets instrumented. Defaults to the full xtcp2 namespace.
   coverPkg ? "github.com/randomizedcoder/xtcp2/...",
@@ -78,7 +87,10 @@ let
 
   # Resolve the effective destination list.
   effectiveDestinations =
-    if destinations == null then versions.allLibraryDestinations else destinations;
+    if destinations == null then
+      versions.allLibraryDestinations ++ versions.debugDestinations
+    else
+      destinations;
 
   # `dest_kafka`, `dest_nats`, … — one tag per included library destination.
   destinationTags = map (s: "dest_${s}") effectiveDestinations;
@@ -110,7 +122,9 @@ let
       "-" + lib.concatStringsSep "-" enrichments;
 in
 buildGoModule {
-  pname = "${name}${destSuffix}${enrichSuffix}${variantCfg.tagSuffix}${lib.optionalString coverage "-cover"}";
+  pname = "${name}${destSuffix}${enrichSuffix}${
+    lib.concatMapStrings (t: "-${t}") extraTags
+  }${variantCfg.tagSuffix}${lib.optionalString coverage "-cover"}";
   inherit
     version
     src
@@ -124,7 +138,7 @@ buildGoModule {
     CGO_ENABLED = if versions.cgoEnabled then "1" else "0";
   };
 
-  tags = versions.buildTags ++ destinationTags ++ enrichmentTags;
+  tags = versions.buildTags ++ destinationTags ++ enrichmentTags ++ extraTags;
 
   ldflags =
     variantCfg.extraLdflags
@@ -133,6 +147,7 @@ buildGoModule {
       "-X main.date=${date}"
       "-X main.version=${version}"
     ]
+    ++ lib.optional production "-X main.flavorProduction=true"
     ++ extraLdflags;
 
   # Strip and trim paths. When coverage=true, also append `-cover` +

@@ -65,7 +65,9 @@ let
   );
 
   # Self-contained container HEALTHCHECK for the xtcp2-daemon images (scratch,
-  # no shell/curl): the binary probes its own /readyz via `-healthcheck`.
+  # no shell/curl): the binary probes /readyz on its health listener via
+  # `-healthcheck`, from the same LISTENERS / LISTENER_RAW_TOKEN_FILE env as
+  # the daemon.
   # Durations are integer nanoseconds. NOT applied to the tcp-stress image
   # (different entrypoint, no daemon).
   xtcp2Healthcheck = {
@@ -179,10 +181,8 @@ let
       inherit tag;
       binaries = binaries.${attr};
       protoFile = src + "/proto/xtcp_flat_record/v1/xtcp_flat_record.proto";
-      exposedPorts = [
-        9088
-        8889
-      ];
+      # No exposed ports: the daemon serves its default Unix socket,
+      # /run/xtcp2/metrics.sock; mount /run/xtcp2 to scrape it from the host.
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
       env = xtcp2Env;
@@ -201,10 +201,8 @@ let
       tag = "${dest}${lib.optionalString (enrich != "none") "-${enrich}"}${daemonTagSuffix}";
       binaries = binaries.xtcp2OnlyByFlavor.${dest}.${enrich};
       protoFile = src + "/proto/xtcp_flat_record/v1/xtcp_flat_record.proto";
-      exposedPorts = [
-        9088
-        8889
-      ];
+      # No exposed ports: the daemon serves its default Unix socket,
+      # /run/xtcp2/metrics.sock; mount /run/xtcp2 to scrape it from the host.
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
       env = xtcp2Env;

@@ -108,9 +108,10 @@
 
   # Destination flavors. Each maps to a list of `dest_<scheme>` build tags
   # appended to the binary's build. `null` means "all" — backward-compat
-  # default that pulls in every library destination (kafka/nats/nsq/valkey/s3parquet).
-  # Stdlib destinations (null/udp/unix/unixgram) are always compiled
-  # regardless of this list.
+  # default that pulls in every library destination (kafka/nats/nsq/valkey/s3parquet)
+  # plus the debug destinations below.
+  # Stdlib destinations (null/stdout/stderr/tcp/http/udp/unix/unixgram) are
+  # always compiled regardless of this list.
   #
   # See nix/binaries.nix for which flavors are surfaced as top-level attrs.
   destinationFlavors = {
@@ -133,6 +134,19 @@
     "valkey"
     "s3parquet"
   ];
+
+  # Debug destinations: stdlib code, but they write wherever configuration
+  # points them, so they are tag-gated like the library destinations and
+  # compiled only into the full (development) flavor — `destinations = null`.
+  # No slim (production) flavor carries them; nix/checks/flavor-tags.nix
+  # enforces that.
+  debugDestinations = [ "file" ];
+
+  # Build tags that no shipped flavor or image carries. `capture` compiles in
+  # the netlink capture writer (-writeFiles), which writes raw netlink replies
+  # to disk; it is reachable only through the dedicated `xtcp2-capture` attr.
+  # nix/checks/flavor-tags.nix fails if one of these reaches a flavor.
+  optInOnlyTags = [ "capture" ];
 
   # Enrichment flavors — the third build axis, alongside buildVariants and
   # destinationFlavors. Each maps to a list of `enrich_<feature>` build tags.
