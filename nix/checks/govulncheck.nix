@@ -7,8 +7,8 @@
 # unless it is in `accepted` below; a finding in a required module the code
 # does not call is reported but does not fail.
 #
-# Two passes: no build tags (the min flavor), and every destination and
-# enrichment tag, so code behind a flavor tag is scanned too.
+# Two passes: no build tags (the min flavor), and every destination,
+# enrichment and goip_write tag, so code behind a tag is scanned too.
 #
 # The snapshot ages; `nix run .#govulncheck-fresh` checks the working tree
 # against the live database, and moving the pin in nix/lib/govulndb.nix brings
@@ -24,6 +24,7 @@ let
   allTags = pkgs.lib.concatStringsSep "," (
     map (d: "dest_${d}") versions.allLibraryDestinations
     ++ map (e: "enrich_${e}") versions.allEnrichmentFeatures
+    ++ versions.goipWriteTags
   );
 
   # Reachable findings accepted for now, each with why and what removes it.

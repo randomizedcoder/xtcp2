@@ -39,6 +39,7 @@ run:
     - enrich_locality
     - capture
     - dest_file
+    - goip_write
 
 formatters:
   enable:

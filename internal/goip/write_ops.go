@@ -13,7 +13,7 @@ var ErrWriteNotCompiled = fmt.Errorf("%w (built without goip_write)", ErrWriteVe
 // arms in its init.
 //
 // A table that runs an arm (xfrmStateWrites, xfrmPolicyVerbs) calls
-// writeOps inside a closure: package variables are initialised before any
+// writeOps inside a closure: package variables are initialized before any
 // init runs, so a table holding writeOps.x itself would keep the stub.
 type writeTable struct {
 	// The chain arms: ok reports whether verb, the chain's name for the

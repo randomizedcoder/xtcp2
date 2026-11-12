@@ -58,9 +58,16 @@ in
     ];
   };
 
+  # With goip_write, as cmd/goip and cmd/goip-parity build: the write verbs,
+  # pkg/xtcpnl's write builders and internal/goipparity build only so. The
+  # untagged half of each package runs in the default `go test ./...`.
   focused-goip = mkFocusedTest "goip" {
+    tags = lib.concatStringsSep " " versions.goipWriteTags;
     paths = [
       "./internal/goip/..."
+      "./internal/goipparity/..."
+      "./pkg/nlparity/..."
+      "./pkg/xtcpnl/..."
       "./cmd/goip"
       "./cmd/goip-parity"
     ];
