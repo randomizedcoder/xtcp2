@@ -14,7 +14,8 @@ import (
 // own tokens, as text and as the "encap" JSON object, each built by the
 // same print_* calls in ip's order.
 //
-// Only the types xtcpnl decodes render: mpls, seg6, ip, ip6, ila and xfrm.
+// Only the types xtcpnl decodes render: mpls, seg6, seg6local, ip, ip6, ila
+// and xfrm.
 // Another
 // type's route prints without its encap, as before NX6a: lwt_print_encap
 // would print ` encap rpl ` and then the payload, and a keyword with its
@@ -34,15 +35,16 @@ func (v *EncapView) MarshalJSON() ([]byte, error) { return v.json, nil }
 
 // EncapViewOf renders e, or is nil when ip prints no encap or goip doesn't
 // decode its type. lwt_print_encap's callers test RTA_ENCAP, and it tests
-// RTA_ENCAP_TYPE, so both must be present. tab names xfrm's link_dev.
-func EncapViewOf(e *xtcpnl.RouteEncap, tab NameTab) *EncapView {
+// RTA_ENCAP_TYPE, so both must be present. tab names xfrm's link_dev and
+// seg6local's iif and oif; stats is -s, for seg6local's counters.
+func EncapViewOf(e *xtcpnl.RouteEncap, tab NameTab, stats bool) *EncapView {
 	if e == nil || !e.HasType || e.Raw == nil ||
-		(e.MPLS == nil && e.Seg6 == nil && e.IP == nil && e.Ila == nil && e.Xfrm == nil) {
+		(e.MPLS == nil && e.Seg6 == nil && e.Seg6Local == nil && e.IP == nil && e.Ila == nil && e.Xfrm == nil) {
 		return nil
 	}
 	text, js := NewPrinter(false), NewPrinter(true)
 	for _, p := range []*Printer{text, js} {
-		printEncap(p, e, tab)
+		printEncap(p, e, tab, stats)
 	}
 	return &EncapView{text: string(text.Bytes()), json: js.Bytes()}
 }
@@ -51,7 +53,7 @@ func EncapViewOf(e *xtcpnl.RouteEncap, tab NameTab) *EncapView {
 //
 // ip opens the object as "encap"; here it is unnamed, because MarshalJSON
 // is the member's value and the struct tag carries the key.
-func printEncap(p *Printer, e *xtcpnl.RouteEncap, tab NameTab) {
+func printEncap(p *Printer, e *xtcpnl.RouteEncap, tab NameTab, stats bool) {
 	p.OpenObject("")
 	p.String(PrintAny, "encap_type", " encap %s ", encapTypeName(e.Type))
 	switch {
@@ -61,6 +63,8 @@ func printEncap(p *Printer, e *xtcpnl.RouteEncap, tab NameTab) {
 		printEncapSeg6(p, e.Seg6)
 	case e.IP != nil:
 		printEncapIP(p, e.IP, e.Type == unix.LWTUNNEL_ENCAP_IP6)
+	case e.Seg6Local != nil:
+		printEncapSeg6Local(p, e.Seg6Local, tab, stats)
 	case e.Ila != nil:
 		printEncapIla(p, e.Ila)
 	case e.Xfrm != nil:

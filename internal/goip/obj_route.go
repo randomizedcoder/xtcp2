@@ -803,15 +803,35 @@ func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route, oi
 	}
 }
 
-// resolveEncapName is lwt_print_encap's one ll_index_to_name, an xfrm
-// encap's link_dev. print_route prints the encap before the dev
+// resolveEncapName is lwt_print_encap's ll_index_to_name calls: an xfrm
+// encap's link_dev, or a seg6local encap's iif then oif. print_route prints the encap before the dev
 // (ip/iproute.c:887, :900), and print_rta_multipath a hop's before the
 // hop's dev (:727, :744), as print_nexthop does (ip/ipnexthop.c:571, :580),
 // so each caller resolves it first.
 func resolveEncapName(c *runCtx, svc *service.Service, e *xtcpnl.RouteEncap) {
-	if e != nil && e.Xfrm != nil && e.Xfrm.HasLink {
-		resolveIndexName(c, svc, int32(e.Xfrm.Link))
+	for _, idx := range encapNameIndexes(e) {
+		resolveIndexName(c, svc, idx)
 	}
+}
+
+// encapNameIndexes is the ifindexes lwt_print_encap names, in the order it
+// asks for them; print_encap_seg6local returns before both without the
+// action.
+func encapNameIndexes(e *xtcpnl.RouteEncap) []int32 {
+	var idx []int32
+	switch {
+	case e == nil:
+	case e.Xfrm != nil && e.Xfrm.HasLink:
+		idx = append(idx, int32(e.Xfrm.Link))
+	case e.Seg6Local != nil && e.Seg6Local.HasAction:
+		if e.Seg6Local.HasIIF {
+			idx = append(idx, int32(e.Seg6Local.IIF))
+		}
+		if e.Seg6Local.HasOIF {
+			idx = append(idx, int32(e.Seg6Local.OIF))
+		}
+	}
+	return idx
 }
 
 // resolveIndexName is ll_index_to_name's cache-miss path. Index 0 is not a

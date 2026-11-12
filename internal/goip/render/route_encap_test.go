@@ -151,7 +151,7 @@ func TestEncapViewOf(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			v := EncapViewOf(tc.e, tab)
+			v := EncapViewOf(tc.e, tab, false)
 			if v == nil {
 				if tc.text != "" {
 					t.Fatalf("no view, expected %q", tc.text)
@@ -205,6 +205,101 @@ func TestRouteViewEncapPlacement(t *testing.T) {
 			js, err := json.Marshal(v)
 			if err != nil || string(js) != tc.json {
 				t.Errorf("json %s (%v), expected %s", js, err, tc.json)
+			}
+		})
+	}
+}
+
+// go test ./internal/goip/render/ -run TestEncapViewOfSeg6Local
+func TestEncapViewOfSeg6Local(t *testing.T) {
+	const s1 = "20010db8000900000000000000000001"
+	raw := []byte{0}
+	s6l := func(s xtcpnl.Seg6LocalInfo) *xtcpnl.RouteEncap {
+		return &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_SEG6_LOCAL, HasType: true, Raw: raw, Seg6Local: &s}
+	}
+	nh6, _ := hex.DecodeString("20010db8000100000000000000000001")
+	end := xtcpnl.Seg6LocalInfo{Action: 1, HasAction: true}
+	with := func(f func(*xtcpnl.Seg6LocalInfo)) xtcpnl.Seg6LocalInfo { s := end; f(&s); return s }
+	counted := with(func(s *xtcpnl.Seg6LocalInfo) {
+		s.HasCounters, s.Counters = true, xtcpnl.Seg6LocalCountersInfo{Packets: 3, Bytes: 300, Errors: 1}
+	})
+	tab := fakeNames{3: {name: "d0"}}
+	tests := []struct {
+		description string
+		e           *xtcpnl.RouteEncap
+		stats       bool
+		text, json  string
+	}{
+		{description: "positive: End alone", e: s6l(end),
+			text: " encap seg6local action End ", json: `{"encap_type":"seg6local","action":"End"}`},
+		{description: "positive: End.X nh6 and a cached oif",
+			e:    s6l(xtcpnl.Seg6LocalInfo{Action: 2, NH6: nh6, OIF: 3, HasAction: true, HasNH6: true, HasOIF: true}),
+			text: " encap seg6local action End.X nh6 2001:db8:1::1 oif d0 ",
+			json: `{"encap_type":"seg6local","action":"End.X","nh6":"2001:db8:1::1","oif":"d0"}`},
+		{description: "positive: End.DT4 table main, vrftable 100, nh4 and an uncached iif",
+			e: s6l(xtcpnl.Seg6LocalInfo{Action: 8, Table: 254, VrfTable: 100, NH4: []byte{192, 0, 2, 1}, IIF: 9,
+				HasAction: true, HasTable: true, HasVrfTable: true, HasNH4: true, HasIIF: true}),
+			text: " encap seg6local action End.DT4 table main vrftable 100 nh4 192.0.2.1 iif if9 ",
+			json: `{"encap_type":"seg6local","action":"End.DT4","table":"main","vrftable":"100","nh4":"192.0.2.1","iif":"if9"}`},
+		{description: "positive: End.B6.Encaps with an SRH and hmac, the SRH an object in JSON",
+			e:    s6l(xtcpnl.Seg6LocalInfo{Action: 10, SRH: srhOf(t, 7, s1), HasAction: true, HasSRH: true}),
+			text: " encap seg6local action End.B6.Encaps segs 1 [ 2001:db8:9::1 ] hmac 7 ",
+			json: `{"encap_type":"seg6local","action":"End.B6.Encaps","srh":{"segs":["2001:db8:9::1"],"hmac":"0x7"}}`},
+		{description: "positive: flavors next-csid with lblen and nflen",
+			e: s6l(with(func(s *xtcpnl.Seg6LocalInfo) {
+				s.HasFlavors, s.Flavors = true, xtcpnl.Seg6LocalFlavorsInfo{Ops: 1 << 4, LcblockBits: 32, LcnodeFnBits: 16,
+					HasOps: true, HasLcblockBits: true, HasLcnodeFnBits: true}
+			})),
+			text: " encap seg6local action End flavors next-csid lblen 32 nflen 16 ",
+			json: `{"encap_type":"seg6local","action":"End","flavors":["next-csid"],"lblen":32,"nflen":16}`},
+		{description: "positive: two flavors, comma-separated in text",
+			e: s6l(with(func(s *xtcpnl.Seg6LocalInfo) {
+				s.HasFlavors, s.Flavors = true, xtcpnl.Seg6LocalFlavorsInfo{Ops: 1<<1 | 1<<3, HasOps: true}
+			})),
+			text: " encap seg6local action End flavors psp,usd ",
+			json: `{"encap_type":"seg6local","action":"End","flavors":["psp","usd"]}`},
+		{description: "positive: counters under -s", e: s6l(counted), stats: true,
+			text: " encap seg6local action End packets 3 bytes 300 errors 1 ",
+			json: `{"encap_type":"seg6local","action":"End","stats64":{"packets":3,"bytes":300,"errors":1}}`},
+		{description: "negative: counters without -s print nothing", e: s6l(counted),
+			text: " encap seg6local action End ", json: `{"encap_type":"seg6local","action":"End"}`},
+		{description: "positive: a bpf program's name",
+			e:    s6l(xtcpnl.Seg6LocalInfo{Action: 15, BPFName: "prog", HasAction: true, HasBPF: true, HasBPFName: true}),
+			text: " encap seg6local action End.BPF endpoint prog ",
+			json: `{"encap_type":"seg6local","action":"End.BPF","endpoint":"prog"}`},
+		{description: "corner: a bpf program without a name", e: s6l(xtcpnl.Seg6LocalInfo{Action: 15, HasAction: true, HasBPF: true}),
+			text: " encap seg6local action End.BPF endpoint ",
+			json: `{"encap_type":"seg6local","action":"End.BPF","endpoint":"<unknown>"}`},
+		{description: "corner: flavor bits with no name, bit 0 and bit 5, leave the list empty",
+			e: s6l(with(func(s *xtcpnl.Seg6LocalInfo) {
+				s.HasFlavors, s.Flavors = true, xtcpnl.Seg6LocalFlavorsInfo{Ops: 1 | 1<<5, HasOps: true}
+			})),
+			text: " encap seg6local action End flavors  ", json: `{"encap_type":"seg6local","action":"End","flavors":[]}`},
+		{description: "boundary: action 0 is <unknown>", e: s6l(xtcpnl.Seg6LocalInfo{HasAction: true}),
+			text: " encap seg6local action <unknown> ", json: `{"encap_type":"seg6local","action":"<unknown>"}`},
+		{description: "boundary: action 16 is End.DT46 and 17 <invalid>", e: s6l(xtcpnl.Seg6LocalInfo{Action: 17, HasAction: true}),
+			text: " encap seg6local action <invalid> ", json: `{"encap_type":"seg6local","action":"<invalid>"}`},
+		{description: "boundary: action 4294967295 is <invalid>", e: s6l(xtcpnl.Seg6LocalInfo{Action: 4294967295, HasAction: true}),
+			text: " encap seg6local action <invalid> ", json: `{"encap_type":"seg6local","action":"<invalid>"}`},
+		{description: "corner: no action prints the type alone, whatever else is there",
+			e:    s6l(xtcpnl.Seg6LocalInfo{Table: 100, HasTable: true}),
+			text: " encap seg6local ", json: `{"encap_type":"seg6local"}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			v := EncapViewOf(tc.e, tab, tc.stats)
+			if v == nil {
+				t.Fatal("no view")
+			}
+			if v.Text() != tc.text {
+				t.Errorf("text %q, expected %q", v.Text(), tc.text)
+			}
+			js, _ := v.MarshalJSON()
+			if string(js) != tc.json {
+				t.Errorf("json %s, expected %s", js, tc.json)
+			}
+			if !json.Valid(js) {
+				t.Errorf("invalid JSON %s", js)
 			}
 		})
 	}

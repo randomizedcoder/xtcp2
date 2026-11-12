@@ -585,7 +585,7 @@ NX5 is done in three parts:
 
 ## Follow-ups after Tier G
 
-Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps, and NX6d to ila and xfrm.
+Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps, NX6d to ila and xfrm, and NX6e to seg6local.
 
 ### NF1 nlparity sets RTA_METRICS padding aside
 
@@ -675,6 +675,38 @@ ip resolves `link_dev` before the `dev` it prints after it: print_route's encap 
 | corner: link 0, or one not in the cache | | `link_dev *`, `link_dev if99` |
 | corner: ila values with no name | 9 | `unknown` for each |
 | corner: a repeated attribute | | the first wins, even when it is short and dropped |
+
+### NX6e `route show` and `nexthop show` print the seg6local encap
+
+`xtcpnl.ParseSeg6LocalEncap` reads the payload as print_encap_seg6local does. The first of a repeated attribute wins, and a short scalar is dropped. The u32s are host order. The SRH, nh4 and nh6 are copied as sent, and their presence is what ip tests, so an empty one still prints its keyword. The BPF, counters and flavors nests carry NLA_F_NESTED, which the walk masks.
+
+`EncapViewOf` prints in print_encap_seg6local's order, and nothing past the type without the action:
+- `action`, by seg6_action_names: `<unknown>` for 0, `<invalid>` past End.DT46 (16).
+- `srh`, through print_srh, which is an `srh` object in JSON.
+- `table` and `vrftable`, through the route table names.
+- `nh4` and `nh6`.
+- `iif` and `oif`, through ll_index_to_name.
+- `endpoint`, the BPF program's name; JSON says `<unknown>` without one.
+- The counters, only under `-s`: `packets N bytes N errors N`, or a `stats64` object in JSON. goip's `nexthop show` has no `-s`, so it never prints them.
+- `flavors`, comma-separated in text and an array in JSON, then `lblen` and `nflen`.
+
+`resolveEncapName` resolves seg6local's iif, then its oif, before the route's dev, as NX6d does xfrm's link_dev. `encapNameIndexes` is the order it asks in.
+
+| description | input | expected |
+|---|---|---|
+| positive: captured ec-002 to ec-012 | the seg6local dump pcaps' payloads | the action, flavors, nh4, nh6, oif, table, SRH and zeroed counters each row set |
+| positive: the corpus | `TestWsEncapReadbacks`: seg6local and lwtxnh | all 15 seg6local and both lwtxnh seg6local readbacks as ip printed them; they all differed before |
+| positive: End.X | nh6 2001:db8:1::1, oif 3 (`d0`) | ` encap seg6local action End.X nh6 2001:db8:1::1 oif d0 ` |
+| positive: flavors | next-csid, lblen 32, nflen 16 | `flavors next-csid lblen 32 nflen 16`; JSON `"flavors":["next-csid"],"lblen":32,"nflen":16` |
+| positive: counters under -s | 3, 300, 1 | `packets 3 bytes 300 errors 1`; JSON `"stats64":{…}` |
+| negative: counters without -s | | not printed |
+| negative: an attribute longer than its payload, or inside a nest | | `ErrRTAttrSmall` |
+| negative: no action | a table and nothing else | ` encap seg6local `, and no index is resolved |
+| boundary: action 0, 17 and 4294967295 | | `<unknown>`, `<invalid>`, `<invalid>` |
+| boundary: a 3-byte action | | dropped, so no action |
+| corner: a BPF nest with no name; a name with no NUL | | `endpoint`, JSON `<unknown>`; the name whole |
+| corner: flavor bits with no name | bits 0 and 5 | `flavors  `, JSON `[]` |
+| corner: iif and oif both uncached | | resolved iif first, then oif |
 
 ## See also
 

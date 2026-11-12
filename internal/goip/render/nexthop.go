@@ -56,7 +56,9 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 		}
 	}
 	// lwt_print_encap (ip/ipnexthop.c:570), after the group, before via.
-	if e := EncapViewOf(nh.Encap, tab); e != nil {
+	// stats is false: goip's nexthop show has no -s, so seg6local's
+	// counters, which ip prints under it, aren't printed.
+	if e := EncapViewOf(nh.Encap, tab, false); e != nil {
 		b.WriteString(e.Text())
 	}
 	if len(nh.Gateway) > 0 {
@@ -207,7 +209,7 @@ func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopVi
 			}
 		}
 	}
-	v.Encap = EncapViewOf(nh.Encap, tab)
+	v.Encap = EncapViewOf(nh.Encap, tab, false)
 	if len(nh.Gateway) > 0 {
 		v.Gateway = addrString(nh.Gateway, nh.Family)
 	}

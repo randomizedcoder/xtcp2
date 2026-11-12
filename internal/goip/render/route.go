@@ -48,10 +48,10 @@ import (
 //     "none of them appears on any route in the two committed topologies" —
 //     was true of the ATTRIBUTE's non-zero members and false of the attribute
 //     itself, which every IPv6 route in the corpus carries.
-//   - RTA_ENCAP of any type but mpls, seg6, ip, ip6, ila and xfrm, which
-//     xtcpnl keeps raw: EncapViewOf renders the six it decodes, and a route
-//     with another
-//     prints no encap at all rather than its type alone.
+//   - RTA_ENCAP of any type but mpls, seg6, seg6local, ip, ip6, ila and
+//     xfrm, which xtcpnl keeps raw: EncapViewOf renders the seven it decodes,
+//     and a route with another prints no encap at all rather than its type
+//     alone.
 //   - `nh_info`, which print_route emits only under `-d`, and
 //     print_rta_multipath's `Oifs: ` form for a cloned multicast route. goip
 //     rejects `route show cache`, and routeFilter drops a cloned route a dump
@@ -887,7 +887,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 	// even though its real family is AF_INET.
 	applyRouteCacheinfo(&v, ri.Family, ri.CacheInfo, f.Stats)
 	v.Metrics = RouteMetricsViewOf(ri.Metrics)
-	v.Encap = EncapViewOf(ri.Encap, tab)
+	v.Encap = EncapViewOf(ri.Encap, tab, f.Stats)
 	if ri.Iif != 0 {
 		v.Iif = tab.IndexToName(int32(ri.Iif))
 	}
@@ -900,7 +900,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		v.TTLPropagate = &p
 	}
 	for i := range ri.Multipath {
-		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab))
+		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab, f.Stats))
 	}
 	return v
 }
@@ -1147,12 +1147,12 @@ func routePref(pref uint8) (any, string) {
 }
 
 // nextHopView is one iteration of print_rta_multipath's loop.
-func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab) NextHopView {
+func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab, stats bool) NextHopView {
 	v := NextHopView{
 		Dev:   tab.IndexToName(nh.Ifindex),
 		Flags: RtFlagTokens(uint32(nh.Flags)),
 		To:    mplsLabelsString(nh.NewDst),
-		Encap: EncapViewOf(nh.Encap, tab),
+		Encap: EncapViewOf(nh.Encap, tab, stats),
 	}
 	if nh.Gateway != nil {
 		// The family is the ROUTE's, not the nexthop's: print_rta_multipath
