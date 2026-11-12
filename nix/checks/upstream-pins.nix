@@ -24,10 +24,11 @@
 # flake.lock is part of the source, and xdp2's own tree is a flake input.
 #
 # The manifest's `package_pins` key is a different shape and is checked here
-# too, on better evidence than the git pins get. A nixpkgs package version is
-# known at EVAL time, so `pkgs.iproute2.version` below is by construction the
-# version this build uses — there is no lockfile to read and no way for the
-# answer to be stale. The networked runner has nothing to add for that key,
+# too, on better evidence than the git pins get. A package version is known
+# at EVAL time, so `parityIproute2.version` below is by construction the
+# version the goip-parity guest runs (nix/iproute2-7-3-0.nix, which
+# mkVm.nix gives that guest) — there is no lockfile to read and no way for
+# the answer to be stale. The networked runner has nothing to add for that key,
 # since there is no remote ref to ask about.
 #
 {
@@ -38,13 +39,14 @@
 
 let
   manifest = ../upstream-pins.json;
+  parityIproute2 = import ../iproute2-7-3-0.nix { inherit pkgs; };
 in
 pkgs.runCommand "xtcp2-upstream-pins"
   {
     nativeBuildInputs = [ pkgs.jq ];
     inherit src;
     xdp2Src = xdp2;
-    iproute2Version = pkgs.iproute2.version;
+    iproute2Version = parityIproute2.version;
   }
   ''
     set -eu
@@ -108,20 +110,20 @@ pkgs.runCommand "xtcp2-upstream-pins"
 
     # --- pin 3: iproute2, the netlink parity target ------------------------
     #
-    # Not a git rev: a nixpkgs package version, compared against the value the
-    # evaluator resolved for this very build. What it catches is a nixpkgs bump
-    # moving `ip` underneath the goip request expectations, which are byte-level
-    # and derived from iproute2's source rather than the kernel's.
+    # Not a git rev: a package version, compared against the value the
+    # evaluator resolved for this very build. What it catches is the parity
+    # guest's `ip` moving underneath the goip request expectations, which are
+    # byte-level and derived from iproute2's source rather than the kernel's.
     want_ip=$(jq -r '.package_pins.iproute2.version' "$manifest")
 
     echo "iproute2 (the netlink parity target)"
     echo "  manifest    : $want_ip"
-    echo "  pkgs.iproute2: $iproute2Version"
+    echo "  parity ip   : $iproute2Version"
     if [ "$want_ip" = "null" ]; then
       echo "  CANNOT VERIFY: .package_pins.iproute2.version is absent." >&2
       fail=1
     elif [ "$want_ip" != "$iproute2Version" ]; then
-      echo "  MISMATCH — nixpkgs has moved iproute2." >&2
+      echo "  MISMATCH — the parity guest's iproute2 has moved." >&2
       echo "  The recorded request bytes and every ip_* sidecar under" >&2
       echo "  pkg/xtcpnl/testdata/ were produced by $want_ip. Read this pin's" >&2
       echo "  on_bump note, regenerate the fixtures, and diff the sidecars" >&2

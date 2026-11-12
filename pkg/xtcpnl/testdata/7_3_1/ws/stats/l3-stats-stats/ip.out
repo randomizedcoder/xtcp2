@@ -1,0 +1,20 @@
+1: lo: group offload subgroup l3_stats off used off
+
+2: nlmon0: group offload subgroup l3_stats off used off
+
+3: d0: group offload subgroup l3_stats on used off
+    RX: bytes packets errors dropped   mcast
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 
+
+4: br0: group offload subgroup l3_stats off used off
+
+5: d1: group offload subgroup l3_stats off used off
+
+6: bond0: group offload subgroup l3_stats off used off
+
+7: d2: group offload subgroup l3_stats off used off
+
+8: d3: group offload subgroup l3_stats off used off
+

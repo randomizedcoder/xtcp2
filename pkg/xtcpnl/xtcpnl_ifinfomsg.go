@@ -160,14 +160,15 @@ func (a *U32Attr) setU32(val []byte) {
 //
 // IFLA_DPLL_PIN, IFLA_MAX_PACING_OFFLOAD_HORIZON, IFLA_HEADROOM and
 // IFLA_TAILROOM all arrive in the committed dump and none is decoded, because
-// iproute2 7.1.0 — the pinned version — prints none of them.
+// no iproute2 release up to 7.2.0 prints any of them.
 //
-// IFLA_DPLL_PIN is the one worth a sentence, because the reference clone at
-// ~/Downloads/iproute2 is 7.2.0 and 7.2.0 DOES print it: the `dpll-pin` block
-// was added after the pin. It would print nothing here anyway, because in the
-// committed dump the attribute arrives as a ZERO-LENGTH nest on all three
-// links and the token needs DPLL_A_PIN_ID inside it. Two independent reasons,
-// and the version one is the decisive one.
+// IFLA_DPLL_PIN is the one worth a sentence, because iproute2 7.3.0 DOES
+// print it: 20e860c6 "ip: display DPLL pin information in link details"
+// added `dpll-pin N` after parentdev (ip/ipaddress.c:1273-1283 in 7.3.0). It
+// would print nothing here anyway, because in the committed dump, and on
+// every link a VM has, the attribute arrives as a ZERO-LENGTH nest and the
+// token needs DPLL_A_PIN_ID inside it. Only a NIC with a DPLL recovered-clock
+// pin fills it.
 //
 // The per-kind IFLA_INFO_DATA blob is also not here; see LinkInfo.HasInfoData
 // for why its PRESENCE is recorded when its contents are not.
@@ -374,6 +375,8 @@ type LinkInfo struct {
 	Hsr *HsrInfo
 	// Netkit is IFLA_INFO_DATA decoded when Kind is "netkit".
 	Netkit *NetkitInfo
+	// Ovpn is IFLA_INFO_DATA decoded when Kind is "ovpn".
+	Ovpn *OvpnInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1058,6 +1061,13 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	if li.Kind == gtpKindCst {
 		li.Gtp = ParseGtpInfoData(infoData)
 	}
+	setLinkInfoDataByKind(li, infoData)
+}
+
+// setLinkInfoDataByKind decodes the IFLA_INFO_DATA of the kinds that share
+// one switch: the tunnels, hsr, netkit and ovpn. It is split from
+// setLinkInfoNest, which was one point short of the gocyclo ceiling.
+func setLinkInfoDataByKind(li *LinkInfo, infoData []byte) {
 	switch li.Kind {
 	case greKindCst, gretapKindCst, erspanKindCst, ip6greKindCst, ip6gretapKindCst, ip6erspanKindCst:
 		li.Gre = ParseGreInfoData(infoData)
@@ -1071,6 +1081,8 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 		li.Hsr = ParseHsrInfoData(infoData)
 	case netkitKindCst:
 		li.Netkit = ParseNetkitInfoData(infoData)
+	case ovpnKindCst:
+		li.Ovpn = ParseOvpnInfoData(infoData)
 	}
 }
 

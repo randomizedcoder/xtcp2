@@ -24,16 +24,18 @@ var gordmaPackages = []string{modulePath + "/cmd/gordma", modulePath + "/interna
 // imports_test.go explains, so `go test ./internal/gordma/` runs without
 // nix, root or a VM.
 var gordmaMayImport = map[string]string{
-	"golang.org/x/sys/unix":      "the NETLINK_RDMA socket, its options and the NLM_F_*/NLMSG_* constants",
-	modulePath + "/pkg/xtcpnl":   "the subject under test: every request builder and every reply decoder",
-	modulePath + "/pkg/nlstrace": "the strace reader the ReplaySource and the corpus tests replay rdma's captures with",
-	modulePath + "/pkg/cint":     "the C int conversions print_int, print_hex and atoi make; stdlib only",
+	"golang.org/x/sys/unix":        "the NETLINK_RDMA socket, its options and the NLM_F_*/NLMSG_* constants",
+	modulePath + "/pkg/xtcpnl":     "the subject under test: every request builder and every reply decoder",
+	modulePath + "/pkg/nlstrace":   "the strace reader the ReplaySource and the corpus tests replay rdma's captures with",
+	modulePath + "/pkg/cint":       "the C int conversions print_int, print_hex and atoi make; stdlib only",
+	modulePath + "/internal/jsonw": "jsonw_puts, the string escaper shared with goip's json_writer ports; stdlib only",
 }
 
 // gordmaClosure is the first-party closure of gordma's non-test files.
 var gordmaClosure = []string{
 	modulePath + "/cmd/gordma", modulePath + "/internal/gordma",
 	modulePath + "/pkg/xtcpnl", modulePath + "/pkg/nlstrace", modulePath + "/pkg/cint",
+	modulePath + "/internal/jsonw",
 	// Reached through xtcpnl's inet_diag decoders; see internal/goip.
 	modulePath + "/gen/go/xtcp_flat_record",
 }

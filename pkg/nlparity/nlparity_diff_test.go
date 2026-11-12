@@ -1768,6 +1768,23 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			command:     "netns set c1set 7", locus: "request:type(88):attr(3):write",
 			filename: tdNetnsSet, wantMask: 5, attr: unix.NETNSA_FD, entry: true,
 		},
+		// NX2's IFLA_NET_NS_FD entries: the RTM_NEWLINK of each netns write
+		// row, ip's fd 4, after ll_link_get's get on the sets.
+		{
+			description: "positive: the link set netns IFLA_NET_NS_FD locus is derivable by name, ip's fd 4",
+			command:     "link set dev d0 netns c1mv", locus: "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+			filename: tdLinkNetnsName, txn: 1, wantMask: 4, attr: unix.IFLA_NET_NS_FD, entry: true,
+		},
+		{
+			description: "positive: the same by path",
+			command:     "link set dev d0 netns /proc/self/ns/net", locus: "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+			filename: tdLinkNetnsPath, txn: 1, wantMask: 4, attr: unix.IFLA_NET_NS_FD, entry: true,
+		},
+		{
+			description: "positive: the same on an add with an index, whose RTM_NEWLINK comes first",
+			command:     "link add d9 netns c1mv index 100 type dummy", locus: "request:RTM_NEWLINK:IFLA_NET_NS_FD:write",
+			filename: tdLinkNetnsIndex, wantMask: 4, attr: unix.IFLA_NET_NS_FD, entry: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -2209,6 +2226,42 @@ func TestDiffAttrsHopPadding(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			got := diffAttrs("route add", LevelRequest, 1, "", "request", "", tc.m,
 				[]Attr{{Type: unix.RTA_MULTIPATH, Val: tc.ref}}, []Attr{{Type: unix.RTA_MULTIPATH, Val: tc.sub}})
+			if len(got) != tc.expected {
+				t.Errorf("%d findings %v, expected %d", len(got), got, tc.expected)
+			}
+		})
+	}
+}
+
+// go test ./pkg/nlparity/ -run TestDiffAttrsMetricsPadding
+func TestDiffAttrsMetricsPadding(t *testing.T) {
+	route := Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWROUTE}}
+	link := Msg{Hdr: xtcpnl.NlMsgHdr{Type: unix.RTM_NEWLINK}}
+	// metrics is RTA_METRICS holding RTAX_CC_ALGO "cubic" with pad bytes pad
+	// (4 hex digits), then RTAX_MTU mtu, as route_write_replace_nfs sends it.
+	metrics := func(pad, mtu string) []byte {
+		return hexBytes(t, "0a001000"+"637562696300"+pad+"08000200"+mtu)
+	}
+	cases := []struct {
+		description string
+		m           Msg
+		ref, sub    []byte
+		expected    int // findings
+	}{
+		{"positive: metrics differing only in RTAX_CC_ALGO's padding are the same, as ip's stack byte makes them",
+			route, metrics("7000", "dc050000"), metrics("0000", "dc050000"), 0},
+		{"negative: a metric's value differs", route, metrics("7000", "dc050000"), metrics("0000", "dd050000"), 1},
+		{"negative: the algorithm itself differs", route,
+			hexBytes(t, "0a001000"+"637562696300"+"0000"), hexBytes(t, "0a001000"+"637562696400"+"0000"), 1},
+		{"negative: the same type in a link message is compared whole", link, metrics("7000", "dc050000"), metrics("0000", "dc050000"), 1},
+		{"boundary: identical metrics", route, metrics("7000", "dc050000"), metrics("7000", "dc050000"), 0},
+		{"corner: a metric running past the payload is compared whole", route,
+			hexBytes(t, "0c001000"+"6375626963"), hexBytes(t, "0c001000"+"6375626970"), 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			got := diffAttrs("route replace", LevelRequest, 1, "", "request", "", tc.m,
+				[]Attr{{Type: unix.RTA_METRICS, Val: tc.ref}}, []Attr{{Type: unix.RTA_METRICS, Val: tc.sub}})
 			if len(got) != tc.expected {
 				t.Errorf("%d findings %v, expected %d", len(got), got, tc.expected)
 			}

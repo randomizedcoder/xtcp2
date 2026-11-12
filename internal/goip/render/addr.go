@@ -502,6 +502,8 @@ func addrString(b []byte, family uint8) string {
 		if a, ok := netip.AddrFromSlice(b); ok {
 			return a.String()
 		}
+	case family == unix.AF_MPLS && len(b)%xtcpnl.MPLSLabelEntrySizeCst == 0:
+		return mplsNtop(b)
 	}
 	var sb strings.Builder
 	for _, c := range b {

@@ -20,6 +20,8 @@
 //	      lines it can't mine are written to -skipped with the reason
 //	coverage report, per message family, which attributes of the kernel's
 //	      policy table some request in the corpus sent (coverage.go)
+//	verdiff compare two runs of the same rows, made with two iproute2
+//	      versions, row by row (verdiff.go)
 //
 // Output is deterministic: the same input tree gives the same bytes, so a
 // regenerated rows file diffs cleanly against the committed one.
@@ -43,6 +45,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "       nlcapgen matrix -family NAME -seed N -random N -out ROWS")
 		fmt.Fprintln(stderr, "       nlcapgen kselftest -src DIR -out ROWS -skipped FILE")
 		fmt.Fprintln(stderr, "       nlcapgen coverage -linux DIR -ws DIR -out FILE")
+		fmt.Fprintln(stderr, "       nlcapgen verdiff -a DIR -b DIR -out FILE")
 		return 2
 	}
 	switch args[0] {
@@ -54,6 +57,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runKselftest(args[1:], stdout, stderr)
 	case "coverage":
 		return runCoverage(args[1:], stdout, stderr)
+	case "verdiff":
+		return runVerdiff(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "nlcapgen: unknown subcommand %q\n", args[0])
 		return 2
@@ -111,11 +116,12 @@ var families = map[string]func() []*space{
 	"addr":     func() []*space { return []*space{addr4Space(), addr6Space()} },
 	"neigh":    func() []*space { return []*space{neigh4Space(), neigh6Space()} },
 	"link":     func() []*space { return []*space{linkSetSpace(), linkAddSpace()} },
-	"linkattr": func() []*space { return []*space{linkAttrSpace(), linkPDSpace(), linkPropSpace()} },
+	"linkattr": func() []*space { return []*space{linkAttrSpace(), linkPDSpace(), linkPropSpace(), linkNSSpace()} },
 	"routeget": func() []*space { return []*space{routeGet4Space(), routeGet6Space()} },
 	"fdb":      func() []*space { return []*space{fdbBrSpace(), fdbVxSpace()} },
 	"mdb":      func() []*space { return []*space{mdbBrSpace(), mdbVxSpace()} },
 	"ss":       func() []*space { return []*space{ssSpace()} },
+	"mpls":     func() []*space { return []*space{mplsSpace()} },
 	"kwlive": func() []*space {
 		return []*space{kwRoute4Space(), kwRoute6Space(), kwLinkSpace(), kwNhSpace(), kwRuleSpace()}
 	},
@@ -131,10 +137,18 @@ var families = map[string]func() []*space{
 	},
 }
 
+// namedFamilies are families of named rows, written out as they are
+// rather than generated from a space.
+var namedFamilies = map[string]func() []row{
+	"v730":      func() []row { return v730Family("7.3.0") },
+	"v730ip720": func() []row { return v730Family("7.2.0") },
+	"stats":     statsFamily,
+}
+
 func runMatrix(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, ethtool, kwlive, lwt, lwtx")
+	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720, stats")
 	seed := fs.Uint64("seed", 1, "the random rows' seed, recorded in their ids")
 	random := fs.Int("random", 0, "random rows per space")
 	out := fs.String("out", "", "rows file to write")
@@ -142,11 +156,20 @@ func runMatrix(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	spaces, ok := families[*family]
+	if _, named := namedFamilies[*family]; named {
+		ok = true
+	}
 	if !ok || *out == "" || *random < 0 {
-		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, ethtool, kwlive, lwt, lwtx) and -out are required, -random must be >= 0")
+		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, v730, v730ip720, stats) and -out are required, -random must be >= 0")
 		return 2
 	}
-	rows, err := matrixRows(spaces(), matrixOpts{Seed: *seed, Random: *random})
+	var rows []row
+	var err error
+	if named, ok := namedFamilies[*family]; ok {
+		rows, err = named(), checkRows(named())
+	} else {
+		rows, err = matrixRows(spaces(), matrixOpts{Seed: *seed, Random: *random})
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, "nlcapgen matrix:", err)
 		return 1

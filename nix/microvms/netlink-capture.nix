@@ -1130,6 +1130,17 @@ pkgs.writeShellApplication {
       exit 2
     }
 
+    # NLCAP_IP_BIN: a directory whose `ip` the commands run instead of the
+    # iproute2 in runtimeInputs, which writeShellApplication put first on
+    # PATH. The workbench's `batch --ip` sets it to a store path's bin, so
+    # one guest captures the same rows at two iproute2 versions
+    # (docs/netlink/goip-parity-next.md, NC0-T01). The monitor helpers
+    # (ipmon and the rest) keep their own PATH and their own ip.
+    if [ -n "''${NLCAP_IP_BIN:-}" ]; then
+      [ -x "$NLCAP_IP_BIN/ip" ] || die "NLCAP_IP_BIN: no ip in $NLCAP_IP_BIN"
+      PATH="$NLCAP_IP_BIN:$PATH"
+    fi
+
     # set_proto <name> - set PROTO and PROTO_NAME, or die on a name that is
     # not one of the three.
     set_proto() {

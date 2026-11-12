@@ -69,7 +69,7 @@ func L2tpTunnel(p *L2tpParm, json bool) (string, []byte) {
 		switch p.Local.Family {
 		case unix.AF_INET:
 			o.jsonBool("checksum", p.UDPCsum)
-			o.text.WriteString("  UDP checksum: " + l2tpEnabled(p.UDPCsum) + "\n")
+			o.text.WriteString("  UDP checksum: " + enabledWord(p.UDPCsum) + "\n")
 		case unix.AF_INET6:
 			if json {
 				o.jsonBool("checksum_tx", p.UDP6CsumTx)
@@ -85,8 +85,9 @@ func L2tpTunnel(p *L2tpParm, json bool) (string, []byte) {
 	return text[:len(text)-1], obj
 }
 
-// l2tpEnabled is "enabled" or "disabled".
-func l2tpEnabled(on bool) string {
+// enabledWord is "enabled" or "disabled": l2tp's flags and route's
+// ttl-propagate.
+func enabledWord(on bool) string {
 	if on {
 		return "enabled"
 	}

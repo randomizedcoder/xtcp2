@@ -44,7 +44,7 @@ func routeGetProtos(icmp value) axis {
 
 // expUnsupportedProto is rtm_getroute_parse_ip_proto's EOPNOTSUPP, which
 // Linux numbers as ENOTSUP ("Unsupported ip proto").
-var expUnsupportedProto = expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: "kernel"}
+var expUnsupportedProto = expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: refKernel}
 
 // routeGetPorts: get_be16 reads them, so they are sent in network order.
 func routeGetPorts() axis {
@@ -110,7 +110,7 @@ func routeGet4Space() *space {
 			{Axis: "ipproto", Value: v("nosuch", "ipproto nosuch", nil), Expect: expIproute2Invarg, Why: "an unknown protocol"},
 			// ll_name_to_index's RTM_GETLINK is refused, and ip exits 1
 			// (nodev) without sending the lookup.
-			{Axis: "dev", Value: v("nosuch", "oif nosuch", nil), Expect: expect{RC: intp(1), Errno: "ENODEV", RefusedBy: "kernel"},
+			{Axis: "dev", Value: v("nosuch", "oif nosuch", nil), Expect: expect{RC: intp(1), Errno: "ENODEV", RefusedBy: refKernel},
 				Why: "a device the kernel doesn't know: its RTM_GETLINK is ENODEV (Cannot find device)"},
 		},
 	}
@@ -168,7 +168,7 @@ func buildRouteGet(fam string, vals []value) row {
 	r := row{
 		Cmd:    strings.TrimSpace("ip -" + fam + " route get " + joinArgs(args...)),
 		Pre:    []preStep{{Cmd: routeGetSetup}},
-		Expect: expect{RC: intp(0), RefusedBy: "none"},
+		Expect: expect{RC: intp(0), RefusedBy: refNone},
 		Axes:   mergeFacts(vals),
 	}
 	r.Axes["family"] = fam

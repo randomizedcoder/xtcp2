@@ -3,6 +3,8 @@ package xtcpnl
 import (
 	"encoding/binary"
 	"errors"
+
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 )
 
 // SEG6_IPTUNNEL_* (include/uapi/linux/seg6_iptunnel.h): an `encap seg6`'s
@@ -10,6 +12,10 @@ import (
 const (
 	Seg6IptunnelSRH uint16 = 1 // struct seg6_iptunnel_encap: int mode, then the SRH
 	Seg6IptunnelSrc uint16 = 2 // struct in6_addr, `tunsrc`
+	// Seg6IptunnelTable is u32, `lookup TABLE` (iproute2 7.3.0): the table
+	// the SID is looked up in after the encap. The kernel sends it only
+	// when set; it refuses 0 (seg6_build_state, net/ipv6/seg6_iptunnel.c).
+	Seg6IptunnelTable uint16 = 3
 )
 
 // SEG6_IPTUN_MODE_* (seg6_iptunnel.h), the modes seg6_mode_types names.
@@ -112,12 +118,51 @@ func SRH(nsegs int, segs [][16]byte, hmacKeyID uint32) ([]byte, error) {
 	return b, nil
 }
 
+// SRHInfo is what print_srh reads from a segment routing header: the
+// segments in its print order, first_segment down to 0, and the HMAC TLV's
+// key id when SR6_FLAG1_HMAC is set.
+type SRHInfo struct {
+	Segs      [][]byte // each 16 bytes, segments[first_segment] first
+	HmacKeyID uint32   // valid when HasHmac
+	HasHmac   bool
+}
+
+// ParseSRH reads an SRH as print_srh does. print_srh trusts the kernel's
+// lengths; ParseSRH checks them, and an SRH too short for its first_segment,
+// or an HMAC flag whose TLV runs past the end, is ErrSRH. The segments
+// alias b.
+func ParseSRH(b []byte) (SRHInfo, error) {
+	if len(b) < srhHdrLenCst {
+		return SRHInfo{}, ErrSRH
+	}
+	n := int(b[4]) + 1 // first_segment
+	if len(b) < srhHdrLenCst+srhSegLenCst*n {
+		return SRHInfo{}, ErrSRH
+	}
+	s := SRHInfo{Segs: make([][]byte, n)}
+	for i := range n {
+		off := srhHdrLenCst + srhSegLenCst*(n-1-i)
+		s.Segs[i] = b[off : off+srhSegLenCst]
+	}
+	if b[5]&sr6FlagHmacCst != 0 {
+		// The TLV is the header's last 40 bytes: ((hdrlen + 1) << 3) - 40.
+		off := (int(b[1])+1)<<3 - srhHmacTLVLenCst
+		if off < srhHdrLenCst || off+8 > len(b) {
+			return SRHInfo{}, ErrSRH
+		}
+		s.HmacKeyID, s.HasHmac = binary.BigEndian.Uint32(b[off+4:]), true
+	}
+	return s, nil
+}
+
 // Seg6Encap is `encap seg6 …`: the mode (-1 for none), parse_srh's SRH,
-// and `tunsrc`'s 16 bytes, or nil.
+// `tunsrc`'s 16 bytes, or nil, and iproute2 7.3.0's `lookup` table, sent as
+// SEG6_IPTUNNEL_TABLE after them when nonzero.
 type Seg6Encap struct {
 	Mode   int32
 	SRH    []byte
 	TunSrc []byte
+	Lookup uint32
 }
 
 // Seg6LocalItem is one of parse_encap_seg6local's keywords, in the order
@@ -160,10 +205,15 @@ func putSeg6Encap(ab *AttrBuilder, e *Seg6Encap) error {
 	if err := ab.PutBytes(Seg6IptunnelSRH, append(p, e.SRH...)); err != nil {
 		return err
 	}
-	if e.TunSrc == nil {
+	if e.TunSrc != nil {
+		if err := ab.PutBytes(Seg6IptunnelSrc, e.TunSrc); err != nil {
+			return err
+		}
+	}
+	if e.Lookup == 0 {
 		return nil
 	}
-	return ab.PutBytes(Seg6IptunnelSrc, e.TunSrc)
+	return ab.PutU32(Seg6IptunnelTable, e.Lookup)
 }
 
 func putSeg6LocalEncap(ab *AttrBuilder, e *Seg6LocalEncap) error {
@@ -232,4 +282,56 @@ func putLwtNest(ab *AttrBuilder, encapAttr, typeAttr, typ uint16, body func() er
 		return err
 	}
 	return ab.PutU16(typeAttr, typ)
+}
+
+// ErrSeg6EncapSRH is a SEG6_IPTUNNEL_SRH on a read shorter than the mode
+// it starts with.
+var ErrSeg6EncapSRH = errors.New("xtcpnl: SEG6_IPTUNNEL_SRH is shorter than its mode")
+
+// Seg6EncapInfo is an LWTUNNEL_ENCAP_SEG6 RTA_ENCAP payload on a read, as
+// print_encap_seg6 (ip/iproute_lwtunnel.c) reads it.
+type Seg6EncapInfo struct {
+	Mode   int32  // struct seg6_iptunnel_encap's mode, SEG6_IPTUN_MODE_*
+	HasSRH bool   // SEG6_IPTUNNEL_SRH present: ip prints nothing without it
+	SRH    []byte // the SRH after the mode, as sent
+	TunSrc []byte // SEG6_IPTUNNEL_SRC, nil when absent
+	Lookup uint32 // SEG6_IPTUNNEL_TABLE, valid when HasLookup
+	// HasLookup says SEG6_IPTUNNEL_TABLE came at its full width; a short one
+	// is dropped, as for the route's scalars.
+	HasLookup bool
+}
+
+// ParseSeg6Encap decodes an LWTUNNEL_ENCAP_SEG6 RTA_ENCAP payload. The first
+// of a repeated attribute wins, as in parse_rtattr. The byte slices are
+// copied.
+func ParseSeg6Encap(val []byte) (Seg6EncapInfo, error) {
+	var (
+		s      Seg6EncapInfo
+		srhErr error
+		seen   attrSeen
+	)
+	err := WalkRTAttrsNested(val, func(atype uint16, v []byte) {
+		if !seen.first(atype) {
+			return
+		}
+		switch atype {
+		case Seg6IptunnelSRH:
+			if len(v) < seg6ModeLenCst {
+				srhErr = ErrSeg6EncapSRH
+				return
+			}
+			s.Mode = cint.Int(binary.LittleEndian.Uint32(v))
+			s.SRH, s.HasSRH = CopyBytes(v[seg6ModeLenCst:]), true
+		case Seg6IptunnelSrc:
+			s.TunSrc = CopyBytes(v)
+		case Seg6IptunnelTable:
+			if len(v) >= 4 {
+				s.Lookup, s.HasLookup = binary.LittleEndian.Uint32(v), true
+			}
+		}
+	})
+	if err = errors.Join(err, srhErr); err != nil {
+		return Seg6EncapInfo{}, err
+	}
+	return s, nil
 }

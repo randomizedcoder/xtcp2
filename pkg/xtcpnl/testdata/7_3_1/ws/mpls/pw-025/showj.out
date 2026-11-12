@@ -1,0 +1,1 @@
+[{"dst":"100","to":"200/300/400","via":{"family":"inet6","host":"fe80::2"},"dev":"d0","flags":[],"ttl-propogate":true}]

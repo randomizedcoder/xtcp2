@@ -1,0 +1,5 @@
+100 as to 200/300 via inet 10.0.0.2 dev d0 
+101 
+	nexthop as to 200 via inet 10.0.0.2 dev d0 
+	nexthop via inet6 2001:db8::2 dev d0 
+102 dev d0 ttl-propogate disabled

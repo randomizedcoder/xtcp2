@@ -1033,6 +1033,35 @@ var commands = withArgs([]Command{
 		Name: "neigh show", Slug: "neigh_show",
 		Floor: 4, Implemented: true,
 	},
+	// NX4c: `maddress show` (ip/ipmaddr.c, iproute2 7.3.0), the
+	// ws-ip730/v730maddr rows. The link-layer groups come from
+	// /proc/net/dev_mcast, which both tools read in the shared namespace;
+	// the inet and inet6 groups from one RTM_GETMULTICAST dump each. `dev
+	// nosuch` is the by-name get alone, and prints nothing.
+	{
+		Name: "maddress show", Slug: "maddr_show",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-4 maddress show", Slug: "maddr_show_v4",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 maddress show", Slug: "maddr_show_v6",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j maddress show", Slug: "maddr_show_json",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "maddress show dev d0", Slug: "maddr_show_dev",
+		Setup: maddrReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "maddress show dev nosuch", Slug: "maddr_show_nosuch",
+		Setup: maddrReadSetup, Floor: 2, Implemented: true,
+	},
 	{
 		Name: "-4 neigh show", Slug: "neigh_show_v4",
 		// Four, and the first family row this object has ever had — every
@@ -1982,10 +2011,10 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 
-	// The stats block — the tenth and last read-only object. Every row carries an
-	// explicit `group link` (filter_mask 0x1), which keeps the reply link-only on
-	// every topology (a bare multi-group show would print bridge xstats on mesh,
-	// a shape goip refuses). The first 12-byte filter_mask-carrying request here.
+	// The stats block — the tenth and last read-only object. These first rows
+	// carry an explicit `group link` (filter_mask 0x1), from when goip grounded
+	// that group alone; NX5a's rows after the xstats block select the rest. The
+	// first 12-byte filter_mask-carrying request here.
 	{
 		Name: "stats show group link", Slug: "stats_show",
 		// `ip stats` uniquely does NOT call ll_init_map: it issues the
@@ -2029,8 +2058,8 @@ var commands = withArgs([]Command{
 		Name: "-j stats show group link", Slug: "stats_show_json",
 		// Four, as `stats show group link`: `-j` does not reach the wire, so the
 		// request is byte-identical to the text twin and the floor is inherited. The
-		// short JSON form (ifindex/ifname/group/stats64); the extended `-s` JSON keys
-		// are not grounded, so goip refuses `-j -s` rather than emit a short object.
+		// short JSON form (ifindex/ifname/group/stats64); `-j -s stats show group
+		// link`, below, is the extended one.
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
 		// ip_stats_json sidecar; gated with its text twin on G0-T02's two runs.
@@ -2041,9 +2070,8 @@ var commands = withArgs([]Command{
 	// GET_FILTERS nest). The whole group expands to four leaves, in the
 	// pointer-sorted golden order bond/802.3ad, bridge/vlan, bridge/mcast,
 	// bridge/stp, so every device prints four header stanzas with bodies only on
-	// bridges (mesh's br0: vlan + mcast). goip grounds the vlan/mcast bodies,
-	// the bond 802.3ad body and the empty stp headers; the stp body is refused.
-	// The dev rows are the bond ones below, which bring their own bond.
+	// bridges (mesh's br0: vlan + mcast). The dev rows are the bond ones below,
+	// which bring their own bond.
 	{
 		Name: "stats show group xstats", Slug: "stats_show_xstats",
 		// Four, the stats shape: the RTM_GETSTATS xstats dump, then one
@@ -2066,6 +2094,88 @@ var commands = withArgs([]Command{
 		// the wire, so the request is byte-identical to the text twin. Grounded
 		// against ip_stats_xstats_json; gated with its text twin on G0-T02's
 		// two runs.
+		Floor: 4, Implemented: true,
+	},
+	// NX5a: every group, as ipstats.c selects and prints them (the NC4
+	// `stats` corpus rows, internal/goip's TestWsStatsCorpus). A selection
+	// is render-only but for the filter it packs: the mask, and an offload
+	// sub-mask in an IFLA_STATS_GET_FILTERS nest when it narrows the group.
+	// Every dump is the stats shape above, the RTM_GETSTATS dump then one
+	// RTM_GETLINK per device; every dev row the by-name get then the point
+	// get.
+	{
+		Name: "stats", Slug: "stats_bare",
+		// do_ipstats with no verb: ipstats_show at the -s level given, 0,
+		// so link's short block; filter_mask 0x1f.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show", Slug: "stats_show_all",
+		// All thirteen leaves per device, in descriptor-address order.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s stats show", Slug: "stats_show_all_stats",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j stats show", Slug: "stats_show_all_json",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s stats show", Slug: "stats_show_all_json_stats",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s stats show group link", Slug: "stats_show_json_stats",
+		// print_stats64's extended JSON keys.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group offload", Slug: "stats_show_offload",
+		// All three subgroups make the full sub-mask, so no nest.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group offload subgroup l3_stats", Slug: "stats_show_offload_l3",
+		// l3_stats packs hw_stats_info too: the nest's {4: 0x6}.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group offload subgroup cpu_hit subgroup l3_stats", Slug: "stats_show_offload_two",
+		// 0x1 | 0x6 is the full sub-mask, which is no nest.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group afstats", Slug: "stats_show_afstats",
+		// AF_MPLS's counters where mpls_router has given a device one, the
+		// header alone elsewhere.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group link group afstats", Slug: "stats_show_two_groups",
+		// Two groups, printed afstats first: sorted, not in argument order.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group xstats_slave", Slug: "stats_show_xstats_slave",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev d0", Slug: "stats_show_dev_l3",
+		Setup: statsL3Setup,
+		// Every leaf of one device, l3_stats on: the request flag shows on
+		// the header and the hw stats64 block under it.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev d0 group offload subgroup l3_stats", Slug: "stats_show_dev_l3_only",
+		Setup: statsL3Setup,
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j stats show dev d0 group offload", Slug: "stats_show_dev_offload_json",
+		Setup: statsL3Setup,
 		Floor: 4, Implemented: true,
 	},
 	// G3-T05's stats write: the by-name RTM_GETLINK that resolves d0, then
@@ -2145,6 +2255,66 @@ var commands = withArgs([]Command{
 		Name: "link afstats", Slug: "link_afstats",
 		// The AF_SPEC dump alone: with no MPLS every nest is empty, nothing
 		// prints and nothing is named (2).
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+	// NX5b's `link afstats` forms: with no MPLS in the matrix by here, the
+	// rows hold `-j`'s empty array and the `dev` lookups, both ways.
+	{
+		Name: "-j link afstats", Slug: "link_afstats_json",
+		// new_json_obj's `[]`, around no device.
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "link afstats dev v2", Slug: "link_afstats_dev",
+		// The by-name get, then the same dump, filtered by index.
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link afstats dev nosuch", Slug: "link_afstats_nosuch",
+		// The get request's ENODEV: ip's "does not exist" on stderr, no dump, and
+		// exit 0, since do_iplink drops the return.
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+	// NX5c's `link xstats` forms, onto the Printer: bond's and bond_slave's
+	// 802.3ad nests, and bridge's filters.
+	{
+		Name: "link xstats type bond", Slug: "link_xstats_bond",
+		// The master-group dump, then bond0 named.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bond_slave", Slug: "link_xstats_bond_slave",
+		// The port-group dump, then la1 and la2 named.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j link xstats type bond_slave", Slug: "link_xstats_bond_slave_json",
+		// One object per port, its 802.3ad object inside.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bond 802.3ad", Slug: "link_xstats_bond_3ad",
+		// The selector changes nothing on the wire.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bond_slave dev la1", Slug: "link_xstats_bond_slave_dev",
+		// The by-name get, then the dump, filtered by index.
+		Setup: bondReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j link xstats type bridge", Slug: "link_xstats_bridge_json",
+		// br0's multicast object.
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bridge_slave stp", Slug: "link_xstats_bridge_slave_stp",
+		// v2's stp block alone.
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bridge_slave dev nosuch", Slug: "link_xstats_bridge_slave_nosuch",
+		// The get request's ENODEV is nodev: exit 255, no dump.
 		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
 	},
 	// G3-T06's link property writes. iplink_prop_mod resolves `dev` after
@@ -2631,6 +2801,33 @@ var commands = withArgs([]Command{
 		Name: "link set dev d0 parentdev br0", Slug: "gw_linkattr_parentdev",
 		// linkattr/parentdev: parentdev (rc 0).
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsLinkBrVrf,
+	},
+	// NX2 (goip-parity-next.md): `link set … netns`, IFLA_NET_NS_FD in the
+	// keyword's place, the descriptor of the namespace netns_get_fd opened.
+	// Each side meets a new peer c1mv; ip moves d0 into it, goip writes the
+	// request. Each row has the shape of a 7.3.1 linkns capture, its corpus
+	// row offline. The pid forms are not rows: the VM has no pid to name but
+	// init's, and moving d0 there would leave it in the root; O5 holds them,
+	// with index on a set (linkns, and linkattr's 26 netns rows). The
+	// descriptor's number is the process's next free slot, so each row has
+	// an accepted-divergence entry.
+	{
+		Name: "link set dev d0 netns c1mv", Slug: "link_netns_name",
+		// By name, under NETNS_RUN_DIR (linkns/ec-002): the lookup and the
+		// write.
+		Floor: 4, Implemented: true, Write: true, Setup: linkNetnsSetup,
+	},
+	{
+		Name: "link set dev d0 netns /proc/self/ns/net", Slug: "link_netns_self",
+		// By path, the sender's own namespace (linkns/ec-003): the kernel's
+		// move is a no-op.
+		Floor: 4, Implemented: true, Write: true, Setup: linkNetnsSetup,
+	},
+	{
+		Name: "link add d9 netns c1mv index 100 type dummy", Slug: "link_netns_add_index",
+		// On an add, index is ifi_index and there's no lookup
+		// (linkns/add-index).
+		Floor: 2, Implemented: true, Write: true, Setup: linkNetnsSetup,
 	},
 	// The inet rows (goip-link-kinds.md, KG0-T02): KC1-T01's 11 rows the
 	// kernel answers, in its order, from pkg/xtcpnl/testdata/7_3_0/link-write/
@@ -6784,6 +6981,74 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 
+	// NX3's MPLS route writes (goip-parity-next.md), each a 7_3_1/ws/mpls
+	// row's command, its -f mpls spelled -M so that the row stays in the
+	// route section: the same preferred_family, the same bytes. They come
+	// last among the route rows because mplsRouteSetup loads mpls_router,
+	// which is kernel-wide: every device gains an AF_MPLS netconf entry and
+	// afstats, which no row after them reads.
+	{
+		Name: "-M route add 16 as 200 ttl-propagate enabled via inet6 2001:db8::2 dev d0", Slug: "mpls_route_pw_001",
+		// mpls/pw-001: a swap, ttl-propagate before the via (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 100 as to 200 dev d0", Slug: "mpls_route_ec_005",
+		// mpls/ec-005: as to (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 100 as 200/300/400 ttl-propagate enabled nexthop via inet 10.0.0.2 dev d0 nexthop via inet6 2001:db8::2 dev d0",
+		Slug: "mpls_route_pw_018",
+		// mpls/pw-018: a three-label stack over two hops, one lookup (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 100 as 100/101/102/103/104/105/106/107/108/109/110/111/112/113/114/115/116/117/118/119/120/121/122/123/124/125/126/127/128/129 " +
+			"nexthop as 300 via inet 10.0.0.2 dev d0 nexthop as 400 via inet 10.0.0.3 dev d0",
+		Slug: "mpls_route_ec_007",
+		// mpls/ec-007: the kernel's 30-label stack, and each hop's as (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route add 15 via inet 10.0.0.2 dev d0", Slug: "mpls_route_ng_001",
+		// mpls/ng-001: a reserved label, sent and refused (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "-M route del 100", Slug: "mpls_route_del_absent",
+		// mpls/del-absent: unicast, scope universe, no lookup; the kernel
+		// acks a delete of a label that has no route (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	{
+		Name: "route add 10.1.0.0/24 as 200 via 10.0.0.2", Slug: "mpls_route_inet_as",
+		// mpls/inet-as: an IPv4 RTA_NEWDST, which the kernel ignores (rc 0).
+		Floor: 2, Implemented: true, Write: true, Setup: mplsRouteSetup,
+	},
+	// NX3b's MPLS reads, after the writes for the same reason: the dump of
+	// mpls/show's three routes, a swap, a multipath and a ttl-propagate, as
+	// text and JSON, then a get of the one route mpls/get adds, bare and
+	// with as.
+	{
+		Name: "-M route show", Slug: "mpls_route_show",
+		// The dump, its three routes and the done, and d0's lookup by index.
+		Floor: 5, Implemented: true, Setup: mplsShowSetup,
+	},
+	{
+		Name: "-j -M route show", Slug: "mpls_route_show_json",
+		Floor: 5, Implemented: true, Setup: mplsShowSetup,
+	},
+	{
+		Name: "-M route get 100", Slug: "mpls_route_get",
+		// The get, its reply, and d0's lookup by index.
+		Floor: 4, Implemented: true, Setup: mplsGetSetup,
+	},
+	{
+		Name: "-M route get 100 as 200", Slug: "mpls_route_get_as",
+		Floor: 4, Implemented: true, Setup: mplsGetSetup,
+	},
+
 	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
 	// preconditions (genl-write-corpus.exp). The connections' entries carry
 	// each side's own RTTs and ages, which nlparity normalizes, and a dump's
@@ -7839,6 +8104,30 @@ var (
 	}
 )
 
+// linkNetnsSetup is the netns rows' precondition: the workbench's d0 and
+// the peer c1mv it moves into.
+var linkNetnsSetup = append(slices.Clone(gwWsLinkD0), "peer c1mv")
+
+// mplsRouteSetup is the mpls rows' pre (nlcapgen's matrix_mpls.go):
+// mpls_router, d0 up with an IPv4 and an IPv6 address, 1000 platform
+// labels, and MPLS input on d0.
+var mplsRouteSetup = []string{
+	"modules mpls_router",
+	"link add d0 type dummy", "link set d0 addrgenmode none", "link set d0 up",
+	"addr add 10.0.0.1/24 dev d0", "-6 addr add 2001:db8::1/64 dev d0 nodad",
+	"sysctl net.mpls.platform_labels 1000", "sysctl net.mpls.conf.d0.input 1",
+}
+
+// mplsShowSetup and mplsGetSetup are the pre steps of the mpls rows named
+// show and get, after mplsRouteSetup's.
+var (
+	mplsShowSetup = append(slices.Clone(mplsRouteSetup),
+		"-f mpls route add 100 as 200/300 via inet 10.0.0.2 dev d0",
+		"-f mpls route add 101 nexthop as 200 via inet 10.0.0.2 dev d0 nexthop via inet6 2001:db8::2 dev d0",
+		"-f mpls route add 102 dev d0 ttl-propagate disabled")
+	mplsGetSetup = append(slices.Clone(mplsRouteSetup), "-f mpls route add 100 via inet 10.0.0.2 dev d0")
+)
+
 // netnsSetup is the netns reads' precondition, rtnl-read-corpus.exp's two
 // peers: nlcaprp1 and nlcaprp2, made from the root, nsids 1 and 2 in the
 // row's namespace.
@@ -7940,6 +8229,26 @@ func addrFlushManySetup() []string {
 // have nothing to do: with carrier and no partner, a port goes from
 // defaulted to churned over the next minute, and ip_a, goip and ip_b would
 // each read a different moment of it.
+// maddrReadSetup is the v730maddr rows' pre: a dummy, with no link-local
+// address to race DAD, that has joined one group of each kind.
+var maddrReadSetup = []string{
+	"link add d0 type dummy",
+	"link set d0 addrgenmode none",
+	"link set d0 up",
+	"maddr add 33:33:00:00:00:99 dev d0",
+	"addr add 239.1.1.1/32 dev d0 autojoin",
+	"-6 addr add ff05::1234/128 dev d0 autojoin",
+}
+
+// statsL3Setup is the stats corpus's l3 topology: a dummy with its L3
+// offload stats requested.
+var statsL3Setup = []string{
+	"link add d0 type dummy",
+	"link set d0 addrgenmode none",
+	"link set d0 up",
+	"stats set dev d0 l3_stats on",
+}
+
 var bondReadSetup = []string{
 	"link add bond0 type bond mode 802.3ad",
 	"link add la1 type veth peer name lb1",

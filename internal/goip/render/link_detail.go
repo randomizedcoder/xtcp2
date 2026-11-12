@@ -47,21 +47,21 @@ import (
 // and the four that are not are the two bridges, a third bridge and the one
 // bridge port.
 //
-// IFLA_DPLL_PIN is out of scope for a different reason, and the reason is
-// version rather than effort: the `dpll-pin` block does not exist in iproute2
-// 7.1.0, which is the pin. It is in the 7.2.0 reference clone, which is why
-// reading only that clone makes this look like a gap. See xtcpnl.LinkDetail
-// for the second, independent reason it would print nothing regardless.
+// IFLA_DPLL_PIN is out of scope for a different reason: the `dpll-pin` token
+// (20e860c6, first released in iproute2 7.3.0) needs DPLL_A_PIN_ID inside the
+// nest, and every link without a DPLL recovered-clock pin, which is every link
+// a VM has, sends the nest empty. So 7.3.0 prints nothing there either. See
+// xtcpnl.LinkDetail.
 //
 // # A note on the citations in this file
 //
-// The line numbers are the 7.2.0 clone's, matching every other citation in
-// this repo. The detail block is byte-identical between 7.1.0 and 7.2.0 apart
-// from that dpll block and a print_hexstring refactor with the same output, so
-// the transcription holds for the pin; only the offsets differ, by about 18
-// lines. The one place where 7.1.0 and 7.2.0 BEHAVE differently in this area
-// is print_queuelen's ioctl fallback, which is not in this file — see
-// internal/goip/goip_details_test.go's sidecarWithoutIoctlQlen.
+// The line numbers are the 7.2.0 clone's, matching the other citations of
+// that era in this repo. The detail block is byte-identical between 7.1.0 and
+// 7.2.0 apart from a print_hexstring refactor with the same output, and 7.3.0
+// adds only the dpll block, so the transcription holds for each release; only
+// the offsets differ. The one place where 7.1.0 and 7.2.0 BEHAVE differently
+// in this area is print_queuelen's ioctl fallback, which is not in this file;
+// see internal/goip/goip_details_test.go's sidecarWithoutIoctlQlen.
 
 // LinkDetailView is the `-d` token run for one link.
 //
@@ -200,6 +200,8 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab, details int) *KindData {
 		return hsrData(li.Hsr, names)
 	case NetkitKindCst:
 		return netkitData(li.Netkit)
+	case OvpnKindCst:
+		return ovpnData(li.Ovpn)
 	}
 	return nil
 }

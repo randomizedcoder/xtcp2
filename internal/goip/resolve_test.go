@@ -120,9 +120,25 @@ func TestResolveShow(t *testing.T) {
 		},
 		{
 			name: "family_not_implemented", category: "negative",
-			description: "-f is ip's -family, which goip does not implement",
-			inputs:      [][]string{{"-f", "inet", "link"}, {"-pretty", "link"}},
+			description: "-M and -f mpls outside route, -f bridge anywhere, and -pretty are not implemented",
+			inputs:      [][]string{{"-M", "link"}, {"-f", "mpls", "address"}, {"-family", "bridge", "route"}, {"-pretty", "link"}},
 			wantErr:     ErrNotImplemented,
+		},
+		{
+			name: "family_word", category: "positive",
+			description: "-f inet6 is -6, as read_family reads it, and the canonical spelling is -6",
+			inputs:      [][]string{{"-f", "inet6", "r"}, {"-fam", "inet6", "r"}, {"-6", "r"}}, wantArgv: "-6 route show",
+		},
+		{
+			name: "family_mpls_route", category: "positive",
+			description: "-M and -f mpls on route are its show in AF_MPLS, spelled -M",
+			inputs:      [][]string{{"-M", "route"}, {"-f", "mpls", "r", "show"}}, wantArgv: "-M route show",
+		},
+		{
+			name: "family_word_invalid", category: "negative",
+			description: "-f with a word read_family does not know is invarg",
+			inputs:      [][]string{{"-f", "ipx", "link"}, {"-f", "INET", "link"}},
+			wantErr:     ErrInvalidArgument, wantMsg: "invalid protocol family",
 		},
 		{
 			name: "unknown_option", category: "negative",
@@ -137,8 +153,8 @@ func TestResolveShow(t *testing.T) {
 		},
 		{
 			name: "unimplemented_object", category: "negative",
-			description: "m is maddress, which goip does not implement",
-			inputs:      [][]string{{"m"}}, wantErr: ErrNotImplemented, wantMsg: "ip maddress show:",
+			description: "tunn is tunnel, which goip does not implement",
+			inputs:      [][]string{{"tunn"}}, wantErr: ErrNotImplemented, wantMsg: "ip tunnel show:",
 		},
 		{
 			name: "unknown_verb", category: "negative",
@@ -489,7 +505,10 @@ func TestResolvePrefixProperty(t *testing.T) {
 					want = helpOption
 				}
 				in := []string{p}
-				if want.arg != "" {
+				switch {
+				case want.name == "-family":
+					in = append(in, "inet")
+				case want.arg != "":
 					in = append(in, "1")
 				}
 				in = append(in, "link")
@@ -499,7 +518,8 @@ func TestResolvePrefixProperty(t *testing.T) {
 					if !errors.Is(err, ErrRefusedOption) || !strings.Contains(err.Error(), want.name) {
 						t.Errorf("%q: err %v, want ErrRefusedOption naming %s", p, err, want.name)
 					}
-				case want.set == nil:
+				case want.set == nil || want.name == "-M":
+					// -M is AF_MPLS, which only route reads, not link.
 					if !errors.Is(err, ErrNotImplemented) {
 						t.Errorf("%q: err %v, want ErrNotImplemented", p, err)
 					}
@@ -533,7 +553,7 @@ func TestLookupObjectExported(t *testing.T) {
 		{name: "full_length", category: "boundary", description: "addrlabel spelled in full", tok: "addrlabel", expected: "addrlabel"},
 		{name: "one_longer", category: "boundary", description: "addressx matches no object", tok: "addressx", wantErr: ErrUnknownObject},
 		{name: "unknown", category: "negative", description: "zz is no object", tok: "zz", wantErr: ErrUnknownObject},
-		{name: "unimplemented", category: "negative", description: "m is maddress, named as the command ip would run", tok: "m", wantErr: ErrNotImplemented, wantMsg: "ip maddress show:"},
+		{name: "unimplemented", category: "negative", description: "tunn is tunnel, named as the command ip would run", tok: "tunn", wantErr: ErrNotImplemented, wantMsg: "ip tunnel show:"},
 		{name: "empty", category: "corner", description: "an empty token matches nothing", tok: "", wantErr: ErrUnknownObject},
 	}
 	for _, tt := range tests {
@@ -572,7 +592,7 @@ func TestIsVerb(t *testing.T) {
 		{name: "exact_stats", category: "boundary", description: "stats compares with strcmp, so sh is no verb", object: "stats", tok: "sh", expected: false},
 		{name: "alias_not_canonical", category: "corner", description: "only canonical names are looked up; ntbl is LookupObject's job", object: "ntbl", tok: "show", expected: true},
 		{name: "unknown_object", category: "corner", description: "an object goip has no row for has no verbs", object: "zz", tok: "show", expected: false},
-		{name: "unimplemented_object", category: "corner", description: "maddress has no chain", object: "maddress", tok: "show", expected: false},
+		{name: "unimplemented_object", category: "corner", description: "tunnel has no chain", object: "tunnel", tok: "show", expected: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {

@@ -177,8 +177,10 @@ func gwSetup(r *gwWsRow) (setup []string, ok bool) {
 }
 
 // gwSelect picks each form's rows: for each rc, the first row by id that O5
-// finds the same, whose setup is ip alone, and whose cmd no other picked row
-// has, since two rows with one Name would share an allowlist entry.
+// finds the same, whose setup is ip alone, whose cmd the VM can run as it
+// stands (no `$$` or `$(…)` the workbench's shell expanded), and whose cmd
+// no other picked row has, since two rows with one Name would share an
+// allowlist entry.
 func gwSelect(rows []gwWsRow, notSame map[string]bool, forms []gwForm) [][2]string {
 	picked := map[string]string{}
 	out := make([][2]string, len(forms))
@@ -191,7 +193,7 @@ func gwSelect(rows []gwWsRow, notSame map[string]bool, forms []gwForm) [][2]stri
 		for ri, rc := range gwRcs {
 			for i := range rows {
 				r := &rows[i]
-				if notSame[r.ID] || r.Result.RC != rc || !cmdRe.MatchString(r.Cmd) ||
+				if notSame[r.ID] || r.Result.RC != rc || !cmdRe.MatchString(r.Cmd) || strings.Contains(r.Cmd, "$") ||
 					(preRe != nil && !preRe.MatchString(gwPreText(r))) {
 					continue
 				}

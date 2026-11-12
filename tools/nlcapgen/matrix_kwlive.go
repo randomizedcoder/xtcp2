@@ -86,7 +86,7 @@ func kwLinkSpace() *space {
 		}}},
 		Bad: []badValue{
 			{Axis: "form", Value: v("index-used", "add d8 index 1 type dummy", f("verb", "add", "ifindex", "1")),
-				Expect: expect{RC: intp(2), Errno: "EEXIST", RefusedBy: "kernel"},
+				Expect: expect{RC: intp(2), Errno: "EEXIST", RefusedBy: refKernel},
 				Why:    "an index lo already has (rtnl_newlink finds it, and add sets NLM_F_EXCL)"},
 		},
 	}
@@ -136,7 +136,7 @@ func buildKw(head, setup, show string, vals []value) row {
 	r := row{
 		Cmd:      head + joinArgs(vals[0].Arg, vals[1].Arg),
 		Readback: []readback{{Name: "dump", Cmd: show}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 	if setup != "" {

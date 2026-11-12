@@ -30,9 +30,9 @@ var lwtxVerb = axis{Name: "verb", Values: []value{v("add", "", f("verb", "add"))
 
 var (
 	// expKernelENOTSUP is EOPNOTSUPP, which Linux numbers as ENOTSUP.
-	expKernelENOTSUP = &expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: "kernel"}
+	expKernelENOTSUP = &expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: refKernel}
 	// expIproute2Exit1 is a refusal ip ends with exit(1) before sending.
-	expIproute2Exit1 = expect{RC: intp(1), RefusedBy: "iproute2"}
+	expIproute2Exit1 = expect{RC: intp(1), RefusedBy: refIproute2}
 )
 
 // seg6Facts are an `encap seg6`'s axes: the mode's number and the slots,
@@ -124,7 +124,7 @@ func seg6LocalSpace() *space {
 			{Axis: "form", Value: v("no-action", lwtxLocal+" table 100 dev d0", f("encap", "seg6local")),
 				Expect: expIproute2Invarg, Why: "no action (Missing action type, exit(-1))"},
 			{Axis: "form", Value: v("oif-nosuch", act+"End.DX2 oif nosuch dev d0", f("encap", "seg6local")),
-				Expect: expect{RC: intp(255), Errno: "ENODEV", RefusedBy: "kernel"},
+				Expect: expect{RC: intp(255), Errno: "ENODEV", RefusedBy: refKernel},
 				Why:    "an oif that doesn't exist: ll_name_to_index's get is refused, then exit(nodev)"},
 		},
 	}

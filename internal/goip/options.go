@@ -44,6 +44,9 @@ type options struct {
 	haveFlushLoops bool
 	// given is each option row matched, in argument order.
 	given []*ipOption
+	// badFamily is a -family word read_family does not know, which ip
+	// refuses with invarg once the option is read.
+	badFamily string
 }
 
 // ipOption is one test of ip's option chain.
@@ -85,7 +88,7 @@ var ipOptions = []ipOption{
 		// round. Every object accepts it; only `addr flush` reads it.
 		o.flushLoops, o.haveFlushLoops = cAtoi(a), true
 	}},
-	{name: "-family", arg: "family type"},
+	{name: "-family", arg: "family type", set: setFamilyWord},
 	{name: "-4", exact: true, set: func(o *options, _ string) { o.family = unix.AF_INET }},
 	{name: "-6", exact: true, set: func(o *options, _ string) { o.family = unix.AF_INET6 }},
 	// AF_PACKET (ip/ip.c:221-222). This is the one option that reaches code
@@ -97,7 +100,7 @@ var ipOptions = []ipOption{
 	// internally (ip/ipaddress.c:2416) and which goip models by ignoring
 	// c.family in req.LinkShowDump.
 	{name: "-0", exact: true, set: func(o *options, _ string) { o.family = unix.AF_PACKET }},
-	{name: "-M", exact: true},
+	{name: "-M", exact: true, set: func(o *options, _ string) { o.family = unix.AF_MPLS }},
 	{name: "-B", exact: true},
 	{name: "-human"},
 	{name: "-human-readable"},
@@ -143,6 +146,20 @@ var ipOptions = []ipOption{
 }
 
 func countStats(o *options, _ string) { o.showStats++ }
+
+// setFamilyWord is -family's arm (ip/ip.c:206-216): `help` is usage, any
+// other word read_family's family; one it does not know is left in
+// badFamily for parseOptions to refuse.
+func setFamilyWord(o *options, a string) {
+	if a == routeHelpKeywordCst {
+		o.help = true
+		return
+	}
+	o.family = readFamily(a)
+	if o.family == unix.AF_UNSPEC {
+		o.badFamily = a
+	}
+}
 
 // helpOption is the -help row, which goip's `-h` also selects.
 var helpOption = func() *ipOption {
@@ -219,6 +236,9 @@ func parseOptions(args []string) (options, []string, error) {
 			val = args[i]
 		}
 		row.set(&o, val)
+		if o.badFamily != "" {
+			return o, nil, invargErr("invalid protocol family", o.badFamily)
+		}
 		o.given = append(o.given, row)
 		if o.help {
 			i++

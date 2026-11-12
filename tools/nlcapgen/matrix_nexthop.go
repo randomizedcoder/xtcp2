@@ -114,7 +114,7 @@ func nhNegBase(vals []value) bool { return vals[0].Name == "add" && vals[2].Name
 func nhBad() []badValue {
 	return []badValue{
 		{Axis: "id", Value: v("2^32", "id 4294967296", nil), Expect: expIproute2Invarg, Why: "an id past u32"},
-		{Axis: "kind", Value: v("nodev", "dev nosuch", nil), Expect: expect{RC: intp(255), Errno: "ENODEV", RefusedBy: "kernel"},
+		{Axis: "kind", Value: v("nodev", "dev nosuch", nil), Expect: expect{RC: intp(255), Errno: "ENODEV", RefusedBy: refKernel},
 			Why: "a device that does not exist: ipnh_modify's ll_name_to_index asks with an RTM_GETLINK the kernel refuses, then invarg()"},
 		{Axis: "kind", Value: v("onlink-nogw", "dev d0 onlink", f("oif", "d0", "onlink", "1")), Expect: *expKernelEINVAL,
 			Why: "onlink without a gateway (ONLINK flag can not be set for nexthop without a gateway)"},
@@ -254,7 +254,7 @@ func buildNexthop(head, fam, members string, axes []axis, vals []value) row {
 		Cmd:      strings.TrimSpace(head + verb.Arg + " " + tail),
 		Pre:      pre,
 		Readback: []readback{{Name: "dump", Cmd: "ip nexthop show"}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 	if fam != "" {

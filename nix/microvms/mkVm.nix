@@ -60,7 +60,17 @@ let
   # unconditionally (it is a cheap shell wrapper) but only put on the guest's
   # PATH by those flavors - see isNetlinkDriven in environment.systemPackages
   # below.
-  netlinkCaptureHelper = import ./netlink-capture.nix { inherit pkgs; };
+  #
+  # The goip-parity guest's helper is built against parityIproute2, so every
+  # `ip` it runs is the parity pin's.
+  netlinkCaptureHelper = import ./netlink-capture.nix {
+    pkgs = if isGoipParity then pkgs // { iproute2 = parityIproute2; } else pkgs;
+  };
+  # iproute2 7.3.0, the parity pin (nix/upstream-pins.json): the goip-parity
+  # guest's `ip`, `bridge` and `ss`, at hiPrio in environment.systemPackages
+  # below so it wins system-path over nixpkgs' 7.2.0. Only that guest gets
+  # it; overriding pkgs.iproute2 would rebuild everything that depends on it.
+  parityIproute2 = import ../iproute2-7-3-0.nix { inherit pkgs; };
   # The go-native RDMA capture script; the RDMA capture driver
   # (scripts/capture-rdma.exp) runs it in the netlink-driven guests.
   rdmaNativeCapture = import ../tests/rdma-native-capture.nix { inherit pkgs; };
@@ -4297,7 +4307,7 @@ in
         environment.systemPackages =
           (with pkgs; [
             coreutils
-            iproute2
+            (if isGoipParity then lib.hiPrio parityIproute2 else iproute2)
             netcat-gnu
             tcpdump
             curl

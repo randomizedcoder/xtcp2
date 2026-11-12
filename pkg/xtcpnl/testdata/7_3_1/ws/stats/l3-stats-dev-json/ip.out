@@ -1,0 +1,1 @@
+[{"ifindex":3,"ifname":"d0","group":"offload","subgroup":"l3_stats","info":{"request":true,"used":false},"stats64":{"rx":{"bytes":0,"packets":0,"errors":0,"dropped":0,"multicast":0},"tx":{"bytes":0,"packets":0,"errors":0,"dropped":0}}}]

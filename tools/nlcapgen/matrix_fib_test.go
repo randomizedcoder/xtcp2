@@ -61,7 +61,7 @@ func TestRuleJudge(t *testing.T) {
 			exp, why := ruleJudge(tc.pick)
 			got := ""
 			if exp != nil {
-				got = exp.RefusedBy
+				got = string(exp.RefusedBy)
 				if why == "" {
 					t.Error("a refusal with no reason")
 				}

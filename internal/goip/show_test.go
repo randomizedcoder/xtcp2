@@ -152,8 +152,8 @@ func TestShow(t *testing.T) {
 			req:  ShowRequest{Object: "link", Family: unix.AF_BRIDGE}, wantErr: ErrInvalidArgument,
 		},
 		{
-			name: "stats_bare", description: "boundary: a bare stats show needs a group, as on the CLI",
-			pcap: statsPcapBase, req: ShowRequest{Object: "stats"}, wantErr: ErrNotImplemented,
+			name: "stats_bare", description: "boundary: a bare stats show is every group, as on the CLI",
+			pcap: statsPcapBase, req: ShowRequest{Object: "stats"},
 		},
 		{
 			name: "addr_packet", description: "corner: -0 address lists links only and equals Run's",
@@ -312,8 +312,8 @@ func TestShowNoSuchDevice(t *testing.T) {
 			req: ShowRequest{Object: "nexthop", Selectors: []string{"dev", "nosuch0"}}, want: true},
 		{name: "netconf_dev", description: "positive: netconf show dev keeps its ErrNotImplemented exit code too",
 			req: ShowRequest{Object: "netconf", Selectors: []string{"dev", "nosuch0"}}, want: true, alsoIs: ErrNotImplemented},
-		{name: "stats_dev", description: "positive: stats show dev",
-			req: ShowRequest{Object: "stats", Selectors: []string{"dev", "nosuch0", "group", "link"}}, want: true, alsoIs: unix.ENODEV},
+		{name: "stats_dev", description: "positive: stats show dev: ll_name_to_index's miss is nodev's `Cannot find device \"nosuch0\"`, an invalid argument",
+			req: ShowRequest{Object: "stats", Selectors: []string{"dev", "nosuch0", "group", "link"}}, want: true, alsoIs: ErrInvalidArgument},
 		{name: "no_dev", description: "negative: link show with no dev on an empty kernel is success, not a missing device",
 			req: ShowRequest{Object: "link"}, want: false},
 		{name: "dev_missing_value", description: "boundary: `dev` with no name is a parse error, not a missing device",
@@ -383,7 +383,7 @@ func TestShowObjectsReadOnly(t *testing.T) {
 	netnsDir(t)
 	t.Run("exact_set", func(t *testing.T) {
 		// positive: the 12 implemented show objects, sorted, and a copy.
-		want := []string{"address", "addrlabel", "link", "mroute", "mrule", "neighbor", "netconf", "netns", "nexthop", "ntable", "route", "rule", "stats", "tcp_metrics", "token", "vrf"}
+		want := []string{"address", "addrlabel", "link", "maddress", "mroute", "mrule", "neighbor", "netconf", "netns", "nexthop", "ntable", "route", "rule", "stats", "tcp_metrics", "token", "vrf"}
 		got := ShowObjects()
 		if !slices.Equal(got, want) {
 			t.Fatalf("ShowObjects() = %q, want %q", got, want)

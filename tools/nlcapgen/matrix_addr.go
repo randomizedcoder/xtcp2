@@ -57,7 +57,7 @@ func addrProtos() axis {
 // expAddrFailAfterDev is ipaddr_modify's return -1 after ll_name_to_index
 // has looked d0 up (an acknowledged RTM_GETLINK); do_cmd negates it, so ip
 // exits 1, where invarg() exits 255.
-var expAddrFailAfterDev = expect{RC: intp(1), RefusedBy: "ack-then-fail"}
+var expAddrFailAfterDev = expect{RC: intp(1), RefusedBy: refAckThenFail}
 
 // addrBad holds the bad values both families share. invarg() exits before
 // the device lookup; the lifetime checks come after it.
@@ -140,10 +140,10 @@ func addr4Space() *space {
 			{A: "peer=remote", B: "flags=autojoin"},
 		},
 		Bad: append(addrBad(),
-			badValue{Axis: "local", Value: v("33", "192.0.2.1/33", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "local", Value: v("33", "192.0.2.1/33", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "a prefix length past 32 (get_prefix exits 1)"},
 			badValue{Axis: "label", Value: v("16", "label d0:abcdefghijklm", f("label", "d0:abcdefghijklm")),
-				Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: "kernel"},
+				Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: refKernel},
 				Why:    "a label of IFNAMSIZ characters, past ifa_ipv4_policy's IFNAMSIZ - 1"},
 			badValue{Axis: "scope", Value: v("nosuch", "scope nosuch", nil), Expect: expIproute2Invarg, Why: "an unknown scope"},
 		),
@@ -213,9 +213,9 @@ func addr6Space() *space {
 			addrProtos(),
 		},
 		Bad: append(addrBad(),
-			badValue{Axis: "local", Value: v("129", "2001:db8:1::1/129", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "local", Value: v("129", "2001:db8:1::1/129", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "a prefix length past 128 (get_prefix exits 1)"},
-			badValue{Axis: "brd", Value: v("plus", "brd +", f("brd", "+")), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "brd", Value: v("plus", "brd +", f("brd", "+")), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "a computed broadcast on IPv6 (Broadcast can be set only for IPv4 addresses)"},
 		),
 	}
@@ -243,7 +243,7 @@ func addr4Judge(pick map[string]string) (*expect, string) {
 		return exp, why
 	}
 	if pick["verb"] == "del" && pick["local"] == "zero" {
-		return &expect{RC: intp(2), Errno: "EADDRNOTAVAIL", RefusedBy: "kernel"}, "a delete of 0.0.0.0, which its add never stored (Address not found)"
+		return &expect{RC: intp(2), Errno: "EADDRNOTAVAIL", RefusedBy: refKernel}, "a delete of 0.0.0.0, which its add never stored (Address not found)"
 	}
 	return nil, ""
 }
@@ -264,11 +264,11 @@ func addr6Judge(pick map[string]string) (*expect, string) {
 	badAddr := pick["local"] == "any" || (pick["local"] == "mcast" && pick["flags"] != "autojoin")
 	switch {
 	case (badMngtmp || badAddr) && pick["verb"] == "del":
-		return &expect{RC: intp(2), Errno: "EADDRNOTAVAIL", RefusedBy: "kernel"}, "a delete of an address its add could not store"
+		return &expect{RC: intp(2), Errno: "EADDRNOTAVAIL", RefusedBy: refKernel}, "a delete of an address its add could not store"
 	case badMngtmp:
 		return expKernelEINVAL, "mngtmpaddr off a /64 (address with \"mngtmpaddr\" flag must have a prefix length of 64)"
 	case badAddr:
-		return &expect{RC: intp(2), Errno: "EADDRNOTAVAIL", RefusedBy: "kernel"}, "the unspecified address, or a multicast one without autojoin (ipv6_add_addr)"
+		return &expect{RC: intp(2), Errno: "EADDRNOTAVAIL", RefusedBy: refKernel}, "the unspecified address, or a multicast one without autojoin (ipv6_add_addr)"
 	}
 	return nil, ""
 }
@@ -295,7 +295,7 @@ func buildAddr(fam string, axes []axis, vals []value, judge func(map[string]stri
 		Cmd:      head + verb.Arg + " " + tail,
 		Pre:      []preStep{{Cmd: addrSetup}},
 		Readback: []readback{{Name: "dump", Cmd: "ip -" + fam + " address show dev d0"}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 	r.Axes["family"] = fam

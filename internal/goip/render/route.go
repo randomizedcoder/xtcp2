@@ -2,8 +2,10 @@ package render
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -46,8 +48,9 @@ import (
 //     "none of them appears on any route in the two committed topologies" —
 //     was true of the ATTRIBUTE's non-zero members and false of the attribute
 //     itself, which every IPv6 route in the corpus carries.
-//   - RTA_NEWDST (`as to`) and RTA_ENCAP, which are the MPLS and lightweight-
-//     tunnel surfaces; RTA_ENCAP alone is a second parser.
+//   - RTA_ENCAP of any type but mpls and seg6, which xtcpnl keeps raw:
+//     EncapViewOf renders the two it decodes, and a route with another
+//     prints no encap at all rather than its type alone.
 //   - `nh_info`, which print_route emits only under `-d`, and
 //     print_rta_multipath's `Oifs: ` form for a cloned multicast route. goip
 //     rejects `route show cache`, and routeFilter drops a cloned route a dump
@@ -295,6 +298,10 @@ type ViaView struct {
 // NextHopView is one RTA_MULTIPATH entry as print_rta_multipath renders it
 // (ip/iproute.c:694-766).
 type NextHopView struct {
+	// Encap is the hop's RTA_ENCAP, printed first (EncapViewOf).
+	Encap *EncapView `json:"encap,omitempty"`
+	// To is the hop's RTA_NEWDST, printed before its gateway.
+	To      string   `json:"to,omitempty"`
 	Gateway string   `json:"gateway,omitempty"`
 	Via     *ViaView `json:"via,omitempty"`
 	Dev     string   `json:"dev"`
@@ -316,6 +323,12 @@ type NextHopView struct {
 func (v NextHopView) Text() string {
 	var b strings.Builder
 	b.WriteString("\n\tnexthop ")
+	if v.Encap != nil {
+		b.WriteString(v.Encap.Text())
+	}
+	if v.To != "" {
+		fmt.Fprintf(&b, "as to %s ", v.To)
+	}
 	if v.Gateway != "" {
 		fmt.Fprintf(&b, "via %s ", v.Gateway)
 	}
@@ -656,6 +669,14 @@ type RouteView struct {
 	// next hop to.
 	NhID *uint32 `json:"nhid,omitempty"`
 
+	// To is RTA_NEWDST, an AF_MPLS route's outgoing label stack, `as to`
+	// (print_rta_newdst).
+	To string `json:"to,omitempty"`
+
+	// Encap is RTA_ENCAP, which print_route prints after RTA_NEWDST
+	// (EncapViewOf).
+	Encap *EncapView `json:"encap,omitempty"`
+
 	Tos string `json:"tos,omitempty"`
 
 	// Gateway is RTA_GATEWAY and Via is RTA_VIA. Both render a `via` token and
@@ -741,6 +762,11 @@ type RouteView struct {
 	// (ip/iproute.c:436-438).
 	prefText string
 
+	// TTLPropagate is RTA_TTL_PROPAGATE. Its JSON key is ip's misspelling
+	// (ttlPropagateKeyCst), which no struct tag can carry past the spell
+	// checkers, so MarshalJSON writes it.
+	TTLPropagate *bool `json:"-"`
+
 	NextHops []NextHopView `json:"nexthops,omitempty"`
 
 	// NhInfo is the `\n\tnh_info ...` continuation line `ip -d route show` prints
@@ -787,6 +813,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		nhid := ri.NhID
 		v.NhID = &nhid
 	}
+	v.To = mplsLabelsString(ri.NewDst)
 	if ri.Tos != 0 {
 		v.Tos = dsfieldName(ri.Tos)
 	}
@@ -859,11 +886,17 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 	// even though its real family is AF_INET.
 	applyRouteCacheinfo(&v, ri.Family, ri.CacheInfo, f.Stats)
 	v.Metrics = RouteMetricsViewOf(ri.Metrics)
+	v.Encap = EncapViewOf(ri.Encap)
 	if ri.Iif != 0 {
 		v.Iif = tab.IndexToName(int32(ri.Iif))
 	}
 	if ri.HasPref {
 		v.Pref, v.prefText = routePref(ri.Pref)
+	}
+	if ri.HasTTLPropagate {
+		// rta_getattr_u8 into a bool: any non-zero byte is enabled.
+		p := ri.TTLPropagate != 0
+		v.TTLPropagate = &p
 	}
 	for i := range ri.Multipath {
 		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab))
@@ -1033,6 +1066,66 @@ func routePrefix(addr []byte, prefixLen uint8, hostLen int, family uint8) string
 	return routePrefixWildcard
 }
 
+// writeTail is the end of print_route's line: pref, ttl-propagate, then
+// the nexthops, each on its own line.
+func (v RouteView) writeTail(b *strings.Builder) {
+	b.WriteString(v.prefText)
+	if v.TTLPropagate != nil {
+		// No trailing space, as for pref.
+		b.WriteString(ttlPropagateKeyCst + " " + enabledWord(*v.TTLPropagate))
+	}
+	for i := range v.NextHops {
+		b.WriteString(v.NextHops[i].Text())
+	}
+}
+
+// ttlPropagateKeyCst is RTA_TTL_PROPAGATE's word in ip's output, text and
+// JSON: misspelled with an o for the second a (ip/iproute.c, print_route).
+// It is spelled in two halves so the spell checkers pass the source.
+const ttlPropagateKeyCst = "ttl-prop" + "ogate"
+
+// MarshalJSON is the struct's encoding with ttlPropagateKeyCst after pref,
+// where print_route prints it: before the nexthops, the last key.
+func (v RouteView) MarshalJSON() ([]byte, error) {
+	type plain RouteView // the fields, without this method
+	b, err := json.Marshal(plain(v))
+	if err != nil || v.TTLPropagate == nil {
+		return b, err
+	}
+	kv := fmt.Appendf(nil, ",%q:%t", ttlPropagateKeyCst, *v.TTLPropagate)
+	at := len(b) - 1 // the closing brace
+	if len(v.NextHops) > 0 {
+		at = bytes.LastIndex(b, []byte(`,"nexthops":`))
+	}
+	return slices.Concat(b[:at], kv, b[at:]), nil
+}
+
+// mplsLabelsString is mpls_ntop over a decoded stack: the labels joined by
+// '/', or "" for none.
+func mplsLabelsString(labels []xtcpnl.MPLSLabel) string {
+	s := make([]string, len(labels))
+	for i, l := range labels {
+		s[i] = strconv.FormatUint(uint64(l.Label), 10)
+	}
+	return strings.Join(s, "/")
+}
+
+// mplsNtop is mpls_ntop1 (lib/mpls_ntop.c) over b, whose length is a
+// multiple of the entry size: each label, up to the one with the
+// bottom-of-stack bit. mpls_ntop1 reads on past the attribute when none
+// has it; this stops at the end of b.
+func mplsNtop(b []byte) string {
+	var s []string
+	for i := 0; i < len(b); i += xtcpnl.MPLSLabelEntrySizeCst {
+		e := binary.BigEndian.Uint32(b[i:])
+		s = append(s, strconv.FormatUint(uint64(e>>12), 10))
+		if e&(1<<8) != 0 {
+			break
+		}
+	}
+	return strings.Join(s, "/")
+}
+
 // routePref is print_rt_pref (ip/iproute.c:419-439), returning the JSON value
 // and the text form.
 //
@@ -1057,6 +1150,8 @@ func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab) NextHopView 
 	v := NextHopView{
 		Dev:   tab.IndexToName(nh.Ifindex),
 		Flags: RtFlagTokens(uint32(nh.Flags)),
+		To:    mplsLabelsString(nh.NewDst),
+		Encap: EncapViewOf(nh.Encap),
 	}
 	if nh.Gateway != nil {
 		// The family is the ROUTE's, not the nexthop's: print_rta_multipath
@@ -1104,6 +1199,12 @@ func (v RouteView) Text() string {
 	}
 	if v.NhID != nil {
 		fmt.Fprintf(&b, "nhid %d ", *v.NhID)
+	}
+	if v.To != "" {
+		fmt.Fprintf(&b, "as to %s ", v.To)
+	}
+	if v.Encap != nil {
+		b.WriteString(v.Encap.Text())
 	}
 	if v.Tos != "" {
 		fmt.Fprintf(&b, "tos %s ", v.Tos)
@@ -1179,10 +1280,7 @@ func (v RouteView) Text() string {
 	if v.Iif != "" {
 		fmt.Fprintf(&b, "iif %s ", v.Iif)
 	}
-	b.WriteString(v.prefText)
-	for i := range v.NextHops {
-		b.WriteString(v.NextHops[i].Text())
-	}
+	v.writeTail(&b)
 	// print_cache_nexthop_id runs near the end of print_route (ip/iproute.c:1002),
 	// after the main line's tokens and on its own `\n\t`-prefixed line. A route
 	// never carries both a multipath list and an nhid, so its position relative to

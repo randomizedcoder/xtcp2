@@ -1,0 +1,1 @@
+[{"dst":"999","flags":[],"ttl-propogate":true,"nexthops":[{"to":"300","via":{"family":"inet","host":"10.0.0.2"},"dev":"d0","flags":[]},{"to":"400","via":{"family":"inet","host":"10.0.0.3"},"dev":"d0","flags":[]}]}]

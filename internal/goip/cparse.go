@@ -383,6 +383,9 @@ func llAddrA2NPart(arg string, maxLen int) ([]byte, int, string) {
 		b := a.As4()
 		return b[:], 4, ""
 	}
+	if LLAddrStrict {
+		return llAddrA2NStrict(arg, maxLen)
+	}
 	out := make([]byte, 0, max(maxLen, 0))
 	for rest := arg; len(out) < maxLen; {
 		part, next, more := strings.Cut(rest, ":")
@@ -399,11 +402,61 @@ func llAddrA2NPart(arg string, maxLen int) ([]byte, int, string) {
 	return nil, maxLen + 1, ""
 }
 
-// llAddrCut is the word ll_addr_a2n leaves in argv: it writes a NUL over
-// the first ':' before reading the first part, so a caller that PREV_ARGs
-// re-reads the word cut there. An IPv4 address is left whole.
+// Keywords730 is whether the write parsers take the keywords iproute2 7.3.0
+// added: nexthop `dst_port` (ad2b2d95), bond `lacp_strict` (30365d09), the
+// seg6 encap's `lookup` (144c45b6) and ovpn's `mode` (92f89d0e). Before 7.3.0
+// each is refused where the parser's chain ends, as an unknown word.
+//
+// true, the default and the parity target, takes them; false reproduces
+// 7.2.0 and earlier, for the corpora captured with them.
+var Keywords730 = true
+
+// LLAddrStrict is whether ll_addr_a2n is iproute2 7.3.0's.
+//
+// 5faf18f6 "lib: fix warning from ll_addr_a2n", first released in 7.3.0,
+// rewrote the hex loop (lib/ll_addr.c:64-85 in 7.3.0). Each part must start
+// with a hex digit and end at a ':' or the end of the argument, so the
+// trailing garbage sscanf skipped ("0aq", "00:11:") is refused; more parts
+// than the buffer holds are refused instead of overrunning it; argv is no
+// longer cut at the first ':'; and the refusal names the whole argument
+// rather than the failing part.
+//
+// true, the default and the parity target, is 7.3.0's; false reproduces
+// 7.2.0 and earlier, for the corpora captured with them.
+var LLAddrStrict = true
+
+// llAddrA2NStrict is 7.3.0's hex loop: strtoul base 16 from a hex digit, a
+// value of at most 255, then a ':' to go on or the end to stop. Anything else,
+// or a part past maxLen, is `"ARG" is invalid lladdr.`.
+func llAddrA2NStrict(arg string, maxLen int) ([]byte, int, string) {
+	out := make([]byte, 0, max(maxLen, 0))
+	for cp := arg; len(out) < maxLen; {
+		if cp == "" || cDigitVal(cp[0]) >= 16 {
+			break
+		}
+		r := cStrtoul(cp, 16)
+		if r.val > 255 {
+			break
+		}
+		out = append(out, byte(r.val))
+		switch rest := cp[r.end:]; {
+		case rest == "":
+			return out, len(out), ""
+		case rest[0] != ':':
+			return nil, -1, arg
+		default:
+			cp = rest[1:]
+		}
+	}
+	return nil, -1, arg
+}
+
+// llAddrCut is the word ll_addr_a2n leaves in argv: before 7.3.0 it writes a
+// NUL over the first ':' before reading the first part, so a caller that
+// PREV_ARGs re-reads the word cut there. An IPv4 address is left whole, and
+// so is every argument under LLAddrStrict.
 func llAddrCut(arg string) string {
-	if strings.IndexByte(arg, '.') >= 0 {
+	if LLAddrStrict || strings.IndexByte(arg, '.') >= 0 {
 		return arg
 	}
 	w, _, _ := strings.Cut(arg, ":")

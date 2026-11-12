@@ -318,7 +318,7 @@ func TestBondParseKeywordsCoverTable(t *testing.T) {
 		unparsed    []string
 		expected    int // keywords, help included
 	}{
-		{description: "positive: bond", chain: bondParseKeywords, table: xtcpnl.BondOptions, unparsed: []string{"lacp_strict"}, expected: 35},
+		{description: "positive: bond", chain: bondParseKeywords, table: xtcpnl.BondOptions, expected: 36},
 		{description: "positive: bond_slave", chain: bondSlaveParseKeywords, table: xtcpnl.BondSlaveOptions, expected: 4},
 	}
 	for _, tc := range tests {
@@ -387,7 +387,7 @@ func TestLinkIfindexBits(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			resolve := func(string) (int32, error) { return tc.idx, nil }
-			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, strings.Fields(tc.args), resolve, nil, nil)
+			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, strings.Fields(tc.args), resolve, nil, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

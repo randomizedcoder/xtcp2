@@ -35,7 +35,7 @@ func ilaName(names map[uint8]string, v uint8) string {
 	if n, ok := names[v]; ok {
 		return n
 	}
-	return "unknown"
+	return unknownCst
 }
 
 // IlaMapping is print_ila_mapping's line and object (ip/ipila.c): the

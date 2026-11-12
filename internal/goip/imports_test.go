@@ -44,6 +44,7 @@ var goipMayImport = map[string]string{
 		"it filters on the caller's own nlmsg_seq with no \"any seq\" sentinel, and its own doc comment names " +
 		"pkg/nlparity as the answer. The plan's import set listed only xtcpnl; this is the one addition, and it " +
 		"satisfies the same §16 property.",
+	modulePath + "/internal/jsonw": "jsonw_puts, the one string escaper json_writer.c's ports share with gordma; stdlib only",
 }
 
 // forbiddenFirstParty are the first-party packages whose presence anywhere in
@@ -165,6 +166,7 @@ func TestGoipImportSetIsHermetic(t *testing.T) {
 			modulePath + "/pkg/xtcpnl":             "the subject under test",
 			modulePath + "/pkg/nlparity":           "the tolerant walker, for ReplaySource",
 			modulePath + "/pkg/cint":               "the C int conversions; stdlib only",
+			modulePath + "/internal/jsonw":         "jsonw_puts, shared with gordma; stdlib only",
 			modulePath + "/gen/go/xtcp_flat_record": "reached through pkg/xtcpnl's inet_diag decoders, which " +
 				"write into the generated proto. This is where grpc and protobuf enter the closure.",
 		}

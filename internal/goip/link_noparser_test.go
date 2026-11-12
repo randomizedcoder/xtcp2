@@ -203,7 +203,7 @@ func TestLinkNoParserHelp(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			_, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb(tc.args[0]), unix.AF_UNSPEC, tc.args[1:], nil, nil, nil)
+			_, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb(tc.args[0]), unix.AF_UNSPEC, tc.args[1:], nil, nil, nil, nil)
 			if !errors.Is(err, ErrNotImplemented) {
 				t.Fatalf("error %v, want ErrNotImplemented", err)
 			}
@@ -238,7 +238,7 @@ func TestLinkQueueCounts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			args := strings.Fields("ib0 " + tc.words + " type ifb")
-			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, args, nil, nil, nil)
+			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, args, nil, nil, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

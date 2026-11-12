@@ -21,6 +21,9 @@ const (
 	// ExitMinusTwo is do_cmd's -(2), for a command that returned 2:
 	// mptcp_monitor's listen ending in error (ip/ipmptcp.c).
 	ExitMinusTwo = 254
+	// ExitEINVAL is do_cmd's -(-EINVAL), for a command that returned
+	// -EINVAL: `ip stats` refusing a selection (ip/ipstats.c).
+	ExitEINVAL = 22
 )
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
@@ -55,8 +58,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		var oe *optionError
 		if !errors.As(err, &oe) {
+			// -family's invarg, which exits -1.
 			fmt.Fprintf(stderr, "goip: %v\n", err)
-			return ExitUsage
+			return ExitMinusOne
 		}
 		if oe.missing {
 			return missLoopCount(stderr)
@@ -102,6 +106,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// neigh). Refusing here, by name, keeps a dropped flag from showing up in
 	// the parity report as a full-render divergence. address is the one
 	// object that reads them (object.outputModes); see addrShow.
+	if msg := familyMsg(c.family, &obj); msg != "" {
+		fmt.Fprintf(stderr, "goip: %s\n", msg)
+		return ExitUsage
+	}
 	if msg := outputModeMsg(c, &obj); msg != "" {
 		fmt.Fprintf(stderr, "goip: %s\n", msg)
 		return ExitUsage
@@ -164,8 +172,12 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
 		errors.Is(err, ErrFouDumpTerminated), errors.Is(err, ErrIlaUsage), errors.Is(err, ErrIlaDumpTerminated),
 		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage),
-		errors.Is(err, ErrVrfUsage):
+		errors.Is(err, ErrVrfUsage), errors.Is(err, ErrMaddrUsage), errors.Is(err, ErrStatsUsage):
 		return ExitMinusOne
+	case errors.Is(err, ErrStatsInval):
+		return ExitEINVAL
+	case errors.Is(err, ErrStatsShow):
+		return ExitFailure
 	case errors.Is(err, ErrLinkUsage):
 		// Ahead of ErrInvalidArgument, which its refusals wrap.
 		return ExitMinusOne

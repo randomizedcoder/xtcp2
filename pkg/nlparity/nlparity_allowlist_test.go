@@ -432,6 +432,52 @@ func TestAllowlistCommitted(t *testing.T) {
 		"nexthop show dev goip0",
 		"nexthop show master goipvrf",
 		"nexthop show vrf goipvrf",
+		// The six maddress rows (NX4d), gated on two maddress section runs
+		// at iproute2 7.3.0 (2026-11-10): GOIP_PARITY_PASS with stdout=0 and
+		// control nl=0 on both, txns 5/5, 4/4, 4/4, 5/5, 3/3 and 1/1, the
+		// reports alike but for the pids.
+		"maddress show",
+		"-4 maddress show",
+		"-6 maddress show",
+		"-j maddress show",
+		"maddress show dev d0",
+		"maddress show dev nosuch",
+		// The fifteen NX5a stats rows, gated on two stats section runs at
+		// iproute2 7.3.0 (2026-11-10): GOIP_PARITY_PASS with stdout=0 on
+		// both, txns 6/6 on the twelve dumps and 2/2 on the three dev d0
+		// rows. Control nl=0, but for lo's IFLA_STATS_LINK_64 counters
+		// moving between captures (nl=1 to 3 on the rows that print
+		// group link), which the control suppresses.
+		"stats",
+		"stats show",
+		"-s stats show",
+		"-j stats show",
+		"-j -s stats show",
+		"-j -s stats show group link",
+		"stats show group offload",
+		"stats show group offload subgroup l3_stats",
+		"stats show group offload subgroup cpu_hit subgroup l3_stats",
+		"stats show group afstats",
+		"stats show group link group afstats",
+		"stats show group xstats_slave",
+		"stats show dev d0",
+		"stats show dev d0 group offload subgroup l3_stats",
+		"-j stats show dev d0 group offload",
+		// The eleven NX5b and NX5c link stats rows, gated on two link section
+		// runs at iproute2 7.3.0: all 812 rows GOIP_PARITY_PASS twice with
+		// identical verdicts, txns matching ip (1 to 3 per row) and control
+		// nl=0 stdout=0 on every link afstats and xstats row.
+		"-j link afstats",
+		"link afstats dev v2",
+		"link afstats dev nosuch",
+		"link xstats type bond",
+		"link xstats type bond_slave",
+		"-j link xstats type bond_slave",
+		"link xstats type bond 802.3ad",
+		"link xstats type bond_slave dev la1",
+		"-j link xstats type bridge",
+		"link xstats type bridge_slave stp",
+		"link xstats type bridge_slave dev nosuch",
 		// The twenty-one link write rows, gated on the phase 7 runs: all
 		// GOIP_PARITY_PASS twice with identical verdicts, txns matching ip
 		// with goip's GOIP_WRITE_OUT file counted as its write, control nl=0
@@ -1880,6 +1926,29 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-4 route add 198.51.100.0/24 nexthop via 192.0.2.1 dev d0 encap seg6 mode encap segs 2001:db8:9::1 nexthop via 192.0.2.2 dev d0",
 		"-6 nexthop add id 71 encap seg6 mode encap segs 2001:db8:9::1 dev d0",
 		"-6 nexthop add id 72 encap seg6local action End dev d0",
+		// goip-parity-next.md's three NX2 netns rows: a set by name and by
+		// path, and an add with an index, gated on two `--section link`
+		// runs, each row GOIP_PARITY_PASS both times
+		// (goip-parity-next-status.md, NX2).
+		"link set dev d0 netns c1mv",
+		"link set dev d0 netns /proc/self/ns/net",
+		"link add d9 netns c1mv index 100 type dummy",
+		// goip-parity-next.md's seven NX3a MPLS route writes, gated on two
+		// `--section route` runs, each row GOIP_PARITY_PASS both times
+		// (goip-parity-next-status.md, NX3a).
+		"-M route add 16 as 200 ttl-propagate enabled via inet6 2001:db8::2 dev d0",
+		"-M route add 100 as to 200 dev d0",
+		"-M route add 100 as 200/300/400 ttl-propagate enabled nexthop via inet 10.0.0.2 dev d0 nexthop via inet6 2001:db8::2 dev d0",
+		"-M route add 100 as 100/101/102/103/104/105/106/107/108/109/110/111/112/113/114/115/116/117/118/119/120/121/122/123/124/125/126/127/128/129 nexthop as 300 via inet 10.0.0.2 dev d0 nexthop as 400 via inet 10.0.0.3 dev d0",
+		"-M route add 15 via inet 10.0.0.2 dev d0",
+		"-M route del 100",
+		"route add 10.1.0.0/24 as 200 via 10.0.0.2",
+		// The four NX3b MPLS reads, gated on two `--section route` runs, each
+		// row GOIP_PARITY_PASS both times (goip-parity-next-status.md, NX3b).
+		"-M route show",
+		"-j -M route show",
+		"-M route get 100",
+		"-M route get 100 as 200",
 	}
 
 	tests := []struct {
@@ -1887,19 +1956,21 @@ func TestAllowlistCommitted(t *testing.T) {
 		check       func(t *testing.T, a *Allowlist)
 	}{
 		{
-			// It loaded above, so every validation rule holds on it. Five is
+			// It loaded above, so every validation rule holds on it. Eight is
 			// the measured state since goip follows the 7.2.0 pin: the netns
-			// rows' NETNSA_FD, accepted divergences (G4-T04), and no
-			// version skew. The next entry is a decision, and this row makes
-			// it one a test notices.
-			description: "positive: the committed file loads with the five netns entries alone",
+			// rows' NETNSA_FD (G4-T04) and the link netns rows'
+			// IFLA_NET_NS_FD (NX2), accepted divergences, and no version
+			// skew. The next entry is a decision, and this row makes it one
+			// a test notices.
+			description: "positive: the committed file loads with the eight namespace-descriptor entries alone",
 			check: func(t *testing.T, a *Allowlist) {
-				if len(a.Entries) != 5 {
-					t.Fatalf("%d entries, want 5", len(a.Entries))
+				if len(a.Entries) != 8 {
+					t.Fatalf("%d entries, want 8", len(a.Entries))
 				}
 				for i := range a.Entries {
-					if a.Entries[i].Kind != KindAcceptedDivergence || !strings.HasPrefix(a.Entries[i].Command, "netns ") &&
-						!strings.HasPrefix(a.Entries[i].Command, "-j netns ") {
+					c := a.Entries[i].Command
+					if a.Entries[i].Kind != KindAcceptedDivergence || !strings.HasPrefix(c, "netns ") &&
+						!strings.HasPrefix(c, "-j netns ") && !strings.Contains(c, " netns ") {
 						t.Errorf("entry %d is %q at %q, kind %s", i, a.Entries[i].Command, a.Entries[i].Locus, a.Entries[i].Kind)
 					}
 				}

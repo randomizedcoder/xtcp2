@@ -72,8 +72,8 @@
     "There is no ref to ls-remote and no rev to compare, so the networked",
     "runner skips this key entirely and says so. The version is in the store",
     "at eval time, which for once makes the hermetic half of the guard the",
-    "stronger one: nix/checks/upstream-pins.nix reads pkgs.iproute2.version",
-    "directly and so cannot be out of date with the build it runs in.",
+    "stronger one: nix/checks/upstream-pins.nix reads the parity package's version",
+    "(nix/iproute2-7-3-0.nix) directly and so cannot be out of date with the build it runs in.",
     "",
     "WHY IT IS PINNED AT ALL. The goip netlink-parity work compares the bytes",
     "goip puts on the wire against the bytes a specific `ip` was recorded",
@@ -86,19 +86,19 @@
     "has nothing to do with goip - the risk the goip plan records as Risk 3,",
     "and the reason parity must not gate until this entry exists.",
     "",
-    "Refresh `version` here when nixpkgs moves, then re-run",
+    "Refresh `version` here when the parity package moves, then re-run",
     "`sudo nix run .#capture-netlink-fixtures` and diff the new ip_* sidecars",
     "before trusting any request-byte expectation."
   ],
   "package_pins": {
     "iproute2": {
-      "attr": "pkgs.iproute2",
-      "version": "7.2.0",
-      "declared_in": "the nixpkgs flake input; not overridden anywhere in this repo",
-      "verify_via": "nix/checks/upstream-pins.nix, which compares this against pkgs.iproute2.version at eval time",
+      "attr": "nix/iproute2-7-3-0.nix (the flake's .#iproute2_7_3_0)",
+      "version": "7.3.0",
+      "declared_in": "nix/iproute2-7-3-0.nix, an override of nixpkgs' iproute2 (still 7.2.0) with the 7.3.0 tarball. mkVm.nix gives it to the goip-parity guest alone, at hiPrio, and builds that guest's capture helper against it; every other VM's ip is nixpkgs'.",
+      "verify_via": "nix/checks/upstream-pins.nix, which compares this against that package's version at eval time",
       "role": "The netlink parity target. goip's request bytes are compared against what this `ip` was recorded emitting, and this `ip`'s rendering is the source of truth behind every ip_* sidecar under pkg/xtcpnl/testdata/<kernel>/.",
-      "consumed_by": "nix/capture-netlink-fixtures.nix (both the pcaps and the ip_* sidecars), internal/goip's request and rendering tables, pkg/nlparity",
-      "recorded_in_fixtures": "pkg/xtcpnl/testdata/<kernel>/ip_version, written by `ip -V`. That sidecar is the per-capture record and this entry is the build-time assertion; the two are expected to agree, and a capture whose ip_version disagrees with this pin was taken with a different ip than the one the checks run against. Every corpus committed so far predates the 7.2.0 pin and records 7.1.0; pkg/xtcpnl's TestIPVersionMatchesUpstreamPin names that release per corpus, and goip's tests replay those corpora with its 7.1.0 knobs.",
+      "consumed_by": "the goip-parity guest (mkVm.nix parityIproute2) and the workbench's `nlcap-ws batch --ip`; internal/goip's request and rendering tables; pkg/nlparity. nix/capture-netlink-fixtures.nix and the other capture VMs still run nixpkgs' iproute2.",
+      "recorded_in_fixtures": "pkg/xtcpnl/testdata/<kernel>/ip_version, written by `ip -V`. That sidecar is the per-capture record and this entry is the build-time assertion. The committed corpora predate the 7.3.0 pin: most record 7.1.0 or 7.2.0, and the workbench's ws-ip730/ trees 7.3.0. pkg/xtcpnl's TestIPVersionMatchesUpstreamPin names the release per corpus, and goip's tests replay the older ones with their knobs.",
       "known_agreements": [
         "IFLA_EXT_MASK = 0x09 on a bare `ip link show`, verified on the 7.1.0 wire AND in the 7.2.0 source. filter.vfinfo is set unconditionally at ip/ipaddress.c:2153, shared by `link show` and `addr show`, and iplink_filter_req() at :2019-2026 ors in RTEXT_FILTER_VF plus RTEXT_FILTER_SKIP_STATS when !show_stats. So there is no ext-mask version skew to allowlist, which is what made the request encoder worth writing before cmd/goip existed. The other arm of the same `if` is now measured too: `ip -s link show` sends 0x01, confirmed by netlink_route_getlink_stats.pcap, which is the same 40-byte datagram with RTEXT_FILTER_SKIP_STATS cleared and is asserted directly in pkg/xtcpnl's TestLinkStatsRequestExtMask."
       ],
@@ -106,6 +106,11 @@
         "Moved 2026-10-21 (nixpkgs 02c087f3), and goip moved with it, so the seven version-skew allowlist entries that stood against 7.1.0 are gone. de91e928 (with 7bd7f335 before it) makes ll_link_get and ll_init_map send IFLA_EXT_MASK = VF|SKIP_STATS|NAME_ONLY = 0x109 (lib/ll_map.c:276-277 and :395-398); 7.1.0 sent 0x09 on the get and 0x01 on the dump. goip sends it through internal/goip/req's ExtMaskLLLinkGet and ExtMaskLLInitMap. NAME_ONLY is in the Linux 7.2 UAPI, and a 7.2+ kernel answers it with the header, IFLA_IFNAME and IFLA_PROP_LIST only (net/core/rtnetlink.c:2084-2091).",
         "faceb326 makes print_queuelen print `qlen 0` and drops the SIOCGIFTXQLEN fallback, so `ip -6 addr show` prints no qlen at all. goip's render.RenderQlenZero now defaults to true, and goip never had the ioctl.",
         "req.LLMapNameOnly = false and render.RenderQlenZero = false reproduce 7.1.0 for the committed corpora. rdma 7.2.0 changes only `dev set netns` (a write gordma refuses) and that verb's usage line, which gordma now prints."
+      ],
+      "moved_at_7_3_0": [
+        "Moved 2026-11-10, for the goip-parity guest only: nixpkgs still ships 7.2.0. goip moved with it in NX1-NX4c of docs/netlink/goip-parity-next.md, from NC3's version diff and the v730 corpus.",
+        "30365d09 prints bond `lacp_strict on|off` under -d after all_slaves_active (render.RenderBondLacpStrict). ad2b2d95 ends a nexthop's `fdb` in a space and prints a nonzero NHA_DST_PORT after it (render.RenderNhDstPort). 5faf18f6 makes ll_addr_a2n strict and fixes 7.2.0's len+1 overrun (goip.LLAddrStrict). 92f89d0e prints ovpn's mode (render.RenderOvpnMode).",
+        "The write keywords nexthop `dst_port`, bond `lacp_strict`, seg6 `lookup` and ovpn `mode` (goip.Keywords730). b8cdda55 lists maddress groups by RTM_GETMULTICAST rather than procfs, which goip's maddress follows. Each knob defaults to 7.3.0, and both goip TestMains set 7.2.0 for the older corpora."
       ],
       "on_bump": "Diff the old and new release's ip/ and lib/ trees for anything that changes a request byte or a rendered token, as moved_at_7_2_0 records for 7.2.0. Move goip's defaults to the new release behind a knob that keeps the old one, since the committed corpora still record it. Then capture at the new pin and diff the ip_* sidecars before touching any Go expectation, because a rendering change shifts the line numbers those expectations cite. TestIPVersionMatchesUpstreamPin fails until its goip release constant names the new pin."
     }

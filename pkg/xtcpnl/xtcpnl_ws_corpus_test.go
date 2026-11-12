@@ -65,6 +65,9 @@ type wsRbSpec struct {
 // failure the kernel did not, which is a finding unless the row knew. tc
 // does it whenever it refuses an argument after looking its device up,
 // since the lookup is an acknowledged request (tdc's negative cases).
+// "kernel-ignored" is the other way round: the kernel refused and the tool
+// exited 0 anyway, which is likewise a finding unless a row names it (ip
+// 7.3.0's `maddress show dev nosuch` drops its lookup's ENODEV).
 type wsExpect struct {
 	RC        *int     `json:"rc"`
 	Errno     string   `json:"errno"`
@@ -107,6 +110,7 @@ const (
 	wsRefusedKernel   = "kernel"
 	wsRefusedIproute2 = "iproute2"
 	wsRefusedAckFail  = "ack-then-fail"
+	wsRefusedIgnored  = "kernel-ignored"
 )
 
 // refusedBy classifies an observation; see wsExpect.
@@ -132,10 +136,14 @@ func wsRowProblem(exp wsExpect, obs wsObserved) error {
 	if exp.RC != nil && *exp.RC != obs.rc {
 		errs = append(errs, fmt.Errorf("rc %d, want %d", obs.rc, *exp.RC))
 	}
-	if obs.rc == 0 && obs.errno != 0 {
-		errs = append(errs, fmt.Errorf("rc 0 although the kernel refused with %s", unix.ErrnoName(obs.errno)))
-	}
 	got := obs.refusedBy()
+	if obs.rc == 0 && obs.errno != 0 {
+		if exp.RefusedBy == wsRefusedIgnored {
+			got = wsRefusedIgnored
+		} else {
+			errs = append(errs, fmt.Errorf("rc 0 although the kernel refused with %s", unix.ErrnoName(obs.errno)))
+		}
+	}
 	if exp.RefusedBy != "" && exp.RefusedBy != got {
 		errs = append(errs, fmt.Errorf("refused by %s, want %s", got, exp.RefusedBy))
 	}
@@ -188,14 +196,28 @@ func wsObserve(t *testing.T, msgs []capturedNlMsg, rc int) wsObserved {
 	return obs
 }
 
+// wsRoots are the workbench corpora: testdata/<kernel>/ws, captured with
+// the pinned iproute2, and testdata/<kernel>/ws-ip730, captured with
+// iproute2 7.3.0 (xtcp2-nlcap-ws batch --ip).
+func wsRoots(t testing.TB) []string {
+	t.Helper()
+	var roots []string
+	for _, name := range []string{"ws", "ws-ip730"} {
+		r, err := filepath.Glob(filepath.Join("testdata", "*", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		roots = append(roots, r...)
+	}
+	slices.Sort(roots)
+	return roots
+}
+
 // wsRows returns every workbench row directory under testdata, by path.
 func wsRows(t testing.TB) []string {
 	t.Helper()
 	var dirs []string
-	roots, err := filepath.Glob(filepath.Join("testdata", "*", "ws"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	roots := wsRoots(t)
 	for _, root := range roots {
 		err := filepath.WalkDir(root, func(p string, d os.DirEntry, werr error) error {
 			if werr != nil {
@@ -252,9 +274,17 @@ func TestWsCorpusRows(t *testing.T) {
 	prefixes := []string{"positive:", "negative:", "boundary:", "corner:"}
 	for _, dir := range dirs {
 		row := wsLoadRow(t, dir)
-		t.Run(row.Env.Kernel+"/"+row.ID, func(t *testing.T) {
-			if !strings.HasSuffix(filepath.ToSlash(dir), "/ws/"+row.ID) {
+		root, ip730 := "/ws/", strings.Contains(filepath.ToSlash(dir), "/ws-ip730/")
+		name := row.Env.Kernel + "/" + row.ID
+		if ip730 {
+			root, name = "/ws-ip730/", row.Env.Kernel+"/ip730/"+row.ID
+		}
+		t.Run(name, func(t *testing.T) {
+			if !strings.HasSuffix(filepath.ToSlash(dir), root+row.ID) {
 				t.Fatalf("%s holds row %s", dir, row.ID)
+			}
+			if got := strings.Contains(row.Env.Iproute2, "iproute2-7.3.0"); got != ip730 {
+				t.Fatalf("%s ran %q", dir, row.Env.Iproute2)
 			}
 			if !slices.ContainsFunc(prefixes, func(p string) bool { return strings.HasPrefix(row.Desc, p) }) {
 				t.Errorf("desc %q has no positive:/negative:/boundary:/corner: class", row.Desc)
@@ -325,6 +355,12 @@ func TestWsRowProblem(t *testing.T) {
 		{"corner: ack-then-fail, named by the row", wsExpect{RefusedBy: wsRefusedAckFail}, wsObserved{rc: 1, requests: 1}, ""},
 		{"corner: ack-then-fail with the rc the row expects (a lookup, then a refused argument)", wsExpect{RC: &one},
 			wsObserved{rc: 1, requests: 1}, ""},
+		{"corner: rc 0 despite a kernel refusal, named by the row", wsExpect{RC: &zero, Errno: "ENODEV", RefusedBy: wsRefusedIgnored},
+			wsObserved{rc: 0, requests: 1, errno: unix.ENODEV}, ""},
+		{"negative: kernel-ignored named, but the tool failed", wsExpect{RefusedBy: wsRefusedIgnored},
+			wsObserved{rc: 2, requests: 1, errno: unix.ENODEV}, "refused by kernel, want kernel-ignored"},
+		{"negative: kernel-ignored named, but nothing was refused", wsExpect{RefusedBy: wsRefusedIgnored},
+			wsObserved{rc: 0, requests: 1}, "refused by none, want kernel-ignored"},
 		{"negative: ack-then-fail with another non-zero rc", wsExpect{RC: &two},
 			wsObserved{rc: 1, requests: 1}, "rc 1 although every one of 1 requests was acknowledged"},
 	}

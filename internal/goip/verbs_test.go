@@ -25,6 +25,8 @@ var iproute2Verbs = map[string][]string{
 	"rule": {"list", "lst", "show", "save", "restore", "add", "delete", "flush", "help"},
 	// ip/ipntable.c:688-697
 	"ntable": {"change", "chg", "show", "lst", "list", "help"},
+	// ip/ipmaddr.c:479-487 (7.3.0)
+	"maddress": {"add", "delete", "list", "show", "lst", "help"},
 	// ip/ipnetconf.c:236-240
 	"netconf": {"show", "lst", "list", "help"},
 	// ip/ipnexthop.c:1442-1465

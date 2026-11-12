@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "kind": "bond",
+  "lacp_strict": "0"
+ },
+ "cmd": "ip link add b0 type bond mode 802.3ad lacp_strict off",
+ "desc": "negative: lacp_strict off",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "iproute2"
+ },
+ "id": "v730bond/off",
+ "modules": [
+  "bonding"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev b0",
+   "name": "d"
+  },
+  {
+   "cmd": "ip -d -j link show dev b0",
+   "name": "dj"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

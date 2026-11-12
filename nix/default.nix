@@ -1047,6 +1047,11 @@ in
       # isNlcapWorkbench), so this builds nothing new after a Go edit.
       microvm-x86_64-nlcap-workbench = microvms.vmsNlcapWorkbench.x86_64;
       nlcap-ws = microvms.nlcapWorkbench.x86_64.cli;
+      # iproute2 7.3.0, the parity pin (nix/iproute2-7-3-0.nix): the
+      # goip-parity guest's ip, and the workbench's `nlcap-ws batch --ip
+      # $(nix build --print-out-paths .#iproute2_7_3_0)`. Every other VM's ip
+      # stays on nixpkgs' iproute2.
+      iproute2_7_3_0 = import ./iproute2-7-3-0.nix { inherit pkgs; };
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.

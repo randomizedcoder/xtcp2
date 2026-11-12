@@ -127,6 +127,10 @@ var objects = []*object{
 	{path: "ntable",
 		params: []param{pFamily, pStats}},
 	{path: "addrlabel", object: "addrlabel"},
+	// maddr is `ip maddress show`: the groups each device has joined, its
+	// link-layer ones from /proc/net/dev_mcast and the rest by netlink.
+	{path: "maddr", object: "maddress", devPath: true,
+		params: []param{pDev, pFamily}},
 	{path: "mroute",
 		params: []param{{name: "table", kind: kindTable}, {name: "iif", kind: kindName}, pFamily, pStats}},
 	{path: "mrule",

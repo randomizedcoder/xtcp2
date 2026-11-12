@@ -66,7 +66,8 @@ func TestParseStatsSetArgs(t *testing.T) {
 	type result struct {
 		dev    string
 		enable bool
-		err    error
+		help   bool
+		err    error // ErrStatsUsage is exit 255, ErrStatsInval 22
 	}
 	tests := []struct {
 		description string
@@ -78,18 +79,18 @@ func TestParseStatsSetArgs(t *testing.T) {
 		{"positive: the suite ahead of dev", "l3_stats on dev d0", result{dev: "d0", enable: true}},
 		{"boundary: a 15-byte name, IFNAMSIZ less one", "dev abcdefghijklmno l3_stats on",
 			result{dev: "abcdefghijklmno", enable: true}},
-		{"negative: a 16-byte name", "dev abcdefghijklmnop l3_stats on", result{err: ErrInvalidArgument}},
-		{"negative: no dev", "l3_stats on", result{err: ErrInvalidArgument}},
-		{"negative: no suite", "dev d0", result{err: ErrInvalidArgument}},
-		{"negative: no arguments", "", result{err: ErrInvalidArgument}},
-		{"negative: a value neither on nor off", "dev d0 l3_stats 1", result{err: ErrInvalidArgument}},
-		{"negative: the suite twice", "dev d0 l3_stats on l3_stats off", result{err: ErrInvalidArgument}},
-		{"negative: dev twice", "dev d0 dev d1 l3_stats on", result{err: ErrInvalidArgument}},
-		{"negative: a name with a slash", "dev a/b l3_stats on", result{err: ErrInvalidArgument}},
-		{"negative: an unknown word", "dev d0 bogus", result{err: ErrInvalidArgument}},
-		{"negative: an unknown word ahead of the suite", "dev d0 bogus l3_stats on", result{err: ErrInvalidArgument}},
-		{"negative: a keyword with no value", "dev d0 l3_stats", result{err: ErrInvalidArgument}},
-		{"corner: help is not implemented", "dev d0 help", result{err: ErrNotImplemented}},
+		{"negative: a 16-byte name is invarg, exit 255", "dev abcdefghijklmnop l3_stats on", result{err: ErrStatsUsage}},
+		{"negative: no dev, exit(-1)", "l3_stats on", result{err: ErrStatsUsage}},
+		{"negative: no suite, exit(-1)", "dev d0", result{err: ErrStatsUsage}},
+		{"negative: no arguments, exit(-1)", "", result{err: ErrStatsUsage}},
+		{"negative: a value neither on nor off is parse_on_off's -EINVAL", "dev d0 l3_stats 1", result{err: ErrStatsInval}},
+		{"negative: the suite twice, -EINVAL", "dev d0 l3_stats on l3_stats off", result{err: ErrStatsInval}},
+		{"negative: dev twice is duparg2, exit 255", "dev d0 dev d1 l3_stats on", result{err: ErrStatsUsage}},
+		{"negative: a name with a slash is invarg", "dev a/b l3_stats on", result{err: ErrStatsUsage}},
+		{"negative: an unknown word, -EINVAL", "dev d0 bogus", result{err: ErrStatsInval}},
+		{"negative: an unknown word ahead of the suite", "dev d0 bogus l3_stats on", result{err: ErrStatsInval}},
+		{"negative: a keyword with no value is NEXT_ARG's exit 255", "dev d0 l3_stats", result{err: ErrStatsUsage}},
+		{"corner: help, after a dev, is the usage alone", "dev d0 help", result{help: true}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -100,8 +101,8 @@ func TestParseStatsSetArgs(t *testing.T) {
 				}
 				return
 			}
-			got := result{dev: a.dev, enable: a.enable}
-			if got != tc.expected || a.suite != unix.IFLA_STATS_SET_OFFLOAD_XSTATS_L3_STATS {
+			got := result{dev: a.dev, enable: a.enable, help: a.help}
+			if got != tc.expected || (!a.help && a.suite != unix.IFLA_STATS_SET_OFFLOAD_XSTATS_L3_STATS) {
 				t.Errorf("got %+v suite %d, want %+v", got, a.suite, tc.expected)
 			}
 		})
@@ -127,8 +128,12 @@ func TestStatsSet(t *testing.T) {
 			expected: result{gets: 1, written: true}},
 		{description: "negative: no GOIP_WRITE_OUT, after the get", noHook: true,
 			args: "set dev d0 l3_stats on", expected: result{rc: ExitUsage, gets: 1}},
-		{description: "negative: a bad argument is refused before the get",
-			args: "set dev d0 l3_stats maybe", expected: result{rc: ExitUsage}},
+		{description: "negative: a bad argument is refused before the get, -EINVAL",
+			args: "set dev d0 l3_stats maybe", expected: result{rc: ExitEINVAL}},
+		{description: "boundary: no dev is exit(-1), before the get",
+			args: "set l3_stats on", expected: result{rc: ExitMinusOne}},
+		{description: "corner: help is the usage, exit 0, nothing sent",
+			args: "set help", expected: result{}},
 		{description: "corner: `se` is no verb, strcmp", args: "se dev d0 l3_stats on",
 			expected: result{rc: ExitUsage}},
 	}

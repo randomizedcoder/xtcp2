@@ -26,9 +26,10 @@ import (
 // The rows point back at BondOptions by id, so the wire width and value
 // names still come from the one table.
 //
-// Two rows of BondOptions have no keyword here. `ad_info` is read-only, and
-// `lacp_strict` is newer than the pinned 7.1.0, whose parser does not know
-// it: `ip link add … type bond lacp_strict on` is "unknown command".
+// `ad_info`, a read-only row of BondOptions, has no keyword here.
+// `lacp_strict` is new in iproute2 7.3.0 (30365d09); before it, `ip link add
+// … type bond lacp_strict on` is "unknown command", and its arm is skipped
+// unless Keywords730.
 
 // ErrInvalidArgument is an argument `ip` refuses before it sends anything:
 // invarg, nodev, an unknown keyword, a missing value. The message after it
@@ -58,6 +59,8 @@ type bondKeyword struct {
 	arg     bondArgKind
 	// invarg is iproute2's message for a value it refuses.
 	invarg string
+	// ip730 is an arm iproute2 7.3.0 added, there only under Keywords730.
+	ip730 bool
 }
 
 // bondHelpKeywordCst is the help arm both chains end with.
@@ -101,6 +104,7 @@ var bondParseKeywords = []bondKeyword{
 	{keyword: "ad_user_port_key", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_AD_USER_PORT_KEY, arg: bondArgUint, invarg: "invalid ad_user_port_key"},
 	{keyword: "ad_actor_sys_prio", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_AD_ACTOR_SYS_PRIO, arg: bondArgUint, invarg: "invalid ad_actor_sys_prio"},
 	{keyword: "ad_actor_system", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_AD_ACTOR_SYSTEM, arg: bondArgLLAddr},
+	{keyword: "lacp_strict", match: xtcpnl.BondMatchPrefix, id: xtcpnl.IflaBondLacpStrict, arg: bondArgOnOff, ip730: true},
 	{keyword: "tlb_dynamic_lb", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_TLB_DYNAMIC_LB, arg: bondArgUint, invarg: "invalid tlb_dynamic_lb"},
 	{keyword: bondHelpKeywordCst, match: xtcpnl.BondMatchPrefix, arg: bondArgHelp},
 }
@@ -129,6 +133,9 @@ func (k *bondKeyword) matches(arg string) bool {
 
 func lookupBondKeyword(chain []bondKeyword, arg string) *bondKeyword {
 	for i := range chain {
+		if chain[i].ip730 && !Keywords730 {
+			continue
+		}
 		if chain[i].matches(arg) {
 			return &chain[i]
 		}

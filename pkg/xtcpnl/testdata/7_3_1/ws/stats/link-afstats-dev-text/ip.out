@@ -1,0 +1,6 @@
+3:d0
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 

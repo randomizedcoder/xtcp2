@@ -61,7 +61,7 @@ func linkAttrSpace() *space {
 		},
 		Bad: []badValue{
 			// ll_name_to_index's RTM_GETLINK is refused, then invarg.
-			{Axis: "master", Value: v("nosuch", "master nosuch", nil), Expect: expect{RC: intp(255), Errno: "ENODEV", RefusedBy: "kernel"},
+			{Axis: "master", Value: v("nosuch", "master nosuch", nil), Expect: expect{RC: intp(255), Errno: "ENODEV", RefusedBy: refKernel},
 				Why: "a master the kernel doesn't know: its RTM_GETLINK is ENODEV (Device does not exist)"},
 			{Axis: "master", Value: v("vrf-bridge", "vrf br0", nil), Expect: expIproute2InvargAfterDev,
 				Why: "a vrf that is a bridge (Not a valid VRF name)"},
@@ -76,7 +76,7 @@ func linkAttrSpace() *space {
 				Why: "a namespace neither named nor a pid (Invalid netns value)"},
 			{Axis: "netns", Value: v("linknsid", "link-netnsid 5", f("link_netnsid", "5")), Expect: *expKernelEINVAL,
 				Why: "a link namespace id no peer has (Unknown network namespace id)"},
-			{Axis: "carrier", Value: v("protodown", "protodown on", f("protodown", "1")), Expect: expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: "kernel"},
+			{Axis: "carrier", Value: v("protodown", "protodown on", f("protodown", "1")), Expect: expect{RC: intp(2), Errno: "ENOTSUP", RefusedBy: refKernel},
 				Why: "protodown on a dummy, which doesn't set change_proto_down (Protodown not supported by device)"},
 		},
 	}
@@ -90,7 +90,7 @@ func linkAttrSpace() *space {
 
 // expOnOff is parse_on_off's refusal: iplink_parse returns its -EINVAL,
 // which ip exits with, before sending anything.
-var expOnOff = expect{RC: intp(22), RefusedBy: "iproute2"}
+var expOnOff = expect{RC: intp(22), RefusedBy: refIproute2}
 
 // deriveLinkAttrCorners adds two rows. An xdp off that isn't last:
 // xdp_parse hands it to bpf_parse_and_load_common, which reads off as a
@@ -113,8 +113,69 @@ func deriveLinkAttrCorners([]row) []row {
 		Cmd:      "ip link set dev d0 parentdev br0",
 		Pre:      []preStep{{Cmd: linkAttrSetup}},
 		Readback: []readback{{Name: "dump", Cmd: "ip -d link show"}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     map[string]string{"parent_dev_name": "br0"},
+	}}
+}
+
+// linkNSSpace is the forms netns_get_fd takes (lib/namespace.c): a name
+// under /var/run/netns, a path, or a pid, each opened and sent as
+// IFLA_NET_NS_FD. The name is the row's own namespace, ws<slot>: one that
+// a pre step adds is bind-mounted inside ip netns exec's private mount
+// namespace and gone by the time the row runs, so ip opens the empty file
+// under it and the kernel refuses that (EINVAL), as it does /proc/self/stat
+// below. Every form but init names the namespace d0 is already in; init
+// (pid 1, the guest's own) is the one real move.
+func linkNSSpace() *space {
+	sp := &space{
+		Name: "linkns",
+		Axes: []axis{
+			{Name: "target", Values: []value{
+				v("pid", "netns $$", f("netns", "fd", "target", "pid")),
+				cv("name", "netns $(ip netns identify $$)", f("netns", "fd", "target", "name")),
+				cv("self-path", "netns /proc/self/ns/net", f("netns", "fd", "target", "path")),
+				v("pid-path", "netns /proc/$$/ns/net", f("netns", "fd", "target", "path")),
+				cv("init", "netns 1", f("netns", "fd", "target", "init")),
+			}},
+		},
+		Bad: []badValue{
+			{Axis: "target", Value: bv("zero", "netns 0", nil), Expect: expIproute2Invarg,
+				Why: "pid 0, which has no /proc entry (Invalid netns value)"},
+			{Axis: "target", Value: bv("minus", "netns -1", nil), Expect: expIproute2Invarg,
+				Why: "a negative pid (Invalid netns value)"},
+			{Axis: "target", Value: v("nopath", "netns /nonexistent", nil), Expect: expIproute2Invarg,
+				Why: "a path that doesn't exist and isn't a pid (Invalid netns value)"},
+			{Axis: "target", Value: v("notns", "netns /proc/self/stat", f("netns", "fd", "target", "path")), Expect: *expKernelEINVAL,
+				Why: "a file that isn't a namespace: ip opens it, and the kernel refuses the descriptor"},
+			{Axis: "target", Value: v("dup", "netns $$ netns $$", nil), Expect: expIproute2Invarg,
+				Why: "netns twice (duplicate \"netns\")"},
+			{Axis: "target", Value: v("linknsid", "netns $$ link-netnsid 5", f("netns", "fd", "target", "pid", "link_netnsid", "5")),
+				Expect: *expKernelEINVAL, Why: "a link-netnsid the target namespace doesn't know (Unknown network namespace id)"},
+		},
+	}
+	sp.Build = func(vals []value) row {
+		r := buildLinkCmd("ip link set dev d0 ", linkSetup, "ip -d link show", vals)
+		// The guest's namespace keeps d0, so a second move there would
+		// find the name taken.
+		r.Serial = vals[0].Name == "init"
+		return r
+	}
+	sp.Derive = deriveLinkNSAdd
+	return sp
+}
+
+// deriveLinkNSAdd adds a create into the row's namespace with an index:
+// iplink_modify puts index in ifi_index on a create, and sends
+// IFLA_NEW_IFINDEX only on a move.
+func deriveLinkNSAdd([]row) []row {
+	return []row{{
+		ID:       "linkns/add-index",
+		Desc:     "positive: add with netns and index, which a create sends as ifi_index",
+		Cmd:      "ip link add d9 netns $$ index 100 type dummy",
+		Pre:      []preStep{{Cmd: linkSetup}},
+		Readback: []readback{{Name: "dump", Cmd: "ip -d link show"}},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
+		Axes:     f("netns", "fd", "target", "pid", "ifi_index", "100", "ifname", "d9", "kind", "dummy"),
 	}}
 }
 
@@ -162,7 +223,7 @@ func linkPDSpace() *space {
 // clear protodown while a reason is active.
 func linkPDJudge(pick map[string]string) (*expect, string) {
 	if pick["protodown"] == "off" && strings.HasSuffix(pick["reason"], "-on") {
-		return &expect{RC: intp(2), Errno: "EBUSY", RefusedBy: "kernel"}, "protodown off with a reason on (Cannot clear protodown, active reasons)"
+		return &expect{RC: intp(2), Errno: "EBUSY", RefusedBy: refKernel}, "protodown off with a reason on (Cannot clear protodown, active reasons)"
 	}
 	return nil, ""
 }
@@ -198,7 +259,7 @@ func linkPropSpace() *space {
 			{Axis: "altname", Value: v("128", "altname "+linkAlt127+"b", nil), Expect: expIproute2Invarg,
 				Why: "an altname of ALTIFNAMSIZ characters (not a valid altname)"},
 			{Axis: "altname", Value: v("taken", "altname br0", f("altname", "br0")),
-				Expect: expect{RC: intp(2), Errno: "EEXIST", RefusedBy: "kernel"}, Why: "an altname another device is called"},
+				Expect: expect{RC: intp(2), Errno: "EEXIST", RefusedBy: refKernel}, Why: "an altname another device is called"},
 		},
 	}
 	sp.Build = buildLinkProp
@@ -217,7 +278,7 @@ func buildLinkCmd(prefix, setup, readbackCmd string, vals []value) row {
 		Cmd:      strings.TrimSpace(prefix + joinArgs(args...)),
 		Pre:      []preStep{{Cmd: setup}},
 		Readback: []readback{{Name: "dump", Cmd: readbackCmd}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 }
@@ -246,7 +307,7 @@ func buildLinkProp(vals []value) row {
 		Cmd:      cmd,
 		Pre:      []preStep{{Cmd: setup}},
 		Readback: []readback{{Name: "dump", Cmd: "ip -d link show dev d0"}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 }
@@ -260,7 +321,7 @@ func deriveLinkPropAbsent(pos []row) []row {
 		Cmd:      "ip link property del dev d0 altname alt9",
 		Pre:      []preStep{{Cmd: linkPropSetup}},
 		Readback: []readback{{Name: "dump", Cmd: "ip -d link show dev d0"}},
-		Expect:   expect{RC: intp(2), Errno: "ENOENT", RefusedBy: "kernel"},
+		Expect:   expect{RC: intp(2), Errno: "ENOENT", RefusedBy: refKernel},
 		Axes:     map[string]string{"op": "del", "altname": "alt9"},
 	}
 	out := []row{gone}
@@ -273,7 +334,7 @@ func deriveLinkPropAbsent(pos []row) []row {
 		r.Pre = append(append([]preStep{}, p.Pre...), preStep{Cmd: p.Cmd})
 		r.ID = "linkprop/dup-1"
 		r.Desc = "negative: " + dropPrefix(p.Desc)[1:] + ": added twice (EEXIST)"
-		r.Expect = expect{RC: intp(2), Errno: "EEXIST", RefusedBy: "kernel"}
+		r.Expect = expect{RC: intp(2), Errno: "EEXIST", RefusedBy: refKernel}
 		return append(out, r)
 	}
 	return out

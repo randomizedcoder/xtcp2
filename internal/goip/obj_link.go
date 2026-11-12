@@ -392,8 +392,10 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 // grounded on the 7_1_4 link-write fixtures), bridge (bridge_print_opt),
 // the VLAN family, vlan, macvlan, macvtap, ipvlan and ipvtap, and the UDP
 // overlays, vxlan, geneve, bareudp, amt and gtp, the twelve IP tunnel
-// kinds (gre's six, ipip, sit, ip6tnl, vti, vti6 and xfrm), and hsr and
-// netkit, grounded on the 7_3_0 kind corpus. Every other kind's blob stays undecoded and its -d render refused, which keeps the gate kind-agnostic
+// kinds (gre's six, ipip, sit, ip6tnl, vti, vti6 and xfrm), hsr and
+// netkit, grounded on the 7_3_0 kind corpus, and ovpn, on the v730 rows.
+// Every other kind's blob stays undecoded and its -d render refused, which
+// keeps the gate kind-agnostic
 // for everything goip has not verified against a capture. The list is
 // render's, so the gate and the renderer cannot disagree about which kinds
 // have a print_opt.
@@ -406,7 +408,7 @@ func renderableInfoData(kind string) bool {
 		render.IP6GreKindCst, render.IP6GretapKindCst, render.IP6ErspanKindCst,
 		render.IpipKindCst, render.SitKindCst, render.IP6TnlKindCst,
 		render.VtiKindCst, render.Vti6KindCst, render.XfrmKindCst,
-		render.HsrKindCst, render.NetkitKindCst:
+		render.HsrKindCst, render.NetkitKindCst, render.OvpnKindCst:
 		return true
 	}
 	return false

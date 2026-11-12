@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "kind": "ovpn",
+  "ovpn_mode": "0"
+ },
+ "cmd": "ip link add o0 type ovpn mode p2p",
+ "desc": "positive: mode p2p",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.3.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "v730ovpn/p2p",
+ "modules": [
+  "ovpn"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev o0",
+   "name": "d"
+  },
+  {
+   "cmd": "ip -d -j link show dev o0",
+   "name": "dj"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

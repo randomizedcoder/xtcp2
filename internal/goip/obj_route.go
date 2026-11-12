@@ -51,6 +51,9 @@ func runRoute(c *runCtx, args []string) error {
 			if w := lookupRouteWriteVerb(v.name); w != nil {
 				return routeWrite(c, w, rest)
 			}
+			if c.family == unix.AF_MPLS && v.name != routeGetVerbCst {
+				return routeMplsUnserved(v.name)
+			}
 			switch v.name {
 			case routeGetVerbCst:
 				return routeGet(c, rest)
@@ -72,6 +75,12 @@ func runRoute(c *runCtx, args []string) error {
 		return err
 	}
 	return routeShow(c, sel)
+}
+
+// routeMplsUnserved refuses a route verb goip does not run in AF_MPLS: all
+// but the writes, get and show (goip-parity-next.md, NX3).
+func routeMplsUnserved(verb string) error {
+	return fmt.Errorf("route %s in family mpls: %w", verb, ErrNotImplemented)
 }
 
 // routeSelectors is the subset of iproute2's `struct filter` that

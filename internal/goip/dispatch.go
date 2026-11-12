@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"golang.org/x/sys/unix"
 )
 
 // ErrUnknownObject is `ip`'s "Object ... is unknown" case: the argument
@@ -76,7 +77,7 @@ const (
 var objects = []object{
 	{name: addressObjectCst, run: runAddress, outputModes: true, verbs: addressVerbs},
 	{name: "addrlabel", run: runAddrLabel, verbs: addrLabelVerbs},
-	{name: "maddress"},
+	{name: "maddress", run: runMaddr, verbs: maddrVerbs},
 	{name: objRouteCst, run: runRoute, verbs: routeVerbs},
 	{name: "rule", run: runRule, verbs: ruleVerbs},
 	{name: "neighbor", run: runNeigh, verbs: neighVerbs},
@@ -339,6 +340,21 @@ func (c *runCtx) outputMode() string {
 func outputModeMsg(c *runCtx, obj *object) string {
 	if opt := c.outputMode(); opt != "" && !obj.outputModes {
 		return "option " + opt + " is only implemented for address"
+	}
+	return ""
+}
+
+// familyMsg is Run's refusal of a family goip reads for no object or for
+// this one, or "": AF_MPLS (-M, -f mpls) for anything but route, whose
+// writes and gets take labels (goip-parity-next.md, NX3), and AF_BRIDGE
+// (-f bridge) everywhere. ip reads either on every object; accepting one
+// an object ignores would show up as a render divergence, not a refusal.
+func familyMsg(family uint8, obj *object) string {
+	switch {
+	case family == unix.AF_BRIDGE:
+		return "family bridge is not implemented"
+	case family == unix.AF_MPLS && obj.canonical() != objRouteCst:
+		return "family mpls is only implemented for route"
 	}
 	return ""
 }

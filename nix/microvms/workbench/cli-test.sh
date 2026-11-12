@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Hermetic table test for xtcp2-nlcap-ws's argument handling and row-json
 # (run by checks.nlcap-ws). Every case here must be decided before the CLI
 # needs a VM, so none of them boots one. NLCAP_WS_STATE points at an empty
@@ -34,6 +35,18 @@ check "negative: batch with no file" 2 "no rows file" batch
 check "negative: batch with a missing file" 2 "no such file" batch /nonexistent
 check "negative: batch -j not a number" 2 "-j wants a number" batch cli-test.sh -j x
 check "negative: run while down" 2 "the workbench is down" run --slug a/b -- ip link
+check "negative: batch --ip with no bin/ip" 2 "no ip in /nonexistent/bin" \
+  batch cli-test.sh --ip /nonexistent
+check "negative: batch --ip with no value" 2 "--ip wants an iproute2 store path" \
+  batch cli-test.sh --ip
+check "negative: run --ip with no value" 2 "run: --ip wants a value" \
+  run --slug a/b --ip
+mkdir -p fake-iproute2/bin && printf '#!/bin/sh\n' >fake-iproute2/bin/ip &&
+  chmod +x fake-iproute2/bin/ip
+check "positive: batch --ip with a bin/ip gets as far as need_up" 2 \
+  "the workbench is down" batch cli-test.sh --ip "$PWD/fake-iproute2"
+check "corner: --helper and --ip together get as far as need_up" 2 \
+  "the workbench is down" batch cli-test.sh --helper /x --ip "$PWD/fake-iproute2"
 check "boundary: status while down" 1 "down" status
 
 # row-json: what `run` would send, checked by the batch runner's own parser.

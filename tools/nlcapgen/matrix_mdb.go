@@ -29,7 +29,7 @@ const mdbVxSetup = "ip link add d1 type dummy && ip link set d1 up && ip addr ad
 	" && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up"
 
 // expBridgeERANGE is a value a policy's range refuses.
-var expBridgeERANGE = &expect{RC: intp(255), Errno: "ERANGE", RefusedBy: "kernel"}
+var expBridgeERANGE = &expect{RC: intp(255), Errno: "ERANGE", RefusedBy: refKernel}
 
 var mdbVerbs = axis{Name: "verb", Values: []value{
 	v("add", "add", f("verb", "add")),
@@ -391,7 +391,7 @@ func buildMdb(sp *space, vals []value, setup string) row {
 	r := row{
 		Cmd:    "bridge mdb " + vals[0].Arg + " " + joinArgs(args...),
 		Pre:    []preStep{{Cmd: setup}},
-		Expect: expect{RC: intp(0), RefusedBy: "none"},
+		Expect: expect{RC: intp(0), RefusedBy: refNone},
 		Axes:   mergeFacts(vals),
 	}
 	dev := r.Axes["dev"]

@@ -92,7 +92,7 @@ func TestEthShowJudge(t *testing.T) {
 			exp, why := ethShowJudge(tc.pick)
 			got := ""
 			if exp != nil {
-				got = exp.RefusedBy + " " + exp.Errno + " " + strconv.Itoa(*exp.RC)
+				got = string(exp.RefusedBy) + " " + exp.Errno + " " + strconv.Itoa(*exp.RC)
 				if why == "" {
 					t.Error("a refusal without a reason")
 				}
@@ -168,10 +168,10 @@ func TestMatrixEthtoolRows(t *testing.T) {
 			return rc == 0 || slices.Contains(refusalRC[strings.Split(r.ID, "/")[0]], rc)
 		}},
 		{"positive: every kernel refusal names an errno", func(r *row) bool {
-			return r.Expect.RefusedBy != "kernel" || r.Expect.Errno != ""
+			return r.Expect.RefusedBy != refKernel || r.Expect.Errno != ""
 		}},
 		{"negative: no accepted row expects an errno or a refusal", func(r *row) bool {
-			return *r.Expect.RC != 0 || (r.Expect.Errno == "" && r.Expect.RefusedBy == "none")
+			return *r.Expect.RC != 0 || (r.Expect.Errno == "" && r.Expect.RefusedBy == refNone)
 		}},
 		{"corner: every set row names its commands and reads back once", func(r *row) bool {
 			if strings.HasPrefix(r.ID, "ethshow/") {

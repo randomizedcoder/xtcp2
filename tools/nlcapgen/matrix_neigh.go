@@ -81,7 +81,7 @@ func neighBad() []badValue {
 	return []badValue{
 		{Axis: "lladdr", Value: v("short", "lladdr 02:00", f("lladdr", "02:00")), Expect: *expKernelEINVAL,
 			Why: "a link-layer address shorter than the device's (Invalid link address)"},
-		{Axis: "lladdr", Value: v("garbage", "lladdr zz", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+		{Axis: "lladdr", Value: v("garbage", "lladdr zz", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 			Why: "a link-layer address ll_addr_a2n can't read"},
 		{Axis: "nud", Value: v("two-bits", "nud 3", nil), Expect: expIproute2Invarg, Why: "a numeric state of two bits (nud state is bad)"},
 		{Axis: "nud", Value: v("nosuch", "nud nosuch", nil), Expect: expIproute2Invarg, Why: "an unknown state"},
@@ -109,9 +109,9 @@ func neigh4Space() *space {
 			neighProtos(),
 		},
 		Bad: append(neighBad(),
-			badValue{Axis: "dst", Value: v("256", "192.0.2.256", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "dst", Value: v("256", "192.0.2.256", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "an address get_addr can't read"},
-			badValue{Axis: "dst", Value: v("v6", "2001:db8:1::1", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "dst", Value: v("v6", "2001:db8:1::1", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "an IPv6 destination under -4"},
 		),
 	}
@@ -138,7 +138,7 @@ func neigh6Space() *space {
 			neighProtos(),
 		},
 		Bad: append(neighBad(),
-			badValue{Axis: "dst", Value: v("v4", "192.0.2.1", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "dst", Value: v("v4", "192.0.2.1", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "an IPv4 destination under -6"},
 		),
 	}
@@ -198,7 +198,7 @@ func neighJudge(pick map[string]string) (*expect, string) {
 		return nil, ""
 	}
 	if v := pick["verb"]; v == "change" || v == "del" {
-		return &expect{RC: intp(2), Errno: "ENOENT", RefusedBy: "kernel"}, "a " + v + " of an entry its add could not create"
+		return &expect{RC: intp(2), Errno: "ENOENT", RefusedBy: refKernel}, "a " + v + " of an entry its add could not create"
 	}
 	return exp, why
 }
@@ -221,7 +221,7 @@ func deriveNeighChangeGone(name string, pos []row) []row {
 		r.Pre = append([]preStep{}, p.Pre[:len(p.Pre)-1]...)
 		r.ID = name + "/chgone-" + string(rune('1'+len(out)))
 		r.Desc = "negative: " + strings.TrimPrefix(dropPrefix(p.Desc), " ") + ": changed but never added (ENOENT)"
-		r.Expect = expect{RC: intp(2), Errno: "ENOENT", RefusedBy: "kernel"}
+		r.Expect = expect{RC: intp(2), Errno: "ENOENT", RefusedBy: refKernel}
 		out = append(out, r)
 	}
 	return out
@@ -243,7 +243,7 @@ func buildNeigh(fam string, axes []axis, vals []value) row {
 		Cmd:      head + verb.Arg + " " + tail,
 		Pre:      []preStep{{Cmd: neighSetup}},
 		Readback: []readback{{Name: "dump", Cmd: show}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 	r.Axes["family"] = fam

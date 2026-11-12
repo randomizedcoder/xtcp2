@@ -187,7 +187,7 @@ func rule4Space() *space {
 				Why: "a tos past IPTOS_TOS_MASK (Invalid tos)"},
 			badValue{Axis: "extra", Value: v("flowlabel", "flowlabel 1", f("flowlabel", "1", "flowlabel_mask", "1048575")),
 				Expect: *expKernelEINVAL, Why: "a flow label on an IPv4 rule (Flow label cannot be specified for IPv4 FIB rules)"},
-			badValue{Axis: "from", Value: v("33", "from 198.51.100.0/33", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "from", Value: v("33", "from 198.51.100.0/33", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "a prefix length past 32 (get_prefix exits 1)"},
 		),
 	}
@@ -243,7 +243,7 @@ func rule6Space() *space {
 				Why: "flow label bits outside its mask (Flow label and mask do not match)"},
 			badValue{Axis: "extra", Value: v("flowlabel-wide", "flowlabel 0x100000", f("flowlabel", "1048576", "flowlabel_mask", "1048575")), Expect: *expKernelEINVAL,
 				Why: "a flow label past 20 bits under the default mask (Flow label and mask do not match)"},
-			badValue{Axis: "from", Value: v("129", "from 2001:db8:2::/129", nil), Expect: expect{RC: intp(1), RefusedBy: "iproute2"},
+			badValue{Axis: "from", Value: v("129", "from 2001:db8:2::/129", nil), Expect: expect{RC: intp(1), RefusedBy: refIproute2},
 				Why: "a prefix length past 128 (get_prefix exits 1)"},
 		),
 	}
@@ -266,7 +266,7 @@ func ruleBad() []badValue {
 		{Axis: "ds", Value: v("dscp-mask-short", "dscp 32/0x10", f("dscp", "32", "dscp_mask", "16")), Expect: *expKernelEINVAL,
 			Why: "DSCP bits outside its mask (Invalid DSCP mask)"},
 		{Axis: "ds", Value: v("dscp-64", "dscp 64", f("dscp", "64")),
-			Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: "kernel"},
+			Expect: expect{RC: intp(2), Errno: "ERANGE", RefusedBy: refKernel},
 			Why:    "a DSCP past 6 bits, which iproute2 sends and fib_rule_policy's NLA_POLICY_MAX refuses (Error parsing msg)"},
 		{Axis: "sport", Value: v("0", "sport 0", f("sport", "0-0")), Expect: *expKernelEINVAL,
 			Why: "port 0 (Invalid sport range)"},
@@ -297,7 +297,7 @@ func ruleJudge(pick map[string]string) (*expect, string) {
 		bare = bare && (name == "verb" || val == "absent")
 	}
 	if bare {
-		return &expect{RC: intp(1), RefusedBy: "iproute2"}, "a rule with no arguments (\"ip rule " + pick["verb"] + "\" requires arguments)"
+		return &expect{RC: intp(1), RefusedBy: refIproute2}, "a rule with no arguments (\"ip rule " + pick["verb"] + "\" requires arguments)"
 	}
 	if pick["action"] == "goto" && pick["pref"] == "max" {
 		return expKernelEINVAL, "a goto target below the rule's preference (Backward goto not supported)"
@@ -328,7 +328,7 @@ func buildRule(fam string, axes []axis, vals []value) row {
 		Cmd:      strings.TrimSpace(head + verb.Arg + " " + tail),
 		Pre:      []preStep{{Cmd: routeSetup}},
 		Readback: []readback{{Name: "dump", Cmd: "ip -" + fam + " rule show"}},
-		Expect:   expect{RC: intp(0), RefusedBy: "none"},
+		Expect:   expect{RC: intp(0), RefusedBy: refNone},
 		Axes:     mergeFacts(vals),
 	}
 	r.Axes["family"] = fam

@@ -42,7 +42,7 @@ func TestNeighJudge(t *testing.T) {
 			exp, why := neighJudge(tc.pick)
 			got := ""
 			if exp != nil {
-				got = strings.TrimSpace(exp.RefusedBy + " " + exp.Errno)
+				got = strings.TrimSpace(string(exp.RefusedBy) + " " + exp.Errno)
 				if why == "" {
 					t.Error("a refusal with no reason")
 				}
@@ -135,7 +135,7 @@ func TestDeriveNeighChangeGone(t *testing.T) {
 		{"positive: the first is the first plain change that succeeded", out[0].Cmd + " " + out[0].ID, "ip -4 neigh change y n/chgone-1"},
 		{"negative: a proxy change is not taken", out[0].Axes["proxy"], ""},
 		{"positive: its add is dropped", lastPre(out[0]), neighSetup},
-		{"positive: it expects ENOENT from the kernel", out[0].Expect.Errno + " " + out[0].Expect.RefusedBy, "ENOENT kernel"},
+		{"positive: it expects ENOENT from the kernel", out[0].Expect.Errno + " " + string(out[0].Expect.RefusedBy), "ENOENT kernel"},
 		{"negative: it is a negative row", out[0].Desc[:9], "negative:"},
 		{"corner: the source row keeps its add", lastPre(pos[3]), "ip -4 neigh add y"},
 	}

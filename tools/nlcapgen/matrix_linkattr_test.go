@@ -121,7 +121,7 @@ func TestLinkPDJudge(t *testing.T) {
 			exp, why := linkPDJudge(map[string]string{"protodown": tc.protodown, "reason": tc.reason})
 			got := ""
 			if exp != nil {
-				got = strings.TrimSpace(exp.RefusedBy + " " + exp.Errno)
+				got = strings.TrimSpace(string(exp.RefusedBy) + " " + exp.Errno)
 				if why == "" {
 					t.Error("a refusal with no reason")
 				}
@@ -251,6 +251,8 @@ func TestMatrixLinkAttrRows(t *testing.T) {
 				return strings.HasPrefix(r.Cmd, "ip link set dev d0")
 			case "linkpd":
 				return strings.HasPrefix(r.Cmd, "ip link set dev m0")
+			case "linkns":
+				return strings.HasPrefix(r.Cmd, "ip link set dev d0 netns ") || r.ID == "linkns/add-index"
 			default:
 				return strings.HasPrefix(r.Cmd, "ip link property ") || strings.HasPrefix(r.Cmd, "ip link show ")
 			}
@@ -264,5 +266,52 @@ func TestMatrixLinkAttrRows(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLinkNSRows(t *testing.T) {
+	rows, err := matrixRows([]*space{linkNSSpace()}, matrixOpts{Seed: 1, Random: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byCmd := map[string]row{}
+	for _, r := range rows {
+		byCmd[r.Cmd] = r
+	}
+	cases := []struct {
+		description string
+		cmd         string
+		expected    string // rc, refused by, errno, serial, the target fact
+	}{
+		{"positive: by pid", "ip link set dev d0 netns $$", "0 none  false pid"},
+		{"positive: by name, the row's own namespace", "ip link set dev d0 netns $(ip netns identify $$)", "0 none  false name"},
+		{"positive: by path", "ip link set dev d0 netns /proc/self/ns/net", "0 none  false path"},
+		{"positive: by a pid's path", "ip link set dev d0 netns /proc/$$/ns/net", "0 none  false path"},
+		{"corner: the one real move runs alone", "ip link set dev d0 netns 1", "0 none  true init"},
+		{"positive: add with netns and index", "ip link add d9 netns $$ index 100 type dummy", "0 none  false pid"},
+		{"boundary: pid 0", "ip link set dev d0 netns 0", "255 iproute2  false "},
+		{"boundary: a negative pid", "ip link set dev d0 netns -1", "255 iproute2  false "},
+		{"negative: a path that doesn't exist", "ip link set dev d0 netns /nonexistent", "255 iproute2  false "},
+		{"negative: a file that isn't a namespace", "ip link set dev d0 netns /proc/self/stat", "2 kernel EINVAL false path"},
+		{"negative: netns twice", "ip link set dev d0 netns $$ netns $$", "255 iproute2  false "},
+		{"corner: netns with a link-netnsid", "ip link set dev d0 netns $$ link-netnsid 5", "2 kernel EINVAL false pid"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			r, ok := byCmd[tc.cmd]
+			if !ok {
+				t.Fatalf("no row runs %q", tc.cmd)
+			}
+			got := fmt.Sprintf("%d %s %s %t %s", *r.Expect.RC, r.Expect.RefusedBy, r.Expect.Errno, r.Serial, r.Axes["target"])
+			if got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+			if r.Pre[0].Cmd != linkSetup || r.Readback[0].Cmd != "ip -d link show" {
+				t.Errorf("pre %q readback %q", r.Pre[0].Cmd, r.Readback[0].Cmd)
+			}
+		})
+	}
+	if len(rows) != len(cases) {
+		t.Errorf("%d rows, want %d", len(rows), len(cases))
 	}
 }

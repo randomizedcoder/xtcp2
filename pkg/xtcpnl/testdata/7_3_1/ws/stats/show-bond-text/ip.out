@@ -1,0 +1,174 @@
+1: lo: group afstats subgroup mpls
+    RX: bytes packets errors dropped noroute
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 
+1: lo: group link
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+1: lo: group offload subgroup l3_stats off used off
+1: lo: group offload subgroup hw_stats_info
+    l3_stats off used off
+1: lo: group offload subgroup cpu_hit
+
+1: lo: group xstats_slave subgroup bond suite 802.3ad
+1: lo: group xstats subgroup bond suite 802.3ad
+1: lo: group xstats_slave subgroup bridge suite vlan
+1: lo: group xstats_slave subgroup bridge suite mcast
+1: lo: group xstats_slave subgroup bridge suite stp
+1: lo: group xstats subgroup bridge suite vlan
+1: lo: group xstats subgroup bridge suite mcast
+1: lo: group xstats subgroup bridge suite stp
+
+2: nlmon0: group afstats subgroup mpls
+    RX: bytes packets errors dropped noroute
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 
+2: nlmon0: group link
+    RX:  bytes packets errors dropped  missed   mcast           
+          1424      30      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+2: nlmon0: group offload subgroup l3_stats off used off
+2: nlmon0: group offload subgroup hw_stats_info
+    l3_stats off used off
+2: nlmon0: group offload subgroup cpu_hit
+
+2: nlmon0: group xstats_slave subgroup bond suite 802.3ad
+2: nlmon0: group xstats subgroup bond suite 802.3ad
+2: nlmon0: group xstats_slave subgroup bridge suite vlan
+2: nlmon0: group xstats_slave subgroup bridge suite mcast
+2: nlmon0: group xstats_slave subgroup bridge suite stp
+2: nlmon0: group xstats subgroup bridge suite vlan
+2: nlmon0: group xstats subgroup bridge suite mcast
+2: nlmon0: group xstats subgroup bridge suite stp
+
+3: d0: group afstats subgroup mpls
+    RX: bytes packets errors dropped noroute
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 
+3: d0: group link
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+3: d0: group offload subgroup l3_stats off used off
+3: d0: group offload subgroup hw_stats_info
+    l3_stats off used off
+3: d0: group offload subgroup cpu_hit
+
+3: d0: group xstats_slave subgroup bond suite 802.3ad
+3: d0: group xstats subgroup bond suite 802.3ad
+3: d0: group xstats_slave subgroup bridge suite vlan
+3: d0: group xstats_slave subgroup bridge suite mcast
+3: d0: group xstats_slave subgroup bridge suite stp
+3: d0: group xstats subgroup bridge suite vlan
+3: d0: group xstats subgroup bridge suite mcast
+3: d0: group xstats subgroup bridge suite stp
+
+4: bond0: group afstats subgroup mpls
+    RX: bytes packets errors dropped noroute
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 
+4: bond0: group link
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+4: bond0: group offload subgroup l3_stats off used off
+4: bond0: group offload subgroup hw_stats_info
+    l3_stats off used off
+4: bond0: group offload subgroup cpu_hit
+
+4: bond0: group xstats_slave subgroup bond suite 802.3ad
+4: bond0: group xstats subgroup bond suite 802.3ad
+                    LACPDU Rx 0
+                    LACPDU Tx 0
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+4: bond0: group xstats_slave subgroup bridge suite vlan
+4: bond0: group xstats_slave subgroup bridge suite mcast
+4: bond0: group xstats_slave subgroup bridge suite stp
+4: bond0: group xstats subgroup bridge suite vlan
+4: bond0: group xstats subgroup bridge suite mcast
+4: bond0: group xstats subgroup bridge suite stp
+
+5: d2: group afstats subgroup mpls
+    RX: bytes packets errors dropped noroute
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 
+5: d2: group link
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+5: d2: group offload subgroup l3_stats off used off
+5: d2: group offload subgroup hw_stats_info
+    l3_stats off used off
+5: d2: group offload subgroup cpu_hit
+
+5: d2: group xstats_slave subgroup bond suite 802.3ad
+                    LACPDU Rx 0
+                    LACPDU Tx 0
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+5: d2: group xstats subgroup bond suite 802.3ad
+5: d2: group xstats_slave subgroup bridge suite vlan
+5: d2: group xstats_slave subgroup bridge suite mcast
+5: d2: group xstats_slave subgroup bridge suite stp
+5: d2: group xstats subgroup bridge suite vlan
+5: d2: group xstats subgroup bridge suite mcast
+5: d2: group xstats subgroup bridge suite stp
+
+6: d3: group afstats subgroup mpls
+    RX: bytes packets errors dropped noroute
+            0       0      0       0       0 
+    TX: bytes packets errors dropped
+            0       0      0       0 
+6: d3: group link
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+6: d3: group offload subgroup l3_stats off used off
+6: d3: group offload subgroup hw_stats_info
+    l3_stats off used off
+6: d3: group offload subgroup cpu_hit
+
+6: d3: group xstats_slave subgroup bond suite 802.3ad
+                    LACPDU Rx 0
+                    LACPDU Tx 0
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+6: d3: group xstats subgroup bond suite 802.3ad
+6: d3: group xstats_slave subgroup bridge suite vlan
+6: d3: group xstats_slave subgroup bridge suite mcast
+6: d3: group xstats_slave subgroup bridge suite stp
+6: d3: group xstats subgroup bridge suite vlan
+6: d3: group xstats subgroup bridge suite mcast
+6: d3: group xstats subgroup bridge suite stp
+

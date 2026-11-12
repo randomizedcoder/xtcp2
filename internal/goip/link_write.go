@@ -112,6 +112,7 @@ const (
 	linkArmIndex       // atoi, positive: ifi_index on a create
 	linkArmLinkNetnsid // get_integer, IFLA_LINK_NETNSID s32
 	linkArmParentdev   // IFLA_PARENT_DEV_NAME with its NUL
+	linkArmNetns       // netns_get_fd, IFLA_NET_NS_FD
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -166,7 +167,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "xdpdrv", arm: linkArmXdp, xdpMode: unix.XDP_FLAGS_DRV_MODE},
 	{keyword: "xdpoffload", arm: linkArmXdp, xdpMode: unix.XDP_FLAGS_HW_MODE},
 	{keyword: "xdp", arm: linkArmXdp},
-	{keyword: "netns", arm: linkArmUnsupported},
+	{keyword: "netns", arm: linkArmNetns},
 	{keyword: "multicast", arm: linkArmFlag, flag: unix.IFF_MULTICAST, onSets: true},
 	{keyword: "allmulticast", arm: linkArmFlag, flag: unix.IFF_ALLMULTI, onSets: true},
 	{keyword: "promisc", arm: linkArmFlag, flag: unix.IFF_PROMISC, onSets: true},
@@ -336,15 +337,20 @@ type linkParseState struct {
 	// `link-netnsid -1` reads as never given.
 	index      int32
 	hasNetnsid bool
+	// moveNetns is iplink_parse's move_netns: a `netns` was given, which
+	// makes `index` legal on a set. fds keeps the namespace open until the
+	// request is written, as ip's open_fds does.
+	moveNetns bool
+	fds       *openFds
 }
 
 // parseLinkArgs is iplink_parse for the keywords goip implements. create
 // is NLM_F_CREATE in the request, which decides how the device is
 // addressed: by name on add and replace, by ifindex otherwise.
 func parseLinkArgs(args []string, create bool, family uint8, resolve linkResolver, isVRF vrfChecker,
-	fetch linkDataFetcher) (linkParsed, error) {
+	fetch linkDataFetcher, fds *openFds) (linkParsed, error) {
 	st := linkParseState{create: create, resolve: resolve, isVRF: isVRF, family: family, fetch: fetch,
-		mtu: -1, qlen: -1, txq: -1, rxq: -1}
+		fds: fds, mtu: -1, qlen: -1, txq: -1, rxq: -1}
 	i := 0
 loop:
 	for ; i < len(args); i++ {
@@ -495,7 +501,7 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 		return st.onOffU8(kw.keyword, v)
 	case linkArmBroadcast, linkArmLinkMode, linkArmOperstate:
 		return st.linkState(kw.arm, v)
-	case linkArmIndex, linkArmLinkNetnsid, linkArmParentdev:
+	case linkArmIndex, linkArmLinkNetnsid, linkArmParentdev, linkArmNetns:
 		return st.linkIdentity(kw.arm, v)
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
@@ -703,9 +709,11 @@ func (st *linkParseState) linkState(arm linkArm, v string) error {
 	return nil
 }
 
-// linkIdentity is the index, link-netnsid and parentdev arms.
+// linkIdentity is the index, link-netnsid, parentdev and netns arms.
 func (st *linkParseState) linkIdentity(arm linkArm, v string) error {
 	switch arm {
+	case linkArmNetns:
+		return st.netns(v)
 	case linkArmIndex:
 		if st.index != 0 {
 			return linkUsage(dupargErr("index", v))
@@ -727,6 +735,28 @@ func (st *linkParseState) linkIdentity(arm linkArm, v string) error {
 	default: // linkArmParentdev
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrString(unix.IFLA_PARENT_DEV_NAME, v))
 	}
+	return nil
+}
+
+// netns is iplink_parse's netns arm (ip/iplink.c:964): the namespace by
+// name, path or pid, its descriptor sent as IFLA_NET_NS_FD in the
+// keyword's place.
+func (st *linkParseState) netns(v string) error {
+	if st.moveNetns {
+		return linkUsage(dupargErr("netns", v))
+	}
+	fd, ok := netnsGetFd(v)
+	if !ok {
+		return linkUsage(invargErr("Invalid \"netns\" value\n", v))
+	}
+	st.fds.add(fd)
+	// open(2) returns a non-negative int, so the bound never fails.
+	u, ok := cint.U32(fd)
+	if !ok {
+		return linkUsage(invargErr("Invalid \"netns\" value\n", v))
+	}
+	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_NET_NS_FD, u))
+	st.moveNetns = true
 	return nil
 }
 
@@ -901,8 +931,7 @@ func (st *linkParseState) finish() error {
 		}
 	}
 
-	// goip doesn't implement netns, so move_netns is never set here.
-	if st.index != 0 && !st.create {
+	if st.index != 0 && !st.create && !st.moveNetns {
 		return linkUsage(fmt.Errorf("%w: index can be used only when creating devices or when moving device to another netns",
 			ErrInvalidArgument))
 	}
@@ -926,6 +955,9 @@ func (st *linkParseState) finish() error {
 			return nodevErr(st.dev)
 		}
 		st.out.index = idx
+		if st.index != 0 {
+			st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_NEW_IFINDEX, cint.Bits(st.index)))
+		}
 		if !sameName {
 			st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrString(unix.IFLA_IFNAME, st.name))
 		}
@@ -1016,9 +1048,9 @@ const (
 // buildLinkWrite is iplink_modify up to the send: parse, then the kind and
 // its options. fetch is the tunnel parsers' prefetch.
 func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []string, resolve linkResolver,
-	isVRF vrfChecker, fetch linkDataFetcher,
+	isVRF vrfChecker, fetch linkDataFetcher, fds *openFds,
 ) (xtcpnl.LinkWrite, error) {
-	p, err := parseLinkArgs(args, verb.create(), family, resolve, isVRF, fetch)
+	p, err := parseLinkArgs(args, verb.create(), family, resolve, isVRF, fetch, fds)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
 	}
@@ -1047,13 +1079,25 @@ func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []
 	if len(p.rest) == 0 {
 		return w, nil
 	}
-	env := &kindEnv{errOut: errOut, verb: verb, family: family, index: p.index, resolve: resolve, isVRF: isVRF, fetch: fetch}
+	env := &kindEnv{errOut: errOut, verb: verb, family: family, index: p.index, resolve: resolve, isVRF: isVRF, fetch: fetch,
+		fds: fds}
 	w.Data, err = kindData(env, p.kind, p.rest)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
 	}
 	w.HasData = true
 	return w, nil
+}
+
+// noParseOptData is iplink_modify's else arm, for a kind with no
+// parse_opt and arguments after it: `help` is ip link's usage, and any other
+// word is garbage.
+func noParseOptData(rest []string) ([]byte, error) {
+	if matchesPrefix(rest[0], bondHelpKeywordCst) {
+		return nil, fmt.Errorf("%w: ip link help is not implemented by goip", ErrNotImplemented)
+	}
+	return nil, fmt.Errorf("%w: Garbage instead of arguments \"%s ...\". Try \"ip link help\"",
+		ErrInvalidArgument, rest[0])
 }
 
 // kindData is lu->parse_opt for the kinds goip implements, run only when
@@ -1135,14 +1179,12 @@ func kindData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 			return nil, err
 		}
 		return xtcpnl.EncodeBatadvInfoData(settings)
+	case kindOvpnCst:
+		return ovpnData(errOut, rest)
 	case kindDummyCst, kindIfbCst, kindNlmonCst, kindVcanCst, kindTeamCst, kindTeamSlaveCst, kindVrfSlaveCst:
 		// These kinds have no parse_opt (ip/iplink_dummy.c, ifb.c and
 		// so on), so iplink_modify takes its else arm.
-		if matchesPrefix(rest[0], bondHelpKeywordCst) {
-			return nil, fmt.Errorf("%w: ip link help is not implemented by goip", ErrNotImplemented)
-		}
-		return nil, fmt.Errorf("%w: Garbage instead of arguments \"%s ...\". Try \"ip link help\"",
-			ErrInvalidArgument, rest[0])
+		return noParseOptData(rest)
 	default:
 		return nil, fmt.Errorf("link type %q options: %w", kind, ErrNotImplemented)
 	}
@@ -1200,7 +1242,7 @@ func vethData(env *kindEnv, kind string, rest []string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("%w: veth: expected \"peer\", not %q", ErrInvalidArgument, rest[0])
 	}
-	p, err := parseLinkArgs(rest[1:], env.verb.create(), env.family, env.resolve, env.isVRF, env.fetch)
+	p, err := parseLinkArgs(rest[1:], env.verb.create(), env.family, env.resolve, env.isVRF, env.fetch, env.fds)
 	if err != nil {
 		return nil, err
 	}
@@ -1229,7 +1271,9 @@ const vxcanUsageLine = "Usage: ip link <options> type vxcan [peer <options>]"
 func linkWrite(c *runCtx, verb *linkWriteVerb, args []string) error {
 	svc := service.New(c.src, c.nextSeq)
 	isVRF := func(name string) (bool, error) { return svc.IsVRF(c.family, name) }
-	w, err := buildLinkWrite(c.errOut, verb, c.family, args, newLinkNameResolver(svc), isVRF, svc.LinkInfoDataByIndex)
+	var fds openFds
+	defer fds.close()
+	w, err := buildLinkWrite(c.errOut, verb, c.family, args, newLinkNameResolver(svc), isVRF, svc.LinkInfoDataByIndex, &fds)
 	if err != nil {
 		return err
 	}

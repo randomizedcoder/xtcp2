@@ -1,0 +1,29 @@
+{
+ "axes": {
+  "maddr": "all"
+ },
+ "cmd": "ip maddress show dev nosuch",
+ "desc": "positive: maddress show of a device that isn't there, rc 0 at both: 7.3.0 drops its lookup's ENODEV",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "v730maddr/nosuch",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip maddr add 33:33:00:00:00:99 dev d0 && ip addr add 239.1.1.1/32 dev d0 autojoin && ip -6 addr add ff05::1234/128 dev d0 autojoin"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip maddr add 33:33:00:00:00:99 dev d0 && ip addr add 239.1.1.1/32 dev d0 autojoin && ip -6 addr add ff05::1234/128 dev d0 autojoin",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

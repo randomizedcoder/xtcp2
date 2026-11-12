@@ -29,18 +29,18 @@ const fdbVxSetup = "ip link add d1 type dummy && ip link set d1 up && ip addr ad
 
 var (
 	// expBridgeEINVAL and its kin are a kernel refusal as bridge reports it.
-	expBridgeEINVAL = &expect{RC: intp(255), Errno: "EINVAL", RefusedBy: "kernel"}
-	expBridgeENOENT = &expect{RC: intp(255), Errno: "ENOENT", RefusedBy: "kernel"}
+	expBridgeEINVAL = &expect{RC: intp(255), Errno: "EINVAL", RefusedBy: refKernel}
+	expBridgeENOENT = &expect{RC: intp(255), Errno: "ENOENT", RefusedBy: refKernel}
 	// expBridgeEOPNOTSUPP is EOPNOTSUPP, which Go names ENOTSUP (both 95).
-	expBridgeEOPNOTSUPP = &expect{RC: intp(255), Errno: "ENOTSUP", RefusedBy: "kernel"}
+	expBridgeEOPNOTSUPP = &expect{RC: intp(255), Errno: "ENOTSUP", RefusedBy: refKernel}
 	// expBridgeArgs is bridge refusing its arguments (fdb_modify's return
 	// -1, or invarg). do_fdb has already dumped the links (ll_init_map), so
 	// the run sent a request and exits 255 after its acknowledgment; no
 	// fdb request goes out, which the corpus test checks.
-	expBridgeArgs = expect{RC: intp(255), RefusedBy: "ack-then-fail"}
+	expBridgeArgs = expect{RC: intp(255), RefusedBy: refAckThenFail}
 	// expBridgeENODEV is a device name ll_name_to_index cannot resolve:
 	// ll_link_get's RTM_GETLINK for it is refused, and bridge stops there.
-	expBridgeENODEV = expect{RC: intp(255), Errno: "ENODEV", RefusedBy: "kernel"}
+	expBridgeENODEV = expect{RC: intp(255), Errno: "ENODEV", RefusedBy: refKernel}
 )
 
 // fdbVerbs: do_fdb's add is NLM_F_CREATE|EXCL, append CREATE|APPEND and
@@ -368,7 +368,7 @@ func fdbVxTwice(sp *space) []row {
 			r.Desc = "corner: replace under the device's own src_vni, twice: the second updates the entry"
 		} else {
 			r.Desc = "negative: replace under a foreign src_vni, twice: the second finds nothing and inserts a duplicate key (EEXIST)"
-			r.Expect = expect{RC: intp(255), Errno: "EEXIST", RefusedBy: "kernel"}
+			r.Expect = expect{RC: intp(255), Errno: "EEXIST", RefusedBy: refKernel}
 		}
 		out = append(out, r)
 	}
@@ -392,7 +392,7 @@ func fdbVxAdd(p map[string]string) (*expect, string) {
 	case fdbVxNh(p) && p["state"] == "dynamic":
 		return expBridgeEINVAL, "a dynamic nhid entry (A nexthop fdb cannot be dynamic)"
 	case p["remote"] == "dst6":
-		return &expect{RC: intp(255), Errno: "EAFNOSUPPORT", RefusedBy: "kernel"}, "an IPv6 dst on an IPv4 VXLAN"
+		return &expect{RC: intp(255), Errno: "EAFNOSUPPORT", RefusedBy: refKernel}, "an IPv6 dst on an IPv4 VXLAN"
 	case p["verb"] == "replace" && p["mac"] != "uni":
 		return expBridgeEOPNOTSUPP, "replace making a multicast or zero entry"
 	case p["remote"] == "nhsingle" || p["remote"] == "nhnotfdb" || p["remote"] == "nhgone":
@@ -435,7 +435,7 @@ func buildFdb(sp *space, vals []value, setup string) row {
 	r := row{
 		Cmd:    "bridge fdb " + vals[0].Arg + " " + tail,
 		Pre:    []preStep{{Cmd: setup}},
-		Expect: expect{RC: intp(0), RefusedBy: "none"},
+		Expect: expect{RC: intp(0), RefusedBy: refNone},
 		Axes:   mergeFacts(vals),
 	}
 	dev := r.Axes["dev"]

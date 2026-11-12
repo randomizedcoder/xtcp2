@@ -96,8 +96,10 @@ type RouteEncap struct {
 	Raw     []byte // RTA_ENCAP's payload, as sent
 
 	// MPLS is the decoded payload when Type is LWTUNNEL_ENCAP_MPLS, else nil.
-	// Another encap type is kept in Raw only.
 	MPLS *MPLSEncap
+	// Seg6 is the decoded payload when Type is LWTUNNEL_ENCAP_SEG6, else
+	// nil. Another encap type is kept in Raw only.
+	Seg6 *Seg6EncapInfo
 }
 
 // MPLSEncap is an LWTUNNEL_ENCAP_MPLS payload: the labels pushed, and the TTL
@@ -125,17 +127,26 @@ func setEncapAttr(e **RouteEncap, atype uint16, val []byte) {
 	}
 }
 
-// decode fills MPLS from Raw when the type is LWTUNNEL_ENCAP_MPLS. A nil
-// encap decodes to nothing.
+// decode fills MPLS or Seg6 from Raw when the type is LWTUNNEL_ENCAP_MPLS
+// or LWTUNNEL_ENCAP_SEG6. A nil encap decodes to nothing.
 func (e *RouteEncap) decode() error {
-	if e == nil || !e.HasType || e.Type != unix.LWTUNNEL_ENCAP_MPLS {
+	if e == nil || !e.HasType {
 		return nil
 	}
-	m, err := ParseMPLSEncap(e.Raw)
-	if err != nil {
-		return err
+	switch e.Type {
+	case unix.LWTUNNEL_ENCAP_MPLS:
+		m, err := ParseMPLSEncap(e.Raw)
+		if err != nil {
+			return err
+		}
+		e.MPLS = &m
+	case unix.LWTUNNEL_ENCAP_SEG6:
+		s, err := ParseSeg6Encap(e.Raw)
+		if err != nil {
+			return err
+		}
+		e.Seg6 = &s
 	}
-	e.MPLS = &m
 	return nil
 }
 

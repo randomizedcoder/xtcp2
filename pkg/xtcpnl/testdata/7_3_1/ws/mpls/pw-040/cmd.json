@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "as": "200",
+  "dst": "100",
+  "oif": "d0",
+  "verb": "add",
+  "via": "inet:10.0.0.2"
+ },
+ "cmd": "ip -f mpls route add 100 as to 200 via inet 10.0.0.2 dev d0",
+ "desc": "corner: verb=add label=100 as=to ttl=absent via=inet",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "mpls/pw-040",
+ "modules": [
+  "mpls_router",
+  "mpls_iptunnel"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 10.0.0.1/24 dev d0 && ip -6 addr add 2001:db8::1/64 dev d0 nodad && echo 1000 > /proc/sys/net/mpls/platform_labels && echo 1 > /proc/sys/net/mpls/conf/d0/input"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -f mpls route show",
+   "name": "show"
+  },
+  {
+   "cmd": "ip -j -f mpls route show",
+   "name": "showj"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 10.0.0.1/24 dev d0 && ip -6 addr add 2001:db8::1/64 dev d0 nodad && echo 1000 > /proc/sys/net/mpls/platform_labels && echo 1 > /proc/sys/net/mpls/conf/d0/input",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
