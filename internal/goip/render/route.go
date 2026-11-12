@@ -48,8 +48,8 @@ import (
 //     "none of them appears on any route in the two committed topologies" —
 //     was true of the ATTRIBUTE's non-zero members and false of the attribute
 //     itself, which every IPv6 route in the corpus carries.
-//   - RTA_ENCAP of any type but mpls and seg6, which xtcpnl keeps raw:
-//     EncapViewOf renders the two it decodes, and a route with another
+//   - RTA_ENCAP of any type but mpls, seg6, ip and ip6, which xtcpnl keeps
+//     raw: EncapViewOf renders the four it decodes, and a route with another
 //     prints no encap at all rather than its type alone.
 //   - `nh_info`, which print_route emits only under `-d`, and
 //     print_rta_multipath's `Oifs: ` form for a cloned multicast route. goip

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Last updated:** 2026-11-09
+**Last updated:** 2026-11-11
 
 **Summary:**
 - Every earlier goip plan is closed and merged (`main` 3904f318: #287, #288, #290). The workbench differential (`internal/goip/testdata/ws-differential.txt`, O5) has 27 `refuses` rows left, all in `linkattr`: 26 `link set … netns` and 1 `xdp`. `differs` and `sends` are 0 everywhere.
@@ -585,7 +585,7 @@ NX5 is done in three parts:
 
 ## Follow-ups after Tier G
 
-Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP.
+Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps.
 
 ### NF1 nlparity sets RTA_METRICS padding aside
 
@@ -626,6 +626,32 @@ ip sends RTA_METRICS without `NLA_F_NESTED`, and `rta_addattr_l` leaves RTAX_CC_
 | positive: the corpus | `TestWsEncapReadbacks`, kwnh and lwtxnh | every mpls and seg6 nexthop readback as ip printed it |
 | negative: a label stack cut short | | the parse fails, as for a route |
 | corner: an undecoded type, or NHA_ENCAP without its type | | kept raw; nothing printed |
+
+### NX6c `route show` and `nexthop show` print the ip and ip6 encaps
+
+`xtcpnl.ParseIPEncap` reads an LWTUNNEL_ENCAP_IP or IP6 payload as print_encap_ip and print_encap_ip6 do. The first of a repeated attribute wins, and a short scalar is dropped. LWTUNNEL_IP_OPTS are read as lwtunnel_print_opts chooses them: geneve, else vxlan, else erspan, whatever the order sent. Geneve options use print_geneve_opts' stride, the data's length plus 20 bytes. An opts member ip would dereference (a geneve option's class, type or data; vxlan's gbp; erspan's version, then its index or its direction and hardware id) fails the parse with `ErrIPEncapOpts`; the kernel always sends them.
+
+`EncapViewOf` prints them through the NX6a call sequence, in routes, multipath hops and nexthop objects alike:
+- the id, src, dst, then ttl and tos (ip6: hoplimit and tc);
+- `key`, `csum` and `seq` for the TUNNEL_* bits, read big-endian;
+- the options on a new tab-indented line: geneve's `CLASS:TYPE:DATA` comma-separated with a space after the last, `vxlan_opts GBP`, and `erspan_opts VER:INDEX:DIR:HWID` with 0 for the fields the version doesn't carry.
+
+`render.Printer.Bool` is print_bool: a JSON boolean, and a verbless text format written as it is.
+
+| description | input | expected |
+|---|---|---|
+| positive: captured lwtroute4 ec-004 to ec-010, lwtroute6 ec-002 | the dump pcaps' payloads | id, addresses, scalars, flags and each opts kind decoded |
+| positive: the corpus | `TestWsEncapReadbacks`: lwtroute4, lwtroute6, lwthop and lwtnh | every readback as ip printed it; 24 that differed now match |
+| positive: ip6's names | hoplimit 64, tc 16, `key` | `hoplimit 64 tc 16 key`, `"hoplimit":64,"tc":16,"key":true` |
+| positive: two geneve options | | `\n\tgeneve_opts 258:128:00112233,258:129:44556677 `, a `geneve_opts` array |
+| positive: erspan version 1 or 2 | | `1:4660:0:0` / `2:0:1:7` |
+| negative: a geneve option without data, vxlan without gbp, erspan without its version's fields | | `ErrIPEncapOpts` |
+| negative: the class last and unpadded, so the stride runs past the end | | `ErrIPEncapOpts` |
+| boundary: id 2^64-1; an empty payload; a 7-byte id | | printed in full; an empty encap; the id dropped |
+| corner: only the kernel's GENEVE_OPT flag (0x0800) | | no flag printed |
+| corner: an empty geneve nest | | `geneve_opts` alone, `"geneve_opts":[]` |
+| corner: vxlan sent before geneve | | geneve printed |
+| corner: an opts nest of no known kind | | nothing after the scalars |
 
 ## See also
 

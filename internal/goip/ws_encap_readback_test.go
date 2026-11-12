@@ -9,11 +9,12 @@ import (
 	"testing"
 )
 
-// NX6a and NX6b (goip-parity-next.md): route show's RTA_ENCAP and nexthop
-// show's NHA_ENCAP, held to every readback of the lwt and seg6 spaces.
+// NX6a, NX6b and NX6c (goip-parity-next.md): route show's RTA_ENCAP and
+// nexthop show's NHA_ENCAP, held to every readback of the lwt and seg6
+// spaces.
 
 // wsEncapDecoded are the encap types render.EncapViewOf prints.
-var wsEncapDecoded = []string{"mpls", "seg6"}
+var wsEncapDecoded = []string{"mpls", "seg6", "ip", "ip6"}
 
 // wsEncapTypes are the types after each `encap` in ip's output, less
 // seg6's `mode encap`.
@@ -40,19 +41,19 @@ func TestWsEncapReadbacks(t *testing.T) {
 		description string
 		space       string
 		readbacks   int // compared
-		decoded     int // with an mpls or seg6 encap, each matching ip
+		decoded     int // with only decoded encap types, each matching ip
 		gap         int // with another type, each differing
 	}{
-		{description: "positive: lwt IPv4 routes, mpls among ip and ip6", space: "lwtroute4", readbacks: 18, decoded: 6, gap: 7},
-		{description: "positive: lwt IPv6 routes, one mpls among ip6", space: "lwtroute6", readbacks: 8, decoded: 1, gap: 7},
-		{description: "positive: lwt multipath hops, each hop's encap first", space: "lwthop", readbacks: 7, decoded: 2, gap: 4},
+		{description: "positive: lwt IPv4 routes, ip with flags and each opts kind, ip6 and mpls", space: "lwtroute4", readbacks: 18, decoded: 13},
+		{description: "positive: lwt IPv6 routes, ip6 with hoplimit, tc and flags, ip and mpls", space: "lwtroute6", readbacks: 8, decoded: 8},
+		{description: "positive: lwt multipath hops, each hop's encap first", space: "lwthop", readbacks: 7, decoded: 6},
 		{description: "positive: seg6 IPv6 routes, hmac and tunsrc among them", space: "seg6route6", readbacks: 16, decoded: 12},
 		{description: "positive: seg6 IPv4 routes", space: "seg6route4", readbacks: 3, decoded: 2},
 		{description: "corner: lwtx requests, every route refused, so no encap", space: "lwtxreq", readbacks: 6},
 		{description: "positive: lwtx hops, seg6 per hop", space: "lwtxhop", readbacks: 4, decoded: 4},
 		{description: "corner: MPLS-family routes under -f mpls, which carry no RTA_ENCAP", space: "mpls", readbacks: 230},
 		{description: "positive: nexthop objects, mpls", space: "kwnh", readbacks: 8, decoded: 7},
-		{description: "negative: nexthop objects, ip and ip6, not decoded", space: "lwtnh", readbacks: 6, gap: 6},
+		{description: "positive: nexthop objects, ip and ip6", space: "lwtnh", readbacks: 6, decoded: 6},
 		{description: "positive: nexthop objects, seg6 among seg6local", space: "lwtxnh", readbacks: 4, decoded: 2, gap: 2},
 		{description: "negative: seg6local routes, not decoded", space: "seg6local", readbacks: 21, gap: 15},
 		{description: "negative: ila routes, not decoded", space: "ila", readbacks: 10, gap: 6},

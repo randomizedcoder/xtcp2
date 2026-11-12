@@ -38,6 +38,11 @@ func TestEncapViewOf(t *testing.T) {
 	seg6 := func(s xtcpnl.Seg6EncapInfo) *xtcpnl.RouteEncap {
 		return &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_SEG6, HasType: true, Raw: raw, Seg6: &s}
 	}
+	ip := func(typ uint16, e xtcpnl.IPEncapInfo) *xtcpnl.RouteEncap {
+		return &xtcpnl.RouteEncap{Type: typ, HasType: true, Raw: raw, IP: &e}
+	}
+	dst4 := xtcpnl.IPEncapInfo{ID: 1, Dst: []byte{203, 0, 113, 5}, HasID: true}
+	opts := func(o xtcpnl.IPEncapOpts) xtcpnl.IPEncapInfo { e := dst4; e.Opts = &o; return e }
 	tunsrc, _ := hex.DecodeString(s2)
 	tests := []struct {
 		description string
@@ -67,7 +72,44 @@ func TestEncapViewOf(t *testing.T) {
 			" encap seg6 mode <unknown> segs 1 [ 2001:db8:9::1 ] ", `{"encap_type":"seg6","mode":"<unknown>","segs":["2001:db8:9::1"]}`},
 		{"corner: an SRH too short prints no segments", seg6(xtcpnl.Seg6EncapInfo{Mode: xtcpnl.Seg6ModeEncap, HasSRH: true, SRH: []byte{0, 2, 4, 0, 0}}),
 			" encap seg6 mode encap ", `{"encap_type":"seg6","mode":"encap"}`},
-		{"negative: an undecoded type prints nothing", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_IP, HasType: true, Raw: raw}, "", ""},
+		{"positive: ip with every scalar and key csum seq",
+			ip(unix.LWTUNNEL_ENCAP_IP, xtcpnl.IPEncapInfo{ID: 1, Src: []byte{192, 0, 2, 10}, Dst: []byte{203, 0, 113, 5}, TTL: 64, Tos: 16,
+				Flags: 0x0d, HasID: true, HasTTL: true, HasTos: true, HasFlags: true}),
+			" encap ip id 1 src 192.0.2.10 dst 203.0.113.5 ttl 64 tos 16 key csum seq ",
+			`{"encap_type":"ip","id":1,"src":"192.0.2.10","dst":"203.0.113.5","ttl":64,"tos":16,"key":true,"csum":true,"seq":true}`},
+		{"positive: ip6 names them hoplimit and tc",
+			ip(unix.LWTUNNEL_ENCAP_IP6, xtcpnl.IPEncapInfo{ID: 1, Src: make([]byte, 16), Dst: tunsrc, TTL: 64, Tos: 16, Flags: 0x04,
+				HasID: true, HasTTL: true, HasTos: true, HasFlags: true}),
+			" encap ip6 id 1 src :: dst 2001:db8:9::2 hoplimit 64 tc 16 key ",
+			`{"encap_type":"ip6","id":1,"src":"::","dst":"2001:db8:9::2","hoplimit":64,"tc":16,"key":true}`},
+		{"boundary: id 2^64-1, and the kernel's GENEVE_OPT flag alone prints no flag",
+			ip(unix.LWTUNNEL_ENCAP_IP, xtcpnl.IPEncapInfo{ID: 1<<64 - 1, Flags: 0x0800, HasID: true, HasFlags: true}),
+			" encap ip id 18446744073709551615 ", `{"encap_type":"ip","id":18446744073709551615}`},
+		{"positive: two geneve options, a comma between, a space after the last",
+			ip(unix.LWTUNNEL_ENCAP_IP, opts(xtcpnl.IPEncapOpts{Kind: xtcpnl.LwtunnelIPOptsGeneve, Geneve: []xtcpnl.GeneveOpt{
+				{Class: 0x0102, Type: 0x80, Data: []byte{0, 0x11, 0x22, 0x33}}, {Class: 0x0102, Type: 0x81, Data: []byte{0x44, 0x55, 0x66, 0x77}}}})),
+			" encap ip id 1 dst 203.0.113.5 \n\tgeneve_opts 258:128:00112233,258:129:44556677 ",
+			`{"encap_type":"ip","id":1,"dst":"203.0.113.5","geneve_opts":[{"class":258,"type":128,"data":"00112233"},{"class":258,"type":129,"data":"44556677"}]}`},
+		{"corner: an empty geneve nest prints the keyword alone",
+			ip(unix.LWTUNNEL_ENCAP_IP, opts(xtcpnl.IPEncapOpts{Kind: xtcpnl.LwtunnelIPOptsGeneve})),
+			" encap ip id 1 dst 203.0.113.5 \n\tgeneve_opts ", `{"encap_type":"ip","id":1,"dst":"203.0.113.5","geneve_opts":[]}`},
+		{"positive: vxlan_opts gbp",
+			ip(unix.LWTUNNEL_ENCAP_IP, opts(xtcpnl.IPEncapOpts{Kind: xtcpnl.LwtunnelIPOptsVxlan, VxlanGBP: 2048})),
+			" encap ip id 1 dst 203.0.113.5 \n\tvxlan_opts 2048 ", `{"encap_type":"ip","id":1,"dst":"203.0.113.5","vxlan_opts":[{"gbp":2048}]}`},
+		{"positive: erspan version 1 prints its index, and 0 for direction and hardware id",
+			ip(unix.LWTUNNEL_ENCAP_IP, opts(xtcpnl.IPEncapOpts{Kind: xtcpnl.LwtunnelIPOptsErspan, Erspan: xtcpnl.ErspanOpt{Ver: 1, Index: 0x1234, Dir: 1, Hwid: 7}})),
+			" encap ip id 1 dst 203.0.113.5 \n\terspan_opts 1:4660:0:0 ",
+			`{"encap_type":"ip","id":1,"dst":"203.0.113.5","erspan_opts":[{"ver":1,"index":4660,"dir":0,"hwid":0}]}`},
+		{"positive: erspan version 2 prints 0 for its index",
+			ip(unix.LWTUNNEL_ENCAP_IP, opts(xtcpnl.IPEncapOpts{Kind: xtcpnl.LwtunnelIPOptsErspan, Erspan: xtcpnl.ErspanOpt{Ver: 2, Index: 0x1234, Dir: 1, Hwid: 7}})),
+			" encap ip id 1 dst 203.0.113.5 \n\terspan_opts 2:0:1:7 ",
+			`{"encap_type":"ip","id":1,"dst":"203.0.113.5","erspan_opts":[{"ver":2,"index":0,"dir":1,"hwid":7}]}`},
+		{"corner: an opts nest of no known kind prints nothing",
+			ip(unix.LWTUNNEL_ENCAP_IP, opts(xtcpnl.IPEncapOpts{})),
+			" encap ip id 1 dst 203.0.113.5 ", `{"encap_type":"ip","id":1,"dst":"203.0.113.5"}`},
+		{"corner: ip with no attributes prints the type alone", ip(unix.LWTUNNEL_ENCAP_IP, xtcpnl.IPEncapInfo{}),
+			" encap ip ", `{"encap_type":"ip"}`},
+		{"negative: an undecoded type prints nothing", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_ILA, HasType: true, Raw: raw}, "", ""},
 		{"negative: RTA_ENCAP without RTA_ENCAP_TYPE", &xtcpnl.RouteEncap{Raw: raw}, "", ""},
 		{"negative: RTA_ENCAP_TYPE without RTA_ENCAP", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_MPLS, HasType: true,
 			MPLS: &xtcpnl.MPLSEncap{}}, "", ""},

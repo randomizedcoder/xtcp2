@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/hex"
 	"strconv"
 
 	"golang.org/x/sys/unix"
@@ -13,11 +14,11 @@ import (
 // own tokens, as text and as the "encap" JSON object, each built by the
 // same print_* calls in ip's order.
 //
-// Only the two types xtcpnl decodes render, mpls and seg6. Another type's
-// route prints without its encap, as before NX6a: lwt_print_encap would
-// print ` encap ip ` and then the payload, and a keyword with its payload
-// missing is worse than both missing (route.go, "What this renderer does
-// not print").
+// Only the types xtcpnl decodes render: mpls, seg6, ip and ip6. Another
+// type's route prints without its encap, as before NX6a: lwt_print_encap
+// would print ` encap ila ` and then the payload, and a keyword with its
+// payload missing is worse than both missing (route.go, "What this renderer
+// does not print").
 type EncapView struct {
 	text string
 	json []byte
@@ -34,7 +35,7 @@ func (v *EncapView) MarshalJSON() ([]byte, error) { return v.json, nil }
 // decode its type. lwt_print_encap's callers test RTA_ENCAP, and it tests
 // RTA_ENCAP_TYPE, so both must be present.
 func EncapViewOf(e *xtcpnl.RouteEncap) *EncapView {
-	if e == nil || !e.HasType || e.Raw == nil || (e.MPLS == nil && e.Seg6 == nil) {
+	if e == nil || !e.HasType || e.Raw == nil || (e.MPLS == nil && e.Seg6 == nil && e.IP == nil) {
 		return nil
 	}
 	text, js := NewPrinter(false), NewPrinter(true)
@@ -56,6 +57,8 @@ func printEncap(p *Printer, e *xtcpnl.RouteEncap) {
 		printEncapMPLS(p, e.MPLS)
 	case e.Seg6 != nil:
 		printEncapSeg6(p, e.Seg6)
+	case e.IP != nil:
+		printEncapIP(p, e.IP, e.Type == unix.LWTUNNEL_ENCAP_IP6)
 	}
 	p.CloseObject()
 }
@@ -113,6 +116,96 @@ func printSRH(p *Printer, raw []byte) {
 		p.String(PrintJSON, "hmac", "", js)
 		p.FPf("hmac %X ", srh.HmacKeyID)
 	}
+}
+
+// printEncapIP is print_encap_ip, or print_encap_ip6 when v6: the same
+// attributes, with IPv6's names for the TTL and TOS.
+func printEncapIP(p *Printer, e *xtcpnl.IPEncapInfo, v6 bool) {
+	family, ttl, tos := uint8(unix.AF_INET), "ttl", "tos"
+	if v6 {
+		family, ttl, tos = unix.AF_INET6, "hoplimit", "tc"
+	}
+	if e.HasID {
+		p.U64(PrintAny, "id", "id %d ", e.ID)
+	}
+	if e.Src != nil {
+		p.String(PrintAny, "src", "src %s ", addrString(e.Src, family))
+	}
+	if e.Dst != nil {
+		p.String(PrintAny, "dst", "dst %s ", addrString(e.Dst, family))
+	}
+	if e.HasTTL {
+		p.U64(PrintAny, ttl, ttl+" %d ", uint64(e.TTL))
+	}
+	if e.HasTos {
+		p.U64(PrintAny, tos, tos+" %d ", uint64(e.Tos))
+	}
+	if e.HasFlags {
+		for _, f := range [...]struct {
+			bit  uint16
+			name string
+		}{{xtcpnl.LwtTunnelKey, "key"}, {xtcpnl.LwtTunnelCsum, "csum"}, {xtcpnl.LwtTunnelSeq, "seq"}} {
+			if e.Flags&f.bit != 0 {
+				p.Bool(PrintAny, f.name, f.name+" ", true)
+			}
+		}
+	}
+	if e.Opts != nil {
+		printEncapIPOpts(p, e.Opts)
+	}
+}
+
+// printEncapIPOpts is lwtunnel_print_opts. Each kind starts a new line
+// with a tab, so the route's later tokens follow the options.
+func printEncapIPOpts(p *Printer, o *xtcpnl.IPEncapOpts) {
+	var name string
+	switch o.Kind {
+	case xtcpnl.LwtunnelIPOptsGeneve:
+		name = "geneve_opts"
+	case xtcpnl.LwtunnelIPOptsVxlan:
+		name = "vxlan_opts"
+	case xtcpnl.LwtunnelIPOptsErspan:
+		name = "erspan_opts"
+	default:
+		return
+	}
+	p.NL()
+	p.FPf("\t%s ", name)
+	p.OpenArray(name)
+	switch o.Kind {
+	case xtcpnl.LwtunnelIPOptsGeneve:
+		for i, g := range o.Geneve {
+			p.OpenObject("")
+			p.U64(PrintAny, "class", "%d", uint64(g.Class))
+			p.U64(PrintAny, "type", ":%d", uint64(g.Type))
+			format := ":%s,"
+			if i == len(o.Geneve)-1 {
+				format = ":%s "
+			}
+			p.String(PrintAny, "data", format, hex.EncodeToString(g.Data))
+			p.CloseObject()
+		}
+	case xtcpnl.LwtunnelIPOptsVxlan:
+		p.OpenObject("")
+		p.U64(PrintAny, "gbp", "%d ", uint64(o.VxlanGBP))
+		p.CloseObject()
+	case xtcpnl.LwtunnelIPOptsErspan:
+		// ip reads the index for version 1 and the direction and hardware
+		// id otherwise, and prints 0 for the ones it didn't read.
+		s := o.Erspan
+		if s.Ver == 1 {
+			s.Dir, s.Hwid = 0, 0
+		} else {
+			s.Index = 0
+		}
+		p.OpenObject("")
+		p.U64(PrintAny, "ver", "%d", uint64(s.Ver))
+		p.U64(PrintAny, "index", ":%d", uint64(s.Index))
+		p.U64(PrintAny, "dir", ":%d", uint64(s.Dir))
+		p.U64(PrintAny, "hwid", ":%d ", uint64(s.Hwid))
+		p.CloseObject()
+	}
+	p.CloseArray()
 }
 
 // encapTypeName is format_encap_type.

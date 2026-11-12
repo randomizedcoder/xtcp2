@@ -235,9 +235,9 @@ func TestParseNewRouteMPLS(t *testing.T) {
 			description: "corner: another encap type is kept raw, not an error",
 			body: concat(v4Hdr,
 				rtattr(unix.RTA_ENCAP, []byte{4, 0, 1, 0}),
-				rtattr(unix.RTA_ENCAP_TYPE, le16(unix.LWTUNNEL_ENCAP_IP))),
+				rtattr(unix.RTA_ENCAP_TYPE, le16(unix.LWTUNNEL_ENCAP_ILA))),
 			check:    func(ri RouteInfo) any { return ri.Encap },
-			expected: &RouteEncap{Type: unix.LWTUNNEL_ENCAP_IP, HasType: true, Raw: []byte{4, 0, 1, 0}},
+			expected: &RouteEncap{Type: unix.LWTUNNEL_ENCAP_ILA, HasType: true, Raw: []byte{4, 0, 1, 0}},
 		},
 		{
 			description: "corner: RTA_ENCAP with no type is kept raw",
