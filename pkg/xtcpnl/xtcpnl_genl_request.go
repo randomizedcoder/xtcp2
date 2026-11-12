@@ -114,15 +114,6 @@ func BuildGenlRequest(family string, id uint16, cmd, version uint8, flags uint16
 	return genlRequest(id, cmd, version, flags, seq, attrs)
 }
 
-// BuildGenlWriteRequest is BuildGenlRequest for the write path: only a
-// command IsAdmittedGenlWrite admits, anything else ErrGenlWrite.
-func BuildGenlWriteRequest(family string, id uint16, cmd, version uint8, flags uint16, seq uint32, attrs []byte) ([]byte, error) {
-	if !IsAdmittedGenlWrite(family, cmd) {
-		return nil, ErrGenlWrite
-	}
-	return genlRequest(id, cmd, version, flags, seq, attrs)
-}
-
 // genlRequest is the two builders' layout, after their gates.
 func genlRequest(id uint16, cmd, version uint8, flags uint16, seq uint32, attrs []byte) ([]byte, error) {
 	if id < unix.GENL_ID_CTRL {
