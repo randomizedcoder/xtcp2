@@ -26,6 +26,7 @@
 - [Tier P: parsers, tests and benchmarks](#tier-p-parsers-tests-and-benchmarks)
 - [Tier G: goip and the matrix](#tier-g-goip-and-the-matrix)
 - [Follow-ups after Tier G](#follow-ups-after-tier-g)
+- [NC8 rpl, ioam6 and bpf encaps and `nexthop show -s`, captures first](#nc8-rpl-ioam6-and-bpf-encaps-and-nexthop-show--s-captures-first)
 - [See also](#see-also)
 
 ## Reference sources
@@ -881,6 +882,84 @@ What uses them:
 | corner: xfrm `sel proto 200 sport 1` | | refused naming `PROTO value "200"` |
 | positive: route proto 84 | | `proto ovn` |
 | positive: the corpus | `TestWsReadbacks` | rule4 and rule6 203 of 203; neigh4 138 of 138; neigh6 137 of 137 |
+
+## NC8 rpl, ioam6 and bpf encaps and `nexthop show -s`, captures first
+
+After NX7 every readback in the corpus prints as ip's, but two gaps have no capture at all:
+
+- **Encaps:** route and nexthop show print no encap for rpl, ioam6 or bpf. The workbench guest ran nixpkgs' `linuxPackages_latest`, which has `LWTUNNEL_BPF=y` but neither `IPV6_RPL_LWTUNNEL` nor `IPV6_IOAM6_LWTUNNEL`, so lwtxreq ec-001, ec-002 and ec-006 are ENOTSUP (`tools/nlcapgen/matrix_lwtx.go`). bpf needs an ELF object, so no row was generated.
+- **`nexthop show -s`:** goip has no `-s` there. So it never prints group stats, `hw_stats`, or seg6local's counters on a nexthop.
+
+Captures come first (NC8), then the parsers (NP8), then goip (NX8). Tier C sets Tier P's and G's counts. The kernel decision (the user's choice, "Workbench kernel + 2 opts") gives only the workbench guest the two options; the parity VM stays stock until Tier G decides.
+
+Out of scope: traffic-dependent counter values as gated readbacks, `ip ioam` genl objects beyond the namespace a row needs, and XDP.
+
+### NC8-T01 a workbench kernel with RPL and IOAM6 lwtunnels
+
+`nix/microvms/mkVm.nix` gives the workbench (`isNlcapWorkbench`) a `boot.kernelPatches` entry with no patch, only `structuredExtraConfig` turning on `IPV6_RPL_LWTUNNEL` and `IPV6_IOAM6_LWTUNNEL`. Every other VM's kernel derivation is unchanged. The version stays 7.3.1, so `kver_dir` puts the corpus where it goes now. The batch records the guest's `/proc/config.gz` lines naming LWTUNNEL in each row's guest sidecar (`kconfig`), so a corpus shows which kernel made it. The `lwtx` corpus is not recaptured: its ENOTSUP rows would turn into rc 0, and the generator test pinning them stays.
+
+| description | input | expected |
+|---|---|---|
+| positive: the workbench has both options | boot, the guest sidecar | `CONFIG_IPV6_RPL_LWTUNNEL=y`, `CONFIG_IPV6_IOAM6_LWTUNNEL=y` |
+| positive: an rpl route installs | `ip -6 route add … encap rpl segs A dev d0` | rc 0 |
+| negative: other VMs unchanged | the goip-parity VM's kernel drv (`nix-store -qR` of its runner drv) | the same drv as before |
+| boundary: the same kernel version | `uname -r` | 7.3.1, so the corpus directory is unchanged |
+| positive: `kconfig_lwt` | a gzip config | the LWTUNNEL lines, sorted, de-duplicated |
+| negative: `kconfig_lwt` | a missing or corrupt file | `[]`, and no `kconfig` key |
+
+### NC8-T02 a BPF lwt object for the workbench
+
+`nix/nlcap-lwt-bpf` builds `lwt_bpf.o`: `pass_in`, `pass_out` and `pass_xmit` in sections `lwt_in`, `lwt_out` and `lwt_xmit`, each returning `BPF_OK`, built with `clang -target bpf -O2 -g`. Its check phase lists the sections. `xtcp2-nlcap-ws.sh batch|run --bpf FILE` passes the store path, which the guest sees over 9p; the batch links it at `/run/nlcap-ws/lwt_bpf.o` before any row runs. ip names the program `basename:[section]` and the kernel echoes that in `LWT_BPF_PROG_NAME`, so the fixed link keeps readbacks deterministic. Only the fd in the request varies, and O3 zeroes it.
+
+| description | input | expected |
+|---|---|---|
+| positive: the object loads | `encap bpf in obj $O sec lwt_in dev d0` | rc 0, `LWT_BPF_IN{PROG_FD, PROG_NAME}` |
+| negative: a missing section | `sec nosuch` | ip's refusal, rc 255, nothing sent |
+| negative: a missing file | `obj /nonexistent/lwt.o` | ip's refusal, rc 255, nothing sent |
+| positive: `--bpf-obj` | a file | linked at `--bpf-link`; `lwt_bpf` in the sidecar |
+| negative: `--bpf-obj` | no such file | `no bpf object …`, before any row |
+
+### NC8-T03 the `lwtenc` family
+
+`tools/nlcapgen/matrix_lwtenc.go`: five spaces on `buildLwtx`'s setup, a new family so `lwtx` stays byte-identical. Every row reads back the table dump (`ip -6 route show table all`, `ip -4 …` for bpf, `ip nexthop show` for nexthops) plain, as `-j` and as `-d`. 63 rows: 48 forms (30 at rc 0, 11 at 255, 6 at 2, 1 at 1) and 15 duplicates. Expectations come from the source and are fixed against the capture.
+
+| space | positive | negative, boundary, corner |
+|---|---|---|
+| `rplroute` | one seg; three segs; no segs (ip sends `::`) | an IPv4 seg (get_addr, rc 1); `segs` twice (duparg, 255); on an IPv4 route (EINVAL) |
+| `ioam6route` | inline, encap and auto modes; `freq 1/2` | size 4 and 244, 248 too big; ns 0 and 65535; size 13, k>n, tundst inline, encap without tundst (255); type bit 12 (EINVAL); with and without `ip ioam namespace add 1` |
+| `bpfroute` | in, out, xmit alone; all three with headroom 16 | headroom 1 and 256, 257 (ERANGE); headroom 0 (invarg); headroom alone (EINVAL); a missing section or file (255); `in` twice |
+| `lwtencnh` | rpl, ioam6 and bpf on `ip -6 nexthop add id N` | whether the kernel takes each, as captured |
+| `lwtenchop` | the same on a multipath hop | as captured |
+
+### NC8-T04 the `nhstats` family
+
+`tools/nlcapgen/matrix_nhstats.go`. The point is the readbacks: `ip nexthop show`, `-s`, `-s -s`, `-j -s`, `-j -s -s`, `ip -s nexthop get id N` and `ip -s nexthop show id N`. Under `-s` the dump sends NHA_OP_FLAGS 1, under `-s -s` 3; a get always sends it, 0 without `-s` (ipnh_get_op_flags). 11 rows: 7 forms, 3 duplicates and one traffic row.
+
+| description | setup | expected |
+|---|---|---|
+| positive: a 2-way group | `id 1`, `id 2`, `id 10 group 1/2` | NHA_OP_FLAGS in the dump; replies carry NHA_GROUP_STATS |
+| positive: a resilient group | `type resilient buckets 8` | group stats and the res nest |
+| positive: hw_stats on | `group 1/2 hw_stats on` | NHA_HW_STATS_ENABLE/USED; `hw_stats on used off` |
+| positive: a weighted group | `group 1,3/2,7` | one stats entry per member |
+| positive: seg6local with count | `-6 nexthop add id 20 encap seg6local action End count` | SEG6_LOCAL_COUNTERS 0; `packets 0 bytes 0 errors 0` only under `-s` |
+| negative: a plain nexthop under `-s` | `id 3 via 192.0.2.3` | no stats text; NHA_OP_FLAGS still in the request |
+| boundary: no `-s` | | no NHA_OP_FLAGS in the dump |
+| corner: a group of one | `group 1` | one entry, no newline after it (print_nh_grp_stats) |
+| corner: traffic | three pings via `198.51.100.0/24 nhid 10` | ping rc 1; counted, not compared byte for byte |
+
+### NC8-T05 the gate
+
+Two fresh-boot batches per family must agree row for row on rc and message types, and every rc must be what the generator wrote. The first batch goes to `pkg/xtcpnl/testdata/<kver>/ws/{rplroute,ioam6route,bpfroute,lwtencnh,lwtenchop,nhstats}`, within the `ws/` size budget. No row but the traffic corner sends, so every counter is 0. O3 gets `pkg/xtcpnl/xtcpnl_ws_lwtenc_test.go` and `…_nhstats_test.go`: the rpl segs, the ioam6 trace, mode, freq and tunnel addresses, the bpf nests and headroom (fd zeroed), and NHA_OP_FLAGS, each against the row's axes. The status summary records which encaps the kernel takes on a nexthop and a hop, whether ioam6 needs the namespace, and ip's bpf program name.
+
+### NP8 the parsers (outline)
+
+`ParseRplEncap`, `ParseIoam6Encap` and `ParseBpfEncap` in `pkg/xtcpnl`, after `ParseSeg6LocalEncap`: the first of a repeat wins, a short scalar is dropped, NLA_F_NESTED is masked. The nexthop decode adds NHA_GROUP_STATS (entry id, packets, packets_hw), NHA_HW_STATS_ENABLE/USED and NHA_OP_FLAGS, and a request builder sends NHA_OP_FLAGS in the dump and get. Each gets a table test from the captures, a benchmark and fuzz seeds. Sized after NC8-T05.
+
+### NX8 goip (outline)
+
+- **NX8a/b/c:** `route show`, `nexthop show` and a hop print rpl, ioam6 and bpf, text and JSON, as print_encap_rpl, print_encap_ioam6 and print_encap_bpf do.
+- **NX8d:** `nexthop show -s` and `-s -s`: NHA_OP_FLAGS, the `stats:` block (`packets_hw` under `-s -s`), `hw_stats … used …` under `-d` or `-s`, and seg6local's counters.
+- O9 gains the new families; the goal is 0 differ. nhstats VM rows can gate on the stock parity kernel; rpl and ioam6 VM rows wait on a decision about the parity kernel, and bpf rows need the object in the parity guest.
 
 ## See also
 

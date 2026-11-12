@@ -2941,6 +2941,21 @@ in
         };
 
         boot.kernelPackages = pkgs.linuxPackages_latest;
+        # The workbench alone adds the RPL and IOAM6 lwtunnels, which the
+        # stock kernel lacks (its `encap rpl` and `encap ioam6` are
+        # ENOTSUP), so the lwtenc family can capture them (NC8-T01 in
+        # docs/netlink/goip-parity-next.md). Same version, so the corpus
+        # directory does not move; every other flavor keeps the stock kernel.
+        boot.kernelPatches = lib.optionals isNlcapWorkbench [
+          {
+            name = "nlcap-lwtunnels";
+            patch = null;
+            structuredExtraConfig = with lib.kernel; {
+              IPV6_RPL_LWTUNNEL = yes;
+              IPV6_IOAM6_LWTUNNEL = yes;
+            };
+          }
+        ];
         boot.kernelParams = [
           "console=ttyS0,115200"
           "console=hvc0"
