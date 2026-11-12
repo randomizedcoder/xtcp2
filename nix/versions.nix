@@ -55,6 +55,10 @@
   });
   inherit (pkgs) nixfmt;
 
+  # Supply chain: nix/checks/govulncheck.nix (with the offline database in
+  # nix/lib/govulndb.nix), the govulncheck-fresh app, and the CycloneDX SBOMs.
+  inherit (pkgs) govulncheck cyclonedx-gomod;
+
   # gRPC / proto inspection
   inherit (pkgs) grpcurl;
 

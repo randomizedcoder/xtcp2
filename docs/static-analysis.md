@@ -93,6 +93,7 @@ otherwise until 2026-10-05.
 | `golangci-lint` (Tier 1) | `.golangci.yml` | yes | ~2 min | `errcheck`, `gosec`, `misspell`, `contextcheck`, `noctx`, `gocritic`, `gocyclo` (promoted 2026-10-06) |
 | `golangci-lint-comprehensive` (Tier 2) | `.golangci-comprehensive.yml` | yes | ~10 min | **`funlen`, `goconst`, `unconvert`, `exhaustive`, `prealloc`, `dupl`, `nakedret`** |
 | `go-sec` | gosec directly | yes | ~2 min | gosec standalone; sees **no `_test.go`**, since it does not pass `-tests` and gosec skips them by default |
+| `govulncheck` | `nix/checks/govulncheck.nix`, database `nix/lib/govulndb.nix` | yes | minutes | known vulnerabilities the code reaches, against a pinned offline database, with and without every flavor tag; fails on one not in the file's `accepted` list. `nix run .#govulncheck-fresh` checks against the live database and runs `go mod verify`. `nix build .#sbom-<binary>` writes a CycloneDX SBOM |
 | `go-vet` | `enable-all`, minus `fieldalignment` and `shadow` | yes | fast | — |
 | `gofmt` / `nix-fmt` | — | yes | fast | formatting |
 | `deadnix` / `statix` | `statix.toml` | yes | fast | Nix dead code and antipatterns |

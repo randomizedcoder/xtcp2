@@ -277,6 +277,14 @@ let
   # Its hermetic counterpart, checks.upstream-pins, keeps the manifest honest.
   checkUpstreamPins = import ./check-upstream-pins.nix { inherit pkgs; };
 
+  # Live-database counterpart of checks.govulncheck, for the same reason.
+  govulncheckFresh = import ./govulncheck-fresh.nix {
+    inherit pkgs versions;
+    inherit (checks.govulncheck) allTags;
+  };
+
+  sbomFor = import ./lib/sbom.nix { inherit pkgs versions; };
+
   # The five golangci-lint tier helpers (lint-quick / lint /
   # lint-comprehensive / lint-fix / lint-new). They live in their own file
   # because nix/devshell.nix puts the very same derivations on the dev
@@ -973,6 +981,17 @@ in
     #   oci-ipfeed-collector           ASN artifact builder
     #   oci-xtcp2-tcp-stress           TCP_MODE-dispatched stress image
     // (lib.filterAttrs (n: _v: lib.hasPrefix "oci-" n) containers)
+    # sbom-<binary attr>: a CycloneDX SBOM per binary (nix/lib/sbom.nix).
+    // lib.mapAttrs' (name: drv: lib.nameValuePair "sbom-${name}" (sbomFor drv)) (
+      lib.filterAttrs (_n: lib.isDerivation) (
+        removeAttrs binaries [
+          "byVariant"
+          "joins"
+          "xtcp2ByFlavor"
+          "xtcp2OnlyByFlavor"
+        ]
+      )
+    )
     // containersWithIpmetaBootstrap
     // linkmonitorPackages
     # lint-quick / lint / lint-comprehensive / lint-fix / lint-new. `all` is
@@ -1201,6 +1220,11 @@ in
     check-upstream-pins = {
       type = "app";
       program = "${checkUpstreamPins}/bin/xtcp2-check-upstream-pins";
+    };
+    # Known vulnerabilities against the live database, and `go mod verify`.
+    govulncheck-fresh = {
+      type = "app";
+      program = "${govulncheckFresh}/bin/xtcp2-govulncheck-fresh";
     };
     # Run the whole microVM integration suite sequentially. Lifecycle sweep
     # by default; `-- --soak [--duration 1h]` adds the duration runners.

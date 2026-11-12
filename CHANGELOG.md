@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Vulnerability check.** `checks.govulncheck` runs govulncheck against a pinned snapshot of the Go vulnerability database, with no tags and with every flavor tag, and fails on a reachable finding not in its accepted list. One is accepted: GO-2026-6859 in `net/http`, fixed in go1.27.4, until the toolchain moves. `nix run .#govulncheck-fresh` checks against the live database and runs `go mod verify`; `nix build .#sbom-<binary>` writes a CycloneDX SBOM for any binary package.
+
 ## 0.2.1 (2026-11)
 
 Fixes for what the first fleet rollout of 0.2.0 found: the link monitor baseline, the uplink columns, and container attribution. No schema, flag-default or `XtcpConfig` change; 0.2.0 clients and consumers work unchanged.
