@@ -288,18 +288,25 @@ func TestMonitorLinkOptions(t *testing.T) {
 	tests := []struct {
 		description    string
 		stats, details int
+		alias          string // IFLA_IFALIAS, none when empty
 		expected       string
 	}{
-		{"positive: plain", 0, 0, line + "\n"},
-		{"negative: -s adds no statistics", 1, 0, line + "\n"},
-		{"positive: -d adds the detail run, but no addrgenmode", 0, 1, line + "numtxqueues 1 \n"},
-		{"corner: -s -d is -d", 1, 1, line + "numtxqueues 1 \n"},
+		{"positive: plain", 0, 0, "", line + "\n"},
+		{"negative: -s adds no statistics", 1, 0, "", line + "\n"},
+		{"positive: -d adds the detail run, but no addrgenmode", 0, 1, "", line + "numtxqueues 1 \n"},
+		{"corner: -s -d is -d", 1, 1, "", line + "numtxqueues 1 \n"},
+		{"negative: an alias without -d, as do_link is 0", 0, 0, "up", line + "\n"},
+		{"positive: -d prints the alias after the detail run", 0, 1, "up", line + "numtxqueues 1 \n    alias up\n"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			m, out, errOut := monitorFixture(&monitorArgs{}, 0, time.Time{})
 			m.c.showStats, m.c.showDetails = tc.stats, tc.details
-			if err := m.accept(monMsg(unix.RTM_NEWLINK, body)); err != nil {
+			b := body
+			if tc.alias != "" {
+				b = catBytes(body, nla(unix.IFLA_IFALIAS, strz(tc.alias)))
+			}
+			if err := m.accept(monMsg(unix.RTM_NEWLINK, b)); err != nil {
 				t.Fatal(err)
 			}
 			if out.String() != tc.expected || errOut.Len() != 0 {

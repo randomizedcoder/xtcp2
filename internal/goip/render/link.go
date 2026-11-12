@@ -143,6 +143,12 @@ type LinkView struct {
 	// calls WithDetail.
 	*LinkDetailView
 
+	// IfAlias is IFLA_IFALIAS's `alias %s` continuation line
+	// (ip/ipaddress.c:1273-1279), printed under `do_link || show_details`
+	// after the detail run. Only WithAlias sets it. The kernel dumps the
+	// attribute only when the alias is set, so empty is absent.
+	IfAlias string `json:"ifalias,omitempty"`
+
 	// nameSuffix is the "@peer" or "@if2" part of the first line. It is not a
 	// JSON field: iproute2 puts the bare ifname in JSON and only concatenates
 	// for the text form (print_name_and_link, lib/utils.c:1302-1344).
@@ -497,6 +503,10 @@ func (v LinkView) Text() string {
 	// :1060 tests show_details too) but prints no detail token at all,
 	// because an AF_INET6 link dump carries none of the attributes.
 	b.WriteString(v.detailText())
+	if v.IfAlias != "" {
+		b.WriteString("\n    alias ")
+		b.WriteString(v.IfAlias)
+	}
 
 	// Before the altnames, not after, and that order is iproute2's rather
 	// than arbitrary: print_linkinfo emits the stats block at
@@ -533,6 +543,14 @@ func linkEventToken(event uint32) string {
 		return ""
 	}
 	return "event " + linkEvents[event] + " "
+}
+
+// WithAlias adds the link's alias line, which print_linkinfo prints for
+// `ip link show` (do_link) and, under -d, for `ip addr show` and the
+// monitor.
+func (v LinkView) WithAlias(li xtcpnl.LinkInfo) LinkView {
+	v.IfAlias = li.IfAlias
+	return v
 }
 
 // WithoutQlen drops the qlen token, as print_linkinfo does when

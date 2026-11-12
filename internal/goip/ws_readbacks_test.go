@@ -182,3 +182,40 @@ func TestWsReadbackFirstGap(t *testing.T) {
 		})
 	}
 }
+
+// TestWsLinkAlias replays linkset ec-002's dump, whose d0 carries
+// `alias hello`, through the link commands no row reads back with: do_link
+// prints the alias without -d (ip/ipaddress.c:1273), in text and JSON.
+//
+// go test ./internal/goip/ -run TestWsLinkAlias
+func TestWsLinkAlias(t *testing.T) {
+	useLLMap720(t)
+	useQlen720(t)
+	t.Cleanup(func() { useWsO5Release("") })
+	useWsO5Release("linkset")
+	pcap := filepath.Join(wsO5SpacePath("linkset"), "ec-002", "netlink_route_dump.pcap")
+	tests := []struct {
+		description string
+		cmd         string
+		expected    string
+	}{
+		{description: "positive: link show prints the alias without -d", cmd: "ip link show",
+			expected: "\n    alias hello\n"},
+		{description: "positive: -j's ifalias", cmd: "ip -j link show", expected: `"ifalias":"hello"`},
+		{description: "positive: -d puts it after the detail run", cmd: "ip -d link show",
+			expected: "gro_ipv4_max_size 65536 \n    alias hello\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			c, object, args, err := wsReadbackArgv(tc.cmd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.src = &restoreReplay{linkReplay: newLinkReplay(t, pcap)}
+			rc, stdout, stderr := wsO5Runners[object](c, args)
+			if rc != ExitOK || !strings.Contains(stdout, tc.expected) {
+				t.Errorf("rc %d, stdout %q, stderr %q; expected %q", rc, stdout, stderr, tc.expected)
+			}
+		})
+	}
+}

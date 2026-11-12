@@ -12,7 +12,7 @@
 # addr6: 128 same, 0 differ
 # neigh4: 138 same, 0 differ
 # neigh6: 137 same, 0 differ
-# linkset: 77 same, 53 differ
+# linkset: 130 same, 0 differ
 # linkadd: 111 same, 0 differ
 # linkattr: 52 same, 0 differ
 # linkpd: 9 same, 11 differ
@@ -48,64 +48,10 @@
 # ip730/v730seg6: 12 same, 0 differ
 # ip730/v730ovpn: 8 same, 0 differ
 # ip730/v730maddr: 0 same, 0 differ
-# gap: 53 readbacks: lacks "alias"
 # gap: 3 readbacks: lacks "ff:ff:ff:ff:ff:ffprotodown_reason"
 # gap: 8 readbacks: lacks "protodown"
 # gap: 3 readbacks: lacks "realm"
 # gap: 1 readbacks: lacks "realms"
-linkset/bd-001/dump lacks "alias" | ip -d link show
-linkset/bd-002/dump lacks "alias" | ip -d link show
-linkset/ec-002/dump lacks "alias" | ip -d link show
-linkset/ec-003/dump lacks "alias" | ip -d link show
-linkset/pw-001/dump lacks "alias" | ip -d link show
-linkset/pw-002/dump lacks "alias" | ip -d link show
-linkset/pw-005/dump lacks "alias" | ip -d link show
-linkset/pw-006/dump lacks "alias" | ip -d link show
-linkset/pw-008/dump lacks "alias" | ip -d link show
-linkset/pw-010/dump lacks "alias" | ip -d link show
-linkset/pw-011/dump lacks "alias" | ip -d link show
-linkset/pw-012/dump lacks "alias" | ip -d link show
-linkset/pw-015/dump lacks "alias" | ip -d link show
-linkset/pw-016/dump lacks "alias" | ip -d link show
-linkset/pw-017/dump lacks "alias" | ip -d link show
-linkset/pw-018/dump lacks "alias" | ip -d link show
-linkset/pw-019/dump lacks "alias" | ip -d link show
-linkset/pw-020/dump lacks "alias" | ip -d link show
-linkset/pw-021/dump lacks "alias" | ip -d link show
-linkset/pw-023/dump lacks "alias" | ip -d link show
-linkset/pw-027/dump lacks "alias" | ip -d link show
-linkset/pw-028/dump lacks "alias" | ip -d link show
-linkset/pw-031/dump lacks "alias" | ip -d link show
-linkset/pw-036/dump lacks "alias" | ip -d link show
-linkset/pw-042/dump lacks "alias" | ip -d link show
-linkset/rn1-002/dump lacks "alias" | ip -d link show
-linkset/rn1-005/dump lacks "alias" | ip -d link show
-linkset/rn1-006/dump lacks "alias" | ip -d link show
-linkset/rn1-008/dump lacks "alias" | ip -d link show
-linkset/rn1-009/dump lacks "alias" | ip -d link show
-linkset/rn1-010/dump lacks "alias" | ip -d link show
-linkset/rn1-011/dump lacks "alias" | ip -d link show
-linkset/rn1-012/dump lacks "alias" | ip -d link show
-linkset/rn1-013/dump lacks "alias" | ip -d link show
-linkset/rn1-015/dump lacks "alias" | ip -d link show
-linkset/rn1-016/dump lacks "alias" | ip -d link show
-linkset/rn1-017/dump lacks "alias" | ip -d link show
-linkset/rn1-019/dump lacks "alias" | ip -d link show
-linkset/rn1-020/dump lacks "alias" | ip -d link show
-linkset/rn1-021/dump lacks "alias" | ip -d link show
-linkset/rn1-022/dump lacks "alias" | ip -d link show
-linkset/rn1-023/dump lacks "alias" | ip -d link show
-linkset/rn1-025/dump lacks "alias" | ip -d link show
-linkset/rn1-026/dump lacks "alias" | ip -d link show
-linkset/rn1-027/dump lacks "alias" | ip -d link show
-linkset/rn1-029/dump lacks "alias" | ip -d link show
-linkset/rn1-030/dump lacks "alias" | ip -d link show
-linkset/rn1-031/dump lacks "alias" | ip -d link show
-linkset/rn1-033/dump lacks "alias" | ip -d link show
-linkset/rn1-034/dump lacks "alias" | ip -d link show
-linkset/rn1-035/dump lacks "alias" | ip -d link show
-linkset/rn1-036/dump lacks "alias" | ip -d link show
-linkset/rn1-037/dump lacks "alias" | ip -d link show
 linkpd/ec-002/dump lacks "protodown" | ip -d link show dev m0
 linkpd/pw-001/dump lacks "ff:ff:ff:ff:ff:ffprotodown_reason" | ip -d link show dev m0
 linkpd/pw-003/dump lacks "protodown" | ip -d link show dev m0

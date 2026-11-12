@@ -769,6 +769,22 @@ Two causes, one of them in the test:
 | boundary: the largest u32 | 4294967295 | `mtu 4294967295 ` |
 | positive: the corpus | `TestWsReadbacks` | linkadd 111 of 111; no `mtu` or `qlen` gap; 17 more linkset rows reach their `alias` line (`alias` 36 → 53) |
 
+#### NX7c link `alias`
+
+print_linkinfo prints `\n    alias %s` when IFLA_IFALIAS is present and `do_link || show_details` (ip/ipaddress.c:1273-1277). It comes after the `-d` detail run and before the statistics and the altnames, and the JSON key is `"ifalias"`. `ip link show` sets do_link, so it prints the alias without `-d`; `ip addr show` and `ip monitor` print it only with `-d`. goip printed it nowhere. `LinkView.WithAlias` sets it; `link show` always calls it, and `addr show` and `monitor` call it under `-d`.
+
+| description | input | expected |
+|---|---|---|
+| positive: an alias | `hello` | `\n    alias hello`, `"ifalias":"hello"` |
+| positive: before an altname | `hello`, altname `a0` | the alias line, then `    altname a0` |
+| negative: not asked for | `ip addr show` without `-d` | no alias line, no key |
+| boundary: no IFLA_IFALIAS | | no alias line |
+| corner: an alias with spaces | `a b` | printed whole |
+| negative: monitor without `-d` | RTM_NEWLINK with IFLA_IFALIAS `up` | no alias line |
+| positive: monitor with `-d` | the same | `numtxqueues 1 \n    alias up` |
+| positive: the corpus, `link show` | linkset ec-002's dump (`TestWsLinkAlias`) | `\n    alias hello` without `-d`; `"ifalias":"hello"` under `-j`; after `gro_ipv4_max_size 65536 ` under `-d` |
+| positive: O9 | `TestWsReadbacks` | linkset 130 of 130; no `alias` gap |
+
 #### NX7f the stock name tables, compiled in
 
 goip compiles in the files the parity guest reads (`internal/goip/render/names.go`):
