@@ -25,7 +25,7 @@ pkgs.writeShellApplication {
     versions.govulncheck
   ];
   text = ''
-    if [ ! -f go.mod ]; then
+    if [[ ! -f go.mod ]]; then
       echo "run from the xtcp2 repository root" >&2
       exit 2
     fi
@@ -37,6 +37,6 @@ pkgs.writeShellApplication {
     govulncheck ./... || rc=1
     echo "==> govulncheck (-tags ${allTags})"
     govulncheck -tags ${allTags} ./... || rc=1
-    exit "$rc"
+    exit "''${rc}"
   '';
 }
