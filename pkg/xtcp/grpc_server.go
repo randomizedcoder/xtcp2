@@ -106,7 +106,8 @@ func (x *XTCP) startGRPCServers(ctx context.Context) {
 	x.grpcHealth.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 	methods := grpcMethodAccess()
 
-	for _, l := range x.grpcListeners {
+	for i := range x.grpcListeners {
+		l := &x.grpcListeners[i]
 		policy, err := l.Spec.Policy(methods)
 		if err != nil {
 			x.fatalf("gRPC listener %q auth: %v", l.Spec.Name, err)
@@ -129,7 +130,7 @@ func (x *XTCP) startGRPCServers(ctx context.Context) {
 			xtcp_config.RegisterConfigServiceServer(srv, readOnlyConfig{s: x.configService})
 			linkmonitorpb.RegisterLinkMonitorServiceServer(srv, readOnlyLinkMonitor{s: linkMonitorService})
 		}
-		go serveGRPC(ctx, l, srv)
+		go serveGRPC(ctx, *l, srv)
 	}
 }
 

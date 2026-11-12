@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -216,8 +217,10 @@ func startListeners(ctx context.Context, wg *sync.WaitGroup, specs []listeners.S
 	}
 	var all []bound
 	closeAll := func() {
-		for _, b := range all {
-			_ = b.ln.Close()
+		for i := range all {
+			if err := all[i].ln.Close(); err != nil {
+				log.Printf("listener %q: close: %v", all[i].spec.Name, err)
+			}
 		}
 	}
 	for _, s := range specs {
@@ -237,7 +240,8 @@ func startListeners(ctx context.Context, wg *sync.WaitGroup, specs []listeners.S
 		all = append(all, bound{s, ln, h})
 	}
 	var grpcLns []xtcp.GRPCListener
-	for _, b := range all {
+	for i := range all {
+		b := &all[i]
 		for _, cl := range b.spec.Classes {
 			listenerActive.WithLabelValues(b.spec.Name, b.spec.Endpoint.Network, listeners.ClassName(cl)).Set(1)
 		}
@@ -319,7 +323,9 @@ func httpHandler(s listeners.Spec, promPath string) (http.Handler, error) {
 // stopped. The daemon's servers close the ones they served, so an error
 // here is expected and ignored; this catches a daemon that never served.
 func closeGRPCListeners(ls []xtcp.GRPCListener) {
-	for _, l := range ls {
-		_ = l.Listener.Close()
+	for i := range ls {
+		if err := ls[i].Listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			log.Printf("listener %q: close: %v", ls[i].Spec.Name, err)
+		}
 	}
 }

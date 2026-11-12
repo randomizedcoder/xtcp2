@@ -176,7 +176,7 @@ func TestStartGRPCServers_none(t *testing.T) {
 	x.setReady(true) // nil grpcHealth is fine
 }
 
-// TestStartGRPCServers_shutdown: cancelling the run stops the server and the
+// TestStartGRPCServers_shutdown: canceling the run stops the server and the
 // Unix socket is removed.
 func TestStartGRPCServers_shutdown(t *testing.T) {
 	x := newGRPCServerFixture(t)

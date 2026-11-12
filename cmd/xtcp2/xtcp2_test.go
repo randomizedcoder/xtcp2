@@ -710,7 +710,12 @@ func TestProbeReadyUnix(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Logf("%s: %s; expected: rc=%d", tc.category, tc.description, tc.expected)
-			sock := filepath.Join(t.TempDir(), "prom.sock")
+			dir, err := os.MkdirTemp("/tmp", "xtcp2-pr-") // short: sun_path is 108 bytes
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(dir) })
+			sock := filepath.Join(dir, "prom.sock")
 			ln, err := net.Listen("unix", sock)
 			if err != nil {
 				t.Fatalf("net.Listen(unix): %v", err)

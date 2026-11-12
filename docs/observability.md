@@ -16,15 +16,15 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 
 ## Prometheus metrics
 
-`pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). The same HTTP server can listen on a Unix domain socket by setting `-promListenNetwork unix` and using `-promListen` as the socket path. Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
+`pkg/xtcp/prometheus.go` registers the daemon's metrics, served at `-promPath` (default `/metrics`) on the listener serving the `metrics` class: by default the Unix socket `/run/xtcp2/metrics.sock`, with a bearer token ([listeners](security.md#listeners)). Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
 
-The listener is bound before the daemon starts, so a bad address, a port in use or an invalid listener auth config fails startup with an error. On shutdown the server drains in-flight requests for up to 3 s, then closes.
+Every listener is bound before the daemon starts, so a bad address, a port in use or an invalid listener config fails startup with an error. On shutdown the server drains in-flight requests for up to 3 s, then closes.
 
 Two per-record series are off by default because at 100k sockets they cost more CPU than the decode: `xtcp_counts{function="Deserialize", variable="n"}` and `xtcp_histograms{function="Deserialize", variable="nlPacketComplete"}`. Turn them on with `-debugPrometheus` (or `DEBUG_PROMETHEUS=true`). `flatRecordServiceSend`'s `start` and `complete` series only move while a gRPC client is streaming records. For records decoded, use `xtcp_counts{variable="p"}` (per decoder) or `Deserialize` `envelopeAppend`. See [metrics on the decode path](performance.md#metrics-on-the-decode-path), and the [metrics reference](metrics.md) for every series, what it counts and which ones are on by default.
 
 ## Scraping with listener auth
 
-With `-listenerAuthMode raw` every path on the listener, `/metrics` included, needs `Authorization: Bearer <token>`; without it the reply is `401`. Set `-listenerAdminAuthMode raw` too, with a different token, and the first token becomes read-only: it can scrape `/metrics` and the link monitor paths, but `/debug/pprof/` answers `403`. The design is in [design-listener-security-hardening.md](design-listener-security-hardening.md).
+Every path on an authenticated listener, `/metrics` included, needs `Authorization: Bearer <token>`; without it the reply is `401`. Listeners are authenticated by default. Give a listener an admin token too, different from its read token, and the read token becomes read-only: it can scrape `/metrics` and the link monitor paths, but `/debug/pprof/` (on a listener serving `debug`) answers `403`. See [listeners](security.md#listeners).
 
 Give xtcp2 the tokens as files, so they stay out of `ps` and `docker inspect`:
 
@@ -35,10 +35,14 @@ head -c 32 /dev/urandom | base64 | tr -d '\n=' > /etc/xtcp2/listener_admin_token
 ```
 
 ```sh
-LISTENER_AUTH_MODE=raw
 LISTENER_RAW_TOKEN_FILE=/etc/xtcp2/listener_read_token
-LISTENER_ADMIN_AUTH_MODE=raw
 LISTENER_ADMIN_RAW_TOKEN_FILE=/etc/xtcp2/listener_admin_token
+```
+
+A scraper that cannot use a Unix socket needs a TCP listener, for example on loopback:
+
+```sh
+-listener name=metrics,serves=health+metrics+metrics-detail,address=127.0.0.1:9088,network=tcp
 ```
 
 The scraper only needs the read token. vmagent and Prometheus take it with `credentials_file`:
@@ -56,12 +60,12 @@ scrape_configs:
 
 vmagent re-reads `credentials_file` on each scrape (cached for at most 1 s), so rotating a token is: write the new file for both, then restart xtcp2, which reads its token file at startup. The scrape fails between the two steps, so do them together. `xtcp2 -healthcheck` reads the same settings and sends the token, over TCP or a Unix socket.
 
-The default TCP listener sends replies with TTL / hop limit 3 (`-ipv4Ttl`, `-ipv6HopLimit`), so a scraper more than three hops away gets no answer. Raise them only for a scraper that really is further away.
+A TCP listener sends replies with TTL / hop limit 3 (`-ipv4Ttl`, `-ipv6HopLimit`), so a scraper more than three hops away gets no answer. Raise them only for a scraper that really is further away.
 
 ## Health & readiness
 
-For container / Kubernetes deployment the metrics HTTP server also serves two
-probe endpoints (same listener as `-promListen`):
+For container / Kubernetes deployment the listener serving the `health` class
+(the default socket, by default) serves two probe endpoints:
 
 - **`/healthz`** — liveness. Returns `200` as soon as the HTTP server is up. Use
   it for a Docker `HEALTHCHECK` or a k8s `livenessProbe`.
@@ -70,7 +74,7 @@ probe endpoints (same listener as `-promListen`):
   during shutdown. Use it for a k8s `readinessProbe` / `startupProbe` so traffic
   and rollouts wait until xtcp2 is actually collecting.
 
-The gRPC port additionally serves the standard `grpc.health.v1` service, which
+A gRPC listener additionally serves the standard `grpc.health.v1` service, which
 reports `SERVING` on the same readiness condition (for native k8s gRPC probes).
 
 Readiness doesn't depend on the link monitor: a monitor still settling, or one
@@ -79,16 +83,17 @@ that has failed, leaves `/readyz` alone.
 ## Link monitor
 
 xtcp2 runs the link monitor by default ([design](design-linkmonitor-in-xtcp2.md)).
-It serves go-link-monitor's paths on the same listener: `/metrics/<category>[/<iface>]`
-and `/metrics-all[/<iface>]`, plus `/ip` and `/i` with `-linkMonitorIPPaths`
-(off by default, since they expose host addresses). Each detail path has an
-in-flight limit and a 10 s timeout. `/metrics` carries only the problem summary.
+It serves go-link-monitor's paths: `/metrics/<category>[/<iface>]` and
+`/metrics-all[/<iface>]` on the listener serving `metrics-detail`, and `/ip` and
+`/i` on one serving `ip`, with `-linkMonitorIPPaths` (off by default, since they
+expose host addresses). Each detail path has an in-flight limit and a 10 s
+timeout. `/metrics` carries only the problem summary.
 
-`-linkMonitorIPListen 127.0.0.1:9089` serves `/ip` and `/i` on a loopback
-listener of their own instead, without listener auth, so a shell on the host
-can `curl http://127.0.0.1:9089/i/a/s` without a token. It closes connections
-from any non-loopback peer, such as a container on a Docker bridge with
-`route_localnet` set ([design](design-linkmonitor-in-xtcp2.md#http-paths)).
+`-listener name=ip,serves=ip,address=127.0.0.1:9089,network=tcp,auth=disabled`
+serves `/ip` and `/i` on a loopback listener of their own, without a token, so
+a shell on the host can `curl http://127.0.0.1:9089/i/a/s`. It closes
+connections from any non-loopback peer, such as a container on a Docker bridge
+with `route_localnet` set ([security](security.md#optional-loopback-inspection-listener)).
 
 - **SIGUSR1** (`systemctl reload xtcp2` under the NixOS module) relearns the
   expected up-link count, as for go-link-monitor.
@@ -98,7 +103,7 @@ from any non-loopback peer, such as a container on a Docker bridge with
 
 ## pprof
 
-The standard Go `net/http/pprof` endpoints are mounted on the metrics HTTP server, so `/debug/pprof/*` is available on the same Prometheus listener for live CPU, heap, goroutine, mutex, and block profiles. For one-shot file-based profiling, `-profile.mode` enables a profiling session of mode `cpu`, `mem`, `mutex`, or `block`.
+The standard Go `net/http/pprof` endpoints are served only on a listener serving the `debug` class, which needs an admin credential, for example `-listener name=debug,serves=debug,address=/run/xtcp2/debug.sock,tokenFile=/run/secrets/xtcp2-admin`. They give live CPU, heap, goroutine, mutex, and block profiles; `/debug/pprof/cmdline` is never served. For one-shot file-based profiling, `-profile.mode` enables a profiling session of mode `cpu`, `mem`, `mutex`, or `block`.
 
 ## Pyroscope continuous profiling
 
@@ -122,10 +127,7 @@ In practice this means running xtcp2 as root or under `sudo`. The capability beh
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `-promListen` | `:9088` | Prometheus / pprof HTTP listen address. |
-| `-promListenNetwork` | `tcp` | Listener network: `tcp` or `unix` (`PROM_LISTEN_NETWORK`). |
-| `-promUnixSocketMode` | `0600` | UDS permission bits after bind (`PROM_UNIX_SOCKET_MODE`: octal with a leading `0`, e.g. `0660`, or decimal; above `0777` is ignored). |
-| `-promUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`PROM_UNLINK_STALE_UNIX_SOCKET`). |
+| `-listener` | the default socket | A listener, repeatable (`LISTENERS`); see [listeners](security.md#listeners). Replaces the deprecated `-promListen*` flags. |
 | `-promPath` | `/metrics` | Prometheus metrics path. |
 | `-debugPrometheus` | `false` | Also record the per-record series (`DEBUG_PROMETHEUS`). |
 | `-profile.mode` | `` | One-shot profiling mode: `cpu`, `mem`, `mutex`, `block`. |
@@ -134,21 +136,14 @@ In practice this means running xtcp2 as root or under `sudo`. The capability beh
 | `-pyroscopeSampleHz` | — | CPU sampling rate in Hz. |
 | `-pyroscopeUploadSec` | — | Seconds between profile uploads. |
 
-Example local-only metrics listener:
+Scraping the default socket:
 
 ```sh
-xtcp2 -promListenNetwork unix -promListen /run/xtcp2/prometheus.sock -promUnixSocketMode 432
-curl --unix-socket /run/xtcp2/prometheus.sock http://xtcp2/metrics
+curl --unix-socket /run/xtcp2/metrics.sock \
+  -H "Authorization: Bearer $(cat /etc/xtcp2/listener_read_token)" http://xtcp2/metrics
 ```
 
-When listener authentication is enabled, add the bearer header:
-
-```sh
-curl --unix-socket /run/xtcp2/prometheus.sock \
-  -H 'Authorization: Bearer <token>' http://xtcp2/metrics
-```
-
-`432` is decimal for `0660`; use `384` for `0600`. The built-in `-healthcheck` mode also understands `PROM_LISTEN_NETWORK=unix` and probes `/readyz` through the socket.
+The built-in `-healthcheck` mode reads the same listener settings and probes `/readyz` on the listener serving `health`, over its socket or TCP.
 
 ## See also
 

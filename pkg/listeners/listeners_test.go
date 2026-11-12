@@ -243,3 +243,56 @@ func TestResolveLoopbackAndTokens(t *testing.T) {
 		t.Errorf("disabled listener sends a credential: %+v", wide.ClientAuth())
 	}
 }
+
+// TestInferredAuthMode: an unset mode follows the credential file given, so
+// adminTokenFile= alone is an admin credential and hmacKeyFile= alone is HMAC.
+func TestInferredAuthMode(t *testing.T) {
+	dir := t.TempDir()
+	tok := filepath.Join(dir, "tok")
+	if err := os.WriteFile(tok, []byte("secret\n"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name, category, description string
+		spec                        string
+		auth, admin                 xtcp_config.ListenerAuthMode
+		wantErr                     bool
+	}{
+		{"admin_token_file", "positive", "adminTokenFile alone makes a raw admin credential",
+			"name=g,serves=grpc-read+grpc-admin,address=/run/g.sock,tokenFile=" + tok + ",adminTokenFile=" + tok,
+			xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, false},
+		{"hmac_key_file", "positive", "hmacKeyFile alone means hmac-utc-minute",
+			"name=m,serves=metrics,address=/run/m.sock,hmacKeyFile=" + tok,
+			xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE, xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED, false},
+		{"no_admin", "negative", "no admin file and no admin mode: grpc-admin beside grpc-read is refused",
+			"name=g,serves=grpc-read+grpc-admin,address=/run/g.sock,tokenFile=" + tok,
+			0, 0, true},
+		{"explicit_mode_wins", "boundary", "a typed mode is kept even with a token file",
+			"name=m,serves=metrics,address=/run/m.sock,auth=hmac-utc-minute,hmacKeyFile=" + tok + ",tokenFile=" + tok,
+			xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE, xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED, false},
+		{"both_files", "corner", "a token and a key with no mode is raw",
+			"name=m,serves=metrics,address=/run/m.sock,hmacKeyFile=" + tok + ",tokenFile=" + tok,
+			xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			c := &xtcp_config.XtcpConfig{Listeners: []*xtcp_config.Listener{spec(t, tc.spec)}}
+			specs, _, err := Resolve(c, testReader)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("%s: no error", tc.description)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("%s: %v", tc.description, err)
+			}
+			if got := specs[0].Auth.GetMode(); got != tc.auth {
+				t.Errorf("%s: auth mode %v, want %v", tc.description, got, tc.auth)
+			}
+			if got := specs[0].AdminAuth.GetMode(); got != tc.admin {
+				t.Errorf("%s: admin mode %v, want %v", tc.description, got, tc.admin)
+			}
+		})
+	}
+}

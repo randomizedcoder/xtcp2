@@ -1,8 +1,8 @@
 # gRPC API
 
-xtcp2 exposes a gRPC server (default port `8889`) with three services: one to read and change daemon configuration at runtime, one to stream live TCP records, and one to inspect and administer the embedded link monitor. gRPC server reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without the `.proto` files.
+xtcp2 serves gRPC, on a listener configured for it, with three services: one to read and change daemon configuration at runtime, one to stream live TCP records, and one to inspect and administer the embedded link monitor. gRPC server reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without the `.proto` files.
 
-For protection defaults, read/admin credential setup, TTL/UDS tradeoffs, and recommended deployments, see the [listener security guide](security.md). Auth is disabled by default, and the server and built-in clients do not provide native TLS.
+For protection defaults, read/admin credential setup, TTL/UDS tradeoffs, and recommended deployments, see the [listener security guide](security.md). No gRPC listener runs by default; listeners are authenticated by default, and the server and built-in clients do not provide native TLS.
 
 ## Table of contents
 
@@ -20,7 +20,13 @@ For protection defaults, read/admin credential setup, TTL/UDS tradeoffs, and rec
 
 ## The server
 
-`pkg/xtcp/grpc_server.go` listens on `:<grpcPort>` by default and registers the three services plus gRPC health and reflection. It can also listen on a Unix domain socket (UDS) for local-only operation. Each service has its own implementation file:
+`pkg/xtcp/grpc_server.go` serves each listener whose classes are `grpc-read` and/or `grpc-admin` ([listeners](security.md#listeners)), with gRPC health and reflection. A `grpc-admin` listener registers all three services; a `grpc-read` listener registers read-only versions whose admin RPCs answer `Unimplemented`, whatever the credential. The clients' default, and the documented place, is a Unix socket:
+
+```sh
+xtcp2 -listener name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock,tokenFile=/run/secrets/xtcp2-read,adminTokenFile=/run/secrets/xtcp2-admin
+```
+
+Each service has its own implementation file:
 
 - `pkg/xtcp/grpc_configService.go` — `ConfigService`.
 - `pkg/xtcp/grpc_flatRecordService.go` — `XTCPFlatRecordService`.
@@ -164,7 +170,7 @@ xtcp2ctl reconfigure -file cfg.new.json
 | `link status\|interfaces\|collectors` | `-format text\|json`; `interfaces`: `-name`, `-eligible-only` | none |
 | `link rebaseline\|resync` | `-reason` (required), `-wait` | hot |
 
-`link` takes the common flags *before* its subcommand, so the subcommand's own flags stay separate: `xtcp2ctl link -port 8889 rebaseline -reason "cabling fixed" -wait 30s`. It allows 75s per call, so the 60s maximum `-wait` fits.
+`link` takes the common flags *before* its subcommand, so the subcommand's own flags stay separate: `xtcp2ctl link -unixSocket /run/xtcp2/grpc.sock rebaseline -reason "cabling fixed" -wait 30s`. It allows 75s per call, so the 60s maximum `-wait` fits.
 
 ## The xtcp2client binary
 
@@ -173,11 +179,12 @@ xtcp2ctl reconfigure -file cfg.new.json
 ```sh
 nix build .#xtcp2client
 
-# Listen mode over TCP: stream records the daemon collects on its own schedule
-./result/bin/xtcp2client -target 127.0.0.1 -port 8889
+# Listen mode: stream records the daemon collects on its own schedule, from
+# /run/xtcp2/grpc.sock
+XTCP2_GRPC_AUTH_TOKEN_FILE=/run/secrets/xtcp2-read ./result/bin/xtcp2client
 
-# Listen mode over a Unix domain socket
-./result/bin/xtcp2client -network unix -unixSocket /run/xtcp2/grpc.sock
+# Over TCP
+./result/bin/xtcp2client -network tcp -target 127.0.0.1 -port 8889
 
 # Poll mode: drive collection from the client, as JSON
 ./result/bin/xtcp2client -poll -pollFrequency 2s -json
@@ -185,10 +192,10 @@ nix build .#xtcp2client
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `-network` | `tcp` | gRPC transport network: `tcp` or `unix`. |
-| `-target` | (daemon host) | Target hostname. |
-| `-port` | `8889` | Target gRPC port; must match the daemon's `-grpcPort`. |
-| `-unixSocket` | — | UDS path when `-network unix`. |
+| `-network` | `unix` | gRPC transport network: `unix` or `tcp`. |
+| `-unixSocket` | `/run/xtcp2/grpc.sock` | Socket path when `-network unix`. |
+| `-target` | `localhost` | Target hostname when `-network tcp`. |
+| `-port` | `8889` | Target gRPC port when `-network tcp`. |
 | `-poll` | `false` | Use `PollFlatRecords` (client-driven) instead of `FlatRecords`. |
 | `-pollFrequency` | — | Poll interval in poll mode. |
 | `-workers` | `10` | Concurrent stream workers. |
@@ -197,7 +204,7 @@ nix build .#xtcp2client
 
 ## Using grpcurl
 
-Because reflection is on, the vendored `grpcurl` (`cmd/grpcurl`) can list and call methods directly:
+Because reflection is on, the vendored `grpcurl` (`cmd/grpcurl`) can list and call methods directly. The examples assume a TCP listener on `127.0.0.1:8889` and a token in `$TOKEN` (`-H "authorization: Bearer $TOKEN"`, left out below); for the socket, add `-unix` and give `/run/xtcp2/grpc.sock` as the address:
 
 ```sh
 grpcurl -plaintext 127.0.0.1:8889 list
@@ -226,14 +233,17 @@ grpcurl -plaintext 127.0.0.1:8889 xtcp_config.v1.ConfigService/Get \
 
 Each RPC carries an access class, declared as the `(xtcp_auth.v1.access)` method option in the proto (`proto/xtcp_auth/v1/xtcp_auth.proto`). `XTCPFlatRecordService` is also ClickHouse's format schema, so its two classes are declared in `pkg/xtcp/grpc_access.go` instead. A method with no class is treated as **admin**, and a test fails the build if any registered method lacks an explicit one. Health checking and server reflection are read.
 
+Per listener:
+
 | Configured credentials | Read RPCs, `/metrics`, health | Admin RPCs, `/debug/pprof/` |
 |---|---|---|
-| none | open | open |
-| shared only (`-listenerAuthMode`) | shared credential | shared credential (unchanged behaviour) |
-| shared + admin (`-listenerAdminAuthMode`) | shared or admin credential | admin credential only |
-| admin only | open | admin credential only |
+| read only | read credential | read credential, on a listener serving only admin classes |
+| read + admin | read or admin credential | admin credential only |
+| none (`auth=disabled`, UDS or loopback) | open | refused at startup without an admin credential |
 
-Once an admin credential is configured, the shared credential becomes read-only: a valid shared credential presented to an admin RPC gets `PermissionDenied` (HTTP `403`), while a missing or wrong credential gets `Unauthenticated` (HTTP `401`) after the failure jitter. The method table is built once at startup; each call does one map lookup.
+Once an admin credential is configured, the read credential becomes read-only: a valid shared credential presented to an admin RPC gets `PermissionDenied` (HTTP `403`), while a missing or wrong credential gets `Unauthenticated` (HTTP `401`) after the failure jitter. The method table is built once at startup; each call does one map lookup.
+
+A listener's own admin credential is `adminTokenFile=` / `adminHmacKeyFile=` (and `adminAuth=`) in its spec; these are the daemon-wide ones, for listeners without:
 
 | Daemon flag | Environment fallback | Purpose |
 |---|---|---|
@@ -247,24 +257,16 @@ Clients keep their existing `-auth-*` flags and `XTCP2_GRPC_AUTH_TOKEN[_FILE]` /
 
 ## Configuration
 
-| Flag | Default | Purpose |
-|---|---|---|
-| `-grpcPort` | `8889` | Port the gRPC server listens on. |
-| `-grpcListenNetwork` | `tcp` | Listener network: `tcp` or `unix` (`GRPC_LISTEN_NETWORK`). |
-| `-grpcListenAddress` | — | Full listener address. For UDS, the socket path (`GRPC_LISTEN_ADDRESS`). For TCP, overrides `-grpcPort` when set. |
-| `-grpcUnixSocketMode` | `0600` | UDS permission bits after bind (`GRPC_UNIX_SOCKET_MODE`: octal with a leading `0`, e.g. `0660`, or decimal; above `0777` is ignored). |
-| `-grpcUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`GRPC_UNLINK_STALE_UNIX_SOCKET`). |
-
-Example:
+gRPC listeners are `-listener` entries ([listeners](security.md#listeners)). The `-grpcPort`, `-grpcListenNetwork`, `-grpcListenAddress`, `-grpcUnixSocketMode` and `-grpcUnlinkStaleUnixSocket` flags (and `GRPC_*` variables) are deprecated: they still expand to a listener named `grpc`, serving `grpc-admin` under the one credential, or `grpc-read+grpc-admin` when an admin credential is set.
 
 ```sh
-xtcp2 -grpcListenNetwork unix -grpcListenAddress /run/xtcp2/grpc.sock -grpcUnixSocketMode 432
-xtcp2ctl get -network unix -unixSocket /run/xtcp2/grpc.sock
+xtcp2 -listener name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock,mode=0660,tokenFile=/run/secrets/xtcp2-read,adminTokenFile=/run/secrets/xtcp2-admin
+xtcp2ctl get
 ```
 
-`432` is decimal for `0660`; use `384` for `0600`. The socket parent directory must already exist and should be owned so only trusted local users can traverse it.
+xtcp2 creates a missing socket directory `0750`; own it so only trusted local users can traverse it.
 
-The configuration protobuf also exposes `grpc_listener`, `prometheus_listener`, `listener_auth`, `admin_listener_auth`, and `link_monitor` (field 250, see [LinkMonitorService](#linkmonitorservice)). Secret fields in both auth blocks are redacted from every `ConfigService` response and preserved by `ConfigService.Set` when omitted from an update. Enforcement is described in [Access control](#access-control).
+The configuration protobuf carries the listeners as `listeners` (field 162), with `listener_auth`, `admin_listener_auth` and `link_monitor` (field 250, see [LinkMonitorService](#linkmonitorservice)); `ConfigService.Set` refuses a listener set startup would refuse. Secret fields in both auth blocks are redacted from every `ConfigService` response and preserved by `ConfigService.Set` when omitted from an update. Enforcement is described in [Access control](#access-control).
 
 ## See also
 

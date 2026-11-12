@@ -143,25 +143,33 @@ func network(l *xtcp_config.Listener) (string, error) {
 }
 
 // effectiveAuth is the listener's credential, or the daemon-wide one when it
-// has none. An unspecified mode is raw: disabled has to be typed.
+// has none. An unspecified mode follows the credential given (an HMAC key
+// file means hmac-utc-minute), and is otherwise raw: disabled has to be
+// typed.
 func effectiveAuth(l, global *xtcp_config.ListenerAuth) *xtcp_config.ListenerAuth {
-	a := l
-	if a == nil {
-		a = global
-	}
-	out := &xtcp_config.ListenerAuth{}
-	if a != nil {
-		out = proto.CloneOf(a)
-	}
+	out := pick(l, global)
 	if out.GetMode() == xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED {
-		out.Mode = xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN
+		out.Mode = inferredMode(out)
+		if out.Mode == xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED {
+			out.Mode = xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN
+		}
 	}
 	return out
 }
 
 // effectiveAdminAuth is the listener's admin credential, or the daemon-wide
-// one. Unspecified stays unspecified: there is no admin credential.
+// one. An unspecified mode follows the credential given; with none there is
+// no admin credential.
 func effectiveAdminAuth(l, global *xtcp_config.ListenerAuth) *xtcp_config.ListenerAuth {
+	out := pick(l, global)
+	if out.GetMode() == xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED {
+		out.Mode = inferredMode(out)
+	}
+	return out
+}
+
+// pick is a copy of the listener's credential, or of the daemon-wide one.
+func pick(l, global *xtcp_config.ListenerAuth) *xtcp_config.ListenerAuth {
 	a := l
 	if a == nil {
 		a = global
@@ -170,6 +178,21 @@ func effectiveAdminAuth(l, global *xtcp_config.ListenerAuth) *xtcp_config.Listen
 		return &xtcp_config.ListenerAuth{}
 	}
 	return proto.CloneOf(a)
+}
+
+// inferredMode is the mode a credential implies: hmac-utc-minute for an HMAC
+// key alone, raw for a token, unspecified for neither.
+func inferredMode(a *xtcp_config.ListenerAuth) xtcp_config.ListenerAuthMode {
+	hasToken := a.GetRawToken() != "" || a.GetRawTokenFile() != ""
+	hasKey := a.GetHmacSharedKey() != "" || a.GetHmacSharedKeyFile() != ""
+	switch {
+	case hasKey && !hasToken:
+		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE
+	case hasToken:
+		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN
+	default:
+		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED
+	}
 }
 
 func enabled(a *xtcp_config.ListenerAuth) bool {
