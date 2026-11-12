@@ -5,7 +5,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
@@ -438,13 +437,6 @@ func (st *addrParseState) local(args []string, i int) (int, error) {
 	return i, nil
 }
 
-// prefixlenSpecified is get_prefix_1's PREFIXLEN_SPECIFIED for an argument
-// it accepted: a slash, or `default`, which __get_addr_1 marks too
-// (lib/utils.c:585, :718).
-func prefixlenSpecified(arg string) bool {
-	return strings.IndexByte(arg, '/') >= 0 || arg == addrNameDefaultCst
-}
-
 // finish is everything after the loop, in ipaddr_modify's order.
 func (st *addrParseState) finish(resolve linkResolver, warn io.Writer) error {
 	st.w.IfaFlags = st.ifaFlags
@@ -552,15 +544,6 @@ func addrIsMulticast(a inetPrefix) bool {
 		return a.data[0] == 0xff
 	}
 	return false
-}
-
-// bitlenU8 is a prefix length, 0 through 128 after get_prefix, as the u8
-// ifa_prefixlen.
-func bitlenU8(b int) uint8 {
-	if b < 0 || b > math.MaxUint8 {
-		return 0
-	}
-	return uint8(b)
 }
 
 // adoptFamily is `if (req.ifa.ifa_family == AF_UNSPEC) req.ifa.ifa_family =
