@@ -955,7 +955,7 @@ func versionString() string {
 }
 
 // buildSuffix marks a binary that carries the netlink capture writer, so a
-// debug build is recognisable from its version line.
+// debug build is recognizable from its version line.
 func buildSuffix() string {
 	if xtcp.CaptureCompiledIn {
 		return "+capture"
