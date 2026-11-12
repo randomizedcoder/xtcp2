@@ -105,4 +105,5 @@ compiledInEnrichers: {{compiledInEnrichers}}
 *promListenNetwork: promListenNetwork-v
 *promUnixSocketMode: 133
 *promUnlinkStaleUnixSocket: true
+*listener: listener-v
 *d: 138

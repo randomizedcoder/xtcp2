@@ -11,8 +11,9 @@
 #                pprof; the admin token reaches pprof
 #   VMAGENT      the credentials_file job is up; a job with no token and one
 #                with a wrong token are down with 401
-#   HEALTHCHECK  `xtcp2 -healthcheck` with the unit's env exits 0, with no
-#                token env or a wrong token it exits 1
+#   HEALTHCHECK  `xtcp2 -healthcheck` with the unit's LISTENERS exits 0;
+#                without it (the default socket, absent here) or with a
+#                wrong token file it exits 1
 #   ROTATE       new tokens written for both: vmagent's job goes down against
 #                the old xtcp2 within seconds, then up after `systemctl
 #                restart xtcp2`, with vmagent's MainPID unchanged; the old
@@ -34,12 +35,11 @@ let
   # vmagent's own copy, as ansible-host puts one under /opt/vmagent.
   vmagentToken = "/etc/vmagent/xtcp2_read_token";
   scrapeGroup = "xtcp2scrape";
-  listenerEnv = {
-    LISTENER_AUTH_MODE = "raw";
-    LISTENER_RAW_TOKEN_FILE = readToken;
-    LISTENER_ADMIN_AUTH_MODE = "raw";
-    LISTENER_ADMIN_RAW_TOKEN_FILE = adminToken;
-  };
+  # One TCP listener: the read token for metrics and health, the admin
+  # token for pprof.
+  listenerSpec =
+    tokenFile:
+    "name=prometheus,serves=health+metrics+metrics-detail+debug,address=:9088,network=tcp,tokenFile=${tokenFile},adminAuth=raw,adminTokenFile=${adminToken}";
   # mint-tokens: fresh random read and admin tokens, written for xtcp2 and
   # vmagent. vmagent's copy ends in a newline, as a hand-written file would;
   # xtcp2's do not.
@@ -160,14 +160,15 @@ let
 
       # HEALTHCHECK: the probe the container HEALTHCHECK runs, with the unit's env.
       hc() { env "$@" xtcp2 -healthcheck >/dev/null 2>&1; }
-      hc ${lib.concatStringsSep " " (lib.mapAttrsToList (k: v: "${k}=${v}") listenerEnv)}
+      hc LISTENERS="${listenerSpec readToken}"
       if hc; then
-        echo "XTCP2_SCRAPE_AUTH_ROW_FAIL -healthcheck with no token env exited 0"
+        echo "XTCP2_SCRAPE_AUTH_ROW_FAIL -healthcheck without LISTENERS exited 0"
         false
       fi
       wrong=$(mktemp)
+      chmod 0600 "$wrong"
       printf 'not-the-token' >"$wrong"
-      if hc LISTENER_AUTH_MODE=raw LISTENER_RAW_TOKEN_FILE="$wrong"; then
+      if hc LISTENERS="${listenerSpec "$wrong"}"; then
         echo "XTCP2_SCRAPE_AUTH_ROW_FAIL -healthcheck with a wrong token exited 0"
         false
       fi
@@ -245,8 +246,8 @@ let
               "null"
             ];
             linkMonitor.extraArgs = [ "-linkMonitorSettle=2s" ];
+            listeners = [ (listenerSpec readToken) ];
           };
-          systemd.services.xtcp2.environment = listenerEnv;
           services.vmagent = {
             enable = true;
             # Nothing listens here: the check reads vmagent's targets API,

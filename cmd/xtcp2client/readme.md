@@ -23,11 +23,12 @@ network blip doesn't end the stream.
 nix build .#xtcp2client
 alias xtcp2client=./result/bin/xtcp2client
 
-# Listen mode over TCP — stream records the daemon collects on its own schedule
-xtcp2client -target 127.0.0.1 -port 8889
+# Listen mode — stream records the daemon collects on its own schedule,
+# from unix:/run/xtcp2/grpc.sock
+XTCP2_GRPC_AUTH_TOKEN_FILE=/run/secrets/xtcp2-read xtcp2client
 
-# Listen mode over a local Unix domain socket
-xtcp2client -network unix -unixSocket /run/xtcp2/grpc.sock
+# Over TCP
+xtcp2client -network tcp -target 127.0.0.1 -port 8889
 
 # Poll mode — drive collection from the client, every 2s
 xtcp2client -poll -pollFrequency 2s
@@ -37,20 +38,21 @@ xtcp2client -format csv -columns hostname,inetDiagMsgSocketSource,inetDiagMsgSta
 xtcp2client -format humanize          # decoded IPs, TCP-state names, RFC3339 time
 ```
 
-The daemon's gRPC TCP port defaults to `8889` and **must match** its `-grpcPort`.
-For local hardening, run the daemon with `-grpcListenNetwork unix` and connect
-with `-network unix -unixSocket ...`. Token authentication is not enforced yet,
-so protect TCP listeners with loopback/trusted networks and protect UDS
-listeners with filesystem ownership and mode.
+The daemon serves gRPC only on a listener configured for it, for example
+`-listener name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock,tokenFile=<path>,adminTokenFile=<path>`.
+Listen mode needs `grpc-read`; poll mode (`PollFlatRecords`) drives collection,
+so it is an admin method and needs `grpc-admin` and, on a listener with an
+admin credential, `XTCP2_GRPC_ADMIN_TOKEN_FILE`. See
+[listeners](../../docs/security.md#listeners).
 
 ## Flags
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `-network` | `tcp` | gRPC transport network: `tcp` or `unix`. |
-| `-target` | `localhost` | Daemon hostname. |
-| `-port` | `8889` | Daemon gRPC port (must match the daemon's `-grpcPort`). |
-| `-unixSocket` | — | UDS path when `-network unix`. |
+| `-network` | `unix` | gRPC transport network: `unix` or `tcp`. |
+| `-unixSocket` | `/run/xtcp2/grpc.sock` | Socket path when `-network unix`. |
+| `-target` | `localhost` | Daemon hostname when `-network tcp`. |
+| `-port` | `8889` | Daemon gRPC port when `-network tcp`. |
 | `-poll` | `false` | Use `PollFlatRecords` (client-driven) instead of `FlatRecords`. |
 | `-pollFrequency` | `10s` | Poll interval, poll mode only. |
 | `-format` | `json` | Output: `json`, `csv`, `tsv`, `humanize`, or `null`. |

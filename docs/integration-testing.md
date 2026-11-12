@@ -477,7 +477,7 @@ The `#` column mirrors the check labels in `self-test.nix`, which are lettered (
 | 2 | `METRICS` | `curl /metrics` returns `xtcp_*` rows | all |
 | 3 | `NETLINK` | `xtcp_counts{variable="p"}` advances → daemon parsed ≥1 inet_diag socket end-to-end | all |
 | 4 | `BINARIES_HELP` | All **11** cmd binaries respond to `-help` (xtcp2, xtcp2client, **xtcp2ctl**, xtcp2_kafka_client, clickhouse_protobuflist[_db], clickhouse_http_insert_protobuflist, kafka_to_clickhouse, ns, nsTest, register_schema) | all |
-| 5 | `GRPC_ROUNDTRIP` | `xtcp2client -target 127.0.0.1 -port 8889` connects and produces output | all |
+| 5 | `GRPC_ROUNDTRIP` | `xtcp2client -network tcp -target 127.0.0.1 -port 8889` with the guest token connects and produces output | all |
 | 5b | `POLL_STREAM` | `xtcp2client -poll` (PollFlatRecords bidi stream) delivers ≥1 record **and** the `pfrSent` counter grows | all |
 | 5c | `HEALTH` | `/healthz` + `/readyz` return 200 **and** `xtcp2 -healthcheck` exits 0 (the container-orchestration path) | all |
 | 5d | `OUTPUT_CONTENT` | the daemon's serialized `jsonl` file output has ≥1 line, each valid JSON with a non-empty `.hostname` | minimal |
@@ -536,6 +536,8 @@ Not every guard needs a VM. `nix flake check` runs the fast, hermetic checks (`n
 ## Host port forwards
 
 `microvm.forwardPorts` plumbs each port through QEMU's SLiRP hostfwd, and `networking.firewall.allowedTCPPorts` opens the matching guest ports. All bindings are gated on the flavor predicate.
+
+Every guest's xtcp2 listens on TCP `:9088` (`health+metrics+metrics-detail`) and `:8889` (`grpc-admin`) through explicit `-listener` args (`mkTcpListenerArgs` in `nix/microvms/mkVm.nix`), both checking the fixed test token in `/etc/xtcp2/listener-token` (`xtcp2-vm-integration-test-token`; test data, not a secret). Send it to reach them from the host: `curl -H 'Authorization: Bearer xtcp2-vm-integration-test-token' http://127.0.0.1:9088/metrics`. The `uds-security` flavor instead serves the default metrics socket and `/run/xtcp2/grpc.sock`.
 
 | Host | Guest | Service | Flavors |
 |---|---|---|---|

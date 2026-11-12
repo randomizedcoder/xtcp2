@@ -1,21 +1,21 @@
 # Listener security and deployment guidance
 
-xtcp2 protects its Prometheus/HTTP and gRPC interfaces with configurable bind
-addresses, outgoing IPv4 TTL/IPv6 hop limits, Unix domain sockets (UDS), bearer
-or HMAC authentication, and separate read/admin credentials. This guide
-describes the current implementation, its defaults, tradeoffs, and recommended
-deployment settings. The older [hardening design](design-listener-security-hardening.md)
+xtcp2 serves its HTTP and gRPC endpoints from **listeners**: each one a Unix
+domain socket (UDS) or TCP address, its credentials, and the endpoint classes
+it serves. This guide describes the listener model, its defaults, tradeoffs,
+and recommended deployment settings. The older [hardening design](design-listener-security-hardening.md)
 contains proposals as well as implemented features; it is not a configuration reference.
 
-**Recommended starting point:** use UDS for local administration, loopback HTTP
-for a local metrics agent, and distinct read/admin secrets loaded from files.
-For remote access, add authenticated encryption through a trusted TLS proxy or
-encrypted tunnel and restrict access to the backend listeners. Keep the TTL/hop
-limit at 3 where the topology permits it. Authentication is **off by default**;
-the default TCP listeners are not restricted to loopback.
+**By default xtcp2 opens no TCP port.** It serves health, metrics and the link
+monitor's detail paths on `/run/xtcp2/metrics.sock` (mode `0600`) with a raw
+bearer token, and refuses to start without one. gRPC, pprof and `/ip` are
+served only by a listener configured for them. For remote access, add
+authenticated encryption through a trusted TLS proxy or encrypted tunnel in
+front of a socket or loopback listener.
 
 ## Contents
 
+- [Listeners](#listeners)
 - [Interfaces and defaults](#interfaces-and-defaults)
 - [Choosing a deployment](#choosing-a-deployment)
 - [Network reach and TTL](#network-reach-and-ttl)
@@ -30,6 +30,75 @@ the default TCP listeners are not restricted to loopback.
 - [Verification and troubleshooting](#verification-and-troubleshooting)
 - [Implementation and test references](#implementation-and-test-references)
 
+## Listeners
+
+A listener is given with `-listener` (repeatable) or `LISTENERS` (specs
+separated by `;`, overriding the flag), as `key=value` pairs:
+
+```sh
+xtcp2 \
+  -listener name=metrics,serves=health+metrics+metrics-detail,address=/run/xtcp2/metrics.sock \
+  -listener name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock,tokenFile=/run/secrets/xtcp2-read,adminTokenFile=/run/secrets/xtcp2-admin
+```
+
+| Key | Meaning |
+|---|---|
+| `name` | Required; unique. Names the listener in logs, errors and `xtcp2_listener_active` |
+| `serves` | Required; classes joined by `+` (below) |
+| `address` | Required; an absolute path (a UDS) or `host:port` |
+| `network` | `unix` or `tcp`. A path is a UDS; **TCP must be typed** (`network=tcp`), so a listener never lands on an interface by accident |
+| `mode` | UDS file mode, default `0600` |
+| `unlinkStale` | Remove an existing socket at bind (default `true`); `false` refuses any existing path |
+| `auth`, `tokenFile`, `hmacKeyFile` | The listener's credential. Without them it uses the daemon-wide one (`LISTENER_*`). An unset mode follows the file given (`tokenFile` raw, `hmacKeyFile` HMAC), and is otherwise **raw**: `auth=disabled` has to be typed |
+| `adminAuth`, `adminTokenFile`, `adminHmacKeyFile` | The listener's admin credential; without them, the daemon-wide `LISTENER_ADMIN_*` |
+
+Credentials are files only: a listener carrying a token inline is refused, so
+the configuration, `ConfigService.Get` and a soft restart's carried config hold
+paths, never secrets.
+
+| Class | Serves | Access |
+|---|---|---|
+| `health` | `/healthz`, `/readyz` | read |
+| `metrics` | `-promPath` (default `/metrics`): the core metrics and the link monitor's problem summary | read |
+| `metrics-detail` | the link monitor's `/metrics/<category>[/<iface>]` and `/metrics-all` | read |
+| `ip` | `/ip`, `/i`: read-only `ip … show` (needs `-linkMonitorIPPaths`) | read |
+| `debug` | `/debug/pprof/` (never `/debug/pprof/cmdline`, the process's argv) | admin |
+| `grpc-read` | gRPC health, reflection, `ConfigService.Get`, `FlatRecords`, link monitor reads | read |
+| `grpc-admin` | every gRPC method, including the setters, `PollFlatRecords`, `Rebaseline`, `Resync` | admin |
+
+A path or method of a class a listener does not serve is HTTP 404 / gRPC
+`Unimplemented` there, whatever the credential. Startup (and
+`ConfigService.Set`) refuses, with exit 64:
+
+- a class served by two listeners, a duplicate name, or a listener serving nothing;
+- HTTP and gRPC classes on one listener;
+- `auth=disabled` except on a UDS, a loopback address (allowed with a startup
+  warning), or a listener serving `health` alone;
+- `debug` or `grpc-admin` without an admin credential, unless the listener
+  serves only admin classes and has a credential (its own or the daemon-wide one);
+- `ip` without `-linkMonitorIPPaths`; a credential inline; a token file that is
+  missing, not a regular file, or readable by group or others;
+- `-listener`/`LISTENERS` together with the deprecated per-listener flags.
+
+With no listener configured the daemon serves one: `name=metrics`,
+`serves=health+metrics+metrics-detail`, `address=/run/xtcp2/metrics.sock`,
+`mode=0600`, raw auth from `LISTENER_RAW_TOKEN_FILE`. Without a token it exits
+64 with a hint; `LISTENER_AUTH_MODE=disabled` is allowed there, since a UDS.
+xtcp2 creates the socket's directory (`0750`) when it is missing. The NixOS
+module (`services.xtcp2.listeners`, `listenerTokenFile`) generates a random
+token once under `/var/lib/xtcp2` when none is given.
+
+Each listener is logged at startup and reported by
+`xtcp2_listener_active{name,network,class} 1`. `xtcp2ctl` and `xtcp2client`
+dial `/run/xtcp2/grpc.sock` unless given `-network tcp`.
+
+**Deprecated flags.** `-promListen`, `-promListenNetwork`,
+`-promUnixSocketMode`, `-promUnlinkStaleUnixSocket`, the five `-grpc*` listener
+flags (`-grpcPort` included), `-linkMonitorIPListen` and their environment
+variables still work: they expand to listeners with a `DEPRECATED` log line
+giving the `-listener` equivalent. The Prometheus listener they describe no
+longer serves pprof, and TCP still needs a credential. Move to `-listener`.
+
 ## Interfaces and defaults
 
 These are the **xtcp2 executable's defaults**. Environment, full configuration,
@@ -38,25 +107,20 @@ the deployed host.
 
 | Surface or setting | Default | Implication |
 |---|---|---|
-| Prometheus HTTP | TCP `:9088`, summary at `/metrics` | Wildcard bind, not loopback-only; address-family reachability depends on the host |
-| gRPC | TCP `:8889` | Configuration, socket streams, monitor administration, health, and reflection share a listener |
-| IPv4 TTL / IPv6 unicast hop limit | `3` / `3` | Restricts replies on the Prometheus and gRPC TCP listeners; the optional separate inspection listener uses `1` / `1` |
-| Shared/read auth | Disabled | Supplying a secret alone does not enable authentication |
-| Separate admin auth | Disabled | Without a separate admin credential, the shared credential also grants admin access |
+| Listeners | `/run/xtcp2/metrics.sock`: health, metrics, metrics-detail | No TCP port; gRPC, pprof and `/ip` off |
+| Listener auth | Raw bearer token, required | No token, no start; `disabled` only where the rules above allow |
+| Separate admin auth | Off | `debug` and `grpc-admin` need one, or a listener of their own |
+| IPv4 TTL / IPv6 unicast hop limit | `3` / `3` | Restricts replies on TCP listeners; a loopback listener uses `1` / `1` |
 | HMAC clock skew | ±1 minute | Previous, current, and next UTC-minute tokens are accepted; configurable from 0 to 5 |
 | Failed-auth delay | Random 20–200 ms | Applied on auth/authorization failures; context cancellation can end the delay early |
-| UDS mode, when selected | `0600` | Socket owner only; parent directory must already exist |
+| UDS mode | `0600` | Socket owner only |
 | Remove existing UDS at bind | Enabled | An existing socket path is removed; there is no probe to prove the other listener is dead |
 | TLS/mTLS | Not implemented in these listeners | HTTP and gRPC TCP payloads are plaintext |
-| Embedded goip HTTP paths | Disabled | `-linkMonitorIPPaths` enables read-only network inspection |
-| Separate goip HTTP listener | Disabled (empty `-linkMonitorIPListen`) | When enabled, serves only `/ip`/`/i` without bearer auth, with loopback bind and peer checks |
 
-HTTP authentication wraps the entire Prometheus mux: `/metrics`, monitor category and
-interface paths, `/metrics-all`, `/healthz`, `/readyz`, optional `/ip`/`/i`
-inspection, and `/debug/pprof/`. Health endpoints have no unauthenticated
-exception. gRPC policy covers unary and streaming RPCs, including health and
-reflection. The optional separate loopback inspection listener is an explicit
-exception to HTTP authentication, described below.
+Authentication wraps each HTTP listener's whole mux, so `/healthz` and
+`/readyz` need the credential too, and covers unary and streaming gRPC,
+including health and reflection. A listener with `auth=disabled` is the
+exception, allowed only on a UDS, a loopback address or for health alone.
 
 Read access can disclose socket addresses, workload/topology metadata, host
 configuration, routes, and interface statistics. Admin access can change daemon
@@ -67,8 +131,8 @@ data. Treat both as privileged interfaces, with admin credentials more restricte
 
 | Deployment | Recommended configuration | Benefits and tradeoffs |
 |---|---|---|
-| Local metrics agent and local operators | HTTP on `127.0.0.1:9088`; gRPC on a protected UDS; distinct raw read/admin credentials | Simple scraper integration; no remote backend listeners. Loopback still permits connections from other processes in that network namespace |
-| Local access with filesystem isolation for both APIs | Separate HTTP/gRPC UDS paths, restrictive directories/modes, and read/admin auth | No TCP exposure; requires clients or a local proxy that can connect to UDS and careful socket-group management |
+| Local metrics agent and local operators | The default metrics socket, or HTTP on `127.0.0.1:9088`; gRPC on `/run/xtcp2/grpc.sock`; distinct raw read/admin credentials | Simple scraper integration; no remote backend listeners. Loopback still permits connections from other processes in that network namespace |
+| Local access with filesystem isolation for both APIs | The default metrics socket plus a gRPC socket, restrictive directories/modes, and read/admin auth | No TCP exposure; requires clients or a local proxy that can connect to UDS and careful socket-group management |
 | Central scrapers or remote operators | TLS/mTLS proxy or encrypted tunnel; backend on loopback/UDS; source restrictions and distinct credentials | Protects credentials and telemetry in transit; adds certificate/tunnel operations and proxy configuration |
 | Direct TCP on an isolated management network | Bind the specific management address, allowlist clients, enable read/admin auth, retain a suitable TTL | Fewer components, but no native encryption or server authentication; acceptable only if the surrounding transport/network supplies the required protection |
 
@@ -96,58 +160,44 @@ who may send requests.
 Keep both defaults when scrapers are nearby. If a legitimate remote client times
 out, check routing and the reply path, then choose the smallest TTL/hop limit
 that supports the intended topology. Changing only IPv4 leaves IPv6 independent.
-For precise exposure control, bind explicitly with `-promListen` and
-`-grpcListenAddress`, and apply host/network firewall rules.
+For precise exposure control, give each TCP listener a specific `address`, and
+apply host/network firewall rules.
 
 ## Optional loopback inspection listener
 
-With the embedded monitor and `-linkMonitorIPPaths` enabled,
-`-linkMonitorIPListen 127.0.0.1:9089` (or `LINK_MONITOR_IP_LISTEN`) moves `/ip`
-and `/i` off the Prometheus listener onto a dedicated TCP listener. It serves
-only inspection routes, **without bearer/HMAC authentication**, even when
-read/admin auth is enabled for the main interfaces. Requests to the old paths
-on the Prometheus listener no longer reach inspection handlers.
+With the embedded monitor and `-linkMonitorIPPaths` enabled, a listener of its
+own can serve `/ip` and `/i` **without bearer/HMAC authentication**:
 
-Startup requires a loopback IP literal and port 1–65535; hostnames including
-`localhost`, wildcard addresses, and the option without `-linkMonitorIPPaths`
-are rejected. Accepted connections are also checked: non-loopback peers are
-closed, including neighbours that can reach a loopback bind through
-`route_localnet`. Both outgoing TTL and hop limit are fixed at 1. Rejection logs
-are rate-limited to at most once per minute and include a count; the logging
-limit is not a connection-rate limit.
+```sh
+-listener name=ip,serves=ip,address=127.0.0.1:9089,network=tcp,auth=disabled
+```
+
+A TCP listener on a loopback IP literal (not `localhost`) is a loopback
+listener: it closes connections from non-loopback peers, including neighbours
+that reach a loopback bind through `route_localnet`, and replies with TTL and
+hop limit 1. Rejection logs are rate-limited to at most once per minute and
+include a count; the logging limit is not a connection-rate limit. Auth
+disabled there logs a startup warning.
 
 This makes local inspection convenient without distributing tokens, but any
 process able to connect from loopback can inspect host networking. It does not
 provide per-user authorization, and a local proxy or compromised process could
-relay that access. Leave `linkMonitorIPListen` unset when inspection should
-require the main listener's credentials; leave `linkMonitorIPPaths` disabled
-when inspection is unnecessary. Do not publish this listener through an
-unauthenticated proxy or tunnel. See the [implementation](../cmd/xtcp2/ip_server.go)
-and [loopback peer checks](../pkg/listener/loopback.go).
+relay that access. Serve `ip` on an authenticated listener when inspection
+should need a credential; leave `-linkMonitorIPPaths` off when it is
+unnecessary. Do not publish this listener through an unauthenticated proxy or
+tunnel. See the [loopback peer checks](../pkg/listener/loopback.go).
 
 ## Unix domain sockets
 
-Each xtcp2 listener can independently use `tcp` or `unix`:
-
-| Interface | Network | Address | Socket permissions | Existing-socket policy |
-|---|---|---|---|---|
-| HTTP | `-promListenNetwork` / `PROM_LISTEN_NETWORK` | `-promListen` / `PROM_LISTEN` | `-promUnixSocketMode` / `PROM_UNIX_SOCKET_MODE` | `-promUnlinkStaleUnixSocket` / `PROM_UNLINK_STALE_UNIX_SOCKET` |
-| gRPC | `-grpcListenNetwork` / `GRPC_LISTEN_NETWORK` | `-grpcListenAddress` / `GRPC_LISTEN_ADDRESS` | `-grpcUnixSocketMode` / `GRPC_UNIX_SOCKET_MODE` | `-grpcUnlinkStaleUnixSocket` / `GRPC_UNLINK_STALE_UNIX_SOCKET` |
-
-For TCP, an explicit `grpcListenAddress` overrides the `grpcPort` address.
-For UDS, supply a filesystem path and provision its parent directory before
-starting the daemon. Use separate paths for HTTP and gRPC.
-
-Use `0600` for owner-only access, or `0660` with a deliberately assigned group
-for a local agent. For xtcp2, decimal `384` means `0600` and `432` means `0660`;
-flags and environment variables also accept octal `0600`/`0660` (or `0o600`/
-`0o660`). Use decimal numbers in protobuf JSON. Invalid environment modes or
-values above `0777` are logged and ignored, retaining the previous setting.
-The daemon sets the
-socket mode after bind but does not create its parent or configure socket
-ownership/group. A protected parent directory also prevents other users from
-replacing the path during creation or cleanup. Plan container bind mounts and
-UID/GID mapping explicitly.
+A listener whose `address` is an absolute path is a UDS; each listener needs its
+own path. Use `mode=0600` (the default) for owner-only access, or `mode=0660`
+with a deliberately assigned group for a local agent; in protobuf JSON the mode
+is decimal (`384` = `0600`). The daemon creates a missing parent directory
+`0750` and sets the socket mode after bind, but does not set socket ownership
+or group. A protected parent directory also prevents other users from replacing
+the path during creation or cleanup. In a container, mount `/run/xtcp2` (it is
+also how a host scraper reaches the socket) and plan UID/GID mapping
+explicitly.
 
 Existing regular files and symlinks are refused. The default unlink behavior
 removes an existing socket without checking whether it is active; setting the
@@ -198,18 +248,19 @@ tunnel for remote traffic; see the [gRPC transport-authentication reference](htt
 
 ## Read and admin authorization
 
-The shared `listener_auth` credential becomes read-only **only when an enabled
-`admin_listener_auth` credential is also configured**.
+On each listener, its credential becomes read-only **only when an admin
+credential is also configured** (the listener's `adminAuth`/`adminTokenFile`,
+or the daemon-wide `LISTENER_ADMIN_*`).
 
 | Enabled credentials | Read access | Admin access |
 |---|---|---|
-| Neither | Open | Open |
-| Shared/read only | Shared credential | Shared credential |
-| Shared/read and admin | Either credential | Admin credential |
-| Admin only | Open | Admin credential |
+| Read only | Read credential | Read credential |
+| Read and admin | Either credential | Admin credential |
+| Neither (`auth=disabled`; UDS or loopback only) | Open | Open, but `debug`/`grpc-admin` are refused without an admin credential |
 
-Configure both for production, with different tokens/keys. Using the same secret
-for both defeats the separation. A valid read credential on an admin operation
+Configure both where a listener serves read and admin classes, with different
+tokens/keys; the rules above refuse `debug` or `grpc-admin` beside read
+classes without one. Using the same secret for both defeats the separation. A valid read credential on an admin operation
 returns HTTP 403 / gRPC `PermissionDenied`; missing or invalid credentials return
 HTTP 401 (with `WWW-Authenticate: Bearer`) / gRPC `Unauthenticated`.
 
@@ -219,9 +270,9 @@ HTTP 401 (with `WWW-Authenticate: Bearer`) / gRPC `Unauthenticated`.
 | Admin | `/debug/pprof/`, `ConfigService.Set`, poll-frequency/poll/burst/S3-flush/envelope controls, `PollFlatRecords`, monitor `Rebaseline` and `Resync` |
 
 Unknown/unclassified gRPC methods require admin access when the split is enabled.
-New HTTP paths default to read unless explicitly classified otherwise. The two
-credentials are shared across HTTP and gRPC, not separate per-interface accounts.
-There is no per-user RBAC, per-namespace policy, or individual-token revocation.
+New HTTP paths default to read unless explicitly classified otherwise. Listeners
+can carry different credentials, but there is no per-user RBAC, per-namespace
+policy, or individual-token revocation.
 
 Monitor `Rebaseline` and `Resync` requests that pass service availability and
 request validation produce structured audit logs with the RPC, supplied reason,
@@ -232,6 +283,10 @@ also do not identify an individual operator. Retain service/proxy logs according
 to your operational policy without logging bearer values.
 
 ## Secret handling and rotation
+
+Per-listener credentials are `tokenFile=`, `hmacKeyFile=`, `adminTokenFile=` and
+`adminHmacKeyFile=` in the listener spec. The daemon-wide credentials, used by
+listeners without their own:
 
 | Purpose | Mode flag / environment | Preferred secret-file environment |
 |---|---|---|
@@ -256,6 +311,8 @@ rather than leaving the credential empty. Mount secrets mode `0400` (Kubernetes:
 `defaultMode: 0400`; Compose: a host file with mode `0400`). Symlinks are
 followed, so Kubernetes secret volumes work.
 Do not put literal secrets into Nix expressions or derivations that enter the store.
+
+An empty `-listenerAuthMode` or `LISTENER_AUTH_MODE=` is unset, not disabled.
 
 `-listenerSignedSkewMinutes` / `LISTENER_SIGNED_SKEW_MINUTES` and
 `-listenerAuthFailureJitterMin` / `LISTENER_AUTH_FAILURE_JITTER_MIN` plus
@@ -295,19 +352,19 @@ the example; choose your production destination separately.
 
 ```sh
 sudo env \
-  LISTENER_AUTH_MODE=raw \
   LISTENER_RAW_TOKEN_FILE=/run/secrets/xtcp2-read \
-  LISTENER_ADMIN_AUTH_MODE=raw \
   LISTENER_ADMIN_RAW_TOKEN_FILE=/run/secrets/xtcp2-admin \
   ./result/bin/xtcp2 -dest null \
-  -promListen 127.0.0.1:9088 \
-  -grpcListenNetwork unix -grpcListenAddress /run/xtcp2/grpc.sock \
-  -grpcUnixSocketMode 384 -ipv4Ttl 3 -ipv6HopLimit 3
+  -listener name=metrics,serves=health+metrics+metrics-detail,address=127.0.0.1:9088,network=tcp \
+  -listener name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock
 ```
 
-For UDS on both interfaces, replace `-promListen 127.0.0.1:9088` with
-`-promListenNetwork unix -promListen /run/xtcp2/prometheus.sock -promUnixSocketMode 384`.
-A scraper must support that socket directly or reach it through a local proxy.
+The daemon-wide `LISTENER_*` files supply both listeners' credentials; an unset
+mode with a token file is raw. For a socket instead of loopback HTTP, drop the
+first `-listener` (the default socket) or give it
+`address=/run/xtcp2/metrics.sock`. A scraper must support that socket directly
+or reach it through a local proxy. Add `debug` to a listener only for a
+profiling session, with an admin credential.
 
 ### Prometheus scraper
 
@@ -353,14 +410,15 @@ Raw-token and HMAC-key inputs for the same client role are mutually exclusive.
 
 ```sh
 sudo env XTCP2_GRPC_AUTH_TOKEN_FILE=/run/secrets/xtcp2-read \
-  xtcp2ctl get -network unix -unixSocket /run/xtcp2/grpc.sock
+  xtcp2ctl get
 
 sudo env XTCP2_GRPC_ADMIN_TOKEN_FILE=/run/secrets/xtcp2-admin \
-  xtcp2ctl link -network unix -unixSocket /run/xtcp2/grpc.sock status
+  xtcp2ctl link status
 ```
 
-The second example safely verifies that an admin credential also grants read
-access; it does not mutate the baseline. See the [control CLI](../cmd/xtcp2ctl/readme.md)
+Both dial `/run/xtcp2/grpc.sock`, the clients' default. The second example
+safely verifies that an admin credential also grants read access; it does not
+mutate the baseline. See the [control CLI](../cmd/xtcp2ctl/readme.md)
 for intentional admin actions. `xtcp2client` uses read access for normal streams,
 but `-poll` requires admin access because it initiates collection.
 
@@ -392,13 +450,11 @@ external connection/rate controls if needed. Native TLS/mTLS, Basic/OAuth/JWT
 validation, per-user identities, and automatic secret/key rotation are also
 not implemented here.
 
-Configuration validation has important limits: a recognized raw/HMAC mode with
-no usable secret is rejected, but an unrecognized CLI auth-mode string currently
-becomes unspecified/disabled, and an invalid environment mode is ignored.
-An unreadable `_FILE` value can leave a previously supplied credential in place.
-Do not assume every typo or file error fails startup. Explicitly set the intended
-mode, avoid fallback secret sources, and prove unauthenticated access is denied
-before exposing a deployment. `-conf` output alone is not that proof.
+Configuration validation has limits: a raw/HMAC mode with no usable secret and
+an unusable `_FILE` path stop startup, but an unrecognized auth-mode string
+becomes unspecified (raw, for a listener's read credential), and an invalid
+environment mode is ignored. Prove unauthenticated access is denied before
+exposing a deployment. `-conf` output alone is not that proof.
 
 ## Standalone go-link-monitor
 
@@ -415,9 +471,9 @@ TTL/hop-limit implementation, with different options:
 
 Metrics auth also applies to detail, health, and enabled `/ip` paths. Non-loopback
 TCP administration requires admin auth unless `-admin.insecure` is explicitly
-set. **xtcp2 has no equivalent non-loopback startup guard**, so configure its
-listener exposure and authentication explicitly. Do not assume standalone flags
-or defaults apply to the embedded monitor; see [standalone usage](../cmd/go-link-monitor/README.md)
+set. go-link-monitor does not use xtcp2's listener model yet: its defaults
+still listen on TCP. Do not assume standalone flags or defaults apply to the
+embedded monitor; see [standalone usage](../cmd/go-link-monitor/README.md)
 and the [read/admin design](design-admin-access.md).
 
 The standalone Unix admin listener additionally records Linux `SO_PEERCRED`
@@ -447,13 +503,15 @@ authenticated requests; avoid expanding secret bytes into command arguments.
 An unauthenticated HTTP probe is safe to inspect directly:
 
 ```sh
-curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9088/metrics
+curl -sS -o /dev/null -w '%{http_code}\n' --unix-socket /run/xtcp2/metrics.sock http://xtcp2/metrics
+ss -ltnp | grep xtcp2   # no output with the default listener
 ```
 
-Expect 401 for the authenticated loopback example. HTTP/gRPC health probes need
-the read credential too; xtcp2's `-healthcheck` helper supports TCP/UDS and shared
-auth when given the same relevant listener/auth settings. A probe system that
-cannot attach credentials needs an appropriate local adapter or exec probe.
+Expect 401 without the token. HTTP/gRPC health probes need the read credential
+too; `xtcp2 -healthcheck` finds the listener serving `health` from the same
+`-listener`/`LISTENERS` and `LISTENER_*` settings as the daemon and sends its
+credential. A probe system that cannot attach credentials can be given a
+listener serving `health` alone, which may run without auth.
 
 A timeout can mean firewall/bind/TTL trouble rather than bad auth. A 401 points
 to credential/mode/header or HMAC clock mismatch; 403 means the credential lacks
@@ -466,7 +524,7 @@ profile as an authentication issue.
 
 - [Socket TTL/hop-limit options](../pkg/ipsockopt/ipsockopt.go), [listener creation and UDS](../pkg/listener/listener.go).
 - [Token validation and client helpers](../pkg/listenerauth/listenerauth.go), [read/admin policy](../pkg/listenerauth/policy.go).
-- [HTTP handler and timeouts](../cmd/xtcp2/prom_server.go), [gRPC server](../pkg/xtcp/grpc_server.go), [RPC access classes](../pkg/xtcp/grpc_access.go).
+- [Listener model and rules](../pkg/listeners/listeners.go), [listener spec syntax](../pkg/listeners/spec.go), [HTTP listeners](../cmd/xtcp2/listeners.go), [gRPC server](../pkg/xtcp/grpc_server.go), [RPC access classes](../pkg/xtcp/grpc_access.go).
 - [gRPC API](grpc-api.md), [observability](observability.md), [read/admin design](design-admin-access.md).
 - [Nix test guide](../nix/README.md): `test-listener-security` runs focused auth/listener tests; `test-microvm-lifecycle-x86_64-uds-security` is a runnable integration package (building it alone does not boot the guest).
 - `checks.x86_64-linux.vm-xtcp2-scrape-auth` verifies authenticated scraping, health checks, and rotation; `checks.x86_64-linux.vm-xtcp2-ip-listen` verifies the separate inspection listener and non-loopback peer rejection. Fresh runners are `test-xtcp2-scrape-auth-vm` and `test-xtcp2-ip-listen-vm`.

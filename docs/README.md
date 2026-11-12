@@ -59,7 +59,7 @@ A poll loop dumps every namespace on a fixed interval, deserializes the replies 
 Seven marshallers (`protobufList`, `protoJson`, `protoText`, `msgpack`, `jsonl`, `csv`, `tsv`) and pluggable destinations: stdout/stderr, files, TCP, HTTP(S), UDP, Unix stream/datagram, null, Kafka with schema-registry support, NATS, NSQ, Valkey, and S3/Parquet. Includes the protobufList batch format used for ClickHouse ingestion and the separate S3 record-to-Parquet path.
 
 ### [gRPC API](grpc-api.md)
-gRPC defaults to TCP port `8889`, with optional Unix sockets and bearer/HMAC authentication. `ConfigService` reads/changes daemon configuration, `XTCPFlatRecordService` streams/polls live records, and `LinkMonitorService` administers monitoring. Clients include `xtcp2client`, `xtcp2ctl`, and vendored `grpcurl`.
+gRPC is served on a listener configured for it, by convention `/run/xtcp2/grpc.sock`, with bearer/HMAC authentication ([listeners](security.md#listeners)). `ConfigService` reads/changes daemon configuration, `XTCPFlatRecordService` streams/polls live records, and `LinkMonitorService` administers monitoring. Clients include `xtcp2client`, `xtcp2ctl`, and vendored `grpcurl`.
 
 ### [Listener security](security.md)
 

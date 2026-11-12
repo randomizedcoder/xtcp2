@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/secretfile"
 )
 
 // flavorProduction is "true" in the production (slim) flavors, set at link
@@ -66,32 +66,14 @@ func checkSecretFlags(fs *flag.FlagSet, production bool) error {
 	return nil
 }
 
-// secretFileModeMask is the permission bits a secret file must not have:
-// any access for group or others.
-const secretFileModeMask = 0o077
-
-// readSecretFile reads a credential from the file a _FILE env var names. A
-// missing, unreadable, non-regular or group/world-accessible file is an
-// error: a credential the operator pointed at but xtcp2 cannot safely use
-// must stop startup, not leave the listener or upload unauthenticated.
-// Surrounding whitespace (a trailing newline) is trimmed.
+// readSecretFile reads a credential from the file a _FILE env var names; see
+// secretfile.Read. A file it cannot safely use is a usage error.
 func readSecretFile(env, path string) (string, error) {
-	fi, err := os.Stat(path) // follows symlinks, as Kubernetes secret mounts need
+	v, err := secretfile.Read(env, path)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s=%q: %w", errUsage, env, path, err)
+		return "", fmt.Errorf("%w: %w", errUsage, err)
 	}
-	if !fi.Mode().IsRegular() {
-		return "", fmt.Errorf("%w: %s=%q is not a regular file", errUsage, env, path)
-	}
-	if perm := fi.Mode().Perm(); perm&secretFileModeMask != 0 {
-		return "", fmt.Errorf("%w: %s=%q has mode %04o; a secret file must not be accessible by group or "+
-			"others (chmod 0400; Kubernetes secret defaultMode: 0400)", errUsage, env, path, perm)
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("%w: %s=%q: %w", errUsage, env, path, err)
-	}
-	return strings.TrimSpace(string(b)), nil
+	return v, nil
 }
 
 // secretFileTarget is one _FILE env var and where its value goes.

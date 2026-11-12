@@ -285,6 +285,21 @@
         }
       }
     },
+    "v1EndpointClass": {
+      "type": "string",
+      "enum": [
+        "ENDPOINT_CLASS_UNSPECIFIED",
+        "ENDPOINT_CLASS_HEALTH",
+        "ENDPOINT_CLASS_METRICS",
+        "ENDPOINT_CLASS_METRICS_DETAIL",
+        "ENDPOINT_CLASS_IP",
+        "ENDPOINT_CLASS_DEBUG",
+        "ENDPOINT_CLASS_GRPC_READ",
+        "ENDPOINT_CLASS_GRPC_ADMIN"
+      ],
+      "default": "ENDPOINT_CLASS_UNSPECIFIED",
+      "description": "EndpointClass groups the paths and RPCs a listener can serve. Every served\npath or RPC belongs to exactly one class, and a class is served by at most\none listener; a class no listener names is not served at all.\n\n - ENDPOINT_CLASS_HEALTH: /healthz, /readyz.\n - ENDPOINT_CLASS_METRICS: The core Prometheus path (-promPath, /metrics).\n - ENDPOINT_CLASS_METRICS_DETAIL: The link monitor detail paths: /metrics/\u003ccategory\u003e[/\u003ciface\u003e] and\n/metrics-all[/\u003ciface\u003e].\n - ENDPOINT_CLASS_IP: /ip and /i (goip show, GET-only). Needs link_monitor.ip_paths.\n - ENDPOINT_CLASS_DEBUG: /debug/pprof/* except cmdline, which is never served.\n - ENDPOINT_CLASS_GRPC_READ: gRPC read methods: FlatRecords, ConfigService.Get, the link monitor's\nGetStatus/List*, health and reflection. Admin methods answer\nUnimplemented on a listener that serves only this class.\n - ENDPOINT_CLASS_GRPC_ADMIN: Every gRPC method, admin ones included (Set*, TriggerPoll*,\nPollFlatRecords, Rebaseline, Resync)."
+    },
     "v1GetRequest": {
       "type": "object",
       "title": "empty"
@@ -416,6 +431,33 @@
       },
       "description": "Embedded physical link monitor (pkg/linkmonitor), the same one the\nstandalone go-link-monitor runs. Unset durations and empty strings take the\nlibrary defaults (see linkmonitor.DefaultConfig); xtcp2 supplies its own\nbaseline_file default. An embedded and a standalone monitor must not share a\nbaseline file: the second fails to take the lock and xtcp2 exits."
     },
+    "v1Listener": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "endpoint": {
+          "$ref": "#/definitions/v1ListenerEndpoint",
+          "description": "network unix, or tcp typed explicitly. An unset network with an\naddress that is an absolute path means unix."
+        },
+        "auth": {
+          "$ref": "#/definitions/v1ListenerAuth",
+          "description": "Unset: the daemon-wide listener_auth (-listenerAuthMode and the\nLISTENER_* variables). An unspecified mode means raw."
+        },
+        "adminAuth": {
+          "$ref": "#/definitions/v1ListenerAuth",
+          "description": "Unset: the daemon-wide admin_listener_auth."
+        },
+        "serves": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1EndpointClass"
+          }
+        }
+      },
+      "description": "A listener: one socket, one credential pair, and the endpoint classes it\nserves. See docs/security.md#listeners for the rules checked at startup."
+    },
     "v1ListenerAuth": {
       "type": "object",
       "properties": {
@@ -437,6 +479,14 @@
         },
         "failureJitterMax": {
           "type": "string"
+        },
+        "rawTokenFile": {
+          "type": "string",
+          "description": "Path to a file holding raw_token, read when the listener starts. For a\nper-listener credential (Listener.auth / admin_auth), so the config\ncarries a path rather than the secret. The file must be a regular file\nwith no group or other permission bits."
+        },
+        "hmacSharedKeyFile": {
+          "type": "string",
+          "description": "Path to a file holding hmac_shared_key; as raw_token_file."
         }
       }
     },
@@ -862,11 +912,19 @@
         "grpcPort": {
           "type": "integer",
           "format": "int64",
-          "title": "GRPC listening port"
+          "description": "GRPC listening port\nLegacy: the gRPC port when -grpcPort (or GRPC_PORT) expands into a\nlistener. 0 when the listener model configures gRPC."
         },
         "grpcListener": {
           "$ref": "#/definitions/v1ListenerEndpoint",
           "description": "gRPC listener endpoint. When unset, the daemon keeps the legacy TCP\nbehavior derived from grpc_port."
+        },
+        "listeners": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Listener"
+          },
+          "description": "Every listener the daemon opens (-listener, LISTENERS). Empty means the\ndefault: one UDS, /run/xtcp2/metrics.sock mode 0600, raw bearer auth,\nserving health, metrics and metrics-detail. The legacy -promListen*,\n-grpc* and -linkMonitorIPListen flags expand into entries here."
         },
         "pyroscopeUrl": {
           "type": "string",

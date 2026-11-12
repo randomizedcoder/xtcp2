@@ -234,7 +234,11 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 	// Check if there are clients. This runs once per record, so with none
 	// (the usual case) it returns before touching a metric: the start and
 	// complete counts, the summary and its time.Now cost more than the
-	// decode. They count sends to clients, not records.
+	// decode. They count sends to clients, not records. With no listener
+	// serving gRPC there is no service and nothing to send to.
+	if x.flatRecordService == nil {
+		return
+	}
 	frClientCount := x.flatRecordService.frMapCount()
 	pfrClientCount := x.flatRecordService.pfrMapCount()
 

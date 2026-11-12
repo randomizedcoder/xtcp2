@@ -34,6 +34,8 @@ Progress, findings and TODOs: [status-linkmonitor-in-xtcp2.md](status-linkmonito
 
 ## HTTP paths
 
+> **Since the listener model** ([listeners](security.md#listeners)), these paths are served by class rather than on "the Prometheus listener": the detail paths by the listener serving `metrics-detail` (by default the socket `/run/xtcp2/metrics.sock`), `/ip` and `/i` by the one serving `ip`, and `/debug/pprof/` only by one serving `debug`. `-linkMonitorIPListen` below is deprecated; it expands to an `ip` listener. The rest of this section is the original design.
+
 Everything is served on the existing Prometheus listener (`-promListen`, default `:9088`, or `-promListenNetwork=unix`). The paths copy go-link-monitor's, so scrape configs and dashboards move across unchanged.
 
 | Path | Content | Default | In flight |
@@ -165,9 +167,9 @@ The detail paths take the Prometheus listener's policy (`-listenerAuthMode` and 
 |---|---|
 | `pkg/linkmonitor/linkmonitorhttp` | go-link-monitor's route model, moved out of `cmd/go-link-monitor`: routes, in-flight limits, timeout, category registries, interface views, per-path refresh, `Paths.Validate`, the `/ip` route |
 | `pkg/xtcp/linkmonitor.go` | settings, `initLinkMonitor`, `runLinkMonitor` (degrade), `LinkMonitorHandler`, `RequestLinkMonitorRebaseline` |
-| `cmd/xtcp2/prom_server.go` | `startPromServer`, `servePromHandler`, `newPromServer` |
+| `cmd/xtcp2/listeners.go`, `cmd/xtcp2/http_server.go` | per-listener HTTP muxes (`startListeners`, `httpHandler`), `serveHTTP` (was `prom_server.go`) |
 | `cmd/xtcp2/linkmonitor_http.go` | `linkMonitorRoutes`: the late-bound handler and SIGUSR1 target |
-| `cmd/xtcp2/ip_server.go` | the `-linkMonitorIPListen` listener: address checks, startup, rate-limited reject log |
+| `cmd/xtcp2/reject_log.go` | the rate-limited log of connections a loopback listener closes (the `-linkMonitorIPListen` listener is now an `ip` listener) |
 | `pkg/listener/loopback.go` | `ParseLoopback`, and `LoopbackOnly`, which closes non-loopback peers |
 | `cmd/xtcp2/linkmonitor_flags.go` | flags, env overrides, config builder |
 | `cmd/go-link-monitor` | uses `linkmonitorhttp`; keeps its own listener, health, supervision and admin socket |

@@ -23,7 +23,9 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 )
 
 // envHelperReset tears down any flag-package state captured by other
@@ -568,35 +570,117 @@ func TestAwaitSignalAndShutdown_completeBeforeTimeout(t *testing.T) {
 	}
 }
 
-func TestRunHealthcheck(t *testing.T) {
-	portOf := func(url string) string {
-		_, p, _ := net.SplitHostPort(strings.TrimPrefix(url, "http://"))
+func TestProbeReady(t *testing.T) {
+	serve := func(code int) string {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(code) }))
+		t.Cleanup(srv.Close)
+		_, p, _ := net.SplitHostPort(strings.TrimPrefix(srv.URL, "http://"))
 		return p
 	}
-
-	notReady := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	defer notReady.Close()
-	if rc := runHealthcheck(context.Background(), "", ":"+portOf(notReady.URL), nil, listenerauth.ClientAuth{}); rc != 1 {
-		t.Errorf("not-ready: rc=%d, want 1", rc)
+	tests := []struct {
+		name, category, description string
+		address                     string
+		expected                    int
+	}{
+		{"ready_any_address", "positive", "a listener on all addresses is probed on loopback", ":" + serve(http.StatusOK), 0},
+		{"ready_explicit", "positive", "an explicit loopback address is probed as is", "127.0.0.1:" + serve(http.StatusOK), 0},
+		{"not_ready", "negative", "503 from /readyz", ":" + serve(http.StatusServiceUnavailable), 1},
+		{"unreachable", "boundary", "nothing listening", "127.0.0.1:1", 1},
+		{"no_port", "corner", "an address without a port", "127.0.0.1", 1},
 	}
-
-	ready := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ready.Close()
-	if rc := runHealthcheck(context.Background(), "", ":"+portOf(ready.URL), nil, listenerauth.ClientAuth{}); rc != 0 {
-		t.Errorf("ready: rc=%d, want 0", rc)
-	}
-
-	// Nothing listening -> unreachable -> 1.
-	if rc := runHealthcheck(context.Background(), "", ":1", nil, listenerauth.ClientAuth{}); rc != 1 {
-		t.Errorf("unreachable: rc=%d, want 1", rc)
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			ep := listener.Endpoint{Network: listener.NetworkTCP, Address: tc.address}
+			var rc int
+			captureLog(t, func() { rc = probeReady(context.Background(), ep, listenerauth.ClientAuth{}) })
+			if rc != tc.expected {
+				t.Errorf("%s: rc = %d, want %d", tc.description, rc, tc.expected)
+			}
+		})
 	}
 }
 
-func TestRunHealthcheckUnix(t *testing.T) {
+// TestRunHealthcheck drives -healthcheck end to end: it finds the health
+// listener from the same flags and env as the daemon and sends its
+// credential.
+func TestRunHealthcheck(t *testing.T) {
+	tests := []struct {
+		name, category, description string
+		args                        func(sock, tokenFile string) []string
+		env                         func(sock, tokenFile string) map[string]string
+		serverToken                 string
+		expected                    int
+	}{
+		{"listeners_env", "positive", "LISTENERS names the health listener",
+			func(string, string) []string { return nil },
+			func(sock, _ string) map[string]string {
+				return map[string]string{"LISTENERS": "name=h,serves=health+metrics,address=" + sock + ",auth=disabled"}
+			}, "", 0},
+		{"listener_flag_token", "positive", "the probe sends the listener's token file",
+			func(sock, tf string) []string {
+				return []string{"-listener", "name=h,serves=health,address=" + sock + ",tokenFile=" + tf}
+			},
+			func(string, string) map[string]string { return nil }, "tok", 0},
+		{"legacy_prom_flags", "positive", "the deprecated -promListen flags still find the listener",
+			func(sock, _ string) []string { return []string{"-promListenNetwork", "unix", "-promListen", sock} },
+			func(string, string) map[string]string { return map[string]string{"LISTENER_AUTH_MODE": "disabled"} }, "", 0},
+		{"no_health_listener", "negative", "no listener serves health",
+			func(sock, _ string) []string {
+				return []string{"-listener", "name=m,serves=metrics,address=" + sock + ",auth=disabled"}
+			},
+			func(string, string) map[string]string { return nil }, "", 1},
+		{"default_without_token", "negative", "the default listener needs a token the probe does not have",
+			func(string, string) []string { return nil },
+			func(string, string) map[string]string { return nil }, "", 1},
+		{"wrong_token", "boundary", "the listener's token differs from the server's",
+			func(sock, tf string) []string {
+				return []string{"-listener", "name=h,serves=health,address=" + sock + ",tokenFile=" + tf}
+			},
+			func(string, string) map[string]string { return nil }, "other", 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			envHelperReset(t)
+			dir, err := os.MkdirTemp("/tmp", "xtcp2-hc-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(dir) })
+			sock := filepath.Join(dir, "h.sock")
+			tf := filepath.Join(dir, "token")
+			if err := os.WriteFile(tf, []byte("tok\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			ln, err := net.Listen("unix", sock)
+			if err != nil {
+				t.Fatal(err)
+			}
+			srv := &http.Server{ReadHeaderTimeout: time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.serverToken != "" && r.Header.Get("Authorization") != "Bearer "+tc.serverToken {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			})}
+			go func() { _ = srv.Serve(ln) }()
+			t.Cleanup(func() { _ = srv.Close() })
+			for k, v := range tc.env(sock, tf) {
+				t.Setenv(k, v)
+			}
+			f := defineFlags()
+			if err := flag.CommandLine.Parse(tc.args(sock, tf)); err != nil {
+				t.Fatal(err)
+			}
+			var rc int
+			captureLog(t, func() { rc = runHealthcheck(context.Background(), f) })
+			if rc != tc.expected {
+				t.Errorf("%s: rc = %d, want %d", tc.description, rc, tc.expected)
+			}
+		})
+	}
+}
+
+func TestProbeReadyUnix(t *testing.T) {
 	raw := func(token string) *xtcp_config.ListenerAuth {
 		return &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: token}
 	}
@@ -620,13 +704,18 @@ func TestRunHealthcheckUnix(t *testing.T) {
 		{"negative", "an HMAC token signed with another key is refused", hmacKey("shared"), hmacKey("other"), false, "", 1},
 		{"negative", "an authenticated probe of a not-ready daemon still fails", raw("read-token"), raw("read-token"), true, "", 1},
 		{"boundary", "nothing listens on the socket path", nil, &xtcp_config.ListenerAuth{}, false, "missing", 1},
-		{"boundary", "an empty socket path fails before dialing", nil, &xtcp_config.ListenerAuth{}, false, "empty", 1},
-		{"corner", "a nil authenticator sends no header, so an auth-on listener refuses it", raw("read-token"), nil, false, "", 1},
+		{"boundary", "an empty socket path fails", nil, &xtcp_config.ListenerAuth{}, false, "empty", 1},
+		{"corner", "no client credential sends no header, so an auth-on listener refuses it", raw("read-token"), nil, false, "", 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Logf("%s: %s; expected: rc=%d", tc.category, tc.description, tc.expected)
-			sock := filepath.Join(t.TempDir(), "prom.sock")
+			dir, err := os.MkdirTemp("/tmp", "xtcp2-pr-") // short: sun_path is 108 bytes
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(dir) })
+			sock := filepath.Join(dir, "prom.sock")
 			ln, err := net.Listen("unix", sock)
 			if err != nil {
 				t.Fatalf("net.Listen(unix): %v", err)
@@ -654,13 +743,8 @@ func TestRunHealthcheckUnix(t *testing.T) {
 			go func() { _ = srv.Serve(ln) }()
 			t.Cleanup(func() { _ = srv.Close() })
 
-			var authn *listenerauth.Authenticator
 			var clientAuth listenerauth.ClientAuth
 			if tc.client != nil {
-				authn, err = listenerauth.New(tc.client)
-				if err != nil {
-					t.Fatalf("client listenerauth.New: %v", err)
-				}
 				clientAuth = listenerauth.ClientAuth{RawToken: tc.client.GetRawToken(), HMACSharedKey: tc.client.GetHmacSharedKey()}
 			}
 			path := sock
@@ -669,9 +753,9 @@ func TestRunHealthcheckUnix(t *testing.T) {
 				path = filepath.Join(t.TempDir(), "missing.sock")
 			case "empty":
 				path = ""
-				t.Setenv("PROM_LISTEN", "")
 			}
-			if rc := runHealthcheck(context.Background(), "unix", path, authn, clientAuth); rc != tc.expected {
+			ep := listener.Endpoint{Network: listener.NetworkUnix, Address: path}
+			if rc := probeReady(context.Background(), ep, clientAuth); rc != tc.expected {
 				t.Errorf("rc=%d, want %d", rc, tc.expected)
 			}
 		})
@@ -687,10 +771,7 @@ func TestRunMain_version(t *testing.T) {
 	os.Args = []string{"xtcp2", "-v"}
 	t.Cleanup(func() { os.Args = prevArgs })
 
-	// Stub the prom handler starter so it doesn't bind a port.
-	prevProm := promHandlerStarter
-	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
-	t.Cleanup(func() { promHandlerStarter = prevProm })
+	stubListeners(t)
 
 	// runMain routes signals and spawns a signal-handler goroutine.
 	// The goroutine leak is fine for a test that exits quickly.
@@ -708,9 +789,7 @@ func TestRunMain_conf(t *testing.T) {
 	os.Args = []string{"xtcp2", "-conf"}
 	t.Cleanup(func() { os.Args = prevArgs })
 
-	prevProm := promHandlerStarter
-	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
-	t.Cleanup(func() { promHandlerStarter = prevProm })
+	stubListeners(t)
 
 	captureLog(t, func() {
 		if rc := runMain(t.Context()); rc != 0 {
@@ -727,13 +806,11 @@ func TestRunMain_stubbedDaemon(t *testing.T) {
 	os.Args = []string{"xtcp2", "-dest", "null"}
 	t.Cleanup(func() { os.Args = prevArgs })
 
-	prevProm := promHandlerStarter
-	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
-	t.Cleanup(func() { promHandlerStarter = prevProm })
+	stubListeners(t)
 
 	prevDaemon := daemonRunner
 	called := false
-	daemonRunner = func(_ context.Context, _ context.CancelFunc, _ *xtcp_config.XtcpConfig) {
+	daemonRunner = func(context.Context, context.CancelFunc, *xtcp_config.XtcpConfig, []xtcp.GRPCListener) {
 		called = true
 	}
 	t.Cleanup(func() { daemonRunner = prevDaemon })
@@ -1732,9 +1809,7 @@ func TestRunMainRejectsPositional(t *testing.T) {
 			prevArgs := os.Args
 			os.Args = tc.argv
 			t.Cleanup(func() { os.Args = prevArgs })
-			prevProm := promHandlerStarter
-			promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
-			t.Cleanup(func() { promHandlerStarter = prevProm })
+			stubListeners(t)
 			captureLog(t, func() {
 				if rc := runMain(t.Context()); rc != tc.expected {
 					t.Errorf("rc = %d, want %d", rc, tc.expected)

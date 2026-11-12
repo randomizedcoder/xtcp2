@@ -41,6 +41,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/linkmonitorctl"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -50,9 +51,9 @@ import (
 
 const (
 	targetHostnameCst = "localhost"
-	// grpcPortCst MUST match the xtcp2 daemon's default (cmd/xtcp2
-	// grpcPortCst, currently 8889). Out-of-step ports turn every call into a
-	// silent connection refused.
+	// grpcPortCst is the port for -network tcp: the daemon's deprecated
+	// -grpcPort default. The default is the Unix socket,
+	// listeners.DefaultGRPCSocketPath.
 	grpcPortCst = "8889"
 
 	// callTimeout bounds a single unary control RPC. reconfigure returns
@@ -132,10 +133,10 @@ Commands:
                        rebaseline, resync ('xtcp2ctl link [flags] <command> -h')
 
 Common flags (all commands):
-  -network string  gRPC network: tcp or unix (default "tcp")
-  -target string   daemon hostname (default "localhost")
-  -port string     daemon gRPC port (default "8889", must match -grpcPort)
-  -unixSocket path daemon gRPC Unix socket path when -network unix
+  -network string  gRPC network: unix or tcp (default "unix")
+  -unixSocket path daemon gRPC Unix socket (default "/run/xtcp2/grpc.sock")
+  -target string   daemon hostname when -network tcp (default "localhost")
+  -port string     daemon gRPC port when -network tcp (default "8889")
   -d uint          debug level (default 0)
   -auth-token, -auth-token-file, -auth-hmac-shared-key, -auth-hmac-shared-key-file
                    credential; XTCP2_GRPC_AUTH_TOKEN[_FILE] / XTCP2_GRPC_HMAC_SHARED_KEY[_FILE]
@@ -144,16 +145,19 @@ Common flags (all commands):
                    XTCP2_GRPC_ADMIN_TOKEN[_FILE] / XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY[_FILE]
                    instead when set.
 
+The daemon serves gRPC only on a listener configured for it, e.g.
+  -listener name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock,tokenFile=<path>,adminTokenFile=<path>
+
 Run 'xtcp2ctl <command> -h' for per-command flags.
 `)
 }
 
 // commonFlags registers the flags every command shares and returns accessors.
 func commonFlags(fs *flag.FlagSet) {
-	fs.String("network", listener.NetworkTCP, "daemon gRPC network: tcp or unix")
-	fs.String("target", targetHostnameCst, "daemon hostname")
-	fs.String("port", grpcPortCst, "daemon gRPC port (must match the daemon's -grpcPort)")
-	fs.String("unixSocket", "", "daemon gRPC Unix socket path when -network unix")
+	fs.String("network", listener.NetworkUnix, "daemon gRPC network: unix or tcp")
+	fs.String("target", targetHostnameCst, "daemon hostname when -network tcp")
+	fs.String("port", grpcPortCst, "daemon gRPC port when -network tcp")
+	fs.String("unixSocket", listeners.DefaultGRPCSocketPath, "daemon gRPC Unix socket path when -network unix")
 	fs.String("auth-token", "", "raw bearer token; prefer XTCP2_GRPC_AUTH_TOKEN or _FILE")
 	fs.String("auth-token-file", "", "file containing the raw bearer token")
 	fs.String("auth-hmac-shared-key", "", "HMAC shared key; prefer XTCP2_GRPC_HMAC_SHARED_KEY or _FILE")

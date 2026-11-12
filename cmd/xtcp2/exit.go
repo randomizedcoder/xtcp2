@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
+	"github.com/randomizedcoder/xtcp2/pkg/secretfile"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 )
 
@@ -22,7 +24,9 @@ func exitCodeFor(err error) int {
 		return exitOK
 	case errors.Is(err, errUsage),
 		errors.Is(err, xtcp.ErrNotCompiledIn),
-		errors.Is(err, xtcp.ErrInsecureTransport):
+		errors.Is(err, xtcp.ErrInsecureTransport),
+		errors.Is(err, listeners.ErrConfig),
+		errors.Is(err, secretfile.ErrSecretFile):
 		return exitUsage
 	default:
 		return exitFailure

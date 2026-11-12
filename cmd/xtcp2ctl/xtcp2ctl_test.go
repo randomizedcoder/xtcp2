@@ -115,7 +115,7 @@ func TestGet(t *testing.T) {
 
 func TestGetUnixMissingSocket(t *testing.T) {
 	startFakeServer(t)
-	rc, _, errStr := run(t, "get", "-network", "unix")
+	rc, _, errStr := run(t, "get", "-network", "unix", "-unixSocket", "")
 	if rc != 2 {
 		t.Fatalf("rc=%d stderr=%s, want rc=2", rc, errStr)
 	}
@@ -293,5 +293,37 @@ func TestUnknownCommand(t *testing.T) {
 func TestNoArgs(t *testing.T) {
 	if rc, _, _ := run(t); rc != 2 {
 		t.Errorf("expected rc=2 for no args, got %d", rc)
+	}
+}
+
+// TestDialTarget pins where xtcp2ctl connects: the daemon's documented gRPC
+// socket unless told otherwise.
+func TestDialTarget(t *testing.T) {
+	tests := []struct {
+		name, category, description string
+		args                        []string
+		expected                    string // network + " " + target
+	}{
+		{"default", "positive", "no flags dial the gRPC socket", nil, "unix /run/xtcp2/grpc.sock"},
+		{"socket_flag", "positive", "-unixSocket picks another socket", []string{"-unixSocket", "/tmp/g.sock"}, "unix /tmp/g.sock"},
+		{"tcp", "boundary", "-network tcp dials target:port", []string{"-network", "tcp"}, "tcp localhost:8889"},
+		{"tcp_port", "corner", "-port applies only to tcp", []string{"-network", "tcp", "-target", "10.0.0.1", "-port", "9000"}, "tcp 10.0.0.1:9000"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			startFakeServer(t)
+			inner := dialFunc
+			var got string
+			dialFunc = func(network, target string) (*grpc.ClientConn, error) {
+				got = network + " " + target
+				return inner(network, target)
+			}
+			if rc, _, errStr := run(t, append([]string{"get"}, tc.args...)...); rc != 0 {
+				t.Fatalf("%s: rc=%d stderr=%s", tc.description, rc, errStr)
+			}
+			if got != tc.expected {
+				t.Errorf("%s: dialed %q, want %q", tc.description, got, tc.expected)
+			}
+		})
 	}
 }

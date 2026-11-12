@@ -66,7 +66,7 @@ xtcp2 runs the link monitor by default ([design](design-linkmonitor-in-xtcp2.md)
 | Task | Command |
 |---|---|
 | Relearn the count after a planned link change | `systemctl reload xtcp2` (SIGUSR1), or `xtcp2ctl link rebaseline -reason "…"` |
-| Check the monitor | `curl -s localhost:9088/metrics \| grep -E '^go_link_monitor_\|linkMonitor'` |
+| Check the monitor | `curl -s --unix-socket /run/xtcp2/metrics.sock -H "Authorization: Bearer $(cat <token file>)" http://xtcp2/metrics \| grep -E '^go_link_monitor_\|linkMonitor'` |
 | Read the recorded count | `jq . /var/lib/xtcp2/link-monitor-baseline.json` |
 | Turn the monitor off | `-linkMonitor=false`, `LINK_MONITOR=false` or `services.xtcp2.linkMonitor.enable = false` |
 

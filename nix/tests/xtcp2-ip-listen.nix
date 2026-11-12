@@ -1,7 +1,7 @@
-# The /ip paths on a loopback listener of their own (-linkMonitorIPListen):
-# the real xtcp2 unit from nix/modules/xtcp2-service.nix in a disposable
-# guest, with raw listener auth on the Prometheus listener and /ip moved to
-# 127.0.0.1:9089. The guest checks, in order, each with a sentinel:
+# The /ip paths on a loopback listener of their own (linkMonitor.ipListen,
+# an ip-class listener): the real xtcp2 unit from
+# nix/modules/xtcp2-service.nix in a disposable guest, with a raw-token
+# Prometheus listener on :9088 and /ip on 127.0.0.1:9089. The guest checks, in order, each with a sentinel:
 #   SPLIT  /ip and /i answer on 9089 without a token; 9089 serves nothing
 #          else; 9088 still needs the token and no longer serves /ip
 #   BIND   9089 is bound on 127.0.0.1 only
@@ -132,7 +132,7 @@ let
         echo "XTCP2_IP_LISTEN_ROW_FAIL a non-loopback peer got $got from /ip"
         false
       fi
-      logged() { journalctl -u xtcp2 --no-pager | grep -q 'ip listener: closed .* from non-loopback peers, last from 10.77.0.2:'; }
+      logged() { journalctl -u xtcp2 --no-pager | grep -q 'listener "ip": closed .* from non-loopback peers, last from 10.77.0.2:'; }
       until_ok 10 logged
       kill "$control"
       # Loopback still works after the rejects.
@@ -187,15 +187,14 @@ let
               "-dest"
               "null"
             ];
+            listeners = [
+              "name=prometheus,serves=health+metrics+metrics-detail,address=:9088,network=tcp,tokenFile=${readToken}"
+            ];
             linkMonitor = {
               ipPaths = true;
               ipListen = "127.0.0.1:9089";
               extraArgs = [ "-linkMonitorSettle=2s" ];
             };
-          };
-          systemd.services.xtcp2.environment = {
-            LISTENER_AUTH_MODE = "raw";
-            LISTENER_RAW_TOKEN_FILE = readToken;
           };
           systemd.services.xtcp2-ip-listen = {
             wantedBy = [ "multi-user.target" ];

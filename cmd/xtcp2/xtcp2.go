@@ -24,6 +24,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -372,6 +373,7 @@ type mainFlags struct {
 	promUnixSocketMode *uint
 	promUnlinkStaleUDS *bool
 	promPath           *string
+	listeners          *listenerFlag
 	healthcheck        *bool
 	goMaxProcs         *uint
 	maxThreads         *int
@@ -546,7 +548,13 @@ func defineListenerFlags(f *mainFlags) {
 	f.promUnixSocketMode = flag.Uint("promUnixSocketMode", unixSocketModeCst, "Prometheus Unix socket file mode, e.g. 0600 or 0660. Falls back to PROM_UNIX_SOCKET_MODE env.")
 	f.promUnlinkStaleUDS = flag.Bool("promUnlinkStaleUnixSocket", unlinkStaleSocketCst, "remove an existing stale Prometheus Unix socket before binding. Falls back to PROM_UNLINK_STALE_UNIX_SOCKET env.")
 	f.promPath = flag.String("promPath", promPathCst, "Prometheus http path")
-	f.healthcheck = flag.Bool("healthcheck", false, "probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.")
+	f.listeners = &listenerFlag{}
+	flag.Var(f.listeners, "listener", "a listener, repeatable: "+listeners.SpecSyntax+
+		". Classes: health, metrics, metrics-detail, ip, debug, grpc-read, grpc-admin; each served by one listener. "+
+		"Credentials are files only. With none, xtcp2 serves health, metrics and metrics-detail on "+listeners.DefaultSocketPath+
+		" (mode 0600, raw bearer token from LISTENER_RAW_TOKEN_FILE). Replaces the deprecated -prom*/-grpc*/-linkMonitorIPListen flags. "+
+		"Falls back to LISTENERS env, specs separated by ';'.")
+	f.healthcheck = flag.Bool("healthcheck", false, "probe /readyz on the listener serving health and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); reads the same listener flags and env as the daemon.")
 }
 
 // defineRuntimeFlags registers the process-level knobs that are about how this
@@ -757,6 +765,7 @@ func printListenerEndpointFlags(f *mainFlags) {
 	fmt.Println("*promListenNetwork:", *f.promListenNetwork)
 	fmt.Println("*promUnixSocketMode:", *f.promUnixSocketMode)
 	fmt.Println("*promUnlinkStaleUnixSocket:", *f.promUnlinkStaleUDS)
+	fmt.Println("*listener:", f.listeners.String())
 }
 
 func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
@@ -1047,6 +1056,11 @@ func startupConfig(f *mainFlags) (*xtcp_config.XtcpConfig, int) {
 		fmt.Fprintln(os.Stderr, "xtcp2:", err)
 		return nil, exitCodeFor(err)
 	}
+	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
+	if err := configureListeners(c, *f.listeners, legacyListenerSettings(flag.CommandLine), *f.promListen); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
 
 	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
 	// config in the environment, that config wins over the flag/env-derived one.
@@ -1078,7 +1092,7 @@ func startupConfig(f *mainFlags) (*xtcp_config.XtcpConfig, int) {
 }
 
 // runMain wires the production main body. Extracted so tests can run
-// it with stubbed daemonRunner / promHandlerStarter.
+// it with stubbed daemonRunner / listenersStarter.
 func runMain(ctx context.Context) int {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -1096,29 +1110,31 @@ func runMain(ctx context.Context) int {
 		fmt.Fprintln(os.Stderr, "xtcp2:", err)
 		return exitCodeFor(err)
 	}
-	healthAuth := buildListenerAuth(f)
-	healthCfg := &xtcp_config.XtcpConfig{ListenerAuth: healthAuth}
-	envOverrideListenerAuth(healthCfg, 0)
-	if err := applyListenerSecretFiles(healthCfg); err != nil {
-		fmt.Fprintln(os.Stderr, "xtcp2:", err)
-		return exitCodeFor(err)
-	}
 
 	// Container HEALTHCHECK mode: probe the local /readyz and exit, without
 	// starting the daemon. The scratch image has no shell/curl, so the binary
 	// self-checks (same pattern as the docker_custom_scrape exporter).
 	if *f.healthcheck {
-		authn, err := listenerauth.New(healthAuth)
-		if err != nil {
-			log.Printf("healthcheck: invalid listener auth config: %v", err)
-			return 1
-		}
-		return runHealthcheck(runCtx, *f.promListenNetwork, *f.promListen, authn, listenerauth.ClientAuth{RawToken: healthAuth.GetRawToken(), HMACSharedKey: healthAuth.GetHmacSharedKey()})
+		return runHealthcheck(runCtx, f)
 	}
 
 	c, code := startupConfig(f)
 	if c == nil {
 		return code
+	}
+	// Validate the whole config, then resolve the listeners and their
+	// credentials, before anything binds or starts.
+	if err := protovalidate.Validate(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2: config validation failed:", err)
+		return exitUsage
+	}
+	specs, warnings, err := listeners.Resolve(c, readSecretFile)
+	for _, w := range warnings {
+		log.Printf("WARNING: %s", w)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
 	}
 
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
@@ -1148,45 +1164,23 @@ func runMain(ctx context.Context) int {
 		uint(c.PyroscopeSampleHz), uint(c.PyroscopeUploadIntervalSec),
 		debugLevel)()
 
-	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
-	applyPrometheusListenerAddress(c, *f.promListen)
-	if _, err := listenerauth.NewPolicy(c.ListenerAuth, c.AdminListenerAuth, nil); err != nil {
-		fatalf("listener auth config invalid: %v", err)
-		return 1
-	}
 	linkMonitorHTTP.promPath = *f.promPath
-	// The prom server drains after the daemon, so scrapes and /readyz see the
-	// shutdown through to the end.
-	var promWG sync.WaitGroup
-	defer promWG.Wait()
+	// The HTTP listeners drain after the daemon, so scrapes and /readyz see
+	// the shutdown through to the end.
+	var httpWG sync.WaitGroup
+	defer httpWG.Wait()
 	defer cancel()
-	if err := promHandlerStarter(runCtx, &promWG, promParams{
-		path: *f.promPath, listener: c.PrometheusListener, listen: *f.promListen,
-		ipv4TTL: c.Ipv4Ttl, ipv6HopLimit: c.Ipv6HopLimit, auth: c.ListenerAuth, adminAuth: c.AdminListenerAuth,
-	}); err != nil {
-		fatalf("%v", err)
-		return 1
-	}
-	if debugLevel > 10 {
-		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
-	}
-	if err := ipServerStarter(runCtx, &promWG, c.GetLinkMonitor()); err != nil {
-		fatalf("%v", err)
-		return 1
+	grpcLns, err := listenersStarter(runCtx, &httpWG, specs, *f.promPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
 	}
 
-	if err := protovalidate.Validate(c); err != nil {
-		fatalf("config validation failed: %v", err)
-		return 1
-	}
-	if debugLevel > 10 {
-		log.Println("config validation succeeded")
-	}
-
-	daemonRunner(runCtx, cancel, c)
+	daemonRunner(runCtx, cancel, c, grpcLns)
+	closeGRPCListeners(grpcLns)
 	// The signal handler exits once complete is sent, so drain first.
 	cancel()
-	promWG.Wait()
+	httpWG.Wait()
 	select {
 	case complete <- struct{}{}:
 	default:
@@ -1199,8 +1193,9 @@ func runMain(ctx context.Context) int {
 
 // runDaemonDefault is the production daemon body: build an xtcp instance
 // and run RunWithPoller until ctx cancels the WG.
-func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig) {
+func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig, grpcLns []xtcp.GRPCListener) {
 	x := xtcp.NewXTCP(ctx, cancel, c)
+	x.SetGRPCListeners(grpcLns)
 	detach, err := linkMonitorHTTP.attach(x)
 	if err != nil {
 		fatalf("link monitor http: %v", err)
@@ -1395,95 +1390,92 @@ func awaitSignalAndShutdown(
 	}
 }
 
-// runHealthcheck probes the local /readyz endpoint and returns a process exit
-// code: 0 when ready (HTTP 200), 1 otherwise (not ready, or unreachable). It is
-// the `-healthcheck` mode used by the container HEALTHCHECK on the scratch image
-// (no shell/curl to run an external probe). The port comes from PROM_LISTEN or
-// the -promListen flag; the daemon listens on 0.0.0.0, so 127.0.0.1 reaches it.
-func runHealthcheck(ctx context.Context, promNetwork, promListen string, authn *listenerauth.Authenticator, clientAuth listenerauth.ClientAuth) int {
-	network := promNetwork
-	if v, ok := os.LookupEnv("PROM_LISTEN_NETWORK"); ok && v != "" {
-		network = v
+// runHealthcheck probes /readyz on the listener serving health and returns a
+// process exit code: 0 when ready (HTTP 200), 1 otherwise (not ready, or
+// unreachable). It is the `-healthcheck` mode used by the container
+// HEALTHCHECK on the scratch image (no shell/curl to run an external probe).
+// It resolves the listeners from the same flags and env as the daemon,
+// quietly, and sends the health listener's credential.
+func runHealthcheck(ctx context.Context, f *mainFlags) int {
+	c := buildConfig(f, nil)
+	environmentOverrideConfig(c, 0)
+	environmentOverrideProm(f.promListen, f.promPath, 0)
+	err := applyListenerSecretFiles(c)
+	if err == nil {
+		err = configureListeners(c, *f.listeners, legacyListenerSettings(flag.CommandLine), *f.promListen)
 	}
-	addr := promListen
-	if v, ok := os.LookupEnv("PROM_LISTEN"); ok && v != "" {
-		addr = v
+	var specs []listeners.Spec
+	if err == nil {
+		specs, _, err = listeners.Resolve(c, readSecretFile)
 	}
-	parsed, err := listener.ParseNetwork(network)
 	if err != nil {
 		log.Printf("healthcheck: %v", err)
 		return 1
 	}
-	if parsed == xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX {
-		return runUnixHealthcheck(ctx, addr, authn, clientAuth)
+	s, ok := listeners.Find(specs, listeners.Health)
+	if !ok {
+		log.Printf("healthcheck: no listener serves health")
+		return 1
 	}
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil || port == "" {
-		port = "9088" // promListenCst default
+	return probeReady(ctx, s.Endpoint, s.ClientAuth())
+}
+
+// probeReady GETs /readyz on ep. A TCP listener on an unspecified address is
+// probed on loopback.
+func probeReady(ctx context.Context, ep listener.Endpoint, clientAuth listenerauth.ClientAuth) int {
+	target := "unix:" + ep.Address
+	url := "http://unix/readyz"
+	var d net.Dialer
+	dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return d.DialContext(ctx, listener.NetworkUnix, ep.Address)
 	}
-	url := "http://127.0.0.1:" + port + "/readyz"
+	if ep.Network == listener.NetworkTCP {
+		addr, err := loopbackTarget(ep.Address)
+		if err != nil {
+			log.Printf("healthcheck: %v", err)
+			return 1
+		}
+		target, url = addr, "http://"+addr+"/readyz"
+		dial = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return d.DialContext(ctx, listener.NetworkTCP, addr)
+		}
+	}
 	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
 	if err != nil {
-		log.Printf("healthcheck: new request %s: %v", url, err)
+		log.Printf("healthcheck: new request %s: %v", target, err)
 		return 1
 	}
-	if authn != nil {
-		listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
-	}
-	client := &http.Client{Timeout: 3 * time.Second}
+	listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
+	client := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{DialContext: dial}}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("healthcheck: GET %s: %v", url, err)
+		log.Printf("healthcheck: GET %s /readyz: %v", target, err)
 		return 1
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusOK {
 		return 0
 	}
-	log.Printf("healthcheck: %s -> %d", url, resp.StatusCode)
+	log.Printf("healthcheck: %s /readyz -> %d", target, resp.StatusCode)
 	return 1
 }
 
-// runUnixHealthcheck is runHealthcheck over a Unix socket. It sends the same
-// credential as the TCP probe, so -listenerAuthMode on a socket listener
-// doesn't fail the container HEALTHCHECK with 401.
-func runUnixHealthcheck(ctx context.Context, socketPath string, authn *listenerauth.Authenticator, clientAuth listenerauth.ClientAuth) int {
-	if socketPath == "" {
-		log.Printf("healthcheck: unix socket path is empty")
-		return 1
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "http://unix/readyz", nil)
+// loopbackTarget is the address to probe a TCP listener on: its own, or
+// loopback when it listens on all addresses.
+func loopbackTarget(address string) (string, error) {
+	host, port, err := net.SplitHostPort(address)
 	if err != nil {
-		log.Printf("healthcheck: new unix request: %v", err)
-		return 1
+		return "", fmt.Errorf("health listener address %q: %w", address, err)
 	}
-	if authn != nil {
-		listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
+	switch host {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
 	}
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, listener.NetworkUnix, socketPath)
-			},
-		},
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("healthcheck: GET unix:%s /readyz: %v", socketPath, err)
-		return 1
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusOK {
-		return 0
-	}
-	log.Printf("healthcheck: unix:%s /readyz -> %d", socketPath, resp.StatusCode)
-	return 1
+	return net.JoinHostPort(host, port), nil
 }
 
 // environmentOverrideProm MUTATES promListen, promPath, if the environment
@@ -1587,7 +1579,13 @@ func buildAdminListenerAuth(f *mainFlags) *xtcp_config.ListenerAuth {
 	return a
 }
 
+// listenerAuthModeValue parses a mode flag or env value. Empty is unset, not
+// disabled: an unset read credential resolves to raw, so turning auth off
+// has to be typed.
 func listenerAuthModeValue(s string) xtcp_config.ListenerAuthMode {
+	if strings.TrimSpace(s) == "" {
+		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED
+	}
 	mode, err := listenerauth.ParseMode(s)
 	if err != nil {
 		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED
@@ -1625,7 +1623,7 @@ func envOverrideListenerAuth(c *xtcp_config.XtcpConfig, debugLevel uint) {
 // <prefix>HMAC_SHARED_KEY. The _FILE forms are read afterwards by
 // applySecretFiles, which can fail startup on a bad file.
 func envOverrideAuthCredential(a *xtcp_config.ListenerAuth, prefix, what string, debugLevel uint) {
-	if v, ok := envString(prefix + "AUTH_MODE"); ok {
+	if v, ok := envString(prefix + "AUTH_MODE"); ok && strings.TrimSpace(v) != "" {
 		if mode, err := listenerauth.ParseMode(v); err == nil {
 			a.Mode = mode
 			logEnv(prefix+"AUTH_MODE", what+" auth mode set", debugLevel)
@@ -2131,12 +2129,6 @@ func ensurePrometheusListener(c *xtcp_config.XtcpConfig) *xtcp_config.ListenerEn
 		c.PrometheusListener = &xtcp_config.ListenerEndpoint{UnlinkStaleUnixSocket: unlinkStaleSocketCst}
 	}
 	return c.PrometheusListener
-}
-
-func applyPrometheusListenerAddress(c *xtcp_config.XtcpConfig, promListen string) {
-	if c.PrometheusListener != nil && c.PrometheusListener.Address == "" {
-		c.PrometheusListener.Address = promListen
-	}
 }
 
 func printConfig(c *xtcp_config.XtcpConfig, comment string) {

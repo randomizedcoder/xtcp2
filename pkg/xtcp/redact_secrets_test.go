@@ -15,11 +15,16 @@ var secretFieldName = regexp.MustCompile(`(^|_)(key|token|secret|password|passwd
 
 // notSecretFields are matches that are not credentials. Adding a name here is
 // a reviewed decision; a new credential field must go in RedactSecrets.
-var notSecretFields = map[protoreflect.FullName]bool{}
+var notSecretFields = map[protoreflect.FullName]bool{
+	// Paths to credential files, not credentials: the config carries the
+	// path and the listener reads the file when it starts.
+	"xtcp_config.v1.ListenerAuth.raw_token_file":       true,
+	"xtcp_config.v1.ListenerAuth.hmac_shared_key_file": true,
+}
 
 // fillSecretLike sets every string field of m (recursing into singular
-// message fields) whose name matches secretFieldName, and returns their
-// full names.
+// message fields, and into one appended element of each repeated message
+// field) whose name matches secretFieldName, and returns their full names.
 func fillSecretLike(m protoreflect.Message, depth int) []protoreflect.FullName {
 	if depth > 8 {
 		return nil
@@ -29,8 +34,15 @@ func fillSecretLike(m protoreflect.Message, depth int) []protoreflect.FullName {
 	for i := 0; i < fields.Len(); i++ {
 		fd := fields.Get(i)
 		switch {
-		case fd.IsList() || fd.IsMap():
+		case fd.IsMap():
 			continue
+		case fd.IsList():
+			if fd.Kind() == protoreflect.MessageKind {
+				list := m.Mutable(fd).List()
+				elem := list.NewElement()
+				names = append(names, fillSecretLike(elem.Message(), depth+1)...)
+				list.Append(elem)
+			}
 		case fd.Kind() == protoreflect.MessageKind:
 			names = append(names, fillSecretLike(m.Mutable(fd).Message(), depth+1)...)
 		case fd.Kind() == protoreflect.StringKind && secretFieldName.MatchString(string(fd.Name())):
@@ -76,7 +88,13 @@ func TestRedactSecretsCoversSecretLikeFields(t *testing.T) {
 		}
 		m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 			switch {
-			case fd.IsList() || fd.IsMap():
+			case fd.IsMap():
+			case fd.IsList():
+				if fd.Kind() == protoreflect.MessageKind {
+					for i := 0; i < v.List().Len(); i++ {
+						check(v.List().Get(i).Message(), depth+1)
+					}
+				}
 			case fd.Kind() == protoreflect.MessageKind:
 				check(v.Message(), depth+1)
 			case fd.Kind() == protoreflect.StringKind && v.String() == "secret-value" && !notSecretFields[fd.FullName()]:

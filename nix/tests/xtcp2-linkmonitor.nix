@@ -1,6 +1,7 @@
 # The link monitor inside xtcp2 (docs/design-linkmonitor-in-xtcp2.md): the
 # real xtcp2 unit from nix/modules/xtcp2-service.nix in a disposable guest,
-# with the monitor on by default. The guest checks, in order, each with a
+# with the monitor on by default, scraped where the module's defaults put it:
+# the default socket, with the token the unit generated. The guest checks, in order, each with a
 # sentinel:
 #   PATHS     /metrics carries the summary, the detail paths serve, /ip is off
 #   BASELINE  the baseline file appears 0600 in a 0750 /var/lib/xtcp2
@@ -21,7 +22,8 @@
   xtcp2,
 }:
 let
-  url = "http://127.0.0.1:9088";
+  socket = "/run/xtcp2/metrics.sock";
+  tokenFile = "/var/lib/xtcp2/listener-token";
   baseline = "/var/lib/xtcp2/link-monitor-baseline.json";
   guestTest = pkgs.writeShellApplication {
     name = "xtcp2-linkmonitor-guest";
@@ -35,7 +37,9 @@ let
     ];
     text = ''
       trap 'echo XTCP2_LINKMONITOR_FAIL; journalctl -u xtcp2 --no-pager | tail -n 80; systemctl poweroff --no-block' ERR
-      code() { curl -s -o /dev/null -w '%{http_code}' "${url}$1"; }
+      # The token the unit generates on first start.
+      auth() { printf 'Authorization: Bearer %s' "$(cat ${tokenFile} 2>/dev/null)"; }
+      code() { curl -s -o /dev/null -w '%{http_code}' --unix-socket ${socket} -H "$(auth)" "http://xtcp2$1"; }
       expect() {
         local got
         got=$(code "$1")
@@ -59,7 +63,7 @@ let
       ready() { [ "$(code /readyz)" = 200 ]; }
       # The body is read in full first: grep -q exiting early would fail curl
       # under pipefail.
-      scrape() { curl -sf "${url}$1"; }
+      scrape() { curl -sf --unix-socket ${socket} -H "$(auth)" "http://xtcp2$1"; }
       metric() {
         local body
         body=$(scrape /metrics) || return 1

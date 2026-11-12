@@ -184,7 +184,7 @@ docker run --rm --entrypoint /bin/register_schema xtcp2:latest -help
 nix build .#oci-xtcp2client
 ./result | docker load
 docker run --rm xtcp2client:latest -help
-docker run --rm xtcp2client:latest -target daemon-host -port 8889
+docker run --rm -v /run/xtcp2:/run/xtcp2 xtcp2client:latest
 # xtcp2ctl is the runtime-control client:
 nix build .#oci-xtcp2ctl && ./result | docker load
 docker run --rm xtcp2ctl:latest -help
@@ -237,7 +237,7 @@ xtcp2 -help 2>&1 | grep -A1 enrichAsn
 xtcp2 -conf | grep compiledInEnrichers
 
 # 3. a running daemon publishes one gauge per known enricher: 1 or 0
-curl -s localhost:9088/metrics | grep compiledInEnrichers
+curl -s --unix-socket /run/xtcp2/metrics.sock -H "Authorization: Bearer $(cat /etc/xtcp2/token)" http://xtcp2/metrics | grep compiledInEnrichers
 xtcp_gauges{function="InitPromethus",type="asn",variable="compiledInEnrichers"} 0
 xtcp_gauges{function="InitPromethus",type="locality",variable="compiledInEnrichers"} 0
 ```

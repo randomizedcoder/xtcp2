@@ -346,11 +346,88 @@ message ListenerAuth {
 			gte: { seconds: 0 }
 	}];
 
+	// Path to a file holding raw_token, read when the listener starts. For a
+	// per-listener credential (Listener.auth / admin_auth), so the config
+	// carries a path rather than the secret. The file must be a regular file
+	// with no group or other permission bits.
+	string raw_token_file                           = 7 [
+		(buf.validate.field).string = {
+			max_len: 4096,
+	}];
+
+	// Path to a file holding hmac_shared_key; as raw_token_file.
+	string hmac_shared_key_file                     = 8 [
+		(buf.validate.field).string = {
+			max_len: 4096,
+	}];
+
 	option (buf.validate.message).cel = {
 		id: "ListenerAuth.failureJitter",
 		message: "failure_jitter_max must be greater than or equal to failure_jitter_min",
 		expression: "!has(this.failure_jitter_min) || !has(this.failure_jitter_max) || this.failure_jitter_max >= this.failure_jitter_min"
 	};
+}
+
+// EndpointClass groups the paths and RPCs a listener can serve. Every served
+// path or RPC belongs to exactly one class, and a class is served by at most
+// one listener; a class no listener names is not served at all.
+enum EndpointClass {
+	ENDPOINT_CLASS_UNSPECIFIED = 0;
+	// /healthz, /readyz.
+	ENDPOINT_CLASS_HEALTH = 1;
+	// The core Prometheus path (-promPath, /metrics).
+	ENDPOINT_CLASS_METRICS = 2;
+	// The link monitor detail paths: /metrics/<category>[/<iface>] and
+	// /metrics-all[/<iface>].
+	ENDPOINT_CLASS_METRICS_DETAIL = 3;
+	// /ip and /i (goip show, GET-only). Needs link_monitor.ip_paths.
+	ENDPOINT_CLASS_IP = 4;
+	// /debug/pprof/* except cmdline, which is never served.
+	ENDPOINT_CLASS_DEBUG = 5;
+	// gRPC read methods: FlatRecords, ConfigService.Get, the link monitor's
+	// GetStatus/List*, health and reflection. Admin methods answer
+	// Unimplemented on a listener that serves only this class.
+	ENDPOINT_CLASS_GRPC_READ = 6;
+	// Every gRPC method, admin ones included (Set*, TriggerPoll*,
+	// PollFlatRecords, Rebaseline, Resync).
+	ENDPOINT_CLASS_GRPC_ADMIN = 7;
+}
+
+// A listener: one socket, one credential pair, and the endpoint classes it
+// serves. See docs/security.md#listeners for the rules checked at startup.
+message Listener {
+	string name                                     = 1 [
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_len: 32,
+			pattern: "^[a-z][a-z0-9-]*$"
+	}];
+
+	// network unix, or tcp typed explicitly. An unset network with an
+	// address that is an absolute path means unix.
+	ListenerEndpoint endpoint                       = 2 [
+		(buf.validate.field).required = true
+	];
+
+	// Unset: the daemon-wide listener_auth (-listenerAuthMode and the
+	// LISTENER_* variables). An unspecified mode means raw.
+	ListenerAuth auth                               = 3;
+
+	// Unset: the daemon-wide admin_listener_auth.
+	ListenerAuth admin_auth                         = 4;
+
+	repeated EndpointClass serves                   = 5 [
+		(buf.validate.field).repeated = {
+			min_items: 1,
+			max_items: 7,
+			unique: true,
+			items: {
+				enum: {
+					defined_only: true,
+					not_in: [0]
+				}
+			}
+	}];
 }
 
 // Embedded physical link monitor (pkg/linkmonitor), the same one the
@@ -1124,10 +1201,10 @@ message XtcpConfig {
 	// ---- gRPC (160-169) ------------------------------------------------------
 
 	// GRPC listening port
+	// Legacy: the gRPC port when -grpcPort (or GRPC_PORT) expands into a
+	// listener. 0 when the listener model configures gRPC.
 	uint32 grpc_port                                 = 160 [
-		(buf.validate.field).required = true,
 		(buf.validate.field).uint32 = {
-			gte: 1,
 			lte: 65535
 	}];
 
@@ -1136,6 +1213,15 @@ message XtcpConfig {
 	ListenerEndpoint grpc_listener                   = 161 [
 		(buf.validate.field).required = false
 	];
+
+	// Every listener the daemon opens (-listener, LISTENERS). Empty means the
+	// default: one UDS, /run/xtcp2/metrics.sock mode 0600, raw bearer auth,
+	// serving health, metrics and metrics-detail. The legacy -promListen*,
+	// -grpc* and -linkMonitorIPListen flags expand into entries here.
+	repeated Listener listeners                      = 162 [
+		(buf.validate.field).repeated = {
+			max_items: 16
+	}];
 
 	// ---- profiling (170-179) -------------------------------------------------
 
