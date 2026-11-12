@@ -15,7 +15,7 @@
 # linkset: 130 same, 0 differ
 # linkadd: 111 same, 0 differ
 # linkattr: 52 same, 0 differ
-# linkpd: 9 same, 11 differ
+# linkpd: 20 same, 0 differ
 # linkprop: 28 same, 0 differ
 # kwroute4: 9 same, 4 differ
 # kwroute6: 9 same, 0 differ
@@ -48,21 +48,8 @@
 # ip730/v730seg6: 12 same, 0 differ
 # ip730/v730ovpn: 8 same, 0 differ
 # ip730/v730maddr: 0 same, 0 differ
-# gap: 3 readbacks: lacks "ff:ff:ff:ff:ff:ffprotodown_reason"
-# gap: 8 readbacks: lacks "protodown"
 # gap: 3 readbacks: lacks "realm"
 # gap: 1 readbacks: lacks "realms"
-linkpd/ec-002/dump lacks "protodown" | ip -d link show dev m0
-linkpd/pw-001/dump lacks "ff:ff:ff:ff:ff:ffprotodown_reason" | ip -d link show dev m0
-linkpd/pw-003/dump lacks "protodown" | ip -d link show dev m0
-linkpd/pw-004/dump lacks "protodown" | ip -d link show dev m0
-linkpd/pw-005/dump lacks "protodown" | ip -d link show dev m0
-linkpd/pw-006/dump lacks "protodown" | ip -d link show dev m0
-linkpd/pw-008/dump lacks "ff:ff:ff:ff:ff:ffprotodown_reason" | ip -d link show dev m0
-linkpd/rn1-001/dump lacks "protodown" | ip -d link show dev m0
-linkpd/rn1-003/dump lacks "ff:ff:ff:ff:ff:ffprotodown_reason" | ip -d link show dev m0
-linkpd/rn1-004/dump lacks "protodown" | ip -d link show dev m0
-linkpd/rn1-005/dump lacks "protodown" | ip -d link show dev m0
 kwroute4/dup-3/dump lacks "realm" | ip -4 route show table all
 kwroute4/ec-003/dump lacks "realm" | ip -4 route show table all
 kwroute4/ec-004/dump lacks "realms" | ip -4 route show table all

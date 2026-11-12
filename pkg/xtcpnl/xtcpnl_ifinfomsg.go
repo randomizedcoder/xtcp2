@@ -286,6 +286,17 @@ type LinkInfo struct {
 	// set (rtnl_fill_ifinfo); iproute2 sends it without the NUL.
 	IfAlias string
 
+	// ProtoDown is IFLA_PROTO_DOWN, `protodown on|off`; HasProtoDown is its
+	// presence, which gates print_proto_down as a whole.
+	ProtoDown    uint8
+	HasProtoDown bool
+	// ProtoDownReason is IFLA_PROTO_DOWN_REASON's
+	// IFLA_PROTO_DOWN_REASON_VALUE, a u32 bit per reason. The kernel sends
+	// the nest only when the value is non-zero. HasProtoDownReason is the
+	// nest's presence, HasProtoDownReasonValue the value's.
+	ProtoDownReason                             uint32
+	HasProtoDownReason, HasProtoDownReasonValue bool
+
 	// SlaveKind is IFLA_LINKINFO -> IFLA_INFO_SLAVE_KIND: what this link is to
 	// its master, rather than what it is in itself. print_linktype emits it as
 	// a second continuation line under -d (ip/ipaddress.c:250-258), so a
@@ -765,8 +776,11 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		uint16(unix.IFLA_MTU), uint16(unix.IFLA_TXQLEN),
 		uint16(unix.IFLA_LINKMODE), uint16(unix.IFLA_GROUP),
 		uint16(unix.IFLA_LINK), uint16(unix.IFLA_MASTER),
-		uint16(unix.IFLA_LINK_NETNSID), uint16(unix.IFLA_EVENT):
+		uint16(unix.IFLA_LINK_NETNSID), uint16(unix.IFLA_EVENT),
+		uint16(unix.IFLA_PROTO_DOWN):
 		setLinkScalarAttr(li, atype, val)
+	case uint16(unix.IFLA_PROTO_DOWN_REASON):
+		setProtoDownReason(li, val)
 
 	case uint16(unix.IFLA_ADDRESS):
 		li.Address = CopyBytes(val)
@@ -806,6 +820,19 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 	default:
 		setLinkDetailAttr(&li.Detail, atype, val)
 	}
+}
+
+// setProtoDownReason reads IFLA_PROTO_DOWN_REASON's value, the first of a
+// repeated one, as parse_rtattr_nested does. A malformed nest keeps what was
+// read before it.
+func setProtoDownReason(li *LinkInfo, val []byte) {
+	li.HasProtoDownReason = true
+	walkNestTolerant(val, func(atype uint16, v []byte) {
+		if atype == uint16(unix.IFLA_PROTO_DOWN_REASON_VALUE) && !li.HasProtoDownReasonValue && len(v) >= 4 {
+			li.ProtoDownReason = binary.LittleEndian.Uint32(v)
+			li.HasProtoDownReasonValue = true
+		}
+	})
 }
 
 // setLinkScalarAttr applies one fixed-width scalar IFLA_* to a LinkInfo.
@@ -863,6 +890,11 @@ func setLinkScalarAttr(li *LinkInfo, atype uint16, val []byte) {
 		if len(val) >= 1 {
 			li.LinkMode = val[0]
 			li.HasLinkMode = true
+		}
+	case uint16(unix.IFLA_PROTO_DOWN):
+		if len(val) >= 1 {
+			li.ProtoDown = val[0]
+			li.HasProtoDown = true
 		}
 	case uint16(unix.IFLA_GROUP):
 		if len(val) >= 4 {

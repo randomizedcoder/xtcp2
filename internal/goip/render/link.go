@@ -80,6 +80,14 @@ type LinkView struct {
 	// "link-netnsid unknown" — a different line from printing nothing at all.
 	LinkNetnsID *int32 `json:"link_netnsid,omitempty"`
 
+	// ProtoDown and ProtoDownReason are print_proto_down's tokens,
+	// `protodown on` and `protodown_reason <0,3>`, outside the link/ line's
+	// guard and outside -d (ip/ipaddress.c:904-941,1150-1151). The reasons
+	// are numbers: protodown_reason_n2a names them from protodown_reasons.d,
+	// and iproute2 ships none. See protoDownReasons for ip's faults.
+	ProtoDown       bool     `json:"proto_down,omitempty"`
+	ProtoDownReason []string `json:"proto_down_reason,omitempty"`
+
 	AltNames []string `json:"altnames,omitempty"`
 
 	// Stats is the `-s` counter block, and nil means "do not print one".
@@ -334,6 +342,8 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 		id := li.LinkNetnsID
 		v.LinkNetnsID = &id
 	}
+	v.ProtoDown = li.HasProtoDown && li.ProtoDown != 0
+	v.ProtoDownReason = protoDownReasons(li)
 	return v
 }
 
@@ -495,6 +505,16 @@ func (v LinkView) Text() string {
 			b.WriteString(" link-netnsid unknown")
 		}
 	}
+	if v.ProtoDown {
+		b.WriteString(" protodown on ")
+	}
+	// No space before it, as ip's format has none (P14): after
+	// `protodown on ` that reads right, and after a link/ line it does not.
+	if len(v.ProtoDownReason) > 0 {
+		b.WriteString("protodown_reason <")
+		b.WriteString(strings.Join(v.ProtoDownReason, ","))
+		b.WriteString(">")
+	}
 	// The `-d` run, and it lands here rather than anywhere else because
 	// print_linkinfo's `if (show_details)` block opens at ip/ipaddress.c:1153
 	// — AFTER the link-netnsid print at :1114 and BEFORE the stats at :1297.
@@ -543,6 +563,25 @@ func linkEventToken(event uint32) string {
 		return ""
 	}
 	return "event " + linkEvents[event] + " "
+}
+
+// protoDownReasons is print_proto_down's reason list, with ip's faults
+// (P14): it tests the link's own tb[IFLA_PROTO_DOWN_REASON_VALUE], which is
+// IFLA_BROADCAST, not the nest's, and reads the u32 value as a u8, so only
+// reasons 0 to 7 print, and a value with none of them prints nothing. ip
+// dereferences a missing value under a present IFLA_BROADCAST; goip prints
+// nothing there, and the kernel never sends that nest.
+func protoDownReasons(li xtcpnl.LinkInfo) []string {
+	if !li.HasProtoDown || !li.HasProtoDownReason || li.Broadcast == nil || !li.HasProtoDownReasonValue {
+		return nil
+	}
+	var out []string
+	for i, reason := 0, uint8(li.ProtoDownReason); reason != 0; i, reason = i+1, reason>>1 {
+		if reason&1 != 0 {
+			out = append(out, strconv.Itoa(i))
+		}
+	}
+	return out
 }
 
 // WithAlias adds the link's alias line, which print_linkinfo prints for

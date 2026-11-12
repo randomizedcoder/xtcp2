@@ -785,6 +785,32 @@ print_linkinfo prints `\n    alias %s` when IFLA_IFALIAS is present and `do_link
 | positive: the corpus, `link show` | linkset ec-002's dump (`TestWsLinkAlias`) | `\n    alias hello` without `-d`; `"ifalias":"hello"` under `-j`; after `gro_ipv4_max_size 65536 ` under `-d` |
 | positive: O9 | `TestWsReadbacks` | linkset 130 of 130; no `alias` gap |
 
+#### NX7d `protodown` and `protodown_reason`
+
+print_proto_down (ip/ipaddress.c:904-941) runs when IFLA_PROTO_DOWN is present, outside the link/ line's guard and outside `-d`, so `link show`, `addr show` and the monitor all print it. goip decoded neither attribute. xtcpnl now reads IFLA_PROTO_DOWN (u8) and the IFLA_PROTO_DOWN_REASON nest's value (u32, the first of a repeat), and `LinkViewOf` prints them with ip's faults (P14):
+
+- ` protodown on ` when the u8 is non-zero; JSON `"proto_down":true`.
+- The reasons only when the link's own `tb[2]`, IFLA_BROADCAST, is present: ip tests the wrong table.
+- Only the value's low 8 bits: ip reads the u32 with `rta_getattr_u8`. Reason 31 alone prints nothing (linkpd ec-004, pw-006, rn1-004).
+- `protodown_reason <0,3>` with no space before it; JSON `"proto_down_reason":["0","3"]`, strings. The reasons are numbers: protodown_reason_n2a names them from protodown_reasons.d, and iproute2 ships none.
+
+| description | input | expected |
+|---|---|---|
+| positive: protodown on | u8 1 | `brd ff:ff:ff:ff:ff:ff protodown on `, `"proto_down":true` |
+| positive: on, reasons 0 and 3 | value 0x9 | ` protodown on protodown_reason <0,3>` |
+| positive: a reason while off | value 1 | `ff:ff:ff:ff:ff:ffprotodown_reason <0>` |
+| negative: off | u8 0 | nothing |
+| negative: no IFLA_PROTO_DOWN | a reason nest | nothing |
+| boundary: reason 7 | 0x80 | `<7>` |
+| boundary: reason 8 alone | 0x100 | nothing (the u8 read) |
+| corner: reasons 0 and 31 | 0x80000001 | `<0>` only |
+| corner: no IFLA_BROADCAST | on, value 1 | ` protodown on ` and no reasons |
+| positive: O9 | `TestWsReadbacks` | linkpd 20 of 20 |
+
+xtcpnl's decode (`TestParseNewLinkProtoDown`): on; a value as the kernel sends it; neither; off is present; a nest with only a mask; the first of a repeated value; a short value dropped; an empty IFLA_PROTO_DOWN dropped. `TestParseNewLinkRealFixture`'s links all gain `HasProtoDown`, as the kernel sends IFLA_PROTO_DOWN on every link.
+
+The new LinkInfo fields move four of linkmonitor's recorded-contract digests (`TestRecordedContracts`, regenerated with `-update`): every recorded link now carries `HasProtoDown`.
+
 #### NX7f the stock name tables, compiled in
 
 goip compiles in the files the parity guest reads (`internal/goip/render/names.go`):
