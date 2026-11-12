@@ -76,7 +76,7 @@ No code. Each item ends as a recorded decision in the focused doc's [open questi
 
 **Tests:** FD `capture_not_compiled`, `capture_compiled_warns`, `capture_compiled_idle`; per-flavor build check that the symbol is absent (`go tool nm`).
 **Acceptance:** `nix build .#xtcp2-s3parquet` has no `captureToFileIfEnabled` or `newFileDest` symbol; the full flavor still captures.
-**Status:** done on `sec/fp1-debug-writer-tags`. `checks.flavor-tags` reads each binary's recorded build tags (they survive stripping) rather than symbol names.
+**Status:** merged (#293). `checks.flavor-tags` reads each binary's recorded build tags (they survive stripping) rather than symbol names.
 
 ### FP-2 — secrets and S3 transport (A3, A4)
 
@@ -88,7 +88,7 @@ No code. Each item ends as a recorded decision in the focused doc's [open questi
 
 **Tests:** Test FB (all rows) + `secret_file_mode` (N: 0644 file → fatal).
 **Acceptance:** `ps`, `docker inspect` and the startup log of the reference deployment contain no secret.
-**Status:** done on `sec/fp2-secrets-s3-tls`. Also: a bare `host:port` S3 endpoint now uses TLS; a missing or unreadable `_FILE` path is fatal (it was silently ignored); the flag-and-env-both case now warns. `checks.flavor-tags` tests the production mark by behavior (a slim binary refuses `-s3SecretKey` with exit 64), because `-trimpath` leaves `-ldflags` out of the recorded build settings.
+**Status:** merged (#294). Also: a bare `host:port` S3 endpoint now uses TLS; a missing or unreadable `_FILE` path is fatal (it was silently ignored); the flag-and-env-both case now warns. `checks.flavor-tags` tests the production mark by behavior (a slim binary refuses `-s3SecretKey` with exit 64), because `-trimpath` leaves `-ldflags` out of the recorded build settings.
 
 ### FP-3 — listener model (A1, A2)
 
@@ -114,7 +114,7 @@ The largest PR of the phase; land it in three commits that each pass CI.
 **Tests:** Test FA (all 17 rows) as `TestListeners`; an integration test per class that the path/RPC is 404/`Unimplemented` on every listener that does not serve it; the existing listenerauth tests unchanged.
 **Acceptance:** `ss -ltnp` in a default container shows no TCP listener owned by xtcp2; a scrape with the token over the socket succeeds; without it, 401.
 **Depends on:** F0.1 (default stays UDS either way; F0.1 decides what FP-16 configures).
-**Status:** done on `sec/fp3-listener-model` (three commits plus the clients), except go-link-monitor (FP-3b). `PollFlatRecords` is an admin method, so a `grpc-read` listener does not serve it. An unset auth mode is inferred from the credential given. MicroVMs green: uds-security lifecycle, scrape-auth, linkmonitor, ip-listen.
+**Status:** merged (#295; three commits plus the clients), except go-link-monitor (FP-3b). `PollFlatRecords` is an admin method, so a `grpc-read` listener does not serve it. An unset auth mode is inferred from the credential given. MicroVMs green: uds-security lifecycle, scrape-auth, linkmonitor, ip-listen.
 
 ### FP-4 — supply-chain checks (D1)
 
@@ -124,7 +124,7 @@ The largest PR of the phase; land it in three commits that each pass CI.
 - [x] Fresh-database run. *Done as:* `nix run .#govulncheck-fresh` instead of a scheduled job, since there is no hosted CI to schedule it.
 
 **Tests:** FD `govulncheck_clean` (a seeded vulnerable module version fails the check). *Checked by hand:* with the accepted list emptied, the check fails on GO-2026-6859; an automated seeded-module test is a TODO.
-**Status:** done on `sec/fp4-govulncheck`.
+**Status:** merged (#296).
 
 ### Phase F1 TODOs
 
@@ -188,12 +188,13 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 ### FP-8 — compile out the write encoders (D3)
 
-- [ ] `internal/goip`: write verbs (`*_write.go`, `*_flush.go`, `*_restore.go`, `link_property.go`, `stats_set.go`, the `obj_*` setters) behind `//go:build goip_write`; `cmd/goip` builds with the tag, `cmd/xtcp2` and `cmd/go-link-monitor` without.
-- [ ] `pkg/xtcpnl`: `BuildWriteRequest`, `IsAdmittedWriteType` and the write half of `xtcpnl_rtattr_encode.go` behind the same tag; `pkg/nlparity` write paths likewise.
-- [ ] `goip.ErrWriteVerb` handling in `goiphttp` stays (a write verb in a URL is still a 400), implemented without linking the verbs.
-- [ ] Structural test in CI: `go list -deps ./cmd/xtcp2` has no file matching the write set; `go tool nm` on the daemon finds no `BuildWriteRequest`; no `os/exec`.
+- [x] `internal/goip`: write verbs (`*_write.go`, `*_flush.go`, `*_restore.go`, `link_property.go`, `stats_set.go`, the `obj_*` setters) behind `//go:build goip_write`; `cmd/goip` builds with the tag, `cmd/xtcp2` and `cmd/go-link-monitor` without. *Done as:* a seam first. Every `runX` calls its write arm through `writeOps`, an untagged table of stubs that return `ErrWriteNotCompiled` (an `ErrWriteVerb`); `write_ops_goip_write.go` swaps the real arms in from `init()`. The helpers the read path shares with the write files moved to untagged files first (FP-8a, a pure move), and the `obj_*` setters to `obj_<x>_write.go`. `goip-parity` builds with the tag too.
+- [x] `pkg/xtcpnl`: `BuildWriteRequest`, `IsAdmittedWriteType` and the write half of `xtcpnl_rtattr_encode.go` behind the same tag; `pkg/nlparity` write paths likewise. *Done as:* the write builders (`Build*WriteRequest`, `BuildSetNsidRequest`) and their files are tagged; the admission predicates (`IsAdmitted*`) and the `nlparity` classifiers (`IsWrite`, `ParseWriteRequests`) stay untagged, because they classify and encode nothing. The per-kind `Encode*InfoData` stay beside their decoders, unreachable without goip's link write; the nm check proves the linker drops them.
+- [x] `goip.ErrWriteVerb` handling in `goiphttp` stays (a write verb in a URL is still a 400), implemented without linking the verbs. Unchanged: `/ip` refuses a write verb by name before it runs.
+- [x] Structural test in CI: `go list -deps ./cmd/xtcp2` has no file matching the write set; `go tool nm` on the daemon finds no `BuildWriteRequest`; no `os/exec`. *Done as:* `checks.no-write-encoders`, for xtcp2 and go-link-monitor with each binary's own tags, each proof with a positive control (the listing with `goip_write` names write files; tagged `goip` has `BuildWriteRequest`). A manual negative run (`BuildWriteRequest` untagged and referenced from `goip.Show`) fails it.
 
-**Tests:** FD `no_write_encoders`, `no_exec`; goip's own suites run with the tag.
+**Tests:** FD `no_write_encoders`, `no_exec`; goip's own suites run with the tag. *Done as:* `internal/goip/notag_test.go` (untagged) runs every write verb against a socket that refuses requests and expects `ErrWriteNotCompiled`, exit 1 and no request; `TestWriteOpsUntagged`/`TestWriteOpsTagged` pin the table either way. Mixed tests split into `*_write_test.go`; shared tables skip a write row untagged. `test-focused-goip` runs goip, goipparity, nlparity and xtcpnl with the tag.
+**Status:** open as #297 (FP-8a, moves), #298 (FP-8b, seam, tags, Nix) and #299 (FP-8c, the check and docs), stacked. No `goip_write` leg in `go-test-flavors`, whose legs test `pkg/xtcp` only; `test-focused-goip` carries the tagged tests, and `internal/goipparity`'s tests moved there from the untagged `go test ./...`.
 
 ### FP-9 — capability settlement (B1 prerequisite; subset of phased-plan PR-18)
 
@@ -212,6 +213,12 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | net_admin_absent_warns | B | caps = `SYS_ADMIN` | one warning line, no exit |
 | mark_not_requested | C | socket with `SO_MARK`, with and without `NET_ADMIN` | records identical in both runs |
 | rtm_newroute_refused | N | inside the container, send `RTM_NEWROUTE` | `EPERM` |
+
+### Phase F3 TODOs
+
+| TODO | Where |
+|---|---|
+| xtcp2's s3parquet destination imports `os/exec` through minio-go's credentials provider (never constructed: xtcp2 uses `NewStaticV4`); listed in `no-write-encoders`' `execAllowed` | upstream / a later trim |
 
 ### Phase F3 gate
 
