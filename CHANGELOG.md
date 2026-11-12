@@ -12,6 +12,10 @@
 - **`_FILE` secrets are checked.** A missing or unreadable `*_FILE` path, a non-regular file, or one readable by group or others stops startup with exit 64. It used to be ignored silently (listener tokens) or logged (S3 keys), leaving the credential empty. Mount secrets mode `0400`.
 - **The debug writers are build-time opt-ins.** The netlink capture writer (`-writeFiles` / `-capturePath`) is compiled in only with `-tags capture`, which no flavor or image sets; use `nix build .#xtcp2-capture`. The `file:` destination needs `-tags dest_file` and is in the full (development) flavor only, so `xtcp2-<dest>` slim flavors and their images no longer have it. Asking for either on a binary without it exits 64 at startup with the tag to rebuild with; `ConfigService.Set` refuses it with `FailedPrecondition`. A capture build reports `+capture` in its version line, and when armed logs a warning and sets `xtcp2_debug_capture_enabled 1`.
 
+### New
+
+- **Vulnerability check.** `checks.govulncheck` runs govulncheck against a pinned snapshot of the Go vulnerability database, with no tags and with every flavor tag, and fails on a reachable finding not in its accepted list. One is accepted: GO-2026-6859 in `net/http`, fixed in go1.27.4, until the toolchain moves. `nix run .#govulncheck-fresh` checks against the live database and runs `go mod verify`; `nix build .#sbom-<binary>` writes a CycloneDX SBOM for any binary package.
+
 ## 0.2.1 (2026-11)
 
 Fixes for what the first fleet rollout of 0.2.0 found: the link monitor baseline, the uplink columns, and container attribution. No schema, flag-default or `XtcpConfig` change; 0.2.0 clients and consumers work unchanged.
