@@ -32,13 +32,6 @@ import (
 // `ip` sends those gets before its write, so they are part of what the
 // parity harness compares (link-write-path.md, decision 5).
 
-// ErrWriteNotApplied is a write verb run without GOIP_WRITE_OUT.
-var ErrWriteNotApplied = errors.New("goip never applies a write; set " + writeOutEnvCst +
-	" to receive the request it would send")
-
-// writeOutEnvCst names the file a write verb writes its framed request to.
-const writeOutEnvCst = "GOIP_WRITE_OUT"
-
 // linkWriteVerb is one arm of do_iplink that reaches iplink_modify.
 type linkWriteVerb struct {
 	name    string
@@ -252,11 +245,6 @@ func invargErr(msg, arg string) error {
 func dupargErr(key, arg string) error {
 	return fmt.Errorf("%w: Error: duplicate %q: %q is the second value", ErrInvalidArgument, key, arg)
 }
-
-// ErrLinkUsage is a refusal iplink_parse ends with exit(-1), 255: invarg,
-// duparg, duparg2 and incomplete_command. Its returned refusals (a bad
-// lladdr, an on/off word, nodev) exit 1, as ErrInvalidArgument does.
-var ErrLinkUsage = errors.New("link")
 
 // linkUsage marks err as one of ErrLinkUsage's refusals.
 func linkUsage(err error) error {

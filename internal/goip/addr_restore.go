@@ -23,11 +23,6 @@ import (
 // each error the kernel attaches and ignores EEXIST, and with the kernel
 // answering nothing else its rc is 0, as goip's is.
 
-// ErrDumpTerminated is ll_init_map's link dump failing ahead of a restore's
-// first write, the address one's or the route one's: `ip` prints "Dump
-// terminated" and exits 1.
-var ErrDumpTerminated = errors.New("restore")
-
 // restoreFlagsCst is what restore_handler ORs into each saved message's flags.
 const restoreFlagsCst = unix.NLM_F_REQUEST | unix.NLM_F_CREATE | unix.NLM_F_ACK
 

@@ -49,10 +49,6 @@ const (
 	nexthopGrpTypeResCst   = "resilient"
 )
 
-// ErrNexthopFlushTerminated is a dump failing inside `nexthop flush`:
-// ipnh_flush returns -2, which do_cmd negates, so 2.
-var ErrNexthopFlushTerminated = errors.New("nexthop flush: dump terminated")
-
 // nexthopWriteVerb is one of do_ipnh's three ipnh_modify calls: the verb
 // matches() takes, the type and the flags ORed into NLM_F_REQUEST.
 type nexthopWriteVerb struct {

@@ -2,7 +2,6 @@ package goip
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 
@@ -34,10 +33,6 @@ const (
 	addrLabelFlushVerbCst  = "flush"
 	addrLabelFlushExtraCst = `"ip addrlabel flush" does not allow extra arguments`
 )
-
-// ErrAddrLabelFlushTerminated is `Flush terminated`: a failed dump or a short
-// reply, after which ipaddrlabel_flush returns -1, so 255.
-var ErrAddrLabelFlushTerminated = errors.New("addrlabel flush: Flush terminated")
 
 // addrLabelWrite is ipaddrlabel_modify's request: the ifaddrlblmsg fields
 // and the attributes, IFAL_LABEL then IFAL_ADDRESS.

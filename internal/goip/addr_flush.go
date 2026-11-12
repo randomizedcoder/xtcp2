@@ -23,10 +23,6 @@ import (
 // the rounds `ip` runs when the kernel deletes what it was asked to
 // (decision 5).
 
-// ErrFlushIncomplete is a flush that ran out of rounds: `ip -loops N` with
-// addresses still matching after N. `ip` exits 255 for it.
-var ErrFlushIncomplete = errors.New("flush remains incomplete")
-
 const (
 	// addrFlushBufCst is ipaddr_flush's `char flushb[4096-512]`
 	// (ip/ipaddress.c:1966).
