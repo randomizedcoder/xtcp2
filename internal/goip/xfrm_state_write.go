@@ -1159,3 +1159,17 @@ func xfrmDeleteallMark(body []byte, hdrLen int) ([]byte, error) {
 	}
 	return mark, nil
 }
+
+// xfrmStateDelete is xfrm_state_get_or_delete's delete: the DELSA, with
+// NLM_F_ACK, to GOIP_WRITE_OUT.
+func xfrmStateDelete(c *runCtx, args []string) error {
+	hdr, attrs, err := xfrmStateIDRequest(c, args)
+	if err != nil {
+		return err
+	}
+	req, err := xtcpnl.BuildXfrmWriteRequest(xtcpnl.XfrmMsgDelSA, unix.NLM_F_ACK, c.nextSeq(), hdr, attrs)
+	if err != nil {
+		return err
+	}
+	return writeAddrOut(req)
+}

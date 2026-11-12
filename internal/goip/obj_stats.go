@@ -4,10 +4,6 @@ import (
 	"fmt"
 )
 
-// groupKeywordCst is the `group` keyword, which vxlan and nexthop share
-// with `ip stats show`'s first level (ipstatsLevels).
-const groupKeywordCst = "group"
-
 // runStats is do_ipstats (ip/ipstats.c:1315-1339): a bare `ip stats` is a
 // show at the -s level given, `show` adds one level and -d another, `set`
 // is statsSet, and `help` the usage on stderr; all by strcmp. Any other

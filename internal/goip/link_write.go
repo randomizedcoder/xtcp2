@@ -1246,3 +1246,7 @@ func linkWrite(c *runCtx, verb *linkWriteVerb, args []string) error {
 func newLinkNameResolver(svc *service.Service) linkResolver {
 	return newLinkNameResolverRemember(svc, nil)
 }
+
+// mtuKeywordCst is the `mtu` keyword, spelled the same in `ip link` and
+// `ip route`.
+const mtuKeywordCst = "mtu"
