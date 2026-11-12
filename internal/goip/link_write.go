@@ -1288,17 +1288,3 @@ func newLinkNameResolverRemember(svc *service.Service, remember func(xtcpnl.Link
 		}
 	}
 }
-
-// llIdxA2N is ll_idx_a2n: sscanf(name, "if%u"), so "if3" is ifindex 3 and
-// trailing characters after the digits are ignored.
-func llIdxA2N(name string) uint32 {
-	rest, ok := strings.CutPrefix(name, "if")
-	if !ok {
-		return 0
-	}
-	r := cStrtoul(rest, 10)
-	if r.end == 0 {
-		return 0
-	}
-	return cint.Low32(r.val)
-}

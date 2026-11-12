@@ -33,17 +33,6 @@ const (
 	ruleTosKeywordCst   = "tos"
 )
 
-// ruleProtoNames is the getprotobyname subset goip knows for `ipproto`: the
-// IANA names /etc/protocols carries for the protocols the kernel's
-// FRA_IP_PROTO selector is used with. goip reads no config files, so any
-// other name is refused rather than looked up.
-var ruleProtoNames = map[string]uint8{
-	"icmp": unix.IPPROTO_ICMP, "tcp": unix.IPPROTO_TCP, "udp": unix.IPPROTO_UDP,
-	"ipv6-icmp": unix.IPPROTO_ICMPV6, "sctp": unix.IPPROTO_SCTP, "dccp": unix.IPPROTO_DCCP,
-	"udplite": unix.IPPROTO_UDPLITE, "gre": unix.IPPROTO_GRE, "esp": unix.IPPROTO_ESP,
-	"ah": unix.IPPROTO_AH,
-}
-
 // ruleWrite is iprule_modify's request: the fib_rule_hdr and the attributes
 // in the order the loop adds them.
 type ruleWrite struct {
