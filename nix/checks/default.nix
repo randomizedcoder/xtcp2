@@ -29,6 +29,7 @@
   binaries,
   xdp2,
   lintBaselineMeasure,
+  linkmonitor,
 }:
 
 let
@@ -99,6 +100,16 @@ in
 
   # Slim flavors must not carry the debug writers (dest_file, capture).
   flavor-tags = import ./flavor-tags.nix { inherit pkgs lib binaries; };
+  # The daemons carry no netlink write encoders (goip_write) and no os/exec.
+  no-write-encoders = import ./no-write-encoders.nix {
+    inherit
+      pkgs
+      lib
+      vendoredSource
+      binaries
+      linkmonitor
+      ;
+  };
 
   # The lint ratchet, and the only check here that is GREEN at baseline. The
   # three tier checks above report a tier's whole finding list, which has been
