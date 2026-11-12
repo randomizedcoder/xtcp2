@@ -13,10 +13,6 @@ import (
 var lwtEncapTypes = []string{mplsKeywordCst, lwtEncapIPCst, lwtEncapIP6Cst, lwtEncapILACst, "bpf", lwtEncapSeg6Cst,
 	lwtEncapSeg6LocalCst, lwtEncapRplCst, lwtEncapIoam6Cst, lwtEncapXfrmCst}
 
-// mplsKeywordCst is "mpls": read_family's word for AF_MPLS, and an encap
-// type.
-const mplsKeywordCst = "mpls"
-
 // The ip and ip6 encap types, and the words parse_encap_ip and
 // parse_encap_ip6 share.
 const (

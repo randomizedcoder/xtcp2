@@ -19,10 +19,9 @@ import (
 // writes the request to GOIP_WRITE_OUT.
 
 const (
-	linkPropertyVerbCst = "property"
-	linkPropAddVerbCst  = "add"
-	linkPropDelVerbCst  = "del"
-	linkAltnameKeyCst   = "altname"
+	linkPropAddVerbCst = "add"
+	linkPropDelVerbCst = "del"
+	linkAltnameKeyCst  = "altname"
 	// linkPropBufCst is struct iplink_req's buffer after the ifinfomsg.
 	linkPropBufCst = 1024
 	// linkPropNoDevCst is iplink_prop_mod's refusal of a request with no

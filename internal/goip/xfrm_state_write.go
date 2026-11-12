@@ -54,17 +54,12 @@ const (
 	xfrmModeTrigCst    = 3   // XFRM_MODE_IN_TRIGGER
 	xfrmPcpuUnsetCst   = 0xffffffff
 	// xfrmMarkLenCst is struct xfrm_mark's 8 bytes.
-	xfrmMarkLenCst   = 8
-	xfrmAddCst       = "add"
-	xfrmUpdateCst    = "update"
-	xfrmAllocspiCst  = "allocspi"
-	xfrmDeleteallCst = "deleteall"
-	xfrmFlushCst     = "flush"
-	xfrmDirCst       = "dir"
-	xfrmDirOutCst    = "out"
-	xfrmPcpuCst      = "pcpu-num"
-	xfrmSeqCst       = "seq"
-	xfrmMaskWordCst  = "mask"
+	xfrmMarkLenCst  = 8
+	xfrmDirCst      = "dir"
+	xfrmDirOutCst   = "out"
+	xfrmPcpuCst     = "pcpu-num"
+	xfrmSeqCst      = "seq"
+	xfrmMaskWordCst = "mask"
 )
 
 // xfrmAddattr is a request ip builds in a fixed buffer: nlLen is

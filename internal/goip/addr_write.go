@@ -158,21 +158,10 @@ const (
 	// addrBrdMaxBitlenCst is the longest prefix `brd +` and `brd -` compute
 	// a broadcast for; /31 and /32 get none, and no error.
 	addrBrdMaxBitlenCst = 30
-	addrHelpKeywordCst  = "help"
-	addrLocalKeywordCst = "local"
 	addrBrdPlusCst      = "+"
 	addrBrdMinusCst     = "-"
 	addrForeverCst      = "forever"
-	// The names below are spelled once here: route_write.go and
-	// link_write.go use the same words, and goconst counts across the
-	// package.
-	addrVerbAddCst      = "add"
-	addrVerbChangeCst   = "change"
-	addrVerbReplaceCst  = "replace"
-	addrVerbDeleteCst   = "delete"
-	addrVerbChgCst      = "chg"
 	addrBrdKeywordCst   = "brd"
-	addrScopeKeywordCst = "scope"
 	addrProtoUnspecCst  = "unspec"
 	// addrNotEnoughMsg keeps ipaddr_modify's full stop, which an error
 	// string literal may not end with.

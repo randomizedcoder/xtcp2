@@ -16,7 +16,6 @@ import (
 // NLM_F_ACK. goip writes the request to GOIP_WRITE_OUT.
 
 const (
-	statsSetVerbCst    = "set"
 	statsL3StatsKeyCst = "l3_stats"
 )
 

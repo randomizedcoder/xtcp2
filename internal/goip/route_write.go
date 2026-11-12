@@ -109,16 +109,9 @@ type routeKeyword struct {
 	scale uint32
 }
 
-// The route priority keywords, spelled the same in `ip address`
-// (ipaddr_modify) and `ip route` (iproute_modify).
-const (
-	routeMetricKeywordCst     = "metric"
-	routePriorityKeywordCst   = "priority"
-	routePreferenceKeywordCst = "preference"
-	// routeOnlinkKeywordCst is RTNH_F_ONLINK's word, on the route and in a
-	// hop.
-	routeOnlinkKeywordCst = "onlink"
-)
+// routeOnlinkKeywordCst is RTNH_F_ONLINK's word, on the route and in a
+// hop.
+const routeOnlinkKeywordCst = "onlink"
 
 // routeParseKeywords is iproute_modify's if/else chain in its order
 // (ip/iproute.c:1195-1572). Every keyword is listed, the unimplemented ones
@@ -181,11 +174,7 @@ func lookupRouteKeyword(arg string) *routeKeyword {
 }
 
 const (
-	// routeAsKeywordCst is RTA_NEWDST's word, on the route and in a hop.
-	routeAsKeywordCst   = "as"
 	routeLockKeywordCst = "lock"
-	routeToKeywordCst   = "to"
-	routeHelpKeywordCst = "help"
 )
 
 func routeUsageErr() error {

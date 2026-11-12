@@ -27,8 +27,6 @@ import (
 // first record: a flush with nothing to delete sends what `ip` sends, the
 // dump alone, and needs no hook.
 
-const routeFlushVerbCst = "flush"
-
 // routeFlushKey is a route as the kernel finds it to delete: by table,
 // prefix, source, tos, metric, type and first hop. It is the identity round 2
 // subtracts by. The bytes are not, because an IPv6 route's RTA_CACHEINFO

@@ -24,13 +24,10 @@ import (
 // too.
 
 const (
-	addrLabelAddVerbCst    = "add"
-	addrLabelDelVerbCst    = "delete"
 	addrLabelPrefixKeyCst  = "prefix"
 	addrLabelLabelKeyCst   = "label"
 	addrLabelModifyBufCst  = 1024
 	addrLabelNoLabelCst    = math.MaxUint32
-	addrLabelFlushVerbCst  = "flush"
 	addrLabelFlushExtraCst = `"ip addrlabel flush" does not allow extra arguments`
 )
 

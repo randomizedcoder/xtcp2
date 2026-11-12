@@ -977,10 +977,7 @@ func (st *linkParseState) checkAddrLen() error {
 
 // Kinds iplink_modify treats specially.
 const (
-	kindBondCst      = "bond"
 	kindBondSlaveCst = "bond_slave"
-	kindVethCst      = "veth"
-	kindVxcanCst     = "vxcan"
 	kindDummyCst     = "dummy"
 	kindIfbCst       = "ifb"
 	kindNlmonCst     = "nlmon"
