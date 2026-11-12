@@ -288,7 +288,8 @@ func (c *xtcpConfigService) redactedConfig() (*xtcp_config.XtcpConfig, error) {
 func RedactSecrets(cfg *xtcp_config.XtcpConfig) {
 	cfg.S3SecretKey = ""
 	cfg.S3AccessKey = ""
-	auths := []*xtcp_config.ListenerAuth{cfg.ListenerAuth, cfg.AdminListenerAuth}
+	auths := make([]*xtcp_config.ListenerAuth, 0, 2+2*len(cfg.GetListeners()))
+	auths = append(auths, cfg.ListenerAuth, cfg.AdminListenerAuth)
 	// Per-listener credentials are file paths (listeners refuse them inline),
 	// so there is nothing to carry across a soft restart; blank any inline
 	// value anyway so a response can never echo one.

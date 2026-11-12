@@ -10,6 +10,12 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 )
 
+// The ParseSpec keys that set an auth mode.
+const (
+	keyAuth      = "auth"
+	keyAdminAuth = "adminAuth"
+)
+
 // SpecSyntax documents ParseSpec's format, for flag usage strings.
 const SpecSyntax = "name=<name>,serves=<class>[+<class>...],address=<path|host:port>" +
 	"[,network=unix|tcp][,mode=0600][,unlinkStale=true]" +
@@ -85,12 +91,12 @@ func setField(l *xtcp_config.Listener, k, v string) error {
 			}
 			l.Serves = append(l.Serves, c)
 		}
-	case "auth", "adminAuth":
+	case keyAuth, keyAdminAuth:
 		m, err := listenerauth.ParseMode(v)
 		if err != nil {
 			return err
 		}
-		authFor(l, k == "adminAuth").Mode = m
+		authFor(l, k == keyAdminAuth).Mode = m
 	case "tokenFile":
 		authFor(l, false).RawTokenFile = v
 	case "hmacKeyFile":
@@ -133,6 +139,8 @@ func FormatSpec(l *xtcp_config.Listener) string {
 		kv = append(kv, "network=tcp")
 	case xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX:
 		kv = append(kv, "network=unix")
+	case xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNSPECIFIED:
+		// Inferred from the address when parsed back.
 	}
 	if m := ep.GetUnixSocketMode(); m != 0 {
 		kv = append(kv, fmt.Sprintf("mode=%#o", m))
@@ -140,7 +148,7 @@ func FormatSpec(l *xtcp_config.Listener) string {
 	for _, a := range []struct {
 		prefix, modeKey string
 		auth            *xtcp_config.ListenerAuth
-	}{{"", "auth", l.GetAuth()}, {"admin", "adminAuth", l.GetAdminAuth()}} {
+	}{{"", keyAuth, l.GetAuth()}, {"admin", keyAdminAuth, l.GetAdminAuth()}} {
 		if a.auth == nil {
 			continue
 		}

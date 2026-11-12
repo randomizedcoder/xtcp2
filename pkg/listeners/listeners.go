@@ -134,6 +134,8 @@ func network(l *xtcp_config.Listener) (string, error) {
 		return listener.NetworkTCP, nil
 	case xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX:
 		return listener.NetworkUnix, nil
+	case xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNSPECIFIED:
+		// Inferred from the address, below.
 	}
 	if filepath.IsAbs(ep.GetAddress()) {
 		return listener.NetworkUnix, nil

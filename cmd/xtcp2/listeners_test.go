@@ -174,7 +174,7 @@ func TestRunMain_listeners(t *testing.T) {
 			if rc != tc.expected {
 				t.Fatalf("%s: rc = %d, want %d", tc.description, rc, tc.expected)
 			}
-			var names []string
+			names := make([]string, 0, len(*started))
 			for _, s := range *started {
 				names = append(names, s.Name)
 			}

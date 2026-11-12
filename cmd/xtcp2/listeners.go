@@ -45,18 +45,25 @@ func (l *listenerFlag) Set(v string) error {
 	return nil
 }
 
+// The listeners the legacy flags expand to, by name.
+const (
+	legacyProm = "prometheus"
+	legacyGRPC = "grpc"
+	legacyIP   = "ip"
+)
+
 // legacyListenerFlags and legacyListenerEnv are the per-listener settings
 // that -listener replaces, by the listener they configure.
 var (
 	legacyListenerFlags = map[string][]string{
-		"prometheus": {"promListen", "promListenNetwork", "promUnixSocketMode", "promUnlinkStaleUnixSocket"},
-		"grpc":       {"grpcPort", "grpcListenNetwork", "grpcListenAddress", "grpcUnixSocketMode", "grpcUnlinkStaleUnixSocket"},
-		"ip":         {"linkMonitorIPListen"},
+		legacyProm: {"promListen", "promListenNetwork", "promUnixSocketMode", "promUnlinkStaleUnixSocket"},
+		legacyGRPC: {"grpcPort", "grpcListenNetwork", "grpcListenAddress", "grpcUnixSocketMode", "grpcUnlinkStaleUnixSocket"},
+		legacyIP:   {"linkMonitorIPListen"},
 	}
 	legacyListenerEnv = map[string][]string{
-		"prometheus": {"PROM_LISTEN", "PROM_LISTEN_NETWORK", "PROM_UNIX_SOCKET_MODE", "PROM_UNLINK_STALE_UNIX_SOCKET"},
-		"grpc":       {"GRPC_PORT", "GRPC_LISTEN_NETWORK", "GRPC_LISTEN_ADDRESS", "GRPC_UNIX_SOCKET_MODE", "GRPC_UNLINK_STALE_UNIX_SOCKET"},
-		"ip":         {"LINK_MONITOR_IP_LISTEN"},
+		legacyProm: {"PROM_LISTEN", "PROM_LISTEN_NETWORK", "PROM_UNIX_SOCKET_MODE", "PROM_UNLINK_STALE_UNIX_SOCKET"},
+		legacyGRPC: {"GRPC_PORT", "GRPC_LISTEN_NETWORK", "GRPC_LISTEN_ADDRESS", "GRPC_UNIX_SOCKET_MODE", "GRPC_UNLINK_STALE_UNIX_SOCKET"},
+		legacyIP:   {"LINK_MONITOR_IP_LISTEN"},
 	}
 )
 
@@ -98,7 +105,7 @@ func configureListeners(c *xtcp_config.XtcpConfig, specs []string, legacy map[st
 		return err
 	}
 	var used []string
-	for _, name := range []string{"prometheus", "grpc", "ip"} {
+	for _, name := range []string{legacyProm, legacyGRPC, legacyIP} {
 		used = append(used, legacy[name]...)
 	}
 	if len(ls) > 0 && len(used) > 0 {
@@ -136,23 +143,23 @@ func expandLegacyListeners(c *xtcp_config.XtcpConfig, legacy map[string][]string
 	var out []*xtcp_config.Listener
 	m := c.GetLinkMonitor()
 	ipOwn := len(legacy["ip"]) > 0 && m.GetIpListen() != ""
-	if len(legacy["prometheus"]) > 0 {
+	if len(legacy[legacyProm]) > 0 {
 		ep := legacyEndpoint(c.GetPrometheusListener(), promListen)
 		serves := []xtcp_config.EndpointClass{listeners.Health, listeners.Metrics, listeners.MetricsDetail}
 		if m.GetIpPaths() && !ipOwn {
 			serves = append(serves, listeners.IP)
 		}
-		out = append(out, &xtcp_config.Listener{Name: "prometheus", Endpoint: ep, Serves: serves})
+		out = append(out, &xtcp_config.Listener{Name: legacyProm, Endpoint: ep, Serves: serves})
 	} else {
 		out = append(out, listeners.Default()...)
 	}
-	if len(legacy["grpc"]) > 0 {
+	if len(legacy[legacyGRPC]) > 0 {
 		ep := legacyEndpoint(c.GetGrpcListener(), fmt.Sprintf(":%d", c.GetGrpcPort()))
 		serves := []xtcp_config.EndpointClass{listeners.GRPCAdmin}
 		if authEnabled(c.GetAdminListenerAuth()) {
 			serves = []xtcp_config.EndpointClass{listeners.GRPCRead, listeners.GRPCAdmin}
 		}
-		out = append(out, &xtcp_config.Listener{Name: "grpc", Endpoint: ep, Serves: serves})
+		out = append(out, &xtcp_config.Listener{Name: legacyGRPC, Endpoint: ep, Serves: serves})
 	}
 	if ipOwn && m.GetEnable() {
 		if _, err := listener.ParseLoopback(m.GetIpListen()); err != nil {
