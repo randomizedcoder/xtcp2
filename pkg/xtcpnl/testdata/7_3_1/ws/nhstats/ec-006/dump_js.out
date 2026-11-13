@@ -1,0 +1,1 @@
+[{"id":20,"encap":{"encap_type":"seg6local","action":"End","stats64":{"packets":0,"bytes":0,"errors":0}},"dev":"d0","scope":"link","flags":[]}]

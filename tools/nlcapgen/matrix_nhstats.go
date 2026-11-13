@@ -63,7 +63,9 @@ func nhStatsSpace() *space {
 // nhStatsTraffic is the one row that sends: three pings routed through
 // group 10, so its stats count them. Which member the hash picks is up to
 // the boot's hash seed, so its readbacks are a corner the gate compares by
-// rc and message types only. The dummy answers nothing, so ping exits 1.
+// rc and message types only. The dummy answers nothing, so ping exits 1;
+// ping sends no netlink request, so the row names no refuser and expects
+// none sent.
 func nhStatsTraffic(pos []row) row {
 	var base row
 	for i := range pos {
@@ -78,7 +80,7 @@ func nhStatsTraffic(pos []row) row {
 	r.Pre = append(append([]preStep{}, base.Pre...), preStep{Cmd: base.Cmd},
 		preStep{Cmd: "ip route add 198.51.100.0/24 nhid 10"})
 	r.Cmd = "ping -c 3 -W 1 -q 198.51.100.1"
-	r.Expect = expect{RC: intp(1), RefusedBy: refNone}
+	r.Expect = expect{RC: intp(1), Sent: intp(0)}
 	r.Axes = f("verb", "traffic", "id", "10", "pings", "3")
 	return r
 }

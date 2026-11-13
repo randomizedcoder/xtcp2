@@ -74,7 +74,8 @@ func TestNhStatsSpace(t *testing.T) {
 		r := byID["nhstats/traffic"]
 		n := len(r.Pre)
 		if n < 2 || r.Pre[n-2].Cmd != "ip nexthop add id 10 group 1/2" ||
-			r.Pre[n-1].Cmd != "ip route add 198.51.100.0/24 nhid 10" || r.Expect.RefusedBy != refNone {
+			r.Pre[n-1].Cmd != "ip route add 198.51.100.0/24 nhid 10" || r.Expect.RefusedBy != "" ||
+			r.Expect.Sent == nil || *r.Expect.Sent != 0 {
 			t.Errorf("pre %v, expect %+v", r.Pre, r.Expect)
 		}
 	})
