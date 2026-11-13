@@ -179,36 +179,120 @@ type dumpState struct {
 }
 
 // dumpPacket is one received packet on its way from the receiver to a
-// decoder. buf comes from packetBufferPool; the decoder returns it.
+// decoder. buf comes from packetBufferPool; the decoder returns it. keep is
+// how many of its inet_diag records the decoder may keep under
+// -maxRecordsPerNetns, 0 for all of them.
 type dumpPacket struct {
 	buf  *[]byte
 	n    int
 	dump *dumpState
+	keep int
 }
 
 // dumpTracker is a receiver's position in the current dump. Only the
-// receiver goroutine uses it.
+// receiver goroutine uses it, so the caps cost no atomics. maxBytes and
+// maxRecords are -maxDumpBytes and -maxRecordsPerNetns, 0 for no cap. One
+// socket per namespace and one dump per poll make a dump the namespace's
+// share of a poll.
 type dumpTracker struct {
-	dump    *dumpState
-	packets uint64
+	dump       *dumpState
+	packets    uint64
+	bytes      uint64
+	records    uint64
+	maxBytes   uint64
+	maxRecords uint64
 }
 
-func newDumpTracker() *dumpTracker {
-	return &dumpTracker{dump: new(dumpState)}
+func newDumpTracker(maxBytes, maxRecords uint64) *dumpTracker {
+	return &dumpTracker{dump: new(dumpState), maxBytes: maxBytes, maxRecords: maxRecords}
+}
+
+// assignment is what assign decided for a packet: its dump; whether to
+// drain it undecoded (drop), and which cap that was (overBytes, else the
+// record cap); how many records a decoder may keep (keep, 0 for all); the
+// records the record cap dropped; and whether the packet is the dump's
+// first past either cap (bytesCut, recordsCut).
+type assignment struct {
+	dump           *dumpState
+	drop           bool
+	overBytes      bool
+	keep           int
+	recordsDropped int
+	bytesCut       bool
+	recordsCut     bool
 }
 
 // assign numbers packet b, the next one received, and returns the dump it
 // belongs to. If b holds NLMSG_DONE it stores the dump's total before
 // returning, so before b is handed to a decoder, and the next packet starts
 // a new dump.
-func (t *dumpTracker) assign(b []byte) *dumpState {
+//
+// It also applies the caps, from the same header walk that finds
+// NLMSG_DONE. A packet that takes the dump past maxBytes is drained
+// undecoded, and so is every later packet of the dump. A packet that takes
+// it past maxRecords keeps only the records still in budget; one with none
+// left is drained. Either way the kept records are a prefix of the dump,
+// and a drained packet is still numbered, so NLMSG_DONE still ends the dump
+// and the done signal is unaffected.
+func (t *dumpTracker) assign(b []byte) assignment {
 	t.packets++
-	d := t.dump
-	if packetHasDone(b) {
-		d.total.Store(t.packets)
-		t.dump, t.packets = new(dumpState), 0
+	done, recs := packetScan(b)
+	a := assignment{dump: t.dump}
+	if t.maxBytes != 0 {
+		wasOver := t.bytes > t.maxBytes
+		t.bytes += uint64(len(b))
+		if t.bytes > t.maxBytes {
+			a.drop, a.overBytes, a.bytesCut = true, true, !wasOver
+		}
 	}
-	return d
+	if t.maxRecords != 0 && !a.drop {
+		before := t.records
+		t.records += uint64(recs)
+		if t.records > t.maxRecords {
+			room := 0
+			if before < t.maxRecords {
+				room = int(t.maxRecords - before)
+			}
+			a.recordsDropped = recs - room
+			a.recordsCut = before <= t.maxRecords
+			if room == 0 {
+				a.drop = true
+			} else {
+				a.keep = room
+			}
+		}
+	}
+	if done {
+		a.dump.total.Store(t.packets)
+		t.dump, t.packets, t.bytes, t.records = new(dumpState), 0, 0, 0
+	}
+	return a
+}
+
+// handOff sends a received packet to the decoders, or, past a cap, drains
+// it: the buffer goes back to the pool and the packet counts as decoded, so
+// the dump's done signal still goes out. Both receivers use it. With the
+// caps off, or under them, it is the plain send.
+func (x *XTCP) handOff(packetCh chan<- dumpPacket, tracker *dumpTracker, buf *[]byte, n int, fd int) {
+	a := tracker.assign((*buf)[:n])
+	if a.bytesCut {
+		x.dumpTruncated(dumpDropBytesCst, fd, tracker.maxBytes)
+	}
+	if a.recordsCut {
+		x.dumpTruncated(dumpDropRecordsCst, fd, tracker.maxRecords)
+	}
+	if a.recordsDropped > 0 {
+		x.pC.WithLabelValues("Netlinker", "recordsCap", "drop").Add(float64(a.recordsDropped))
+	}
+	if !a.drop {
+		packetCh <- dumpPacket{buf: buf, n: n, dump: a.dump, keep: a.keep}
+		return
+	}
+	if a.overBytes {
+		x.pC.WithLabelValues("Netlinker", "dumpBytesCap", "drop").Inc()
+	}
+	x.putPacketBuffer(buf)
+	x.packetDecoded(a.dump, fd)
 }
 
 // netlinkReceiver reads packets from fd until ctx is canceled, numbering
@@ -221,7 +305,7 @@ func (x *XTCP) netlinkReceiver(ctx context.Context, packetCh chan<- dumpPacket, 
 
 	wf := x.config.WriteFiles
 
-	tracker := newDumpTracker()
+	tracker := newDumpTracker(x.config.GetMaxDumpBytes(), x.config.GetMaxRecordsPerNetns())
 
 	recvfromCalls := x.pC.WithLabelValues("Netlinker", "RecvfromCalls", "count")
 	packetsCount := x.pC.WithLabelValues("Netlinker", "packets", "count")
@@ -253,7 +337,7 @@ func (x *XTCP) netlinkReceiver(ctx context.Context, packetCh chan<- dumpPacket, 
 
 		wf = x.captureToFileIfEnabled(wf, (*packetBuffer)[:n], 0)
 
-		packetCh <- dumpPacket{buf: packetBuffer, n: n, dump: tracker.assign((*packetBuffer)[:n])}
+		x.handOff(packetCh, tracker, packetBuffer, n, fd)
 
 		x.maybeForceGC(packets)
 	}
@@ -292,6 +376,7 @@ func (x *XTCP) netlinkDecoder(ctx context.Context, wg *sync.WaitGroup, packetCh 
 				pH:             x.pH,
 				m:              m,
 				id:             id,
+				keep:           p.keep,
 			})
 		if errD != nil {
 			x.pC.WithLabelValues(label, "ParseNLPacket", "error").Inc()
@@ -318,21 +403,32 @@ func (x *XTCP) packetDecoded(d *dumpState, fd int) {
 }
 
 // packetHasDone reports whether a netlink packet contains an NLMSG_DONE
-// message, by walking the message headers without decoding the bodies.
-// A header whose nlmsg_len is shorter than a header stops the walk, like
-// Deserialize, so a malformed packet can't loop forever.
+// message; see packetScan.
 func packetHasDone(b []byte) bool {
+	done, _ := packetScan(b)
+	return done
+}
+
+// packetScan walks a netlink packet's message headers without decoding the
+// bodies, reporting whether it holds NLMSG_DONE and how many inet_diag
+// records come before it. A header whose nlmsg_len is shorter than a header
+// stops the walk, like Deserialize, so a malformed packet can't loop
+// forever.
+func packetScan(b []byte) (done bool, records int) {
 	for off := 0; off+xtcpnl.NlMsgHdrSizeCst <= len(b); {
-		if binary.LittleEndian.Uint16(b[off+4:off+6]) == xtcpnl.NlMsgHdrTypeDoneCst {
-			return true
+		switch binary.LittleEndian.Uint16(b[off+4 : off+6]) {
+		case xtcpnl.NlMsgHdrTypeDoneCst:
+			return true, records
+		case xtcpnl.NlMsgHdrTypeInetDiagCst:
+			records++
 		}
 		l := int(binary.LittleEndian.Uint32(b[off : off+4]))
 		if l < xtcpnl.NlMsgHdrSizeCst {
-			return false
+			return false, records
 		}
 		off += nlmsgAlign(l)
 	}
-	return false
+	return false, records
 }
 
 // nlmsgAlign rounds a netlink message length up to NLMSG_ALIGNTO (4).

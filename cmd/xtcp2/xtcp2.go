@@ -135,6 +135,14 @@ const (
 	reconcileFrequencyCst  = 6 * time.Hour
 	reconcileBeforePollCst = true
 
+	// Caps on what one namespace, or the number of namespaces, can cost the
+	// collector (-maxDumpBytes, -maxRecordsPerNetns, -maxNetns). Generous
+	// enough that no healthy host meets them; 0 turns a cap off. Provisional
+	// until a fleet baseline is measured.
+	maxDumpBytesCst       uint64 = 256 << 20
+	maxRecordsPerNetnsCst uint64 = 1 << 18
+	maxNetnsCst           uint   = 4096
+
 	// Pyroscope continuous-profiling defaults. Agent disabled when
 	// pyroscopeUrlCst is empty; flip on via -pyroscopeUrl (or
 	// PYROSCOPE_URL env, see environmentOverride).
@@ -289,6 +297,10 @@ type mainFlags struct {
 
 	reconcileFrequency  *time.Duration
 	reconcileBeforePoll *bool
+
+	maxDumpBytes       *uint64
+	maxRecordsPerNetns *uint64
+	maxNetns           *uint
 
 	dest               *string
 	destWriteFiles     *uint
@@ -476,6 +488,7 @@ func defineFlags() *mainFlags {
 	f.location = flag.String("location", locationCst, "deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.")
 	f.hostname = flag.String("hostname", hostnameCst, "hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).")
 	f.resolveContainerId = flag.Bool("resolveContainerId", resolveContainerIdCst, "resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.")
+	defineCapFlags(f)
 	defineEnrichmentFlags(f)
 	defineLinkMonitorFlags(f)
 	defineListenerFlags(f)
@@ -513,6 +526,15 @@ func defineS3Flags(f *mainFlags) {
 	f.s3FlushThresholdJitterPct = flag.Uint("s3FlushThresholdJitterPct", s3FlushThresholdJitterPctCst, "s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.")
 	f.s3UploadMaxAttempts = flag.Uint("s3UploadMaxAttempts", s3UploadMaxAttemptsCst, "s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.")
 	f.s3UploadBackoffCap = flag.Duration("s3UploadBackoffCap", s3UploadBackoffCapCst, "s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).")
+}
+
+// defineCapFlags registers the three caps on what a tenant can cost the
+// collector: the bytes and records of one namespace's dump per poll, and the
+// number of namespaces tracked. Paired with printCapFlags.
+func defineCapFlags(f *mainFlags) {
+	f.maxDumpBytes = flag.Uint64("maxDumpBytes", maxDumpBytesCst, "cap on the bytes of one namespace's inet_diag dump per poll; packets past it are drained undecoded and counted in xtcp_dump_dropped_total{reason=\"bytes\"}. 0 = unlimited. Falls back to MAX_DUMP_BYTES env.")
+	f.maxRecordsPerNetns = flag.Uint64("maxRecordsPerNetns", maxRecordsPerNetnsCst, "cap on the records one namespace contributes per poll; the rest are dropped before decode and counted in xtcp_dump_dropped_total{reason=\"records\"}. 0 = unlimited. Falls back to MAX_RECORDS_PER_NETNS env.")
+	f.maxNetns = flag.Uint("maxNetns", maxNetnsCst, "cap on the network namespaces tracked, xtcp2's own included; at the cap the lowest pids win and the rest are counted in xtcp_netns_dropped_total. 0 = unlimited. Falls back to MAX_NETNS env.")
 }
 
 // defineListenerFlags registers the flags for xtcp2's own inbound listeners:
@@ -642,6 +664,7 @@ func printFlags(f *mainFlags) {
 	fmt.Println("*envelopeFlushRows:", *f.envelopeFlushRows)
 	fmt.Println("*kafkaCompression:", *f.kafkaCompression)
 	printS3Flags(f)
+	printCapFlags(f)
 	fmt.Println("*pyroscopeUrl:", *f.pyroscopeUrl)
 	fmt.Println("*pyroscopeAppName:", *f.pyroscopeAppName)
 	fmt.Println("*pyroscopeSampleHz:", *f.pyroscopeSampleHz)
@@ -691,6 +714,13 @@ func printS3Flags(f *mainFlags) {
 	fmt.Println("*s3UploadBackoffCap:", *f.s3UploadBackoffCap)
 	fmt.Println("*reconcileFrequency:", *f.reconcileFrequency)
 	fmt.Println("*reconcileBeforePoll:", *f.reconcileBeforePoll)
+}
+
+// printCapFlags prints the three tenant caps; pairs with defineCapFlags.
+func printCapFlags(f *mainFlags) {
+	fmt.Println("*maxDumpBytes:", *f.maxDumpBytes)
+	fmt.Println("*maxRecordsPerNetns:", *f.maxRecordsPerNetns)
+	fmt.Println("*maxNetns:", *f.maxNetns)
 }
 
 // printListenerAuthFlags prints the shared listener-auth run, listenerAuthMode
@@ -807,6 +837,9 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3UploadBackoffCap:           durationpb.New(*f.s3UploadBackoffCap),
 		ReconcileFrequency:           durationpb.New(*f.reconcileFrequency),
 		ReconcileBeforePoll:          *f.reconcileBeforePoll,
+		MaxDumpBytes:                 *f.maxDumpBytes,
+		MaxRecordsPerNetns:           *f.maxRecordsPerNetns,
+		MaxNetns:                     uint32(*f.maxNetns),
 		PyroscopeUrl:                 *f.pyroscopeUrl,
 		PyroscopeAppName:             *f.pyroscopeAppName,
 		PyroscopeSampleHz:            uint32(*f.pyroscopeSampleHz),
@@ -1550,6 +1583,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	envOverrideNetlinker(c, debugLevel)
 	envOverridePacket(c, debugLevel)
 	envOverrideMarshalAndDest(c, debugLevel)
+	envOverrideCaps(c, debugLevel)
 	envOverrideKafka(c, debugLevel)
 	envOverrideLabeling(c, debugLevel)
 	envOverrideEnrichment(c, debugLevel)
@@ -2162,6 +2196,7 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.S3UploadBackoffCap:", c.S3UploadBackoffCap.AsDuration())
 	fmt.Println("c.ReconcileFrequency:", c.ReconcileFrequency.AsDuration())
 	fmt.Println("c.ReconcileBeforePoll:", c.ReconcileBeforePoll)
+	printConfigCaps(c)
 	fmt.Println("c.Dest:", c.Dest)
 	fmt.Println("c.DestWriteFiles:", c.DestWriteFiles)
 	fmt.Println("c.Topic:", c.Topic)
@@ -2274,4 +2309,28 @@ func checkNoPositional(args []string) error {
 		return nil
 	}
 	return fmt.Errorf("unexpected argument %q: flags take -name value, and an empty value must be quoted (-name \"\" or -name=)", args[0])
+}
+
+// envOverrideCaps applies MAX_DUMP_BYTES, MAX_RECORDS_PER_NETNS and
+// MAX_NETNS; see defineCapFlags.
+func envOverrideCaps(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint64("MAX_DUMP_BYTES"); ok {
+		c.MaxDumpBytes = v
+		logEnv("MAX_DUMP_BYTES", fmt.Sprintf("c.MaxDumpBytes:%d", v), debugLevel)
+	}
+	if v, ok := envUint64("MAX_RECORDS_PER_NETNS"); ok {
+		c.MaxRecordsPerNetns = v
+		logEnv("MAX_RECORDS_PER_NETNS", fmt.Sprintf("c.MaxRecordsPerNetns:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("MAX_NETNS"); ok {
+		c.MaxNetns = v
+		logEnv("MAX_NETNS", fmt.Sprintf("c.MaxNetns:%d", v), debugLevel)
+	}
+}
+
+// printConfigCaps prints the three tenant caps for printConfig.
+func printConfigCaps(c *xtcp_config.XtcpConfig) {
+	fmt.Println("c.MaxDumpBytes:", c.MaxDumpBytes)
+	fmt.Println("c.MaxRecordsPerNetns:", c.MaxRecordsPerNetns)
+	fmt.Println("c.MaxNetns:", c.MaxNetns)
 }

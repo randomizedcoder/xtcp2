@@ -355,7 +355,7 @@ func TestHandleRecvCQE(t *testing.T) {
 			x := newIouringFixture(t)
 			x.debugLevel = tc.debugLevel
 			packetCh := make(chan dumpPacket, 1)
-			x.handleRecvCQE(3, tc.res, packetCh, newDumpTracker())
+			x.handleRecvCQE(3, tc.res, packetCh, newDumpTracker(0, 0))
 			close(packetCh)
 
 			sent := 0

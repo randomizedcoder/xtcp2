@@ -1543,6 +1543,17 @@ type XtcpConfig struct {
 	// userland loop overhead but increase scheduling latency for the
 	// netlinker goroutine. Ignored unless io_uring=true. Default 128.
 	IoUringCqeBatchSize uint32 `protobuf:"varint,24,opt,name=io_uring_cqe_batch_size,json=ioUringCqeBatchSize,proto3" json:"io_uring_cqe_batch_size,omitempty"`
+	// Cap on the bytes of one namespace's inet_diag dump per poll. Packets
+	// past it are drained from the socket without being decoded, and the
+	// dump is counted in xtcp_dump_dropped_total{reason="bytes"}, so a
+	// namespace with a huge socket table costs a metric, not the collector.
+	// Startup-only. 0 = unlimited. Daemon default 256 MiB.
+	MaxDumpBytes uint64 `protobuf:"varint,25,opt,name=max_dump_bytes,json=maxDumpBytes,proto3" json:"max_dump_bytes,omitempty"`
+	// Cap on the records one namespace contributes per poll. Records past it
+	// are dropped before attribute decode and enrichment, and the dump is
+	// counted in xtcp_dump_dropped_total{reason="records"}. Startup-only.
+	// 0 = unlimited. Daemon default 262144.
+	MaxRecordsPerNetns uint64 `protobuf:"varint,26,opt,name=max_records_per_netns,json=maxRecordsPerNetns,proto3" json:"max_records_per_netns,omitempty"`
 	// Period of the background namespace-reconcile ticker (Method B /proc scan
 	// that converges the tracked namespace set). With reconcile_before_poll the
 	// Poller reconciles every cycle and is the real discovery mechanism, so this
@@ -1558,6 +1569,13 @@ type XtcpConfig struct {
 	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
 	// mutex-serialized with the background reconciler. Default true.
 	ReconcileBeforePoll bool `protobuf:"varint,41,opt,name=reconcile_before_poll,json=reconcileBeforePoll,proto3" json:"reconcile_before_poll,omitempty"`
+	// Cap on the network namespaces tracked, xtcp2's own included. Each costs
+	// a netlink socket, a receiver and its decoders. At the cap, reconcile
+	// adds no more, preferring the lowest pids (long-running workloads), and
+	// counts the rest in xtcp_netns_dropped_total; a slot freed by a deleted
+	// namespace is filled on the next reconcile. Startup-only.
+	// 0 = unlimited. Daemon default 4096.
+	MaxNetns uint32 `protobuf:"varint,42,opt,name=max_netns,json=maxNetns,proto3" json:"max_netns,omitempty"`
 	// Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker
 	// xtcp will capture this many Netlink response packets when it starts
 	// This is PER netlinker
@@ -2002,6 +2020,20 @@ func (x *XtcpConfig) GetIoUringCqeBatchSize() uint32 {
 	return 0
 }
 
+func (x *XtcpConfig) GetMaxDumpBytes() uint64 {
+	if x != nil {
+		return x.MaxDumpBytes
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetMaxRecordsPerNetns() uint64 {
+	if x != nil {
+		return x.MaxRecordsPerNetns
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetReconcileFrequency() *durationpb.Duration {
 	if x != nil {
 		return x.ReconcileFrequency
@@ -2014,6 +2046,13 @@ func (x *XtcpConfig) GetReconcileBeforePoll() bool {
 		return x.ReconcileBeforePoll
 	}
 	return false
+}
+
+func (x *XtcpConfig) GetMaxNetns() uint32 {
+	if x != nil {
+		return x.MaxNetns
+	}
+	return 0
 }
 
 func (x *XtcpConfig) GetWriteFiles() uint32 {
@@ -2630,7 +2669,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0e_error_classesB\x15\n" +
 	"\x13_metrics_categoriesB\x1a\n" +
 	"\x18_metrics_interface_pathsB\x13\n" +
-	"\x11_metrics_all_path\"\xa8&\n" +
+	"\x11_metrics_all_path\"\xb6'\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2656,9 +2695,12 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x18io_uring_recv_batch_size\x18\x17 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x14ioUringRecvBatchSize\x12C\n" +
 	"\x17io_uring_cqe_batch_size\x18\x18 \x01(\rB\r\xbaH\n" +
-	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize\x12W\n" +
+	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize\x12,\n" +
+	"\x0emax_dump_bytes\x18\x19 \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\fmaxDumpBytes\x129\n" +
+	"\x15max_records_per_netns\x18\x1a \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x12maxRecordsPerNetns\x12W\n" +
 	"\x13reconcile_frequency\x18( \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12reconcileFrequency\x122\n" +
-	"\x15reconcile_before_poll\x18) \x01(\bR\x13reconcileBeforePoll\x12.\n" +
+	"\x15reconcile_before_poll\x18) \x01(\bR\x13reconcileBeforePoll\x12#\n" +
+	"\tmax_netns\x18* \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\bmaxNetns\x12.\n" +
 	"\vwrite_files\x182 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\xe8\a(\x00R\n" +
 	"writeFiles\x12/\n" +

@@ -31,6 +31,9 @@ type DeserializeArgs struct {
 	// m holds the decoder's metric handles; nil looks them up per call.
 	m  *decodeMetrics
 	id uint32
+	// keep is how many inet_diag records of this packet to keep under
+	// -maxRecordsPerNetns (see dumpTracker.assign); 0 keeps them all.
+	keep int
 }
 
 func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, err error) {
@@ -76,6 +79,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		log.Printf("Deserialize n:%d, offset:%d, end:%d", n, offset, end)
 	}
 
+	kept := 0
 	for n = 0; offset < end; n++ {
 
 		d.m.record.msg()
@@ -160,11 +164,35 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 			continue
 		}
 
+		if d.keep != 0 && kept == d.keep {
+			// Past -maxRecordsPerNetns: skip the body undecoded.
+			var ok bool
+			if offset, ok = skipRecordBody(&d, xtcpRecord, nlh, offset, end); !ok {
+				return n, nil
+			}
+			continue
+		}
+		kept++
+
 		offset = x.processInetDiagRecord(ctx, d, xtcpRecord, nlh, offset, n)
 		d.nlhPool.Put(nlh)
 		d.m.record.done(nlPacketStartTime)
 	}
 	return n, nil
+}
+
+// skipRecordBody returns rec and nlh to their pools and the offset past
+// nlh's body, for a record dropped by -maxRecordsPerNetns. A length that
+// would rewind or overrun reports !ok, ending the packet, as for an unknown
+// message.
+func skipRecordBody(d *DeserializeArgs, rec *xtcp_flat_record.XtcpFlatRecord, nlh *xtcpnl.NlMsgHdr, offset, end int) (int, bool) {
+	bodyLen := int(nlh.Len) - xtcpnl.NlMsgHdrSizeCst
+	d.xtcpRecordPool.Put(rec)
+	d.nlhPool.Put(nlh)
+	if bodyLen < 0 || offset+bodyLen > end {
+		return 0, false
+	}
+	return offset + bodyLen, true
 }
 
 // processInetDiagRecord parses the InetDiagMsg body + its attributes

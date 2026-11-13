@@ -79,7 +79,10 @@ localityEvents	false	with -enrichLocality, keep each namespace's locality snapsh
 localityRefreshInterval	1m0s	how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.
 location		deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.
 marshal	protobufList	Marshaling of the exported data (protobufList, protoJson, protoText, msgpack, jsonl, csv, tsv)
+maxDumpBytes	268435456	cap on the bytes of one namespace's inet_diag dump per poll; packets past it are drained undecoded and counted in xtcp_dump_dropped_total{reason="bytes"}. 0 = unlimited. Falls back to MAX_DUMP_BYTES env.
 maxLoops	0	Maximum number of loops, or zero (0) for forever
+maxNetns	4096	cap on the network namespaces tracked, xtcp2's own included; at the cap the lowest pids win and the rest are counted in xtcp_netns_dropped_total. 0 = unlimited. Falls back to MAX_NETNS env.
+maxRecordsPerNetns	262144	cap on the records one namespace contributes per poll; the rest are dropped before decode and counted in xtcp_dump_dropped_total{reason="records"}. 0 = unlimited. Falls back to MAX_RECORDS_PER_NETNS env.
 maxThreads	2000	cap on Go runtime OS threads (debug.SetMaxThreads); 0 = use Go default 10000
 modulus	1	modulus. Report every X inetd messages to output
 netlinkers	2	decoders per socket that parse netlink dump packets (one receiver reads each socket). increase this if you have many flows

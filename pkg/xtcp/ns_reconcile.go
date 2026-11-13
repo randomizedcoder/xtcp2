@@ -121,12 +121,30 @@ func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 		return true
 	})
 
-	// Add live namespaces not yet tracked.
+	// Add live namespaces not yet tracked, up to -maxNetns (see
+	// admitNamespaces). The ones left out stay candidates on every later
+	// reconcile, so a slot freed by a delete is filled on the next one.
+	var candidates []nsIdentity
 	for inode, id := range live {
 		if _, tracked := x.nsMap.Load(inode); !tracked {
-			x.nsAdd(ctx, id)
-			stores++
+			candidates = append(candidates, id)
 		}
+	}
+	tracked := 0
+	if x.config.GetMaxNetns() != 0 && len(candidates) > 0 {
+		tracked = lenSyncMap(x.nsMap)
+	}
+	admit, dropped := admitNamespaces(candidates, tracked, x.config.GetMaxNetns(), x.selfNsInode)
+	for _, id := range admit {
+		x.nsAdd(ctx, id)
+		stores++
+	}
+	if dropped > 0 {
+		x.pC.WithLabelValues("reconcile", "maxNetns", "drop").Add(float64(dropped))
+		if x.pNetnsDropped != nil {
+			x.pNetnsDropped.Add(float64(dropped))
+		}
+		log.Printf("reconcile: %d namespaces not tracked: -maxNetns=%d reached", dropped, x.config.GetMaxNetns())
 	}
 
 	return dels, stores

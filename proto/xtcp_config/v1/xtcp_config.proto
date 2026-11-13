@@ -778,6 +778,23 @@ message XtcpConfig {
 			lte: 4096
 	}];
 
+	// Cap on the bytes of one namespace's inet_diag dump per poll. Packets
+	// past it are drained from the socket without being decoded, and the
+	// dump is counted in xtcp_dump_dropped_total{reason="bytes"}, so a
+	// namespace with a huge socket table costs a metric, not the collector.
+	// Startup-only. 0 = unlimited. Daemon default 256 MiB.
+	uint64 max_dump_bytes                             = 25 [
+		(buf.validate.field).required = false
+	];
+
+	// Cap on the records one namespace contributes per poll. Records past it
+	// are dropped before attribute decode and enrichment, and the dump is
+	// counted in xtcp_dump_dropped_total{reason="records"}. Startup-only.
+	// 0 = unlimited. Daemon default 262144.
+	uint64 max_records_per_netns                      = 26 [
+		(buf.validate.field).required = false
+	];
+
 	// ---- namespace reconcile (40-49) -----------------------------------------
 
 	// Period of the background namespace-reconcile ticker (Method B /proc scan
@@ -800,6 +817,16 @@ message XtcpConfig {
 	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
 	// mutex-serialized with the background reconciler. Default true.
 	bool reconcile_before_poll                         = 41;
+
+	// Cap on the network namespaces tracked, xtcp2's own included. Each costs
+	// a netlink socket, a receiver and its decoders. At the cap, reconcile
+	// adds no more, preferring the lowest pids (long-running workloads), and
+	// counts the rest in xtcp_netns_dropped_total; a slot freed by a deleted
+	// namespace is filled on the next reconcile. Startup-only.
+	// 0 = unlimited. Daemon default 4096.
+	uint32 max_netns                                   = 42 [
+		(buf.validate.field).required = false
+	];
 
 	// ---- capture / debug (50-59) ---------------------------------------------
 

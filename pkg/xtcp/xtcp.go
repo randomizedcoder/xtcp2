@@ -224,6 +224,12 @@ type XTCP struct {
 	// hold a locality snapshot / sit in the retry backoff).
 	pGV *prometheus.GaugeVec
 
+	// pDumpDropped counts dumps cut short by a cap, by reason ("bytes",
+	// "records"); pNetnsDropped counts namespaces reconcile left untracked
+	// at -maxNetns. See caps.go. nil until InitPromethus.
+	pDumpDropped  *prometheus.CounterVec
+	pNetnsDropped prometheus.Counter
+
 	debugLevel uint32
 }
 

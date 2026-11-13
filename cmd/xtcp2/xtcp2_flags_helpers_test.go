@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 128
+	mainFlagsFieldCountCst = 131
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -191,6 +191,10 @@ func populatedMainFlags() *mainFlags {
 
 		reconcileFrequency:  ms(120),
 		reconcileBeforePoll: b(false),
+
+		maxDumpBytes:       u64(1201),
+		maxRecordsPerNetns: u64(1202),
+		maxNetns:           u(1203),
 
 		dest:               s("dest-v"),
 		destWriteFiles:     u(121),

@@ -1847,6 +1847,13 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x90
 	}
+	if m.MaxNetns != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.MaxNetns))
+		i--
+		dAtA[i] = 0x2
+		i--
+		dAtA[i] = 0xd0
+	}
 	if m.ReconcileBeforePoll {
 		i--
 		if m.ReconcileBeforePoll {
@@ -1870,6 +1877,20 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x2
 		i--
 		dAtA[i] = 0xc2
+	}
+	if m.MaxRecordsPerNetns != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.MaxRecordsPerNetns))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xd0
+	}
+	if m.MaxDumpBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.MaxDumpBytes))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xc8
 	}
 	if m.IoUringCqeBatchSize != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.IoUringCqeBatchSize))
@@ -2519,12 +2540,21 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.IoUringCqeBatchSize != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.IoUringCqeBatchSize))
 	}
+	if m.MaxDumpBytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.MaxDumpBytes))
+	}
+	if m.MaxRecordsPerNetns != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.MaxRecordsPerNetns))
+	}
 	if m.ReconcileFrequency != nil {
 		l = (*durationpb.Duration)(m.ReconcileFrequency).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	if m.ReconcileBeforePoll {
 		n += 3
+	}
+	if m.MaxNetns != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.MaxNetns))
 	}
 	if m.WriteFiles != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.WriteFiles))
@@ -6039,6 +6069,44 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 25:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxDumpBytes", wireType)
+			}
+			m.MaxDumpBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxDumpBytes |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 26:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxRecordsPerNetns", wireType)
+			}
+			m.MaxRecordsPerNetns = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxRecordsPerNetns |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		case 40:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ReconcileFrequency", wireType)
@@ -6095,6 +6163,25 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ReconcileBeforePoll = bool(v != 0)
+		case 42:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MaxNetns", wireType)
+			}
+			m.MaxNetns = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.MaxNetns |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		case 50:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field WriteFiles", wireType)

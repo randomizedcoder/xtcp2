@@ -222,7 +222,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, nsName *string, fd int, pac
 	// "kernel has no more data" detection share one knob.
 	nlTimeout := iouringResolveTimeout(x.config.NlTimeoutMilliseconds)
 
-	tracker := newDumpTracker()
+	tracker := newDumpTracker(x.config.GetMaxDumpBytes(), x.config.GetMaxRecordsPerNetns())
 	armed := true
 	packets := uint64(0)
 	for !x.checkDoneNonBlocking(ctx) {
@@ -345,7 +345,7 @@ func (x *XTCP) handleRecvCQE(fd int, res xio.Result, packetCh chan<- dumpPacket,
 	buf := x.packetBufferPool.Get()
 	*buf = (*buf)[:cap(*buf)]
 	n = copy(*buf, res.Data)
-	packetCh <- dumpPacket{buf: buf, n: n, dump: tracker.assign((*buf)[:n])}
+	x.handOff(packetCh, tracker, buf, n, fd)
 }
 
 // handleSendCQE records the outcome of an io_uring destination write.

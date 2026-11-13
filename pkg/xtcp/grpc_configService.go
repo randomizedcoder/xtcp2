@@ -200,6 +200,7 @@ func (c *xtcpConfigService) Set(
 		in.Config.S3AccessKey = c.config.S3AccessKey
 	}
 	preserveAuthSecrets(in.Config.ListenerAuth, c.config.ListenerAuth)
+	preserveCaps(in.Config, c.config)
 	preserveAuthSecrets(in.Config.AdminListenerAuth, c.config.AdminListenerAuth)
 	if _, err := listenerauth.NewPolicy(in.Config.ListenerAuth, in.Config.AdminListenerAuth, nil); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -560,4 +561,15 @@ func (c *xtcpConfigService) SetEnvelopeFlush(
 		return nil, err
 	}
 	return &xtcp_config.SetEnvelopeFlushResponse{Config: cfg}, nil
+}
+
+// preserveCaps keeps the running daemon's tenant caps (-maxDumpBytes,
+// -maxRecordsPerNetns, -maxNetns) across a Set. They bound what a workload
+// can cost the collector, so they are startup-only: a Set that omitted them
+// would otherwise turn them off (0), and one that raised them would undo the
+// bound from the admin plane. Change them with flags or env and a restart.
+func preserveCaps(in, running *xtcp_config.XtcpConfig) {
+	in.MaxDumpBytes = running.GetMaxDumpBytes()
+	in.MaxRecordsPerNetns = running.GetMaxRecordsPerNetns()
+	in.MaxNetns = running.GetMaxNetns()
 }

@@ -90,6 +90,22 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 		promLabels,
 	)
 
+	x.pDumpDropped = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: promSubsystemXTCP,
+			Name:      "dump_dropped_total",
+			Help:      "Namespace dumps cut short by -maxDumpBytes (reason=bytes) or -maxRecordsPerNetns (reason=records), at most one per reason per dump.",
+		},
+		[]string{"reason"},
+	)
+	x.pNetnsDropped = factory.NewCounter(
+		prometheus.CounterOpts{
+			Subsystem: promSubsystemXTCP,
+			Name:      "netns_dropped_total",
+			Help:      "Live namespaces a reconcile left untracked because -maxNetns was reached, counted per reconcile.",
+		},
+	)
+
 	x.publishCompiledInEnrichers()
 }
 
