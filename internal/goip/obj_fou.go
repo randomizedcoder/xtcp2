@@ -72,14 +72,6 @@ func fouUsage(err error) error {
 	return fmt.Errorf("%w: %w", ErrFouUsage, err)
 }
 
-// fouProtoNames is the getprotobyname subset goip knows for `ipproto`:
-// the names /etc/protocols carries, as NixOS's iana-etc spells them, for
-// the protocols fou carries, and rule's. goip reads no config files, so
-// any other name is refused rather than looked up.
-var fouProtoNames = map[string]uint8{
-	"hopopt": 0, "ipv4": unix.IPPROTO_IPIP, "ipv6": unix.IPPROTO_IPV6,
-}
-
 // runFou is do_ipfou.
 func runFou(c *runCtx, args []string) error {
 	if len(args) == 0 || matchesPrefix(args[0], fouHelpCst) {
@@ -256,25 +248,15 @@ func (o *fouOpt) parseArg(c *runCtx, args []string, i int) (int, error) {
 }
 
 // fouProto is ipproto's value: getprotobyname, then get_u8 base 0, 0
-// refused. A word get_u8 cannot read is refused as ip refuses it when it
-// is empty or starts with a digit, as no name in fouProtoNames does, and
-// is otherwise a name goip cannot look up.
+// refused.
 func fouProto(val string) (uint8, error) {
-	if p, ok := fouProtoNames[val]; ok {
+	if p, ok := protoByName(val); ok {
 		return p, nil
 	}
-	if p, ok := ruleProtoNames[val]; ok {
+	if p, ok := getU8(val, 0); ok && p != 0 {
 		return p, nil
 	}
-	p, ok := getU8(val, 0)
-	switch {
-	case ok && p != 0:
-		return p, nil
-	case ok || val == "" || (val[0] >= '0' && val[0] <= '9'):
-		return 0, fouUsage(invargErr("invalid ipproto", val))
-	}
-	return 0, fmt.Errorf("fou ipproto %q: iproute2 looks the name up in /etc/protocols and goip "+
-		"reads no config files: %w", val, ErrNotImplemented)
+	return 0, fouUsage(invargErr("invalid ipproto", val))
 }
 
 // fouDev is dev's value: check_ifname, then ll_name_to_index, each

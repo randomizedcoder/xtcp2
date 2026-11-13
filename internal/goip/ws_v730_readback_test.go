@@ -65,6 +65,36 @@ func wsReadbackArgv(cmd string) (*runCtx, string, []string, error) {
 // wsReadbackDiffers is how one readback differs from ip's, or "".
 func wsReadbackDiffers(t *testing.T, dir, name, cmd string) string {
 	t.Helper()
+	r := wsReadbackRun(t, dir, name, cmd)
+	var why []string
+	// An empty .out is a readback ip ran on a device the row never made, and
+	// the workbench keeps no readback rc; an empty stdout is the match.
+	if r.rc != ExitOK && len(r.want) > 0 {
+		why = append(why, fmt.Sprintf("exit %d", r.rc))
+	}
+	if r.stdout != r.want {
+		why = append(why, fmt.Sprintf("stdout\n got  %q\n want %q", r.stdout, r.want))
+	}
+	if !r.sameReqs {
+		why = append(why, fmt.Sprintf("requests\n goip %x\n ip   %x", r.reqs, r.ipReqs))
+	}
+	return strings.Join(why, "; ")
+}
+
+// wsReadback is one readback replayed through goip, beside what ip printed
+// and sent.
+type wsReadback struct {
+	rc             int
+	stdout, stderr string
+	want           string // ip's stdout
+	reqs, ipReqs   [][]byte
+	sameReqs       bool
+}
+
+// wsReadbackRun replays readback name of the row in dir through goip, over
+// the row's own capture.
+func wsReadbackRun(t *testing.T, dir, name, cmd string) wsReadback {
+	t.Helper()
 	c, object, args, err := wsReadbackArgv(cmd)
 	if err != nil {
 		t.Fatal(err)
@@ -76,26 +106,18 @@ func wsReadbackDiffers(t *testing.T, dir, name, cmd string) string {
 	pcap := filepath.Join(dir, "netlink_route_"+name+".pcap")
 	src := &restoreReplay{linkReplay: newLinkReplay(t, pcap)}
 	c.src = src
-	rc, stdout, _ := run(c, args)
+	var r wsReadback
+	r.rc, r.stdout, r.stderr = run(c, args)
 	want, err := os.ReadFile(filepath.Join(dir, name+".out"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	reqs := slices.Concat(src.dumpReqs, src.gets)
-	slices.SortFunc(reqs, bytes.Compare)
-	var why []string
-	// An empty .out is a readback ip ran on a device the row never made, and
-	// the workbench keeps no readback rc; an empty stdout is the match.
-	if rc != ExitOK && len(want) > 0 {
-		why = append(why, fmt.Sprintf("exit %d", rc))
-	}
-	if stdout != string(want) {
-		why = append(why, fmt.Sprintf("stdout\n got  %q\n want %q", stdout, want))
-	}
-	if ip := mplsIPRequests(t, pcap); !slices.EqualFunc(reqs, ip, bytes.Equal) {
-		why = append(why, fmt.Sprintf("requests\n goip %x\n ip   %x", reqs, ip))
-	}
-	return strings.Join(why, "; ")
+	r.want = string(want)
+	r.reqs = slices.Concat(src.dumpReqs, src.gets)
+	slices.SortFunc(r.reqs, bytes.Compare)
+	r.ipReqs = mplsIPRequests(t, pcap)
+	r.sameReqs = slices.EqualFunc(r.reqs, r.ipReqs, bytes.Equal)
+	return r
 }
 
 // TestWsV730Readbacks replays each v730 row's readbacks: goip sends ip's

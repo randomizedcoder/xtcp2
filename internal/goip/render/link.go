@@ -41,7 +41,8 @@ type LinkView struct {
 	IfName string   `json:"ifname"`
 	Flags  []string `json:"flags"`
 
-	MTU       uint32  `json:"mtu,omitempty"`
+	// MTU is nil without IFLA_MTU; print_linkinfo prints a present 0.
+	MTU       *uint32 `json:"mtu,omitempty"`
 	Qdisc     string  `json:"qdisc,omitempty"`
 	Master    string  `json:"master,omitempty"`
 	OperState string  `json:"operstate,omitempty"`
@@ -78,6 +79,14 @@ type LinkView struct {
 	// in a namespace I cannot name", which `ip` renders as
 	// "link-netnsid unknown" — a different line from printing nothing at all.
 	LinkNetnsID *int32 `json:"link_netnsid,omitempty"`
+
+	// ProtoDown and ProtoDownReason are print_proto_down's tokens,
+	// `protodown on` and `protodown_reason <0,3>`, outside the link/ line's
+	// guard and outside -d (ip/ipaddress.c:904-941,1150-1151). The reasons
+	// are numbers: protodown_reason_n2a names them from protodown_reasons.d,
+	// and iproute2 ships none. See protoDownReasons for ip's faults.
+	ProtoDown       bool     `json:"proto_down,omitempty"`
+	ProtoDownReason []string `json:"proto_down_reason,omitempty"`
 
 	AltNames []string `json:"altnames,omitempty"`
 
@@ -141,6 +150,12 @@ type LinkView struct {
 	// is the whole of it: only WithDetail sets this, and only the -d path
 	// calls WithDetail.
 	*LinkDetailView
+
+	// IfAlias is IFLA_IFALIAS's `alias %s` continuation line
+	// (ip/ipaddress.c:1273-1279), printed under `do_link || show_details`
+	// after the detail run. Only WithAlias sets it. The kernel dumps the
+	// attribute only when the alias is set, so empty is absent.
+	IfAlias string `json:"ifalias,omitempty"`
 
 	// nameSuffix is the "@peer" or "@if2" part of the first line. It is not a
 	// JSON field: iproute2 puts the bare ifname in JSON and only concatenates
@@ -214,6 +229,16 @@ func (t LinkTarget) String() string {
 	return t.Name
 }
 
+// linkMTU is IFLA_MTU when present (ip/ipaddress.c:1021-1024), 0 included.
+// A non-zero MTU was present, which is how a hand-built LinkInfo says so.
+func linkMTU(li xtcpnl.LinkInfo) *uint32 {
+	if !li.HasMTU && li.MTU == 0 {
+		return nil
+	}
+	mtu := li.MTU
+	return &mtu
+}
+
 // LinkViewOf resolves a decoded link against the index cache.
 //
 // # print_name_and_link, which is where the subtlety lives
@@ -250,9 +275,9 @@ func (t LinkTarget) String() string {
 // interface documents at its method.
 func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 	v := LinkView{
+		MTU:       linkMTU(li),
 		IfIndex:   li.Index,
 		IfName:    li.Name,
-		MTU:       li.MTU,
 		Qdisc:     li.Qdisc,
 		OperState: operStateName(li.OperState),
 		LinkMode:  linkModeName(li.LinkMode),
@@ -317,6 +342,8 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 		id := li.LinkNetnsID
 		v.LinkNetnsID = &id
 	}
+	v.ProtoDown = li.HasProtoDown && li.ProtoDown != 0
+	v.ProtoDownReason = protoDownReasons(li)
 	return v
 }
 
@@ -427,8 +454,8 @@ func (v LinkView) Text() string {
 	fmt.Fprintf(&b, "%d: %s: ", v.IfIndex, name)
 	b.WriteString(joinFlags(v.Flags))
 
-	if v.MTU != 0 {
-		fmt.Fprintf(&b, "mtu %d ", v.MTU)
+	if v.MTU != nil {
+		fmt.Fprintf(&b, "mtu %d ", *v.MTU)
 	}
 	if v.Qdisc != "" {
 		fmt.Fprintf(&b, "qdisc %s ", v.Qdisc)
@@ -478,6 +505,16 @@ func (v LinkView) Text() string {
 			b.WriteString(" link-netnsid unknown")
 		}
 	}
+	if v.ProtoDown {
+		b.WriteString(" protodown on ")
+	}
+	// No space before it, as ip's format has none (P14): after
+	// `protodown on ` that reads right, and after a link/ line it does not.
+	if len(v.ProtoDownReason) > 0 {
+		b.WriteString("protodown_reason <")
+		b.WriteString(strings.Join(v.ProtoDownReason, ","))
+		b.WriteString(">")
+	}
 	// The `-d` run, and it lands here rather than anywhere else because
 	// print_linkinfo's `if (show_details)` block opens at ip/ipaddress.c:1153
 	// — AFTER the link-netnsid print at :1114 and BEFORE the stats at :1297.
@@ -486,6 +523,10 @@ func (v LinkView) Text() string {
 	// :1060 tests show_details too) but prints no detail token at all,
 	// because an AF_INET6 link dump carries none of the attributes.
 	b.WriteString(v.detailText())
+	if v.IfAlias != "" {
+		b.WriteString("\n    alias ")
+		b.WriteString(v.IfAlias)
+	}
 
 	// Before the altnames, not after, and that order is iproute2's rather
 	// than arbitrary: print_linkinfo emits the stats block at
@@ -522,6 +563,33 @@ func linkEventToken(event uint32) string {
 		return ""
 	}
 	return "event " + linkEvents[event] + " "
+}
+
+// protoDownReasons is print_proto_down's reason list, with ip's faults
+// (P14): it tests the link's own tb[IFLA_PROTO_DOWN_REASON_VALUE], which is
+// IFLA_BROADCAST, not the nest's, and reads the u32 value as a u8, so only
+// reasons 0 to 7 print, and a value with none of them prints nothing. ip
+// dereferences a missing value under a present IFLA_BROADCAST; goip prints
+// nothing there, and the kernel never sends that nest.
+func protoDownReasons(li xtcpnl.LinkInfo) []string {
+	if !li.HasProtoDown || !li.HasProtoDownReason || li.Broadcast == nil || !li.HasProtoDownReasonValue {
+		return nil
+	}
+	var out []string
+	for i, reason := 0, uint8(li.ProtoDownReason); reason != 0; i, reason = i+1, reason>>1 {
+		if reason&1 != 0 {
+			out = append(out, strconv.Itoa(i))
+		}
+	}
+	return out
+}
+
+// WithAlias adds the link's alias line, which print_linkinfo prints for
+// `ip link show` (do_link) and, under -d, for `ip addr show` and the
+// monitor.
+func (v LinkView) WithAlias(li xtcpnl.LinkInfo) LinkView {
+	v.IfAlias = li.IfAlias
+	return v
 }
 
 // WithoutQlen drops the qlen token, as print_linkinfo does when

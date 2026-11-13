@@ -277,9 +277,9 @@ func TestNexthopText(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			render := func() (string, error) {
 				if tc.infoPath {
-					return NexthopInfoText(tc.in, routeTabNames)
+					return NexthopInfoText(tc.in, 0, routeTabNames)
 				}
-				return NexthopText(tc.in, tc.detailed, routeTabNames)
+				return NexthopText(tc.in, tc.detailed, 0, routeTabNames)
 			}
 			got, err := render()
 			if tc.wantErr {
@@ -487,7 +487,7 @@ func TestNexthopViewJSON(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			view, err := NexthopViewOf(tc.in, tc.detailed, nhViewTabNames)
+			view, err := NexthopViewOf(tc.in, tc.detailed, 0, nhViewTabNames)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("no error, want one")

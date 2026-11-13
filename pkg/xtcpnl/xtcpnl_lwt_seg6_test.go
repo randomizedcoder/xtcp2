@@ -142,7 +142,11 @@ func TestPutSeg6Encap(t *testing.T) {
 		{description: "negative: a tunsrc of four bytes", e: seg6(Seg6ModeEncap, srh(1, 0, s1), []byte{192, 0, 2, 1}), err: ErrSeg6Encap},
 		{description: "negative: no SRH", e: seg6(Seg6ModeEncap, nil, nil), err: ErrSeg6Encap},
 		{description: "negative: an nh4 of 16 bytes", e: local(nil, action(6), Seg6LocalItem{Kind: Seg6LocalNH4, Addr: nh6}), err: ErrSeg6Encap},
-		{description: "negative: a seg6local item of no known kind", e: local(nil, Seg6LocalItem{Kind: 8}), err: ErrSeg6Encap},
+		{description: "negative: a seg6local item of no known kind", e: local(nil, Seg6LocalItem{Kind: 99}), err: ErrSeg6Encap},
+		{description: "positive: End.BPF's endpoint, the fd then the NUL-ended name",
+			e: local(nil, action(15), Seg6LocalItem{Kind: Seg6LocalBPF, Prog: BpfProgRef{FD: 7, Name: "lwt_bpf.o:[lwt_in]"}}),
+			expected: "30000880" + "080001000f000000" + "24000880" + "0800010007000000" + "17000200" +
+				hex.EncodeToString([]byte("lwt_bpf.o:[lwt_in]")) + "0000" + localType},
 		{description: "negative: seg6 and seg6local both", e: LwtEncap{Seg6: &Seg6Encap{SRH: srh(1, 0, s1)}, Seg6Local: &Seg6LocalEncap{}},
 			err: ErrLwtEncap},
 		{description: "boundary: mode -1, one zero segment", e: seg6(-1, srh(1, 0), nil),

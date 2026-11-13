@@ -316,12 +316,13 @@ func TestXfrmStateWritesArgs(t *testing.T) {
 			args: add + "output-mark 3 tfcpad 2", hex: "080016000200000008001d0003000000"},
 		{description: "positive: a selector protocol by name, getprotobyname's", args: add + "sel proto tcp",
 			hex: strings.Repeat("00", 40) + "0000 00 00 06 000000" + strings.Repeat("00", 8)},
-		{description: "corner: a protocol name goip does not know is not implemented", args: add + "sel proto ospf",
-			exit: ExitUsage, expected: "not implemented", hex: "-"},
+		{description: "negative: a protocol name /etc/protocols lacks", args: add + "sel proto ospf",
+			exit: ExitMinusOne, expected: `"ospf" is wrong: PROTO value is invalid`, hex: "-"},
 		{description: "negative: sport under gre, refused naming it as ip does", args: add + "sel proto 47 sport 1",
 			exit: ExitUsage, expected: `"sport" and "dport" are invalid with PROTO value "gre"`, hex: "-"},
-		{description: "corner: sport under a protocol goip cannot name is not implemented",
-			args: add + "sel proto 200 sport 1", exit: ExitUsage, expected: "not implemented", hex: "-"},
+		{description: "corner: sport under a protocol with no name, refused naming its number",
+			args: add + "sel proto 200 sport 1", exit: ExitUsage,
+			expected: `"sport" and "dport" are invalid with PROTO value "200"`, hex: "-"},
 		{description: "corner: a ctx past ip's buffer is not implemented", args: add + "ctx " +
 			strings.Repeat("c", 256), exit: ExitUsage, expected: "not implemented", hex: "-"},
 		{description: "corner: an ID with no address is AF_INET's 2", args: "state add proto esp spi 1 reqid 0x11 " +

@@ -1,0 +1,7 @@
+192.0.2.0/24 dev d0 proto kernel scope link src 192.0.2.10 
+198.51.100.0/24  encap bpf in lwt_bpf.o:[lwt_in] dev d0 scope link 
+local 127.0.0.0/8 dev lo table local proto kernel scope host src 127.0.0.1 
+local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1 
+broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
+local 192.0.2.10 dev d0 table local proto kernel scope host src 192.0.2.10 
+broadcast 192.0.2.255 dev d0 table local proto kernel scope link src 192.0.2.10 
