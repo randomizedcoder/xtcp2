@@ -156,13 +156,14 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 ### FP-5 — dump, record and namespace caps (C1, C2)
 
-- [ ] `-maxDumpBytes` (per namespace per poll), `-maxRecordsPerNetns`, `-maxNetns`; proto fields with validators; defaults chosen from F0.6 at ≥ 10× the observed p99 so no healthy host hits them.
-- [ ] Enforcement in the receive path shared by `netlinkerSyscall` and `netlinkerIoUring`: stop reading the dump at the byte cap (close and reopen the socket so the kernel abandons the dump), drop records past the count cap.
-- [ ] Namespace cap in the discovery/poller path: newest namespace not tracked past the cap; oldest-idle eviction.
-- [ ] Metrics: `xtcp2_dump_dropped_total{reason="bytes"|"records"}`, `xtcp2_netns_dropped_total`, `xtcp2_netns_tracked`; one rate-limited log line per namespace per poll.
-- [ ] Hot-path rule: the caps are integer compares on counters the loop already maintains; a benchmark guard (`BenchmarkDeserialize*`) asserts no regression beyond noise.
+- [x] `-maxDumpBytes` (per namespace per poll), `-maxRecordsPerNetns`, `-maxNetns`; proto fields with validators; defaults chosen from F0.6 at ≥ 10× the observed p99 so no healthy host hits them. *Done as:* `XtcpConfig` fields 25, 26 and 42, `0` = unlimited. The provisional defaults are 256 MiB, 262144 and 4096 until F0.6 exists. Env vars `MAX_DUMP_BYTES`, `MAX_RECORDS_PER_NETNS`, `MAX_NETNS`. `ConfigService.Set` keeps the running caps (`preserveCaps`).
+- [x] Enforcement in the receive path shared by `netlinkerSyscall` and `netlinkerIoUring`: stop reading the dump at the byte cap (close and reopen the socket so the kernel abandons the dump), drop records past the count cap. *Done as:* `dumpTracker.assign`/`handOff`, shared by both receivers. Past the byte cap, packets are **drained** undecoded rather than the socket being reopened (TODO below). The record cap is a per-packet budget computed in the receiver's existing header walk (`packetScan`), so decoders compare a local counter with no shared atomics.
+- [x] Namespace cap in the discovery/poller path: newest namespace not tracked past the cap; oldest-idle eviction. *Done as:* `admitNamespaces` in `reconcile`, lowest pid first, xtcp2's own namespace always. Eviction is not done (TODO below).
+- [x] Metrics: `xtcp2_dump_dropped_total{reason="bytes"|"records"}`, `xtcp2_netns_dropped_total`, `xtcp2_netns_tracked`; one rate-limited log line per namespace per poll. *Done as:* `xtcp_dump_dropped_total{reason}` and `xtcp_netns_dropped_total` (the package's `xtcp` subsystem). The tracked count is the existing `xtcp_gauge`. Volume counters are in `xtcp_counts`. One log line per truncated dump or short reconcile.
+- [x] Hot-path rule: the caps are integer compares on counters the loop already maintains; a benchmark guard (`BenchmarkDeserialize*`) asserts no regression beyond noise. *Done as:* `BenchmarkNetlinkerDumpCaps` is `BenchmarkNetlinkerDump` with the default caps set. With the caps on vs off in one build, no row differs significantly (geomean +0.6%, 10 interleaved runs on a loaded host); see #301.
 
-**Tests:** FC `under_caps`, `dump_bytes_cap`, `records_cap_exact`, `records_cap_plus_one`, `netns_cap`.
+**Tests:** FC `under_caps`, `dump_bytes_cap`, `records_cap_exact`, `records_cap_plus_one`, `netns_cap`. *Done as:* `pkg/xtcp/caps_test.go`. It has tracker byte and record tables, real dumps through both receivers, `admitNamespaces` and `preserveCaps`, plus `TestEnvOverrideCaps`.
+**Status:** open as #301.
 
 ### FP-6 — S3 queue bound and string policy (C3, C4)
 
@@ -176,6 +177,15 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 - [ ] `FuzzDockerProjection` (`pkg/dockermeta`), `FuzzStrPolicy`, `FuzzRowFromProto`; corpora seeded from F0.5.
 - [ ] CI runs every fuzzer (existing netlink ones included) for a fixed time budget per PR and longer nightly.
+
+### Phase F2 TODOs
+
+| TODO | Where |
+|---|---|
+| Past the byte cap, abandon the dump in the kernel (close and reopen the socket from inside the netns) instead of draining it; draining bounds our decode cost but not the kernel's | FP-5 follow-up |
+| Oldest-idle namespace eviction at `-maxNetns`; needs an exclusion list so an evicted, still-live namespace isn't re-added every reconcile | FP-5 follow-up |
+| Re-tune the three caps' defaults from the F0.6 baseline (≥ 10× p99) | F0.6 |
+| The F2 gate's 1 M-socket synthetic netns run | after FP-6 |
 
 ### Phase F2 gate
 
