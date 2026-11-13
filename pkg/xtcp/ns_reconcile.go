@@ -5,6 +5,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 )
 
 // mapReconciler is a ticking loop around reconcile, which converges xtcp's set
@@ -99,57 +101,239 @@ func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 	}()
 	x.pC.WithLabelValues("reconcile", "start", "count").Inc()
 
-	live := x.discoverNamespaces()
+	lim := x.scanLimits(startTime)
+	live, stop := x.discoverNamespaces(lim)
+	if stop != nsdiscover.ScanComplete {
+		x.reconcileIncomplete(stop, len(live), startTime)
+	}
 
-	// Delete entries whose namespace is no longer live. xtcp's own netns is
-	// live by construction (every unlocked thread is in it), and its default
-	// socket belongs to openDefaultNetLinkSocket, so it is never deleted. The
-	// scan cannot vouch for it: it skips xtcp's own pid, and when xtcp is alone
-	// in its netns (a container without pid_mode:host) no other pid shows it.
-	x.nsMap.Range(func(key, _ interface{}) bool {
+	dels = x.deleteGone(live, stop)
+	stores = x.addNew(ctx, live, lim.Deadline)
+	return dels, stores
+}
+
+// scanLimits bounds one reconcile's scan: -reconcileTimeout from start,
+// and 4 x -maxNetns namespaces (enough to see every tracked one plus a
+// queue of candidates). 0 turns either off.
+func (x *XTCP) scanLimits(start time.Time) nsdiscover.ScanLimits {
+	var lim nsdiscover.ScanLimits
+	if d := x.config.GetReconcileTimeout().AsDuration(); d > 0 {
+		lim.Deadline = start.Add(d)
+	}
+	if n := x.config.GetMaxNetns(); n > 0 {
+		lim.MaxNamespaces = scanCapPerMaxNetns * int(n)
+	}
+	return lim
+}
+
+// scanCapPerMaxNetns sizes the scan cap from -maxNetns.
+const scanCapPerMaxNetns = 4
+
+// Reasons for xtcp_reconcile_incomplete_total.
+const (
+	reconcileIncompleteTimeoutCst = "timeout"
+	reconcileIncompleteScanCapCst = "scan_cap"
+)
+
+func (x *XTCP) reconcileIncomplete(stop nsdiscover.ScanStop, found int, start time.Time) {
+	reason := reconcileIncompleteTimeoutCst
+	if stop == nsdiscover.ScanCap {
+		reason = reconcileIncompleteScanCapCst
+	}
+	if x.pReconcileIncomplete != nil {
+		x.pReconcileIncomplete.WithLabelValues(reason).Inc()
+	}
+	log.Printf("reconcile: scan stopped early (%s) after %d namespaces in %s; deleting only namespaces confirmed gone",
+		reason, found, time.Since(start).Round(time.Millisecond))
+}
+
+// deleteGone deletes tracked entries whose namespace is no longer live.
+// xtcp's own netns is live by construction (every unlocked thread is in
+// it), and its default socket belongs to openDefaultNetLinkSocket, so it is
+// never deleted. The scan cannot vouch for it: it skips xtcp's own pid,
+// and when xtcp is alone in its netns (a container without pid_mode:host)
+// no other pid shows it.
+//
+// After an incomplete scan a namespace it didn't reach may still be live,
+// so one is deleted only when confirmed gone: its representative pid is no
+// longer in it (a bind-mount-only one: its mount is gone). Without this, a
+// scan cut short by a flood of new namespaces would delete monitored ones;
+// and skipping deletes altogether would let dead ones keep their slots for
+// as long as the flood lasts. A live namespace whose pid has since left is
+// deleted and re-added by the next complete scan.
+func (x *XTCP) deleteGone(live map[uint64]nsIdentity, stop nsdiscover.ScanStop) (dels int) {
+	x.nsMap.Range(func(key, value interface{}) bool {
 		inode, ok := key.(uint64)
-		if !ok {
+		if !ok || inode == x.selfNsInode {
 			return true
 		}
-		if inode == x.selfNsInode {
+		if _, stillLive := live[inode]; stillLive {
 			return true
 		}
-		if _, stillLive := live[inode]; !stillLive {
-			x.nsDelete(inode)
-			dels++
+		if stop != nsdiscover.ScanComplete {
+			if item, ok := value.(netNSitem); ok && x.confirmedLive(item) {
+				return true
+			}
 		}
+		x.nsDelete(inode)
+		dels++
 		return true
 	})
+	return dels
+}
 
-	// Add live namespaces not yet tracked, up to -maxNetns. Tracked ones
-	// keep their slots; the rest wait in the order first seen (see
-	// admitNamespaces) and stay candidates on every later reconcile.
+// confirmedLive checks one tracked namespace directly.
+func (x *XTCP) confirmedLive(item netNSitem) bool {
+	if item.pid > 0 {
+		return x.nsScanner != nil && x.nsScanner.PidInNetns(item.pid, item.inode)
+	}
+	if x.nsResolver == nil {
+		return false
+	}
+	_, ok := x.nsResolver.BindMountPath(item.inode)
+	return ok
+}
+
+// addNew adds live namespaces not yet tracked, within the admission caps
+// (admitNamespaces). Tracked ones keep their slots; the rest wait in the
+// order first seen and stay candidates on every later reconcile. Names are
+// resolved only for the namespaces admitted.
+func (x *XTCP) addNew(ctx context.Context, live map[uint64]nsIdentity, deadline time.Time) (stores int) {
 	var candidates []nsIdentity
 	for inode, id := range live {
 		if _, tracked := x.nsMap.Load(inode); !tracked {
 			candidates = append(candidates, id)
 		}
 	}
-	limit := x.config.GetMaxNetns()
+	lim := admitLimits{
+		maxNetns:    x.config.GetMaxNetns(),
+		maxPerOwner: x.config.GetMaxNetnsPerOwner(),
+		maxAdds:     x.config.GetMaxNetnsAddsPerReconcile(),
+		self:        x.selfNsInode,
+	}
+	if len(candidates) == 0 {
+		clear(x.nsWaiting)
+		clear(x.nsOwners)
+		return 0
+	}
+
 	tracked := 0
-	if limit != 0 && len(candidates) > 0 {
+	var owners map[string]int
+	if lim.maxNetns != 0 {
 		tracked = lenSyncMap(x.nsMap)
 	}
-	admit, dropped := admitNamespaces(candidates, tracked, limit, x.selfNsInode, x.nsWaiting)
-	if limit != 0 {
+	resolvable := candidates
+	if lim.maxPerOwner != 0 {
+		owners = x.trackedOwners()
+		resolvable = x.resolveOwners(candidates, deadline)
+	}
+
+	admit, drops := admitNamespaces(resolvable, tracked, owners, lim, x.nsWaiting)
+	if lim.any() {
+		// The full candidate list: one whose owner wasn't read in time
+		// keeps its place too.
 		x.nsWaiting, x.nsWaitingSeq = queueWaiting(x.nsWaiting, x.nsWaitingSeq, candidates, admit)
+		x.pruneOwners(candidates, admit)
 	}
 	for _, id := range admit {
+		cid := id.owner
+		if lim.maxPerOwner == 0 {
+			cid = x.nsResolver.ContainerID(id.pid)
+		}
+		id.name = x.nsResolver.NameFor(id.inode, cid)
 		x.nsAdd(ctx, id)
 		stores++
 	}
-	if dropped > 0 {
-		x.pC.WithLabelValues("reconcile", "maxNetns", "drop").Add(float64(dropped))
-		if x.pNetnsDropped != nil {
-			x.pNetnsDropped.WithLabelValues(netnsDropMaxNetnsCst).Add(float64(dropped))
-		}
-		log.Printf("reconcile: %d namespaces not tracked: -maxNetns=%d reached", dropped, limit)
-	}
+	x.recordDrops(drops, lim)
+	return stores
+}
 
-	return dels, stores
+// trackedOwners counts tracked namespaces per owner; xtcp2's own and
+// bind-mount-only ones (no pid) are exempt from the quota.
+func (x *XTCP) trackedOwners() map[string]int {
+	owners := make(map[string]int)
+	x.nsMap.Range(func(key, value interface{}) bool {
+		item, ok := value.(netNSitem)
+		if ok && item.pid > 0 && item.inode != x.selfNsInode {
+			owners[item.owner]++
+		}
+		return true
+	})
+	return owners
+}
+
+// resolveOwners fills each candidate's owner from the cache, or its
+// cgroup, until deadline. It returns the candidates that have one; the
+// rest are left for the next reconcile (they keep their queue place).
+func (x *XTCP) resolveOwners(candidates []nsIdentity, deadline time.Time) []nsIdentity {
+	if x.nsOwners == nil {
+		x.nsOwners = make(map[uint64]string)
+	}
+	out := candidates[:0:0]
+	deferred := 0
+	for i := range candidates {
+		id := &candidates[i]
+		if id.pid <= 0 {
+			out = append(out, *id) // exempt: no owner to read
+			continue
+		}
+		if o, ok := x.nsOwners[id.inode]; ok {
+			id.owner = o
+			out = append(out, *id)
+			continue
+		}
+		if !deadline.IsZero() && time.Now().After(deadline) {
+			deferred++
+			continue
+		}
+		id.owner = x.nsResolver.ContainerID(id.pid)
+		x.nsOwners[id.inode] = id.owner
+		out = append(out, *id)
+	}
+	if deferred > 0 {
+		x.pC.WithLabelValues("reconcile", "owner", "deferred").Add(float64(deferred))
+	}
+	return out
+}
+
+// pruneOwners keeps the owner cache to candidates still waiting.
+func (x *XTCP) pruneOwners(candidates, admit []nsIdentity) {
+	if len(x.nsOwners) == 0 {
+		return
+	}
+	keep := make(map[uint64]struct{}, len(candidates))
+	for _, id := range candidates {
+		keep[id.inode] = struct{}{}
+	}
+	for _, id := range admit {
+		delete(keep, id.inode)
+	}
+	for inode := range x.nsOwners {
+		if _, ok := keep[inode]; !ok {
+			delete(x.nsOwners, inode)
+		}
+	}
+}
+
+// recordDrops counts and logs the candidates each cap left out (one line
+// per reconcile).
+func (x *XTCP) recordDrops(drops admitDrops, lim admitLimits) {
+	if drops.total() == 0 {
+		return
+	}
+	for reason, n := range map[string]int{
+		netnsDropMaxNetnsCst:   drops.maxNetns,
+		netnsDropOwnerQuotaCst: drops.ownerQuota,
+		netnsDropAddRateCst:    drops.addRate,
+	} {
+		if n == 0 {
+			continue
+		}
+		x.pC.WithLabelValues("reconcile", reason, "drop").Add(float64(n))
+		if x.pNetnsDropped != nil {
+			x.pNetnsDropped.WithLabelValues(reason).Add(float64(n))
+		}
+	}
+	log.Printf("reconcile: %d namespaces not tracked yet: max_netns:%d (-maxNetns=%d) owner_quota:%d (-maxNetnsPerOwner=%d) add_rate:%d (-maxNetnsAddsPerReconcile=%d)",
+		drops.total(), drops.maxNetns, lim.maxNetns, drops.ownerQuota, lim.maxPerOwner, drops.addRate, lim.maxAdds)
 }

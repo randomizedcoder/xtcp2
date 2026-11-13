@@ -13,6 +13,8 @@ package nsdiscover
 
 import (
 	"bytes"
+	"strconv"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -40,6 +42,7 @@ type Scanner struct {
 	lbuf []byte              // readlink target buffer
 	seen map[uint64]struct{} // per-scan dedup set (cleared, not reallocated)
 	skip int                 // pid Scan ignores (0: none); see SkipPid
+	nbuf []byte              // pid formatting scratch for PidInNetns
 }
 
 // NewScanner opens procRoot (typically "/proc"). If the open fails the scanner
@@ -55,6 +58,7 @@ func NewScanner(procRoot string) *Scanner {
 		pbuf: make([]byte, 0, 32),
 		lbuf: make([]byte, 64),
 		seen: make(map[uint64]struct{}, scannerMapHint),
+		nbuf: make([]byte, 0, 20),
 	}
 }
 
@@ -76,18 +80,52 @@ func (s *Scanner) Close() error {
 // looks gone and is never deleted. pid 0 (the default) skips nothing.
 func (s *Scanner) SkipPid(pid int) { s.skip = pid }
 
+// ScanLimits bounds one Scan. The zero value is unlimited.
+type ScanLimits struct {
+	// Deadline stops the scan once passed (checked every
+	// scanDeadlineEvery pids). Zero: none.
+	Deadline time.Time
+	// MaxNamespaces stops the scan after this many distinct namespaces.
+	// 0: none.
+	MaxNamespaces int
+}
+
+// scanDeadlineEvery is how many pids pass between deadline checks.
+const scanDeadlineEvery = 256
+
+// ScanStop says why a limited Scan stopped early.
+type ScanStop uint8
+
+const (
+	// ScanComplete: every pid was seen.
+	ScanComplete ScanStop = iota
+	// ScanTimeout: ScanLimits.Deadline passed.
+	ScanTimeout
+	// ScanCap: ScanLimits.MaxNamespaces namespaces were found.
+	ScanCap
+)
+
 // Scan rewinds procfs and calls fn exactly once per distinct network namespace.
 // It returns the number of pids skipped (the pid exited mid-scan, or readlinkat
 // returned EACCES when unprivileged). Zero steady-state allocation. fn receives
 // a Namespace by value; it may copy it but must not assume any ordering.
 func (s *Scanner) Scan(fn func(Namespace)) (skipped int) {
+	skipped, _ = s.ScanLimited(ScanLimits{}, fn)
+	return skipped
+}
+
+// ScanLimited is Scan within lim. stop is ScanComplete only when every pid
+// was seen; otherwise fn has seen only some namespaces, and a namespace it
+// didn't see may still be live.
+func (s *Scanner) ScanLimited(lim ScanLimits, fn func(Namespace)) (skipped int, stop ScanStop) {
 	clear(s.seen)
 	if s.fd < 0 {
-		return 0
+		return 0, ScanComplete
 	}
 	if _, err := unix.Seek(s.fd, 0, unix.SEEK_SET); err != nil {
-		return 0
+		return 0, ScanComplete
 	}
+	pids := 0
 	for {
 		n, gerr := unix.Getdents(s.fd, s.dbuf)
 		if gerr != nil || n <= 0 {
@@ -109,28 +147,52 @@ func (s *Scanner) Scan(fn func(Namespace)) (skipped int) {
 			if !ok || pid == s.skip {
 				continue
 			}
-
-			// Relative path "<pid>/ns/net\0" resolved against the procfs fd.
-			s.pbuf = append(s.pbuf[:0], name...)
-			s.pbuf = append(s.pbuf, "/ns/net\x00"...)
-
-			m, ok := rawReadlinkat(s.fd, s.pbuf, s.lbuf)
-			if !ok {
-				skipped++
-				continue
+			pids++
+			if pids%scanDeadlineEvery == 0 && !lim.Deadline.IsZero() && time.Now().After(lim.Deadline) {
+				return skipped, ScanTimeout
 			}
-			ino, ok := parseNetInode(s.lbuf[:m])
+
+			ino, ok := s.pidNetns(pid, name)
 			if !ok {
 				skipped++
 				continue
 			}
 			if _, dup := s.seen[ino]; !dup {
+				if lim.MaxNamespaces > 0 && len(s.seen) >= lim.MaxNamespaces {
+					return skipped, ScanCap
+				}
 				s.seen[ino] = struct{}{}
 				fn(Namespace{Inode: ino, Pid: pid})
 			}
 		}
 	}
-	return skipped
+	return skipped, ScanComplete
+}
+
+// pidNetns reads /proc/<pid>/ns/net's inode. name is pid's decimal form.
+func (s *Scanner) pidNetns(pid int, name []byte) (uint64, bool) {
+	if name == nil {
+		name = strconv.AppendInt(s.nbuf[:0], int64(pid), 10)
+	}
+	// Relative path "<pid>/ns/net\0" resolved against the procfs fd.
+	s.pbuf = append(s.pbuf[:0], name...)
+	s.pbuf = append(s.pbuf, "/ns/net\x00"...)
+	m, ok := rawReadlinkat(s.fd, s.pbuf, s.lbuf)
+	if !ok {
+		return 0, false
+	}
+	return parseNetInode(s.lbuf[:m])
+}
+
+// PidInNetns reports whether pid is still in the namespace inode. Reconcile
+// uses it after an incomplete scan, to tell a tracked namespace the scan
+// didn't reach from one that is gone.
+func (s *Scanner) PidInNetns(pid int, inode uint64) bool {
+	if s.fd < 0 || pid <= 0 {
+		return false
+	}
+	ino, ok := s.pidNetns(pid, nil)
+	return ok && ino == inode
 }
 
 // direntName returns the NUL-terminated name of a getdents64 record as a byte

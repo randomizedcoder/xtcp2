@@ -92,6 +92,35 @@ func (r *Resolver) Name(inode uint64, pid int) string {
 	return "netns:[" + strconv.FormatUint(inode, 10) + "]"
 }
 
+// NameFor is Name with the container id already read (ContainerID), so a
+// caller that needs both reads the cgroup file once.
+func (r *Resolver) NameFor(inode uint64, containerID string) string {
+	if name, ok := r.byInode[inode]; ok {
+		return name
+	}
+	if containerID != "" {
+		return containerID
+	}
+	return "netns:[" + strconv.FormatUint(inode, 10) + "]"
+}
+
+// ContainerID is the container id in pid's cgroup path: the first, so
+// outermost, 64-hex run. A process can make sub-cgroups (with any name)
+// below its own but can't leave it, so the outermost id is the owner a
+// tenant can't change. "" when there is none or pid is gone.
+func (r *Resolver) ContainerID(pid int) string {
+	if pid <= 0 {
+		return ""
+	}
+	return r.containerID(pid)
+}
+
+// BindMountPath is the bind-mount path of inode from the last Refresh.
+func (r *Resolver) BindMountPath(inode uint64) (string, bool) {
+	p, ok := r.pathByIno[inode]
+	return p, ok
+}
+
 // containerID reads /proc/<pid>/cgroup and returns the first container id found
 // (a 64-char lowercase-hex run), or "" if none. Covers the common docker /
 // containerd / cri-o / kubernetes cgroup layouts, whose paths embed the 64-hex

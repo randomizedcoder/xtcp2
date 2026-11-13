@@ -75,6 +75,10 @@ type XTCP struct {
 	// (under reconcileMu); empty unless the cap is reached.
 	nsWaiting    map[uint64]uint64
 	nsWaitingSeq uint64
+	// nsOwners caches each waiting candidate's owner (inode → owner), so a
+	// namespace kept out by a cap isn't re-read every reconcile. Pruned to
+	// the current candidates each reconcile. Owned by reconcile.
+	nsOwners map[uint64]string
 
 	packetBufferPool xsync.Pool[*[]byte]
 	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]
@@ -261,6 +265,9 @@ type nsIdentity struct {
 	pid   int
 	name  string
 	path  string
+	// owner is the outermost container id of pid's cgroup ("" for none),
+	// resolved for candidates only when -maxNetnsPerOwner is on.
+	owner string
 }
 
 // network namespace item
@@ -282,6 +289,9 @@ type netNSitem struct {
 	// socket-count gate (sockstat.go). nil: the gate is off, the open
 	// failed, or the slot is still reserved.
 	stat *statHandle
+	// owner is the namespace's owner for -maxNetnsPerOwner (see
+	// nsIdentity.owner).
+	owner string
 }
 
 type netlinkerDone struct {

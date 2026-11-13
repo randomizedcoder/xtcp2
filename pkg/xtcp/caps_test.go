@@ -2,7 +2,9 @@ package xtcp
 
 import (
 	"encoding/binary"
+	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -293,7 +295,8 @@ func TestAdmitNamespaces(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			admit, dropped := admitNamespaces(slices.Clone(tc.candidates), tc.tracked, tc.limit, self, tc.waiting)
+			admit, drops := admitNamespaces(slices.Clone(tc.candidates), tc.tracked, nil, admitLimits{maxNetns: tc.limit, self: self}, tc.waiting)
+			dropped := drops.total()
 			got := make([]uint64, 0, len(admit))
 			for _, id := range admit {
 				got = append(got, id.inode)
@@ -301,6 +304,84 @@ func TestAdmitNamespaces(t *testing.T) {
 			if !slices.Equal(got, tc.expected) || dropped != tc.expectedDropped {
 				t.Errorf("%s: admitted %v dropped %d, expected %v dropped %d",
 					tc.description, got, dropped, tc.expected, tc.expectedDropped)
+			}
+		})
+	}
+}
+
+// TestAdmitNamespacesQuota: the per-owner quota and the add rate.
+func TestAdmitNamespacesQuota(t *testing.T) {
+	const self = 1
+	owned := func(owner string, n int, base uint64) []nsIdentity {
+		out := make([]nsIdentity, n)
+		for i := range out {
+			out[i] = nsIdentity{pid: int(base) + i, inode: base + uint64(i), owner: owner}
+		}
+		return out
+	}
+	cid := func(c byte) string { return strings.Repeat(string(c), 64) }
+	tests := []struct {
+		name               string
+		category           string
+		description        string
+		candidates         []nsIdentity
+		tracked            int
+		owners             map[string]int
+		lim                admitLimits
+		expectedAdmitted   int
+		expectedPerOwner   map[string]int // admitted per owner
+		expectedOwnerQuota int
+		expectedAddRate    int
+		expectedMaxNetns   int
+	}{
+		{name: "quota_zero", category: "P", description: "quota 0: no owner limit",
+			candidates: owned(cid('a'), 100, 1000), owners: map[string]int{}, lim: admitLimits{maxNetns: 4096},
+			expectedAdmitted: 100, expectedPerOwner: map[string]int{cid('a'): 100}},
+		{name: "owner_quota", category: "N", description: "owner A brings 100, quota 64: 64 in, 36 owner_quota",
+			candidates: owned(cid('a'), 100, 1000), owners: map[string]int{}, lim: admitLimits{maxNetns: 4096, maxPerOwner: 64},
+			expectedAdmitted: 64, expectedPerOwner: map[string]int{cid('a'): 64}, expectedOwnerQuota: 36},
+		{name: "other_owner_unaffected", category: "P", description: "A already at quota; B's namespace is admitted",
+			candidates: append(owned(cid('a'), 5, 1000), owned(cid('b'), 1, 2000)...), owners: map[string]int{cid('a'): 64},
+			lim: admitLimits{maxNetns: 4096, maxPerOwner: 64}, expectedAdmitted: 1, expectedPerOwner: map[string]int{cid('b'): 1}, expectedOwnerQuota: 5},
+		{name: "quota_exact", category: "B", description: "A at 63 of 64: exactly one more",
+			candidates: owned(cid('a'), 3, 1000), owners: map[string]int{cid('a'): 63}, lim: admitLimits{maxPerOwner: 64},
+			expectedAdmitted: 1, expectedPerOwner: map[string]int{cid('a'): 1}, expectedOwnerQuota: 2},
+		{name: "pid0_exempt", category: "C", description: "bind-mount-only namespaces (pid 0) skip the quota, still bounded by -maxNetns",
+			candidates: func() []nsIdentity {
+				out := owned("", 10, 500)
+				for i := range out {
+					out[i].pid = 0
+				}
+				return out
+			}(), owners: map[string]int{"": 5}, lim: admitLimits{maxNetns: 8, maxPerOwner: 1},
+			expectedAdmitted: 8, expectedPerOwner: map[string]int{"": 8}, expectedMaxNetns: 2},
+		{name: "no_container_id", category: "C", description: "owner \"\" (no container id) is one owner under the quota",
+			candidates: owned("", 5, 1000), owners: map[string]int{}, lim: admitLimits{maxPerOwner: 2},
+			expectedAdmitted: 2, expectedPerOwner: map[string]int{"": 2}, expectedOwnerQuota: 3},
+		{name: "add_rate", category: "N", description: "1000 candidates, rate 256: 256 in, the rest add_rate",
+			candidates: owned(cid('a'), 1000, 10000), owners: map[string]int{}, lim: admitLimits{maxNetns: 4096, maxAdds: 256},
+			expectedAdmitted: 256, expectedPerOwner: map[string]int{cid('a'): 256}, expectedAddRate: 744},
+		{name: "self_ignores_quota", category: "C", description: "xtcp2's own namespace gets in past every cap",
+			candidates: []nsIdentity{{pid: 7, inode: self, owner: cid('a')}}, owners: map[string]int{cid('a'): 64}, tracked: 10,
+			lim: admitLimits{maxNetns: 10, maxPerOwner: 64, maxAdds: 1, self: self}, expectedAdmitted: 1, expectedPerOwner: map[string]int{cid('a'): 1}},
+		{name: "cap_before_quota", category: "C", description: "at -maxNetns the drop counts as max_netns, not owner_quota",
+			candidates: owned(cid('a'), 3, 1000), tracked: 10, owners: map[string]int{cid('a'): 64},
+			lim: admitLimits{maxNetns: 10, maxPerOwner: 64}, expectedMaxNetns: 3},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			admit, drops := admitNamespaces(slices.Clone(tc.candidates), tc.tracked, tc.owners, tc.lim, nil)
+			per := map[string]int{}
+			for _, id := range admit {
+				per[id.owner]++
+			}
+			if len(admit) != tc.expectedAdmitted || drops.ownerQuota != tc.expectedOwnerQuota ||
+				drops.addRate != tc.expectedAddRate || drops.maxNetns != tc.expectedMaxNetns {
+				t.Errorf("%s: admitted %d drops %+v, expected %d {maxNetns:%d ownerQuota:%d addRate:%d}",
+					tc.description, len(admit), drops, tc.expectedAdmitted, tc.expectedMaxNetns, tc.expectedOwnerQuota, tc.expectedAddRate)
+			}
+			if tc.expectedPerOwner != nil && !maps.Equal(per, tc.expectedPerOwner) {
+				t.Errorf("%s: per owner %v, expected %v", tc.description, per, tc.expectedPerOwner)
 			}
 		})
 	}
@@ -334,7 +415,7 @@ func TestNetnsCapQueue(t *testing.T) {
 	var waiting map[uint64]uint64
 	var seq uint64
 	for i, st := range steps {
-		admit, _ := admitNamespaces(slices.Clone(st.candidates), st.tracked, limit, self, waiting)
+		admit, _ := admitNamespaces(slices.Clone(st.candidates), st.tracked, nil, admitLimits{maxNetns: limit, self: self}, waiting)
 		waiting, seq = queueWaiting(waiting, seq, st.candidates, admit)
 		got := make([]uint64, 0, len(admit))
 		for _, id := range admit {

@@ -42,6 +42,12 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 		socketFD: fd,
 		stat:     stat,
 	}
+	// Keep the owner nsAdd reserved the slot with.
+	if prev, ok := x.nsMap.Load(inode); ok {
+		if p, ok := prev.(netNSitem); ok {
+			nsi.owner = p.owner
+		}
+	}
 
 	wg.Add(1)
 	go x.createNetlinkers(nsCtx, wg, name, inode, fd, x.config.Netlinkers)
