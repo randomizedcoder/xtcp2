@@ -29,6 +29,7 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 	// in-flight envelope. The destination's own Close() drains pending
 	// produces with a 5s flush window.
 	defer x.flushEnvelope(context.WithoutCancel(ctx), "shutdown")
+	defer x.closeGate()
 
 	if x.debugLevel > 10 {
 		log.Printf("Poller started")
@@ -393,6 +394,17 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	x.pollStartTime = startTime
 	x.envelopeMu.Unlock()
 
+	if x.gateEnabled() {
+		polled := 0
+		for _, s := range x.planGatedPoll(pollingLoops) {
+			x.setRequestSeq(s.req, pollingLoops)
+			x.pollWith(s.fd, s.req)
+			polled++
+		}
+		x.pollTimeoutTimer.Reset(x.config.PollTimeout.AsDuration())
+		return polled
+	}
+
 	x.updateNetlinkRequestSequenceNumber(pollingLoops)
 
 	socketFDs := x.GetNetlinkSocketFDs()
@@ -426,12 +438,17 @@ func (x *XTCP) updateNetlinkRequestSequenceNumber(pollingLoops uint64) {
 }
 
 func (x *XTCP) poll(fd int) {
+	x.pollWith(fd, x.nlRequest)
+}
+
+// pollWith sends req, the request planned for this namespace, on fd.
+func (x *XTCP) pollWith(fd int, req *[]byte) {
 
 	startTime := time.Now()
 
 	x.pollTime.Store(fd, startTime)
 
-	x.sendNetlinkDumpRequest(fd, x.nlRequest)
+	x.sendNetlinkDumpRequest(fd, req)
 	// x.SendNetlinkDumpRequestPtr(x.socketFD, x.socketAddress, x.nlRequest)
 	// x.SendNetlinkDumpRequestPtrIOUring(x.socketFD, x.nlRequest)
 

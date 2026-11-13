@@ -81,7 +81,7 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 	const inode = uint64(4026531111)
 	nsCtx, nsCancel := context.WithCancel(context.Background())
 	defer nsCancel()
-	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, 100, &nsName, fds[0])
+	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, 100, &nsName, fds[0], -1)
 
 	if _, ok := x.nsMap.Load(inode); !ok {
 		t.Error("nsMap should contain the new ns entry")
@@ -152,7 +152,7 @@ func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 	const inode = uint64(4026531112)
 	nsCtx, nsCancel := context.WithCancel(context.Background())
 	defer nsCancel()
-	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, 100, &nsName, fds[0])
+	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, 100, &nsName, fds[0], -1)
 	ran.Wait()
 
 	if _, ok := x.nsMap.Load(inode); !ok {

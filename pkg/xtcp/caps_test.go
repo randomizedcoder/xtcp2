@@ -173,7 +173,7 @@ func newCapsXTCP(tb testing.TB) *XTCP {
 	x := newTestDeserializeXTCP(tb)
 	x.fdToNsMap = &sync.Map{}
 	x.pDumpDropped = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "dump_dropped_total"}, []string{"reason"})
-	x.pNetnsDropped = prometheus.NewCounter(prometheus.CounterOpts{Name: "netns_dropped_total"})
+	x.pNetnsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "netns_dropped_total"}, []string{"reason"})
 	return x
 }
 

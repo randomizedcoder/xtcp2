@@ -149,6 +149,13 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 
 	defer x.closeSocket(socketFD)
 
+	// The sockstat fd for the socket-count gate, opened here so it is bound
+	// to this namespace. Closed with the socket when the namespace goes.
+	statFD := x.openSockstatFD()
+	if statFD > 0 {
+		defer x.closeFD(statFD)
+	}
+
 	// https://godoc.org/golang.org/x/sys/unix#Bind
 	// https://godoc.org/golang.org/x/sys/unix#SockaddrNetlink
 	err = unix.Bind(socketFD, &unix.SockaddrNetlink{Family: syscall.AF_NETLINK})
@@ -171,7 +178,7 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	// (see nsAdd). createNetlinkersAndStore fills in the socketFD and starts
 	// the netlinkers; it no-ops if the namespace was already deleted during
 	// the setns/socket init above.
-	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, pid, name, socketFD)
+	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, pid, name, socketFD, statFD)
 
 	x.pH.WithLabelValues("netNamespaceInstance", "store", "counter").Observe(time.Since(startTime).Seconds())
 
@@ -183,6 +190,29 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	x.listenLocality(nsCtx, inode)
 
 	x.pC.WithLabelValues("netNamespaceInstance", "ctx.Done", "count").Inc()
+}
+
+// openSockstat is the seam tests swap to fake or fail the sockstat open.
+var openSockstat = func() (int, error) {
+	return unix.Open(sockstatPath, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+}
+
+// openSockstatFD opens the calling thread's namespace's sockstat when the
+// socket-count gate is on (-maxRecordsPerPoll > 0). It returns -1 when the
+// gate is off or the open fails; that namespace's count is then unknown.
+func (x *XTCP) openSockstatFD() int {
+	if x.config.GetMaxRecordsPerPoll() == 0 {
+		return -1
+	}
+	fd, err := openSockstat()
+	if err != nil {
+		x.pC.WithLabelValues("netNamespaceInstance", "openSockstat", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("openSockstatFD %s: %v", sockstatPath, err)
+		}
+		return -1
+	}
+	return fd
 }
 
 func (x *XTCP) closeSocket(socketFD int) {
@@ -227,7 +257,9 @@ func (x *XTCP) openDefaultNetLinkSocket(ctx context.Context) {
 	// backward compatibility.
 	df := "default"
 	nsCtx, nsCancel := context.WithCancel(ctx)
-	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD)
+	// xtcp2's own namespace: any unlocked thread is in it, and both fds live
+	// as long as the daemon.
+	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD, x.openSockstatFD())
 
 	// The host namespace has no netNamespaceInstance to run its locality
 	// listener; any unlocked thread is in it.

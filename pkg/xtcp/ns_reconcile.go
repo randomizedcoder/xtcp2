@@ -146,7 +146,7 @@ func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 	if dropped > 0 {
 		x.pC.WithLabelValues("reconcile", "maxNetns", "drop").Add(float64(dropped))
 		if x.pNetnsDropped != nil {
-			x.pNetnsDropped.Add(float64(dropped))
+			x.pNetnsDropped.WithLabelValues(netnsDropMaxNetnsCst).Add(float64(dropped))
 		}
 		log.Printf("reconcile: %d namespaces not tracked: -maxNetns=%d reached", dropped, limit)
 	}

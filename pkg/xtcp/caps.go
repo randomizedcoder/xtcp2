@@ -18,6 +18,13 @@ const (
 	dumpDropRecordsCst = "records"
 )
 
+// Reasons for xtcp_netns_dropped_total.
+const (
+	netnsDropMaxNetnsCst   = "max_netns"
+	netnsDropOwnerQuotaCst = "owner_quota"
+	netnsDropAddRateCst    = "add_rate"
+)
+
 // dumpTruncated counts a dump cut short by the cap named by reason, and logs
 // it. Callers make it once per dump, so it is at most one line per
 // namespace per poll.

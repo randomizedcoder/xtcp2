@@ -235,7 +235,13 @@ type XTCP struct {
 	// "records"); pNetnsDropped counts namespaces reconcile left untracked
 	// at -maxNetns. See caps.go. nil until InitPromethus.
 	pDumpDropped  *prometheus.CounterVec
-	pNetnsDropped prometheus.Counter
+	pNetnsDropped *prometheus.CounterVec
+	// The socket-count gate and reconcile limits (pollgate.go,
+	// ns_reconcile.go).
+	pPollSockets         prometheus.Gauge
+	pPollDegraded        *prometheus.CounterVec
+	pReconcileIncomplete *prometheus.CounterVec
+	gate                 *pollGate
 
 	debugLevel uint32
 }
@@ -272,6 +278,10 @@ type netNSitem struct {
 	cancel   context.CancelFunc
 	wg       *sync.WaitGroup
 	socketFD int
+	// statFD is this namespace's sockstat, opened in the namespace for the
+	// socket-count gate (sockstat.go). <= 0 means not open: the gate is off,
+	// the open failed, or the slot is still reserved.
+	statFD int
 }
 
 type netlinkerDone struct {

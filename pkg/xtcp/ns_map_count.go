@@ -89,6 +89,27 @@ func (x *XTCP) GetNetlinkSocketFDs() (fds []int) {
 	return getNetlinkSocketFDs(x.nsMap)
 }
 
+// nsPollFDs is one tracked namespace's netlink socket and sockstat fd.
+type nsPollFDs struct {
+	socketFD int
+	statFD   int
+}
+
+// getPollFDs appends every tracked namespace's fds to dst (reused across
+// polls) and returns it.
+func getPollFDs(m *sync.Map, dst []nsPollFDs) []nsPollFDs {
+	dst = dst[:0]
+	m.Range(func(k, v interface{}) bool {
+		item, ok := v.(netNSitem)
+		if !ok {
+			return true
+		}
+		dst = append(dst, nsPollFDs{socketFD: item.socketFD, statFD: item.statFD})
+		return true
+	})
+	return dst
+}
+
 // getNetlinkSocketFDs returns the current active set of
 // netlink file descriptors
 func getNetlinkSocketFDs(m *sync.Map) (fds []int) {
