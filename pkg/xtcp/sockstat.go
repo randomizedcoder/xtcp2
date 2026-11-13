@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
+	"syscall"
 
 	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
 	"golang.org/x/sys/unix"
@@ -33,6 +35,53 @@ const sockstatBufSize = 1024
 // sockstatPath is the per-thread sockstat: after Setns, the calling thread's
 // namespace. /proc/self/net would follow the thread-group leader instead.
 const sockstatPath = "/proc/thread-self/net/sockstat"
+
+// statHandle owns one namespace's sockstat fd. The poller reads it under
+// the read lock; the namespace's teardown closes it under the write lock.
+// So the poller never reads an fd number after it is closed, when it may
+// already be reused for another file or socket.
+type statHandle struct {
+	mu sync.RWMutex
+	fd int
+}
+
+// newStatHandle wraps fd; nil for an fd that isn't open (<= 0).
+func newStatHandle(fd int) *statHandle {
+	if fd <= 0 {
+		return nil
+	}
+	return &statHandle{fd: fd}
+}
+
+// acquire read-locks h and returns its fd, or -1 once closed. Every
+// acquire on a non-nil handle needs a release. nil-safe.
+func (h *statHandle) acquire() int {
+	if h == nil {
+		return -1
+	}
+	h.mu.RLock()
+	return h.fd
+}
+
+func (h *statHandle) release() {
+	if h != nil {
+		h.mu.RUnlock()
+	}
+}
+
+// close waits out a poll's read, then closes the fd. nil-safe, idempotent.
+func (h *statHandle) close(closeFD func(int)) {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	fd := h.fd
+	h.fd = -1
+	h.mu.Unlock()
+	if fd > 0 {
+		closeFD(fd)
+	}
+}
 
 // sockstatCount is one namespace's TCP socket count.
 type sockstatCount struct {
@@ -245,9 +294,9 @@ func (r *ringSockstatReader) serve(batch int, workers uint32, ready chan<- error
 		ready <- fmt.Errorf("sockstat ring: %w", err)
 		return
 	}
-	defer ring.Close(0, nil)
 	if workers > 0 {
 		if _, _, err := ring.SetIOWQMaxWorkers(workers, workers); err != nil {
+			ring.Close(0, nil) // nothing submitted yet
 			ready <- err
 			return
 		}
@@ -255,6 +304,16 @@ func (r *ringSockstatReader) serve(batch int, workers uint32, ready chan<- error
 	ready <- nil
 
 	b := newRingBatcher(ring, batch)
+	defer func() {
+		if b.broken {
+			brokenSockstatRingsMu.Lock()
+			brokenSockstatRings = append(brokenSockstatRings, b)
+			brokenSockstatRingsMu.Unlock()
+			return
+		}
+		// Every batch waited for all its completions: nothing in flight.
+		ring.Close(0, nil)
+	}()
 	for req := range r.reqs {
 		failed, submits, err := b.read(req.fds, req.counts)
 		req.reply <- ringSockstatReply{failed: failed, submits: submits, err: err}
@@ -280,6 +339,27 @@ type sockstatRing interface {
 	DrainBatch() []xio.Result
 	WaitOne() ([]xio.Result, error)
 }
+
+// retryEINTR retries f while a signal interrupts the io_uring_enter.
+func retryEINTR(f func() error) error {
+	for {
+		err := f()
+		if !errors.Is(err, syscall.EINTR) {
+			return err
+		}
+	}
+}
+
+// brokenSockstatRings keeps a broken ring and its buffers reachable for
+// the life of the process. Reads may still be running in io-wq workers
+// and will write into the buffers; closing the ring or letting the GC
+// reuse the buffers would let the kernel write into freed memory. The
+// gate falls back to pread for good after a break, so this holds at most
+// one ring.
+var (
+	brokenSockstatRingsMu sync.Mutex
+	brokenSockstatRings   []*ringBatcher
+)
 
 // ringBatcher queues up to batch reads, submits them in one
 // io_uring_enter, and matches each CQE to its namespace by request ID.
@@ -343,15 +423,19 @@ func (b *ringBatcher) readBatch(fds []int, counts []sockstatCount) (failed, subm
 	if want == 0 {
 		return failed, 0
 	}
-	if _, err := b.ring.SubmitAndWait(uint32(want)); err != nil {
+	if err := retryEINTR(func() error { _, err := b.ring.SubmitAndWait(uint32(want)); return err }); err != nil {
 		b.broken = true
 		return failed + want, 1
 	}
 	for got := 0; got < want; {
 		res := b.ring.DrainBatch()
 		if len(res) == 0 {
-			var err error
-			if res, err = b.ring.WaitOne(); err != nil {
+			err := retryEINTR(func() error {
+				var err error
+				res, err = b.ring.WaitOne()
+				return err
+			})
+			if err != nil {
 				b.broken = true
 				return failed + want - got, 1
 			}

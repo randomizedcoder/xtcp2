@@ -278,10 +278,10 @@ type netNSitem struct {
 	cancel   context.CancelFunc
 	wg       *sync.WaitGroup
 	socketFD int
-	// statFD is this namespace's sockstat, opened in the namespace for the
-	// socket-count gate (sockstat.go). <= 0 means not open: the gate is off,
-	// the open failed, or the slot is still reserved.
-	statFD int
+	// stat is this namespace's sockstat fd, opened in the namespace for the
+	// socket-count gate (sockstat.go). nil: the gate is off, the open
+	// failed, or the slot is still reserved.
+	stat *statHandle
 }
 
 type netlinkerDone struct {

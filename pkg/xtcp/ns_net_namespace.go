@@ -151,10 +151,8 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 
 	// The sockstat fd for the socket-count gate, opened here so it is bound
 	// to this namespace. Closed with the socket when the namespace goes.
-	statFD := x.openSockstatFD()
-	if statFD > 0 {
-		defer x.closeFD(statFD)
-	}
+	stat := newStatHandle(x.openSockstatFD())
+	defer stat.close(x.closeFD)
 
 	// https://godoc.org/golang.org/x/sys/unix#Bind
 	// https://godoc.org/golang.org/x/sys/unix#SockaddrNetlink
@@ -178,7 +176,7 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	// (see nsAdd). createNetlinkersAndStore fills in the socketFD and starts
 	// the netlinkers; it no-ops if the namespace was already deleted during
 	// the setns/socket init above.
-	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, pid, name, socketFD, statFD)
+	x.createNetlinkersAndStore(nsCtx, nsCancel, inode, pid, name, socketFD, stat)
 
 	x.pH.WithLabelValues("netNamespaceInstance", "store", "counter").Observe(time.Since(startTime).Seconds())
 
@@ -259,7 +257,7 @@ func (x *XTCP) openDefaultNetLinkSocket(ctx context.Context) {
 	nsCtx, nsCancel := context.WithCancel(ctx)
 	// xtcp2's own namespace: any unlocked thread is in it, and both fds live
 	// as long as the daemon.
-	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD, x.openSockstatFD())
+	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD, newStatHandle(x.openSockstatFD()))
 
 	// The host namespace has no netNamespaceInstance to run its locality
 	// listener; any unlocked thread is in it.

@@ -78,8 +78,16 @@ func (x *XTCP) planGatedPoll(pollingLoops uint64) []nsSend {
 			continue
 		}
 		g.ready = append(g.ready, p)
-		g.statFDs = append(g.statFDs, p.statFD)
+		g.statFDs = append(g.statFDs, p.stat.acquire())
 	}
+	// Hold every handle's read lock until the reads are done, so a
+	// namespace torn down meanwhile can't close (and the kernel reuse) an
+	// fd the reader is about to use. A teardown waits at most this read.
+	defer func() {
+		for _, p := range g.ready {
+			p.stat.release()
+		}
+	}()
 	if cap(g.counts) < len(g.ready) {
 		g.counts = make([]sockstatCount, len(g.ready))
 	}

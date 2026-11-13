@@ -13,7 +13,7 @@ import (
 // leaving netNamespaceInstance blocked on the parent (daemon-lifetime)
 // context — its deferred closeSocket(fd) never fired on a delete, leaking
 // one netlink fd + one goroutine per namespace removed.
-func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.CancelFunc, inode uint64, pid int, name *string, fd, statFD int) {
+func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.CancelFunc, inode uint64, pid int, name *string, fd int, stat *statHandle) {
 
 	x.pC.WithLabelValues("createWorksAndStore", "start", "counter").Inc()
 
@@ -40,7 +40,7 @@ func (x *XTCP) createNetlinkersAndStore(nsCtx context.Context, nsCancel context.
 		cancel:   nsCancel,
 		wg:       wg,
 		socketFD: fd,
-		statFD:   statFD,
+		stat:     stat,
 	}
 
 	wg.Add(1)

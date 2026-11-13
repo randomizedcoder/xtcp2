@@ -458,15 +458,16 @@ func (x *XTCP) pollWith(fd int, req *[]byte) {
 	}
 }
 
+// sendDumpRequest is the seam tests swap to capture the request each
+// namespace is sent.
+var sendDumpRequest = func(fd int, b []byte) error {
+	return unix.Sendto(fd, b, 0, &unix.SockaddrNetlink{Family: syscall.AF_NETLINK})
+}
+
 func (x *XTCP) sendNetlinkDumpRequest(fd int, packetBytes *[]byte) {
 	// Send the netlink dump request
 	// https://godoc.org/golang.org/x/sys/unix#Sendto
-	err := unix.Sendto(
-		fd,
-		*packetBytes,
-		0,
-		&unix.SockaddrNetlink{Family: syscall.AF_NETLINK},
-	)
+	err := sendDumpRequest(fd, *packetBytes)
 	if err != nil {
 		x.pC.WithLabelValues("SendNetlinkDumpRequest", "Sendto", "error").Inc()
 		if x.debugLevel > 10 {

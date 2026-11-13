@@ -34,7 +34,6 @@ func (x *XTCP) nsAdd(ctx context.Context, id nsIdentity) {
 		ctx:      nsCtx,
 		cancel:   nsCancel,
 		socketFD: -1, // not opened yet; netNamespaceInstance fills it in
-		statFD:   -1,
 	}); loaded {
 		// Already tracked — release the context we just made and bail.
 		nsCancel()

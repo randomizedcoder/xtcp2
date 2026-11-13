@@ -18,8 +18,10 @@ import (
 //     idiag_states check), so the dump is about sockstat's inuse.
 //  2. pollSample: also split the namespace's sockets into K port shards and
 //     ask for shard (pollingLoops mod K) each poll, with inet_diag bytecode
-//     (sport in R_k) OR (dport in R_k). Every socket's dport is in exactly
-//     one range, so K consecutive polls see every socket at least once.
+//     matching shardKey(sport, dport) in R_k. The K ranges partition the
+//     port space, so K consecutive polls see every socket exactly once.
+//     Sockets that share both ports (differing only by address) share a
+//     shard; -maxRecordsPerNetns still bounds that.
 //
 // Port ops need no CAP_NET_ADMIN (only MARK_COND does; inet_diag.c
 // inet_diag_bc_audit), so the shard filter works wherever xtcp2 does.
@@ -148,38 +150,74 @@ func degrade(c sockstatCount, demand, share, pollingLoops uint64) nsPlan {
 	}
 }
 
-// shardRange is the k-th of K equal slices of the port space 0..65535.
+// shardRange is shard k of K's range of shard keys. Keys are almost all
+// ephemeral ports (>= ephemeralLoCst), so the ranges split 32768..65535
+// evenly and shard 0 also takes every key below it (listeners, whose dport
+// is 0, and the rare socket with no ephemeral side).
 func shardRange(k, shards uint32) (lo, hi uint16) {
-	const space = 1 << 16
-	l := uint64(k) * space / uint64(shards)
-	h := uint64(k+1)*space/uint64(shards) - 1
+	const span = 1<<16 - ephemeralLoCst
+	l := ephemeralLoCst + uint64(k)*span/uint64(shards)
+	h := ephemeralLoCst + uint64(k+1)*span/uint64(shards) - 1
+	if k == 0 {
+		l = 0
+	}
 	return uint16(l), uint16(h)
 }
 
-// shardBytecode is inet_diag bytecode for (sport in [lo,hi]) OR
-// (dport in [lo,hi]), shaped as iproute2's ssfilter builds an OR (a; JMP;
-// b) so every jump target is on the yes-chain, as the kernel's valid_cc
-// requires:
+// ephemeralLoCst splits the port space for sharding: a socket's shard key
+// is its sport when sport >= ephemeralLoCst (a client-side ephemeral port,
+// or a listener's accepted socket seen from the client) and its dport
+// otherwise (a server-side socket: dport is the peer's ephemeral port).
+// It covers Linux's default ip_local_port_range (32768-60999) and IANA's
+// (49152-65535). Keying on the varying side spreads a busy listener's
+// sockets over every shard, where keying on either port would put them all
+// in the shard holding the listener's port. The split only affects the
+// spread: the shards partition every socket either way.
+const ephemeralLoCst = 32768
+
+// shardKey is the port shardBytecode filters on.
+func shardKey(sport, dport uint16) uint16 {
+	if sport >= ephemeralLoCst {
+		return sport
+	}
+	return dport
+}
+
+// shardBytecode is inet_diag bytecode for shardKey(sport, dport) in
+// [lo,hi]:
 //
-//	 0 S_GE lo  yes 8  no 20  ┐ sport range; a miss goes to the dport range
-//	 8 S_LE hi  yes 8  no 12  ┘
-//	16 JMP      yes 4  no 20    sport matched: jump to the end (accept)
-//	20 D_GE lo  yes 8  no 20  ┐ dport range; a miss jumps past the end
-//	28 D_LE hi  yes 8  no 12  ┘ (reject)
+//	(sport >= 32768 AND sport >= lo AND sport <= hi) OR
+//	(sport <= 32767 AND dport >= lo AND dport <= hi)
+//
+// shaped as iproute2's ssfilter builds an OR (a; JMP; b) so every jump
+// target is on the yes-chain, as the kernel's valid_cc requires:
+//
+//	 0 S_GE 32768 yes 8 no 28  ┐ a: a miss goes to b (offset 28)
+//	 8 S_GE lo    yes 8 no 20  │
+//	16 S_LE hi    yes 8 no 12  ┘
+//	24 JMP        yes 4 no 28    a matched: jump to the end (accept)
+//	28 S_LE 32767 yes 8 no 28  ┐ b: a miss jumps past the end (reject)
+//	36 D_GE lo    yes 8 no 20  │
+//	44 D_LE hi    yes 8 no 12  ┘ falling off the end accepts
 func shardBytecode(lo, hi uint16) []byte {
 	op := func(b []byte, code, yes uint8, no uint16) []byte {
 		b = append(b, code, yes)
 		return binary.LittleEndian.AppendUint16(b, no)
 	}
 	port := func(b []byte, p uint16) []byte { return op(b, 0, 0, p) }
-	bc := make([]byte, 0, 36)
+	bc := make([]byte, 0, shardBytecodeLen)
+	bc = port(op(bc, xtcpnl.InetDiagBcSGe, 8, 28), ephemeralLoCst)
 	bc = port(op(bc, xtcpnl.InetDiagBcSGe, 8, 20), lo)
 	bc = port(op(bc, xtcpnl.InetDiagBcSLe, 8, 12), hi)
-	bc = op(bc, xtcpnl.InetDiagBcJmp, 4, 20)
+	bc = op(bc, xtcpnl.InetDiagBcJmp, 4, 28)
+	bc = port(op(bc, xtcpnl.InetDiagBcSLe, 8, 28), ephemeralLoCst-1)
 	bc = port(op(bc, xtcpnl.InetDiagBcDGe, 8, 20), lo)
 	bc = port(op(bc, xtcpnl.InetDiagBcDLe, 8, 12), hi)
 	return bc
 }
+
+// shardBytecodeLen is shardBytecode's length: six port ops and a JMP.
+const shardBytecodeLen = 6*2*xtcpnl.InetDiagBcOpSizeCst + xtcpnl.InetDiagBcOpSizeCst
 
 // nlattrHdrSize is struct nlattr.
 const nlattrHdrSize = 4
