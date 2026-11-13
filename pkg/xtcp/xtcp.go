@@ -75,10 +75,6 @@ type XTCP struct {
 	// (under reconcileMu); empty unless the cap is reached.
 	nsWaiting    map[uint64]uint64
 	nsWaitingSeq uint64
-	// nsOwners caches each waiting candidate's owner (inode → owner), so a
-	// namespace kept out by a cap isn't re-read every reconcile. Pruned to
-	// the current candidates each reconcile. Owned by reconcile.
-	nsOwners map[uint64]string
 
 	packetBufferPool xsync.Pool[*[]byte]
 	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]
@@ -246,6 +242,12 @@ type XTCP struct {
 	pPollDegraded        *prometheus.CounterVec
 	pReconcileIncomplete *prometheus.CounterVec
 	gate                 *pollGate
+	// nsOwners caches each waiting candidate's owner (inode → owner), so a
+	// namespace kept out by a cap isn't re-read every reconcile. Pruned to
+	// the current candidates each reconcile. Owned by reconcile. Kept down
+	// here, with the other FP-5 additions: a field added above the pools
+	// shifts the hot pool fields and cost 5-10% at 4-8 decoders.
+	nsOwners map[uint64]string
 
 	debugLevel uint32
 }

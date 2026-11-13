@@ -12,6 +12,12 @@ import (
 // the namespaces tracked. Each drop is counted, so a namespace past a cap
 // costs a metric rather than the collector's CPU or memory. 0 turns a cap off.
 
+// Label names of the cap metrics.
+const (
+	promLabelReasonCst = "reason"
+	promLabelLevelCst  = "level"
+)
+
 // Reasons for xtcp_dump_dropped_total.
 const (
 	dumpDropBytesCst   = "bytes"

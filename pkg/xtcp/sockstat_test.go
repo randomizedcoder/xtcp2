@@ -81,7 +81,7 @@ func openSockstatFDs(t *testing.T, n int) []int {
 		if err != nil {
 			t.Skipf("sockstat: %v", err)
 		}
-		t.Cleanup(func() { f.Close() })
+		t.Cleanup(func() { _ = f.Close() })
 		fds[i] = int(f.Fd())
 	}
 	return fds

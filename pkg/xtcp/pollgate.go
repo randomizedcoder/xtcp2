@@ -144,7 +144,9 @@ func (x *XTCP) planGatedPoll(pollingLoops uint64) []nsSend {
 		log.Printf("sockstat io_uring reader failed, using pread: %v", err)
 		g.reader.close()
 		g.reader = newSyscallSockstatReader()
-		failed, _ = g.reader.read(g.statFDs, g.counts)
+		if failed, err = g.reader.read(g.statFDs, g.counts); err != nil {
+			log.Printf("sockstat pread reader: %v", err) // never: pread has no reader-level error
+		}
 	}
 	if failed > 0 {
 		x.pC.WithLabelValues("poller", "sockstat", "error").Add(float64(failed))
@@ -169,6 +171,7 @@ func (x *XTCP) planGatedPoll(pollingLoops uint64) []nsSend {
 			pl.level = pollFull
 		}
 		switch pl.level {
+		case pollFull:
 		case pollStates:
 			states++
 		case pollSample:

@@ -102,10 +102,7 @@ var sockstatTCPPrefix = []byte("TCP:")
 // namespace is being torn down) reads as 0.
 func parseSockstat(b []byte) (inuse, tw uint64, ok bool) {
 	line := b
-	for {
-		if bytes.HasPrefix(line, sockstatTCPPrefix) {
-			break
-		}
+	for !bytes.HasPrefix(line, sockstatTCPPrefix) {
 		i := bytes.IndexByte(line, '\n')
 		if i < 0 {
 			return 0, 0, false
@@ -131,7 +128,7 @@ func parseSockstat(b []byte) (inuse, tw uint64, ok bool) {
 		if val == nil {
 			return 0, 0, false
 		}
-		switch string(key) { // no allocation: compiler-recognised conversion
+		switch string(key) { // no allocation: compiler-recognized conversion
 		case "inuse":
 			n, neg, good := parseDecimal(val)
 			if !good || neg {

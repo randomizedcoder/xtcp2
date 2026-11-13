@@ -20,7 +20,7 @@ func benchSockstatFDs(b *testing.B, n int) []int {
 		if err != nil {
 			b.Skipf("sockstat (n=%d; raise ulimit -n?): %v", n, err)
 		}
-		b.Cleanup(func() { f.Close() })
+		b.Cleanup(func() { _ = f.Close() })
 		fds[i] = int(f.Fd())
 	}
 	return fds

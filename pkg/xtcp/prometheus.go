@@ -96,7 +96,7 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 			Name:      "dump_dropped_total",
 			Help:      "Namespace dumps cut short by -maxDumpBytes (reason=bytes) or -maxRecordsPerNetns (reason=records), at most one per reason per dump.",
 		},
-		[]string{"reason"},
+		[]string{promLabelReasonCst},
 	)
 	x.pNetnsDropped = factory.NewCounterVec(
 		prometheus.CounterOpts{
@@ -104,7 +104,7 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 			Name:      "netns_dropped_total",
 			Help:      "Live namespaces a reconcile left untracked, counted per reconcile: reason=max_netns (-maxNetns reached), owner_quota (-maxNetnsPerOwner), add_rate (-maxNetnsAddsPerReconcile).",
 		},
-		[]string{"reason"},
+		[]string{promLabelReasonCst},
 	)
 	x.pPollSockets = factory.NewGauge(
 		prometheus.GaugeOpts{
@@ -119,7 +119,7 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 			Name:      "poll_degraded_total",
 			Help:      "Namespace polls degraded by -maxRecordsPerPoll: level=states (TIME_WAIT and SYN_RECV not asked for), sample (one port shard of K).",
 		},
-		[]string{"level"},
+		[]string{promLabelLevelCst},
 	)
 	x.pReconcileIncomplete = factory.NewCounterVec(
 		prometheus.CounterOpts{
@@ -127,7 +127,7 @@ func (x *XTCP) InitPromethus(wg *sync.WaitGroup) {
 			Name:      "reconcile_incomplete_total",
 			Help:      "Reconciles whose namespace scan stopped early: reason=timeout (-reconcileTimeout), scan_cap (4 x -maxNetns namespaces). An incomplete scan deletes nothing.",
 		},
-		[]string{"reason"},
+		[]string{promLabelReasonCst},
 	)
 
 	x.publishCompiledInEnrichers()

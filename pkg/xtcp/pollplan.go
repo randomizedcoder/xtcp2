@@ -249,6 +249,7 @@ func (r *pollRequests) get(pl nsPlan) (*[]byte, error) {
 		return r.full, nil
 	case pollStates:
 		return r.states, nil
+	case pollSample:
 	}
 	key := uint64(pl.shards)<<32 | uint64(pl.shard)
 	if req, ok := r.shards[key]; ok {

@@ -76,7 +76,7 @@ func writeSockstat(t *testing.T, inuse, tw string) int {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { f.Close() })
+	t.Cleanup(func() { _ = f.Close() })
 	return int(f.Fd())
 }
 
