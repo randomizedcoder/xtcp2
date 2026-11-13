@@ -478,6 +478,22 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-6 nexthop add id 82 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0",
 		"-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap rpl segs 2001:db8:9::1 nexthop via 2001:db8:1::2 dev d0",
 		"-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0 nexthop via 2001:db8:1::2 dev d0",
+		// The fourteen NX10b bpf writes, goip loading the object with
+		// cilium/ebpf, gated on two route,nexthop section runs (2026-11-13):
+		"-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 16 dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 1 dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 256 dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in in obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 8 headroom 9 dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 257 dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf headroom 16 dev d0",
+		"-6 nexthop add id 83 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0",
+		"-6 nexthop add id 84 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 32 dev d0",
+		"-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in nexthop via 2001:db8:1::2 dev d0",
 		// The fifteen NX5a stats rows, gated on two stats section runs at
 		// iproute2 7.3.0 (2026-11-10): GOIP_PARITY_PASS with stdout=0 on
 		// both, txns 6/6 on the twelve dumps and 2/2 on the three dev d0

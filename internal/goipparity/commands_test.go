@@ -4929,7 +4929,7 @@ func TestLwtencRowsGated(t *testing.T) {
 		{"positive: ioam6 on a multipath hop", "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0 nexthop via 2001:db8:1::2 dev d0", true, true},
 		{"boundary: the largest ioam6 trace size", "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 244 dev d0", true, true},
 		{"corner: rpl with no segs, an empty SRH the kernel takes", "-6 route add 2001:db8:2::/64 encap rpl dev d0", true, true},
-		{"negative: a bpf write is not a row, since goip refuses it", "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0", false, false},
+		{"negative: a write ip refuses before sending is not a row", "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 13 dev d0", false, false},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
@@ -4950,6 +4950,58 @@ func TestLwtencRowsGated(t *testing.T) {
 			if !c.Implemented || c.Write != r.write || c.NeedsDev || c.Floor != 4 || !slices.Equal(c.Setup, want) {
 				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want implemented, write %v, floor 4, setup %v",
 					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.write, want)
+			}
+		})
+	}
+}
+
+// TestBpfWriteRowsGated pins NX10b's fourteen bpf writes, which goip loads
+// with cilium/ebpf (NX10a) and which gated on two clean route,nexthop
+// section runs on the parity guest, its lwt_bpf.o at /run/nlcap-ws.
+//
+// go test ./internal/goipparity/ -run TestBpfWriteRowsGated
+func TestBpfWriteRowsGated(t *testing.T) {
+	const o = "/run/nlcap-ws/lwt_bpf.o"
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated, and a GW row on gwWsSetupD0
+	}{
+		{"positive: an in prog", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec lwt_in dev d0", true},
+		{"positive: all three hooks and a headroom", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec lwt_in out obj " + o +
+			" sec lwt_out xmit obj " + o + " sec lwt_xmit headroom 16 dev d0", true},
+		{"positive: bpf on a nexthop", "-6 nexthop add id 83 encap bpf in obj " + o + " sec lwt_in dev d0", true},
+		{"positive: bpf on a multipath hop", "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap bpf in obj " + o +
+			" sec lwt_in nexthop via 2001:db8:1::2 dev d0", true},
+		{"boundary: the largest headroom the kernel takes", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 256 dev d0", true},
+		{"boundary: one past it, the kernel's ERANGE", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 257 dev d0", true},
+		{"corner: a repeated in, both sent", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec lwt_in in obj " + o + " sec lwt_out dev d0", true},
+		{"corner: two headrooms, the first sent", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 8 headroom 9 dev d0", true},
+		{"negative: headroom 0, ip's invarg before sending", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 0 dev d0", false},
+		{"negative: a missing section, refused before sending", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec nosuch dev d0", false},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			c, lookupErr := Lookup(r.command)
+			if !r.expected {
+				if lookupErr == nil {
+					t.Errorf("Lookup(%q): a row, want none", r.command)
+				}
+				return
+			}
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || !c.Write || c.NeedsDev || c.Floor != 4 || !slices.Equal(c.Setup, gwWsSetupD0) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented write, floor 4, setup %v",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, gwWsSetupD0)
 			}
 		})
 	}

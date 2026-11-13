@@ -7037,7 +7037,7 @@ var commands = withArgs([]Command{
 	},
 	// NX9-T03 (goip-parity-next.md): the lwtenc corpus's rpl and ioam6
 	// writes, which install on the parity guest's kernel (NX9-T01). The bpf
-	// writes are not here: goip loads no BPF object and refuses them.
+	// writes follow (NX10b).
 	{
 		Name: "-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1 dev d0", Slug: "gw_rplroute_ec_001",
 		// rplroute/ec-001: one seg (rc 0).
@@ -7101,6 +7101,81 @@ var commands = withArgs([]Command{
 	{
 		Name: "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0 nexthop via 2001:db8:1::2 dev d0", Slug: "gw_lwtenchop_ec_002",
 		// lwtenchop/ec-002: ioam6 on a multipath hop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	// NX10b (goip-parity-next.md): the lwtenc corpus's bpf writes, which goip
+	// loads with cilium/ebpf (NX10a). The parity guest links the object at
+	// /run/nlcap-ws/lwt_bpf.o; nlparity zeroes LWT_BPF_PROG_FD, the two
+	// processes' own descriptors. ip's refusals before sending (rc 255) are
+	// not rows.
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0", Slug: "gw_bpfroute_ec_001",
+		// bpfroute/ec-001: an in prog (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0", Slug: "gw_bpfroute_ec_002",
+		// bpfroute/ec-002: an out prog (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0", Slug: "gw_bpfroute_ec_003",
+		// bpfroute/ec-003: an xmit prog (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 16 dev d0", Slug: "gw_bpfroute_ec_004",
+		// bpfroute/ec-004: all three and a headroom (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 1 dev d0", Slug: "gw_bpfroute_ec_005",
+		// bpfroute/ec-005: the smallest headroom (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 256 dev d0", Slug: "gw_bpfroute_ec_006",
+		// bpfroute/ec-006: the largest headroom the kernel takes (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0", Slug: "gw_bpfroute_ec_007",
+		// bpfroute/ec-007: lwt_xmit's prog on the in hook, retyped (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in in obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0", Slug: "gw_bpfroute_ec_008",
+		// bpfroute/ec-008: a repeated in, both sent; the kernel keeps the last (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 8 headroom 9 dev d0", Slug: "gw_bpfroute_ec_009",
+		// bpfroute/ec-009: two headrooms, the first sent (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 257 dev d0", Slug: "gw_bpfroute_ng_002",
+		// bpfroute/ng-002: a headroom past LWT_BPF_MAX_HEADROOM, ERANGE (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf headroom 16 dev d0", Slug: "gw_bpfroute_ng_003",
+		// bpfroute/ng-003: a headroom and no prog, EINVAL (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 83 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0", Slug: "gw_lwtencnh_ec_003",
+		// lwtencnh/ec-003: bpf on a nexthop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 84 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 32 dev d0", Slug: "gw_lwtencnh_ec_004",
+		// lwtencnh/ec-004: bpf xmit and a headroom on a nexthop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in nexthop via 2001:db8:1::2 dev d0", Slug: "gw_lwtenchop_ec_003",
+		// lwtenchop/ec-003: bpf on a multipath hop (rc 0).
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 	{

@@ -978,13 +978,13 @@ The user's decision (2026-11-12): the goip-parity guest gets the workbench's ker
 
 ### NX9-T02 the rows
 
-Thirteen writes from the lwtenc corpus (`gw_rplroute_*`, `gw_ioam6route_*`, `gw_lwtencnh_*`, `gw_lwtenchop_*`, rpl and ioam6 only: goip refuses bpf writes), and seven readbacks on `lwtencReadSetup`: `-6`, `-j -6` and `-d -6 route show table main`, `-4` and `-j -4 route show table main`, `-6` and `-j -6 nexthop show`. `gwCorpusDir` reads the 7_3_1 corpus too. Two clean section runs (route, nexthop) gate them, and a test pins the flip.
+Thirteen writes from the lwtenc corpus (`gw_rplroute_*`, `gw_ioam6route_*`, `gw_lwtencnh_*`, `gw_lwtenchop_*`, rpl and ioam6 only; the bpf writes are NX10b's), and seven readbacks on `lwtencReadSetup`: `-6`, `-j -6` and `-d -6 route show table main`, `-4` and `-j -4 route show table main`, `-6` and `-j -6 nexthop show`. `gwCorpusDir` reads the 7_3_1 corpus too. Two clean section runs (route, nexthop) gate them, and a test pins the flip.
 
 | description | rows | expected |
 |---|---|---|
 | positive: the writes | 13 | GOIP_PARITY_PASS, txns as ip, on both runs |
 | positive: the readbacks | 7 | GOIP_PARITY_PASS with stdout=0 |
-| negative: bpf writes | none | not rows; goip refuses them |
+| negative: bpf writes | none | not rows here; NX10b gates them |
 
 ## NX10 goip writes bpf encaps
 
@@ -1005,7 +1005,16 @@ The user's decision (2026-11-13): goip loads the BPF object with cilium/ebpf, so
 
 ### NX10b the VM rows
 
-The bpf writes from the lwtenc corpus (bpfroute's ec, ng and dup rows, lwtencnh ec-003 and ec-004, lwtenchop ec-003) as GW rows on NX9's setup. Two clean `--section route,nexthop` runs gate them, and a test pins them.
+The bpf writes from the lwtenc corpus as GW rows on `gwWsSetupD0`: those ip sends (rc 0 or 2), each command once. Two clean `--section route,nexthop` runs gate them, and `TestBpfWriteRowsGated` pins them.
+
+| description | rows | expected |
+|---|---|---|
+| positive: the hooks, alone and together | bpfroute ec-001 to ec-004 | GOIP_PARITY_PASS, txns as ip |
+| boundary: headroom 1 and 256; 257 | ec-005, ec-006; ng-002 | rc 0; rc 2 (ERANGE) on both |
+| corner: a retyped section, a repeated hook, two headrooms | ec-007, ec-008, ec-009 | ip's request |
+| negative: a headroom and no prog | ng-003 | rc 2 (EINVAL) on both |
+| positive: on a nexthop and a hop | lwtencnh ec-003, ec-004; lwtenchop ec-003 | ip's request |
+| negative: ip's refusals before sending | ng-001, ng-004, ng-005 | not rows |
 
 ## See also
 
