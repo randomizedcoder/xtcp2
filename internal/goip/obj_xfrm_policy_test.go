@@ -154,6 +154,8 @@ func TestWideStatsObject(t *testing.T) {
 	}{
 		{"positive: xfrm", []string{"xfrm", "policy", "count"}, true},
 		{"positive: xf, xfrm by prefix", []string{"xf"}, true},
+		{"positive: nexthop, whose show prints packets_hw under -s -s", []string{"nexthop", "show"}, true},
+		{"positive: nex, nexthop by prefix", []string{"nex"}, true},
 		{"negative: link", []string{"link", "show"}, false},
 		{"negative: an unknown object", []string{"bogus"}, false},
 		{"boundary: no object", nil, false},

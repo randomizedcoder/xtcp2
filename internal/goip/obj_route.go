@@ -519,12 +519,12 @@ func resolveRouteNexthops(c *runCtx, svc *service.Service, routes []model.Route,
 		}
 		text, ok := seen[id]
 		if !ok {
-			nh, err := svc.NexthopByID(c.family, id)
+			nh, err := svc.NexthopByID(c.family, id, xtcpnl.NexthopOpFlags(c.showStats))
 			if err != nil {
 				return err
 			}
 			resolveIndexName(c, svc, nh.OIF)
-			text, err = render.NexthopInfoText(xtcpnl.NexthopInfo(nh), c.lltab)
+			text, err = render.NexthopInfoText(xtcpnl.NexthopInfo(nh), c.showStats, c.lltab)
 			if err != nil {
 				return fmt.Errorf("-d on a route with nhid %d: %v: %w", id, err, ErrNotImplemented)
 			}

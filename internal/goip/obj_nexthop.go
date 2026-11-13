@@ -142,9 +142,10 @@ func parseNexthopShowArgs(args []string) (nexthopSelectors, error) {
 // nexthopShowID is `ip nexthop show id N` (ip/ipnexthop.c:1227 -> __ipnh_get_id):
 // a single RTM_GETNEXTHOP carrying NHA_ID, rendered by the same print_nexthop as
 // the dump. A group id renders its group line; a resilient group is declined.
+// The get carries NHA_OP_FLAGS for -s's count, 0 without it.
 func nexthopShowID(c *runCtx, id uint32) error {
 	svc := service.New(c.src, c.nextSeq)
-	nh, err := svc.NexthopByID(c.family, id)
+	nh, err := svc.NexthopByID(c.family, id, xtcpnl.NexthopOpFlags(c.showStats))
 	if err != nil {
 		return err
 	}
@@ -153,13 +154,13 @@ func nexthopShowID(c *runCtx, id uint32) error {
 	if c.json {
 		// ip -j nexthop show id N keeps the dump's array wrapper around the one
 		// object (ip_nexthop_id_json), so encode a one-element slice.
-		view, verr := render.NexthopViewOf(xtcpnl.NexthopInfo(nh), c.detailed(), c.lltab)
+		view, verr := render.NexthopViewOf(xtcpnl.NexthopInfo(nh), c.detailed(), c.showStats, c.lltab)
 		if verr != nil {
 			return fmt.Errorf("nexthop id %d: %v: %w", nh.ID, verr, ErrNotImplemented)
 		}
 		return json.NewEncoder(c.out).Encode([]render.NexthopView{view})
 	}
-	line, rerr := render.NexthopText(xtcpnl.NexthopInfo(nh), c.detailed(), c.lltab)
+	line, rerr := render.NexthopText(xtcpnl.NexthopInfo(nh), c.detailed(), c.showStats, c.lltab)
 	if rerr != nil {
 		return fmt.Errorf("nexthop id %d: %v: %w", nh.ID, rerr, ErrNotImplemented)
 	}
@@ -212,10 +213,13 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 	}
 	filter.Groups = sel.groups
 	filter.Fdb = sel.fdb
+	// ipnh_get_op_flags: -s and -s -s ask for the group stats, last in the
+	// dump's attributes.
+	filter.OpFlags = xtcpnl.NexthopOpFlags(c.showStats)
 
 	var nhs []model.Nexthop
 	var err error
-	if len(sel.names) > 0 || sel.groups || sel.fdb {
+	if len(sel.names) > 0 || sel.groups || sel.fdb || filter.OpFlags != 0 {
 		nhs, err = svc.NexthopsFiltered(c.family, filter)
 	} else {
 		nhs, err = svc.Nexthops(c.family)
@@ -237,14 +241,14 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 			continue
 		}
 		if c.json {
-			view, verr := render.NexthopViewOf(xtcpnl.NexthopInfo(nhs[i]), c.detailed(), c.lltab)
+			view, verr := render.NexthopViewOf(xtcpnl.NexthopInfo(nhs[i]), c.detailed(), c.showStats, c.lltab)
 			if verr != nil {
 				return fmt.Errorf("nexthop id %d: %v: %w", nhs[i].ID, verr, ErrNotImplemented)
 			}
 			views = append(views, view)
 			continue
 		}
-		line, rerr := render.NexthopText(xtcpnl.NexthopInfo(nhs[i]), c.detailed(), c.lltab)
+		line, rerr := render.NexthopText(xtcpnl.NexthopInfo(nhs[i]), c.detailed(), c.showStats, c.lltab)
 		if rerr != nil {
 			return fmt.Errorf("nexthop id %d: %v: %w", nhs[i].ID, rerr, ErrNotImplemented)
 		}

@@ -544,7 +544,7 @@ func (m *monitor) nexthop(msg *monitorMsg) (out, errOut string, err error) {
 	if perr != nil {
 		return "", refusal(&msg.hdr, perr), nil
 	}
-	line, rerr := render.NexthopText(nh, m.c.detailed(), m.c.lltab)
+	line, rerr := render.NexthopText(nh, m.c.detailed(), m.c.showStats, m.c.lltab)
 	if rerr != nil {
 		return "", refusal(&msg.hdr, rerr), nil
 	}

@@ -2035,7 +2035,7 @@ func TestNexthopInfoText(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := NexthopInfoText(tc.in, routeTabNames)
+			got, err := NexthopInfoText(tc.in, 0, routeTabNames)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("no error, want one")
