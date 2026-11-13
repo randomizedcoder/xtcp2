@@ -35,6 +35,7 @@ var requiredOps = []uint8{
 	giouring.OpAsyncCancel,
 	giouring.OpSend,
 	giouring.OpWritev,
+	giouring.OpRead,
 }
 
 // Config tunes the ring's queue depths.
@@ -59,6 +60,9 @@ const maxRecvBufs = 1 << 15
 // Result is what a drainer hands back to the netlinker for one CQE.
 type Result struct {
 	Op Operation
+	// RequestID is the ID the Enqueue call returned, so a caller with
+	// many reads in flight can match each CQE to its request.
+	RequestID uint32
 	// Res is the kernel's CQE result: bytes transferred when positive,
 	// -errno when negative.
 	Res int32
@@ -469,6 +473,53 @@ func (r *Ring) EnqueueRecvMultishot(fd int) (uint32, error) {
 	return reqID, nil
 }
 
+// EnqueueReadAt builds a pread(2)-style SQE: read up to len(*buf) bytes
+// from fd at offset off into buf. buf stays pinned in the in-flight map
+// until its CQE. async sets IOSQE_ASYNC, which skips the inline
+// non-blocking attempt: for files without FMODE_NOWAIT, such as procfs,
+// that attempt always fails and the kernel hands the read to an io-wq
+// worker anyway (io_uring/rw.c io_file_supports_nowait).
+func (r *Ring) EnqueueReadAt(fd int, buf *[]byte, off uint64, async bool) (uint32, error) {
+	if buf == nil || len(*buf) == 0 {
+		return 0, errors.New("io_uring.EnqueueReadAt: empty buffer")
+	}
+	if len(r.inFlight) >= r.inFlightCap {
+		return 0, fmt.Errorf("io_uring in-flight cap exceeded (%d) — SQEs submitted faster than CQEs drained", r.inFlightCap)
+	}
+	sqe := r.r.GetSQE()
+	if sqe == nil {
+		return 0, errors.New("io_uring.EnqueueReadAt: SQ full (GetSQE returned nil)")
+	}
+	sqe.PrepareRead(fd, uintptr(unsafe.Pointer(&(*buf)[0])), uint32(len(*buf)), off)
+	if async {
+		sqe.Flags |= giouring.SqeAsync
+	}
+	reqID := r.NextRequestID()
+	sqe.SetData64(serialize(EncodedRequest{Operation: OpReadAt, RequestID: reqID}))
+
+	r.inFlight[reqID] = inFlight{op: OpReadAt, buf: buf}
+	return reqID, nil
+}
+
+// SetIOWQMaxWorkers caps this ring's io-wq worker threads (bounded and
+// unbounded; 0 leaves a limit unchanged), so a batch of async reads can't
+// spawn one kernel thread per SQE. It returns the previous limits.
+//
+// The kernel reads and writes back __u32[2] (io_uring/register.c
+// io_register_iowq_max_workers). giouring v1.1.2 passes a []uint, which is
+// at least 32-bit, so the limits are written through a [2]uint32 view of
+// the slice's memory: right for any word size and byte order.
+// TODO: fix the signature in the giouring fork.
+func (r *Ring) SetIOWQMaxWorkers(bounded, unbounded uint32) (prevBounded, prevUnbounded uint32, err error) {
+	val := make([]uint, 2) // >= 8 bytes on every GOARCH
+	limits := (*[2]uint32)(unsafe.Pointer(&val[0]))
+	limits[0], limits[1] = bounded, unbounded
+	if _, err := r.r.RegisterIOWQMaxWorkers(val); err != nil {
+		return 0, 0, fmt.Errorf("io_uring.SetIOWQMaxWorkers(%d, %d): %w", bounded, unbounded, err)
+	}
+	return limits[0], limits[1], nil
+}
+
 // EnqueueSend builds a `send(2)` SQE. For UDP / unixgram destinations the
 // kernel preserves the message boundary. Op is one of OpSendUDP or
 // OpSendUnixGram.
@@ -590,7 +641,8 @@ func (r *Ring) drainOnce() ([]Result, int) {
 			delete(r.inFlight, req.RequestID)
 		}
 		res := Result{
-			Op:       req.Operation,
+			Op:        req.Operation,
+			RequestID: req.RequestID,
 			Res:      cqe.Res,
 			Buf:      entry.buf,
 			HdrBytes: entry.wvHdr,
