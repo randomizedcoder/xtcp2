@@ -143,7 +143,7 @@ func TestEncapViewOf(t *testing.T) {
 			" encap xfrm if_id 4294967295 link_dev * ", `{"encap_type":"xfrm","if_id":4294967295,"link_dev":"*"}`},
 		{"corner: xfrm link not in the cache prints if%u", xfrm(xtcpnl.XfrmEncapInfo{Link: 99, HasLink: true}),
 			" encap xfrm link_dev if99 ", `{"encap_type":"xfrm","link_dev":"if99"}`},
-		{"negative: an undecoded type prints nothing", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_RPL, HasType: true, Raw: raw}, "", ""},
+		{"negative: an undecoded type prints nothing", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_XFRM + 1, HasType: true, Raw: raw}, "", ""},
 		{"negative: RTA_ENCAP without RTA_ENCAP_TYPE", &xtcpnl.RouteEncap{Raw: raw}, "", ""},
 		{"negative: RTA_ENCAP_TYPE without RTA_ENCAP", &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_MPLS, HasType: true,
 			MPLS: &xtcpnl.MPLSEncap{}}, "", ""},

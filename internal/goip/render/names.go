@@ -191,7 +191,7 @@ var ipProtocols = []ipProtocol{
 	{num: 94, name: "ipip", alias: "IPIP"},
 	{num: 96, name: "scc-sp", alias: "SCC-SP"},
 	{num: 97, name: "etherip", alias: "ETHERIP"},
-	{num: 98, name: "encap", alias: "ENCAP"},
+	{num: 98, name: encapCst, alias: "ENCAP"},
 	{num: 100, name: "gmtp", alias: "GMTP"},
 	{num: 101, name: "ifmp", alias: "IFMP"},
 	{num: 102, name: "pnni", alias: "PNNI"},

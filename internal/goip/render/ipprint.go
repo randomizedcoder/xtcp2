@@ -138,6 +138,12 @@ func (p *Printer) Bool(kind PrintKind, key, format string, v bool) {
 	p.value(kind, key, format, strconv.FormatBool(v), strconv.FormatBool(v))
 }
 
+// Null is print_null(kind, key, text, NULL): JSON's null, or the text as
+// it is.
+func (p *Printer) Null(kind PrintKind, key, text string) {
+	p.value(kind, key, "%s", "null", text)
+}
+
 // value writes one print_* call: the JSON member, or the text through format.
 func (p *Printer) value(kind PrintKind, key, format, js string, text any) {
 	if p.json {

@@ -13,17 +13,19 @@ import (
 // action or BPF program, an SRH's HMAC algorithm.
 const unknownNameCst = "<unknown>"
 
+// encapCst is "encap": a seg6 or ioam6 mode, the ENCAP protocol's name, and
+// an l2tp or tunnel key.
+const encapCst = "encap"
+
 // EncapView is lwt_print_encap's output for a route's RTA_ENCAP, or one
 // multipath hop's (ip/iproute_lwtunnel.c): the `encap_type` and the type's
 // own tokens, as text and as the "encap" JSON object, each built by the
 // same print_* calls in ip's order.
 //
-// Only the types xtcpnl decodes render: mpls, seg6, seg6local, ip, ip6, ila
-// and xfrm.
-// Another
-// type's route prints without its encap, as before NX6a: lwt_print_encap
-// would print ` encap rpl ` and then the payload, and a keyword with its
-// payload missing is worse than both missing (route.go, "What this renderer
+// Only the types xtcpnl decodes render: mpls, seg6, seg6local, ip, ip6,
+// ila, xfrm, rpl, ioam6 and bpf. A type past those prints without its
+// encap: lwt_print_encap would print its number and nothing after it, and
+// a keyword with its payload missing is worse than both missing (route.go, "What this renderer
 // does not print").
 type EncapView struct {
 	text string
@@ -43,7 +45,8 @@ func (v *EncapView) MarshalJSON() ([]byte, error) { return v.json, nil }
 // seg6local's iif and oif; stats is -s, for seg6local's counters.
 func EncapViewOf(e *xtcpnl.RouteEncap, tab NameTab, stats bool) *EncapView {
 	if e == nil || !e.HasType || e.Raw == nil ||
-		(e.MPLS == nil && e.Seg6 == nil && e.Seg6Local == nil && e.IP == nil && e.Ila == nil && e.Xfrm == nil) {
+		(e.MPLS == nil && e.Seg6 == nil && e.Seg6Local == nil && e.IP == nil && e.Ila == nil && e.Xfrm == nil &&
+			e.Rpl == nil && e.Ioam6 == nil && e.Bpf == nil) {
 		return nil
 	}
 	text, js := NewPrinter(false), NewPrinter(true)
@@ -73,6 +76,12 @@ func printEncap(p *Printer, e *xtcpnl.RouteEncap, tab NameTab, stats bool) {
 		printEncapIla(p, e.Ila)
 	case e.Xfrm != nil:
 		printEncapXfrm(p, e.Xfrm, tab)
+	case e.Rpl != nil:
+		printEncapRpl(p, e.Rpl)
+	case e.Ioam6 != nil:
+		printEncapIoam6(p, e.Ioam6)
+	case e.Bpf != nil:
+		printEncapBpf(p, e.Bpf)
 	}
 	p.CloseObject()
 }
@@ -288,7 +297,7 @@ func encapTypeName(t uint16) string {
 // seg6ModeNames is seg6_mode_types.
 var seg6ModeNames = [...]string{
 	xtcpnl.Seg6ModeInline:     "inline",
-	xtcpnl.Seg6ModeEncap:      "encap",
+	xtcpnl.Seg6ModeEncap:      encapCst,
 	xtcpnl.Seg6ModeL2Encap:    "l2encap",
 	xtcpnl.Seg6ModeEncapRed:   "encap.red",
 	xtcpnl.Seg6ModeL2EncapRed: "l2encap.red",
