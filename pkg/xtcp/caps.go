@@ -3,6 +3,7 @@ package xtcp
 import (
 	"cmp"
 	"log"
+	"math"
 	"slices"
 )
 
@@ -28,55 +29,67 @@ func (x *XTCP) dumpTruncated(reason string, fd int, limit uint64) {
 	log.Printf("dump truncated: fd:%d inode:%v cap:%s=%d; the rest of this poll's dump is dropped", fd, inode, reason, limit)
 }
 
-// nsRanked is a namespace in admitNamespaces' ranking, and whether it is
-// already tracked.
-type nsRanked struct {
-	id      nsIdentity
-	tracked bool
+// admitNamespaces applies -maxNetns (limit, 0 for no cap) to the live,
+// untracked candidates, given tracked namespaces already holding slots. A
+// tracked namespace keeps its slot until it dies: evicting by any key a
+// tenant can influence (a pid wraps; a namespace's scanned pid changes)
+// would let it push monitored workloads out. Waiting candidates are
+// admitted in the order reconcile first saw them (waiting, maintained by
+// queueWaiting), then by pid and inode, and xtcp2's own namespace (self)
+// always. It returns the candidates to add and how many stay out.
+func admitNamespaces(candidates []nsIdentity, tracked int, limit uint32, self uint64, waiting map[uint64]uint64) (admit []nsIdentity, dropped int) {
+	if limit == 0 {
+		return candidates, 0
+	}
+	// A candidate not yet queued arrived this reconcile: behind every
+	// waiting one.
+	place := func(inode uint64) uint64 {
+		if s, ok := waiting[inode]; ok {
+			return s
+		}
+		return math.MaxUint64
+	}
+	slices.SortFunc(candidates, func(a, b nsIdentity) int {
+		return cmp.Or(cmp.Compare(place(a.inode), place(b.inode)),
+			cmp.Compare(a.pid, b.pid), cmp.Compare(a.inode, b.inode))
+	})
+	admit = candidates[:0:0]
+	for _, id := range candidates {
+		if id.inode == self || tracked < int(limit) {
+			admit = append(admit, id)
+			tracked++
+			continue
+		}
+		dropped++
+	}
+	return admit, dropped
 }
 
-// admitNamespaces applies -maxNetns (limit, 0 for no cap): the namespaces
-// tracked are the limit lowest-pid live ones, xtcp2's own (self) always
-// among them. Lower pids are older processes, so a burst of new namespaces
-// cannot displace long-running workloads; bind-mounted namespaces (pid 0)
-// were created by the host or the container runtime and rank first.
-//
-// candidates are live and untracked; tracked are live and tracked, with
-// their current pid. It returns the candidates to add, the tracked
-// namespaces to evict because lower-pid ones displace them, and how many
-// candidates stay out. The ranking is total and depends only on the live
-// set, so an evicted namespace loses the same comparison on every later
-// reconcile: the tracked set converges, it does not churn.
-func admitNamespaces(candidates, tracked []nsIdentity, limit uint32, self uint64) (admit, evict []nsIdentity, dropped int) {
-	if limit == 0 || len(candidates) == 0 {
-		return candidates, nil, 0
+// queueWaiting updates the -maxNetns queue after a reconcile: a candidate
+// left out keeps its place, or joins at the back with the next sequence;
+// one admitted or gone leaves the queue. Candidates first seen in the same
+// reconcile share a sequence and are ordered by pid. It returns the queue
+// and the sequence counter, both owned by reconcile.
+func queueWaiting(waiting map[uint64]uint64, seq uint64, candidates, admit []nsIdentity) (map[uint64]uint64, uint64) {
+	if len(candidates) == len(admit) {
+		clear(waiting)
+		return waiting, seq
 	}
-	all := make([]nsRanked, 0, len(candidates)+len(tracked))
-	for _, id := range tracked {
-		all = append(all, nsRanked{id: id, tracked: true})
+	admitted := make(map[uint64]struct{}, len(admit))
+	for _, id := range admit {
+		admitted[id.inode] = struct{}{}
 	}
+	next := make(map[uint64]uint64, len(candidates)-len(admit))
+	seq++
 	for _, id := range candidates {
-		all = append(all, nsRanked{id: id})
-	}
-	slices.SortFunc(all, func(a, b nsRanked) int {
-		if (a.id.inode == self) != (b.id.inode == self) {
-			if a.id.inode == self {
-				return -1
-			}
-			return 1
+		if _, in := admitted[id.inode]; in {
+			continue
 		}
-		return cmp.Or(cmp.Compare(a.id.pid, b.id.pid), cmp.Compare(a.id.inode, b.id.inode))
-	})
-	for i, r := range all {
-		keep := i < int(limit) || r.id.inode == self
-		switch {
-		case keep && !r.tracked:
-			admit = append(admit, r.id)
-		case !keep && r.tracked:
-			evict = append(evict, r.id)
-		case !keep:
-			dropped++
+		if s, ok := waiting[id.inode]; ok {
+			next[id.inode] = s
+		} else {
+			next[id.inode] = seq
 		}
 	}
-	return admit, evict, dropped
+	return next, seq
 }

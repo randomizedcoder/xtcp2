@@ -69,6 +69,13 @@ type XTCP struct {
 	// access as well as a coherent nsMap diff.
 	reconcileMu sync.Mutex
 
+	// nsWaiting queues the live namespaces -maxNetns keeps out: inode →
+	// the reconcile sequence that first saw it waiting. Admission is in
+	// that order, so a namespace cannot jump the queue. Owned by reconcile
+	// (under reconcileMu); empty unless the cap is reached.
+	nsWaiting    map[uint64]uint64
+	nsWaitingSeq uint64
+
 	packetBufferPool xsync.Pool[*[]byte]
 	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]
 	xtcpRecordPool   xsync.Pool[*xtcp_flat_record.XtcpFlatRecord]

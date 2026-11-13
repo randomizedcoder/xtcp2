@@ -121,58 +121,35 @@ func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 		return true
 	})
 
-	// Add live namespaces not yet tracked, up to -maxNetns: the lowest-pid
-	// ones win, displacing higher-pid tracked ones (see admitNamespaces).
-	// The ones left out stay candidates on every later reconcile.
+	// Add live namespaces not yet tracked, up to -maxNetns. Tracked ones
+	// keep their slots; the rest wait in the order first seen (see
+	// admitNamespaces) and stay candidates on every later reconcile.
 	var candidates []nsIdentity
 	for inode, id := range live {
 		if _, tracked := x.nsMap.Load(inode); !tracked {
 			candidates = append(candidates, id)
 		}
 	}
-	var tracked []nsIdentity
-	if x.config.GetMaxNetns() != 0 && len(candidates) > 0 {
-		tracked = trackedLive(x.nsMap, live, x.selfNsInode)
+	limit := x.config.GetMaxNetns()
+	tracked := 0
+	if limit != 0 && len(candidates) > 0 {
+		tracked = lenSyncMap(x.nsMap)
 	}
-	admit, evict, dropped := admitNamespaces(candidates, tracked, x.config.GetMaxNetns(), x.selfNsInode)
-	for _, id := range evict {
-		x.nsDelete(id.inode)
-		dels++
+	admit, dropped := admitNamespaces(candidates, tracked, limit, x.selfNsInode, x.nsWaiting)
+	if limit != 0 {
+		x.nsWaiting, x.nsWaitingSeq = queueWaiting(x.nsWaiting, x.nsWaitingSeq, candidates, admit)
 	}
 	for _, id := range admit {
 		x.nsAdd(ctx, id)
 		stores++
 	}
-	if len(evict) > 0 || dropped > 0 {
-		x.pC.WithLabelValues("reconcile", "maxNetns", "evict").Add(float64(len(evict)))
-		x.pC.WithLabelValues("reconcile", "maxNetns", "drop").Add(float64(dropped + len(evict)))
+	if dropped > 0 {
+		x.pC.WithLabelValues("reconcile", "maxNetns", "drop").Add(float64(dropped))
 		if x.pNetnsDropped != nil {
-			x.pNetnsDropped.Add(float64(dropped + len(evict)))
+			x.pNetnsDropped.Add(float64(dropped))
 		}
-		log.Printf("reconcile: -maxNetns=%d reached: %d namespaces not tracked, %d of them displaced by lower pids",
-			x.config.GetMaxNetns(), dropped+len(evict), len(evict))
+		log.Printf("reconcile: %d namespaces not tracked: -maxNetns=%d reached", dropped, limit)
 	}
 
 	return dels, stores
-}
-
-// trackedLive lists the tracked namespaces that are still live, with their
-// current pid from this scan (the pid that discovered one may have exited).
-// xtcp2's own namespace (self) is included even when the scan missed it: it
-// is never deleted, so it always holds a slot.
-func trackedLive(nsMap *sync.Map, live map[uint64]nsIdentity, self uint64) []nsIdentity {
-	var out []nsIdentity
-	nsMap.Range(func(key, _ any) bool {
-		inode, ok := key.(uint64)
-		if !ok {
-			return true
-		}
-		if id, isLive := live[inode]; isLive {
-			out = append(out, id)
-		} else if inode == self {
-			out = append(out, nsIdentity{inode: self})
-		}
-		return true
-	})
-	return out
 }

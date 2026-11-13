@@ -534,7 +534,7 @@ func defineS3Flags(f *mainFlags) {
 func defineCapFlags(f *mainFlags) {
 	f.maxDumpBytes = flag.Uint64("maxDumpBytes", maxDumpBytesCst, "cap on the bytes of one namespace's inet_diag dump per poll; packets past it are drained undecoded and counted in xtcp_dump_dropped_total{reason=\"bytes\"}. 0 = unlimited. Falls back to MAX_DUMP_BYTES env.")
 	f.maxRecordsPerNetns = flag.Uint64("maxRecordsPerNetns", maxRecordsPerNetnsCst, "cap on the records one namespace contributes per poll; the rest are dropped before decode and counted in xtcp_dump_dropped_total{reason=\"records\"}. 0 = unlimited. Falls back to MAX_RECORDS_PER_NETNS env.")
-	f.maxNetns = flag.Uint("maxNetns", maxNetnsCst, "cap on the network namespaces tracked, xtcp2's own included; at the cap the lowest-pid namespaces are tracked (an older one displaces a newer) and the rest are counted in xtcp_netns_dropped_total. 0 = unlimited. Falls back to MAX_NETNS env.")
+	f.maxNetns = flag.Uint("maxNetns", maxNetnsCst, "cap on the network namespaces tracked, xtcp2's own included; at the cap new namespaces wait for a freed slot, first come first served, and are counted in xtcp_netns_dropped_total. 0 = unlimited. Falls back to MAX_NETNS env.")
 }
 
 // defineListenerFlags registers the flags for xtcp2's own inbound listeners:

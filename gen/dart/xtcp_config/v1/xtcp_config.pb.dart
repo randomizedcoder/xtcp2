@@ -2418,11 +2418,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
   void clearReconcileBeforePoll() => $_clearField(41);
 
   /// Cap on the network namespaces tracked, xtcp2's own included. Each costs
-  /// a netlink socket, a receiver and its decoders. At the cap, the tracked
-  /// set is the lowest-pid live namespaces: a newer namespace stays out, an
-  /// older one displaces the highest-pid tracked one, and both count in
-  /// xtcp_netns_dropped_total. A burst of new namespaces cannot push out
-  /// long-running workloads. Startup-only.
+  /// a netlink socket, a receiver and its decoders. At the cap, tracked
+  /// namespaces keep their slots until they die; the rest wait, are counted
+  /// in xtcp_netns_dropped_total each reconcile, and get freed slots in the
+  /// order xtcp2 first saw them. Startup-only.
   /// 0 = unlimited. Daemon default 4096.
   @$pb.TagNumber(42)
   $core.int get maxNetns => $_getIZ(19);
