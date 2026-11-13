@@ -114,12 +114,10 @@ func BenchmarkPollPrepass(b *testing.B) {
 			}
 			defer x.closeGate()
 			b.ReportAllocs()
-			loop := uint64(0)
 			for b.Loop() {
-				if got := len(x.planGatedPoll(loop)); got != n {
+				if got := len(x.planGatedPoll()); got != n {
 					b.Fatalf("planned %d, expected %d", got, n)
 				}
-				loop++
 			}
 		})
 	}

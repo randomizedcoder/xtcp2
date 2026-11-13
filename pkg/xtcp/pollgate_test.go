@@ -198,6 +198,68 @@ func TestPollGateEndToEnd(t *testing.T) {
 	}
 }
 
+// TestPollGateShardRotation: a sampled namespace's shard advances once per
+// gated poll, whatever pollingLoops does between polls (it advances on
+// every poller event, so steps of K must not pin one shard).
+func TestPollGateShardRotation(t *testing.T) {
+	tests := []struct {
+		name           string
+		category       string
+		description    string
+		loops          []uint64
+		expectedShards int
+	}{
+		{name: "consecutive", category: "P", description: "pollingLoops 1,2,3: each poll a new shard", loops: []uint64{1, 2, 3}, expectedShards: 3},
+		{name: "step_k", category: "C", description: "pollingLoops step by K=3 (N netlinkerDone events per poll): still every shard", loops: []uint64{3, 6, 9}, expectedShards: 3},
+		{name: "repeat_loop", category: "C", description: "the same pollingLoops value three times: still every shard", loops: []uint64{5, 5, 5}, expectedShards: 3},
+		{name: "wraps", category: "B", description: "K+1 polls: the first shard comes round again", loops: []uint64{3, 6, 9, 12}, expectedShards: 3},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			x := newPollerFixture(t)
+			x.config.MaxRecordsPerPoll = 200_000
+			x.config.MaxRecordsPerNetns = 262_144
+			req := make([]byte, xtcpnl.InetDiagRequestSizeCst)
+			binary.LittleEndian.PutUint32(req[0:4], xtcpnl.InetDiagRequestSizeCst)
+			binary.LittleEndian.PutUint32(req[20:24], 0x3fff)
+			x.nlRequest = &req
+			defer x.closeGate()
+
+			var heavy [][]byte
+			prev := sendDumpRequest
+			t.Cleanup(func() { sendDumpRequest = prev })
+			sendDumpRequest = func(fd int, b []byte) error {
+				if fd == 1000 {
+					c := append([]byte(nil), b...)
+					binary.LittleEndian.PutUint32(c[8:12], 0) // seq differs per poll
+					heavy = append(heavy, c)
+				}
+				return nil
+			}
+			// 500k against a ~199k share: K = 3.
+			x.nsMap.Store(uint64(1), netNSitem{inode: 1, socketFD: 1000, stat: newStatHandle(writeSockstat(t, "500000", "0"))})
+			x.nsMap.Store(uint64(2), netNSitem{inode: 2, socketFD: 1001, stat: newStatHandle(writeSockstat(t, "1000", "0"))})
+
+			for _, l := range tc.loops {
+				x.pollAllNetlinkSockets(l)
+			}
+			seen := map[string]bool{}
+			for _, b := range heavy {
+				if r, _ := xtcpnl.ParseInetDiagRequest(b[16:]); !r.HasBytecode {
+					t.Fatalf("%s: heavy namespace sent an unsampled request", tc.description)
+				}
+				seen[string(b)] = true
+			}
+			if len(seen) != tc.expectedShards {
+				t.Errorf("%s: %d distinct shards over %d polls, expected %d", tc.description, len(seen), len(heavy), tc.expectedShards)
+			}
+			if len(heavy) > tc.expectedShards && string(heavy[tc.expectedShards]) != string(heavy[0]) {
+				t.Errorf("%s: poll %d did not return to the first shard", tc.description, tc.expectedShards)
+			}
+		})
+	}
+}
+
 // TestPollGateOffUnchanged: with -maxRecordsPerPoll 0 every namespace is
 // sent the startup request and no sockstat is read.
 func TestPollGateOffUnchanged(t *testing.T) {
@@ -278,10 +340,10 @@ func TestCheckFDLimit(t *testing.T) {
 		expectedNeed uint64 // 0: no warning
 	}{
 		{name: "enough", category: "P", description: "1M fds cover 4096 namespaces with the gate", maxNetns: 4096, gate: true, soft: 1 << 20},
-		{name: "low_gate", category: "N", description: "1024 fds, 4096 namespaces x 2 + 256", maxNetns: 4096, gate: true, soft: 1024, expectedNeed: 8448},
-		{name: "low_no_gate", category: "N", description: "gate off: one fd per namespace", maxNetns: 4096, soft: 1024, expectedNeed: 4352},
-		{name: "exact", category: "B", description: "soft limit exactly the need", maxNetns: 100, gate: true, soft: 456},
-		{name: "one_short", category: "B", description: "one below the need", maxNetns: 100, gate: true, soft: 455, expectedNeed: 456},
+		{name: "low_gate", category: "N", description: "1024 fds, 4096 namespaces x 3 (socket, origNs, sockstat) + 256", maxNetns: 4096, gate: true, soft: 1024, expectedNeed: 12544},
+		{name: "low_no_gate", category: "N", description: "gate off: socket and origNs per namespace", maxNetns: 4096, soft: 1024, expectedNeed: 8448},
+		{name: "exact", category: "B", description: "soft limit exactly the need", maxNetns: 100, gate: true, soft: 556},
+		{name: "one_short", category: "B", description: "one below the need", maxNetns: 100, gate: true, soft: 555, expectedNeed: 556},
 		{name: "netns_cap_off", category: "C", description: "-maxNetns 0: unbounded, nothing to check", soft: 16},
 	}
 	for _, tc := range tests {

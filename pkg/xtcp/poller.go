@@ -396,7 +396,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 
 	if x.gateEnabled() {
 		polled := 0
-		for _, s := range x.planGatedPoll(pollingLoops) {
+		for _, s := range x.planGatedPoll() {
 			x.setRequestSeq(s.req, pollingLoops)
 			x.pollWith(s.fd, s.req)
 			polled++

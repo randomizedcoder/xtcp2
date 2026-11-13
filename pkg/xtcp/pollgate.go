@@ -20,6 +20,12 @@ type pollGate struct {
 	statFDs []int
 	counts  []sockstatCount
 	sendTo  []nsSend
+
+	// polls counts gated polls; it picks each sampled namespace's shard.
+	// Not pollingLoops: that advances on every poller event (ticks, poll
+	// requests, one netlinkerDone per namespace), so a poll could step it
+	// by a multiple of K and dump the same shard forever.
+	polls uint64
 }
 
 // nsSend is one namespace's socket and the request planned for it.
@@ -33,13 +39,14 @@ var newSockstatRingReader = func(batch, workers uint32) (sockstatReader, error) 
 	return newRingSockstatReader(batch, workers)
 }
 
-// fdsPerNetns is what one tracked namespace holds open: its netlink
-// socket, plus its sockstat fd with the gate on.
+// fdsPerNetns is what one tracked namespace holds open for its life: its
+// netlink socket and the origNs snapshot its goroutine restores on exit
+// (netNamespaceInstance), plus its sockstat fd with the gate on.
 func fdsPerNetns(gate bool) uint64 {
 	if gate {
-		return 2
+		return 3
 	}
-	return 1
+	return 2
 }
 
 // fdLimitMarginCst covers everything else: listeners, destinations,
@@ -108,7 +115,7 @@ func (x *XTCP) closeGate() {
 
 // planGatedPoll reads every ready namespace's sockstat, plans the poll,
 // and returns each ready socket with the request to send it.
-func (x *XTCP) planGatedPoll(pollingLoops uint64) []nsSend {
+func (x *XTCP) planGatedPoll() []nsSend {
 	if x.gate == nil {
 		x.gate = x.newPollGate()
 	}
@@ -152,7 +159,8 @@ func (x *XTCP) planGatedPoll(pollingLoops uint64) []nsSend {
 		x.pC.WithLabelValues("poller", "sockstat", "error").Add(float64(failed))
 	}
 
-	plans := g.planner.plan(g.counts, x.config.GetMaxRecordsPerPoll(), x.config.GetMaxRecordsPerNetns(), pollingLoops)
+	plans := g.planner.plan(g.counts, x.config.GetMaxRecordsPerPoll(), x.config.GetMaxRecordsPerNetns(), g.polls)
+	g.polls++
 	g.sendTo = g.sendTo[:0]
 	var total uint64
 	var unknown, states, sample int

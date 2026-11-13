@@ -17,7 +17,7 @@ import (
 //     The kernel drops them before building a record (tcp_diag.c, the
 //     idiag_states check), so the dump is about sockstat's inuse.
 //  2. pollSample: also split the namespace's sockets into K port shards and
-//     ask for shard (pollingLoops mod K) each poll, with inet_diag bytecode
+//     ask for shard (poll mod K) each poll, counting gated polls, with inet_diag bytecode
 //     matching shardKey(sport, dport) in R_k. The K ranges partition the
 //     port space, so K consecutive polls see every socket exactly once.
 //     Sockets that share both ports (differing only by address) share a
@@ -94,7 +94,7 @@ func fairShare(sorted []uint64, budget uint64) (share uint64, limited bool) {
 // the gate off. An unknown count is taken as unknownAs (the per-namespace
 // record cap; budget when that is off too), so a namespace whose sockstat
 // can't be read is assumed heavy rather than free.
-func (p *pollPlanner) plan(counts []sockstatCount, budget, unknownAs, pollingLoops uint64) []nsPlan {
+func (p *pollPlanner) plan(counts []sockstatCount, budget, unknownAs, poll uint64) []nsPlan {
 	n := len(counts)
 	p.plans = slices.Grow(p.plans[:0], n)[:n]
 	if budget == 0 {
@@ -120,7 +120,7 @@ func (p *pollPlanner) plan(counts []sockstatCount, budget, unknownAs, pollingLoo
 		d := p.demand[i]
 		pl := nsPlan{level: pollFull, planned: d, unknown: !c.known}
 		if limited && d > share {
-			pl = degrade(c, d, share, pollingLoops)
+			pl = degrade(c, d, share, poll)
 			pl.unknown = !c.known
 		}
 		p.plans[i] = pl
@@ -129,7 +129,7 @@ func (p *pollPlanner) plan(counts []sockstatCount, budget, unknownAs, pollingLoo
 }
 
 // degrade picks the lightest level that fits a namespace into share.
-func degrade(c sockstatCount, demand, share, pollingLoops uint64) nsPlan {
+func degrade(c sockstatCount, demand, share, poll uint64) nsPlan {
 	if c.known && c.inuse <= share {
 		return nsPlan{level: pollStates, planned: c.inuse}
 	}
@@ -144,7 +144,7 @@ func degrade(c sockstatCount, demand, share, pollingLoops uint64) nsPlan {
 	}
 	return nsPlan{
 		level:   pollSample,
-		shard:   uint32(pollingLoops % k),
+		shard:   uint32(poll % k),
 		shards:  uint32(k),
 		planned: (base + k - 1) / k,
 	}

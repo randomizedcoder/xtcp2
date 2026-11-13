@@ -54,13 +54,13 @@ The per-namespace caps bound each dump; `-maxRecordsPerPoll` (default 1,048,576)
 When the counts add up to more than the budget, each namespace gets a max-min fair share: namespaces under the share are dumped in full, and only those over it are degraded, lightest step first:
 
 1. **states** — stop asking for TIME_WAIT and SYN_RECV. The kernel drops them before building a record, so a namespace full of TIME_WAIT (or one being SYN-flooded) costs little.
-2. **sample** — also split the namespace's sockets into K port shards and ask for one per poll (shard `poll mod K`), with an inet_diag bytecode filter. A socket's shard is set by its ephemeral port (its source port if that is ≥ 32768, else its destination port), so a busy listener's connections spread over every shard, and K polls see each socket once. Sockets that share both ports, differing only by address, share a shard; `-maxRecordsPerNetns` still bounds them.
+2. **sample** — also split the namespace's sockets into K port shards and ask for one per poll (shard `n mod K` on the gate's n-th poll), with an inet_diag bytecode filter. A socket's shard is set by its ephemeral port (its source port if that is ≥ 32768, else its destination port), so a busy listener's connections spread over every shard, and K polls see each socket once. Sockets that share both ports, differing only by address, share a shard; `-maxRecordsPerNetns` still bounds them.
 
 A namespace whose sockstat can't be read is assumed to be at `-maxRecordsPerNetns`. Each degraded namespace-poll adds 1 to `xtcp_poll_degraded_total{level="states"|"sample"}`, a poll that degrades anything logs one line, and `xtcp_poll_sockets` is the total counted. Sockstat doesn't count request sockets (SYN_RECV), so a SYN flood isn't visible to the gate; the per-namespace record cap still applies.
 
 With `-ioUring`, the reads are batched: `-ioUringSockstatBatchSize` (default 64) reads per `io_uring_enter`, run by at most `-ioUringSockstatWorkers` (default 4) kernel io-wq threads, since procfs reads can't be done non-blocking. On a 24-core host, a read costs about 3.3 µs by `pread` and 1.8 µs batched (4096 namespaces: 15 ms and 7 ms per poll). If the ring can't be set up, or a submit fails, xtcp2 falls back to `pread` and counts `xtcp_counts{function="poller",variable="sockstatRing"}`.
 
-Each tracked namespace holds a second fd for its sockstat; xtcp2 warns at startup if `RLIMIT_NOFILE` is below 2 × `-maxNetns` + 256. `0` turns the gate off (no sockstat fds, no reads). The settings are startup-only, like the caps above.
+Each tracked namespace holds a third fd for its sockstat (besides its netlink socket and its goroutine's saved original namespace); xtcp2 warns at startup if `RLIMIT_NOFILE` is below 3 × `-maxNetns` + 256 (2 × with the gate off). `0` turns the gate off (no sockstat fds, no reads). The settings are startup-only, like the caps above.
 
 ## Timeouts
 
