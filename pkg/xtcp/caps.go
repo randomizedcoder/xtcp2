@@ -36,6 +36,22 @@ func (x *XTCP) dumpTruncated(reason string, fd int, limit uint64) {
 	log.Printf("dump truncated: fd:%d inode:%v cap:%s=%d; the rest of this poll's dump is dropped", fd, inode, reason, limit)
 }
 
+// sortByQueue orders candidates by their place in the waiting queue, then
+// pid and inode. One not yet queued arrived this reconcile: behind every
+// waiting one.
+func sortByQueue(candidates []nsIdentity, waiting map[uint64]uint64) {
+	place := func(inode uint64) uint64 {
+		if s, ok := waiting[inode]; ok {
+			return s
+		}
+		return math.MaxUint64
+	}
+	slices.SortFunc(candidates, func(a, b nsIdentity) int {
+		return cmp.Or(cmp.Compare(place(a.inode), place(b.inode)),
+			cmp.Compare(a.pid, b.pid), cmp.Compare(a.inode, b.inode))
+	})
+}
+
 // admitLimits are the admission caps; 0 turns one off.
 type admitLimits struct {
 	maxNetns    uint32 // -maxNetns: tracked namespaces
@@ -63,27 +79,18 @@ func (d admitDrops) total() int { return d.maxNetns + d.ownerQuota + d.addRate }
 // maintained by queueWaiting), then by pid and inode, and xtcp2's own
 // namespace always gets in. A candidate is left out by -maxNetns when
 // every slot is taken, by the add rate once this reconcile has added
-// maxAdds, and by the owner quota when its owner (the outermost container
-// id; see nsdiscover.Resolver.ContainerID) has maxPerOwner tracked.
+// maxAdds, and by the owner quota when its owner has maxPerOwner tracked.
 // Namespaces with no pid (bind mounts only) have no owner and are exempt
 // from the quota: tenants can't create host bind mounts. It returns the
 // candidates to add and what each cap left out.
+//
+// The owner is nsdiscover.Resolver.Owner: the cgroup path cut at the
+// runtime's container component.
 func admitNamespaces(candidates []nsIdentity, tracked int, owners map[string]int, lim admitLimits, waiting map[uint64]uint64) (admit []nsIdentity, drops admitDrops) {
 	if !lim.any() {
 		return candidates, drops
 	}
-	// A candidate not yet queued arrived this reconcile: behind every
-	// waiting one.
-	place := func(inode uint64) uint64 {
-		if s, ok := waiting[inode]; ok {
-			return s
-		}
-		return math.MaxUint64
-	}
-	slices.SortFunc(candidates, func(a, b nsIdentity) int {
-		return cmp.Or(cmp.Compare(place(a.inode), place(b.inode)),
-			cmp.Compare(a.pid, b.pid), cmp.Compare(a.inode, b.inode))
-	})
+	sortByQueue(candidates, waiting)
 	admit = candidates[:0:0]
 	adds := 0
 	for _, id := range candidates {

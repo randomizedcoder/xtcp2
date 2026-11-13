@@ -265,3 +265,38 @@ func TestStatHandle(t *testing.T) {
 		t.Run(tc.name, tc.run)
 	}
 }
+
+// TestCheckFDLimit: the startup RLIMIT_NOFILE warning.
+func TestCheckFDLimit(t *testing.T) {
+	tests := []struct {
+		name         string
+		category     string
+		description  string
+		maxNetns     uint32
+		gate         bool
+		soft         uint64
+		expectedNeed uint64 // 0: no warning
+	}{
+		{name: "enough", category: "P", description: "1M fds cover 4096 namespaces with the gate", maxNetns: 4096, gate: true, soft: 1 << 20},
+		{name: "low_gate", category: "N", description: "1024 fds, 4096 namespaces x 2 + 256", maxNetns: 4096, gate: true, soft: 1024, expectedNeed: 8448},
+		{name: "low_no_gate", category: "N", description: "gate off: one fd per namespace", maxNetns: 4096, soft: 1024, expectedNeed: 4352},
+		{name: "exact", category: "B", description: "soft limit exactly the need", maxNetns: 100, gate: true, soft: 456},
+		{name: "one_short", category: "B", description: "one below the need", maxNetns: 100, gate: true, soft: 455, expectedNeed: 456},
+		{name: "netns_cap_off", category: "C", description: "-maxNetns 0: unbounded, nothing to check", soft: 16},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prev := getNofile
+			t.Cleanup(func() { getNofile = prev })
+			getNofile = func() (uint64, error) { return tc.soft, nil }
+			x := newPollerFixture(t)
+			x.config.MaxNetns = tc.maxNetns
+			if tc.gate {
+				x.config.MaxRecordsPerPoll = 1
+			}
+			if got := x.checkFDLimit(); got != tc.expectedNeed {
+				t.Errorf("%s: need %d, expected %d", tc.description, got, tc.expectedNeed)
+			}
+		})
+	}
+}

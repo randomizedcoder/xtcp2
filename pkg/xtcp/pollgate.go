@@ -3,6 +3,8 @@ package xtcp
 import (
 	"encoding/binary"
 	"log"
+
+	"golang.org/x/sys/unix"
 )
 
 // pollGate is the socket-count gate's per-poller state: the sockstat
@@ -29,6 +31,48 @@ type nsSend struct {
 // newSockstatRingReader is the seam tests swap to make ring setup fail.
 var newSockstatRingReader = func(batch, workers uint32) (sockstatReader, error) {
 	return newRingSockstatReader(batch, workers)
+}
+
+// fdsPerNetns is what one tracked namespace holds open: its netlink
+// socket, plus its sockstat fd with the gate on.
+func fdsPerNetns(gate bool) uint64 {
+	if gate {
+		return 2
+	}
+	return 1
+}
+
+// fdLimitMarginCst covers everything else: listeners, destinations,
+// enrichers, setns fds in flight.
+const fdLimitMarginCst = 256
+
+// getNofile is the seam tests swap for the RLIMIT_NOFILE soft limit.
+var getNofile = func() (uint64, error) {
+	var r unix.Rlimit
+	if err := unix.Getrlimit(unix.RLIMIT_NOFILE, &r); err != nil {
+		return 0, err
+	}
+	return r.Cur, nil
+}
+
+// checkFDLimit warns at startup when RLIMIT_NOFILE can't hold -maxNetns
+// namespaces' fds: past it, opening a namespace fails (counted per
+// namespace) long before the cap is reached. It returns the fds needed, or
+// 0 when the limit is enough or -maxNetns is off.
+func (x *XTCP) checkFDLimit() (need uint64) {
+	n := uint64(x.config.GetMaxNetns())
+	if n == 0 {
+		return 0
+	}
+	need = n*fdsPerNetns(x.gateEnabled()) + fdLimitMarginCst
+	soft, err := getNofile()
+	if err != nil || soft >= need {
+		return 0
+	}
+	x.pC.WithLabelValues("init", "nofile", "low").Inc()
+	log.Printf("RLIMIT_NOFILE %d is below the %d fds -maxNetns=%d needs (%d per namespace + %d); raise LimitNOFILE / ulimit -n",
+		soft, need, n, fdsPerNetns(x.gateEnabled()), fdLimitMarginCst)
+	return need
 }
 
 // gateEnabled reports whether -maxRecordsPerPoll is set.

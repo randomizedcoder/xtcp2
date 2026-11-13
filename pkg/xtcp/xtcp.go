@@ -265,8 +265,8 @@ type nsIdentity struct {
 	pid   int
 	name  string
 	path  string
-	// owner is the outermost container id of pid's cgroup ("" for none),
-	// resolved for candidates only when -maxNetnsPerOwner is on.
+	// owner is pid's quota owner (nsdiscover.Resolver.Owner), resolved for
+	// candidates only when -maxNetnsPerOwner is on.
 	owner string
 }
 

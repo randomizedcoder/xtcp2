@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -92,33 +93,99 @@ func (r *Resolver) Name(inode uint64, pid int) string {
 	return "netns:[" + strconv.FormatUint(inode, 10) + "]"
 }
 
-// NameFor is Name with the container id already read (ContainerID), so a
-// caller that needs both reads the cgroup file once.
-func (r *Resolver) NameFor(inode uint64, containerID string) string {
-	if name, ok := r.byInode[inode]; ok {
-		return name
-	}
-	if containerID != "" {
-		return containerID
-	}
-	return "netns:[" + strconv.FormatUint(inode, 10) + "]"
-}
-
-// ContainerID is the container id in pid's cgroup path: the first, so
-// outermost, 64-hex run. A process can make sub-cgroups (with any name)
-// below its own but can't leave it, so the outermost id is the owner a
-// tenant can't change. "" when there is none or pid is gone.
-func (r *Resolver) ContainerID(pid int) string {
+// Owner is the quota owner of pid's namespace: the cgroup v2 path of pid
+// (the "0::" line; the first line on a v1-only host), cut just after the
+// first component a container runtime names by container id:
+//
+//	docker-<id>.scope, cri-containerd-<id>.scope, crio-<id>.scope,
+//	libpod-<id>.scope, or a bare <id> under /docker or a kubepods slice
+//
+// and with no such component, its first two components (user-1000.slice
+// under user.slice, one service under system.slice). Components are
+// matched from the root: a process can create sub-cgroups, named anything,
+// only below its own, so it can't change where its path is cut once a
+// runtime component is above it. Under a runtime that doesn't name
+// cgroups by container id, a process can make new owners by making
+// sub-cgroups at the second level.
+//
+// ok is false when pid's cgroup can't be read (it exited): the caller
+// should try again later rather than file it under any owner.
+func (r *Resolver) Owner(pid int) (owner string, ok bool) {
 	if pid <= 0 {
-		return ""
+		return "", false
 	}
-	return r.containerID(pid)
+	data, err := os.ReadFile(filepath.Join(r.procRoot, strconv.Itoa(pid), "cgroup"))
+	if err != nil {
+		return "", false
+	}
+	return ownerFromCgroup(data), true
 }
 
-// BindMountPath is the bind-mount path of inode from the last Refresh.
-func (r *Resolver) BindMountPath(inode uint64) (string, bool) {
-	p, ok := r.pathByIno[inode]
-	return p, ok
+// ownerFromCgroup is Owner on a /proc/<pid>/cgroup file.
+func ownerFromCgroup(data []byte) string {
+	path := cgroupPath(data)
+	comps := strings.Split(strings.Trim(path, "/"), "/")
+	for i, c := range comps {
+		if runtimeComponent(c, i, comps) {
+			return "/" + strings.Join(comps[:i+1], "/")
+		}
+	}
+	if len(comps) > 2 {
+		comps = comps[:2]
+	}
+	return "/" + strings.Join(comps, "/")
+}
+
+// cgroupPath returns the v2 ("0::") path, else the first line's path.
+func cgroupPath(data []byte) string {
+	var first string
+	for _, line := range strings.Split(string(data), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		if parts[0] == "0" && parts[1] == "" {
+			return parts[2]
+		}
+		if first == "" {
+			first = parts[2]
+		}
+	}
+	return first
+}
+
+var runtimeScopePrefixes = []string{"docker-", "cri-containerd-", "crio-", "libpod-"}
+
+// runtimeComponent reports whether comps[i] is a runtime's container
+// cgroup.
+func runtimeComponent(c string, i int, comps []string) bool {
+	for _, p := range runtimeScopePrefixes {
+		if id, ok := strings.CutPrefix(c, p); ok {
+			if id, ok = strings.CutSuffix(id, ".scope"); ok && isContainerID(id) {
+				return true
+			}
+		}
+	}
+	if i > 0 && isContainerID(c) {
+		parent := comps[i-1]
+		return parent == "docker" || strings.HasPrefix(parent, "kubepods") || strings.HasPrefix(parent, "pod")
+	}
+	return false
+}
+
+func isContainerID(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for i := range len(s) {
+		if !isHexLower(s[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // containerID reads /proc/<pid>/cgroup and returns the first container id found

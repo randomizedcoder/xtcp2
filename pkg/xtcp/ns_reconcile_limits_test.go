@@ -60,6 +60,7 @@ func TestReconcileLimits(t *testing.T) {
 		maxNetns    uint32
 		perOwner    uint32
 		adds        uint32
+		timeout     time.Duration // 0: a minute
 		// expected
 		expectedDeleted []uint64
 		expectedKept    []uint64
@@ -71,7 +72,7 @@ func TestReconcileLimits(t *testing.T) {
 		{name: "complete_deletes", category: "P", description: "complete scan: a tracked namespace no longer live is deleted",
 			pids: map[int]pidNS{100: {base, ""}}, tracked: map[uint64]int{base: 100, base + 1: 101}, maxNetns: 100,
 			expectedDeleted: []uint64{base + 1}, expectedKept: []uint64{base}},
-		{name: "incomplete_no_delete", category: "C", description: "scan cut by the cap before a tracked namespace whose pid is still in it: kept",
+		{name: "capped_keeps_tracked", category: "C", description: "scan cap reached before a tracked namespace in /proc order: still seen (Keep), kept",
 			pids: func() map[int]pidNS {
 				m := map[int]pidNS{}
 				for i := range 20 {
@@ -81,7 +82,7 @@ func TestReconcileLimits(t *testing.T) {
 			}(),
 			tracked: map[uint64]int{base + 19: 119}, maxNetns: 1, // scan cap 4: base+19 unseen
 			expectedKept: []uint64{base + 19}, expectedReason: reconcileIncompleteScanCapCst},
-		{name: "incomplete_confirmed_gone", category: "N", description: "incomplete scan, tracked pid gone: deleted (no slot leak under a flood), and its slot goes to a waiter",
+		{name: "capped_deletes_gone", category: "N", description: "a capped scan walked every pid: a gone tracked namespace is deleted (no slot leak under a flood), its slot goes to a waiter",
 			pids: func() map[int]pidNS {
 				m := map[int]pidNS{}
 				for i := range 20 {
@@ -91,11 +92,23 @@ func TestReconcileLimits(t *testing.T) {
 			}(),
 			tracked: map[uint64]int{base + 99: 999}, maxNetns: 1,
 			expectedDeleted: []uint64{base + 99}, expectedStores: 1, expectedReason: reconcileIncompleteScanCapCst},
-		{name: "nested_cgroup_owner", category: "C", description: "a tenant sub-cgroup with a fake 64-hex name: the owner is the outer id",
+		{name: "nested_cgroup_owner", category: "C", description: "a tenant sub-cgroup named like a container: the owner is the outer runtime component",
 			pids: map[int]pidNS{
-				100: {base, "0::/system.slice/docker-" + idA + ".scope/" + idB + "\n"},
+				100: {base, "0::/system.slice/docker-" + idA + ".scope/docker-" + idB + ".scope\n"},
 			}, maxNetns: 100, perOwner: 64,
-			expectedStores: 1, expectedOwners: map[uint64]string{base: idA}, expectedNames: map[uint64]string{base: idA}},
+			expectedStores: 1, expectedOwners: map[uint64]string{base: "/system.slice/docker-" + idA + ".scope"}, expectedNames: map[uint64]string{base: idA}},
+		{name: "timeout_no_delete", category: "C", description: "a timed-out scan deletes nothing, even a gone namespace",
+			pids: func() map[int]pidNS {
+				m := map[int]pidNS{}
+				for i := range 300 {
+					m[100+i] = pidNS{base + uint64(i), ""}
+				}
+				return m
+			}(),
+			tracked: map[uint64]int{base + 999: 9999}, maxNetns: 4096, timeout: time.Nanosecond,
+			expectedKept: []uint64{base + 999}, expectedStores: -1, expectedReason: reconcileIncompleteTimeoutCst},
+		{name: "unreadable_owner_deferred", category: "N", description: "a candidate whose cgroup can't be read is deferred, not filed under an owner",
+			pids: map[int]pidNS{100: {base, ""}}, maxNetns: 100, perOwner: 1},
 		{name: "owner_quota_reconcile", category: "N", description: "owner A's 5 namespaces against quota 2, B's 1: A gets 2, B 1",
 			pids: map[int]pidNS{
 				100: {base, cgroupOf(idA)}, 101: {base + 1, cgroupOf(idA)}, 102: {base + 2, cgroupOf(idA)},
@@ -111,7 +124,11 @@ func TestReconcileLimits(t *testing.T) {
 			x.config.MaxNetns = tc.maxNetns
 			x.config.MaxNetnsPerOwner = tc.perOwner
 			x.config.MaxNetnsAddsPerReconcile = tc.adds
-			x.config.ReconcileTimeout = durationpb.New(time.Minute)
+			timeout := tc.timeout
+			if timeout == 0 {
+				timeout = time.Minute
+			}
+			x.config.ReconcileTimeout = durationpb.New(timeout)
 			x.pReconcileIncomplete = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "ri"}, []string{"reason"})
 			x.pNetnsDropped = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "nd"}, []string{"reason"})
 			for ino, pid := range tc.tracked {
@@ -133,7 +150,7 @@ func TestReconcileLimits(t *testing.T) {
 				waitForNsInstanceEnd(t, x, float64(stores))
 			})
 
-			if stores != tc.expectedStores {
+			if tc.expectedStores >= 0 && stores != tc.expectedStores {
 				t.Errorf("%s: stores=%d, expected %d", tc.description, stores, tc.expectedStores)
 			}
 			for _, ino := range tc.expectedDeleted {

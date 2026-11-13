@@ -65,8 +65,10 @@ func (x *XTCP) discoverNamespaces(lim nsdiscover.ScanLimits) (map[uint64]nsIdent
 		if _, ok := out[inode]; ok {
 			return
 		}
-		if lim.MaxNamespaces > 0 && len(out) >= lim.MaxNamespaces {
-			stop = nsdiscover.ScanCap
+		if lim.MaxNamespaces > 0 && len(out) >= lim.MaxNamespaces && (lim.Keep == nil || !lim.Keep(inode)) {
+			if stop == nsdiscover.ScanComplete {
+				stop = nsdiscover.ScanCap
+			}
 			return
 		}
 		out[inode] = nsIdentity{
