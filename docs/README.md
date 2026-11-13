@@ -91,6 +91,7 @@ See **[CONTRIBUTING.md](../CONTRIBUTING.md)** for the development environment, t
 - [Investigations](investigations/) — write-ups of production problems with evidence, hypotheses and reproduction plans; currently [records dropped after the poll-end flush](investigations/envelope-post-flush-drop.md) (~19% of prod records).
 - [Socket analysis](socket-analysis.md) — finding RTT bands and other socket groupings by clustering (data-team methodology).
 - [Netlink documentation](netlink/) — the whole netlink cluster: the [production read path](netlink/collection.md), the [coverage audit](netlink/parsing-comparison.md) against `vishvananda/netlink`, the [expansion roadmap](netlink/coverage-expansion.md) (read-only constraint, target subpackage layout, generalising the `nlmon` capture harness to every protocol family, the multicast listener), and its [status tracker](netlink/coverage-status.md).
+- [One inet_diag dump for every namespace](kernel/inet-diag-all-netns.md) — why per-namespace dumps each walk the host's whole TCP table, and where an all-namespace dump would go in the kernel.
 - [Non-blocking netlink](netlink/nonblocking.md) — replacing the blocking `recvmsg` read path, and why it bounds OS-thread scaling.
 - [Build flavors](build-flavors.md) — the build-variant × destination-flavor matrix.
 - [Integration testing](integration-testing.md) — the QEMU microVM test harness.

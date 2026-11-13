@@ -309,6 +309,41 @@ func TestAdmitNamespaces(t *testing.T) {
 	}
 }
 
+// TestQueueWaitingBound: the queue cap keeps waiters and turns new
+// arrivals away past it.
+func TestQueueWaitingBound(t *testing.T) {
+	ns := func(inode uint64) nsIdentity { return nsIdentity{pid: int(inode), inode: inode} }
+	tests := []struct {
+		name             string
+		category         string
+		description      string
+		waiting          map[uint64]uint64
+		candidates       []nsIdentity
+		maxQueue         int
+		expectedQueued   []uint64
+		expectedOverflow int
+	}{
+		{name: "unbounded", category: "P", description: "maxQueue 0 queues every candidate",
+			candidates: []nsIdentity{ns(1), ns(2), ns(3)}, expectedQueued: []uint64{1, 2, 3}},
+		{name: "full_turns_new_away", category: "N", description: "queue of 2: two queued, one overflows",
+			candidates: []nsIdentity{ns(1), ns(2), ns(3)}, maxQueue: 2, expectedQueued: []uint64{1, 2}, expectedOverflow: 1},
+		{name: "waiters_keep_places", category: "C", description: "existing waiters stay even when they fill the queue; newcomers overflow",
+			waiting: map[uint64]uint64{5: 1, 6: 1}, candidates: []nsIdentity{ns(1), ns(5), ns(6)}, maxQueue: 2,
+			expectedQueued: []uint64{5, 6}, expectedOverflow: 1},
+		{name: "exact", category: "B", description: "candidates equal the cap",
+			candidates: []nsIdentity{ns(1), ns(2)}, maxQueue: 2, expectedQueued: []uint64{1, 2}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			next, _, overflow := queueWaiting(tc.waiting, 1, tc.candidates, nil, tc.maxQueue)
+			got := slices.Sorted(maps.Keys(next))
+			if !slices.Equal(got, tc.expectedQueued) || overflow != tc.expectedOverflow {
+				t.Errorf("%s: queued %v overflow %d, expected %v overflow %d", tc.description, got, overflow, tc.expectedQueued, tc.expectedOverflow)
+			}
+		})
+	}
+}
+
 // TestAdmitNamespacesQuota: the per-owner quota and the add rate.
 func TestAdmitNamespacesQuota(t *testing.T) {
 	const self = 1
@@ -416,7 +451,7 @@ func TestNetnsCapQueue(t *testing.T) {
 	var seq uint64
 	for i, st := range steps {
 		admit, _ := admitNamespaces(slices.Clone(st.candidates), st.tracked, nil, admitLimits{maxNetns: limit, self: self}, waiting)
-		waiting, seq = queueWaiting(waiting, seq, st.candidates, admit)
+		waiting, seq, _ = queueWaiting(waiting, seq, st.candidates, admit, 0)
 		got := make([]uint64, 0, len(admit))
 		for _, id := range admit {
 			got = append(got, id.inode)

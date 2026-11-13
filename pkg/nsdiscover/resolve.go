@@ -93,20 +93,23 @@ func (r *Resolver) Name(inode uint64, pid int) string {
 	return "netns:[" + strconv.FormatUint(inode, 10) + "]"
 }
 
-// Owner is the quota owner of pid's namespace: the cgroup v2 path of pid
-// (the "0::" line; the first line on a v1-only host), cut just after the
-// first component a container runtime names by container id:
+// Owner is the quota owner of pid's namespace, from its cgroup v2 path
+// (the "0::" line; the first line on a v1-only host):
 //
-//	docker-<id>.scope, cri-containerd-<id>.scope, crio-<id>.scope,
-//	libpod-<id>.scope, or a bare <id> under /docker or a kubepods slice
+//   - under user.slice: the user's slice, /user.slice/user-<uid>.slice.
+//     Everything below is delegated to the user (rootless containers
+//     included), so it is all one owner.
+//   - else the path cut just after a container runtime's component, where
+//     runtimes put it: /system.slice or /machine.slice +
+//     <runtime>-<id>.scope (docker-, cri-containerd-, crio-, libpod-),
+//     /docker/<id>, or a container under kubepods with only kubelet
+//     components (kubepods*, burstable, besteffort, pod*) above it.
+//   - else its first two components (one system service).
 //
-// and with no such component, its first two components (user-1000.slice
-// under user.slice, one service under system.slice). Components are
-// matched from the root: a process can create sub-cgroups, named anything,
-// only below its own, so it can't change where its path is cut once a
-// runtime component is above it. Under a runtime that doesn't name
-// cgroups by container id, a process can make new owners by making
-// sub-cgroups at the second level.
+// A process can create sub-cgroups, named anything, only below its own. A
+// runtime component is only accepted where the components above it are the
+// runtime's, so a sub-cgroup named like a container doesn't make a new
+// owner. A service that delegates its cgroup (Delegate=yes) is one owner.
 //
 // ok is false when pid's cgroup can't be read (it exited): the caller
 // should try again later rather than file it under any owner.
@@ -123,17 +126,26 @@ func (r *Resolver) Owner(pid int) (owner string, ok bool) {
 
 // ownerFromCgroup is Owner on a /proc/<pid>/cgroup file.
 func ownerFromCgroup(data []byte) string {
-	path := cgroupPath(data)
-	comps := strings.Split(strings.Trim(path, "/"), "/")
-	for i, c := range comps {
-		if runtimeComponent(c, i, comps) {
-			return "/" + strings.Join(comps[:i+1], "/")
+	comps := strings.Split(strings.Trim(cgroupPath(data), "/"), "/")
+	cut := func(n int) string { return "/" + strings.Join(comps[:min(n, len(comps))], "/") }
+	switch {
+	case comps[0] == "user.slice":
+		return cut(2)
+	case len(comps) >= 2 && (comps[0] == "system.slice" || comps[0] == "machine.slice") && runtimeScope(comps[1]):
+		return cut(2)
+	case len(comps) >= 2 && comps[0] == "docker" && isContainerID(comps[1]):
+		return cut(2)
+	case strings.HasPrefix(comps[0], "kubepods"):
+		for i := 1; i < len(comps); i++ {
+			if runtimeScope(comps[i]) || isContainerID(comps[i]) {
+				return cut(i + 1)
+			}
+			if !kubeParent(comps[i]) {
+				break
+			}
 		}
 	}
-	if len(comps) > 2 {
-		comps = comps[:2]
-	}
-	return "/" + strings.Join(comps, "/")
+	return cut(2)
 }
 
 // cgroupPath returns the v2 ("0::") path, else the first line's path.
@@ -157,21 +169,24 @@ func cgroupPath(data []byte) string {
 	return first
 }
 
+// kubeParent reports whether c is a kubelet cgroup above a container: a
+// kubepods* slice, a QoS class (cgroupfs driver), or a pod.
+func kubeParent(c string) bool {
+	return strings.HasPrefix(c, "kubepods") || strings.HasPrefix(c, "pod") || c == "burstable" || c == "besteffort"
+}
+
 var runtimeScopePrefixes = []string{"docker-", "cri-containerd-", "crio-", "libpod-"}
 
-// runtimeComponent reports whether comps[i] is a runtime's container
-// cgroup.
-func runtimeComponent(c string, i int, comps []string) bool {
-	for _, p := range runtimeScopePrefixes {
-		if id, ok := strings.CutPrefix(c, p); ok {
-			if id, ok = strings.CutSuffix(id, ".scope"); ok && isContainerID(id) {
-				return true
-			}
-		}
+// runtimeScope reports whether c is <runtime>-<id>.scope.
+func runtimeScope(c string) bool {
+	id, ok := strings.CutSuffix(c, ".scope")
+	if !ok {
+		return false
 	}
-	if i > 0 && isContainerID(c) {
-		parent := comps[i-1]
-		return parent == "docker" || strings.HasPrefix(parent, "kubepods") || strings.HasPrefix(parent, "pod")
+	for _, p := range runtimeScopePrefixes {
+		if rest, ok := strings.CutPrefix(id, p); ok && isContainerID(rest) {
+			return true
+		}
 	}
 	return false
 }
@@ -186,6 +201,12 @@ func isContainerID(s string) bool {
 		}
 	}
 	return true
+}
+
+// BindMountPath is the bind-mount path of inode from the last Refresh.
+func (r *Resolver) BindMountPath(inode uint64) (string, bool) {
+	p, ok := r.pathByIno[inode]
+	return p, ok
 }
 
 // containerID reads /proc/<pid>/cgroup and returns the first container id found
