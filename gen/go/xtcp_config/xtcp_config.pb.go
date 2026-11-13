@@ -1570,10 +1570,11 @@ type XtcpConfig struct {
 	// mutex-serialized with the background reconciler. Default true.
 	ReconcileBeforePoll bool `protobuf:"varint,41,opt,name=reconcile_before_poll,json=reconcileBeforePoll,proto3" json:"reconcile_before_poll,omitempty"`
 	// Cap on the network namespaces tracked, xtcp2's own included. Each costs
-	// a netlink socket, a receiver and its decoders. At the cap, reconcile
-	// adds no more, preferring the lowest pids (long-running workloads), and
-	// counts the rest in xtcp_netns_dropped_total; a slot freed by a deleted
-	// namespace is filled on the next reconcile. Startup-only.
+	// a netlink socket, a receiver and its decoders. At the cap, the tracked
+	// set is the lowest-pid live namespaces: a newer namespace stays out, an
+	// older one displaces the highest-pid tracked one, and both count in
+	// xtcp_netns_dropped_total. A burst of new namespaces cannot push out
+	// long-running workloads. Startup-only.
 	// 0 = unlimited. Daemon default 4096.
 	MaxNetns uint32 `protobuf:"varint,42,opt,name=max_netns,json=maxNetns,proto3" json:"max_netns,omitempty"`
 	// Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker

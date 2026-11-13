@@ -751,7 +751,7 @@
         "maxNetns": {
           "type": "integer",
           "format": "int64",
-          "description": "Cap on the network namespaces tracked, xtcp2's own included. Each costs\na netlink socket, a receiver and its decoders. At the cap, reconcile\nadds no more, preferring the lowest pids (long-running workloads), and\ncounts the rest in xtcp_netns_dropped_total; a slot freed by a deleted\nnamespace is filled on the next reconcile. Startup-only.\n0 = unlimited. Daemon default 4096."
+          "description": "Cap on the network namespaces tracked, xtcp2's own included. Each costs\na netlink socket, a receiver and its decoders. At the cap, the tracked\nset is the lowest-pid live namespaces: a newer namespace stays out, an\nolder one displaces the highest-pid tracked one, and both count in\nxtcp_netns_dropped_total. A burst of new namespaces cannot push out\nlong-running workloads. Startup-only.\n0 = unlimited. Daemon default 4096."
         },
         "writeFiles": {
           "type": "integer",

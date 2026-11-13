@@ -28,27 +28,55 @@ func (x *XTCP) dumpTruncated(reason string, fd int, limit uint64) {
 	log.Printf("dump truncated: fd:%d inode:%v cap:%s=%d; the rest of this poll's dump is dropped", fd, inode, reason, limit)
 }
 
-// admitNamespaces picks which of the untracked live namespaces reconcile may
-// add, given tracked (the namespaces tracked after its deletes) and limit
-// (-maxNetns, 0 for no cap). Lower pids go first, so long-running workloads
-// keep their slots ahead of a burst of new namespaces, and xtcp2's own
-// namespace (self) is always admitted. It returns the admitted identities
-// and how many were left out.
-func admitNamespaces(candidates []nsIdentity, tracked int, limit uint32, self uint64) (admit []nsIdentity, dropped int) {
-	if limit == 0 {
-		return candidates, 0
+// nsRanked is a namespace in admitNamespaces' ranking, and whether it is
+// already tracked.
+type nsRanked struct {
+	id      nsIdentity
+	tracked bool
+}
+
+// admitNamespaces applies -maxNetns (limit, 0 for no cap): the namespaces
+// tracked are the limit lowest-pid live ones, xtcp2's own (self) always
+// among them. Lower pids are older processes, so a burst of new namespaces
+// cannot displace long-running workloads; bind-mounted namespaces (pid 0)
+// were created by the host or the container runtime and rank first.
+//
+// candidates are live and untracked; tracked are live and tracked, with
+// their current pid. It returns the candidates to add, the tracked
+// namespaces to evict because lower-pid ones displace them, and how many
+// candidates stay out. The ranking is total and depends only on the live
+// set, so an evicted namespace loses the same comparison on every later
+// reconcile: the tracked set converges, it does not churn.
+func admitNamespaces(candidates, tracked []nsIdentity, limit uint32, self uint64) (admit, evict []nsIdentity, dropped int) {
+	if limit == 0 || len(candidates) == 0 {
+		return candidates, nil, 0
 	}
-	slices.SortFunc(candidates, func(a, b nsIdentity) int {
-		return cmp.Or(cmp.Compare(a.pid, b.pid), cmp.Compare(a.inode, b.inode))
-	})
-	admit = candidates[:0:0]
+	all := make([]nsRanked, 0, len(candidates)+len(tracked))
+	for _, id := range tracked {
+		all = append(all, nsRanked{id: id, tracked: true})
+	}
 	for _, id := range candidates {
-		if id.inode == self || tracked < int(limit) {
-			admit = append(admit, id)
-			tracked++
-			continue
-		}
-		dropped++
+		all = append(all, nsRanked{id: id})
 	}
-	return admit, dropped
+	slices.SortFunc(all, func(a, b nsRanked) int {
+		if (a.id.inode == self) != (b.id.inode == self) {
+			if a.id.inode == self {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Or(cmp.Compare(a.id.pid, b.id.pid), cmp.Compare(a.id.inode, b.id.inode))
+	})
+	for i, r := range all {
+		keep := i < int(limit) || r.id.inode == self
+		switch {
+		case keep && !r.tracked:
+			admit = append(admit, r.id)
+		case !keep && r.tracked:
+			evict = append(evict, r.id)
+		case !keep:
+			dropped++
+		}
+	}
+	return admit, evict, dropped
 }

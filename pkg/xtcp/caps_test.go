@@ -250,50 +250,107 @@ func TestNetlinkerDump_caps(t *testing.T) {
 	}
 }
 
-// TestAdmitNamespaces pins -maxNetns: who is admitted at the cap, in what
-// order, and how many are counted out.
+// TestAdmitNamespaces pins -maxNetns: the tracked set converges to the
+// lowest-pid live namespaces, xtcp2's own always among them.
 func TestAdmitNamespaces(t *testing.T) {
 	const self = 1
 	ns := func(pid int, inode uint64) nsIdentity { return nsIdentity{pid: pid, inode: inode} }
+	selfNs := ns(0, self)
 
 	tests := []struct {
 		name            string
 		category        string
 		description     string
 		candidates      []nsIdentity
-		tracked         int
+		tracked         []nsIdentity
 		limit           uint32
-		expected        []uint64 // admitted inodes, in order
+		expectedAdmit   []uint64 // inodes, in rank order
+		expectedEvict   []uint64
 		expectedDropped int
 	}{
-		{name: "netns_cap_zero", category: "P", description: "cap 0 admits all",
-			candidates: []nsIdentity{ns(9, 90), ns(3, 30)}, tracked: 100, limit: 0, expected: []uint64{90, 30}},
+		{name: "netns_cap_zero", category: "P", description: "cap 0 admits all, evicts none",
+			candidates: []nsIdentity{ns(9, 90), ns(3, 30)}, tracked: []nsIdentity{selfNs, ns(5, 50)}, limit: 0,
+			expectedAdmit: []uint64{90, 30}},
 		{name: "under_cap", category: "P", description: "room for every candidate",
-			candidates: []nsIdentity{ns(9, 90), ns(3, 30)}, tracked: 1, limit: 10, expected: []uint64{30, 90}},
+			candidates: []nsIdentity{ns(9, 90), ns(3, 30)}, tracked: []nsIdentity{selfNs}, limit: 10,
+			expectedAdmit: []uint64{30, 90}},
 		{name: "netns_cap", category: "N", description: "cap 3 with self tracked: the two lowest pids of five win",
 			candidates: []nsIdentity{ns(50, 500), ns(20, 200), ns(40, 400), ns(10, 100), ns(30, 300)},
-			tracked:    1, limit: 3, expected: []uint64{100, 200}, expectedDropped: 3},
-		{name: "netns_cap_slot_frees", category: "B", description: "one slot freed by a delete goes to the lowest-pid candidate",
-			candidates: []nsIdentity{ns(40, 400), ns(30, 300)}, tracked: 2, limit: 3, expected: []uint64{300}, expectedDropped: 1},
-		{name: "at_cap", category: "B", description: "tracked equals the cap: nothing admitted",
-			candidates: []nsIdentity{ns(5, 50)}, tracked: 3, limit: 3, expectedDropped: 1},
-		{name: "self_always", category: "C", description: "xtcp2's own namespace is admitted even at the cap",
-			candidates: []nsIdentity{ns(7, 70), ns(99, self)}, tracked: 3, limit: 3, expected: []uint64{self}, expectedDropped: 1},
-		{name: "pid_tie", category: "C", description: "equal pids (one process, two discovery sources) order by inode",
-			candidates: []nsIdentity{ns(5, 60), ns(5, 50)}, tracked: 0, limit: 1, expected: []uint64{50}, expectedDropped: 1},
-		{name: "no_candidates", category: "C", description: "nothing to add",
-			tracked: 5, limit: 3},
+			tracked:    []nsIdentity{selfNs}, limit: 3, expectedAdmit: []uint64{100, 200}, expectedDropped: 3},
+		{name: "netns_cap_slot_frees", category: "B", description: "a slot freed by a delete goes to the lowest-pid candidate",
+			candidates: []nsIdentity{ns(40, 400), ns(30, 300)}, tracked: []nsIdentity{selfNs, ns(5, 50)}, limit: 3,
+			expectedAdmit: []uint64{300}, expectedDropped: 1},
+		{name: "at_cap_higher_pid", category: "B", description: "at the cap, a newer (higher-pid) candidate stays out",
+			candidates: []nsIdentity{ns(90, 900)}, tracked: []nsIdentity{selfNs, ns(5, 50), ns(6, 60)}, limit: 3,
+			expectedDropped: 1},
+		{name: "displace_burst", category: "N", description: "a tenant's burst filled the cap; an older workload's namespace displaces the highest-pid one",
+			candidates: []nsIdentity{ns(7, 70)}, tracked: []nsIdentity{selfNs, ns(1000, 1000), ns(1001, 1001)}, limit: 3,
+			expectedAdmit: []uint64{70}, expectedEvict: []uint64{1001}},
+		{name: "converged_stable", category: "C", description: "the evicted namespace, now a candidate, loses again: no churn",
+			candidates: []nsIdentity{ns(1001, 1001)}, tracked: []nsIdentity{selfNs, ns(7, 70), ns(1000, 1000)}, limit: 3,
+			expectedDropped: 1},
+		{name: "bind_mount_first", category: "C", description: "a bind-mounted namespace (pid 0) outranks process ones",
+			candidates: []nsIdentity{ns(0, 77)}, tracked: []nsIdentity{selfNs, ns(5, 50), ns(6, 60)}, limit: 3,
+			expectedAdmit: []uint64{77}, expectedEvict: []uint64{60}},
+		{name: "self_always", category: "C", description: "xtcp2's own namespace is admitted even past the cap",
+			candidates: []nsIdentity{ns(7, 70), ns(99, self)}, tracked: []nsIdentity{ns(2, 20), ns(3, 30)}, limit: 1,
+			expectedAdmit: []uint64{self}, expectedEvict: []uint64{20, 30}, expectedDropped: 1},
+		{name: "pid_tie", category: "C", description: "equal pids order by inode",
+			candidates: []nsIdentity{ns(5, 60), ns(5, 50)}, limit: 1, expectedAdmit: []uint64{50}, expectedDropped: 1},
+		{name: "no_candidates", category: "C", description: "nothing new: nothing evicted, even at the cap",
+			tracked: []nsIdentity{selfNs, ns(5, 50), ns(6, 60)}, limit: 2},
+	}
+	inodes := func(ids []nsIdentity) []uint64 {
+		out := make([]uint64, 0, len(ids))
+		for _, id := range ids {
+			out = append(out, id.inode)
+		}
+		return out
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			admit, dropped := admitNamespaces(slices.Clone(tc.candidates), tc.tracked, tc.limit, self)
-			var got []uint64
-			for _, id := range admit {
-				got = append(got, id.inode)
+			admit, evict, dropped := admitNamespaces(slices.Clone(tc.candidates), tc.tracked, tc.limit, self)
+			if got := inodes(admit); !slices.Equal(got, tc.expectedAdmit) {
+				t.Errorf("%s: admitted %v, expected %v", tc.description, got, tc.expectedAdmit)
 			}
-			if !slices.Equal(got, tc.expected) || dropped != tc.expectedDropped {
-				t.Errorf("%s: admitted %v dropped %d, expected %v dropped %d",
-					tc.description, got, dropped, tc.expected, tc.expectedDropped)
+			if got := inodes(evict); !slices.Equal(got, tc.expectedEvict) {
+				t.Errorf("%s: evicted %v, expected %v", tc.description, got, tc.expectedEvict)
+			}
+			if dropped != tc.expectedDropped {
+				t.Errorf("%s: dropped %d, expected %d", tc.description, dropped, tc.expectedDropped)
+			}
+		})
+	}
+}
+
+// TestTrackedLive: tracked namespaces still live, with the scan's pid, and
+// xtcp2's own even when the scan missed it.
+func TestTrackedLive(t *testing.T) {
+	const self = 1
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		tracked     []uint64
+		live        map[uint64]nsIdentity
+		expected    []nsIdentity
+	}{
+		{name: "live_current_pid", category: "P", description: "a live tracked namespace carries the scan's pid",
+			tracked: []uint64{50}, live: map[uint64]nsIdentity{50: {inode: 50, pid: 9}},
+			expected: []nsIdentity{{inode: 50, pid: 9}}},
+		{name: "gone", category: "N", description: "a tracked namespace no longer live is left out",
+			tracked: []uint64{50}, live: map[uint64]nsIdentity{}},
+		{name: "self_unscanned", category: "C", description: "self holds a slot though the scan missed it",
+			tracked: []uint64{self}, live: map[uint64]nsIdentity{}, expected: []nsIdentity{{inode: self}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &sync.Map{}
+			for _, inode := range tc.tracked {
+				m.Store(inode, netNSitem{inode: inode})
+			}
+			if got := trackedLive(m, tc.live, self); !slices.Equal(got, tc.expected) {
+				t.Errorf("%s: %v, expected %v", tc.description, got, tc.expected)
 			}
 		})
 	}
