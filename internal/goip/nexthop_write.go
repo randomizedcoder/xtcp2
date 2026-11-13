@@ -436,10 +436,10 @@ func nexthopFlush(c *runCtx, args []string) error {
 	copied := map[uint32]bool{}
 	var ids []uint32
 	keep := func(nhs []model.Nexthop, err error) error {
-		for _, nh := range nhs {
-			if nh.ID != 0 && !copied[nh.ID] {
-				copied[nh.ID] = true
-				ids = append(ids, nh.ID)
+		for i := range nhs {
+			if id := nhs[i].ID; id != 0 && !copied[id] {
+				copied[id] = true
+				ids = append(ids, id)
 			}
 		}
 		return err

@@ -32,15 +32,6 @@ var lwtencSpaces = map[string]kwliveSpace{
 	"lwtencnh":   {unix.RTM_NEWNEXTHOP, unix.SizeofNhmsg},
 }
 
-// LWT_BPF_* (include/uapi/linux/lwtunnel.h): the hook nests and the xmit
-// headroom. Test-local until NP8 adds the bpf encap parser.
-const (
-	lwtencBpfIn           uint16 = 1
-	lwtencBpfOut          uint16 = 2
-	lwtencBpfXmit         uint16 = 3
-	lwtencBpfXmitHeadroom uint16 = 4
-)
-
 // lwtencBpfObj is the object's basename, as ip names a program.
 const lwtencBpfObj = "lwt_bpf.o"
 
@@ -48,7 +39,7 @@ var (
 	lwtencEncapTypes = map[string]uint16{
 		"rpl": unix.LWTUNNEL_ENCAP_RPL, "ioam6": unix.LWTUNNEL_ENCAP_IOAM6, "bpf": unix.LWTUNNEL_ENCAP_BPF,
 	}
-	lwtencBpfHooks = map[string]uint16{"in": lwtencBpfIn, "out": lwtencBpfOut, "xmit": lwtencBpfXmit}
+	lwtencBpfHooks = map[string]uint16{"in": LwtBpfIn, "out": LwtBpfOut, "xmit": LwtBpfXmit}
 )
 
 // lwtencProblem checks an lwtenc request body against the row's axes.
@@ -181,11 +172,11 @@ func lwtencBpfAxis(k, val string, raw []byte) error {
 		return out
 	}
 	if k == "headroom" {
-		h := of(lwtencBpfXmitHeadroom)
+		h := of(LwtBpfXmitHeadroom)
 		if len(h) != 1 {
 			return fmt.Errorf("%d LWT_BPF_XMIT_HEADROOM, want one", len(h))
 		}
-		return kwWantU32(map[uint16][]byte{lwtencBpfXmitHeadroom: h[0]}, lwtencBpfXmitHeadroom, val)
+		return kwWantU32(map[uint16][]byte{LwtBpfXmitHeadroom: h[0]}, LwtBpfXmitHeadroom, val)
 	}
 	hook, first := k, false
 	if k == "in_first" {
@@ -249,7 +240,7 @@ func lwtencBpfBodyN(t *testing.T, headroom uint32, copies int, hooks ...string) 
 			}
 		}
 		for range copies * min(int(headroom), 1) {
-			if err := ab.PutU32(lwtencBpfXmitHeadroom, headroom); err != nil {
+			if err := ab.PutU32(LwtBpfXmitHeadroom, headroom); err != nil {
 				return err
 			}
 		}

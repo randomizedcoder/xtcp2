@@ -109,9 +109,14 @@ type RouteEncap struct {
 	// nil.
 	Xfrm *XfrmEncapInfo
 	// Seg6Local is the decoded payload when Type is
-	// LWTUNNEL_ENCAP_SEG6_LOCAL, else nil. Another encap type is kept in Raw
-	// only.
+	// LWTUNNEL_ENCAP_SEG6_LOCAL, else nil.
 	Seg6Local *Seg6LocalInfo
+	// Rpl, Ioam6 and Bpf are the decoded payload when Type is
+	// LWTUNNEL_ENCAP_RPL, LWTUNNEL_ENCAP_IOAM6 or LWTUNNEL_ENCAP_BPF, else
+	// nil. Another encap type is kept in Raw only.
+	Rpl   *RplEncapInfo
+	Ioam6 *Ioam6EncapInfo
+	Bpf   *BpfEncapInfo
 }
 
 // MPLSEncap is an LWTUNNEL_ENCAP_MPLS payload: the labels pushed, and the TTL
@@ -182,6 +187,24 @@ func (e *RouteEncap) decode() error {
 			return err
 		}
 		e.Seg6Local = &s
+	case unix.LWTUNNEL_ENCAP_RPL:
+		r, err := ParseRplEncap(e.Raw)
+		if err != nil {
+			return err
+		}
+		e.Rpl = &r
+	case unix.LWTUNNEL_ENCAP_IOAM6:
+		i, err := ParseIoam6Encap(e.Raw)
+		if err != nil {
+			return err
+		}
+		e.Ioam6 = &i
+	case unix.LWTUNNEL_ENCAP_BPF:
+		b, err := ParseBpfEncap(e.Raw)
+		if err != nil {
+			return err
+		}
+		e.Bpf = &b
 	}
 	return nil
 }
