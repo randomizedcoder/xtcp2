@@ -442,6 +442,17 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-j maddress show",
 		"maddress show dev d0",
 		"maddress show dev nosuch",
+		// The seven NX8 nexthop -s rows, gated on two nexthop section runs at
+		// iproute2 7.3.0 (2026-11-12): GOIP_PARITY_PASS with stdout=0 and
+		// control nl=0 on both, txns 2/2 on the four dumps and 1/1 on the
+		// three gets.
+		"-s nexthop show",
+		"-s -s nexthop show",
+		"-j -s nexthop show",
+		"-j -s -s nexthop show",
+		"-s nexthop get id 10",
+		"-s nexthop show id 12",
+		"-d nexthop show id 12",
 		// The fifteen NX5a stats rows, gated on two stats section runs at
 		// iproute2 7.3.0 (2026-11-10): GOIP_PARITY_PASS with stdout=0 on
 		// both, txns 6/6 on the twelve dumps and 2/2 on the three dev d0

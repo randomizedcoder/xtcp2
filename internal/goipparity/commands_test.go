@@ -4861,6 +4861,51 @@ func TestMaddrRowsGated(t *testing.T) {
 	}
 }
 
+// TestNexthopStatsRowsGated pins NX8's seven nexthop -s rows, which gated on
+// two clean nexthop section runs at iproute2 7.3.0 rather than joining the
+// ungated list.
+//
+// go test ./internal/goipparity/ -run TestNexthopStatsRowsGated
+func TestNexthopStatsRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		floor       int
+	}{
+		{"positive: -s, the dump with NHA_OP_FLAGS 1 and d0 by index", "-s nexthop show", true, 4},
+		{"positive: -s -s, NHA_OP_FLAGS 3 and packets_hw", "-s -s nexthop show", true, 4},
+		{"positive: -j -s, group_stats and hw_stats objects", "-j -s nexthop show", true, 4},
+		{"positive: -j -s -s, the same with packets_hw", "-j -s -s nexthop show", true, 4},
+		{"positive: -s get of a group, which has no dev", "-s nexthop get id 10", true, 2},
+		{"boundary: -s show id, the same get as get id", "-s nexthop show id 12", true, 2},
+		{"corner: -d prints hw_stats with no stats op flag", "-d nexthop show id 12", true, 2},
+		{"negative: an id the matrix has no -s row for is not gated", "-s nexthop get id 12", false, 0},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != r.floor || !slices.Equal(c.Setup, nexthopStatsSetup) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented read row, floor %d, nexthopStatsSetup",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.floor)
+			}
+		})
+	}
+}
+
 // TestStatsNX5aRowsGated pins NX5a's fifteen stats rows, which gated on two
 // clean stats section runs at iproute2 7.3.0.
 //

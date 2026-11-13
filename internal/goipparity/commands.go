@@ -1504,6 +1504,43 @@ var commands = withArgs([]Command{
 		// No such id: ENOENT, exit 2 (2).
 		Setup: nexthopGetSetup, Floor: 2, Implemented: true,
 	},
+	// NX8 (goip-parity-next.md): `nexthop show -s` and `-s -s`, the nhstats
+	// readback forms. The dump and get carry NHA_OP_FLAGS (1 for -s, 3 for
+	// -s -s); a group prints its `stats:` block, the hw_stats group its
+	// `hw_stats on used off`, and the seg6local nexthop its counters. No row
+	// sends traffic, so every counter is 0 on all three sides.
+	{
+		Name: "-s nexthop show", Slug: "nexthop_show_stats",
+		// The dump plus d0 by index, as nexthop_show (4).
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s -s nexthop show", Slug: "nexthop_show_stats2",
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s nexthop show", Slug: "nexthop_show_stats_json",
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s -s nexthop show", Slug: "nexthop_show_stats2_json",
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s nexthop get id 10", Slug: "nexthop_get_stats",
+		// A group has no dev: the get and its reply (2).
+		Setup: nexthopStatsSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-s nexthop show id 12", Slug: "nexthop_show_id_stats",
+		// show id is the same get as get id (2).
+		Setup: nexthopStatsSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-d nexthop show id 12", Slug: "nexthop_show_id_detail",
+		// -d prints hw_stats without NHA_OP_FLAGS' stats (2).
+		Setup: nexthopStatsSetup, Floor: 2, Implemented: true,
+	},
 	{
 		Name: "nexthop bucket show id 20", Slug: "nexthop_bucket_show",
 		// The 1024 buckets of a resilient group in one dump; ip's capture held
@@ -8049,6 +8086,11 @@ var (
 	}
 	nexthopBucketSetup = append(append([]string{}, nexthopGetSetup...),
 		"nexthop add id 20 group 1/2 type resilient buckets 1024")
+	// nexthopStatsSetup is the nhstats corpus' groups (ec-001, ec-003) and
+	// a seg6local nexthop with counters, for the -s rows.
+	nexthopStatsSetup = append(append([]string{}, nexthopGetSetup...),
+		"nexthop add id 10 group 1/2", "nexthop add id 12 group 1/2 hw_stats on",
+		"-6 nexthop add id 30 encap seg6local action End count dev d0")
 	// nexthopD0Setup is PRE_D0_ADDR, nexthop_add_single's, and
 	// nexthopBlackholeSetup nexthop_add_existing's and nexthop_del's one step.
 	nexthopD0Setup        = nexthopGetSetup[:3:3]
