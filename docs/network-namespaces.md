@@ -59,6 +59,9 @@ Rapid namespace churn (e.g. Kubernetes pods cycling) is the hard case: each `set
 | `-reconcileBeforePoll` | `true` | Refresh the namespace set before each poll cycle. |
 | `-reconcileFrequency` | `6h` | Background reconcile fallback; `0` disables the ticker. |
 | `-maxThreads` | `2000` | Cap on Go runtime OS threads (`debug.SetMaxThreads`); `0` = Go default (10000). |
+| `-maxNetns` | `4096` | Cap on namespaces tracked, xtcp2's own included; `0` = unlimited. `MAX_NETNS`. |
+
+Each tracked namespace costs a netlink socket, a receiver and its decoders, so `-maxNetns` bounds them. At the cap, reconcile adds no more. It prefers the lowest pids, so long-running workloads keep their slots ahead of a burst of new namespaces. It counts the rest in `xtcp_netns_dropped_total` (once per reconcile) and logs a line. The ones left out stay candidates, and a slot freed by a deleted namespace is filled on the next reconcile. xtcp2's own namespace is always tracked. `ConfigService.Set` keeps the running cap. The per-namespace dump caps are in [polling and batching](polling-and-batching.md#per-namespace-caps).
 
 The bind-mount directories (`/run/netns/`, `/run/docker/netns/`) are built in, not flags.
 

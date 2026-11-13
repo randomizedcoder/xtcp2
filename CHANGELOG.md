@@ -14,6 +14,7 @@
 
 ### New
 
+- **Per-namespace caps.** `-maxDumpBytes` (default 256 MiB) and `-maxRecordsPerNetns` (default 262144) bound one namespace's dump per poll: packets past the byte cap are drained undecoded, and records past the record cap are dropped before decode. `-maxNetns` (default 4096) bounds the namespaces tracked; at the cap, the lowest pids win. Drops are counted in `xtcp_dump_dropped_total{reason}` and `xtcp_netns_dropped_total`, with one log line per truncated dump or short reconcile. `0` turns a cap off; the matching env vars are `MAX_DUMP_BYTES`, `MAX_RECORDS_PER_NETNS` and `MAX_NETNS`. The caps are startup-only: `ConfigService.Set` keeps the running values. No healthy host should reach the defaults; a host that does now loses that namespace's excess rows, where it used to collect them all ([polling and batching](docs/polling-and-batching.md#per-namespace-caps)).
 - **Vulnerability check.** `checks.govulncheck` runs govulncheck against a pinned snapshot of the Go vulnerability database, with no tags and with every flavor tag, and fails on a reachable finding not in its accepted list. One is accepted: GO-2026-6859 in `net/http`, fixed in go1.27.4, until the toolchain moves. `nix run .#govulncheck-fresh` checks against the live database and runs `go mod verify`; `nix build .#sbom-<binary>` writes a CycloneDX SBOM for any binary package.
 
 ## 0.2.1 (2026-11)

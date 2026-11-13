@@ -38,6 +38,15 @@ Pairing a row cap with a byte cap keeps batches bounded both in count and in mem
 
 Both caps are also tunable at runtime without a restart via `ConfigService.SetEnvelopeFlush` (or `xtcp2ctl set-envelope-flush -threshold-bytes … -threshold-rows …`); the change applies to the next appended record. Raising the byte cap increases peak in-flight memory, so keep it well under the container's memory limit. See [gRPC API](./grpc-api.md).
 
+## Per-namespace caps
+
+One namespace's dump is bounded per poll, so a workload with a huge socket table costs a metric, not the collector:
+
+- **Bytes** (`-maxDumpBytes`, default 256 MiB). Packets past the cap are read and drained without being decoded. NLMSG_DONE still ends the dump, so the poll is not held up; the records kept are the dump's first ones. The kernel still builds the rest of the dump.
+- **Records** (`-maxRecordsPerNetns`, default 262144). Records past the cap are dropped before their attributes are decoded or enriched.
+
+Each dump cut short adds 1 to `xtcp_dump_dropped_total{reason="bytes"|"records"}` and logs one line naming the namespace's inode. The packets and records dropped are counted in `xtcp_counts{function="Netlinker",variable="dumpBytesCap"}` and `{function="Netlinker",variable="recordsCap"}`. `0` turns a cap off. The caps are startup-only: `ConfigService.Set` keeps the running values. The defaults are deliberately generous and will be revisited against a measured fleet baseline. The namespace count has its own cap, `-maxNetns` ([network namespaces](network-namespaces.md#configuration)).
+
 ## Timeouts
 
 - `-frequency` (default `10s`) is the interval between dumps.
@@ -52,6 +61,8 @@ Both caps are also tunable at runtime without a restart via `ConfigService.SetEn
 | `-envelopeFlushRows` | `0` → 10000 | Primary flush cap: rows per Envelope. |
 | `-envelopeFlushBytes` | `0` → 768 KiB | Safety-net flush cap: uncompressed Envelope bytes. |
 | `-maxLoops` | `0` | Maximum cycles, or `0` for forever. |
+| `-maxDumpBytes` | 256 MiB | Bytes of one namespace's dump per poll; `0` = unlimited. `MAX_DUMP_BYTES`. |
+| `-maxRecordsPerNetns` | 262144 | Records of one namespace per poll; `0` = unlimited. `MAX_RECORDS_PER_NETNS`. |
 
 ## See also
 
