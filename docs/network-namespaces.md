@@ -78,8 +78,8 @@ A process can create sub-cgroups only below its own, and a component is only tak
 
 **Bounded reconcile.** A reconcile runs before every poll, so it is bounded so that a burst of namespaces can't hold up polling:
 
-- `-reconcileTimeout` bounds the `/proc` scan. After a timeout, a tracked namespace the scan didn't reach is deleted only if the last process it was seen through has left it. (That can drop a namespace whose other processes remain; a later scan re-queues it. Keeping every unreached namespace would let a flood that times out every scan hold dead namespaces' slots.) Waiting namespaces keep their places.
-- One scan takes in at most 4 × `-maxNetns` new namespaces. Past that it keeps walking `/proc` but reports only namespaces already tracked or waiting, so deletes stay correct; the waiting queue is capped at the same size.
+- `-reconcileTimeout` bounds the `/proc` scan. A scan that times out deletes nothing, since a namespace it didn't reach may still be live, and waiting namespaces keep their places. While scans keep timing out, a namespace that died keeps its slot; alert on `xtcp_reconcile_incomplete_total{reason="timeout"}`.
+- One scan takes in at most 4 × `-maxNetns` new namespaces. Past that it keeps walking `/proc` but reports only namespaces already tracked or waiting, so deletes stay correct. The waiting queue is capped at the same size, and a namespace whose owner is at quota gets no place in it, so one owner can't fill it.
 - `-maxNetnsAddsPerReconcile` bounds the namespaces entered per reconcile.
 - Names and owners (a read of `/proc/<pid>/cgroup` each) are resolved only for namespaces being added; owners oldest waiter first, at least 64 per reconcile even after the deadline.
 

@@ -320,6 +320,7 @@ func TestQueueWaitingBound(t *testing.T) {
 		waiting          map[uint64]uint64
 		candidates       []nsIdentity
 		maxQueue         int
+		skip             func(nsIdentity) bool
 		expectedQueued   []uint64
 		expectedOverflow int
 	}{
@@ -330,12 +331,15 @@ func TestQueueWaitingBound(t *testing.T) {
 		{name: "waiters_keep_places", category: "C", description: "existing waiters stay even when they fill the queue; newcomers overflow",
 			waiting: map[uint64]uint64{5: 1, 6: 1}, candidates: []nsIdentity{ns(1), ns(5), ns(6)}, maxQueue: 2,
 			expectedQueued: []uint64{5, 6}, expectedOverflow: 1},
+		{name: "over_quota_not_queued", category: "N", description: "an owner at quota gets no place, and a waiter of it leaves",
+			waiting: map[uint64]uint64{5: 1}, candidates: []nsIdentity{ns(1), ns(5), ns(7)}, maxQueue: 10,
+			skip: func(id nsIdentity) bool { return id.inode != 1 }, expectedQueued: []uint64{1}},
 		{name: "exact", category: "B", description: "candidates equal the cap",
 			candidates: []nsIdentity{ns(1), ns(2)}, maxQueue: 2, expectedQueued: []uint64{1, 2}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			next, _, overflow := queueWaiting(tc.waiting, 1, tc.candidates, nil, tc.maxQueue)
+			next, _, overflow := queueWaiting(tc.waiting, 1, tc.candidates, nil, tc.maxQueue, tc.skip)
 			got := slices.Sorted(maps.Keys(next))
 			if !slices.Equal(got, tc.expectedQueued) || overflow != tc.expectedOverflow {
 				t.Errorf("%s: queued %v overflow %d, expected %v overflow %d", tc.description, got, overflow, tc.expectedQueued, tc.expectedOverflow)
@@ -451,7 +455,7 @@ func TestNetnsCapQueue(t *testing.T) {
 	var seq uint64
 	for i, st := range steps {
 		admit, _ := admitNamespaces(slices.Clone(st.candidates), st.tracked, nil, admitLimits{maxNetns: limit, self: self}, waiting)
-		waiting, seq, _ = queueWaiting(waiting, seq, st.candidates, admit, 0)
+		waiting, seq, _ = queueWaiting(waiting, seq, st.candidates, admit, 0, nil)
 		got := make([]uint64, 0, len(admit))
 		for _, id := range admit {
 			got = append(got, id.inode)

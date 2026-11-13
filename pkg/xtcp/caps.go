@@ -127,8 +127,9 @@ func admitNamespaces(candidates []nsIdentity, tracked int, owners map[string]int
 //
 // maxQueue (0: unbounded) caps the queue: waiters keep their places, and
 // new arrivals past it aren't queued (overflow), so the namespaces a
-// reconcile keeps reporting past its scan cap stay bounded.
-func queueWaiting(waiting map[uint64]uint64, seq uint64, candidates, admit []nsIdentity, maxQueue int) (next map[uint64]uint64, nextSeq uint64, overflow int) {
+// reconcile keeps reporting past its scan cap stay bounded. A candidate
+// skip accepts (nil: none) isn't queued, or leaves the queue.
+func queueWaiting(waiting map[uint64]uint64, seq uint64, candidates, admit []nsIdentity, maxQueue int, skip func(nsIdentity) bool) (next map[uint64]uint64, nextSeq uint64, overflow int) {
 	if len(candidates) == len(admit) {
 		clear(waiting)
 		return waiting, seq, 0
@@ -139,8 +140,10 @@ func queueWaiting(waiting map[uint64]uint64, seq uint64, candidates, admit []nsI
 	}
 	next = make(map[uint64]uint64, len(candidates)-len(admit))
 	seq++
-	for _, id := range candidates {
-		if _, in := admitted[id.inode]; in {
+	for i := range candidates {
+		id := candidates[i]
+		if _, in := admitted[id.inode]; in || (skip != nil && skip(id)) {
+			admitted[id.inode] = struct{}{} // not queued below either
 			continue
 		}
 		if s, ok := waiting[id.inode]; ok {

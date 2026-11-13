@@ -107,7 +107,7 @@ func TestReconcileLimits(t *testing.T) {
 			}(),
 			tracked: map[uint64]int{base + 299: 399}, maxNetns: 4096, timeout: time.Nanosecond,
 			expectedKept: []uint64{base + 299}, expectedStores: -1, expectedReason: reconcileIncompleteTimeoutCst},
-		{name: "timeout_deletes_left", category: "N", description: "a timed-out scan deletes a tracked namespace its pid has left (no slot leak under a flood that times out every scan)",
+		{name: "timeout_no_delete", category: "C", description: "a timed-out scan deletes nothing, even a namespace that is gone",
 			pids: func() map[int]pidNS {
 				m := map[int]pidNS{}
 				for i := range 300 {
@@ -116,7 +116,7 @@ func TestReconcileLimits(t *testing.T) {
 				return m
 			}(),
 			tracked: map[uint64]int{base + 999: 9999}, maxNetns: 4096, timeout: time.Nanosecond,
-			expectedDeleted: []uint64{base + 999}, expectedStores: -1, expectedReason: reconcileIncompleteTimeoutCst},
+			expectedKept: []uint64{base + 999}, expectedStores: -1, expectedReason: reconcileIncompleteTimeoutCst},
 		{name: "unreadable_owner_deferred", category: "N", description: "a candidate whose cgroup can't be read is deferred, not filed under an owner",
 			pids: map[int]pidNS{100: {base, ""}}, maxNetns: 100, perOwner: 1},
 		{name: "owner_quota_reconcile", category: "N", description: "owner A's 5 namespaces against quota 2, B's 1: A gets 2, B 1",

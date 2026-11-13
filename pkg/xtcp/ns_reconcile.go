@@ -108,8 +108,17 @@ func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 		x.reconcileIncomplete(stop, len(live), startTime)
 	}
 
-	x.refreshRepPids(live)
-	dels = x.deleteGone(live, stop)
+	// After a timeout the scan didn't see every pid, so a namespace it
+	// didn't report may still be live: delete nothing this time. (A capped
+	// scan saw every pid and reported every tracked namespace still live.)
+	// The cost: while scans keep timing out, a namespace that died keeps
+	// its slot. Checking a tracked namespace's last-seen pid instead would
+	// let ordinary process churn during a flood evict live, monitored
+	// namespaces; xtcp_reconcile_incomplete_total{reason="timeout"} shows
+	// either way.
+	if stop != nsdiscover.ScanTimeout {
+		dels = x.deleteGone(live)
+	}
 	stores = x.addNew(ctx, live, stop, startTime)
 	return dels, stores
 }
@@ -157,72 +166,25 @@ func (x *XTCP) reconcileIncomplete(stop nsdiscover.ScanStop, found int, start ti
 		reason, found, time.Since(start).Round(time.Millisecond), what)
 }
 
-// refreshRepPids records, for each tracked namespace the scan saw, the pid
-// it was seen through, so a timed-out scan can check a recent one.
-func (x *XTCP) refreshRepPids(live map[uint64]nsIdentity) {
-	if x.nsRepPid == nil {
-		x.nsRepPid = make(map[uint64]int)
-	}
-	for inode, id := range live {
-		if id.pid <= 0 {
-			continue
-		}
-		if _, tracked := x.nsMap.Load(inode); tracked {
-			x.nsRepPid[inode] = id.pid
-		}
-	}
-}
-
 // deleteGone deletes tracked entries whose namespace is no longer live.
 // xtcp's own netns is live by construction (every unlocked thread is in
 // it), and its default socket belongs to openDefaultNetLinkSocket, so it is
 // never deleted. The scan cannot vouch for it: it skips xtcp's own pid,
 // and when xtcp is alone in its netns (a container without pid_mode:host)
 // no other pid shows it.
-//
-// A capped scan walked every pid, so it saw every tracked namespace that is
-// still live. A timed-out scan didn't: a tracked namespace it didn't reach
-// is deleted only if the last pid it was seen through has left it (a
-// bind-mount-only one, if its mount is gone). That can delete a namespace
-// whose other processes remain; a later scan that reaches it queues it
-// again. Keeping every unreached namespace instead would let a flood that
-// times out every scan keep dead namespaces' slots indefinitely.
-func (x *XTCP) deleteGone(live map[uint64]nsIdentity, stop nsdiscover.ScanStop) (dels int) {
-	x.nsMap.Range(func(key, value interface{}) bool {
+func (x *XTCP) deleteGone(live map[uint64]nsIdentity) (dels int) {
+	x.nsMap.Range(func(key, _ interface{}) bool {
 		inode, ok := key.(uint64)
 		if !ok || inode == x.selfNsInode {
 			return true
 		}
-		if _, stillLive := live[inode]; stillLive {
-			return true
+		if _, stillLive := live[inode]; !stillLive {
+			x.nsDelete(inode)
+			dels++
 		}
-		if stop == nsdiscover.ScanTimeout {
-			if item, ok := value.(netNSitem); ok && x.stillInNetns(item) {
-				return true
-			}
-		}
-		x.nsDelete(inode)
-		delete(x.nsRepPid, inode)
-		dels++
 		return true
 	})
 	return dels
-}
-
-// stillInNetns checks one tracked namespace the scan didn't reach.
-func (x *XTCP) stillInNetns(item netNSitem) bool {
-	pid := item.pid
-	if p, ok := x.nsRepPid[item.inode]; ok {
-		pid = p
-	}
-	if pid > 0 {
-		return x.nsScanner != nil && x.nsScanner.PidInNetns(pid, item.inode)
-	}
-	if x.nsResolver == nil {
-		return false
-	}
-	_, ok := x.nsResolver.BindMountPath(item.inode)
-	return ok
 }
 
 // ownerResolveMinCst is how many candidates' owners a reconcile resolves
@@ -277,7 +239,19 @@ func (x *XTCP) addNew(ctx context.Context, live map[uint64]nsIdentity, stop nsdi
 		// The full candidate list: one whose owner wasn't read keeps its
 		// place too.
 		var overflow int
-		x.nsWaiting, x.nsWaitingSeq, overflow = queueWaiting(x.nsWaiting, x.nsWaitingSeq, candidates, admit, scanCapPerMaxNetns*int(lim.maxNetns))
+		// A namespace whose owner is at quota gets no queue place: one owner
+		// can't fill the queue, or keep its namespaces reported past the
+		// scan cap. Its place only matters once the owner is under quota.
+		overQuota := func(id nsIdentity) bool {
+			if lim.maxPerOwner == 0 || id.pid <= 0 {
+				return false
+			}
+			if _, resolved := x.nsOwners[id.inode]; !resolved {
+				return false
+			}
+			return owners[id.owner] >= int(lim.maxPerOwner)
+		}
+		x.nsWaiting, x.nsWaitingSeq, overflow = queueWaiting(x.nsWaiting, x.nsWaitingSeq, candidates, admit, scanCapPerMaxNetns*int(lim.maxNetns), overQuota)
 		if overflow > 0 {
 			x.pC.WithLabelValues("reconcile", "queue", "full").Add(float64(overflow))
 		}

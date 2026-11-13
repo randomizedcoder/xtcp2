@@ -79,9 +79,6 @@ type XTCP struct {
 	// namespace kept out by a cap isn't re-read every reconcile. Pruned to
 	// the current candidates each reconcile. Owned by reconcile.
 	nsOwners map[uint64]string
-	// nsRepPid is, per tracked namespace, the pid the last scan saw it
-	// through (owned by reconcile; see refreshRepPids).
-	nsRepPid map[uint64]int
 
 	packetBufferPool xsync.Pool[*[]byte]
 	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]

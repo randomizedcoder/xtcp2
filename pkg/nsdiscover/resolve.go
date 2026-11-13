@@ -203,12 +203,6 @@ func isContainerID(s string) bool {
 	return true
 }
 
-// BindMountPath is the bind-mount path of inode from the last Refresh.
-func (r *Resolver) BindMountPath(inode uint64) (string, bool) {
-	p, ok := r.pathByIno[inode]
-	return p, ok
-}
-
 // containerID reads /proc/<pid>/cgroup and returns the first container id found
 // (a 64-char lowercase-hex run), or "" if none. Covers the common docker /
 // containerd / cri-o / kubernetes cgroup layouts, whose paths embed the 64-hex

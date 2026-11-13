@@ -13,7 +13,6 @@ package nsdiscover
 
 import (
 	"bytes"
-	"strconv"
 	"time"
 	"unsafe"
 
@@ -43,7 +42,6 @@ type Scanner struct {
 	seen     map[uint64]struct{} // per-scan dedup set (cleared, not reallocated)
 	skip     int                 // pid Scan ignores (0: none); see SkipPid
 	reported int                 // namespaces reported this scan
-	nbuf     []byte              // pid formatting scratch for PidInNetns
 }
 
 // NewScanner opens procRoot (typically "/proc"). If the open fails the scanner
@@ -59,7 +57,6 @@ func NewScanner(procRoot string) *Scanner {
 		pbuf: make([]byte, 0, 32),
 		lbuf: make([]byte, 64),
 		seen: make(map[uint64]struct{}, scannerMapHint),
-		nbuf: make([]byte, 0, 20),
 	}
 }
 
@@ -180,17 +177,6 @@ func (s *Scanner) ScanLimited(lim ScanLimits, fn func(Namespace)) (skipped int, 
 		}
 	}
 	return skipped, stop
-}
-
-// PidInNetns reports whether pid is still in the namespace inode.
-// Reconcile uses it after a timed-out scan for tracked namespaces the scan
-// didn't reach.
-func (s *Scanner) PidInNetns(pid int, inode uint64) bool {
-	if s.fd < 0 || pid <= 0 {
-		return false
-	}
-	ino, ok := s.pidNetns(strconv.AppendInt(s.nbuf[:0], int64(pid), 10))
-	return ok && ino == inode
 }
 
 // pidNetns reads /proc/<pid>/ns/net's inode. name is pid's decimal form.
