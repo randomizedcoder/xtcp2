@@ -27,6 +27,7 @@
 - [Tier G: goip and the matrix](#tier-g-goip-and-the-matrix)
 - [Follow-ups after Tier G](#follow-ups-after-tier-g)
 - [NC8 rpl, ioam6 and bpf encaps and `nexthop show -s`, captures first](#nc8-rpl-ioam6-and-bpf-encaps-and-nexthop-show--s-captures-first)
+- [NX9 the parity guest's rpl, ioam6 and bpf rows](#nx9-the-parity-guests-rpl-ioam6-and-bpf-rows)
 - [See also](#see-also)
 
 ## Reference sources
@@ -960,6 +961,30 @@ Two fresh-boot batches per family must agree row for row on rc and message types
 - **NX8a/b/c:** `route show`, `nexthop show` and a hop print rpl, ioam6 and bpf, text and JSON, as print_encap_rpl, print_encap_ioam6 and print_encap_bpf do.
 - **NX8d:** `nexthop show -s` and `-s -s`: NHA_OP_FLAGS, the `stats:` block (`packets_hw` under `-s -s`), `hw_stats … used …` under `-d` or `-s`, and seg6local's counters.
 - O9 gains the new families; the goal is 0 differ. nhstats VM rows can gate on the stock parity kernel; rpl and ioam6 VM rows wait on a decision about the parity kernel, and bpf rows need the object in the parity guest.
+
+## NX9 the parity guest's rpl, ioam6 and bpf rows
+
+The user's decision (2026-11-12): the goip-parity guest gets the workbench's kernel, so the rpl and ioam6 encaps install there, and the BPF lwt object. `LWTUNNEL_BPF` is already in the stock kernel; bpf lacked only the object.
+
+### NX9-T01 the kernel and the object
+
+`nix/microvms/mkVm.nix` applies the workbench's `nlcap-lwtunnels` kernel patch to `isGoipParity` too, the same patch, so both build one kernel. The guest links `nlcap-lwt-bpf`'s `lwt_bpf.o` at `/run/nlcap-ws/lwt_bpf.o`, the workbench's path, so the rows read as the lwtenc corpus's. Every parity run, the full pre-push run included, now runs that kernel.
+
+| description | input | expected |
+|---|---|---|
+| positive: rpl installs | `gw_rplroute_ec_001` | rc 0 on ip and goip |
+| positive: the object loads | `lwtencReadSetup`'s bpf route | ip rc 0 in the setup |
+| boundary: the lwtxreq rows flip | `gw_lwtxreq_ec_001`, `_002`, `_006` | rc 0 where the stock kernel gave 2, still the same on both sides |
+
+### NX9-T02 the rows
+
+Thirteen writes from the lwtenc corpus (`gw_rplroute_*`, `gw_ioam6route_*`, `gw_lwtencnh_*`, `gw_lwtenchop_*`, rpl and ioam6 only: goip refuses bpf writes), and seven readbacks on `lwtencReadSetup`: `-6`, `-j -6` and `-d -6 route show table main`, `-4` and `-j -4 route show table main`, `-6` and `-j -6 nexthop show`. `gwCorpusDir` reads the 7_3_1 corpus too. Two clean section runs (route, nexthop) gate them, and a test pins the flip.
+
+| description | rows | expected |
+|---|---|---|
+| positive: the writes | 13 | GOIP_PARITY_PASS, txns as ip, on both runs |
+| positive: the readbacks | 7 | GOIP_PARITY_PASS with stdout=0 |
+| negative: bpf writes | none | not rows; goip refuses them |
 
 ## See also
 

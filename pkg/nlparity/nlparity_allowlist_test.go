@@ -453,6 +453,31 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-s nexthop get id 10",
 		"-s nexthop show id 12",
 		"-d nexthop show id 12",
+		// The twenty NX9 rows, gated on two route,nexthop section runs on the
+		// parity guest's rpl and ioam6 kernel (2026-11-12): GOIP_PARITY_PASS
+		// with stdout=0 and control nl=0 on both, txns 2/2, every write rc 0.
+		// The seven readbacks, the bpf route and nexthop among them:
+		"-6 route show table main",
+		"-j -6 route show table main",
+		"-d -6 route show table main",
+		"-4 route show table main",
+		"-j -4 route show table main",
+		"-6 nexthop show",
+		"-j -6 nexthop show",
+		// The thirteen rpl and ioam6 writes:
+		"-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1 dev d0",
+		"-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1,2001:db8:9::2,2001:db8:9::3 dev d0",
+		"-6 route add 2001:db8:2::/64 encap rpl dev d0",
+		"-6 route add 2001:db8:2::/64 encap ioam6 mode encap tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0",
+		"-6 route add 2001:db8:2::/64 encap ioam6 mode auto tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0",
+		"-6 route add 2001:db8:2::/64 encap ioam6 freq 1000000/1000000 trace prealloc type 0x800000 ns 1 size 12 dev d0",
+		"-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 4 dev d0",
+		"-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 244 dev d0",
+		"-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 65535 size 12 dev d0",
+		"-6 nexthop add id 81 encap rpl segs 2001:db8:9::1 dev d0",
+		"-6 nexthop add id 82 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0",
+		"-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap rpl segs 2001:db8:9::1 nexthop via 2001:db8:1::2 dev d0",
+		"-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0 nexthop via 2001:db8:1::2 dev d0",
 		// The fifteen NX5a stats rows, gated on two stats section runs at
 		// iproute2 7.3.0 (2026-11-10): GOIP_PARITY_PASS with stdout=0 on
 		// both, txns 6/6 on the twelve dumps and 2/2 on the three dev d0

@@ -4906,6 +4906,55 @@ func TestNexthopStatsRowsGated(t *testing.T) {
 	}
 }
 
+// TestLwtencRowsGated pins NX9's twenty rows, the lwtenc readbacks and the
+// rpl and ioam6 writes, which gated on two clean route,nexthop section runs
+// on the parity guest's kernel with the rpl and ioam6 lwtunnels.
+//
+// go test ./internal/goipparity/ -run TestLwtencRowsGated
+func TestLwtencRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		write       bool
+	}{
+		{"positive: the IPv6 dump with rpl, ioam6 and an rpl hop", "-6 route show table main", true, false},
+		{"positive: the bpf route's three progs", "-4 route show table main", true, false},
+		{"positive: rpl, ioam6 and bpf nexthops in JSON", "-j -6 nexthop show", true, false},
+		{"positive: an rpl route write", "-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1 dev d0", true, true},
+		{"positive: ioam6 on a multipath hop", "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0 nexthop via 2001:db8:1::2 dev d0", true, true},
+		{"boundary: the largest ioam6 trace size", "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 244 dev d0", true, true},
+		{"corner: rpl with no segs, an empty SRH the kernel takes", "-6 route add 2001:db8:2::/64 encap rpl dev d0", true, true},
+		{"negative: a bpf write is not a row, since goip refuses it", "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0", false, false},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			want := lwtencReadSetup
+			if r.write {
+				want = gwWsSetupD0
+			}
+			if !c.Implemented || c.Write != r.write || c.NeedsDev || c.Floor != 4 || !slices.Equal(c.Setup, want) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want implemented, write %v, floor 4, setup %v",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.write, want)
+			}
+		})
+	}
+}
+
 // TestStatsNX5aRowsGated pins NX5a's fifteen stats rows, which gated on two
 // clean stats section runs at iproute2 7.3.0.
 //

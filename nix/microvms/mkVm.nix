@@ -71,6 +71,11 @@ let
   # below so it wins system-path over nixpkgs' 7.2.0. Only that guest gets
   # it; overriding pkgs.iproute2 would rebuild everything that depends on it.
   parityIproute2 = import ../iproute2-7-3-0.nix { inherit pkgs; };
+  # The BPF lwt object (nix/nlcap-lwt-bpf), which the goip-parity guest
+  # links at /run/nlcap-ws/lwt_bpf.o, the workbench's path, so its bpf encap
+  # rows read as the lwtenc corpus's (NX9-T01 of
+  # docs/netlink/goip-parity-next.md).
+  nlcapLwtBpf = import ../nlcap-lwt-bpf { inherit pkgs; };
   # The go-native RDMA capture script; the RDMA capture driver
   # (scripts/capture-rdma.exp) runs it in the netlink-driven guests.
   rdmaNativeCapture = import ../tests/rdma-native-capture.nix { inherit pkgs; };
@@ -2941,12 +2946,14 @@ in
         };
 
         boot.kernelPackages = pkgs.linuxPackages_latest;
-        # The workbench alone adds the RPL and IOAM6 lwtunnels, which the
-        # stock kernel lacks (its `encap rpl` and `encap ioam6` are
-        # ENOTSUP), so the lwtenc family can capture them (NC8-T01 in
-        # docs/netlink/goip-parity-next.md). Same version, so the corpus
+        # The workbench and the goip-parity guest add the RPL and IOAM6
+        # lwtunnels, which the stock kernel lacks (its `encap rpl` and
+        # `encap ioam6` are ENOTSUP): the workbench so the lwtenc family can
+        # capture them (NC8-T01 in docs/netlink/goip-parity-next.md), the
+        # parity guest so its rpl and ioam6 rows install (NX9-T01). One
+        # patch, so both build the same kernel. Same version, so the corpus
         # directory does not move; every other flavor keeps the stock kernel.
-        boot.kernelPatches = lib.optionals isNlcapWorkbench [
+        boot.kernelPatches = lib.optionals (isNlcapWorkbench || isGoipParity) [
           {
             name = "nlcap-lwtunnels";
             patch = null;
@@ -2992,6 +2999,10 @@ in
         ]
         ++ lib.optionals isCoverage [
           "d ${coverDir} 0755 root root -"
+        ]
+        ++ lib.optionals isGoipParity [
+          "d /run/nlcap-ws 0755 root root -"
+          "L+ /run/nlcap-ws/lwt_bpf.o - - - - ${nlcapLwtBpf}/lwt_bpf.o"
         ];
 
         # GOCOVERDIR for the coverage-instrumented xtcp2 build. The runtime
