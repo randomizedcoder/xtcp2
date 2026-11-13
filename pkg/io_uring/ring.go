@@ -643,10 +643,10 @@ func (r *Ring) drainOnce() ([]Result, int) {
 		res := Result{
 			Op:        req.Operation,
 			RequestID: req.RequestID,
-			Res:      cqe.Res,
-			Buf:      entry.buf,
-			HdrBytes: entry.wvHdr,
-			More:     more,
+			Res:       cqe.Res,
+			Buf:       entry.buf,
+			HdrBytes:  entry.wvHdr,
+			More:      more,
 		}
 		if cqe.Flags&giouring.CQEFBuffer != 0 && r.recvBufs != nil {
 			res.BufID = uint16(cqe.Flags >> giouring.CQEBufferShift)
