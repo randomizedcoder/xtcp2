@@ -162,7 +162,43 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 - [x] Metrics: `xtcp2_dump_dropped_total{reason="bytes"|"records"}`, `xtcp2_netns_dropped_total`, `xtcp2_netns_tracked`; one rate-limited log line per namespace per poll. *Done as:* `xtcp_dump_dropped_total{reason}` and `xtcp_netns_dropped_total` (the package's `xtcp` subsystem). The tracked count is the existing `xtcp_gauge`. Volume counters are in `xtcp_counts`. One log line per truncated dump or short reconcile.
 - [x] Hot-path rule: the caps are integer compares on counters the loop already maintains; a benchmark guard (`BenchmarkDeserialize*`) asserts no regression beyond noise. *Done as:* `BenchmarkNetlinkerDumpCaps` is `BenchmarkNetlinkerDump` with the default caps set. With the caps on vs off in one build, no row differs significantly (geomean +0.6%, 10 interleaved runs on a loaded host); see #301.
 
-**Tests:** FC `under_caps`, `dump_bytes_cap`, `records_cap_exact`, `records_cap_plus_one`, `netns_cap`. *Done as:* `pkg/xtcp/caps_test.go`. It has tracker byte and record tables, real dumps through both receivers, `admitNamespaces` and `preserveCaps`, plus `TestEnvOverrideCaps`.
+- [x] **FP-5.4 Socket-count gate** (`-maxRecordsPerPoll`, default 1,048,576). Before each poll, read every tracked namespace's sockstat (TCP `inuse` + `tw`) and, over the budget, degrade only namespaces over a max-min fair share: first drop TIME_WAIT/SYN_RECV from `idiag_states`, then dump one of K port shards per poll (inet_diag bytecode, audited with `xtcpnl.InetDiagBcAudit`). *Done as:* `pkg/xtcp/sockstat.go`, `pollplan.go`, `pollgate.go`. The sockstat fd is opened in the namespace next to the netlink socket (`statHandle`; the poller reads under a read lock, teardown closes under the write lock). Reads are `pread`, or with `-ioUring` batches of `-ioUringSockstatBatchSize` (64) through a dedicated SINGLE_ISSUER ring with `IOSQE_ASYNC` and `-ioUringSockstatWorkers` (4) io-wq threads. The shard key is the ephemeral side (sport if ≥ 32768, else dport) over ranges of 32768–65535, so a busy listener spreads evenly (the plan's `(sport∈R) OR (dport∈R)` put every accepted connection in one shard). Proto fields 27–29.
+- [x] **FP-5.5 Reconcile limits.** `-reconcileTimeout` (1s) bounds the `/proc` scan; one scan reports at most 4 × `-maxNetns` new namespaces, but keeps walking and reporting tracked and waiting ones, so deletes stay correct. A timed-out scan deletes nothing. `-maxNetnsAddsPerReconcile` (256) bounds adds. Names and owners (cgroup reads) only for namespaces being added. The waiting queue is capped at 4 × `-maxNetns`. Proto fields 43, 45. `xtcp_reconcile_incomplete_total{reason}`.
+- [x] **FP-5.6 Per-owner quota** (`-maxNetnsPerOwner`, 64). Owner = the cgroup path cut at the runtime's own component, accepted only where runtimes put it (`/system.slice|/machine.slice/<runtime>-<id>.scope`, `/docker/<id>`, under kubelet-only kubepods parents); under `user.slice` the user's slice; else the first two components. Bind-mount-only namespaces exempt. An unreadable cgroup defers the candidate. Owners at quota get no queue place. Proto field 44. `xtcp_netns_dropped_total{reason="max_netns"|"owner_quota"|"add_rate"}`.
+- [ ] **FP-5.7 Socket-scale microVM** (`microvm-x86_64-socket-scale`): shared-walk proof (small namespace's `ss` time vs 0/100k/500k sockets in another, with and without `tcp_child_ehash_entries`), xtcp2 under `-maxRecordsPerPoll` 200k with a 500k namespace, SYN flood, 2000-namespace flood from one container. See TODOs.
+
+**Kernel facts** (Linux 7.3.0 @ 46fec1c3029b; analysis in `docs/kernel/inet-diag-all-netns.md`):
+
+- `tcp_diag_dump` (`net/ipv4/tcp_diag.c:314`) walks `net->ipv4.tcp_death_row.hashinfo` (`:325`), the global `tcp_hashinfo` unless `tcp_child_ehash_entries` was set at netns creation, skipping other namespaces' sockets one by one (`:350`, `:416`, `:501`). One namespace's dump is O(sockets on the host).
+- `idiag_states` (`:507`) and bytecode (`:520`) filter before a record is built; port ops need no CAP_NET_ADMIN (`inet_diag.c:769`).
+- `sockstat` `inuse`/`tw` are per namespace (`net/ipv4/proc.c:51`); each read sums per-CPU counters. Request sockets (SYN_RECV) are in neither, so the gate can't see a SYN flood; `-maxRecordsPerNetns` still bounds it.
+- procfs files have no `FMODE_NOWAIT` and aren't pollable (`io_uring/rw.c:39-52`): io_uring reads go to io-wq.
+- giouring v1.1.2 `RegisterIOWQMaxWorkers([]uint)` passes 64-bit values where the kernel reads `__u32[2]` (`io_uring/register.c:359`); xtcp2 writes through a `[2]uint32` view.
+
+**Tests:** FC `under_caps`, `dump_bytes_cap`, `records_cap_exact`, `records_cap_plus_one`, `netns_cap`. *Done as:* `pkg/xtcp/caps_test.go`. It has tracker byte and record tables, real dumps through both receivers, `admitNamespaces` and `preserveCaps`, plus `TestEnvOverrideCaps`. FP-5.4–5.6 add (table-driven, P/N/B/C, description and expected per row):
+
+| Test | Covers |
+|---|---|
+| `TestParseSockstat` (16 rows) | normal, 500k, INT_MAX, truncated, garbage, negative, `tw -1`, TCP6; zero allocations |
+| `TestSockstatReader` (9 rows × pread/io_uring) | real sockstat fds; batch exact/remainder/1/over n, zero, bad fd, fd -1; submits per batch |
+| `TestRingBatcherCorners` | CQEs out of order, `-EBADF`, garbage, failed submit (ring marked broken) |
+| `TestEnqueueReadAt`, `TestSetIOWQMaxWorkers` (`pkg/io_uring`) | offset, `IOSQE_ASYNC`, EOF, nil buffer, SQ full, procfs re-read; `__u32[2]` round trip |
+| `TestFairShare`, `TestPlanPoll` (11 rows), shard rotation | 500k + small, TIME_WAIT-heavy, two heavy, exact/+1 budget, 4096 × 1k, unknown count, K cap; 0 allocations |
+| `TestShardBytecode`, `TestPollRequests` | audit without CAP_NET_ADMIN for K up to 1024; exact partition over 500k pairs; edges; single listener spread ±10%; request layout |
+| `TestPollGateEndToEnd` | the real poll path with file-backed sockstat and the captured request run through the kernel model: sample, states, under budget, no sockstat fd |
+| `TestScanLimits`, `TestOwnerFromCgroup` (15 rows), `TestReconcileLimits`, `TestAdmitNamespacesQuota`, `TestQueueWaitingBound` | deadline, cap, Keep past cap; runtime/user/delegated/kubepods owners, spoofed sub-cgroups; capped vs timed-out deletes; quota, add rate, pid-0 exempt, over-quota not queued |
+| `TestCheckFDLimit`, `TestStatHandle`, `TestNewPollGateFallback` | RLIMIT_NOFILE warning; close waits for a read; ring setup failure falls back |
+
+**Benchmarks** (24-core host, load ~8):
+
+| Benchmark | Result | Pass |
+|---|---|---|
+| `BenchmarkReadSockstat` pread | 3.2–3.6 µs/namespace, 0 allocs | < 5 µs ✓ |
+| `BenchmarkReadSockstat` io_uring batch 64 / 128 | 1.8–2.0 µs/namespace (n = 64–4096); batch 1: 14.8 µs | faster than pread at n ≥ 1024 ✓ |
+| `BenchmarkPlanPoll` n=4096 | 199 µs, 0 allocs | < 1 ms ✓ |
+| `BenchmarkPollPrepass` n=4096 (pread) | 15.6 ms | < 20 ms ✓ |
+| hot path vs #301 head (`BenchmarkNetlinkerDump`, 8 interleaved runs) | geomean −1.5%, no row slower | within noise ✓ (after moving `nsOwners` off the pools' cache lines: placed above them it cost +5–10% at 4–8 decoders) |
+
 **Status:** open as #301.
 
 ### FP-6 — S3 queue bound and string policy (C3, C4)
@@ -183,7 +219,16 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | TODO | Where |
 |---|---|
 | Past the byte cap, abandon the dump in the kernel (close and reopen the socket from inside the netns) instead of draining it; draining bounds our decode cost but not the kernel's | FP-5 follow-up |
-| Per-owner namespace quotas (by cgroup or container id) under `-maxNetns`, so one owner's old namespaces cannot hold every slot | FP-5 follow-up |
+| ~~Per-owner namespace quotas~~ done as FP-5.6 | — |
+| Send the per-namespace dump requests through the poller's io_uring too (one blocking `sendto` per namespace per poll today) | FP-5 follow-up |
+| Mark sampled records (a record field), so consumers know a namespace was sampled this poll | FP-5 follow-up |
+| IPv6: xtcp2 requests only `AF_INET`, so AF_INET6 sockets (including IPv4 clients of `[::]` listeners) are never dumped; add a second request or `AF_UNSPEC`, and `sockstat6` to the gate | own PR |
+| Bounded retention after timed-out scans: a timed-out reconcile deletes nothing, so dead namespaces keep slots while scans keep timing out (needs ~10⁵+ live pids); e.g. age out after N consecutive timed-out reconciles without a sighting | FP-5 follow-up |
+| Owner for runtimes that don't name cgroups by container id (LXC, custom): today the first two path components, so a process can mint owners at the second level | FP-5 follow-up |
+| Sockstat on many-core hosts: each read is O(CPUs); benchmark on a ≥ 128-core host and, if needed, read every Nth poll | FP-5 follow-up |
+| `microvm-x86_64-socket-scale` (FP-5.7) and its numbers into `docs/kernel/inet-diag-all-netns.md` | FP-5 follow-up |
+| Fix `RegisterIOWQMaxWorkers` signature in the giouring fork | giouring PR |
+| Upstream RFC for an all-namespace inet_diag dump, only after the VM numbers and a lore.kernel.org search | F2 follow-up |
 | Re-tune the three caps' defaults from the F0.6 baseline (≥ 10× p99) | F0.6 |
 | The F2 gate's 1 M-socket synthetic netns run | after FP-6 |
 
