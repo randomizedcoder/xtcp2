@@ -143,6 +143,19 @@ const (
 	maxRecordsPerNetnsCst uint64 = 1 << 18
 	maxNetnsCst           uint   = 4096
 
+	// Per-poll record budget across all namespaces (-maxRecordsPerPoll),
+	// enforced before the dump from each namespace's sockstat count; and the
+	// io_uring batch / io-wq worker cap for those reads.
+	maxRecordsPerPollCst        uint64 = 1 << 20
+	ioUringSockstatBatchSizeCst uint   = 64
+	ioUringSockstatWorkersCst   uint   = 4
+
+	// Reconcile limits: a time budget on the namespace scan, a per-owner
+	// namespace quota and a cap on adds per reconcile.
+	reconcileTimeoutCst              = 1 * time.Second
+	maxNetnsPerOwnerCst         uint = 64
+	maxNetnsAddsPerReconcileCst uint = 256
+
 	// Pyroscope continuous-profiling defaults. Agent disabled when
 	// pyroscopeUrlCst is empty; flip on via -pyroscopeUrl (or
 	// PYROSCOPE_URL env, see environmentOverride).
@@ -301,6 +314,13 @@ type mainFlags struct {
 	maxDumpBytes       *uint64
 	maxRecordsPerNetns *uint64
 	maxNetns           *uint
+
+	maxRecordsPerPoll        *uint64
+	ioUringSockstatBatchSize *uint
+	ioUringSockstatWorkers   *uint
+	reconcileTimeout         *time.Duration
+	maxNetnsPerOwner         *uint
+	maxNetnsAddsPerReconcile *uint
 
 	dest               *string
 	destWriteFiles     *uint
@@ -535,6 +555,12 @@ func defineCapFlags(f *mainFlags) {
 	f.maxDumpBytes = flag.Uint64("maxDumpBytes", maxDumpBytesCst, "cap on the bytes of one namespace's inet_diag dump per poll; packets past it are drained undecoded and counted in xtcp_dump_dropped_total{reason=\"bytes\"}. 0 = unlimited. Falls back to MAX_DUMP_BYTES env.")
 	f.maxRecordsPerNetns = flag.Uint64("maxRecordsPerNetns", maxRecordsPerNetnsCst, "cap on the records one namespace contributes per poll; the rest are dropped before decode and counted in xtcp_dump_dropped_total{reason=\"records\"}. 0 = unlimited. Falls back to MAX_RECORDS_PER_NETNS env.")
 	f.maxNetns = flag.Uint("maxNetns", maxNetnsCst, "cap on the network namespaces tracked, xtcp2's own included; at the cap new namespaces wait for a freed slot, first come first served, and are counted in xtcp_netns_dropped_total. 0 = unlimited. Falls back to MAX_NETNS env.")
+	f.maxRecordsPerPoll = flag.Uint64("maxRecordsPerPoll", maxRecordsPerPollCst, "budget on the records all namespaces contribute per poll, checked before the dump from each namespace's sockstat count; over it, namespaces above their fair share stop asking for TIME_WAIT/SYN_RECV, then are sampled by port range across polls (xtcp_poll_degraded_total). 0 = off. Falls back to MAX_RECORDS_PER_POLL env.")
+	f.ioUringSockstatBatchSize = flag.Uint("ioUringSockstatBatchSize", ioUringSockstatBatchSizeCst, "io_uring: sockstat reads per submit (1-1024). Ignored unless -ioUring. Falls back to IO_URING_SOCKSTAT_BATCH_SIZE env.")
+	f.ioUringSockstatWorkers = flag.Uint("ioUringSockstatWorkers", ioUringSockstatWorkersCst, "io_uring: cap on kernel io-wq workers for sockstat reads (1-64). Ignored unless -ioUring. Falls back to IO_URING_SOCKSTAT_WORKERS env.")
+	f.reconcileTimeout = flag.Duration("reconcileTimeout", reconcileTimeoutCst, "time budget for one reconcile's namespace scan; a scan cut short adds what it found but deletes nothing (xtcp_reconcile_incomplete_total). 0 = no limit. Falls back to RECONCILE_TIMEOUT env.")
+	f.maxNetnsPerOwner = flag.Uint("maxNetnsPerOwner", maxNetnsPerOwnerCst, "cap on the namespaces one owner (outermost container id) may have tracked; bind-mounted namespaces with no process are exempt (xtcp_netns_dropped_total{reason=\"owner_quota\"}). 0 = no limit. Falls back to MAX_NETNS_PER_OWNER env.")
+	f.maxNetnsAddsPerReconcile = flag.Uint("maxNetnsAddsPerReconcile", maxNetnsAddsPerReconcileCst, "cap on namespaces added per reconcile; the rest wait their turn (xtcp_netns_dropped_total{reason=\"add_rate\"}). 0 = no limit. Falls back to MAX_NETNS_ADDS_PER_RECONCILE env.")
 }
 
 // defineListenerFlags registers the flags for xtcp2's own inbound listeners:
@@ -721,6 +747,12 @@ func printCapFlags(f *mainFlags) {
 	fmt.Println("*maxDumpBytes:", *f.maxDumpBytes)
 	fmt.Println("*maxRecordsPerNetns:", *f.maxRecordsPerNetns)
 	fmt.Println("*maxNetns:", *f.maxNetns)
+	fmt.Println("*maxRecordsPerPoll:", *f.maxRecordsPerPoll)
+	fmt.Println("*ioUringSockstatBatchSize:", *f.ioUringSockstatBatchSize)
+	fmt.Println("*ioUringSockstatWorkers:", *f.ioUringSockstatWorkers)
+	fmt.Println("*reconcileTimeout:", *f.reconcileTimeout)
+	fmt.Println("*maxNetnsPerOwner:", *f.maxNetnsPerOwner)
+	fmt.Println("*maxNetnsAddsPerReconcile:", *f.maxNetnsAddsPerReconcile)
 }
 
 // printListenerAuthFlags prints the shared listener-auth run, listenerAuthMode
@@ -840,6 +872,12 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		MaxDumpBytes:                 *f.maxDumpBytes,
 		MaxRecordsPerNetns:           *f.maxRecordsPerNetns,
 		MaxNetns:                     uint32(*f.maxNetns),
+		MaxRecordsPerPoll:            *f.maxRecordsPerPoll,
+		IoUringSockstatBatchSize:     uint32(*f.ioUringSockstatBatchSize),
+		IoUringSockstatWorkers:       uint32(*f.ioUringSockstatWorkers),
+		ReconcileTimeout:             durationpb.New(*f.reconcileTimeout),
+		MaxNetnsPerOwner:             uint32(*f.maxNetnsPerOwner),
+		MaxNetnsAddsPerReconcile:     uint32(*f.maxNetnsAddsPerReconcile),
 		PyroscopeUrl:                 *f.pyroscopeUrl,
 		PyroscopeAppName:             *f.pyroscopeAppName,
 		PyroscopeSampleHz:            uint32(*f.pyroscopeSampleHz),
@@ -2326,6 +2364,36 @@ func envOverrideCaps(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.MaxNetns = v
 		logEnv("MAX_NETNS", fmt.Sprintf("c.MaxNetns:%d", v), debugLevel)
 	}
+	if v, ok := envUint64("MAX_RECORDS_PER_POLL"); ok {
+		c.MaxRecordsPerPoll = v
+		logEnv("MAX_RECORDS_PER_POLL", fmt.Sprintf("c.MaxRecordsPerPoll:%d", v), debugLevel)
+	}
+	envOverrideReconcileLimits(c, debugLevel)
+}
+
+// envOverrideReconcileLimits applies the sockstat io_uring knobs and the
+// reconcile limits; split from envOverrideCaps for funlen.
+func envOverrideReconcileLimits(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint32("IO_URING_SOCKSTAT_BATCH_SIZE"); ok {
+		c.IoUringSockstatBatchSize = v
+		logEnv("IO_URING_SOCKSTAT_BATCH_SIZE", fmt.Sprintf("c.IoUringSockstatBatchSize:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("IO_URING_SOCKSTAT_WORKERS"); ok {
+		c.IoUringSockstatWorkers = v
+		logEnv("IO_URING_SOCKSTAT_WORKERS", fmt.Sprintf("c.IoUringSockstatWorkers:%d", v), debugLevel)
+	}
+	if d, ok := envDuration("RECONCILE_TIMEOUT"); ok {
+		c.ReconcileTimeout = durationpb.New(d)
+		logEnv("RECONCILE_TIMEOUT", fmt.Sprintf("c.ReconcileTimeout:%s", d), debugLevel)
+	}
+	if v, ok := envUint32("MAX_NETNS_PER_OWNER"); ok {
+		c.MaxNetnsPerOwner = v
+		logEnv("MAX_NETNS_PER_OWNER", fmt.Sprintf("c.MaxNetnsPerOwner:%d", v), debugLevel)
+	}
+	if v, ok := envUint32("MAX_NETNS_ADDS_PER_RECONCILE"); ok {
+		c.MaxNetnsAddsPerReconcile = v
+		logEnv("MAX_NETNS_ADDS_PER_RECONCILE", fmt.Sprintf("c.MaxNetnsAddsPerReconcile:%d", v), debugLevel)
+	}
 }
 
 // printConfigCaps prints the three tenant caps for printConfig.
@@ -2333,4 +2401,10 @@ func printConfigCaps(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.MaxDumpBytes:", c.MaxDumpBytes)
 	fmt.Println("c.MaxRecordsPerNetns:", c.MaxRecordsPerNetns)
 	fmt.Println("c.MaxNetns:", c.MaxNetns)
+	fmt.Println("c.MaxRecordsPerPoll:", c.MaxRecordsPerPoll)
+	fmt.Println("c.IoUringSockstatBatchSize:", c.IoUringSockstatBatchSize)
+	fmt.Println("c.IoUringSockstatWorkers:", c.IoUringSockstatWorkers)
+	fmt.Println("c.ReconcileTimeout:", c.ReconcileTimeout.AsDuration())
+	fmt.Println("c.MaxNetnsPerOwner:", c.MaxNetnsPerOwner)
+	fmt.Println("c.MaxNetnsAddsPerReconcile:", c.MaxNetnsAddsPerReconcile)
 }

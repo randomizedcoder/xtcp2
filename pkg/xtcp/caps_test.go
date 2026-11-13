@@ -12,6 +12,8 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // TestDumpTracker_byteCap pins assign's byte accounting: which packets of a
@@ -349,23 +351,44 @@ func TestNetnsCapQueue(t *testing.T) {
 
 // TestSetPreservesCaps: ConfigService.Set cannot change the caps.
 func TestSetPreservesCaps(t *testing.T) {
-	running := &xtcp_config.XtcpConfig{MaxDumpBytes: 100, MaxRecordsPerNetns: 200, MaxNetns: 300}
+	newRunning := func() *xtcp_config.XtcpConfig {
+		return &xtcp_config.XtcpConfig{
+			MaxDumpBytes: 100, MaxRecordsPerNetns: 200, MaxNetns: 300,
+			MaxRecordsPerPoll: 400, IoUringSockstatBatchSize: 16, IoUringSockstatWorkers: 2,
+			MaxNetnsPerOwner: 5, MaxNetnsAddsPerReconcile: 6,
+			ReconcileTimeout: durationpb.New(700 * time.Millisecond),
+		}
+	}
 	tests := []struct {
 		name        string
 		category    string
 		description string
+		running     *xtcp_config.XtcpConfig
 		in          *xtcp_config.XtcpConfig
+		expected    *xtcp_config.XtcpConfig
 	}{
-		{name: "set_omits_caps", category: "N", description: "a Set without the caps would turn them off", in: &xtcp_config.XtcpConfig{}},
-		{name: "set_raises_caps", category: "N", description: "a Set raising the caps", in: &xtcp_config.XtcpConfig{MaxDumpBytes: 1 << 40, MaxRecordsPerNetns: 1 << 40, MaxNetns: 1 << 20}},
-		{name: "set_same_caps", category: "P", description: "a Get→Set round trip", in: &xtcp_config.XtcpConfig{MaxDumpBytes: 100, MaxRecordsPerNetns: 200, MaxNetns: 300}},
+		{name: "set_omits_caps", category: "N", description: "a Set without the caps would turn them off",
+			running: newRunning(), in: &xtcp_config.XtcpConfig{}, expected: newRunning()},
+		{name: "set_raises_caps", category: "N", description: "a Set raising every cap",
+			running: newRunning(),
+			in: &xtcp_config.XtcpConfig{MaxDumpBytes: 1 << 40, MaxRecordsPerNetns: 1 << 40, MaxNetns: 1 << 20,
+				MaxRecordsPerPoll: 1 << 40, IoUringSockstatBatchSize: 1024, IoUringSockstatWorkers: 64,
+				MaxNetnsPerOwner: 1 << 20, MaxNetnsAddsPerReconcile: 1 << 20, ReconcileTimeout: durationpb.New(time.Hour)},
+			expected: newRunning()},
+		{name: "set_same_caps", category: "P", description: "a Get→Set round trip",
+			running: newRunning(), in: newRunning(), expected: newRunning()},
+		{name: "running_timeout_unset", category: "C", description: "running has no timeout; a Set can't add one",
+			running: &xtcp_config.XtcpConfig{}, in: &xtcp_config.XtcpConfig{ReconcileTimeout: durationpb.New(time.Second)},
+			expected: &xtcp_config.XtcpConfig{}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			preserveCaps(tc.in, running)
-			if tc.in.MaxDumpBytes != 100 || tc.in.MaxRecordsPerNetns != 200 || tc.in.MaxNetns != 300 {
-				t.Errorf("%s: caps %d/%d/%d, expected the running 100/200/300",
-					tc.description, tc.in.MaxDumpBytes, tc.in.MaxRecordsPerNetns, tc.in.MaxNetns)
+			preserveCaps(tc.in, tc.running)
+			if !proto.Equal(tc.in, tc.expected) {
+				t.Errorf("%s: got %v, expected %v", tc.description, tc.in, tc.expected)
+			}
+			if tc.in.ReconcileTimeout != nil && tc.in.ReconcileTimeout == tc.running.ReconcileTimeout {
+				t.Errorf("%s: ReconcileTimeout aliases the running config", tc.description)
 			}
 		})
 	}

@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // ReconfigureMaxConfigBytes bounds the protojson config, secrets blanked,
@@ -564,12 +565,23 @@ func (c *xtcpConfigService) SetEnvelopeFlush(
 }
 
 // preserveCaps keeps the running daemon's tenant caps (-maxDumpBytes,
-// -maxRecordsPerNetns, -maxNetns) across a Set. They bound what a workload
-// can cost the collector, so they are startup-only: a Set that omitted them
-// would otherwise turn them off (0), and one that raised them would undo the
-// bound from the admin plane. Change them with flags or env and a restart.
+// -maxRecordsPerNetns, -maxNetns, -maxRecordsPerPoll, -maxNetnsPerOwner,
+// -maxNetnsAddsPerReconcile, -reconcileTimeout and the sockstat ring sizing)
+// across a Set. They bound what a workload can cost the collector, so they
+// are startup-only: a Set that omitted them would otherwise turn them off (0),
+// and one that raised them would undo the bound from the admin plane. Change
+// them with flags or env and a restart.
 func preserveCaps(in, running *xtcp_config.XtcpConfig) {
 	in.MaxDumpBytes = running.GetMaxDumpBytes()
 	in.MaxRecordsPerNetns = running.GetMaxRecordsPerNetns()
 	in.MaxNetns = running.GetMaxNetns()
+	in.MaxRecordsPerPoll = running.GetMaxRecordsPerPoll()
+	in.IoUringSockstatBatchSize = running.GetIoUringSockstatBatchSize()
+	in.IoUringSockstatWorkers = running.GetIoUringSockstatWorkers()
+	in.MaxNetnsPerOwner = running.GetMaxNetnsPerOwner()
+	in.MaxNetnsAddsPerReconcile = running.GetMaxNetnsAddsPerReconcile()
+	in.ReconcileTimeout = nil
+	if rt := running.GetReconcileTimeout(); rt != nil {
+		in.ReconcileTimeout = durationpb.New(rt.AsDuration())
+	}
 }

@@ -1554,6 +1554,21 @@ type XtcpConfig struct {
 	// counted in xtcp_dump_dropped_total{reason="records"}. Startup-only.
 	// 0 = unlimited. Daemon default 262144.
 	MaxRecordsPerNetns uint64 `protobuf:"varint,26,opt,name=max_records_per_netns,json=maxRecordsPerNetns,proto3" json:"max_records_per_netns,omitempty"`
+	// Budget on the records all namespaces contribute per poll. Before each
+	// poll xtcp2 reads every namespace's TCP socket count (sockstat) and,
+	// when the total is over the budget, splits it max-min fairly: a
+	// namespace over its share first stops asking for TIME_WAIT and
+	// SYN_RECV, then is sampled by port range across polls. Counted in
+	// xtcp_poll_degraded_total. Startup-only. 0 = off (sockstat is not read).
+	// Daemon default 1048576.
+	MaxRecordsPerPoll uint64 `protobuf:"varint,27,opt,name=max_records_per_poll,json=maxRecordsPerPoll,proto3" json:"max_records_per_poll,omitempty"`
+	// Sockstat reads queued per io_uring submit when io_uring=true.
+	// Ignored otherwise. 0 = daemon default 64; at most 1024.
+	IoUringSockstatBatchSize uint32 `protobuf:"varint,28,opt,name=io_uring_sockstat_batch_size,json=ioUringSockstatBatchSize,proto3" json:"io_uring_sockstat_batch_size,omitempty"`
+	// Cap on io_uring's kernel worker threads for sockstat reads (procfs
+	// reads are handed to io-wq workers). Ignored unless io_uring=true.
+	// 0 = daemon default 4; at most 64.
+	IoUringSockstatWorkers uint32 `protobuf:"varint,29,opt,name=io_uring_sockstat_workers,json=ioUringSockstatWorkers,proto3" json:"io_uring_sockstat_workers,omitempty"`
 	// Period of the background namespace-reconcile ticker (Method B /proc scan
 	// that converges the tracked namespace set). With reconcile_before_poll the
 	// Poller reconciles every cycle and is the real discovery mechanism, so this
@@ -1576,6 +1591,25 @@ type XtcpConfig struct {
 	// order xtcp2 first saw them. Startup-only.
 	// 0 = unlimited. Daemon default 4096.
 	MaxNetns uint32 `protobuf:"varint,42,opt,name=max_netns,json=maxNetns,proto3" json:"max_netns,omitempty"`
+	// Time budget for one reconcile's namespace scan. A scan cut short adds
+	// what it found but deletes nothing (a partial view cannot prove a
+	// namespace is gone), and is counted in
+	// xtcp_reconcile_incomplete_total{reason="timeout"}. Bounds how long a
+	// namespace flood can delay a poll. The scan also stops after
+	// 4 x max_netns distinct namespaces (reason="scan_cap").
+	// Startup-only. 0 = no limit. Daemon default 1s.
+	ReconcileTimeout *durationpb.Duration `protobuf:"bytes,43,opt,name=reconcile_timeout,json=reconcileTimeout,proto3" json:"reconcile_timeout,omitempty"`
+	// Cap on the namespaces one owner (the outermost container id in the
+	// namespace's cgroup) may have tracked. Bind-mounted namespaces with no
+	// live process are exempt. Candidates over it keep their queue place and
+	// are counted in xtcp_netns_dropped_total{reason="owner_quota"}.
+	// Startup-only. 0 = no limit. Daemon default 64.
+	MaxNetnsPerOwner uint32 `protobuf:"varint,44,opt,name=max_netns_per_owner,json=maxNetnsPerOwner,proto3" json:"max_netns_per_owner,omitempty"`
+	// Cap on namespaces added per reconcile, so a burst cannot open
+	// thousands of sockets (each a setns on a locked thread) at once. The
+	// rest wait their turn (reason="add_rate"). Startup-only.
+	// 0 = no limit. Daemon default 256.
+	MaxNetnsAddsPerReconcile uint32 `protobuf:"varint,45,opt,name=max_netns_adds_per_reconcile,json=maxNetnsAddsPerReconcile,proto3" json:"max_netns_adds_per_reconcile,omitempty"`
 	// Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker
 	// xtcp will capture this many Netlink response packets when it starts
 	// This is PER netlinker
@@ -2034,6 +2068,27 @@ func (x *XtcpConfig) GetMaxRecordsPerNetns() uint64 {
 	return 0
 }
 
+func (x *XtcpConfig) GetMaxRecordsPerPoll() uint64 {
+	if x != nil {
+		return x.MaxRecordsPerPoll
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetIoUringSockstatBatchSize() uint32 {
+	if x != nil {
+		return x.IoUringSockstatBatchSize
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetIoUringSockstatWorkers() uint32 {
+	if x != nil {
+		return x.IoUringSockstatWorkers
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetReconcileFrequency() *durationpb.Duration {
 	if x != nil {
 		return x.ReconcileFrequency
@@ -2051,6 +2106,27 @@ func (x *XtcpConfig) GetReconcileBeforePoll() bool {
 func (x *XtcpConfig) GetMaxNetns() uint32 {
 	if x != nil {
 		return x.MaxNetns
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetReconcileTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.ReconcileTimeout
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetMaxNetnsPerOwner() uint32 {
+	if x != nil {
+		return x.MaxNetnsPerOwner
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetMaxNetnsAddsPerReconcile() uint32 {
+	if x != nil {
+		return x.MaxNetnsAddsPerReconcile
 	}
 	return 0
 }
@@ -2669,7 +2745,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0e_error_classesB\x15\n" +
 	"\x13_metrics_categoriesB\x1a\n" +
 	"\x18_metrics_interface_pathsB\x13\n" +
-	"\x11_metrics_all_path\"\xb6'\n" +
+	"\x11_metrics_all_path\"\xd7*\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2697,10 +2773,17 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x17io_uring_cqe_batch_size\x18\x18 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\x80 (\x01R\x13ioUringCqeBatchSize\x12,\n" +
 	"\x0emax_dump_bytes\x18\x19 \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\fmaxDumpBytes\x129\n" +
-	"\x15max_records_per_netns\x18\x1a \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x12maxRecordsPerNetns\x12W\n" +
+	"\x15max_records_per_netns\x18\x1a \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x12maxRecordsPerNetns\x127\n" +
+	"\x14max_records_per_poll\x18\x1b \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x11maxRecordsPerPoll\x12K\n" +
+	"\x1cio_uring_sockstat_batch_size\x18\x1c \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\x80\bR\x18ioUringSockstatBatchSize\x12E\n" +
+	"\x19io_uring_sockstat_workers\x18\x1d \x01(\rB\n" +
+	"\xbaH\a\xc8\x01\x00*\x02\x18@R\x16ioUringSockstatWorkers\x12W\n" +
 	"\x13reconcile_frequency\x18( \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12reconcileFrequency\x122\n" +
 	"\x15reconcile_before_poll\x18) \x01(\bR\x13reconcileBeforePoll\x12#\n" +
-	"\tmax_netns\x18* \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\bmaxNetns\x12.\n" +
+	"\tmax_netns\x18* \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\bmaxNetns\x12S\n" +
+	"\x11reconcile_timeout\x18+ \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x10reconcileTimeout\x125\n" +
+	"\x13max_netns_per_owner\x18, \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x10maxNetnsPerOwner\x12F\n" +
+	"\x1cmax_netns_adds_per_reconcile\x18- \x01(\rB\x06\xbaH\x03\xc8\x01\x00R\x18maxNetnsAddsPerReconcile\x12.\n" +
 	"\vwrite_files\x182 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x00*\x05\x18\xe8\a(\x00R\n" +
 	"writeFiles\x12/\n" +
@@ -2890,37 +2973,38 @@ var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
 	24, // 30: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
 	22, // 31: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
 	24, // 32: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
-	24, // 33: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
-	24, // 34: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
-	24, // 35: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
-	18, // 36: xtcp_config.v1.XtcpConfig.listener_auth:type_name -> xtcp_config.v1.ListenerAuth
-	17, // 37: xtcp_config.v1.XtcpConfig.prometheus_listener:type_name -> xtcp_config.v1.ListenerEndpoint
-	18, // 38: xtcp_config.v1.XtcpConfig.admin_listener_auth:type_name -> xtcp_config.v1.ListenerAuth
-	17, // 39: xtcp_config.v1.XtcpConfig.grpc_listener:type_name -> xtcp_config.v1.ListenerEndpoint
-	19, // 40: xtcp_config.v1.XtcpConfig.listeners:type_name -> xtcp_config.v1.Listener
-	24, // 41: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
-	24, // 42: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
-	20, // 43: xtcp_config.v1.XtcpConfig.link_monitor:type_name -> xtcp_config.v1.LinkMonitorConfig
-	23, // 44: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	3,  // 45: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	5,  // 46: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	7,  // 47: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	9,  // 48: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
-	11, // 49: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
-	13, // 50: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
-	15, // 51: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
-	4,  // 52: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	6,  // 53: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	8,  // 54: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	10, // 55: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
-	12, // 56: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
-	14, // 57: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
-	16, // 58: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
-	52, // [52:59] is the sub-list for method output_type
-	45, // [45:52] is the sub-list for method input_type
-	45, // [45:45] is the sub-list for extension type_name
-	45, // [45:45] is the sub-list for extension extendee
-	0,  // [0:45] is the sub-list for field type_name
+	24, // 33: xtcp_config.v1.XtcpConfig.reconcile_timeout:type_name -> google.protobuf.Duration
+	24, // 34: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
+	24, // 35: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
+	24, // 36: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
+	18, // 37: xtcp_config.v1.XtcpConfig.listener_auth:type_name -> xtcp_config.v1.ListenerAuth
+	17, // 38: xtcp_config.v1.XtcpConfig.prometheus_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	18, // 39: xtcp_config.v1.XtcpConfig.admin_listener_auth:type_name -> xtcp_config.v1.ListenerAuth
+	17, // 40: xtcp_config.v1.XtcpConfig.grpc_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	19, // 41: xtcp_config.v1.XtcpConfig.listeners:type_name -> xtcp_config.v1.Listener
+	24, // 42: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
+	24, // 43: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
+	20, // 44: xtcp_config.v1.XtcpConfig.link_monitor:type_name -> xtcp_config.v1.LinkMonitorConfig
+	23, // 45: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	3,  // 46: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	5,  // 47: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	7,  // 48: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	9,  // 49: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
+	11, // 50: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
+	13, // 51: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
+	15, // 52: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
+	4,  // 53: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	6,  // 54: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	8,  // 55: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	10, // 56: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
+	12, // 57: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
+	14, // 58: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
+	16, // 59: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
+	53, // [53:60] is the sub-list for method output_type
+	46, // [46:53] is the sub-list for method input_type
+	46, // [46:46] is the sub-list for extension type_name
+	46, // [46:46] is the sub-list for extension extendee
+	0,  // [0:46] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }
