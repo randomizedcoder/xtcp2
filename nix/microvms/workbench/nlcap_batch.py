@@ -270,7 +270,8 @@ class Runner:
 def guest_env(ip):
     def out(args):
         try:
-            p = subprocess.run(args, capture_output=True, text=True, check=False)
+            p = subprocess.run(args, capture_output=True, text=True,
+                               check=False)
         except OSError:
             return ""
         return p.stdout.strip()
@@ -310,7 +311,8 @@ def run_all(runner, rows, jobs):
                     slots.append(pending.pop(fut))
                     rid, res = fut.result()
                     results[rid] = res
-                    print(f"NLCAP_ROW {res['status']} {rid} rc={res.get('rc', '-')}",
+                    rc = res.get('rc', '-')
+                    print(f"NLCAP_ROW {res['status']} {rid} rc={rc}",
                           flush=True)
     return results
 
