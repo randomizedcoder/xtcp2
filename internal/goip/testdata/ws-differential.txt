@@ -50,32 +50,10 @@
 # ip730/v730maddr: 0 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 6
 # rplroute: 10 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # ioam6route: 23 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
-# bpfroute: 0 same, 17 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
-# lwtencnh: 4 same, 3 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
-# lwtenchop: 4 same, 2 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# bpfroute: 17 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# lwtencnh: 7 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
+# lwtenchop: 6 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 0
 # nhstats: 10 same, 0 refuses, 0 sends, 0 differs; lookups differ in 0; not a write 1
 # metrics padding: 4 rows: ip sends stack bytes after an RTA_METRICS sub-attribute; zeroed before comparing
 # encap padding: 59 rows: ip sends stack bytes in an encap or after its type, on a nexthop, a route or a hop; zeroed before comparing
 linkattr/xdp-not-last refuses rc=255 link keyword "xdp": an XDP program: object recognized but not implemented by goip | ip link set dev d0 xdp off carrier on
-bpfroute/dup-1 refuses rc=2 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0
-bpfroute/dup-2 refuses rc=2 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0
-bpfroute/dup-3 refuses rc=2 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0
-bpfroute/ec-001 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0
-bpfroute/ec-002 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0
-bpfroute/ec-003 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0
-bpfroute/ec-004 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 16 dev d0
-bpfroute/ec-005 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 1 dev d0
-bpfroute/ec-006 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 256 dev d0
-bpfroute/ec-007 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0
-bpfroute/ec-008 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in in obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0
-bpfroute/ec-009 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 8 headroom 9 dev d0
-bpfroute/ng-001 refuses rc=255 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 0 dev d0
-bpfroute/ng-002 refuses rc=2 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 257 dev d0
-bpfroute/ng-003 refuses rc=2 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf headroom 16 dev d0
-bpfroute/ng-004 refuses rc=255 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec nosuch dev d0
-bpfroute/ng-005 refuses rc=255 encap bpf: object recognized but not implemented by goip | ip -4 route add 198.51.100.0/24 encap bpf in obj /nonexistent/lwt.o sec lwt_in dev d0
-lwtencnh/dup-3 refuses rc=2 encap bpf: object recognized but not implemented by goip | ip -6 nexthop add id 83 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0
-lwtencnh/ec-003 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -6 nexthop add id 83 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0
-lwtencnh/ec-004 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -6 nexthop add id 84 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 32 dev d0
-lwtenchop/dup-3 refuses rc=2 encap bpf: object recognized but not implemented by goip | ip -6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in nexthop via 2001:db8:1::2 dev d0
-lwtenchop/ec-003 refuses rc=0 encap bpf: object recognized but not implemented by goip | ip -6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in nexthop via 2001:db8:1::2 dev d0

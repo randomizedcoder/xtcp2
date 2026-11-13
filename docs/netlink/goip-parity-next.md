@@ -986,6 +986,27 @@ Thirteen writes from the lwtenc corpus (`gw_rplroute_*`, `gw_ioam6route_*`, `gw_
 | positive: the readbacks | 7 | GOIP_PARITY_PASS with stdout=0 |
 | negative: bpf writes | none | not rows; goip refuses them |
 
+## NX10 goip writes bpf encaps
+
+The user's decision (2026-11-13): goip loads the BPF object with cilium/ebpf, so `encap bpf` and seg6local's End.BPF `endpoint` write as ip's do, and their VM rows gate.
+
+### NX10a the loader and the writes
+
+`bpf_do_parse`'s grammar (`obj` or `object-file`, `pinned` or `object-pinned` or `fd`, then `section`, `program`, `verbose`), then iproute2_load_libbpf's checks: the ELF header, the section or program, and the kernel load as the hook's type. The request carries LWT_BPF_PROG_FD and LWT_BPF_PROG_NAME, `<basename>:[<sec>]` or `[*fsobj]` for a pin. ip's loader messages and exit 255 on each failure. nlparity zeroes the fd, which differs between processes. Not implemented: `verbose`, `m:` pins, pinned maps, two programs in one section.
+
+| description | input | expected |
+|---|---|---|
+| positive: a hook | `encap bpf in obj O sec lwt_in` | ip's request, fd zeroed |
+| positive: headroom | `xmit obj O sec lwt_xmit headroom 16` | LWT_BPF_XMIT_HEADROOM 16; only the first written |
+| positive: End.BPF | `action End.BPF endpoint obj O sec lwt_xmit` | SEG6_LOCAL_BPF nest |
+| negative: headroom 0 | | `headroom is invalid`, exit 255 |
+| negative: a missing file or section | | ip's messages, nothing sent |
+| corner: not an eBPF ELF | another machine, an ET_EXEC | `ELF format error, ELF file not for eBPF?` |
+
+### NX10b the VM rows
+
+The bpf writes from the lwtenc corpus (bpfroute's ec, ng and dup rows, lwtencnh ec-003 and ec-004, lwtenchop ec-003) as GW rows on NX9's setup. Two clean `--section route,nexthop` runs gate them, and a test pins them.
+
 ## See also
 
 - [goip-write-keywords.md](goip-write-keywords.md), whose out-of-scope list this plan revisits for `netns`.

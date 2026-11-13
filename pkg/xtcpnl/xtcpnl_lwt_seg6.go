@@ -168,12 +168,13 @@ type Seg6Encap struct {
 // Seg6LocalItem is one of parse_encap_seg6local's keywords, in the order
 // read. Kind is the SEG6_LOCAL_* it writes: Action, Table, VrfTable, IIF
 // and OIF use U32, NH4 and NH6 use Addr (empty for `any`), Counters
-// nothing, and Flavors Flavors.
+// nothing, Flavors Flavors, and BPF (`endpoint`) Prog.
 type Seg6LocalItem struct {
 	Kind    uint16
 	U32     uint32
 	Addr    []byte
 	Flavors Seg6LocalFlavorSet
+	Prog    BpfProgRef
 }
 
 // Seg6LocalFlavorSet is `flavors F[,F…] [lblen N] [nflen N]`: Ops has a bit
@@ -256,6 +257,8 @@ func putSeg6LocalItem(ab *AttrBuilder, it *Seg6LocalItem) error {
 		return putNested(ab, Seg6LocalFlavors, func() error {
 			return putSeg6LocalFlavors(ab, &it.Flavors)
 		})
+	case Seg6LocalBPF:
+		return putBpfProg(ab, Seg6LocalBPF, it.Prog)
 	}
 	return ErrSeg6Encap
 }

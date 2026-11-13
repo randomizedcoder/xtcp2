@@ -15,6 +15,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -603,7 +604,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 	var writes [][]byte
 	if _, err := os.Stat(out); err == nil {
 		for _, m := range restoreWrites(t, out) {
-			w := wsO5ZeroNetnsFd(wireBytesOf(m))
+			w := nlparity.ZeroLwtBpfFDs(wsO5ZeroNetnsFd(wireBytesOf(m)))
 			writes = append(writes, w)
 		}
 	}
@@ -618,7 +619,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		pad = pad || z
 		ipWrites[i], z = wsO5ZeroEncapPad(ipWrites[i])
 		encapPad = encapPad || z
-		ipWrites[i] = wsO5ZeroNetnsFd(ipWrites[i])
+		ipWrites[i] = nlparity.ZeroLwtBpfFDs(wsO5ZeroNetnsFd(ipWrites[i]))
 	}
 	lookups = wsO5Lookups("lookup", look, src.gets)
 	if d := wsO5Lookups("dump", dumps, src.dumpReqs); d != "" {
@@ -641,6 +642,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 func TestWsGoipDifferential(t *testing.T) {
 	useLLMap720(t) // the rows ran ip 7.2.0, whose lookups ask for names alone
 	useWsO5Netns(t)
+	useFakeBpf(t, nil)
 	var report []string
 	counts := map[string]map[string]int{}
 	lookupNotes := map[string]int{}
