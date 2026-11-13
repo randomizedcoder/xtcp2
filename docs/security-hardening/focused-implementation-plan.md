@@ -142,6 +142,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | `TestS3ParquetDest_timeFlush` flake; `regen-protos` drift | existing |
 | `pkg/listener` socket tests fail under `nix develop` (TMPDIR too long for `sun_path`) | existing |
 | MicroVM serial ports are fixed per arch, so two sessions cannot run lifecycle VMs at once | test harness |
+| `capability-check-no-caps` and `-names-sys-admin` fail on main: since FP-3 the daemon exits 64 for the missing listener token before the capability check; the checks need a token file | FP-3 follow-up |
 
 ### Phase F1 release gate (R1)
 
@@ -219,6 +220,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | TODO | Where |
 |---|---|
 | xtcp2's s3parquet destination imports `os/exec` through minio-go's credentials provider (never constructed: xtcp2 uses `NewStaticV4`); listed in `no-write-encoders`' `execAllowed` | upstream / a later trim |
+| `nix flake check` reds also on main, not FP-8's: `nlcap-batch`/`nlcap-ws` (flake8 E501 in the batch script), `vm-check-runner`'s t-env row (missing `GUEST_A_PASS`) | existing |
 
 ### Phase F3 gate
 
