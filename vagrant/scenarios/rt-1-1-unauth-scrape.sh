@@ -3,22 +3,30 @@
 # unauthenticated co-tenant scrape (docs/redteam-plan.md RT-1; the default-
 # exposure family). Driver contract: docs/redteam-implementation.md.
 #
-# Question: with the daemon in its default deployment row (host network, auth
-# off), can a plain container on the same docker host read TCP-observability
-# metrics about the base OS and every other tenant?
+# Question: with the daemon in its default deployment row (host network,
+# auth off), can a plain container on the same docker host read
+# TCP-observability metrics about the base OS and every other tenant?
 #
-# EXPECT=CONFIRMED today: auth off is the daemon default; docs/security.md's
-# "Listener security" documents the exposure and recommends bearer auth +
-# loopback/UDS listeners in deployment. This scenario pins that exposure as a
-# finding so the default cannot regress silently; when the default changes,
-# the expectation flip travels in the same PR as the fix.
+# EXPECT=BLOCKED today. The plan doc originally guessed CONFIRMED (auth off
+# the old default), but the listener-security-hardening program (PRs #291
+# and #300) landed in between: the daemon refuses to start on an
+# unauthenticated non-loopback TCP listener, so the harness's AUTH=off row
+# serves loopback TCP with auth=disabled (the one legal unauth shape) and the
+# co-tenant — a different netns — cannot reach 127.0.0.1 of the host netns.
+# The scenario pins that: the exposure cannot regress silently. When it does
+# regress, the expectation flip travels in the same PR as the fix.
+#
+# The exposure now gates on credential theft — the read-cred tier:
+#   XTCP2_AUTH=raw XTCP2_ATTACKER=read-cred XTCP2_EXPECT=CONFIRMED \
+#     nix run .#redteam-rt-1-1
+# (a co-tenant that can read the mounted token file scrapes everything).
 #
 # Matrix flip (Phase 0 DoD — proves the harness drives real behavior):
-#   XTCP2_MODE=bridge XTCP2_AUTH=raw XTCP2_EXPECT=BLOCKED \
-#     nix run .#redteam-rt-1-1
+#   XTCP2_AUTH=raw XTCP2_ATTACKER=plain nix run .#redteam-rt-1-1
+# (the §29 prod shape: 401 for a tokenless co-tenant, still BLOCKED).
 set -euo pipefail
 
-XTCP2_EXPECT="${XTCP2_EXPECT:-CONFIRMED}"
+XTCP2_EXPECT="${XTCP2_EXPECT:-BLOCKED}"
 
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/matrix.sh"
@@ -42,36 +50,49 @@ echo "rt-1-1: evidence in $RT_EVIDENCE"
 vm_up --no-provision victim
 # The delivery dir exists only after common.sh; create it now so the scp that
 # precedes the first `vagrant provision` has somewhere to land.
-vm_exec victim 'mkdir -p /tmp/xtcp2-redteam'
-vm_push victim "$XTCP2_OCI_TAR" /tmp/xtcp2-redteam/xtcp2-oci.tar.gz
-vm_push victim "$XTCP2_TCP_STRESS_TAR" /tmp/xtcp2-redteam/xtcp2-tcp-stress.tar.gz
+vm_exec victim 'mkdir -p xtcp2-redteam'
+vm_push victim "$XTCP2_OCI_TAR" xtcp2-redteam/xtcp2-oci.tar.gz
+vm_push victim "$XTCP2_TCP_STRESS_TAR" xtcp2-redteam/xtcp2-tcp-stress.tar.gz
 vm_provision victim
 
-# Baseline: the daemon is up and the catcher sees records before any attack.
+# Baseline: the daemon answers locally and the catcher sees records before any
+# attack. AUTH=off binds 127.0.0.1 (200); auth rows bind :9088 and answer
+# 401 there — either is a live daemon.
 PROM="http://127.0.0.1:9088/metrics"
 wait_for 120 "daemon answers on the victim VM" vm_exec victim \
-  "curl -s -o /dev/null -w '%{http_code}' $PROM | grep -q 200"
+  "curl -s -o /dev/null -w '%{http_code}' $PROM | grep -qE '^(200|401|403)\$'"
 victim_still_reporting_tap
 
 # Attack: plain-tier co-tenant container, no credentials, curl the docker0
-# gateway — the one address every bridge-networked container can always reach
-# (the prod-shape host network answers there; so does -p publishing).
+# gateway — the one address every bridge-networked container can always reach.
+# The read-cred tier reads the token out of its own mount and presents it:
+# the credential-theft exposure that is the real remaining default-row risk.
 COTENANT_PROM="$(xtcp2_cotenant_prom_url)"
-code="$(vm_exec victim "docker exec rt-attacker curl -s -m 5 -o /dev/null -w '%{http_code}' $COTENANT_PROM")" || code=000
+HDR=""
+if [ "$XTCP2_ATTACKER" = read-cred ] || [ "$XTCP2_ATTACKER" = admin ]; then
+  token="$(vm_exec victim 'sudo docker exec rt-attacker cat /run/secrets/read')"
+  [ -n "$token" ] || xtcp2_die "read-cred tier: no token in the attacker container"
+  HDR="-H \"Authorization: Bearer $token\""
+  echo "rt-1-1: read-cred tier, presenting the stolen read token"
+fi
+code="$(vm_exec victim "sudo docker exec rt-attacker curl -s -m 5 -o /dev/null -w '%{http_code}' $HDR $COTENANT_PROM")" || code=000
 echo "rt-1-1: co-tenant scrape HTTP $code"
-vm_exec victim "docker exec rt-attacker curl -s -m 5 $COTENANT_PROM" \
+vm_exec victim "sudo docker exec rt-attacker curl -s -m 5 $HDR $COTENANT_PROM" \
   >"$RT_EVIDENCE/cotenant-scrape.txt" || true
 
 case "$code" in
   200)
     if grep -q 'xtcp_' "$RT_EVIDENCE/cotenant-scrape.txt"; then
-      ok "co-tenant read /metrics without credentials (200, xtcp_ series present)"
+      ok "co-tenant read /metrics (200, xtcp_ series present)"
     else
       not_ok "co-tenant got 200 but no xtcp_ series in the body"
     fi
     ;;
   401 | 403)
     ok "co-tenant scrape rejected (HTTP $code)"
+    ;;
+  000)
+    ok "co-tenant cannot reach the metrics listener (loopback-only binding holds)"
     ;;
   *)
     not_ok "co-tenant scrape returned HTTP $code"
@@ -82,7 +103,7 @@ victim_still_reporting_tap
 # Verdict.
 case "$code" in
   200) actual=CONFIRMED ;;
-  401 | 403) actual=BLOCKED ;;
+  401 | 403 | 000) actual=BLOCKED ;;
   *) actual=NA ;;
 esac
 finish rt-1-1 "$actual"

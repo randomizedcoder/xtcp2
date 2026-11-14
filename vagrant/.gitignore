@@ -3,3 +3,4 @@
 .gen/
 # Scenario evidence (findings.md quotes the relevant bytes instead).
 redteam/evidence/
+.vagrant/

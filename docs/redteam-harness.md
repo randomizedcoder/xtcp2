@@ -270,6 +270,38 @@ The first scenario end-to-end (task 0.7):
 7. **Cleanup**: kill the attacker container; `vagrant destroy -f` unless
    `REDTEAM_KEEP=1` (debugging).
 
+## As-built deltas (2026-11-14)
+
+The harness landed with everything in this document plus the deltas the runs
+exposed. All are in `vagrant/` and the findings rows in
+[vagrant/redteam/findings.md](../vagrant/redteam/findings.md):
+
+- **Listeners** — the deployment matrix's daemon uses explicit `-listener`
+  specs (the shape `nix/tests/xtcp2-scrape-auth.nix` uses). The plan doc's
+  "auth off is the daemon default" premise was stale: the listener-security-
+  hardening program (PRs #291, #300) refuses unauthenticated non-loopback
+  TCP at startup. `AUTH=off` = the one legal unauth shape (loopback TCP,
+  `auth=disabled`); `AUTH=raw` = the §29 prod shape (:9088/:8889 with mounted
+  token files).
+- **Capabilities** — docker's defaults drop NET_ADMIN/SYS_ADMIN, so the
+  `CAPS=priv` row is `--cap-add=NET_ADMIN,SYS_ADMIN,SYS_CHROOT` (the in-repo
+  compose shape) and `CAPS=min` is the daemon's own recommended set
+  (NET_ADMIN, SYS_ADMIN, SYS_PTRACE, NET_RAW, SYS_RESOURCE).
+- **Disk** — the victim VM is 20G (`machine_virtual_size`) and victim.sh
+  prunes unmanaged images before every `docker load` (containerd keeps the
+  previous loads until its delayed GC; a 10G disk filled after 9 re-provisions).
+- **socat catcher** — `SYSTEM:'cat >> file'`, not `OPEN:file,append`: the
+  plain file's immediate EOF kills each fork child after socat's 0.5s poll
+  timeout (run7/8 evidence). Symptom without it: broken pipes from the
+  daemon.
+- **`vm_push` is atomic** (scp to `.incoming` + `mv`) — nix store sources are
+  0444 and scp preserves the mode, so a second push couldn't overwrite its
+  own first copy.
+- **The harness's first real finding** — `tcpDest` dials once and never
+  reconnects (pkg/xtcp/destinations_tcp.go): killing the TCP destination's
+  receiver permanently blinds delivery until a daemon restart. Files under
+  rt-4-7 / rt-11-5.
+
 ## Build sequence
 
 One PR (or two, harness/first-scenario, per the implementation doc's

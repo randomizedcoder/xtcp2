@@ -28,10 +28,16 @@ vm_exec_root() {
   ssh -F "$(vm_ssh_config "$vm")" "$vm" "sudo bash -c $(printf '%q ' "$@")"
 }
 
-# vm_push <vm> <local-path> <remote-path>: scp a file into the VM.
+# vm_push <vm> <local-path> <remote-path>: scp a file into the VM. Atomic via
+# .incoming + mv: nix store sources are mode 0444 and scp preserves that, so a
+# second push of the same remote path could otherwise not overwrite its own
+# first copy.
 vm_push() {
   local vm="$1" local_path="$2" remote_path="$3"
-  scp -q -F "$(vm_ssh_config "$vm")" "$local_path" "$vm:""$remote_path"
+  local cfg
+  cfg="$(vm_ssh_config "$vm")"
+  scp -q -F "$cfg" "$local_path" "$vm:$remote_path.incoming"
+  ssh -F "$cfg" "$vm" "mv -f $remote_path.incoming $remote_path && chmod 0644 $remote_path"
 }
 
 # vm_up [--no-provision] <vm…>: idempotent boot. First boot lands on the
