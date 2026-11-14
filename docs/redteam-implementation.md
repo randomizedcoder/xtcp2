@@ -83,7 +83,8 @@ Flake side: `nix/redteam.nix` (imported from `nix/default.nix`) exposing:
 
 - `apps.x86_64-linux.redteam-<scenario>` — wraps `scenarios/<script>` with the
   dev-shell `vagrant` (added to `nix/packages.nix` devshell tool list; the
-  `vagrant-libvirt` plugin is vendored via the plugin gem set).
+  pinned nixpkgs `vagrant` bundles the `vagrant-libvirt` plugin on Linux —
+  its `withLibvirt` default — so no plugin wiring is needed).
 - `apps.x86_64-linux.redteam-matrix` — sweeps one row group.
 - `packages.x86_64-linux.redteam-oci` — the `oci-xtcp2` tarball materialized as
   a file the Vagrantfile can share (Phase 0 proves the path:
@@ -121,7 +122,7 @@ ability to `nix build .#oci-xtcp2`.
 
 | # | Task | Files |
 |---|---|---|
-| 0.1 | Pick and pin the box: `ubuntu/noble64` (libvirt provider) with fallback `generic/ubuntu2404`; record digest + why in `vagrant/README.md` | `vagrant/Vagrantfile`, `vagrant/README.md` |
+| 0.1 | Pick and pin the box: `cloud-image/ubuntu-24.04` (the official Ubuntu cloud-image libvirt box — there is no `ubuntu/noble64`); record the pin log in `vagrant/README.md` | `vagrant/Vagrantfile`, `vagrant/README.md` |
 | 0.2 | `provision/common.sh`: docker-ce from Docker's apt repo (Ubuntu 24.04), chrony; `provision/victim.sh`: `docker load` the shared tarball, `docker compose`-free run script honoring `lib/matrix.sh` | `vagrant/provision/*.sh` |
 | 0.3 | `nix/redteam.nix`: OCI tarball package + per-scenario apps; add `vagrant` (+`vagrant-libvirt`) to the dev shell | `nix/redteam.nix`, `nix/packages.nix`/`devshell.nix`, `nix/default.nix` (import + merge apps), `flake.nix` if needed |
 | 0.4 | `lib/`: assert.sh (ok/not-ok, wait_for, retry), matrix.sh (env → flags/mounts/caps), evidence.sh | `vagrant/lib/*.sh` |
