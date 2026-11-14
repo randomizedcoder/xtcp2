@@ -91,6 +91,10 @@ let
     # exercise pkg/xtcpnl's ParseVdpa and BuildGetVdpaRequest
     # (internal/govdpa). Listed for the same reason as godevlink.
     "govdpa"
+    # gofou is the arc's `ip fou` clone: it replays `ip fou show`'s ws pcap
+    # corpus to exercise pkg/xtcpnl's ParseFOU and BuildGetFOURequest
+    # (internal/gofou). Listed for the same reason as govdpa.
+    "gofou"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"
