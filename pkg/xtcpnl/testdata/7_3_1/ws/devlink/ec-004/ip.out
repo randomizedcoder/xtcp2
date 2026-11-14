@@ -1,0 +1,11 @@
+netdevsim/netdevsim0:
+  name IPv4 size unlimited unit entry size_min 0 size_max unlimited size_gran 1 dpipe_tables none
+    resources:
+      name fib size unlimited occ 3 unit entry size_min 0 size_max unlimited size_gran 1 dpipe_tables none
+      name fib-rules size unlimited occ 3 unit entry size_min 0 size_max unlimited size_gran 1 dpipe_tables none
+  name IPv6 size unlimited unit entry size_min 0 size_max unlimited size_gran 1 dpipe_tables none
+    resources:
+      name fib size unlimited occ 1 unit entry size_min 0 size_max unlimited size_gran 1 dpipe_tables none
+      name fib-rules size unlimited occ 2 unit entry size_min 0 size_max unlimited size_gran 1 dpipe_tables none
+  name nexthops size unlimited occ 0 unit entry size_min 0 size_max unlimited size_gran 1 dpipe_tables none
+  name test_resource size 20 unit entry size_min 0 size_max 100 size_gran 1 dpipe_tables none

@@ -1,0 +1,1 @@
+{"trap_group":{"netdevsim/netdevsim0":[{"name":"l2_drops","generic":true},{"name":"l3_drops","generic":true,"policer":1},{"name":"l3_exceptions","generic":true,"policer":1},{"name":"buffer_drops","generic":true,"policer":2},{"name":"acl_drops","generic":true,"policer":3},{"name":"mc_snooping","generic":true,"policer":3}]}}

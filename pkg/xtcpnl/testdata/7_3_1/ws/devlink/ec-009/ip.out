@@ -1,0 +1,15 @@
+netdevsim/netdevsim0:
+  name source_mac_is_multicast type drop generic true action drop group l2_drops
+  name vlan_tag_mismatch type drop generic true action drop group l2_drops
+  name ingress_vlan_filter type drop generic true action drop group l2_drops
+  name ingress_spanning_tree_filter type drop generic true action drop group l2_drops
+  name port_list_is_empty type drop generic true action drop group l2_drops
+  name port_loopback_filter type drop generic true action drop group l2_drops
+  name fid_miss type exception generic false action trap group l2_drops
+  name blackhole_route type drop generic true action drop group l3_drops
+  name ttl_value_is_too_small type exception generic true action trap group l3_exceptions
+  name tail_drop type drop generic true action drop group buffer_drops
+  name ingress_flow_action_drop type drop generic true action drop group acl_drops
+  name egress_flow_action_drop type drop generic true action drop group acl_drops
+  name igmp_query type control generic true action mirror group mc_snooping
+  name igmp_v1_report type control generic true action trap group mc_snooping

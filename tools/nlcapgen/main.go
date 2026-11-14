@@ -139,6 +139,7 @@ var families = map[string]func() []*space{
 	"ethtool": func() []*space {
 		return []*space{ethRingSpace(), ethChanSpace(), ethPauseSpace(), ethFecSpace(), ethCoalSpace(), ethShowSpace()}
 	},
+	"devlink": func() []*space { return []*space{devlinkSpace()} },
 }
 
 // namedFamilies are families of named rows, written out as they are

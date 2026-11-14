@@ -1,0 +1,10 @@
+netdevsim/netdevsim0:
+  name max_macs type generic
+    values:
+      cmode driverinit value 32 default 32
+  name test1 type driver-specific
+    values:
+      cmode driverinit value true default true
+  name test2 type driver-specific
+    values:
+      cmode runtime value 1234 default 1234
