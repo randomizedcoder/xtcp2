@@ -21,6 +21,8 @@ type pollGate struct {
 	counts  []sockstatCount
 	sendTo  []nsSend
 
+	rangeBuf []byte // a sampled namespace's ip_local_port_range
+
 	// polls counts gated polls; it picks each sampled namespace's shard.
 	// Not pollingLoops: that advances on every poller event (ticks, poll
 	// requests, one netlinkerDone per namespace), so a poll could step it
@@ -41,10 +43,11 @@ var newSockstatRingReader = func(batch, workers uint32) (sockstatReader, error) 
 
 // fdsPerNetns is what one tracked namespace holds open for its life: its
 // netlink socket and the origNs snapshot its goroutine restores on exit
-// (netNamespaceInstance), plus its sockstat fd with the gate on.
+// (netNamespaceInstance), plus its sockstat and ip_local_port_range fds
+// with the gate on.
 func fdsPerNetns(gate bool) uint64 {
 	if gate {
-		return 3
+		return 4
 	}
 	return 2
 }
@@ -91,7 +94,7 @@ func (x *XTCP) gateEnabled() bool {
 // io_uring one with -ioUring, falling back to pread if the ring can't be
 // set up (counted).
 func (x *XTCP) newPollGate() *pollGate {
-	g := &pollGate{reqs: newPollRequests(x.nlRequest)}
+	g := &pollGate{reqs: newPollRequests(x.nlRequest), rangeBuf: make([]byte, portRangeBufSize)}
 	if x.config.GetIoUring() {
 		r, err := newSockstatRingReader(x.config.GetIoUringSockstatBatchSize(), x.config.GetIoUringSockstatWorkers())
 		if err == nil {
@@ -131,7 +134,8 @@ func (x *XTCP) planGatedPoll() []nsSend {
 		g.ready = append(g.ready, p)
 		g.statFDs = append(g.statFDs, p.stat.acquire())
 	}
-	// Hold every handle's read lock until the reads are done, so a
+	// Hold every handle's read lock until planning is done (sockstat and,
+	// for sampled namespaces, port-range reads), so a
 	// namespace torn down meanwhile can't close (and the kernel reuse) an
 	// fd the reader is about to use. A teardown waits at most this read.
 	defer func() {
@@ -169,7 +173,16 @@ func (x *XTCP) planGatedPoll() []nsSend {
 		if pl.unknown {
 			unknown++
 		}
-		req, err := g.reqs.get(pl)
+		pr := defaultPortRange
+		if pl.level == pollSample {
+			// Read under the handle's read lock, still held (see above).
+			if r, ok := g.ready[i].stat.portRange(g.rangeBuf); ok {
+				pr = r
+			} else {
+				x.pC.WithLabelValues("poller", "portRange", "error").Inc()
+			}
+		}
+		req, err := g.reqs.get(pl, pr)
 		if err != nil {
 			// Can't happen for the fixed shard shape (it is audited); if it
 			// does, a full request is still bounded by the receiver caps.

@@ -24,7 +24,7 @@ Today a host-wide socket monitor has to do this for every namespace:
 hashinfo = net->ipv4.tcp_death_row.hashinfo;        /* tcp_diag.c:325 */
 ```
 
-That is the global `tcp_hashinfo` for every namespace, unless the namespace was created while its parent had `net.ipv4.tcp_child_ehash_entries` set (`tcp_set_hashinfo()`, `net/ipv4/tcp_ipv4.c:3415-3432`; sysctl in `net/ipv4/sysctl_net_ipv4.c:1527`). Few hosts set it.
+That is the global `tcp_hashinfo` for every namespace, unless the namespace was created while its parent had `net.ipv4.tcp_child_ehash_entries` set (`tcp_set_hashinfo()`, `net/ipv4/tcp_ipv4.c:3415-3432`; sysctl in `net/ipv4/sysctl_net_ipv4.c:1527`). Few hosts set it. Even then only `ehash` is the namespace's own: `inet_pernet_hashinfo_alloc()` copies the parent's `inet_hashinfo` (`kmemdup()`, `net/ipv4/inet_hashtables.c:1364`) and allocates a new `ehash` alone, so `lhash2` and `bhash2` stay host-wide.
 
 The dump makes three walks over the table, resumable across `recvmsg()` calls through `cb->args[0]` (phase), `cb->args[1]` (bucket) and `cb->args[2]` (position in bucket) (`tcp_diag.c:328-331`, `:557-558`):
 
@@ -37,6 +37,19 @@ The dump makes three walks over the table, resumable across `recvmsg()` calls th
 Empty `ehash` buckets are skipped without taking the lock (`tcp_diag.c:488`). Every non-empty bucket is locked and its chain walked, and other namespaces' sockets are skipped one by one.
 
 So **one namespace's dump costs O(sockets on the host)**, and polling N namespaces walks the shared table N times. A namespace holding a large socket table slows every other namespace's dump, even if those namespaces have no sockets at all.
+
+### Measured
+
+`microvm-x86_64-socket-scale` (Linux 7.3.1 guest, 4 vCPUs, 8 GiB): the median wall time of `ss -tan` (15 runs, including `ss`'s own start-up) in a namespace B holding 21 sockets, while another namespace A holds loopback connections:
+
+| A's sockets | A's table | B's `ss -tan` |
+|---|---|---|
+| 0 | shared | 34 ms |
+| 100,001 | shared | 64 ms |
+| 500,005 | shared | 159 ms |
+| 500,005 | own (`tcp_child_ehash_entries=65536`) | 54 ms |
+
+On the shared table B pays about 0.25 µs for each of A's sockets. With A on its own `ehash` most of that goes; the 20 ms left is consistent with phase 1 still walking the shared `bhash2`, which holds the bind buckets of A's 250k connected client sockets: `ss -a` asks for every state including `TCP_BOUND_INACTIVE` (iproute2 7.2.0 `misc/ss.c:251,6024`), and so does a request with `idiag_states` `0x3fff`.
 
 ### Filters run before a record is built
 
@@ -82,7 +95,7 @@ Check this in `__inet_diag_dump_start()`, so a refused request fails before any 
 In `tcp_diag_dump()` (`net/ipv4/tcp_diag.c:314`), with the flag set:
 
 1. **Shared table.** Walk `tcp_hashinfo` as today, but don't apply the three namespace checks (`:350`, `:416`, `:501`). Every socket in the shared table is reported, whatever its namespace.
-2. **Namespaces with their own table.** Then, under `rcu_read_lock()`, go over namespaces with `for_each_net_rcu()` (`include/net/net_namespace.h:447`) and, for each `net` where `net->ipv4.tcp_death_row.hashinfo != &tcp_hashinfo`, do the same three walks over that table.
+2. **Namespaces with their own table.** Then, under `rcu_read_lock()`, go over namespaces with `for_each_net_rcu()` (`include/net/net_namespace.h:447`) and, for each `net` where `net->ipv4.tcp_death_row.hashinfo != &tcp_hashinfo`, walk that table's `ehash`. Its `lhash2` and `bhash2` are the shared ones (see above), already covered by step 1.
 
 Resuming across `recvmsg()` calls needs one more cursor: which namespace's table the walk is in. The `net` can't be held across calls without a reference. Cookies only grow, but the list isn't in cookie order: `setup_net()` takes the cookie (`net/core/net_namespace.c:440`), runs every pernet init, and only then appends the namespace under `net_rwsem` (`:446-448`). `pernet_ops_rwsem` is held for read there, so two namespaces being set up at once can be appended in either order. Two ways to resume:
 
@@ -110,5 +123,5 @@ Resuming across `recvmsg()` calls needs one more cursor: which namespace's table
 ## Before any RFC
 
 - Search lore.kernel.org/netdev for earlier attempts at an all-namespace dump.
-- Measure the shared-walk cost: a small namespace's `ss` time against the socket count in another namespace, with and without `tcp_child_ehash_entries` (the `microvm-x86_64-socket-scale` scenario).
+- Measure the shared-walk cost on a many-core host with a production-sized `ehash` (the numbers above are from a 4-vCPU guest).
 - Re-check every reference here against the tree the RFC is based on.

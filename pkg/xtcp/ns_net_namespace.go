@@ -149,9 +149,9 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 
 	defer x.closeSocket(socketFD)
 
-	// The sockstat fd for the socket-count gate, opened here so it is bound
-	// to this namespace. Closed with the socket when the namespace goes.
-	stat := newStatHandle(x.openSockstatFD())
+	// The socket-count gate's fds, opened here so they are bound to this
+	// namespace. Closed with the socket when the namespace goes.
+	stat := x.openGateHandle()
 	defer stat.close(x.closeFD)
 
 	// https://godoc.org/golang.org/x/sys/unix#Bind
@@ -190,23 +190,34 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 	x.pC.WithLabelValues("netNamespaceInstance", "ctx.Done", "count").Inc()
 }
 
-// openSockstat is the seam tests swap to fake or fail the sockstat open.
-var openSockstat = func() (int, error) {
-	return unix.Open(sockstatPath, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+// openGateFile is the seam tests swap to fake or fail the gate's opens.
+var openGateFile = func(path string) (int, error) {
+	return unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
 }
 
-// openSockstatFD opens the calling thread's namespace's sockstat when the
-// socket-count gate is on (-maxRecordsPerPoll > 0). It returns -1 when the
-// gate is off or the open fails; that namespace's count is then unknown.
-func (x *XTCP) openSockstatFD() int {
+// openGateHandle opens the calling thread's namespace's sockstat and
+// ip_local_port_range when the socket-count gate is on
+// (-maxRecordsPerPoll > 0). nil when the gate is off or sockstat can't be
+// opened (that namespace's count is then unknown); without the port range,
+// a sampled namespace's shards split the default range.
+func (x *XTCP) openGateHandle() *statHandle {
 	if x.config.GetMaxRecordsPerPoll() == 0 {
-		return -1
+		return nil
 	}
-	fd, err := openSockstat()
+	fd := x.openGateFD(sockstatPath, "openSockstat")
+	if fd < 0 {
+		return nil
+	}
+	return newStatHandle(fd, x.openGateFD(portRangePath, "openPortRange"))
+}
+
+// openGateFD opens path, counting a failure under variable; -1 on error.
+func (x *XTCP) openGateFD(path, variable string) int {
+	fd, err := openGateFile(path)
 	if err != nil {
-		x.pC.WithLabelValues("netNamespaceInstance", "openSockstat", "error").Inc()
+		x.pC.WithLabelValues("netNamespaceInstance", variable, "error").Inc()
 		if x.debugLevel > 10 {
-			log.Printf("openSockstatFD %s: %v", sockstatPath, err)
+			log.Printf("openGateHandle %s: %v", path, err)
 		}
 		return -1
 	}
@@ -257,7 +268,7 @@ func (x *XTCP) openDefaultNetLinkSocket(ctx context.Context) {
 	nsCtx, nsCancel := context.WithCancel(ctx)
 	// xtcp2's own namespace: any unlocked thread is in it, and both fds live
 	// as long as the daemon.
-	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD, newStatHandle(x.openSockstatFD()))
+	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD, x.openGateHandle())
 
 	// The host namespace has no netNamespaceInstance to run its locality
 	// listener; any unlocked thread is in it.

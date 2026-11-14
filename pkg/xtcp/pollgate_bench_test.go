@@ -110,7 +110,7 @@ func BenchmarkPollPrepass(b *testing.B) {
 			binary.LittleEndian.PutUint32(req[20:24], 0x3fff)
 			x.nlRequest = &req
 			for i, fd := range fds {
-				x.nsMap.Store(uint64(i+1), netNSitem{inode: uint64(i + 1), socketFD: 100000 + i, stat: newStatHandle(fd)})
+				x.nsMap.Store(uint64(i+1), netNSitem{inode: uint64(i + 1), socketFD: 100000 + i, stat: newStatHandle(fd, -1)})
 			}
 			defer x.closeGate()
 			b.ReportAllocs()

@@ -36,21 +36,82 @@ const sockstatBufSize = 1024
 // namespace. /proc/self/net would follow the thread-group leader instead.
 const sockstatPath = "/proc/thread-self/net/sockstat"
 
-// statHandle owns one namespace's sockstat fd. The poller reads it under
-// the read lock; the namespace's teardown closes it under the write lock.
-// So the poller never reads an fd number after it is closed, when it may
-// already be reused for another file or socket.
+// portRangePath is the calling thread's namespace's
+// net.ipv4.ip_local_port_range. A /proc/sys/net file resolves to the
+// opener's namespace (net_ctl_header_lookup, net/sysctl_net.c) and the open
+// file keeps that namespace's table entry (proc_sys_call_handler reads
+// PROC_I(inode)->sysctl_entry), so like sockstat, a pread later reads the
+// namespace it was opened in.
+const portRangePath = "/proc/sys/net/ipv4/ip_local_port_range"
+
+// portRangeBufSize holds "65535\t65535\n" with room to spare.
+const portRangeBufSize = 32
+
+// statHandle owns one namespace's gate fds: its sockstat and its
+// ip_local_port_range. The poller reads them under the read lock; the
+// namespace's teardown closes them under the write lock. So the poller
+// never reads an fd number after it is closed, when it may already be
+// reused for another file or socket.
 type statHandle struct {
-	mu sync.RWMutex
-	fd int
+	mu      sync.RWMutex
+	fd      int
+	rangeFD int // -1: not open; shards then split the default range
 }
 
-// newStatHandle wraps fd; nil for an fd that isn't open (<= 0).
-func newStatHandle(fd int) *statHandle {
+// newStatHandle wraps the sockstat fd and the port-range fd; nil when the
+// sockstat fd isn't open (<= 0). rangeFD may be -1.
+func newStatHandle(fd, rangeFD int) *statHandle {
 	if fd <= 0 {
 		return nil
 	}
-	return &statHandle{fd: fd}
+	return &statHandle{fd: fd, rangeFD: rangeFD}
+}
+
+// portRange reads the namespace's ip_local_port_range into buf. The caller
+// holds the read lock (acquire). ok is false when the fd isn't open, the
+// read fails or the contents don't parse.
+func (h *statHandle) portRange(buf []byte) (portRange, bool) {
+	if h == nil || h.rangeFD <= 0 {
+		return portRange{}, false
+	}
+	n, err := unix.Pread(h.rangeFD, buf, 0)
+	if err != nil || n <= 0 {
+		return portRange{}, false
+	}
+	return parsePortRange(buf[:n])
+}
+
+// parsePortRange parses ip_local_port_range ("lo\thi\n"). The kernel
+// keeps 1 <= lo <= hi <= 65535 (ipv4_local_port_range); anything else is
+// rejected.
+func parsePortRange(b []byte) (portRange, bool) {
+	var v [2]uint64
+	i := 0
+	for f := range v {
+		for i < len(b) && (b[i] == ' ' || b[i] == '\t') {
+			i++
+		}
+		start := i
+		for i < len(b) && b[i] >= '0' && b[i] <= '9' {
+			v[f] = v[f]*10 + uint64(b[i]-'0')
+			if v[f] > 65535 {
+				return portRange{}, false
+			}
+			i++
+		}
+		if i == start {
+			return portRange{}, false
+		}
+	}
+	for ; i < len(b); i++ {
+		if b[i] != ' ' && b[i] != '\t' && b[i] != '\n' {
+			return portRange{}, false
+		}
+	}
+	if v[0] == 0 || v[0] > v[1] {
+		return portRange{}, false
+	}
+	return portRange{lo: uint16(v[0]), hi: uint16(v[1])}, true
 }
 
 // acquire read-locks h and returns its fd, or -1 once closed. Every
@@ -69,17 +130,20 @@ func (h *statHandle) release() {
 	}
 }
 
-// close waits out a poll's read, then closes the fd. nil-safe, idempotent.
+// close waits out a poll's read, then closes the fds. nil-safe, idempotent.
 func (h *statHandle) close(closeFD func(int)) {
 	if h == nil {
 		return
 	}
 	h.mu.Lock()
-	fd := h.fd
-	h.fd = -1
+	fd, rangeFD := h.fd, h.rangeFD
+	h.fd, h.rangeFD = -1, -1
 	h.mu.Unlock()
 	if fd > 0 {
 		closeFD(fd)
+	}
+	if rangeFD > 0 {
+		closeFD(rangeFD)
 	}
 }
 

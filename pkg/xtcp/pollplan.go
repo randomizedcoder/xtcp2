@@ -17,8 +17,9 @@ import (
 //     The kernel drops them before building a record (tcp_diag.c, the
 //     idiag_states check), so the dump is about sockstat's inuse.
 //  2. pollSample: also split the namespace's sockets into K port shards and
-//     ask for shard (poll mod K) each poll, counting gated polls, with inet_diag bytecode
-//     matching shardKey(sport, dport) in R_k. The K ranges partition the
+//     ask for shard (poll mod K) each poll, counting gated polls, with
+//     inet_diag bytecode matching shardKey(sport, dport) in R_k. The K
+//     ranges split the namespace's ip_local_port_range and partition the
 //     port space, so K consecutive polls see every socket exactly once.
 //     Sockets that share both ports (differing only by address) share a
 //     shard; -maxRecordsPerNetns still bounds that.
@@ -150,55 +151,60 @@ func degrade(c sockstatCount, demand, share, poll uint64) nsPlan {
 	}
 }
 
+// portRange is a namespace's net.ipv4.ip_local_port_range: the ports its
+// connect()s pick from.
+type portRange struct{ lo, hi uint16 }
+
+// defaultPortRange is Linux's default ip_local_port_range, used for a
+// namespace whose range can't be read.
+var defaultPortRange = portRange{lo: 32768, hi: 60999}
+
 // shardRange is shard k of K's range of shard keys. Keys are almost all
-// ephemeral ports (>= ephemeralLoCst), so the ranges split 32768..65535
-// evenly and shard 0 also takes every key below it (listeners, whose dport
-// is 0, and the rare socket with no ephemeral side).
-func shardRange(k, shards uint32) (lo, hi uint16) {
-	const span = 1<<16 - ephemeralLoCst
-	l := ephemeralLoCst + uint64(k)*span/uint64(shards)
-	h := ephemeralLoCst + uint64(k+1)*span/uint64(shards) - 1
+// the namespace's ephemeral ports, so the ranges split pr evenly; shard 0
+// also takes every key below pr.lo and shard K-1 every key above pr.hi.
+// The ranges partition 0..65535 for any pr; with K wider than pr some are
+// empty (lo > hi), which only costs those shards' polls.
+func shardRange(k, shards uint32, pr portRange) (lo, hi uint16) {
+	span := uint64(pr.hi) - uint64(pr.lo) + 1
+	l := uint64(pr.lo) + uint64(k)*span/uint64(shards)
+	h := uint64(pr.lo) + uint64(k+1)*span/uint64(shards) - 1
 	if k == 0 {
 		l = 0
+	}
+	if k == shards-1 {
+		h = 1<<16 - 1
 	}
 	return uint16(l), uint16(h)
 }
 
-// ephemeralLoCst splits the port space for sharding: a socket's shard key
-// is its sport when sport >= ephemeralLoCst (a client-side ephemeral port,
-// or a listener's accepted socket seen from the client) and its dport
-// otherwise (a server-side socket: dport is the peer's ephemeral port).
-// It covers Linux's default ip_local_port_range (32768-60999) and IANA's
-// (49152-65535). Keying on the varying side spreads a busy listener's
-// sockets over every shard, where keying on either port would put them all
-// in the shard holding the listener's port. The split only affects the
-// spread: the shards partition every socket either way.
-const ephemeralLoCst = 32768
-
-// shardKey is the port shardBytecode filters on.
+// shardKey is the port shardBytecode filters on: the larger of the two.
+// That is the ephemeral side of nearly every connection, whichever end
+// this socket is: a client's sport, or an accepted socket's dport. Keying
+// on the varying side spreads a busy listener's sockets over every shard,
+// where keying on either port would put them all in the shard holding the
+// listener's port. Unlike a fixed "sport >= 32768" split it needs no
+// assumption about where the namespace's ephemeral range starts. A
+// connection whose peer port is above its listener's (a listener above the
+// ephemeral range) keys on the listener's port; the shards still partition
+// every socket.
 func shardKey(sport, dport uint16) uint16 {
-	if sport >= ephemeralLoCst {
-		return sport
-	}
-	return dport
+	return max(sport, dport)
 }
 
 // shardBytecode is inet_diag bytecode for shardKey(sport, dport) in
-// [lo,hi]:
+// [lo,hi], that is max(sport, dport) in [lo,hi]:
 //
-//	(sport >= 32768 AND sport >= lo AND sport <= hi) OR
-//	(sport <= 32767 AND dport >= lo AND dport <= hi)
+//	sport <= hi AND dport <= hi AND (sport >= lo OR dport >= lo)
 //
-// shaped as iproute2's ssfilter builds an OR (a; JMP; b) so every jump
-// target is on the yes-chain, as the kernel's valid_cc requires:
+// with the OR shaped as iproute2's ssfilter builds one (a; JMP; b) so every
+// jump target is on the yes-chain, as the kernel's valid_cc requires:
 //
-//	 0 S_GE 32768 yes 8 no 28  ┐ a: a miss goes to b (offset 28)
-//	 8 S_GE lo    yes 8 no 20  │
-//	16 S_LE hi    yes 8 no 12  ┘
-//	24 JMP        yes 4 no 28    a matched: jump to the end (accept)
-//	28 S_LE 32767 yes 8 no 28  ┐ b: a miss jumps past the end (reject)
-//	36 D_GE lo    yes 8 no 20  │
-//	44 D_LE hi    yes 8 no 12  ┘ falling off the end accepts
+//	 0 S_LE hi yes 8 no 40   a miss jumps past the end (reject)
+//	 8 D_LE hi yes 8 no 32   a miss jumps past the end (reject)
+//	16 S_GE lo yes 8 no 12   a miss goes to D_GE (offset 28)
+//	24 JMP     yes 4 no 12   S_GE matched: jump to the end (accept)
+//	28 D_GE lo yes 8 no 12   a miss jumps past the end (reject);
+//	                         falling off the end accepts
 func shardBytecode(lo, hi uint16) []byte {
 	op := func(b []byte, code, yes uint8, no uint16) []byte {
 		b = append(b, code, yes)
@@ -206,18 +212,16 @@ func shardBytecode(lo, hi uint16) []byte {
 	}
 	port := func(b []byte, p uint16) []byte { return op(b, 0, 0, p) }
 	bc := make([]byte, 0, shardBytecodeLen)
-	bc = port(op(bc, xtcpnl.InetDiagBcSGe, 8, 28), ephemeralLoCst)
-	bc = port(op(bc, xtcpnl.InetDiagBcSGe, 8, 20), lo)
-	bc = port(op(bc, xtcpnl.InetDiagBcSLe, 8, 12), hi)
-	bc = op(bc, xtcpnl.InetDiagBcJmp, 4, 28)
-	bc = port(op(bc, xtcpnl.InetDiagBcSLe, 8, 28), ephemeralLoCst-1)
-	bc = port(op(bc, xtcpnl.InetDiagBcDGe, 8, 20), lo)
-	bc = port(op(bc, xtcpnl.InetDiagBcDLe, 8, 12), hi)
+	bc = port(op(bc, xtcpnl.InetDiagBcSLe, 8, 40), hi)
+	bc = port(op(bc, xtcpnl.InetDiagBcDLe, 8, 32), hi)
+	bc = port(op(bc, xtcpnl.InetDiagBcSGe, 8, 12), lo)
+	bc = op(bc, xtcpnl.InetDiagBcJmp, 4, 12)
+	bc = port(op(bc, xtcpnl.InetDiagBcDGe, 8, 12), lo)
 	return bc
 }
 
-// shardBytecodeLen is shardBytecode's length: six port ops and a JMP.
-const shardBytecodeLen = 6*2*xtcpnl.InetDiagBcOpSizeCst + xtcpnl.InetDiagBcOpSizeCst
+// shardBytecodeLen is shardBytecode's length: four port ops and a JMP.
+const shardBytecodeLen = 4*2*xtcpnl.InetDiagBcOpSizeCst + xtcpnl.InetDiagBcOpSizeCst
 
 // nlattrHdrSize is struct nlattr.
 const nlattrHdrSize = 4
@@ -231,19 +235,26 @@ const maxCachedShardRequests = 4 * maxShardsCst
 type pollRequests struct {
 	full   *[]byte
 	states *[]byte
-	shards map[uint64]*[]byte // shards<<32 | shard
+	shards map[shardReqKey]*[]byte
+}
+
+// shardReqKey is one cached shard request: shard k of K over a range.
+type shardReqKey struct {
+	shard, shards uint32
+	pr            portRange
 }
 
 func newPollRequests(full *[]byte) *pollRequests {
 	st := slices.Clone(*full)
 	states := binary.LittleEndian.Uint32(st[20:24]) &^ statesDegradeMask
 	binary.LittleEndian.PutUint32(st[20:24], states)
-	return &pollRequests{full: full, states: &st, shards: make(map[uint64]*[]byte)}
+	return &pollRequests{full: full, states: &st, shards: make(map[shardReqKey]*[]byte)}
 }
 
 // get returns the request for pl, building and auditing a shard request
-// the first time it is needed.
-func (r *pollRequests) get(pl nsPlan) (*[]byte, error) {
+// the first time it is needed. pr is the namespace's port range (pollSample
+// only).
+func (r *pollRequests) get(pl nsPlan, pr portRange) (*[]byte, error) {
 	switch pl.level {
 	case pollFull:
 		return r.full, nil
@@ -251,11 +262,11 @@ func (r *pollRequests) get(pl nsPlan) (*[]byte, error) {
 		return r.states, nil
 	case pollSample:
 	}
-	key := uint64(pl.shards)<<32 | uint64(pl.shard)
+	key := shardReqKey{shard: pl.shard, shards: pl.shards, pr: pr}
 	if req, ok := r.shards[key]; ok {
 		return req, nil
 	}
-	lo, hi := shardRange(pl.shard, pl.shards)
+	lo, hi := shardRange(pl.shard, pl.shards, pr)
 	bc := shardBytecode(lo, hi)
 	if err := xtcpnl.InetDiagBcAudit(bc, false); err != nil {
 		return nil, fmt.Errorf("shard %d/%d bytecode: %w", pl.shard, pl.shards, err)

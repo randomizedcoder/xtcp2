@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // fakeKernelDump applies a captured request the way tcp_diag_dump does to
@@ -52,7 +53,7 @@ type fakeSock struct {
 // ports, plus tw TIME_WAIT and syn SYN_RECV ones.
 func syntheticTable(n, tw, syn int) []fakeSock {
 	rng := rand.New(rand.NewPCG(3, 4))
-	eph := func() uint16 { return uint16(ephemeralLoCst + rng.IntN(65536-ephemeralLoCst)) }
+	eph := func() uint16 { return defaultPortRange.lo + uint16(rng.IntN(65536-int(defaultPortRange.lo))) }
 	out := make([]fakeSock, 0, n+tw+syn)
 	for range n {
 		out = append(out, fakeSock{state: 1, sport: 443, dport: eph()})
@@ -157,7 +158,7 @@ func TestPollGateEndToEnd(t *testing.T) {
 				if stat == 0 {
 					stat = writeSockstat(t, n.inuse, n.tw)
 				}
-				x.nsMap.Store(uint64(i+1), netNSitem{inode: uint64(i + 1), socketFD: sock, stat: newStatHandle(stat)})
+				x.nsMap.Store(uint64(i+1), netNSitem{inode: uint64(i + 1), socketFD: sock, stat: newStatHandle(stat, -1)})
 				byFD[sock] = n
 			}
 
@@ -237,8 +238,8 @@ func TestPollGateShardRotation(t *testing.T) {
 				return nil
 			}
 			// 500k against a ~199k share: K = 3.
-			x.nsMap.Store(uint64(1), netNSitem{inode: 1, socketFD: 1000, stat: newStatHandle(writeSockstat(t, "500000", "0"))})
-			x.nsMap.Store(uint64(2), netNSitem{inode: 2, socketFD: 1001, stat: newStatHandle(writeSockstat(t, "1000", "0"))})
+			x.nsMap.Store(uint64(1), netNSitem{inode: 1, socketFD: 1000, stat: newStatHandle(writeSockstat(t, "500000", "0"), -1)})
+			x.nsMap.Store(uint64(2), netNSitem{inode: 2, socketFD: 1001, stat: newStatHandle(writeSockstat(t, "1000", "0"), -1)})
 
 			for _, l := range tc.loops {
 				x.pollAllNetlinkSockets(l)
@@ -270,7 +271,7 @@ func TestPollGateOffUnchanged(t *testing.T) {
 	prev := sendDumpRequest
 	t.Cleanup(func() { sendDumpRequest = prev })
 	sendDumpRequest = func(_ int, b []byte) error { got = append(got, b); return nil }
-	x.nsMap.Store(uint64(1), netNSitem{inode: 1, socketFD: 5, stat: newStatHandle(1 << 20)})
+	x.nsMap.Store(uint64(1), netNSitem{inode: 1, socketFD: 5, stat: newStatHandle(1<<20, -1)})
 	x.pollAllNetlinkSockets(0)
 	if len(got) != 1 || &got[0][0] != &req[0] || x.gate != nil {
 		t.Errorf("gate off: sent %d requests (startup buffer=%v), gate=%v", len(got), len(got) == 1 && &got[0][0] == &req[0], x.gate)
@@ -287,7 +288,7 @@ func TestStatHandle(t *testing.T) {
 	}{
 		{name: "nil_handle", category: "B", description: "fd <= 0 gives a nil handle; acquire is -1 and release/close are no-ops", run: func(t *testing.T) {
 			for _, fd := range []int{-1, 0} {
-				h := newStatHandle(fd)
+				h := newStatHandle(fd, -1)
 				if h != nil || h.acquire() != -1 {
 					t.Fatalf("fd %d: handle %v", fd, h)
 				}
@@ -295,15 +296,48 @@ func TestStatHandle(t *testing.T) {
 				h.close(func(int) { t.Fatal("closed a nil handle") })
 			}
 		}},
+		{name: "port_range", category: "P", description: "the port-range fd is read at offset 0 every time", run: func(t *testing.T) {
+			h := newStatHandle(42, writeFile(t, "ip_local_port_range", "10000\t65000\n"))
+			buf := make([]byte, portRangeBufSize)
+			for range 2 {
+				h.acquire()
+				pr, ok := h.portRange(buf)
+				h.release()
+				if !ok || pr != (portRange{lo: 10000, hi: 65000}) {
+					t.Fatalf("portRange %v %v, expected 10000-65000", pr, ok)
+				}
+			}
+		}},
+		{name: "port_range_unopened", category: "N", description: "no port-range fd: not ok (the caller uses the default)", run: func(t *testing.T) {
+			h := newStatHandle(42, -1)
+			if _, ok := h.portRange(make([]byte, portRangeBufSize)); ok {
+				t.Error("ok without an fd")
+			}
+		}},
+		{name: "port_range_bad_fd", category: "N", description: "a port-range fd that isn't open: the read fails, not ok", run: func(t *testing.T) {
+			h := newStatHandle(42, 1<<20)
+			if _, ok := h.portRange(make([]byte, portRangeBufSize)); ok {
+				t.Error("ok on a bad fd")
+			}
+		}},
+		{name: "close_both", category: "C", description: "close closes the sockstat and port-range fds, once each", run: func(t *testing.T) {
+			h := newStatHandle(42, 43)
+			var closed []int
+			h.close(func(fd int) { closed = append(closed, fd) })
+			h.close(func(fd int) { closed = append(closed, fd) })
+			if len(closed) != 2 || closed[0] != 42 || closed[1] != 43 {
+				t.Errorf("closed %v, expected [42 43]", closed)
+			}
+		}},
 		{name: "acquire_open", category: "P", description: "an open handle gives its fd", run: func(t *testing.T) {
-			h := newStatHandle(42)
+			h := newStatHandle(42, -1)
 			if fd := h.acquire(); fd != 42 {
 				t.Errorf("fd %d, expected 42", fd)
 			}
 			h.release()
 		}},
 		{name: "close_waits_for_read", category: "C", description: "close blocks until the poll's read releases, then closes once", run: func(t *testing.T) {
-			h := newStatHandle(42)
+			h := newStatHandle(42, -1)
 			fd := h.acquire()
 			closed := make(chan int, 2)
 			go h.close(func(fd int) { closed <- fd })
@@ -340,10 +374,10 @@ func TestCheckFDLimit(t *testing.T) {
 		expectedNeed uint64 // 0: no warning
 	}{
 		{name: "enough", category: "P", description: "1M fds cover 4096 namespaces with the gate", maxNetns: 4096, gate: true, soft: 1 << 20},
-		{name: "low_gate", category: "N", description: "1024 fds, 4096 namespaces x 3 (socket, origNs, sockstat) + 256", maxNetns: 4096, gate: true, soft: 1024, expectedNeed: 12544},
+		{name: "low_gate", category: "N", description: "1024 fds, 4096 namespaces x 4 (socket, origNs, sockstat, port range) + 256", maxNetns: 4096, gate: true, soft: 1024, expectedNeed: 16640},
 		{name: "low_no_gate", category: "N", description: "gate off: socket and origNs per namespace", maxNetns: 4096, soft: 1024, expectedNeed: 8448},
-		{name: "exact", category: "B", description: "soft limit exactly the need", maxNetns: 100, gate: true, soft: 556},
-		{name: "one_short", category: "B", description: "one below the need", maxNetns: 100, gate: true, soft: 555, expectedNeed: 556},
+		{name: "exact", category: "B", description: "soft limit exactly the need", maxNetns: 100, gate: true, soft: 656},
+		{name: "one_short", category: "B", description: "one below the need", maxNetns: 100, gate: true, soft: 655, expectedNeed: 656},
 		{name: "netns_cap_off", category: "C", description: "-maxNetns 0: unbounded, nothing to check", soft: 16},
 	}
 	for _, tc := range tests {
@@ -358,6 +392,54 @@ func TestCheckFDLimit(t *testing.T) {
 			}
 			if got := x.checkFDLimit(); got != tc.expectedNeed {
 				t.Errorf("%s: need %d, expected %d", tc.description, got, tc.expectedNeed)
+			}
+		})
+	}
+}
+
+// writeFile writes contents to a temp file and returns an fd open on it.
+func writeFile(t *testing.T, name, contents string) int {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fd, err := unix.Open(p, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = unix.Close(fd) })
+	return fd
+}
+
+// TestParsePortRange: ip_local_port_range's "lo\thi\n".
+func TestParsePortRange(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		in          string
+		expected    portRange
+		expectedOK  bool
+	}{
+		{name: "default", category: "P", description: "Linux's default", in: "32768\t60999\n", expected: portRange{32768, 60999}, expectedOK: true},
+		{name: "wide", category: "P", description: "a tuned wide range", in: "1024\t65535\n", expected: portRange{1024, 65535}, expectedOK: true},
+		{name: "spaces", category: "C", description: "spaces instead of a tab, no newline", in: "10000  65000", expected: portRange{10000, 65000}, expectedOK: true},
+		{name: "equal", category: "B", description: "lo == hi, which the kernel allows", in: "5000\t5000\n", expected: portRange{5000, 5000}, expectedOK: true},
+		{name: "extremes", category: "B", description: "1 and 65535", in: "1\t65535\n", expected: portRange{1, 65535}, expectedOK: true},
+		{name: "zero_lo", category: "N", description: "lo 0 is outside the kernel's bounds", in: "0\t65535\n"},
+		{name: "inverted", category: "N", description: "lo > hi", in: "60999\t32768\n"},
+		{name: "too_big", category: "N", description: "a port over 65535", in: "1024\t65536\n"},
+		{name: "one_field", category: "N", description: "only one number", in: "32768\n"},
+		{name: "garbage", category: "N", description: "a trailing non-digit", in: "32768\t60999x\n"},
+		{name: "empty", category: "N", description: "nothing read", in: ""},
+		{name: "huge_digits", category: "C", description: "a long digit run doesn't overflow", in: "99999999999999999999999\t1\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := parsePortRange([]byte(tc.in))
+			if ok != tc.expectedOK || got != tc.expected {
+				t.Errorf("%s: parsePortRange(%q) = %v, %v; expected %v, %v", tc.description, tc.in, got, ok, tc.expected, tc.expectedOK)
 			}
 		})
 	}

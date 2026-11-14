@@ -1,6 +1,7 @@
 package xtcp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"math/rand/v2"
 	"testing"
@@ -188,6 +189,7 @@ func TestShardBytecode(t *testing.T) {
 	for i := range pairs {
 		pairs[i] = [2]uint16{uint16(rng.Uint32()), uint16(rng.Uint32())}
 	}
+	ranges := []portRange{defaultPortRange, {lo: 10000, hi: 65000}, {lo: 1024, hi: 65535}, {lo: 1, hi: 65535}, {lo: 40000, hi: 40001}, {lo: 5000, hi: 5000}}
 	match := func(bc []byte, sport, dport uint16) bool {
 		return xtcpnl.InetDiagBcRun(bc, &xtcpnl.InetDiagEntry{Family: 2, Sport: sport, Dport: dport})
 	}
@@ -198,34 +200,38 @@ func TestShardBytecode(t *testing.T) {
 		description string
 		run         func(t *testing.T)
 	}{
-		{name: "audit_ok", category: "P", description: "every shard of K in {2,3,7,64,1024} passes the kernel audit without CAP_NET_ADMIN", run: func(t *testing.T) {
-			for _, k := range []uint32{2, 3, 7, 64, maxShardsCst} {
-				for i := range k {
-					lo, hi := shardRange(i, k)
-					if err := xtcpnl.InetDiagBcAudit(shardBytecode(lo, hi), false); err != nil {
-						t.Fatalf("K=%d k=%d: %v", k, i, err)
+		{name: "audit_ok", category: "P", description: "every shard of K in {2,3,7,64,1024}, over default, wide and tiny port ranges, passes the kernel audit without CAP_NET_ADMIN", run: func(t *testing.T) {
+			for _, pr := range ranges {
+				for _, k := range []uint32{2, 3, 7, 64, maxShardsCst} {
+					for i := range k {
+						lo, hi := shardRange(i, k, pr)
+						if err := xtcpnl.InetDiagBcAudit(shardBytecode(lo, hi), false); err != nil {
+							t.Fatalf("range %v K=%d k=%d: %v", pr, k, i, err)
+						}
 					}
 				}
 			}
 		}},
-		{name: "partition_500k", category: "P", description: "K=7 over 500k pairs: every pair matched by exactly one shard, the one holding its key", run: func(t *testing.T) {
+		{name: "partition_500k", category: "P", description: "K=7 over 500k pairs, each range: every pair matched by exactly one shard, the one holding its key", run: func(t *testing.T) {
 			const k = 7
-			bcs := make([][]byte, k)
-			for i := range uint32(k) {
-				bcs[i] = shardBytecode(shardRange(i, k))
-			}
-			for _, p := range pairs {
-				hits := 0
-				for i, bc := range bcs {
-					if match(bc, p[0], p[1]) {
-						hits++
-						if lo, hi := shardRange(uint32(i), k); shardKey(p[0], p[1]) < lo || shardKey(p[0], p[1]) > hi {
-							t.Fatalf("pair %v matched shard %d, key outside [%d,%d]", p, i, lo, hi)
+			for _, pr := range ranges {
+				bcs := make([][]byte, k)
+				for i := range uint32(k) {
+					bcs[i] = shardBytecode(shardRange(i, k, pr))
+				}
+				for _, p := range pairs {
+					hits := 0
+					for i, bc := range bcs {
+						if match(bc, p[0], p[1]) {
+							hits++
+							if lo, hi := shardRange(uint32(i), k, pr); shardKey(p[0], p[1]) < lo || shardKey(p[0], p[1]) > hi {
+								t.Fatalf("range %v: pair %v matched shard %d, key outside [%d,%d]", pr, p, i, lo, hi)
+							}
 						}
 					}
-				}
-				if hits != 1 {
-					t.Fatalf("pair %v: %d shard hits, expected exactly 1", p, hits)
+					if hits != 1 {
+						t.Fatalf("range %v: pair %v: %d shard hits, expected exactly 1", pr, p, hits)
+					}
 				}
 			}
 		}},
@@ -237,16 +243,19 @@ func TestShardBytecode(t *testing.T) {
 				}
 			}
 		}},
-		{name: "range_edges", category: "B", description: "keys 0, 65535, 32767/32768 and K=3 boundaries (43690/43691, 54613/54614) land in exactly one shard", run: func(t *testing.T) {
+		{name: "range_edges", category: "B", description: "keys 0, 65535, the range ends and K=3 boundaries of the default range land in exactly one shard", run: func(t *testing.T) {
 			const k = 3
+			pr := defaultPortRange
+			b1, _ := shardRange(1, k, pr)
+			b2, _ := shardRange(2, k, pr)
 			cases := [][2]uint16{
-				{80, 0}, {80, 65535}, {65535, 80}, {32768, 1}, {32767, 32767}, {80, 32768},
-				{80, 43690}, {80, 43691}, {54613, 443}, {54614, 443},
+				{0, 0}, {80, 65535}, {65535, 80}, {32767, 1}, {32768, 1}, {1, 60999}, {61000, 1},
+				{b1 - 1, 443}, {443, b1}, {b2 - 1, 80}, {80, b2},
 			}
 			for _, c := range cases {
 				n := 0
 				for i := range uint32(k) {
-					lo, hi := shardRange(i, k)
+					lo, hi := shardRange(i, k, pr)
 					key := shardKey(c[0], c[1])
 					in := key >= lo && key <= hi
 					if got := match(shardBytecode(lo, hi), c[0], c[1]); got != in {
@@ -261,33 +270,51 @@ func TestShardBytecode(t *testing.T) {
 				}
 			}
 		}},
+		{name: "ranges_partition", category: "B", description: "shardRange covers 0..65535 with no gap or overlap, for every range and K", run: func(t *testing.T) {
+			for _, pr := range ranges {
+				for _, k := range []uint32{1, 2, 3, 7, 64, maxShardsCst} {
+					next := 0
+					for i := range k {
+						lo, hi := shardRange(i, k, pr)
+						if lo > hi { // empty: K wider than the range
+							continue
+						}
+						if int(lo) != next {
+							t.Fatalf("range %v K=%d shard %d starts at %d, expected %d", pr, k, i, lo, next)
+						}
+						next = int(hi) + 1
+					}
+					if next != 65536 {
+						t.Fatalf("range %v K=%d ends at %d, expected 65535", pr, k, next-1)
+					}
+				}
+			}
+		}},
 		{name: "outside", category: "N", description: "server socket whose client port is outside the range: no match", run: func(t *testing.T) {
 			if match(shardBytecode(100, 200), 443, 50000) {
 				t.Error("matched")
 			}
 		}},
-		{name: "single_listener", category: "C", description: "100k accepted sockets on sport 443, client ports ephemeral: spread within 10% of even over K=4", run: func(t *testing.T) {
-			const k = 4
-			per := make([]int, k)
-			for _, p := range pairs[:100_000] {
-				dport := ephemeralLoCst + p[1]%(65536-ephemeralLoCst)
-				for i := range uint32(k) {
-					if match(shardBytecode(shardRange(i, k)), 443, dport) {
-						per[i]++
-					}
+		{name: "single_listener", category: "C", description: "100k accepted sockets on sport 443, client ports over the default range: spread within 10% of even over K=4", run: func(t *testing.T) {
+			spreadWithin(t, defaultPortRange, 4, 100_000, func(i int, eph uint16) (uint16, uint16) { return 443, eph })
+		}},
+		{name: "wide_range_loopback", category: "C", description: "ip_local_port_range 10000-65000, 250k loopback pairs to 5 listener ports (the socket-scale VM's gate namespace): both ends within 10% of even over K=3", run: func(t *testing.T) {
+			pr := portRange{lo: 10000, hi: 65000}
+			spreadWithin(t, pr, 3, 500_000, func(i int, eph uint16) (uint16, uint16) {
+				listener := uint16(2000 + i%5)
+				if i%2 == 0 {
+					return eph, listener // client end
 				}
-			}
-			t.Logf("per-shard records, one listener on 443: %v", per)
-			for i, n := range per {
-				if n < 22_500 || n > 27_500 {
-					t.Errorf("shard %d has %d of 100000, expected 25000 +-10%%: %v", i, n, per)
-				}
-			}
+				return listener, eph // accepted end
+			})
+		}},
+		{name: "full_range", category: "C", description: "ip_local_port_range 1024-65535 with a listener on 8080 inside it: within 10% of even over K=4", run: func(t *testing.T) {
+			spreadWithin(t, portRange{lo: 1024, hi: 65535}, 4, 100_000, func(i int, eph uint16) (uint16, uint16) { return 8080, eph })
 		}},
 		{name: "same_port_pair", category: "C", description: "sockets differing only by address share one shard (bounded by -maxRecordsPerNetns)", run: func(t *testing.T) {
 			n := 0
 			for i := range uint32(4) {
-				if match(shardBytecode(shardRange(i, 4)), 443, 443) {
+				if match(shardBytecode(shardRange(i, 4, defaultPortRange)), 443, 443) {
 					n++
 				}
 			}
@@ -313,6 +340,7 @@ func TestPollRequests(t *testing.T) {
 		category       string
 		description    string
 		plan           nsPlan
+		pr             portRange
 		expectedLen    int
 		expectedStates uint32
 		expectedShared bool // same buffer as the startup request
@@ -321,12 +349,14 @@ func TestPollRequests(t *testing.T) {
 			expectedLen: 72, expectedStates: 0x3fff, expectedShared: true},
 		{name: "states", category: "P", description: "states clears TIME_WAIT, SYN_RECV, NEW_SYN_RECV", plan: nsPlan{level: pollStates},
 			expectedLen: 72, expectedStates: 0x3fff &^ statesDegradeMask},
-		{name: "sample", category: "P", description: "sample = states + a 56-byte bytecode attribute", plan: nsPlan{level: pollSample, shard: 1, shards: 3},
-			expectedLen: 128, expectedStates: 0x3fff &^ statesDegradeMask},
+		{name: "sample", category: "P", description: "sample = states + a 40-byte bytecode attribute", plan: nsPlan{level: pollSample, shard: 1, shards: 3}, pr: defaultPortRange,
+			expectedLen: 112, expectedStates: 0x3fff &^ statesDegradeMask},
+		{name: "sample_wide_range", category: "C", description: "the same shard over another namespace's range is its own request", plan: nsPlan{level: pollSample, shard: 1, shards: 3}, pr: portRange{lo: 10000, hi: 65000},
+			expectedLen: 112, expectedStates: 0x3fff &^ statesDegradeMask},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req, err := r.get(tc.plan)
+			req, err := r.get(tc.plan, tc.pr)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -348,14 +378,47 @@ func TestPollRequests(t *testing.T) {
 				if err := xtcpnl.InetDiagBcAudit(parsed.Bytecode, false); err != nil {
 					t.Errorf("%s: audit: %v", tc.description, err)
 				}
-				again, _ := r.get(tc.plan)
+				again, _ := r.get(tc.plan, tc.pr)
 				if again != req {
 					t.Errorf("%s: not cached", tc.description)
+				}
+				lo, hi := shardRange(tc.plan.shard, tc.plan.shards, tc.pr)
+				if !bytes.Equal(parsed.Bytecode, shardBytecode(lo, hi)) {
+					t.Errorf("%s: bytecode is not shard %d/%d of %v", tc.description, tc.plan.shard, tc.plan.shards, tc.pr)
 				}
 			}
 		})
 	}
 	if binary.LittleEndian.Uint32(full[20:24]) != 0x3fff {
 		t.Error("building the degraded requests modified the startup request")
+	}
+}
+
+// spreadWithin checks that n sockets, socket i with ports from gen(i, an
+// ephemeral port drawn from pr), spread over K shards within 10% of even.
+// The model is the kernel's bytecode run, not shardKey.
+func spreadWithin(t *testing.T, pr portRange, k uint32, n int, gen func(i int, eph uint16) (sport, dport uint16)) {
+	t.Helper()
+	rng := rand.New(rand.NewPCG(5, 6))
+	bcs := make([][]byte, k)
+	for i := range k {
+		bcs[i] = shardBytecode(shardRange(i, k, pr))
+	}
+	per := make([]int, k)
+	span := int(pr.hi) - int(pr.lo) + 1
+	for i := range n {
+		sport, dport := gen(i, pr.lo+uint16(rng.IntN(span)))
+		for j, bc := range bcs {
+			if xtcpnl.InetDiagBcRun(bc, &xtcpnl.InetDiagEntry{Family: 2, Sport: sport, Dport: dport}) {
+				per[j]++
+			}
+		}
+	}
+	t.Logf("range %v K=%d per-shard: %v", pr, k, per)
+	even := n / int(k)
+	for j, c := range per {
+		if c < even*90/100 || c > even*110/100 {
+			t.Errorf("range %v: shard %d has %d of %d, expected %d +-10%%: %v", pr, j, c, n, even, per)
+		}
 	}
 }

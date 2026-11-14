@@ -94,6 +94,21 @@ sockets() {
   ip netns exec "$1" cat /proc/net/sockstat | awk '/^TCP:/ {print $3 + $7}'
 }
 
+# tracked: namespaces xtcp2 holds now (instances started minus deleted).
+# xtcp_gauge would do, but it is refreshed once a minute.
+tracked() {
+  echo $(($(metric '^xtcp_counts[{]function="netNamespaceInstance",.*variable="start"[}]') - $(metric '^xtcp_counts[{]function="delete",.*variable="delete"[}]')))
+}
+
+# fill_state NAME: is NAME's sockfill alive, and ss's summary of NAME.
+fill_state() {
+  local alive=no
+  if [ -n "${FILL_PID:-}" ] && kill -0 "$FILL_PID" 2>/dev/null; then
+    alive=yes
+  fi
+  echo "fill_alive=$alive ss=[$(ss -N "$1" -s | awk '/^TCP:/ {$1 = ""; print}' | tr -s ' ')]"
+}
+
 # metric REGEX: the sum of the /metrics samples whose line matches REGEX.
 metric() {
   curl -sf "http://$PROM/metrics" | awk -v re="$1" '$0 ~ re && $0 !~ /^#/ {s += $NF} END {printf "%d\n", s}'
@@ -213,13 +228,18 @@ phase_gate() {
     local rss2 thr2 sample states sockets drops polls p50
     rss2=$(rss_kb "$XTCP_PID")
     thr2=$(threads "$XTCP_PID")
-    sample=$(metric '^xtcp_poll_degraded_total\{level="sample"\}')
-    states=$(metric '^xtcp_poll_degraded_total\{level="states"\}')
+    sample=$(metric '^xtcp_poll_degraded_total[{]level="sample"[}]')
+    states=$(metric '^xtcp_poll_degraded_total[{]level="states"[}]')
     sockets=$(metric '^xtcp_poll_sockets ')
-    drops=$(metric '^xtcp_dump_dropped_total\{reason="records"\}')
-    polls=$(metric '^xtcp_histograms_count\{.*variable="pollToDoneDuration"')
+    drops=$(metric '^xtcp_dump_dropped_total[{]reason="records"[}]')
+    polls=$(metric '^xtcp_histograms_count[{].*variable="pollToDoneDuration"')
     p50=$(curl -sf "http://$PROM/metrics" | awk '/pollToDoneDuration/ && /quantile="0.5"/ {print $NF; exit}')
-    say "GATE mode=$mode budget=$budget a_sockets=$(sockets A) poll_sockets=$sockets sample=$sample states=$states records_dropped=$drops polls=$polls poll_p50_s=$p50 rss_kb=$rss1->$rss2 threads=$thr1->$thr2"
+    local a_now
+    a_now=$(sockets A)
+    say "GATE mode=$mode budget=$budget a_sockets=$a_now poll_sockets=$sockets sample=$sample states=$states records_dropped=$drops polls=$polls poll_p50_s=$p50 rss_kb=$rss1->$rss2 threads=$thr1->$thr2 $(fill_state A)"
+    if [ "$a_now" -lt $((GATE_PAIRS * 2)) ]; then
+      say "GATE_DIAG sockfill: $(tail -n 3 /tmp/fill-A.log | tr '\n' ' ') dmesg: $(dmesg | grep -iE 'tcp|oom|killed' | tail -n 5 | tr '\n' ' ')"
+    fi
     xtcp2_stop
     if [ "$mode" = on ]; then
       [ "$sample" -gt 0 ] || fail "GATE A was never sampled"
@@ -266,7 +286,7 @@ phase_synflood() {
   inuse=$(sockets S)
   sleep 6
   local drops
-  drops=$(metric '^xtcp_dump_dropped_total\{reason="records"\}')
+  drops=$(metric '^xtcp_dump_dropped_total[{]reason="records"[}]')
   say "SYNFLOOD syn_recv=$synrecv sockstat_tcp=$inuse records_dropped=$drops"
   xtcp2_stop
   kill -TERM "$listen_pid" 2>/dev/null || true
@@ -294,7 +314,7 @@ phase_nsflood() {
   xtcp2_start || return
   sleep 4
   local before
-  before=$(metric '^xtcp_gauge ')
+  before=$(tracked)
 
   local start=$SECONDS
   systemd-run --quiet --scope --slice=system.slice --unit="docker-$owner" -p TasksMax=infinity \
@@ -309,10 +329,10 @@ phase_nsflood() {
   say "NSFLOOD spawned=$made in $((SECONDS - start))s cgroup=$(awk -F: '{print $3}' "/proc/$(pgrep -f -n '^sleep infinity$')/cgroup")"
   sleep 20
 
-  local tracked quota timeouts
-  tracked=$(metric '^xtcp_gauge ')
-  quota=$(metric '^xtcp_netns_dropped_total\{reason="owner_quota"\}')
-  timeouts=$(metric '^xtcp_reconcile_incomplete_total\{reason="timeout"\}')
+  local flood quota timeouts
+  flood=$(tracked)
+  quota=$(metric '^xtcp_netns_dropped_total[{]reason="owner_quota"[}]')
+  timeouts=$(metric '^xtcp_reconcile_incomplete_total[{]reason="timeout"[}]')
 
   # A late namespace from another owner must still get in.
   systemd-run --quiet --scope --slice=system.slice --unit="docker-$other" \
@@ -320,8 +340,8 @@ phase_nsflood() {
   local other_pid=$!
   sleep 8
   local after
-  after=$(metric '^xtcp_gauge ')
-  say "NSFLOOD tracked_before=$before tracked_flood=$tracked tracked_late=$after owner_quota_dropped=$quota reconcile_timeouts=$timeouts xtcp2_threads=$(threads "$XTCP_PID") rss_kb=$(rss_kb "$XTCP_PID")"
+  after=$(tracked)
+  say "NSFLOOD tracked_before=$before tracked_flood=$flood tracked_late=$after owner_quota_dropped=$quota reconcile_timeouts=$timeouts xtcp2_threads=$(threads "$XTCP_PID") rss_kb=$(rss_kb "$XTCP_PID")"
 
   xtcp2_stop
   systemctl stop "docker-$owner.scope" "docker-$other.scope" 2>/dev/null || true
@@ -333,12 +353,13 @@ phase_nsflood() {
     fail "NSFLOOD no owner_quota drops"
     ok=0
   }
-  [ "$tracked" -le $((before + 64)) ] || {
-    fail "NSFLOOD tracked $tracked > $before + quota 64"
+  # The quota (64) admits exactly 64 of the owner's 2000 namespaces.
+  [ "$flood" -eq $((before + 64)) ] || {
+    fail "NSFLOOD tracked $flood, expected $before + quota 64"
     ok=0
   }
-  [ "$after" -eq $((tracked + 1)) ] || {
-    fail "NSFLOOD the other owner's namespace was not admitted ($tracked -> $after)"
+  [ "$after" -eq $((flood + 1)) ] || {
+    fail "NSFLOOD the other owner's namespace was not admitted ($flood -> $after)"
     ok=0
   }
   [ "$ok" -eq 1 ] && say "NSFLOOD_PASS"
