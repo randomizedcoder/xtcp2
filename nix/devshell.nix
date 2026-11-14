@@ -102,6 +102,13 @@ let
         nix flake check                         Tier 0+1 lint + all custom audits
         nixfmt --check **/*.nix                 Verify nix formatting
 
+      Red-team harness (vagrant/, docs/redteam-plan.md):
+        nix run .#redteam-rt-1-1               Boot the Ubuntu+Docker victim VM and
+                                              attack it (harness host only: KVM,
+                                              libvirtd, network)
+        nix run .#redteam-destroy              Tear the VMs down
+        make redteam-lint                      shellcheck the harness tree
+
       EOF
     '';
   };
