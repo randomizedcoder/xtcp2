@@ -221,7 +221,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | `BenchmarkS3Send` queue vs the old channel send | 52 ns vs 118 ns | faster ✓ |
 | `microvm-x86_64-lifecycle-s3parquet` Check 14c: Garage stopped for 160 s (4× wait scale), `-s3QueueDepth 2` | polls kept running (343), 22 envelopes dropped, RSS 50.8 → 55.8 MB, a new object after restart | pass ✓ |
 
-**Status:** done; PR pending.
+**Status:** open as #308.
 
 **FP-6 TODOs:** `max_len` in protovalidate for the operator strings (`label`, `tag`, `location`, `hostname`), which are trusted and not cleaned; spill the S3 queue to disk during long outages (out of scope: memory bound only).
 
