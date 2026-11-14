@@ -12,6 +12,9 @@
 //	           connections stay in SYN_RECV). The backlog is the namespace's
 //	           net.core.somaxconn.
 //
+// Keepalive is off on every connection, so the sockets stay idle and
+// established for as long as they are held.
+//
 // On exit every socket is closed with SO_LINGER 0, so it is reset rather than
 // left in TIME_WAIT: TIME_WAIT sockets stay in the host-wide TCP table and
 // would skew the next measurement.
@@ -39,6 +42,12 @@ const (
 	defaultListenBase = 2000
 	defaultDialers    = 128
 	fdMargin          = 256
+
+	// noKeepAlive turns off the TCP keepalive Go enables by default (15s
+	// idle, 15s interval, 9 probes). At 500k connections that is ~33k
+	// probes a second of background traffic; probes lost while the host is
+	// busy (a full dump of the table) reset idle connections to CLOSE.
+	noKeepAlive = -1
 )
 
 // listenersNeeded is how many listener ports N client connections need when
@@ -105,7 +114,7 @@ func (f *filler) fill(ctx context.Context, host string, base, pairs, perPort, di
 	addrs := make([]string, 0, n)
 	accepted := make(chan error, n)
 	for i := 0; i < n; i++ {
-		var lc net.ListenConfig
+		lc := net.ListenConfig{KeepAlive: noKeepAlive}
 		l, err := lc.Listen(ctx, "tcp4", net.JoinHostPort(host, strconv.Itoa(base+i)))
 		if err != nil {
 			return fmt.Errorf("listen %d: %w", base+i, err)
@@ -133,7 +142,7 @@ func (f *filler) fill(ctx context.Context, host string, base, pairs, perPort, di
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			var d net.Dialer
+			d := net.Dialer{KeepAlive: noKeepAlive}
 			for a := range jobs {
 				c, err := d.DialContext(ctx, "tcp4", a)
 				if err != nil {
@@ -217,7 +226,7 @@ func run(ctx context.Context, pairs, perPort, base, dialers int, host, listen st
 	start := time.Now()
 	switch {
 	case listen != "":
-		var lc net.ListenConfig
+		lc := net.ListenConfig{KeepAlive: noKeepAlive}
 		l, err := lc.Listen(ctx, "tcp4", listen)
 		if err != nil {
 			return err

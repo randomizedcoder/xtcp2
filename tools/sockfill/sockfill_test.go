@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func TestListenersNeeded(t *testing.T) {
@@ -84,6 +86,11 @@ func TestFill(t *testing.T) {
 			if got := f.count(); got != tc.expected {
 				t.Errorf("%s: %d sockets, expected %d", tc.description, got, tc.expected)
 			}
+			for _, c := range f.conns {
+				if keepAlive(t, c) {
+					t.Fatalf("%s: SO_KEEPALIVE on %v, expected off on both ends", tc.description, c.LocalAddr())
+				}
+			}
 			f.closeAll()
 			if f.count() != 0 || len(f.listeners) != 0 {
 				t.Errorf("%s: closeAll left %d conns, %d listeners", tc.description, f.count(), len(f.listeners))
@@ -157,4 +164,22 @@ func freePortRun(t *testing.T, n int) int {
 	}
 	t.Fatalf("no run of %d free ports", n)
 	return 0
+}
+
+// keepAlive reports SO_KEEPALIVE on c.
+func keepAlive(t *testing.T, c *net.TCPConn) bool {
+	t.Helper()
+	rc, err := c.SyscallConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v int
+	var serr error
+	if err := rc.Control(func(fd uintptr) { v, serr = unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_KEEPALIVE) }); err != nil {
+		t.Fatal(err)
+	}
+	if serr != nil {
+		t.Fatal(serr)
+	}
+	return v != 0
 }
