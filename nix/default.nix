@@ -1428,6 +1428,16 @@ in
       program = "${microvms.discoveryBench.x86_64.runner}/bin/xtcp2-discovery-bench-x86_64";
     };
 
+    # Socket-scale: xtcp2's socket-count gate, dump caps and per-owner
+    # namespace quota against real kernel load (shared-table walk cost,
+    # 250k-pair namespace, SYN flood, namespace flood). Prints SOCKSCALE_*
+    # lines; exits 0 on OVERALL_PASS. Not in `nix flake check` (~15 min,
+    # 8 GiB guest).
+    microvm-x86_64-socket-scale = {
+      type = "app";
+      program = "${microvms.socketScale.x86_64.runner}/bin/xtcp2-socket-scale-x86_64";
+    };
+
     # rtnetlink EVENT capture: boots a quiet root microvm (no xtcp2 daemon),
     # triggers link up/down + addr add/del + route add/del + neigh add/del on a
     # veth pair, records them off an nlmon device, and writes the pcap plus the

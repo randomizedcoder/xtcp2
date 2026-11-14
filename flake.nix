@@ -42,6 +42,7 @@
 #   nix build path:.#test-linkmonitor -L  # focused monitor gates; includes untracked files
 #   nix run    .#microvm-x86_64-lifecycle  # boot xtcp2 in a VM, run 3-check self-test
 #   nix run    .#microvm-x86_64-discovery-bench  # ns-discovery A/B (dir vs /proc scan)
+#   nix run    .#microvm-x86_64-socket-scale  # socket-count gate, SYN + netns floods
 #   nix run    .#microvm-x86_64-goip-parity  # ip vs goip netlink comparison (needs /dev/kvm)
 #
 # Capturing netlink fixtures — use the microVM, not the host:

@@ -249,6 +249,11 @@ let
   # (tools/discovery-bench -mode grid) against a real kernel, then powers off.
   # No downstream/dockerd — it only needs ip netns + many cheap processes.
   isDiscoveryBench = sink == "discovery-bench";
+  # socket-scale = a root VM that drives xtcp2's socket-count gate, dump caps
+  # and per-owner namespace quota with real kernel load: namespaces holding
+  # 10^5 sockets (tools/sockfill), a SYN flood, and a namespace flood. The run
+  # script starts and stops xtcp2 itself, so services.xtcp2 is off.
+  isSocketScale = sink == "socket-scale";
   # nlmon-capture = a root VM whose only job is to record REAL rtnetlink
   # NOTIFICATIONS (link up/down, addr add/del, route add/del, neigh add/del)
   # into a pcap, base64 it out over the serial console, and power off.
@@ -510,6 +515,9 @@ let
     else if isDiscoveryBench then
       # The grid sweep spawns up to a few thousand processes per cell.
       cfg.memDiscoveryBench
+    else if isSocketScale then
+      # ~2 KiB of kernel memory per TCP socket, 500k sockets at once.
+      cfg.memSocketScale
     else
       cfg.mem;
 
@@ -2053,6 +2061,25 @@ let
     '';
   };
 
+  # socket-scale flavor: phases and pass rules are in the script's header.
+  socketScaleRunScript = pkgs.writeShellApplication {
+    name = "socket-scale-run";
+    runtimeInputs = with pkgs; [
+      xtcp2AllPackage # sockfill
+      xtcp2Package
+      iproute2
+      procps
+      curl
+      gawk
+      gnugrep
+      coreutils
+      util-linux
+      hping
+      systemd
+    ];
+    text = builtins.readFile ./scripts/socket-scale-run.sh;
+  };
+
   # nlmon-capture flavor: record REAL rtnetlink notifications into a pcap.
   #
   # The guest is quiet by construction — services.xtcp2 is disabled for this
@@ -2679,7 +2706,13 @@ in
           # The workbench runs `-j N` rows at once, each a tcpdump, the
           # command and the helper's filtering; at 2 vCPUs -j 4 measured
           # 0.95 s a row. See constants.nix nlcapWs.
-          vcpu = if isNlcapWorkbench then cfg.nlcapWs.vcpu else cfg.vcpu;
+          vcpu =
+            if isNlcapWorkbench then
+              cfg.nlcapWs.vcpu
+            else if isSocketScale then
+              cfg.vcpuSocketScale
+            else
+              cfg.vcpu;
           cpu = if cfg.useKvm then null else cfg.qemuCpu;
           # Default: no disk. /var/lib/docker lives on the root tmpfs.
           # For clickhouse-pipeline this proved a problem at hour ~1
@@ -3066,7 +3099,7 @@ in
         # the isolation should be the second line of defense rather than the
         # only one.
         services.xtcp2 = {
-          enable = !isNetlinkQuiet;
+          enable = !isNetlinkQuiet && !isSocketScale;
           package = xtcp2Package;
           configFile = vmConfig;
           extraArgs =
@@ -3248,7 +3281,7 @@ in
         # on the netlink-quiet flavors, which have no xtcp2 to test and whose
         # whole point is a netlink-silent guest.
         systemd.services.xtcp2-self-test =
-          lib.mkIf (!isSoak && !isS3ParquetLong && !isClickPipeRate && !isNetlinkQuiet)
+          lib.mkIf (!isSoak && !isS3ParquetLong && !isClickPipeRate && !isNetlinkQuiet && !isSocketScale)
             {
               description = "xtcp2 microvm self-test";
               after = [
@@ -4086,6 +4119,25 @@ in
             # service's cgroup; lift the per-service task cap to fit them.
             TasksMax = 16384;
             ExecStart = "${discoveryBenchRunScript}/bin/discovery-bench-run";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
+
+        # socket-scale flavor: run the scale phases on boot, emit SOCKSCALE_*
+        # lines and a SOCKSCALE_DONE sentinel to the console; the host runner
+        # powers the VM off.
+        systemd.services.socket-scale-run = lib.mkIf isSocketScale {
+          description = "xtcp2 — socket-count gate, SYN flood and namespace flood at scale";
+          after = [ "network.target" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            # 500k sockets in sockfill, thousands of flood namespaces.
+            LimitNOFILE = 1048576;
+            TasksMax = "infinity";
+            ExecStart = "${socketScaleRunScript}/bin/socket-scale-run";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };

@@ -62,6 +62,8 @@ With `-ioUring`, the reads are batched: `-ioUringSockstatBatchSize` (default 64)
 
 Each tracked namespace holds a third fd for its sockstat (besides its netlink socket and its goroutine's saved original namespace); xtcp2 warns at startup if `RLIMIT_NOFILE` is below 3 × `-maxNetns` + 256 (2 × with the gate off). `0` turns the gate off (no sockstat fds, no reads). The settings are startup-only, like the caps above.
 
+`nix run .#microvm-x86_64-socket-scale` exercises the gate against a real kernel: a small namespace's `ss` time as another namespace grows to 500k sockets (shared TCP table, then the other namespace on its own table), xtcp2 with `-maxRecordsPerPoll` below a 500k-socket namespace, a SYN flood against a capped namespace, and one owner creating 2000 namespaces. The sockets come from `tools/sockfill`.
+
 ## Timeouts
 
 - `-frequency` (default `10s`) is the interval between dumps.
