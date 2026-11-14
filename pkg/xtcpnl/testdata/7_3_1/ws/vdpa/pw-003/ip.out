@@ -1,0 +1,1 @@
+{"dev":{"vdpa0":{"type":"network","mgmtdev":"vdpasim_net","vendor_id":0,"max_vqs":3,"max_vq_size":256}}}

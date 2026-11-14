@@ -23,6 +23,10 @@ type row struct {
 	// NETLINK_ROUTE.
 	Proto  string `json:"proto,omitempty"`
 	Serial bool   `json:"serial,omitempty"`
+	// InitNS runs the row in init_net (the helper's ns-init) rather than a
+	// fresh namespace, for a genl family registered with netnsok false
+	// (vdpa). init_net is one namespace, so it implies Serial.
+	InitNS bool   `json:"initns,omitempty"`
 	Expect expect `json:"expect"`
 	// Axes is what a generated row's values mean (matrix.go's facts), for
 	// the corpus test's model of the request to read.
@@ -145,6 +149,9 @@ func (r row) validate() error {
 		if !nameRE.MatchString(m) {
 			return fmt.Errorf("%s: bad module %q", r.ID, m)
 		}
+	}
+	if r.InitNS && !r.Serial {
+		return fmt.Errorf("%s: an initns row must be serial", r.ID)
 	}
 	return nil
 }

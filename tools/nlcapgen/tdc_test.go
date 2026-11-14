@@ -350,6 +350,9 @@ func TestCheckRows(t *testing.T) {
 			r.Expect.Match = &match{Readback: "verify", Pattern: "x"}
 		})}, "which the row lacks"},
 		{"negative: a bad module name", []row{with(func(r *row) { r.Modules = []string{"sch fq"} })}, "bad module"},
+		{"positive: an initns row that is serial", []row{with(func(r *row) { r.InitNS, r.Serial = true, true })}, ""},
+		{"negative: an initns row that is not serial", []row{with(func(r *row) { r.InitNS = true })}, "an initns row must be serial"},
+		{"boundary: serial without initns", []row{with(func(r *row) { r.Serial = true })}, ""},
 		{"positive: a generic netlink readback", []row{with(func(r *row) { r.Readback = []readback{{Name: "v", Cmd: "x", Proto: "generic"}} })}, ""},
 		{"negative: a readback on a protocol the workbench lacks", []row{with(func(r *row) {
 			r.Readback = []readback{{Name: "v", Cmd: "x", Proto: "nosuch"}}

@@ -1,0 +1,2 @@
+vdpa0: mac 00:11:22:33:44:55 link up link_announce false mtu 1500 
+  negotiated_features MTU MAC STATUS CTRL_VQ CTRL_MAC_ADDR VERSION_1 ACCESS_PLATFORM
