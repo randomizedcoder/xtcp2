@@ -40,7 +40,13 @@ var devlinkModules = []string{"netdevsim"}
 
 // dlShow is a show value: its name, the devlink words after the options,
 // and the DEVLINK_CMD_* the dump sends (uapi/linux/devlink.h). cmd is the
-// fact the corpus test models the request from.
+// UPSTREAM command number: the capture kernel renumbers the enum (commands
+// inserted mid-enum shift later ones, so `resource show` is 36 on the
+// capture kernel, 40 upstream), so the corpus test (xtcpnl_ws_devlink_test.go)
+// does NOT match the request against this number — it ties each row to its
+// operation by the section ParseDevlink decodes the reply into (keyed off
+// `words`), which the stable, append-only DEVLINK_ATTR_* tree builds. cmd
+// stays here as the documented upstream reference.
 func dlShow(name, words, cmd string) value {
 	return v(name, words, f("cmd", cmd, "words", words))
 }
@@ -73,10 +79,13 @@ func devlinkSpace() *space {
 			}},
 		},
 		Bad: []badValue{
-			// An object devlink does not know: its parser prints the
-			// usage and exits 1 before any request.
+			// An object devlink does not know: devlink resolves the
+			// family first (one acknowledged CTRL_CMD_GETFAMILY), then its
+			// command table rejects the object and it exits 1 without a
+			// devlink-family request — ack-then-fail, not an iproute2
+			// refusal before the wire.
 			{Axis: "cmd", Value: v("nosuch", "nosuch show", nil),
-				Expect: expect{RC: intp(1), RefusedBy: refIproute2},
+				Expect: expect{RC: intp(1), RefusedBy: refAckThenFail},
 				Why:    "an object devlink's command table lacks"},
 			// A device handle that matches nothing: the kernel answers
 			// the targeted (non-dump) GET with ENODEV.

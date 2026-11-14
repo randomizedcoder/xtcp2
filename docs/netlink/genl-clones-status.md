@@ -36,7 +36,7 @@
 
 | Increment | Work | State | Evidence |
 |---|---|---|---|
-| 1 — devlink | capture → parser → tests → `godevlink` clone → bug hunt | in progress | V079 |
+| 1 — devlink | capture → parser → tests → `godevlink` clone → bug hunt | in progress | V079, V080 |
 | 2 — vdpa | capture → parser → tests → `govdpa` clone → bug hunt | not started | — |
 | 3 — fou | capture → parser → tests → `gofou` clone → bug hunt | not started | — |
 
@@ -46,7 +46,7 @@
 |---|---|---|---|---|
 | [x] | DOC-GC | plan doc + status doc | done | DOC025 |
 | [x] | 1C (NC-DL) | `matrix_devlink.go`, rows, two-boot capture | done | V079 |
-| [ ] | 1P (NP-DL) | `xtcpnl_devlink.go` parser + table tests + fuzz + O3/O4 | not started | — |
+| [x] | 1P (NP-DL) | `xtcpnl_devlink.go` parser + table tests + fuzz + O3/O4 | done | V080 |
 | [ ] | 1R (NR-DL) | `godevlink` clone + corpus/imports tests + nix pkg | not started | — |
 | [ ] | 1B | audit `devlink/devlink.c`, record findings only | not started | — |
 | [ ] | 2C (NC-VD) | `vdpa_sim_net` kernel, `matrix_vdpa.go`, capture, O3 | not started | — |
@@ -64,6 +64,7 @@
 |---|---|---|
 | DOC025 | DOC-GC | Plan doc [genl-clones.md](genl-clones.md) and this status doc written, modeled on the closed `ip`-clone docs; ledger continues the shared sequence from V078. |
 | V079 | 1C | `matrix_devlink.go` + `main.go` registration generate `devlink.rows.jsonl` (22 rows: ten dumps × plain/`-j` + `nosuch`/`nodev` negatives, all serial, fixed netdevsim bus id 0). Captured on two fresh workbench boots; the batches agree row-for-row — file lists identical, `cmd.json` and all sidecars byte-identical, pcap sizes match — so no normalization is needed, and every row's rc matched its `Expect` (22/22). Corpus committed at `pkg/xtcpnl/testdata/7_3_1/ws/devlink/` (22 row dirs, 111 files). The O3/O4 Go corpus test is 1P (`xtcpnl_ws_devlink_test.go`). |
+| V080 | 1P | `xtcpnl_devlink.go` decodes the devlink genl reply **by attribute presence**, not command number: the capture kernel renumbers the `DEVLINK_CMD` enum (e.g. `resource show`'s request is 36 here vs 40 upstream, and the ten reply commands likewise shift), while the `DEVLINK_ATTR_*` tree is append-only and stable, so the parser keys its one typed section off the marker attribute. Table tests (`xtcpnl_devlink_test.go`): `TestDevlinkPositive` (10 rows, one per section, each `description`+`expected`), `TestDevlinkMalformed` (7 negatives: short hdr, partial attr, len zero, len overflow, dup singleton, wrong-width index, `NLA_F_NESTED` on a scalar), `TestDevlinkBoundaryCorner` (7: bodiless, handle-alone empty-dump member, unlimited u64 sentinel, unknown attr/command/param-type, request flag), and `FuzzParseDevlink` (15s, no crashers). O3/O4 corpus (`xtcpnl_ws_devlink_test.go`): all 22 rows — each dump goes over the devlink family (id 24, resolved from the capture) with `NLM_F_DUMP`; each reply decodes to the section its `words` axis names (kernel-independent, so the command skew is irrelevant); each `-j` stdout is keyed by that section and carries every identifier the decode pulled (22 requests, 18 sections, 9 JSON replies checked). Nine manual mutations under the 6G memory cap: seven killed outright; two teeth gaps found and closed in the same change (a u32 param value widened past 16 bits so a narrow read is caught; fixed/running/stored info versions given distinct values so a source-id swap is caught); one residual survivor is the defensive `NLA_F_NESTED` sibling filter in `infoVersions`, which no realistic reply exercises. `kernel-citation-audit`, `netlink-audit`, `lint-baseline`, `gofmt`, `go vet` all pass. **Correction to V079:** the `nosuch` negative (ng-001) was committed as `refused_by: iproute2`, but the capture shows one acknowledged `CTRL_CMD_GETFAMILY` (type 16) before devlink rejects the unknown object locally — `ack-then-fail` by the ws taxonomy; `matrix_devlink.go`, `devlink.rows.jsonl` and the committed `ng-001/cmd.json` label were corrected (wire bytes untouched; `TestWsCorpusRows` now passes). |
 
 ## Decision log
 
@@ -71,6 +72,21 @@
   `netdev` genl was dropped (no userspace CLI — only the kernel's unpackaged `tools/net/ynl`),
   and `fou` swapped in (genl family with the `ip fou` CLI). `gtp` is out for the same reason
   as netdev. See [genl-clones.md](genl-clones.md).
+- **2026-11-13 — classify by attribute, not command number.** The devlink
+  `DEVLINK_CMD` enum is renumbered between kernels (commands inserted mid-enum
+  shift later ones), so the capture kernel's wire command for a dump differs
+  from the upstream number — `resource show` is 36 here, 40 upstream; the ten
+  reply commands shift similarly. The `DEVLINK_ATTR_*` tree, by contrast, is
+  append-only and stable. `ParseDevlink` therefore selects its one typed
+  section by the marker attribute's presence, and the O3/O4 corpus test ties
+  each row to its operation by the decoded reply **section** (keyed off the
+  `words` axis), never by the request command number. The `cmd` axis stays as
+  the documented upstream reference only.
+- **2026-11-13 — `nosuch` is ack-then-fail, not an iproute2 refusal.** `devlink
+  nosuch show` resolves the family (one acknowledged `CTRL_CMD_GETFAMILY`)
+  before its command table rejects the object, so no devlink-family request is
+  sent but one control request was — `ack-then-fail` by the ws taxonomy, not
+  `iproute2` (which needs zero requests). V079 mislabeled it; corrected in 1P.
 - **2026-11-13 — devlink capture determinism.** `devlink dev show` prints the netdevsim
   bus handle and an `index` counter, both of which vary with device-creation order. Fixed
   by a **fixed bus id 0** in the pre step plus running all devlink rows **serial**, so the

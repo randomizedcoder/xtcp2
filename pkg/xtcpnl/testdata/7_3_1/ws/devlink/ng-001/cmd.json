@@ -17,7 +17,7 @@
  },
  "expect": {
   "rc": 1,
-  "refused_by": "iproute2"
+  "refused_by": "ack-then-fail"
  },
  "id": "devlink/ng-001",
  "modules": [
