@@ -889,6 +889,7 @@ let
           "S3PARQUET_FILES"
           "S3PARQUET_ROWS"
           "S3PARQUET_EVENTDATE"
+          "S3PARQUET_OUTAGE"
         ];
       };
     });
