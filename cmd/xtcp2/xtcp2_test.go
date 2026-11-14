@@ -319,6 +319,7 @@ func TestEnvOverrideMarshalAndDest(t *testing.T) {
 	t.Setenv("S3_QUEUE_DEPTH", "64")
 	t.Setenv("S3_MAX_BUFFERED_BYTES", "1048576")
 	envOverrideMarshalAndDest(c, 0)
+	envOverrideS3Queue(c, 0)
 	if c.MarshalTo != "protoJson" ||
 		c.Dest != "null" || c.DestWriteFiles != 3 {
 		t.Errorf("envOverrideMarshalAndDest mismatch: %+v", c)

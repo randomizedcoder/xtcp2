@@ -82,26 +82,6 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		return ErrCongInfoSmall
 	}
 
-	// Preserve the actual kernel name, including algorithms absent from our
-	// enum (for example Reno). Controller exposure is based on this field.
-	// Copy out of the reused netlink buffer and exclude the NUL terminator.
-	// One pass finds the NUL and checks the name is printable ASCII, the
-	// string policy's fast path; anything else goes through Clean.
-	name, printable := data, true
-	for i, c := range data {
-		if c == 0 {
-			name = data[:i]
-			break
-		}
-		if c < 0x20 || c > 0x7e {
-			printable = false
-		}
-	}
-	if printable && len(name) <= strpolicy.MaxCong {
-		x.InetDiagCong = string(name)
-	} else {
-		x.InetDiagCong = strpolicy.Clean(string(name), strpolicy.MaxCong)
-	}
 	x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED
 
 	// Match on the first 3 bytes — the kernel attribute is a null-terminated
@@ -131,5 +111,25 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS
 	}
 
+	// Preserve the actual kernel name, including algorithms absent from our
+	// enum (for example Reno). Controller exposure is based on this field.
+	// Copy out of the reused netlink buffer and exclude the NUL terminator.
+	// One pass finds the NUL and checks the name is printable ASCII, the
+	// string policy's fast path; anything else goes through Clean.
+	name, printable := data, true
+	for i, c := range data {
+		if c == 0 {
+			name = data[:i]
+			break
+		}
+		if c < 0x20 || c > 0x7e {
+			printable = false
+		}
+	}
+	if printable && len(name) <= strpolicy.MaxCong {
+		x.InetDiagCong = string(name)
+	} else {
+		x.InetDiagCong = strpolicy.Clean(string(name), strpolicy.MaxCong)
+	}
 	return nil
 }

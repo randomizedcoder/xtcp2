@@ -1661,6 +1661,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	envOverridePacket(c, debugLevel)
 	envOverrideMarshalAndDest(c, debugLevel)
 	envOverrideCaps(c, debugLevel)
+	envOverrideS3Queue(c, debugLevel)
 	envOverrideKafka(c, debugLevel)
 	envOverrideLabeling(c, debugLevel)
 	envOverrideEnrichment(c, debugLevel)
@@ -2003,14 +2004,6 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.S3UploadBackoffCap = durationpb.New(d)
 		logEnv("S3_UPLOAD_BACKOFF_CAP", fmt.Sprintf("c.S3UploadBackoffCap:%s", c.S3UploadBackoffCap.String()), debugLevel)
 	}
-	if v, ok := envUint32("S3_QUEUE_DEPTH"); ok {
-		c.S3QueueDepth = v
-		logEnv("S3_QUEUE_DEPTH", fmt.Sprintf("c.S3QueueDepth:%d", v), debugLevel)
-	}
-	if v, ok := envUint64("S3_MAX_BUFFERED_BYTES"); ok {
-		c.S3MaxBufferedBytes = v
-		logEnv("S3_MAX_BUFFERED_BYTES", fmt.Sprintf("c.S3MaxBufferedBytes:%d", v), debugLevel)
-	}
 	if d, ok := envDuration("RECONCILE_FREQUENCY"); ok {
 		c.ReconcileFrequency = durationpb.New(d)
 		logEnv("RECONCILE_FREQUENCY", fmt.Sprintf("c.ReconcileFrequency:%s", c.ReconcileFrequency.String()), debugLevel)
@@ -2279,8 +2272,6 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.S3FlushThresholdJitterPct:", c.S3FlushThresholdJitterPct)
 	fmt.Println("c.S3UploadMaxAttempts:", c.S3UploadMaxAttempts)
 	fmt.Println("c.S3UploadBackoffCap:", c.S3UploadBackoffCap.AsDuration())
-	fmt.Println("c.S3QueueDepth:", c.S3QueueDepth)
-	fmt.Println("c.S3MaxBufferedBytes:", c.S3MaxBufferedBytes)
 	fmt.Println("c.ReconcileFrequency:", c.ReconcileFrequency.AsDuration())
 	fmt.Println("c.ReconcileBeforePoll:", c.ReconcileBeforePoll)
 	printConfigCaps(c)
@@ -2400,6 +2391,19 @@ func checkNoPositional(args []string) error {
 
 // envOverrideCaps applies MAX_DUMP_BYTES, MAX_RECORDS_PER_NETNS and
 // MAX_NETNS; see defineCapFlags.
+// envOverrideS3Queue applies S3_QUEUE_DEPTH and S3_MAX_BUFFERED_BYTES, the
+// s3parquet upload queue's bounds.
+func envOverrideS3Queue(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envUint32("S3_QUEUE_DEPTH"); ok {
+		c.S3QueueDepth = v
+		logEnv("S3_QUEUE_DEPTH", fmt.Sprintf("c.S3QueueDepth:%d", v), debugLevel)
+	}
+	if v, ok := envUint64("S3_MAX_BUFFERED_BYTES"); ok {
+		c.S3MaxBufferedBytes = v
+		logEnv("S3_MAX_BUFFERED_BYTES", fmt.Sprintf("c.S3MaxBufferedBytes:%d", v), debugLevel)
+	}
+}
+
 func envOverrideCaps(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envUint64("MAX_DUMP_BYTES"); ok {
 		c.MaxDumpBytes = v
@@ -2456,4 +2460,6 @@ func printConfigCaps(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.ReconcileTimeout:", c.ReconcileTimeout.AsDuration())
 	fmt.Println("c.MaxNetnsPerOwner:", c.MaxNetnsPerOwner)
 	fmt.Println("c.MaxNetnsAddsPerReconcile:", c.MaxNetnsAddsPerReconcile)
+	fmt.Println("c.S3QueueDepth:", c.S3QueueDepth)
+	fmt.Println("c.S3MaxBufferedBytes:", c.S3MaxBufferedBytes)
 }
