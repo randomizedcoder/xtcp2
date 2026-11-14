@@ -88,16 +88,17 @@ let
     {
       id = "env";
       category = "corner";
-      description = "scratch goes to the work dir, which is removed; QEMU_OPTS and VM_EVIDENCE are set";
+      description = "scratch goes to a short vm.* work dir outside the evidence, which is removed; QEMU_OPTS and VM_EVIDENCE are set";
       launch = ''
-        [ "$TMPDIR" = "$PWD" ] && [ "''${PWD##*/}" = work ] && echo GUEST_A_PASS
+        [ "$TMPDIR" = "$PWD" ] && case "''${PWD##*/}" in vm.*) echo GUEST_A_PASS ;; esac
         [ "$QEMU_OPTS" = '-machine accel=tcg' ] && [ -d "$VM_EVIDENCE" ] && echo GUEST_B_PASS
+        echo "$PWD" > "$VM_EVIDENCE/workdir"
         touch scratch
       '';
       accel = "tcg";
       want = "PASS: t-env";
       wantRc = 0;
-      expectFiles = ''[ ! -e "$dir/work" ] && [ -s "$dir/launcher.txt" ] && [ -s "$dir/summary.txt" ]'';
+      expectFiles = ''w=$(cat "$dir/workdir") && [ -n "$w" ] && [ ! -e "$w" ] && case "$w" in "$dir"/*) false ;; esac && [ -s "$dir/launcher.txt" ] && [ -s "$dir/summary.txt" ]'';
     }
     {
       id = "postcheck";
