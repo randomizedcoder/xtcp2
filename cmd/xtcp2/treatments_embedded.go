@@ -37,5 +37,11 @@ func startEmbeddedTreatmentAgent(ctx context.Context, path, location string) (*t
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() { defer wg.Done(); a.Run(ctx) }()
-	return &treatmentFeeder{stamp: a.Stamp, wake: a.Wake}, func() { wg.Wait(); a.Close() }, nil
+	stop := func() {
+		wg.Wait()
+		if err := a.Close(); err != nil {
+			log.Printf("treatment agent: close: %v", err)
+		}
+	}
+	return &treatmentFeeder{stamp: a.Stamp, wake: a.Wake}, stop, nil
 }

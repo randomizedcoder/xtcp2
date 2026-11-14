@@ -53,7 +53,9 @@ let
         # These fixtures must execute, never silently skip in the focused checks.
         grep -q -- '--- PASS: TestPostgresConcurrentReviewFencesReplicas' "$out/tests.log"
         grep -q -- '--- PASS: TestClickHouseAnalysisCounterDeltas' "$out/tests.log"
-        go test -tags treatment -ldflags=-checklinkname=0 ${if race then "-race -count=3" else "-count=1 -cover"} \
+        go test -tags treatment -ldflags=-checklinkname=0 ${
+          if race then "-race -count=3" else "-count=1 -cover"
+        } \
           -timeout 5m -v -run '^TestTreatment' ./internal/goip/actuate > "$out/routes.log" 2>&1 \
           || { cat "$out/routes.log"; exit 1; }
         ${if race then "" else coverageTable}
