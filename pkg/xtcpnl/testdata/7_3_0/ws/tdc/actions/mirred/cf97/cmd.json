@@ -1,0 +1,59 @@
+{
+ "cmd": "tc filter add dev dummy1 ingress protocol ip prio 11 matchall action mirred egress redirect dev dummy1 index 2",
+ "desc": "positive: Redirect multiport: dev1 ingress -> dummy ingress -> dummy egress (No Loop)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/actions/mirred/cf97",
+ "modules": [
+  "act_mirred"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev v0p1 clsact",
+  "tc filter add dev v0p1 ingress protocol ip prio 10 matchall action mirred ingress redirect dev dummy1 index 1",
+  "tc qdisc add dev dummy1 clsact"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j -s actions get action mirred index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 ingress protocol ip prio 10 matchall action mirred ingress redirect dev dummy1 index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 clsact",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "cf97",
+  "tdc": "actions/mirred.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

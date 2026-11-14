@@ -1,0 +1,9 @@
+# The workbench's own selftest: one row of each outcome the corpus oracles
+# tell apart (xtcpnl_ws_corpus_test.go). Replayed on a fresh `up` before a
+# workbench change is committed.
+{"id":"selftest/link-add","desc":"positive: a dummy link is created and acknowledged","cmd":"ip link add d0 type dummy","readback":[{"name":"getlink","cmd":"ip -d link show d0"}],"expect":{"rc":0,"sent":1,"refused_by":"none"}}
+{"id":"selftest/link-add-dup","desc":"negative: a second link of the same name is refused by the kernel","pre":["ip link add d0 type dummy"],"cmd":"ip link add d0 type dummy","expect":{"rc":2,"errno":"EEXIST","refused_by":"kernel"}}
+{"id":"selftest/route-bad-prefix","desc":"negative: iproute2 refuses an IPv4 prefix out of range before sending anything","cmd":"ip route add 300.1.2.3/32 dev lo","expect":{"rc":1,"sent":0,"refused_by":"iproute2"}}
+{"id":"selftest/link-name-15","desc":"boundary: a 15-byte name, IFNAMSIZ-1, is accepted","cmd":"ip link add abcdefghijklmno type dummy","expect":{"rc":0,"refused_by":"none"}}
+{"id":"selftest/link-name-16","desc":"boundary: a 16-byte name, IFNAMSIZ, reaches the kernel (iproute2 checks a positional name against ALTIFNAMSIZ since afd67550) and fails IFLA_IFNAME's NLA_STRING policy with ERANGE","cmd":"ip link add abcdefghijklmnop type dummy","expect":{"rc":2,"sent":1,"errno":"ERANGE","extack":"Attribute failed policy validation","refused_by":"kernel"}}
+{"id":"selftest/route6-table-max","desc":"boundary: table 4294967295 travels in RTA_TABLE; iproute2 sends rtm_table RT_TABLE_UNSPEC, the kernel answers RT_TABLE_COMPAT (2 requests: GETLINK for d0, NEWROUTE)","pre":["ip link add d0 type dummy","ip link set d0 up"],"cmd":"ip -6 route add 2001:db8::/64 dev d0 table 4294967295","readback":[{"name":"getroute","cmd":"ip -6 route show table 4294967295"}],"expect":{"rc":0,"sent":2,"refused_by":"none"}}

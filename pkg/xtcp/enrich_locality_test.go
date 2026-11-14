@@ -84,7 +84,7 @@ func seq(from, to uint64) []uint64 {
 	return out
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestRefreshLocalityLifecycle
+// go test ./pkg/xtcp/ -run TestRefreshLocalityLifecycle
 func TestRefreshLocalityLifecycle(t *testing.T) {
 	const refresh = 60 * time.Second
 
@@ -448,7 +448,7 @@ func uniqueU64(a []uint64) map[uint64]struct{} {
 // TestRefreshLocalityDeferredCounter checks the deferred / dumped counters and
 // that a partial pass's duration is observed, on the cap scenario.
 //
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestRefreshLocalityDeferredCounter
+// go test ./pkg/xtcp/ -run TestRefreshLocalityDeferredCounter
 func TestRefreshLocalityDeferredCounter(t *testing.T) {
 	tests := []struct {
 		description  string
@@ -496,7 +496,7 @@ func TestRefreshLocalityDeferredCounter(t *testing.T) {
 	}
 }
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestNextLocalityRetry
+// go test ./pkg/xtcp/ -run TestNextLocalityRetry
 func TestNextLocalityRetry(t *testing.T) {
 	now := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
@@ -554,7 +554,7 @@ const (
 	replyENOENT                          // NLMSG_ERROR -ENOENT
 )
 
-// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestDumpRetrying
+// go test ./pkg/xtcp/ -run TestDumpRetrying
 func TestDumpRetrying(t *testing.T) {
 	tests := []struct {
 		description  string

@@ -1,0 +1,3 @@
+0:	from all lookup local
+300:	from all lookup [l3mdev-table] sport 1 dport 1-65534 dscp 4
+32766:	from all lookup main

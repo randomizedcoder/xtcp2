@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbmod swap mac",
+ "desc": "positive: Add skbmod action to swap mac",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: skbmod pipe swap mac",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbmod/bfe6",
+ "modules": [
+  "act_skbmod"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbmod",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action skbmod index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbmod",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "bfe6",
+  "tdc": "actions/skbmod.json"
+ }
+}

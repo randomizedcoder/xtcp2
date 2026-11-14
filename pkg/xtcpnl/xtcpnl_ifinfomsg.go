@@ -160,14 +160,15 @@ func (a *U32Attr) setU32(val []byte) {
 //
 // IFLA_DPLL_PIN, IFLA_MAX_PACING_OFFLOAD_HORIZON, IFLA_HEADROOM and
 // IFLA_TAILROOM all arrive in the committed dump and none is decoded, because
-// iproute2 7.1.0 — the pinned version — prints none of them.
+// no iproute2 release up to 7.2.0 prints any of them.
 //
-// IFLA_DPLL_PIN is the one worth a sentence, because the reference clone at
-// ~/Downloads/iproute2 is 7.2.0 and 7.2.0 DOES print it: the `dpll-pin` block
-// was added after the pin. It would print nothing here anyway, because in the
-// committed dump the attribute arrives as a ZERO-LENGTH nest on all three
-// links and the token needs DPLL_A_PIN_ID inside it. Two independent reasons,
-// and the version one is the decisive one.
+// IFLA_DPLL_PIN is the one worth a sentence, because iproute2 7.3.0 DOES
+// print it: 20e860c6 "ip: display DPLL pin information in link details"
+// added `dpll-pin N` after parentdev (ip/ipaddress.c:1273-1283 in 7.3.0). It
+// would print nothing here anyway, because in the committed dump, and on
+// every link a VM has, the attribute arrives as a ZERO-LENGTH nest and the
+// token needs DPLL_A_PIN_ID inside it. Only a NIC with a DPLL recovered-clock
+// pin fills it.
 //
 // The per-kind IFLA_INFO_DATA blob is also not here; see LinkInfo.HasInfoData
 // for why its PRESENCE is recorded when its contents are not.
@@ -280,6 +281,22 @@ type LinkInfo struct {
 	Qdisc       string // IFLA_QDISC
 	Kind        string // IFLA_LINKINFO -> IFLA_INFO_KIND
 
+	// IfAlias is IFLA_IFALIAS, `ip link set alias`'s text and ip's
+	// "alias %s" line. The kernel dumps it NUL-terminated and only when
+	// set (rtnl_fill_ifinfo); iproute2 sends it without the NUL.
+	IfAlias string
+
+	// ProtoDown is IFLA_PROTO_DOWN, `protodown on|off`; HasProtoDown is its
+	// presence, which gates print_proto_down as a whole.
+	ProtoDown    uint8
+	HasProtoDown bool
+	// ProtoDownReason is IFLA_PROTO_DOWN_REASON's
+	// IFLA_PROTO_DOWN_REASON_VALUE, a u32 bit per reason. The kernel sends
+	// the nest only when the value is non-zero. HasProtoDownReason is the
+	// nest's presence, HasProtoDownReasonValue the value's.
+	ProtoDownReason                             uint32
+	HasProtoDownReason, HasProtoDownReasonValue bool
+
 	// SlaveKind is IFLA_LINKINFO -> IFLA_INFO_SLAVE_KIND: what this link is to
 	// its master, rather than what it is in itself. print_linktype emits it as
 	// a second continuation line under -d (ip/ipaddress.c:250-258), so a
@@ -299,10 +316,11 @@ type LinkInfo struct {
 	// The contents are decoded kind by kind, never wholesale: they are the
 	// per-kind blob iproute2 hands to one of forty print_opt implementations,
 	// and each kind is admitted only with a captured fixture to ground it.
-	// Two are decoded today, vrf (VrfTable) and bond (Bond, BondSlave); every
-	// other kind's blob stays opaque. The PRESENCE is in scope because it is exactly the
-	// condition under which a -d render that stopped at the kind token would be
-	// WRONG rather than merely short — print_linktype prints the kind and then
+	// The decoded kinds each have a field below (VrfTable, Bond, Bridge, Vlan,
+	// and on through Netkit); every other kind's blob stays opaque. The
+	// PRESENCE is in scope because it is exactly the condition under which a
+	// -d render that stopped at the kind token would be WRONG rather than
+	// merely short — print_linktype prints the kind and then
 	// the whole of print_opt's output on the same line. render.LinkDetailView
 	// reads these to refuse instead of truncating.
 	//
@@ -319,12 +337,10 @@ type LinkInfo struct {
 	// SlaveKind being empty cannot tell those two apart.
 	HasLinkInfo bool
 
-	// VrfTable and VrfPortTable are the one per-kind blob goip decodes: the VRF
-	// routing table id. VrfTable is IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is
-	// "vrf" (vrf_print_opt, ip/iplink_vrf.c:55); VrfPortTable is
-	// IFLA_INFO_SLAVE_DATA -> IFLA_VRF_PORT_TABLE when SlaveKind is "vrf"
-	// (vrf_slave_print_opt, :67). Decoded only for the vrf kind; every other
-	// kind's blob stays undecoded and its HasInfoData refuses the -d render.
+	// VrfTable and VrfPortTable are the VRF routing table id. VrfTable is
+	// IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is "vrf" (vrf_print_opt,
+	// ip/iplink_vrf.c:55); VrfPortTable is IFLA_INFO_SLAVE_DATA ->
+	// IFLA_VRF_PORT_TABLE when SlaveKind is "vrf" (vrf_slave_print_opt, :67).
 	VrfTable     U32Attr
 	VrfPortTable U32Attr
 
@@ -333,6 +349,45 @@ type LinkInfo struct {
 	// nil otherwise. See xtcpnl_bond.go.
 	Bond      *BondInfo
 	BondSlave *BondSlaveInfo
+
+	// Bridge is IFLA_INFO_DATA decoded when Kind is "bridge"; BridgeSlave is
+	// IFLA_INFO_SLAVE_DATA decoded when SlaveKind is "bridge" — a port of
+	// one. nil otherwise. See xtcpnl_bridge.go and xtcpnl_bridge_slave.go.
+	Bridge      *BridgeInfo
+	BridgeSlave *BridgeSlaveInfo
+	// Vlan is IFLA_INFO_DATA decoded when Kind is "vlan".
+	Vlan *VlanInfo
+	// Macvlan is IFLA_INFO_DATA decoded when Kind is "macvlan" or
+	// "macvtap", which share the attributes.
+	Macvlan *MacvlanInfo
+	// Ipvlan is IFLA_INFO_DATA decoded when Kind is "ipvlan" or "ipvtap".
+	Ipvlan *IpvlanInfo
+	// Vxlan is IFLA_INFO_DATA decoded when Kind is "vxlan".
+	Vxlan *VxlanInfo
+	// Geneve is IFLA_INFO_DATA decoded when Kind is "geneve".
+	Geneve *GeneveInfo
+	// Bareudp is IFLA_INFO_DATA decoded when Kind is "bareudp".
+	Bareudp *BareudpInfo
+	// Amt is IFLA_INFO_DATA decoded when Kind is "amt".
+	Amt *AmtInfo
+	// Gtp is IFLA_INFO_DATA decoded when Kind is "gtp".
+	Gtp *GtpInfo
+	// Gre is IFLA_INFO_DATA decoded when Kind is "gre", "gretap",
+	// "erspan", "ip6gre", "ip6gretap" or "ip6erspan".
+	Gre *GreInfo
+	// Iptun is IFLA_INFO_DATA decoded when Kind is "ipip", "sit" or
+	// "ip6tnl".
+	Iptun *IptunInfo
+	// Vti is IFLA_INFO_DATA decoded when Kind is "vti" or "vti6".
+	Vti *VtiInfo
+	// Xfrm is IFLA_INFO_DATA decoded when Kind is "xfrm".
+	Xfrm *XfrmLinkInfo
+	// Hsr is IFLA_INFO_DATA decoded when Kind is "hsr".
+	Hsr *HsrInfo
+	// Netkit is IFLA_INFO_DATA decoded when Kind is "netkit".
+	Netkit *NetkitInfo
+	// Ovpn is IFLA_INFO_DATA decoded when Kind is "ovpn".
+	Ovpn *OvpnInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -721,8 +776,11 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		uint16(unix.IFLA_MTU), uint16(unix.IFLA_TXQLEN),
 		uint16(unix.IFLA_LINKMODE), uint16(unix.IFLA_GROUP),
 		uint16(unix.IFLA_LINK), uint16(unix.IFLA_MASTER),
-		uint16(unix.IFLA_LINK_NETNSID), uint16(unix.IFLA_EVENT):
+		uint16(unix.IFLA_LINK_NETNSID), uint16(unix.IFLA_EVENT),
+		uint16(unix.IFLA_PROTO_DOWN):
 		setLinkScalarAttr(li, atype, val)
+	case uint16(unix.IFLA_PROTO_DOWN_REASON):
+		setProtoDownReason(li, val)
 
 	case uint16(unix.IFLA_ADDRESS):
 		li.Address = CopyBytes(val)
@@ -732,6 +790,8 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		li.PermAddress = CopyBytes(val)
 	case uint16(unix.IFLA_QDISC):
 		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
+	case uint16(unix.IFLA_IFALIAS):
+		li.IfAlias = string(bytes.TrimRight(val, "\x00"))
 	case uint16(unix.IFLA_LINKINFO):
 		li.HasLinkInfo = true
 		setLinkInfoNest(li, val)
@@ -760,6 +820,19 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 	default:
 		setLinkDetailAttr(&li.Detail, atype, val)
 	}
+}
+
+// setProtoDownReason reads IFLA_PROTO_DOWN_REASON's value, the first of a
+// repeated one, as parse_rtattr_nested does. A malformed nest keeps what was
+// read before it.
+func setProtoDownReason(li *LinkInfo, val []byte) {
+	li.HasProtoDownReason = true
+	walkNestTolerant(val, func(atype uint16, v []byte) {
+		if atype == uint16(unix.IFLA_PROTO_DOWN_REASON_VALUE) && !li.HasProtoDownReasonValue && len(v) >= 4 {
+			li.ProtoDownReason = binary.LittleEndian.Uint32(v)
+			li.HasProtoDownReasonValue = true
+		}
+	})
 }
 
 // setLinkScalarAttr applies one fixed-width scalar IFLA_* to a LinkInfo.
@@ -817,6 +890,11 @@ func setLinkScalarAttr(li *LinkInfo, atype uint16, val []byte) {
 		if len(val) >= 1 {
 			li.LinkMode = val[0]
 			li.HasLinkMode = true
+		}
+	case uint16(unix.IFLA_PROTO_DOWN):
+		if len(val) >= 1 {
+			li.ProtoDown = val[0]
+			li.HasProtoDown = true
 		}
 	case uint16(unix.IFLA_GROUP):
 		if len(val) >= 4 {
@@ -941,8 +1019,9 @@ func setAddrGenMode(d *LinkDetail, val []byte) {
 // This is the first production caller of WalkRTAttrsNested, closing
 // TODO-SOON.md §12. The descent is one level for every kind but the ones
 // goip decodes: IFLA_INFO_DATA is the per-kind blob `ip` hands to one of
-// forty print_opt implementations, and only vrf and bond are opened. The
-// presence of the rest is recorded — see LinkInfo.HasInfoData.
+// forty print_opt implementations, and only the kinds with a LinkInfo field
+// are opened. The presence of the rest is recorded — see
+// LinkInfo.HasInfoData.
 //
 // A walk error inside the nest is swallowed rather than failing the whole
 // message. That is the same tolerance WalkRTAttrs already applies to a short
@@ -969,7 +1048,7 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 			slaveData = inner
 		}
 	})
-	// Decode the one per-kind blob goip renders, once the kind is known. The
+	// Decode the per-kind blobs goip renders, once the kind is known. The
 	// kernel sends IFLA_INFO_KIND before IFLA_INFO_DATA, but this is done after
 	// the walk so it does not rely on that order.
 	if li.Kind == vrfKindCst {
@@ -983,6 +1062,59 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.SlaveKind == bondKindCst {
 		li.BondSlave = ParseBondSlaveData(slaveData)
+	}
+	if li.Kind == bridgeKindCst {
+		li.Bridge = ParseBridgeInfoData(infoData)
+	}
+	if li.SlaveKind == bridgeKindCst {
+		li.BridgeSlave = ParseBridgeSlaveData(slaveData)
+	}
+	if li.Kind == vlanKindCst {
+		li.Vlan = ParseVlanInfoData(infoData)
+	}
+	if li.Kind == macvlanKindCst || li.Kind == macvtapKindCst {
+		li.Macvlan = ParseMacvlanInfoData(infoData)
+	}
+	if li.Kind == ipvlanKindCst || li.Kind == ipvtapKindCst {
+		li.Ipvlan = ParseIpvlanInfoData(infoData)
+	}
+	if li.Kind == vxlanKindCst {
+		li.Vxlan = ParseVxlanInfoData(infoData)
+	}
+	if li.Kind == geneveKindCst {
+		li.Geneve = ParseGeneveInfoData(infoData)
+	}
+	if li.Kind == bareudpKindCst {
+		li.Bareudp = ParseBareudpInfoData(infoData)
+	}
+	if li.Kind == amtKindCst {
+		li.Amt = ParseAmtInfoData(infoData)
+	}
+	if li.Kind == gtpKindCst {
+		li.Gtp = ParseGtpInfoData(infoData)
+	}
+	setLinkInfoDataByKind(li, infoData)
+}
+
+// setLinkInfoDataByKind decodes the IFLA_INFO_DATA of the kinds that share
+// one switch: the tunnels, hsr, netkit and ovpn. It is split from
+// setLinkInfoNest, which was one point short of the gocyclo ceiling.
+func setLinkInfoDataByKind(li *LinkInfo, infoData []byte) {
+	switch li.Kind {
+	case greKindCst, gretapKindCst, erspanKindCst, ip6greKindCst, ip6gretapKindCst, ip6erspanKindCst:
+		li.Gre = ParseGreInfoData(infoData)
+	case ipipKindCst, sitKindCst, ip6tnlKindCst:
+		li.Iptun = ParseIptunInfoData(infoData)
+	case vtiKindCst, vti6KindCst:
+		li.Vti = ParseVtiInfoData(infoData)
+	case xfrmKindCst:
+		li.Xfrm = ParseXfrmLinkInfoData(infoData)
+	case hsrKindCst:
+		li.Hsr = ParseHsrInfoData(infoData)
+	case netkitKindCst:
+		li.Netkit = ParseNetkitInfoData(infoData)
+	case ovpnKindCst:
+		li.Ovpn = ParseOvpnInfoData(infoData)
 	}
 }
 

@@ -1,0 +1,54 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root teql0",
+ "desc": "positive: Create TEQL with multiple device",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc teql0 1: root refcnt",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/teql/7734",
+ "modules": [
+  "sch_teql"
+ ],
+ "pre": [
+  "ip link add dev dummy1 type dummy",
+  "ip link add dev eth0 type dummy",
+  "tc qdisc add dev eth0 handle 1: root teql0"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dev dummy1 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add dev eth0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev eth0 handle 1: root teql0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "7734",
+  "tdc": "qdiscs/teql.json"
+ }
+}

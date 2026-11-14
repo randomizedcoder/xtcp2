@@ -1,0 +1,60 @@
+{
+ "cmd": "ping -Idummy1 -f -c1 -s64 -W1 10.10.10.1 || true",
+ "desc": "positive: HFSC with large m1 - no divide-by-zero on class reactivation",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc hfsc 1: root",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/a3d7",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc replace dev dummy1 root handle 1: hfsc default 1",
+  "tc class replace dev dummy1 parent 1: classid 1:1 hfsc rt m1 32gbit d 1ms m2 0bit ls m1 32gbit d 1ms m2 0bit",
+  "ping -Idummy1 -f -c1 -s64 -W1 10.10.10.1 || true",
+  "sleep 1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc replace dev dummy1 root handle 1: hfsc default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class replace dev dummy1 parent 1: classid 1:1 hfsc rt m1 32gbit d 1ms m2 0bit ls m1 32gbit d 1ms m2 0bit",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -Idummy1 -f -c1 -s64 -W1 10.10.10.1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "sleep 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a3d7",
+  "tdc": "infra/qdiscs.json"
+ }
+}

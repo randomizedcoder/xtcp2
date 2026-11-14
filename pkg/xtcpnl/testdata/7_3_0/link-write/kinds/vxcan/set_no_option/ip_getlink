@@ -1,0 +1,2 @@
+4: vc0@vc1: <NOARP,M-DOWN> mtu 2060 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/can 

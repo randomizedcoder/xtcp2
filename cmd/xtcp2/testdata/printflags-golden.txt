@@ -19,6 +19,8 @@
 *s3Prefix: s3Prefix-v
 *s3Region: s3Region-v
 *s3SkipBucketProbe: true
+*s3AllowInsecure: true
+*s3CAFile: s3CAFile-v
 *s3ParquetFlushBytes: 113
 *pollJitterPct: 114
 *s3FlushInterval: 115ms
@@ -71,6 +73,7 @@ compiledInEnrichers: {{compiledInEnrichers}}
 *linkMonitor: true
 *linkMonitorBaselineFile: linkMonitorBaselineFile-v
 *linkMonitorSettle: 141ms
+*linkMonitorLearnDeadline: 160ms
 *linkMonitorResync: 142ms
 *linkMonitorStatsInterval: 143ms
 *linkMonitorStatsInclude: linkMonitorStatsInclude-v
@@ -102,4 +105,5 @@ compiledInEnrichers: {{compiledInEnrichers}}
 *promListenNetwork: promListenNetwork-v
 *promUnixSocketMode: 133
 *promUnlinkStaleUnixSocket: true
+*listener: listener-v
 *d: 138

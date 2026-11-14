@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action tunnel_key set src_ip 1.1.1.1 dst_ip 2.2.2.2 id 42 dst_port 6081 geneve_opts 0102:80:00880022,0408:42: index 1",
+ "desc": "negative: Add tunnel_key action with incomplete geneve options parameter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: tunnel_key.*set.*src_ip 1.1.1.1.*dst_ip 2.2.2.2.*key_id 42.*dst_port 6081.*geneve_opt[s]? 0102:80:00880022,0408:42:.*index 1",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/tunnel_key/f44d",
+ "modules": [
+  "act_tunnel_key"
+ ],
+ "pre": [
+  [
+   "tc actions flush action tunnel_key",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action tunnel_key index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action tunnel_key",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "f44d",
+  "tdc": "actions/tunnel_key.json"
+ }
+}

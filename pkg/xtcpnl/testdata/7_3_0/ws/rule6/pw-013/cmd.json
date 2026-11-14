@@ -1,0 +1,53 @@
+{
+ "axes": {
+  "action": "7",
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "family": "6",
+  "fwmark": "4294967295",
+  "fwmask": "4294967295",
+  "iif": "d0",
+  "ipproto": "255",
+  "priority": "0",
+  "protocol": "255",
+  "sport": "1-65534",
+  "sup_pl": "0",
+  "tos": "16",
+  "verb": "del"
+ },
+ "cmd": "ip -6 rule del pref 0 fwmark 0xffffffff/0xffffffff iif d0 tos 0x10 ipproto 255 sport 1-65534 dport 0x50/0xfff0 suppress_prefixlength 0 protocol 255 unreachable",
+ "desc": "boundary: verb=del not=absent from=absent to=absent pref=0 fwmark=max iif=d0 oif=absent ds=tos ipproto=255 sport=full dport=mask uidrange=absent suppress=pl0 protocol=255 extra=absent action=unreachable",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-013",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add pref 0 fwmark 0xffffffff/0xffffffff iif d0 tos 0x10 ipproto 255 sport 1-65534 dport 0x50/0xfff0 suppress_prefixlength 0 protocol 255 unreachable"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add pref 0 fwmark 0xffffffff/0xffffffff iif d0 tos 0x10 ipproto 255 sport 1-65534 dport 0x50/0xfff0 suppress_prefixlength 0 protocol 255 unreachable",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

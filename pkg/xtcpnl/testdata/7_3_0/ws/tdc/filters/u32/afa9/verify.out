@@ -1,0 +1,8 @@
+filter protocol ip pref 1 u32 chain 0 
+filter protocol ip pref 1 u32 chain 0 fh 800: ht divisor 1 
+filter protocol ip pref 1 u32 chain 0 fh 800::800 order 2048 key ht 800 bkt 0 flowid 1:1 not_in_hw 
+  match 7f000001/ffffffff at 12
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

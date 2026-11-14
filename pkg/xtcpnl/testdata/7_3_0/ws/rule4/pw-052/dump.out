@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all tos 0x10 fwmark 0x10 ipproto tcp sport 65534 dport 1 lookup 1
+32766:	from all lookup main
+32767:	from all lookup default

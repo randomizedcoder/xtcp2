@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbedit ptype openair",
+ "desc": "negative: Add skbedit action with invalid ptype",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*:  skbedit ptype openair",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/skbedit/b9c6",
+ "modules": [
+  "act_skbedit"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbedit",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action skbedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbedit",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "b9c6",
+  "tdc": "actions/skbedit.json"
+ }
+}

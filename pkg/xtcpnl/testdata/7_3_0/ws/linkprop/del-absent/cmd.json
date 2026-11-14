@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "altname": "alt9",
+  "op": "del"
+ },
+ "cmd": "ip link property del dev d0 altname alt9",
+ "desc": "negative: property del of an altname d0 lacks (ENOENT)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ENOENT",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkprop/del-absent",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

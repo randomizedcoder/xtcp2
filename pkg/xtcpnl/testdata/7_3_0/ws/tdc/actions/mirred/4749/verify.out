@@ -1,0 +1,194 @@
+total acts 19
+
+	action order 0: mirred (Egress Redirect to device lo) stolen
+	index 1 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: mirred (Egress Redirect to device lo) stolen
+	index 2 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: mirred (Egress Redirect to device lo) stolen
+	index 3 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3: mirred (Egress Redirect to device lo) stolen
+	index 4 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 4: mirred (Egress Redirect to device lo) stolen
+	index 5 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 5: mirred (Egress Redirect to device lo) stolen
+	index 6 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 6: mirred (Egress Redirect to device lo) stolen
+	index 7 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 7: mirred (Egress Redirect to device lo) stolen
+	index 8 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 8: mirred (Egress Redirect to device lo) stolen
+	index 9 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 9: mirred (Egress Redirect to device lo) stolen
+	index 10 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 10: mirred (Egress Redirect to device lo) stolen
+	index 11 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 11: mirred (Egress Redirect to device lo) stolen
+	index 12 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 12: mirred (Egress Redirect to device lo) stolen
+	index 13 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 13: mirred (Egress Redirect to device lo) stolen
+	index 14 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 14: mirred (Egress Redirect to device lo) stolen
+	index 15 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 15: mirred (Egress Redirect to device lo) stolen
+	index 16 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 16: mirred (Egress Redirect to device lo) stolen
+	index 17 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 17: mirred (Egress Redirect to device lo) stolen
+	index 18 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 18: mirred (Egress Redirect to device lo) stolen
+	index 19 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+total acts 13
+
+	action order 0: mirred (Egress Redirect to device lo) stolen
+	index 20 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: mirred (Egress Redirect to device lo) stolen
+	index 21 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: mirred (Egress Redirect to device lo) stolen
+	index 22 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3: mirred (Egress Redirect to device lo) stolen
+	index 23 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 4: mirred (Egress Redirect to device lo) stolen
+	index 24 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 5: mirred (Egress Redirect to device lo) stolen
+	index 25 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 6: mirred (Egress Redirect to device lo) stolen
+	index 26 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 7: mirred (Egress Redirect to device lo) stolen
+	index 27 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 8: mirred (Egress Redirect to device lo) stolen
+	index 28 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 9: mirred (Egress Redirect to device lo) stolen
+	index 29 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 10: mirred (Egress Redirect to device lo) stolen
+	index 30 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 11: mirred (Egress Redirect to device lo) stolen
+	index 31 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 12: mirred (Egress Redirect to device lo) stolen
+	index 32 ref 1 bind 0
+	cookie aabbccddeeff112233445566778800a1
+	not_in_hw
+	used_hw_stats disabled

@@ -1,0 +1,7 @@
+filter protocol all pref 2 fw chain 0 
+filter protocol all pref 2 fw chain 0 handle 0x1 
+
+	action order 1: gact action pipe
+	 random type none pass val 0
+	 index 2 ref 1 bind 1
+

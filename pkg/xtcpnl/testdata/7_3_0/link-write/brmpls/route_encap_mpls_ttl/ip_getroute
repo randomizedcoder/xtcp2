@@ -1,0 +1,2 @@
+192.0.2.0/24 proto kernel scope link src 192.0.2.1 
+198.18.22.0/24  encap mpls  100 ttl 64 via 192.0.2.10 

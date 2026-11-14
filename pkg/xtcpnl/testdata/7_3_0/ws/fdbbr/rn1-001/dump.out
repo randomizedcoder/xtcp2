@@ -1,0 +1,5 @@
+da:5e:5d:7a:96:0f vlan 10 master br0 permanent
+da:5e:5d:7a:96:0f vlan 1 master br0 permanent
+da:5e:5d:7a:96:0f master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

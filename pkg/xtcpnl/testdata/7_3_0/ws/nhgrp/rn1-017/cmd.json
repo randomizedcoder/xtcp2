@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "buckets": "8",
+  "fdb": "1",
+  "group": "31/1;32/1",
+  "grp_type": "1",
+  "hw_stats": "0",
+  "id": "0",
+  "idle_timer": "1000",
+  "protocol": "4",
+  "unbalanced_timer": "2000",
+  "verb": "replace"
+ },
+ "cmd": "ip nexthop replace id 0 group 31/32 type resilient buckets 8 idle_timer 10 unbalanced_timer 20 fdb hw_stats off protocol static",
+ "desc": "negative: verb=replace fam=absent id=0 members=fdb type=res-all fdb=fdb hw_stats=off protocol=static: a replace without an id (Replace requires nexthop id)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "nhgrp/rn1-017",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip nexthop add id 21 via 192.0.2.1 dev d0 && ip nexthop add id 22 via 192.0.2.2 dev d0 && ip nexthop add id 23 dev d0 && ip -6 nexthop add id 26 via 2001:db8:1::1 dev d0 && ip nexthop add id 29 blackhole && ip nexthop add id 31 via 192.0.2.1 fdb && ip nexthop add id 32 via 192.0.2.2 fdb"
+ ],
+ "readback": [
+  {
+   "cmd": "ip nexthop show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip nexthop add id 21 via 192.0.2.1 dev d0 && ip nexthop add id 22 via 192.0.2.2 dev d0 && ip nexthop add id 23 dev d0 && ip -6 nexthop add id 26 via 2001:db8:1::1 dev d0 && ip nexthop add id 29 blackhole && ip nexthop add id 31 via 192.0.2.1 fdb && ip nexthop add id 32 via 192.0.2.2 fdb",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,48 @@
+1:lo
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 
+2:nlmon0
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 
+3:d0
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 
+4:br0
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 
+5:d1
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 
+6:bond0
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 
+7:d2
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 
+8:d3
+    mpls:
+        RX: bytes packets errors dropped noroute
+                0       0      0       0       0 
+        TX: bytes packets errors dropped
+                0       0      0       0 

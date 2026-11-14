@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"golang.org/x/sys/unix"
 )
 
 // ErrUnknownObject is `ip`'s "Object ... is unknown" case: the argument
@@ -76,7 +77,7 @@ const (
 var objects = []object{
 	{name: addressObjectCst, run: runAddress, outputModes: true, verbs: addressVerbs},
 	{name: "addrlabel", run: runAddrLabel, verbs: addrLabelVerbs},
-	{name: "maddress"},
+	{name: "maddress", run: runMaddr, verbs: maddrVerbs},
 	{name: objRouteCst, run: runRoute, verbs: routeVerbs},
 	{name: "rule", run: runRule, verbs: ruleVerbs},
 	{name: "neighbor", run: runNeigh, verbs: neighVerbs},
@@ -101,7 +102,7 @@ var objects = []object{
 	{name: "netconf", run: runNetconf, verbs: netconfVerbs},
 	{name: vrfKeywordCst, run: runVrf, verbs: vrfVerbs},
 	{name: "sr", run: runSr, verbs: srVerbs, noShow: true},
-	{name: objNexthopCst, run: runNexthop, verbs: nexthopVerbs},
+	{name: objNexthopCst, run: runNexthop, verbs: nexthopVerbs, wideStats: true},
 	{name: "mptcp", run: runMptcp, verbs: mptcpVerbs, noShow: true},
 	{name: "ioam", run: runIoam, verbs: ioamVerbs, noShow: true},
 	{name: "stats", run: runStats, verbs: statsVerbs},
@@ -261,9 +262,10 @@ type runCtx struct {
 	// than set, because the rejection has to be able to tell the difference.
 	showStats int
 	// showDetails counts `-d`, mirroring iproute2's show_details. Unlike
-	// show_stats no site reads it for a value above one, so goip implements
-	// every count it accepts and rejects nothing — see the parsing arm in Run,
-	// and detailed for the predicate the object handlers actually use.
+	// show_stats, one site reads it for a value above one, vxlan's bools,
+	// and the link render gets the count; goip implements every count it
+	// accepts and rejects nothing — see the parsing arm in Run, and detailed
+	// for the predicate the object handlers actually use.
 	showDetails int
 	// brief and oneline are -br and -o (ip/ip.c:238, :260). Only address
 	// reads them; Run refuses them for every other object.
@@ -316,8 +318,9 @@ func (c *runCtx) detailed() bool { return c.showDetails > 0 }
 
 // stats is show_stats as a boolean, for the renderers whose only use of it is
 // a presence test. Every `if (show_stats)` guard in iproute2 that goip
-// reproduces tests for non-zero, not for a specific count; the one place the
-// count matters is `-s -s`, which goip refuses at the option loop.
+// reproduces tests for non-zero, not for a specific count. Where the count
+// matters, `-s -s`, the option loop refuses it, except for the wideStats
+// objects, which read c.showStats themselves.
 func (c *runCtx) stats() bool { return c.showStats > 0 }
 
 // outputMode names the -brief or -oneline option this invocation set, or
@@ -338,6 +341,21 @@ func (c *runCtx) outputMode() string {
 func outputModeMsg(c *runCtx, obj *object) string {
 	if opt := c.outputMode(); opt != "" && !obj.outputModes {
 		return "option " + opt + " is only implemented for address"
+	}
+	return ""
+}
+
+// familyMsg is Run's refusal of a family goip reads for no object or for
+// this one, or "": AF_MPLS (-M, -f mpls) for anything but route, whose
+// writes and gets take labels (goip-parity-next.md, NX3), and AF_BRIDGE
+// (-f bridge) everywhere. ip reads either on every object; accepting one
+// an object ignores would show up as a render divergence, not a refusal.
+func familyMsg(family uint8, obj *object) string {
+	switch {
+	case family == unix.AF_BRIDGE:
+		return "family bridge is not implemented"
+	case family == unix.AF_MPLS && obj.canonical() != objRouteCst:
+		return "family mpls is only implemented for route"
 	}
 	return ""
 }

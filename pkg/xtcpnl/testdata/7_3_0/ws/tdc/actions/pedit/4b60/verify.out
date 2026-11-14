@@ -1,0 +1,9 @@
+total acts 1
+
+	action order 0:  pedit action pipe keys 4
+ 	 index 1 ref 1 bind 0
+	 key #0  at -16: val 00000000 mask ffff0000
+	 key #1  at -12: val 00000100 mask 00000000
+	 key #2  at -8: val 0aaf0100 mask 00000000
+	 key #3  at -4: val 0008eb06 mask 00000000
+	not_in_hw

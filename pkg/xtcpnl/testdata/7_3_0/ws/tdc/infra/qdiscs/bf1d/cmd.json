@@ -1,0 +1,96 @@
+{
+ "cmd": "ping -c 1 10.10.10.2 -Idummy1 > /dev/null || true",
+ "desc": "positive: Test HFSC's enqueue reentrant behaviour with netem",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/bf1d",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "ip link set dev dummy1 up || true",
+  "ip addr add 10.10.10.10/24 dev dummy1 || true",
+  "tc qdisc add dev dummy1 handle 1:0 root hfsc",
+  "tc class add dev dummy1 parent 1:0 classid 1:1 hfsc ls m2 10Mbit",
+  "tc qdisc add dev dummy1 parent 1:1 handle 2:0 netem duplicate 100%",
+  "tc filter add dev dummy1 parent 1:0 protocol ip prio 1 u32 match ip dst 10.10.10.1/32 flowid 1:1",
+  "tc class add dev dummy1 parent 1:0 classid 1:2 hfsc ls m2 10Mbit",
+  "tc qdisc add dev dummy1 parent 1:2 handle 3:0 netem duplicate 100%",
+  "tc filter add dev dummy1 parent 1:0 protocol ip prio 2 u32 match ip dst 10.10.10.2/32 flowid 1:2",
+  "ping -c 1 10.10.10.1 -Idummy1 > /dev/null || true",
+  "tc filter del dev dummy1 parent 1:0 protocol ip prio 1",
+  "tc class del dev dummy1 classid 1:1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j -s qdisc ls dev dummy1 handle 1:0",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev dummy1 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 10.10.10.10/24 dev dummy1 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1:0 root hfsc",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1:0 classid 1:1 hfsc ls m2 10Mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1:1 handle 2:0 netem duplicate 100%",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 1:0 protocol ip prio 1 u32 match ip dst 10.10.10.1/32 flowid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev dummy1 parent 1:0 classid 1:2 hfsc ls m2 10Mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 parent 1:2 handle 3:0 netem duplicate 100%",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev dummy1 parent 1:0 protocol ip prio 2 u32 match ip dst 10.10.10.2/32 flowid 1:2",
+    "rc": 0
+   },
+   {
+    "cmd": "ping -c 1 10.10.10.1 -Idummy1 > /dev/null || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter del dev dummy1 parent 1:0 protocol ip prio 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class del dev dummy1 classid 1:1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "bf1d",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

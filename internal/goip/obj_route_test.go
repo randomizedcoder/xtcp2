@@ -2187,3 +2187,32 @@ func (s *captureFirstRequest) Dump(request []byte, msgType uint16) ([][]byte, er
 func (s *captureFirstRequest) Talk(request []byte, msgType uint16) ([]byte, error) {
 	return s.inner.Talk(request, msgType)
 }
+
+// TestEncapNameIndexes checks the ifindexes resolveEncapName asks for, in
+// lwt_print_encap's order (NX6d, NX6e).
+func TestEncapNameIndexes(t *testing.T) {
+	sl := func(s xtcpnl.Seg6LocalInfo) *xtcpnl.RouteEncap { return &xtcpnl.RouteEncap{Seg6Local: &s} }
+	tests := []struct {
+		description string
+		e           *xtcpnl.RouteEncap
+		expected    []int32
+	}{
+		{description: "positive: xfrm link_dev", e: &xtcpnl.RouteEncap{Xfrm: &xtcpnl.XfrmEncapInfo{Link: 4, HasLink: true}},
+			expected: []int32{4}},
+		{description: "positive: seg6local iif before oif", e: sl(xtcpnl.Seg6LocalInfo{Action: 2, IIF: 5, OIF: 3,
+			HasAction: true, HasIIF: true, HasOIF: true}), expected: []int32{5, 3}},
+		{description: "positive: seg6local oif alone", e: sl(xtcpnl.Seg6LocalInfo{Action: 2, OIF: 3, HasAction: true, HasOIF: true}),
+			expected: []int32{3}},
+		{description: "negative: seg6local without its action names nothing", e: sl(xtcpnl.Seg6LocalInfo{OIF: 3, HasOIF: true})},
+		{description: "negative: xfrm without link_dev", e: &xtcpnl.RouteEncap{Xfrm: &xtcpnl.XfrmEncapInfo{IfID: 7, HasIfID: true}}},
+		{description: "boundary: a nil encap"},
+		{description: "corner: an mpls encap names no device", e: &xtcpnl.RouteEncap{MPLS: &xtcpnl.MPLSEncap{}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := encapNameIndexes(tc.e); !slices.Equal(got, tc.expected) {
+				t.Errorf("got %v, expected %v", got, tc.expected)
+			}
+		})
+	}
+}

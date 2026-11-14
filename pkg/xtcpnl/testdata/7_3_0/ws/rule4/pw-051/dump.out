@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all fwmark 0x10 iif d0 sport 1 dport 1-65534 lookup 100 suppress_prefixlength 2147483647 dscp 63
+32766:	from all lookup main
+32767:	from all lookup default

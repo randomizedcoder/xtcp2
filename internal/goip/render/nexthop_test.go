@@ -38,6 +38,12 @@ var nhViewTabNames = fakeNames{
 // two refusals goip keeps are an unknown group type and any group on the route
 // nh_info path (NexthopInfoText).
 //
+// nhMplsEncap is kwnh/ec-001's `encap mpls 101`, decoded.
+func nhMplsEncap() *xtcpnl.RouteEncap {
+	return &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_MPLS, HasType: true, Raw: []byte{0},
+		MPLS: &xtcpnl.MPLSEncap{Labels: []xtcpnl.MPLSLabel{{Label: 101, BoS: true}}}}
+}
+
 // go test ./internal/goip/render/ -run TestNexthopText
 func TestNexthopText(t *testing.T) {
 	tests := []struct {
@@ -235,6 +241,22 @@ func TestNexthopText(t *testing.T) {
 			want: "id 6 via 192.0.2.21 onlink fdb",
 		},
 		{
+			description: "positive: kwnh/ec-001 — encap mpls 101 after the id, before via",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK,
+				ID: 51, OIF: 3, Gateway: v4(192, 0, 2, 10), Encap: nhMplsEncap(),
+			},
+			want: "id 51  encap mpls  101 via 192.0.2.10 dev goip0 scope link ",
+		},
+		{
+			description: "corner: an undecoded encap type prints no encap",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK, ID: 61, OIF: 3, Gateway: v4(192, 0, 2, 10),
+				Encap: &xtcpnl.RouteEncap{Type: unix.LWTUNNEL_ENCAP_IP, HasType: true, Raw: []byte{0}},
+			},
+			want: "id 61 via 192.0.2.10 dev goip0 scope link ",
+		},
+		{
 			description: "negative: an unknown group type (neither mpath nor resilient) is refused",
 			in:          xtcpnl.NexthopInfo{ID: 7, HasGroup: true, GroupType: 2},
 			wantErr:     true,
@@ -255,9 +277,9 @@ func TestNexthopText(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			render := func() (string, error) {
 				if tc.infoPath {
-					return NexthopInfoText(tc.in, routeTabNames)
+					return NexthopInfoText(tc.in, 0, routeTabNames)
 				}
-				return NexthopText(tc.in, tc.detailed, routeTabNames)
+				return NexthopText(tc.in, tc.detailed, 0, routeTabNames)
 			}
 			got, err := render()
 			if tc.wantErr {
@@ -449,6 +471,14 @@ func TestNexthopViewJSON(t *testing.T) {
 			wantExact: `{"id":23,"group":[{"id":1}],"type":"resilient","resilient_args":{"buckets":1,"idle_timer":1e+07,"unbalanced_timer":0,"unbalanced_time":1.5},"flags":[]}`,
 		},
 		{
+			description: "positive: kwnh/ec-001 — the encap object before gateway",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK,
+				ID: 51, OIF: 3, Gateway: v4(192, 0, 2, 10), Encap: nhMplsEncap(),
+			},
+			wantExact: `{"id":51,"encap":{"encap_type":"mpls","dst":"101"},"gateway":"192.0.2.10","dev":"goip0","scope":"link","flags":[]}`,
+		},
+		{
 			description: "negative: an unknown group type (neither mpath nor resilient) is declined",
 			in:          xtcpnl.NexthopInfo{ID: 7, HasGroup: true, GroupType: 2},
 			wantErr:     true,
@@ -457,7 +487,7 @@ func TestNexthopViewJSON(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			view, err := NexthopViewOf(tc.in, tc.detailed, nhViewTabNames)
+			view, err := NexthopViewOf(tc.in, tc.detailed, 0, nhViewTabNames)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("no error, want one")

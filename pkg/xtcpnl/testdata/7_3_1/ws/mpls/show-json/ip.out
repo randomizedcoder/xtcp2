@@ -1,0 +1,1 @@
+[{"dst":"100","to":"200/300","via":{"family":"inet","host":"10.0.0.2"},"dev":"d0","flags":[]},{"dst":"101","flags":[],"nexthops":[{"to":"200","via":{"family":"inet","host":"10.0.0.2"},"dev":"d0","flags":[]},{"via":{"family":"inet6","host":"2001:db8::2"},"dev":"d0","flags":[]}]},{"dst":"102","dev":"d0","flags":[],"ttl-propogate":false}]

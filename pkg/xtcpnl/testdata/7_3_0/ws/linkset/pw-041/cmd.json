@@ -1,0 +1,39 @@
+{
+ "axes": {
+  "broadcast": "ff:ff:ff:ff:ff:fe",
+  "gso_max_segs": "65535",
+  "linkmode": "1",
+  "mtu": "65535",
+  "txqlen": "32767"
+ },
+ "cmd": "ip link set dev d0 mtu 65535 qlen 32767 broadcast ff:ff:ff:ff:ff:fe gso_max_segs 65535 mode dormant",
+ "desc": "corner: updown=absent mtu=65535 txqlen=32767 group=absent alias=absent address=broadcast flag=absent gso=gso_segs_max mode=dormant name=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkset/pw-041",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

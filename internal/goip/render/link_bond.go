@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -22,15 +23,14 @@ import (
 // link_bond_test.go: active_slave and primary (802.3ad sends neither), the
 // two target lists (none configured), and every out-of-table value.
 //
-// # One known divergence, deliberate
+// # The partner port state's width
 //
-// iproute2 reads IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE with
-// rta_getattr_u8 (iplink_bond_slave.c, bond_slave_print_opt). The kernel puts
-// it as a u16 (bond_netlink.c, bond_fill_slave_info). goip renders the u16 it
-// decoded. The two agree on every value the kernel can produce today, because
-// the LACP port state is eight bits wide, so no fixture can show the
-// difference. If the kernel ever sets a bit above 0xff, goip prints it and
-// the pinned `ip` does not.
+// IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE is a u16 on the wire
+// (bond_netlink.c, bond_fill_slave_info), and goip renders the u16 it
+// decoded. iproute2 read it with rta_getattr_u8 until 0067cbc8, first
+// released in 7.3.0, which reads the u16. On a little-endian host the two
+// agree on every value the kernel can produce, because the LACP port state
+// is eight bits wide, so no knob is needed for the older releases.
 
 // Exported for the `-d` gate in internal/goip, which has to agree with this
 // file on which kinds have a print_opt here.
@@ -51,21 +51,21 @@ var bondJSONKey = map[uint16]string{
 	unix.IFLA_BOND_AD_LACP_RATE:   "ad_lacp_rate",
 }
 
-// bondOnOff is the two options bond_print_opt prints with print_on_off: a
+// bondOnOff is the options bond_print_opt prints with print_on_off: a
 // JSON bool, and "on"/"off" for any nonzero/zero value. lacp_active has the
 // same two names in the option table and is NOT one of these: it goes
 // through get_name, so it is a JSON string and a 2 prints "UNKNOWN".
 var bondOnOff = map[uint16]bool{
+	xtcpnl.IflaBondLacpStrict:      true,
 	unix.IFLA_BOND_COUPLED_CONTROL: true,
 	xtcpnl.IflaBondBroadcastNeigh:  true,
 }
 
-// bondNotPrinted is the options the pinned iproute2 has no print call for.
-// lacp_strict is newer than 7.1.0, whose IFLA_BOND_MAX stops before it, so
-// parse_rtattr_nested drops the attribute and nothing is printed even when a
-// newer kernel sends it.
-var bondNotPrinted = map[uint16]bool{
-	xtcpnl.IflaBondLacpStrict: true,
+// bondNotPrinted is whether bond_print_opt has no print call for an option.
+// Only lacp_strict can be one, before iproute2 7.3.0; see
+// RenderBondLacpStrict.
+func bondNotPrinted(id uint16) bool {
+	return id == xtcpnl.IflaBondLacpStrict && !RenderBondLacpStrict
 }
 
 // bondData renders a bond's IFLA_INFO_DATA.
@@ -84,7 +84,7 @@ func bondData(b *xtcpnl.BondInfo, names NameTab) *KindData {
 	}
 	for i := range xtcpnl.BondOptions {
 		spec := &xtcpnl.BondOptions[i]
-		if bondNotPrinted[spec.ID] {
+		if bondNotPrinted(spec.ID) {
 			continue
 		}
 		switch spec.Wire {
@@ -124,7 +124,8 @@ func addBondScalar(k *KindData, spec *xtcpnl.BondOptionSpec, v uint32, names Nam
 		if v == 0 {
 			return
 		}
-		name := names.IndexToName(int32(v)) //nolint:gosec // an ifindex: the kernel's int, sent as u32
+		// An ifindex: the kernel's int, sent as a u32.
+		name := names.IndexToName(cint.Int(v))
 		k.add(key, spec.Keyword+" "+name+" ", name)
 	case bondOnOff[spec.ID]:
 		on := v != 0
@@ -224,7 +225,7 @@ func bondSlaveData(s *xtcpnl.BondSlaveInfo) *KindData {
 	}
 	if s.LinkFailureCount.Present {
 		// print_int of a u32: a count past 2^31 prints negative.
-		n := int32(s.LinkFailureCount.Value) //nolint:gosec // transcribing %d of an unsigned value
+		n := cint.Int(s.LinkFailureCount.Value)
 		k.add("link_failure_count", fmt.Sprintf("link_failure_count %d ", n), n)
 	}
 	if s.PermHwaddr != nil {

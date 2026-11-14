@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "flag": "256",
+  "flag_on": "1",
+  "gro_max_size": "524280",
+  "group": "0",
+  "mtu": "1400",
+  "up": "1"
+ },
+ "cmd": "ip link set dev d0 up mtu 1400 group default promisc on gro_max_size 524280",
+ "desc": "corner: updown=up mtu=1400 txqlen=absent group=default alias=absent address=absent flag=promisc gso=gro_size_max mode=absent name=absent",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkset/rn1-001",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

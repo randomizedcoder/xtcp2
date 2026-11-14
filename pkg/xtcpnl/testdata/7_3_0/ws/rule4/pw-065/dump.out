@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from 198.51.100.7 iif lo uidrange 0-0 ipproto ipproto-255 dport 1-65534 tun_id 7 lookup main
+32766:	from all lookup main
+32767:	from all lookup default

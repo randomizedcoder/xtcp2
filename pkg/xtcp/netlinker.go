@@ -18,7 +18,6 @@ import (
 	"encoding/binary"
 	"log"
 	"net"
-	"os"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -29,10 +28,8 @@ import (
 )
 
 const (
-	// Raw netlink captures carry host addresses: owner read/write only.
-	writeFilesPermissionsCst = 0o600
-	forceGCModulesCst        = 1000
-	nlmsgAlignToCst          = 4
+	forceGCModulesCst = 1000
+	nlmsgAlignToCst   = 4
 )
 
 // NetlinkerFunc runs the netlinkers for one fd until ctx is canceled,
@@ -65,38 +62,6 @@ func (x *XTCP) recvOneFromKernel(fd int, buf []byte) (n int, retry bool) {
 		return 0, true
 	}
 	return n, false
-}
-
-// captureToFileIfEnabled writes the packet to disk when the WriteFiles
-// budget is positive. Returns the updated budget — 0 means "stop trying
-// for the rest of this goroutine's life" (a write error disables
-// captures permanently rather than killing the daemon).
-func (x *XTCP) captureToFileIfEnabled(wf uint32, packet []byte, id uint32) uint32 {
-	if wf == 0 {
-		return wf
-	}
-	now := time.Now()
-	// Capture only the n bytes Recvfrom actually filled. Writing the
-	// raw *packetBuffer here used to dump the full pool-buffer size
-	// (e.g. 8 KiB), trailing the real packet with stale bytes from a
-	// previous Recvfrom — pcap-like consumers parsed garbage past
-	// the real end of the message.
-	err := os.WriteFile(
-		x.config.CapturePath+"netlink."+now.Format(time.RFC3339Nano),
-		packet,
-		writeFilesPermissionsCst)
-	if err == nil {
-		return wf - 1
-	}
-	// Diagnostic capture-to-file is a side feature; a disk-full /
-	// EACCES / etc. here must NOT take down the daemon (and every
-	// other netlinker for every other namespace with it). Stop
-	// capturing further packets and count the failure.
-	x.pC.WithLabelValues("Netlinker", "WriteFile", "error").Inc()
-	if x.debugLevel > 10 {
-		log.Printf("Netlinker %d WriteFile err (disabling further captures): %v", id, err)
-	}
-	return 0
 }
 
 // maybeForceGC fires runtime.GC every forceGCModulesCst packets. The

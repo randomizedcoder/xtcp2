@@ -1,0 +1,51 @@
+{
+ "axes": {
+  "brd": "-",
+  "family": "4",
+  "label": "foo",
+  "local": "0.0.0.0",
+  "metric": "7",
+  "noop": "1",
+  "preferred": "4294967295",
+  "prefixlen": "24",
+  "scope": "255",
+  "valid": "4294967295",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 0.0.0.0/24 brd - label foo scope 255 preference 7 valid_lft forever preferred_lft forever dev d0",
+ "desc": "negative: verb=del local=zero peer=absent brd=minus label=other scope=255 metric=preference lft=forever flags=absent proto=absent: a delete of 0.0.0.0, which its add never stored (Address not found)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr4/pw-035",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 0.0.0.0/24 brd - label foo scope 255 preference 7 valid_lft forever preferred_lft forever dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 0.0.0.0/24 brd - label foo scope 255 preference 7 valid_lft forever preferred_lft forever dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

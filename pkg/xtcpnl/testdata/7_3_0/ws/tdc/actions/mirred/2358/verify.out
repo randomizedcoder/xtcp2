@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"mirred","mirred_action":"mirror","direction":"ingress","to_blockid":21,"control_action":{"type":"pipe"},"index":1,"ref":1,"bind":0,"not_in_hw":true}]}]

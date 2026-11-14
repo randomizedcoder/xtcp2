@@ -867,6 +867,48 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			floor:       2,
 			implemented: true,
 		},
+		{
+			description: "positive: vrf show goipvrf, the ipvrf_get_table single get, answered by the vrf link itself",
+			name:        "vrf show goipvrf",
+			slug:        "vrf_show_name",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: -4 vrf show goipvrf, the NAME get with the family byte, the kernel family-blind on the lookup",
+			name:        "-4 vrf show goipvrf",
+			slug:        "vrf_show_name_v4",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: -6 vrf show goipvrf, the AF_INET6 twin, the same answer and floor",
+			name:        "-6 vrf show goipvrf",
+			slug:        "vrf_show_name_v6",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "corner: -0 vrf show goipvrf, the AF_PACKET byte no other vrf request carries",
+			name:        "-0 vrf show goipvrf",
+			slug:        "vrf_show_name_0",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: vrf show default, the ENODEV arm both sides resolve to the main table",
+			name:        "vrf show default",
+			slug:        "vrf_show_default",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "corner: vrf show goip0, a device that exists but is no vrf, so the reply itself carries the refusal",
+			name:        "vrf show goip0",
+			slug:        "vrf_show_novrf",
+			floor:       2,
+			implemented: true,
+		},
 	}
 
 	for _, tt := range rows {
@@ -2531,7 +2573,7 @@ func TestStatsDumpRowsGated(t *testing.T) {
 		{"boundary: the dev point get gated before G0-T02 and stays gated", "stats show group link dev", gated},
 		{"boundary: netconf show dev, measured with them, gated later on G0-T03's runs", "netconf show dev", gated},
 		{"negative: addr show dynamic stays out by design", "addr show dynamic", want{implemented: true}},
-		{"corner: -j -s stats is refused by goip and is not a matrix row", "-j -s stats show group link", want{}},
+		{"corner: -j -s stats, refused before NX5a, is a gated row since", "-j -s stats show group link", gated},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
@@ -2642,7 +2684,7 @@ func TestRouteGetRowsGated(t *testing.T) {
 		})
 	}
 
-	t.Run("corner: only the from/iif row's Setup carries a sysctl step", func(t *testing.T) {
+	t.Run("corner: only the forwarding route get row's and the MPLS rows' Setups carry sysctl steps", func(t *testing.T) {
 		for _, c := range Commands() {
 			n := 0
 			for _, step := range c.Setup {
@@ -2651,8 +2693,12 @@ func TestRouteGetRowsGated(t *testing.T) {
 				}
 			}
 			expected := 0
-			if c.Slug == "route_get_from_iif" {
+			switch {
+			case c.Slug == "route_get_from_iif":
 				expected = 1
+			case strings.HasPrefix(c.Slug, "mpls_route_"):
+				// platform_labels and d0's input (mplsRouteSetup).
+				expected = 2
 			}
 			if n != expected {
 				t.Errorf("%s: %d sysctl steps, want %d", c.Slug, n, expected)
@@ -2749,9 +2795,9 @@ func TestNexthopGetRowsGated(t *testing.T) {
 	}
 }
 
-// TestLinkXstatsRowsGated pins G1-T04's three rows: implemented, gated after
-// two clean runs with no allowlist entry, each on the reads namespace's
-// bridge.
+// TestLinkXstatsRowsGated pins G1-T04's three rows and NX5b's and NX5c's
+// eleven: implemented, gated after two clean runs with no allowlist entry,
+// each on the reads namespace's bridge or bondReadSetup's bond.
 //
 // go test ./internal/goipparity/ -run TestLinkXstatsRowsGated
 func TestLinkXstatsRowsGated(t *testing.T) {
@@ -2760,8 +2806,8 @@ func TestLinkXstatsRowsGated(t *testing.T) {
 		t.Fatalf("EmbeddedAllowlist: %v", err)
 	}
 	type want struct {
-		implemented, gated, bridge bool
-		floor, setup, entries      int
+		implemented, gated, bridge, bond bool
+		floor, setup, entries            int
 	}
 	rows := []struct {
 		description string
@@ -2774,7 +2820,29 @@ func TestLinkXstatsRowsGated(t *testing.T) {
 			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
 		{"boundary: the AF_SPEC dump alone, nothing to name", "link afstats",
 			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
-		{"corner: a selector form not in the matrix is neither", "link xstats type bridge_slave stp", want{}},
+		{"positive: NX5b's -j, the empty array", "-j link afstats",
+			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
+		{"positive: NX5b's dev, the get then the dump", "link afstats dev v2",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"negative: NX5b's dev nosuch, the get alone", "link afstats dev nosuch",
+			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
+		{"positive: NX5c's bond master", "link xstats type bond",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's bond ports", "link xstats type bond_slave",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's bond ports as JSON", "-j link xstats type bond_slave",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's 802.3ad selector", "link xstats type bond 802.3ad",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's dev on a port", "link xstats type bond_slave dev la1",
+			want{implemented: true, gated: true, bond: true, floor: 4, setup: 6}},
+		{"positive: NX5c's bridge as JSON", "-j link xstats type bridge",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"positive: NX5c's stp selector", "link xstats type bridge_slave stp",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"negative: NX5c's dev nosuch is nodev", "link xstats type bridge_slave dev nosuch",
+			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
+		{"corner: a selector form not in the matrix is neither", "link xstats type bridge_slave igmp", want{}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
@@ -2782,6 +2850,7 @@ func TestLinkXstatsRowsGated(t *testing.T) {
 			if c, lookupErr := Lookup(r.command); lookupErr == nil {
 				got.implemented, got.floor, got.setup = c.Implemented, c.Floor, len(c.Setup)
 				got.bridge = len(c.Setup) > 0 && c.Setup[0] == "link add br0 type bridge"
+				got.bond = len(c.Setup) > 0 && c.Setup[0] == "link add bond0 type bond mode 802.3ad"
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))
@@ -4655,6 +4724,336 @@ func TestXfrmPolicyWriteRows(t *testing.T) {
 			got.gated = al.IsGated(r.command)
 			if got != r.expected {
 				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestVrfShowNameRowsGated pins VS4's three `vrf show NAME` rows: implemented,
+// on no Setup (the topology's clean dummy and goipvrf are all they need), each
+// floor 2 — the one RTM_GETLINK get by name and its answer — and gated with no
+// allowlist entry after two clean runs. The dump twin they sit beside stays
+// gated beside them.
+//
+// go test ./internal/goipparity/ -run TestVrfShowNameRowsGated
+func TestVrfShowNameRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, setup bool
+		floor, entries            int
+	}
+	gated := want{implemented: true, gated: true, floor: 2}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the vrf's own name, goipvrf 100 on stdout", "vrf show goipvrf", gated},
+		{"positive: default, the ENODEV arm resolved to the main table", "vrf show default", gated},
+		{"corner: goip0, a real device that is no vrf, prints nothing on stdout", "vrf show goip0", gated},
+		{"boundary: the dump twin stays gated with no Setup either", "vrf show", want{implemented: true, gated: true, floor: 2}},
+		{"boundary: the -j dump twin likewise", "-j vrf show", want{implemented: true, gated: true, floor: 2}},
+		{"negative: a vrf name the topology never builds is not in the matrix", "vrf show nosuchvrf", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.setup, got.floor = c.Implemented, len(c.Setup) > 0, c.Floor
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestVrfFamilyFormRowsGated pins VF2's three family rows: implemented, on no
+// Setup (the NAME form resolves nothing up front), each floor 2 — the one
+// RTM_GETLINK get by name, family byte and all, and its answer — and gated
+// with no allowlist entry after the runs. The plain NAME row they sit beside
+// stays gated beside them, and a family form of the dump twin is not in the
+// matrix at all.
+//
+// go test ./internal/goipparity/ -run TestVrfFamilyFormRowsGated
+func TestVrfFamilyFormRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, setup bool
+		floor, entries            int
+	}
+	gated := want{implemented: true, gated: true, floor: 2}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: -4, the AF_INET family byte", "-4 vrf show goipvrf", gated},
+		{"positive: -6, the AF_INET6 twin", "-6 vrf show goipvrf", gated},
+		{"corner: -0, the AF_PACKET byte no other vrf request carries", "-0 vrf show goipvrf", gated},
+		{"boundary: the plain NAME row stays gated beside them", "vrf show goipvrf", want{implemented: true, gated: true, floor: 2}},
+		{"negative: the dump form's family twin is not in the matrix", "-4 vrf show", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.setup, got.floor = c.Implemented, len(c.Setup) > 0, c.Floor
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestMaddrRowsGated pins NX4d's six maddress rows (ws-ip730/v730maddr), which
+// gated on two clean maddress section runs under ip 7.3.0 rather than joining
+// the ungated list.
+//
+// go test ./internal/goipparity/ -run TestMaddrRowsGated
+func TestMaddrRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		floor       int
+	}{
+		{"positive: the bare show, dev_mcast and both family dumps", "maddress show", true, 4},
+		{"positive: -4, the AF_INET dump alone", "-4 maddress show", true, 4},
+		{"positive: -6, the AF_INET6 dump alone", "-6 maddress show", true, 4},
+		{"positive: -j, the same requests as the bare show", "-j maddress show", true, 4},
+		{"positive: dev d0, the by-name get then the dumps", "maddress show dev d0", true, 4},
+		{"boundary: dev nosuch, the get alone and nothing printed", "maddress show dev nosuch", true, 2},
+		{"negative: a device the matrix has no row for is not gated", "maddress show dev d1", false, 0},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != r.floor || !slices.Equal(c.Setup, maddrReadSetup) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented read row, floor %d, maddrReadSetup",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.floor)
+			}
+		})
+	}
+}
+
+// TestNexthopStatsRowsGated pins NX8's seven nexthop -s rows, which gated on
+// two clean nexthop section runs at iproute2 7.3.0 rather than joining the
+// ungated list.
+//
+// go test ./internal/goipparity/ -run TestNexthopStatsRowsGated
+func TestNexthopStatsRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		floor       int
+	}{
+		{"positive: -s, the dump with NHA_OP_FLAGS 1 and d0 by index", "-s nexthop show", true, 4},
+		{"positive: -s -s, NHA_OP_FLAGS 3 and packets_hw", "-s -s nexthop show", true, 4},
+		{"positive: -j -s, group_stats and hw_stats objects", "-j -s nexthop show", true, 4},
+		{"positive: -j -s -s, the same with packets_hw", "-j -s -s nexthop show", true, 4},
+		{"positive: -s get of a group, which has no dev", "-s nexthop get id 10", true, 2},
+		{"boundary: -s show id, the same get as get id", "-s nexthop show id 12", true, 2},
+		{"corner: -d prints hw_stats with no stats op flag", "-d nexthop show id 12", true, 2},
+		{"negative: an id the matrix has no -s row for is not gated", "-s nexthop get id 12", false, 0},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != r.floor || !slices.Equal(c.Setup, nexthopStatsSetup) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented read row, floor %d, nexthopStatsSetup",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.floor)
+			}
+		})
+	}
+}
+
+// TestLwtencRowsGated pins NX9's twenty rows, the lwtenc readbacks and the
+// rpl and ioam6 writes, which gated on two clean route,nexthop section runs
+// on the parity guest's kernel with the rpl and ioam6 lwtunnels.
+//
+// go test ./internal/goipparity/ -run TestLwtencRowsGated
+func TestLwtencRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		write       bool
+	}{
+		{"positive: the IPv6 dump with rpl, ioam6 and an rpl hop", "-6 route show table main", true, false},
+		{"positive: the bpf route's three progs", "-4 route show table main", true, false},
+		{"positive: rpl, ioam6 and bpf nexthops in JSON", "-j -6 nexthop show", true, false},
+		{"positive: an rpl route write", "-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1 dev d0", true, true},
+		{"positive: ioam6 on a multipath hop", "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0 nexthop via 2001:db8:1::2 dev d0", true, true},
+		{"boundary: the largest ioam6 trace size", "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 244 dev d0", true, true},
+		{"corner: rpl with no segs, an empty SRH the kernel takes", "-6 route add 2001:db8:2::/64 encap rpl dev d0", true, true},
+		{"negative: a write ip refuses before sending is not a row", "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 13 dev d0", false, false},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			want := lwtencReadSetup
+			if r.write {
+				want = gwWsSetupD0
+			}
+			if !c.Implemented || c.Write != r.write || c.NeedsDev || c.Floor != 4 || !slices.Equal(c.Setup, want) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want implemented, write %v, floor 4, setup %v",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.write, want)
+			}
+		})
+	}
+}
+
+// TestBpfWriteRowsGated pins NX10b's fourteen bpf writes, which goip loads
+// with cilium/ebpf (NX10a) and which gated on two clean route,nexthop
+// section runs on the parity guest, its lwt_bpf.o at /run/nlcap-ws.
+//
+// go test ./internal/goipparity/ -run TestBpfWriteRowsGated
+func TestBpfWriteRowsGated(t *testing.T) {
+	const o = "/run/nlcap-ws/lwt_bpf.o"
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated, and a GW row on gwWsSetupD0
+	}{
+		{"positive: an in prog", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec lwt_in dev d0", true},
+		{"positive: all three hooks and a headroom", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec lwt_in out obj " + o +
+			" sec lwt_out xmit obj " + o + " sec lwt_xmit headroom 16 dev d0", true},
+		{"positive: bpf on a nexthop", "-6 nexthop add id 83 encap bpf in obj " + o + " sec lwt_in dev d0", true},
+		{"positive: bpf on a multipath hop", "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap bpf in obj " + o +
+			" sec lwt_in nexthop via 2001:db8:1::2 dev d0", true},
+		{"boundary: the largest headroom the kernel takes", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 256 dev d0", true},
+		{"boundary: one past it, the kernel's ERANGE", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 257 dev d0", true},
+		{"corner: a repeated in, both sent", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec lwt_in in obj " + o + " sec lwt_out dev d0", true},
+		{"corner: two headrooms, the first sent", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 8 headroom 9 dev d0", true},
+		{"negative: headroom 0, ip's invarg before sending", "-4 route add 198.51.100.0/24 encap bpf xmit obj " + o + " sec lwt_xmit headroom 0 dev d0", false},
+		{"negative: a missing section, refused before sending", "-4 route add 198.51.100.0/24 encap bpf in obj " + o + " sec nosuch dev d0", false},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			c, lookupErr := Lookup(r.command)
+			if !r.expected {
+				if lookupErr == nil {
+					t.Errorf("Lookup(%q): a row, want none", r.command)
+				}
+				return
+			}
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || !c.Write || c.NeedsDev || c.Floor != 4 || !slices.Equal(c.Setup, gwWsSetupD0) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented write, floor 4, setup %v",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, gwWsSetupD0)
+			}
+		})
+	}
+}
+
+// TestStatsNX5aRowsGated pins NX5a's fifteen stats rows, which gated on two
+// clean stats section runs at iproute2 7.3.0.
+//
+// go test ./internal/goipparity/ -run TestStatsNX5aRowsGated
+func TestStatsNX5aRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+		setup       []string
+	}{
+		{"boundary: no verb, show_stats 0", "stats", true, nil},
+		{"positive: every leaf", "stats show", true, nil},
+		{"positive: every leaf, extended", "-s stats show", true, nil},
+		{"positive: every leaf as JSON", "-j stats show", true, nil},
+		{"positive: every leaf as extended JSON", "-j -s stats show", true, nil},
+		{"positive: link's extended JSON keys", "-j -s stats show group link", true, nil},
+		{"boundary: all of offload, no nest", "stats show group offload", true, nil},
+		{"positive: the offload nest", "stats show group offload subgroup l3_stats", true, nil},
+		{"boundary: two subgroups make the full sub-mask", "stats show group offload subgroup cpu_hit subgroup l3_stats", true, nil},
+		{"positive: afstats", "stats show group afstats", true, nil},
+		{"corner: two groups, printed sorted", "stats show group link group afstats", true, nil},
+		{"positive: xstats_slave", "stats show group xstats_slave", true, nil},
+		{"positive: one device, l3_stats on", "stats show dev d0", true, statsL3Setup},
+		{"positive: the l3_stats point get", "stats show dev d0 group offload subgroup l3_stats", true, statsL3Setup},
+		{"positive: the offload point get as JSON", "-j stats show dev d0 group offload", true, statsL3Setup},
+		{"negative: a selection the matrix has no row for is not gated", "stats show group offload subgroup cpu_hit", false, nil},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != 4 || !slices.Equal(c.Setup, r.setup) {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d Setup=%v, want an implemented read row, floor 4, Setup %v",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor, c.Setup, r.setup)
 			}
 		})
 	}

@@ -1,0 +1,29 @@
+{
+ "axes": {
+  "flow": "65538",
+  "pref": "200",
+  "table": "100",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add pref 200 realms 1/2 table 100",
+ "desc": "positive: verb=add form=realms-from-to",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "kwrule/ec-001",
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "rc": 0,
+  "status": "OK"
+ }
+}

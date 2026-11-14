@@ -65,6 +65,9 @@ func TestEnvOverrideAdminListenerAuth(t *testing.T) {
 				FailureJitterMax:       durationpb.New(7 * time.Millisecond),
 			}}
 			envOverrideListenerAuth(c, 0)
+			if err := applyListenerSecretFiles(c); err != nil {
+				t.Fatalf("applyListenerSecretFiles: %v", err)
+			}
 			a := c.GetAdminListenerAuth()
 			got := want{a.GetMode(), a.GetRawToken(), a.GetHmacSharedKey()}
 			if got != tc.expected {

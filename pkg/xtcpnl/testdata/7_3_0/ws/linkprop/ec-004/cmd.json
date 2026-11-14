@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "altname": "alt1",
+  "altname2": "alt2",
+  "op": "add"
+ },
+ "cmd": "ip link property add altname alt1 altname alt2 dev d0",
+ "desc": "corner: op=add altname=two dev=dev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkprop/ec-004",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -113,6 +113,13 @@ func TestUnameMatchesKernelDirectory(t *testing.T) {
 			reproducible: true,
 		},
 		{
+			description:  "positive: the 7_3_0 link-write set was answered by kernel 7.3.0 inside the capture VM",
+			file:         tdLinkWrite_7_3_0 + "/uname",
+			dir:          "7_3_0",
+			wantHostname: "xtcp2-vm-x8664",
+			reproducible: true,
+		},
+		{
 			// The negative of the pair: same shape, different provenance.
 			// Nothing about this file is reproducible, which is precisely why
 			// the 7_1_8 expectations are advisory and the 7_1_4 ones are
@@ -289,19 +296,21 @@ func TestIProute2VersionFromSidecar(t *testing.T) {
 // nixpkgs still agree with each other — they just no longer describe the
 // committed goldens. That is the gap this test closes.
 //
-// The corpus and the pin are different releases since the pin moved to 7.2.0,
-// so each row names the release it expects. Every committed corpus predates the
-// move and says 7.1.0; goip's tests replay those with its 7.1.0 knobs
-// (internal/goip/main_test.go), and goip's defaults follow the pin. A pin past
-// 7.2.0 fails the first row, which is the prompt to move goip with it.
+// The corpus and the pin are different releases, so each row names the
+// release it expects. The 7_1_4 corpora say 7.1.0 and the 7_3_0 ones 7.2.0,
+// the pin each was captured under; goip's tests replay them with their
+// release's knobs (internal/goip/main_test.go), and goip's defaults follow the
+// pin, 7.3.0 since NX4d. A pin past 7.3.0 fails the first check, which is the
+// prompt to move goip with it.
 //
 // go test ./pkg/xtcpnl/ -run TestIPVersionMatchesUpstreamPin
 func TestIPVersionMatchesUpstreamPin(t *testing.T) {
-	// The release goip's defaults follow (internal/goip/req.LLMapNameOnly,
-	// render.RenderQlenZero), and the one that rendered the committed corpora.
+	// The release goip's defaults follow (render.RenderBondLacpStrict,
+	// goip.LLAddrStrict), and the ones that rendered the committed corpora.
 	const (
-		goipIPRoute2   = "7.2.0"
-		corpusIPRoute2 = "7.1.0"
+		goipIPRoute2      = "7.3.0"
+		corpus730IPRoute2 = "7.2.0"
+		corpusIPRoute2    = "7.1.0"
 	)
 	var pins struct {
 		PackagePins struct {
@@ -340,9 +349,14 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 			expected:    corpusIPRoute2,
 		},
 		{
-			description: "positive: the 7_3_0 dump set's ip_version is the pinned iproute2 goip defaults to",
+			description: "positive: the 7_3_0 dump set's ip_version is the 7.2.0 it was captured under",
 			file:        tdDumpIPVersion_7_3_0,
-			expected:    goipIPRoute2,
+			expected:    corpus730IPRoute2,
+		},
+		{
+			description: "positive: the 7_3_0 link-write set's ip_version is 7.2.0 too",
+			file:        tdLinkWrite_7_3_0 + "/ip_version",
+			expected:    corpus730IPRoute2,
 		},
 		{
 			description: "positive: the rdma corpus's ip_version is the corpus iproute2",

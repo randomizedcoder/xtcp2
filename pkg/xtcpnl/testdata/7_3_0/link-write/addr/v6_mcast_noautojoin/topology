@@ -1,0 +1,3 @@
+ok    [lacpa] ip link add d0 address 02:00:00:00:d0:00 type dummy
+ok    [lacpa] ip link set d0 addrgenmode none
+ok    [lacpa] ip link set d0 up

@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1:  police 0x40 rate 1Mbit burst 100Kb mtu 2Kb action reclassify overhead 64b 
+	ref 1 bind 0 
+	not_in_hw

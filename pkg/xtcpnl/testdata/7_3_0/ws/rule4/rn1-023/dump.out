@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from all to 203.0.113.0/24 fwmark 0x10/0xff uidrange 0-0 ipproto tcp sport 65534 dport 80 tun_id 7 lookup local suppress_prefixlength 24 dscp 4
+32766:	from all lookup main
+32767:	from all lookup default

@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	from 198.51.100.7 tos 0x10 sport 0x50/0xfff0 dport 65534 tun_id 7 goto 40000 [unresolved]
+32766:	from all lookup main
+32767:	from all lookup default

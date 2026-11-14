@@ -734,6 +734,20 @@ func (m *ListenerAuth) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.HmacSharedKeyFile) > 0 {
+		i -= len(m.HmacSharedKeyFile)
+		copy(dAtA[i:], m.HmacSharedKeyFile)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.HmacSharedKeyFile)))
+		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.RawTokenFile) > 0 {
+		i -= len(m.RawTokenFile)
+		copy(dAtA[i:], m.RawTokenFile)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.RawTokenFile)))
+		i--
+		dAtA[i] = 0x3a
+	}
 	if m.FailureJitterMax != nil {
 		size, err := (*durationpb.Duration)(m.FailureJitterMax).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -781,6 +795,97 @@ func (m *ListenerAuth) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *Listener) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Listener) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Listener) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Serves) > 0 {
+		var pksize2 int
+		for _, num := range m.Serves {
+			pksize2 += protohelpers.SizeOfVarint(uint64(num))
+		}
+		i -= pksize2
+		j1 := i
+		for _, num1 := range m.Serves {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				dAtA[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j1++
+			}
+			dAtA[j1] = uint8(num)
+			j1++
+		}
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(pksize2))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.AdminAuth != nil {
+		size, err := m.AdminAuth.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.Auth != nil {
+		size, err := m.Auth.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Endpoint != nil {
+		size, err := m.Endpoint.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Name) > 0 {
+		i -= len(m.Name)
+		copy(dAtA[i:], m.Name)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Name)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *LinkMonitorConfig) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -810,6 +915,18 @@ func (m *LinkMonitorConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.LearnDeadline != nil {
+		size, err := (*durationpb.Duration)(m.LearnDeadline).MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xe2
 	}
 	if len(m.IpListen) > 0 {
 		i -= len(m.IpListen)
@@ -1332,6 +1449,20 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xd2
 	}
+	if len(m.Listeners) > 0 {
+		for iNdEx := len(m.Listeners) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Listeners[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0xa
+			i--
+			dAtA[i] = 0x92
+		}
+	}
 	if m.GrpcListener != nil {
 		size, err := m.GrpcListener.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -1497,6 +1628,27 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x6
 		i--
 		dAtA[i] = 0xf0
+	}
+	if len(m.S3CaFile) > 0 {
+		i -= len(m.S3CaFile)
+		copy(dAtA[i:], m.S3CaFile)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3CaFile)))
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xe2
+	}
+	if m.S3AllowInsecure {
+		i--
+		if m.S3AllowInsecure {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xd8
 	}
 	if m.S3SkipBucketProbe {
 		i--
@@ -2149,6 +2301,47 @@ func (m *ListenerAuth) SizeVT() (n int) {
 		l = (*durationpb.Duration)(m.FailureJitterMax).SizeVT()
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
+	l = len(m.RawTokenFile)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.HmacSharedKeyFile)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *Listener) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.Endpoint != nil {
+		l = m.Endpoint.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.Auth != nil {
+		l = m.Auth.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.AdminAuth != nil {
+		l = m.AdminAuth.SizeVT()
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.Serves) > 0 {
+		l = 0
+		for _, e := range m.Serves {
+			l += protohelpers.SizeOfVarint(uint64(e))
+		}
+		n += 1 + protohelpers.SizeOfVarint(uint64(l)) + l
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2262,6 +2455,10 @@ func (m *LinkMonitorConfig) SizeVT() (n int) {
 	}
 	l = len(m.IpListen)
 	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.LearnDeadline != nil {
+		l = (*durationpb.Duration)(m.LearnDeadline).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
@@ -2410,6 +2607,13 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.S3SkipBucketProbe {
 		n += 3
 	}
+	if m.S3AllowInsecure {
+		n += 3
+	}
+	l = len(m.S3CaFile)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
 	if m.S3ParquetFlushThresholdBytes != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3ParquetFlushThresholdBytes))
 	}
@@ -2474,6 +2678,12 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.GrpcListener != nil {
 		l = m.GrpcListener.SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.Listeners) > 0 {
+		for _, e := range m.Listeners {
+			l = e.SizeVT()
+			n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	l = len(m.PyroscopeUrl)
 	if l > 0 {
@@ -4187,6 +4397,330 @@ func (m *ListenerAuth) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RawTokenFile", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.RawTokenFile = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HmacSharedKeyFile", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HmacSharedKeyFile = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Listener) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return protohelpers.ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Listener: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Listener: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Endpoint", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Endpoint == nil {
+				m.Endpoint = &ListenerEndpoint{}
+			}
+			if err := m.Endpoint.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Auth", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Auth == nil {
+				m.Auth = &ListenerAuth{}
+			}
+			if err := m.Auth.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AdminAuth", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AdminAuth == nil {
+				m.AdminAuth = &ListenerAuth{}
+			}
+			if err := m.AdminAuth.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType == 0 {
+				var v EndpointClass
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= EndpointClass(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.Serves = append(m.Serves, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return protohelpers.ErrIntOverflow
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return protohelpers.ErrInvalidLength
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				if elementCount != 0 && len(m.Serves) == 0 {
+					m.Serves = make([]EndpointClass, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v EndpointClass
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return protohelpers.ErrIntOverflow
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= EndpointClass(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.Serves = append(m.Serves, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field Serves", wireType)
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
@@ -5080,6 +5614,42 @@ func (m *LinkMonitorConfig) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.IpListen = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 28:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LearnDeadline", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.LearnDeadline == nil {
+				m.LearnDeadline = &durationpb1.Duration{}
+			}
+			if err := (*durationpb.Duration)(m.LearnDeadline).UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -6144,6 +6714,58 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.S3SkipBucketProbe = bool(v != 0)
+		case 107:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3AllowInsecure", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.S3AllowInsecure = bool(v != 0)
+		case 108:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3CaFile", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3CaFile = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
 		case 110:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field S3ParquetFlushThresholdBytes", wireType)
@@ -6650,6 +7272,40 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				m.GrpcListener = &ListenerEndpoint{}
 			}
 			if err := m.GrpcListener.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 162:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Listeners", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Listeners = append(m.Listeners, &Listener{})
+			if err := m.Listeners[len(m.Listeners)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

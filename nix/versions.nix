@@ -55,6 +55,10 @@
   });
   inherit (pkgs) nixfmt;
 
+  # Supply chain: nix/checks/govulncheck.nix (with the offline database in
+  # nix/lib/govulndb.nix), the govulncheck-fresh app, and the CycloneDX SBOMs.
+  inherit (pkgs) govulncheck cyclonedx-gomod;
+
   # gRPC / proto inspection
   inherit (pkgs) grpcurl;
 
@@ -104,9 +108,10 @@
 
   # Destination flavors. Each maps to a list of `dest_<scheme>` build tags
   # appended to the binary's build. `null` means "all" — backward-compat
-  # default that pulls in every library destination (kafka/nats/nsq/valkey/s3parquet).
-  # Stdlib destinations (null/udp/unix/unixgram) are always compiled
-  # regardless of this list.
+  # default that pulls in every library destination (kafka/nats/nsq/valkey/s3parquet)
+  # plus the debug destinations below.
+  # Stdlib destinations (null/stdout/stderr/tcp/http/udp/unix/unixgram) are
+  # always compiled regardless of this list.
   #
   # See nix/binaries.nix for which flavors are surfaced as top-level attrs.
   destinationFlavors = {
@@ -129,6 +134,19 @@
     "valkey"
     "s3parquet"
   ];
+
+  # Debug destinations: stdlib code, but they write wherever configuration
+  # points them, so they are tag-gated like the library destinations and
+  # compiled only into the full (development) flavor — `destinations = null`.
+  # No slim (production) flavor carries them; nix/checks/flavor-tags.nix
+  # enforces that.
+  debugDestinations = [ "file" ];
+
+  # Build tags that no shipped flavor or image carries. `capture` compiles in
+  # the netlink capture writer (-writeFiles), which writes raw netlink replies
+  # to disk; it is reachable only through the dedicated `xtcp2-capture` attr.
+  # nix/checks/flavor-tags.nix fails if one of these reaches a flavor.
+  optInOnlyTags = [ "capture" ];
 
   # Enrichment flavors — the third build axis, alongside buildVariants and
   # destinationFlavors. Each maps to a list of `enrich_<feature>` build tags.
@@ -171,5 +189,5 @@
   # Go vendor hash. Update by running `nix build .#xtcp2` and pasting the
   # `got:` value from the hash mismatch error. Used by every Nix check that
   # needs deps in the sandbox (see nix/lib/goModules.nix).
-  goVendorHash = "sha256-23MHm3oQ4qgsIcCTKyYVBst7NuSZqBGGrbTSA3jwlf8=";
+  goVendorHash = "sha256-edC07JgIpw07SXDd1ieNNBGLhRvNDTkqNUIpmYUsx0Q=";
 }

@@ -1,0 +1,32 @@
+{
+ "cmd": "ip link set m0 type macvlan macaddr add 00:11:zz",
+ "desc": "negative: a macvlan macaddr add with a non-hex octet",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "v730lladdr/macvlan-zz",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add m0 link d0 type macvlan mode source"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev m0",
+   "name": "d"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add m0 link d0 type macvlan mode source",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

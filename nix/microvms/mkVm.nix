@@ -60,7 +60,22 @@ let
   # unconditionally (it is a cheap shell wrapper) but only put on the guest's
   # PATH by those flavors - see isNetlinkDriven in environment.systemPackages
   # below.
-  netlinkCaptureHelper = import ./netlink-capture.nix { inherit pkgs; };
+  #
+  # The goip-parity guest's helper is built against parityIproute2, so every
+  # `ip` it runs is the parity pin's.
+  netlinkCaptureHelper = import ./netlink-capture.nix {
+    pkgs = if isGoipParity then pkgs // { iproute2 = parityIproute2; } else pkgs;
+  };
+  # iproute2 7.3.0, the parity pin (nix/upstream-pins.json): the goip-parity
+  # guest's `ip`, `bridge` and `ss`, at hiPrio in environment.systemPackages
+  # below so it wins system-path over nixpkgs' 7.2.0. Only that guest gets
+  # it; overriding pkgs.iproute2 would rebuild everything that depends on it.
+  parityIproute2 = import ../iproute2-7-3-0.nix { inherit pkgs; };
+  # The BPF lwt object (nix/nlcap-lwt-bpf), which the goip-parity guest
+  # links at /run/nlcap-ws/lwt_bpf.o, the workbench's path, so its bpf encap
+  # rows read as the lwtenc corpus's (NX9-T01 of
+  # docs/netlink/goip-parity-next.md).
+  nlcapLwtBpf = import ../nlcap-lwt-bpf { inherit pkgs; };
   # The go-native RDMA capture script; the RDMA capture driver
   # (scripts/capture-rdma.exp) runs it in the netlink-driven guests.
   rdmaNativeCapture = import ../tests/rdma-native-capture.nix { inherit pkgs; };
@@ -149,12 +164,27 @@ let
   isMinimal = sink == "minimal";
   isTcpStress = sink == "tcp-stress";
   # uds-security exercises both operator-facing listener transports through
-  # the real packaged clients, with bearer auth enabled on both sockets.
+  # the real packaged clients, with bearer auth enabled on both sockets: the
+  # default metrics socket plus the documented gRPC socket.
   isUdsSecurity = sink == "uds-security";
   udsRuntimeDir = "/run/xtcp2";
   udsGrpcSocket = "${udsRuntimeDir}/grpc.sock";
-  udsPromSocket = "${udsRuntimeDir}/prometheus.sock";
-  udsAuthToken = "xtcp2-uds-integration-test-token";
+  udsPromSocket = "${udsRuntimeDir}/metrics.sock";
+  udsAuthToken = vmListenerToken;
+  # Every guest listener checks this token, which each scrape and client
+  # call sends. It is test data, not a deployment secret.
+  vmListenerToken = "xtcp2-vm-integration-test-token";
+  vmListenerTokenFile = "/etc/xtcp2/listener-token";
+  vmAuthHeader = ''-H "Authorization: Bearer $(cat ${vmListenerTokenFile})"'';
+  vmGrpcTcp =
+    port: "-network tcp -target 127.0.0.1 -port ${port} -auth-token-file ${vmListenerTokenFile}";
+  # The TCP listeners the VM checks scrape and dial. TCP needs a credential,
+  # so both check the test token; the gRPC listener serves every method
+  # under it (grpc-admin alone carries no read/admin split).
+  mkTcpListenerArgs = promPort: grpcPort: [
+    "-listener=name=prometheus,serves=health+metrics+metrics-detail,address=:${toString promPort},network=tcp,tokenFile=${vmListenerTokenFile}"
+    "-listener=name=grpc,serves=grpc-admin,address=:${toString grpcPort},network=tcp,tokenFile=${vmListenerTokenFile}"
+  ];
   # interface-naming = a docker-free host-ns flavor that proves xtcp2 names
   # interfaces correctly end-to-end. It builds two veth pairs (a peer netns holds
   # the far ends), runs the tcp_client/tcp_server generators bound to specific
@@ -319,6 +349,30 @@ let
   isLacpA = sink == "lacp-a";
   isLacpB = sink == "lacp-b";
   isLacpPair = isLacpA || isLacpB;
+  # nlcap-workbench = the quiet root guest kept up and driven over ssh, for
+  # capturing generated rows of iproute2 commands in seconds instead of a
+  # rebuild and a cold boot per change (docs/netlink/coverage-status.md,
+  # "Workbench and generated rows"; the host side is
+  # nix/microvms/workbench/xtcp2-nlcap-ws.nix).
+  #
+  # Two things make it cheap to keep up, and both are load-bearing:
+  #
+  #   - It does NOT get xtcp2AllPackage. Every other guest does, and that
+  #     package is built from the whole repository, so any edit to a test, a
+  #     doc or a fixture rebuilds ~35 Go derivations and changes the VM's
+  #     closure. This guest's closure depends only on nixpkgs and this file.
+  #
+  #   - The capture helper and the batch runner are NOT in its closure
+  #     either. The guest mounts the host's /nix/store over 9p (`shares`
+  #     below), so the host CLI builds them and runs them by store path. A
+  #     change to either is a host build of one small derivation, picked up
+  #     by the next ssh call, with no reboot.
+  #
+  # Its ssh key is ephemeral and never enters the store: the host CLI writes
+  # a fresh public key to ./authorized_keys in the directory it starts qemu
+  # from, qemu hands it over as a fw_cfg blob, and nlcap-ws-authorized-keys
+  # below installs it before sshd starts.
+  isNlcapWorkbench = sink == "nlcap-workbench";
   # The flavors that load the bonding module (see boot.kernelModules).
   needsBonding = isLinkWriteCapture || isGoipParity || isLacpPair;
   # The driven/quiet netlink flavors, which share a guest shape: no xtcp2
@@ -329,7 +383,12 @@ let
   # the guest shape alone: it captures nothing, but a daemon on the partner
   # would be one more thing that is not the switch it stands in for.
   isNetlinkQuiet =
-    isNlmonCapture || isNetlinkDumpCapture || isGoipParity || isLinkWriteCapture || isLacpPair;
+    isNlmonCapture
+    || isNetlinkDumpCapture
+    || isGoipParity
+    || isLinkWriteCapture
+    || isLacpPair
+    || isNlcapWorkbench;
   # The ones that are driven over the serial console by an expect script, as
   # opposed to nlmon-capture's baked-in oneshot. These are the ones that need
   # `xtcp2-nlcap` on the guest PATH.
@@ -346,6 +405,10 @@ let
       }
     else if isLacpB then
       cfg.lacpB
+    else if isNlcapWorkbench then
+      {
+        inherit (cfg.nlcapWs) hostname serialPort virtioPort;
+      }
     else
       {
         inherit (cfg) hostname serialPort virtioPort;
@@ -490,6 +553,7 @@ let
     inherit fileOutputPath;
     runUdsSecurityCheck = isUdsSecurity;
     inherit udsGrpcSocket udsPromSocket udsAuthToken;
+    listenerTokenFile = vmListenerTokenFile;
     # interface-naming flavor only: assert the bound + egress interface names.
     runInterfaceNamingCheck = isInterfaceNaming;
     ifnameBound = ifnBoundIf;
@@ -1051,7 +1115,7 @@ let
       # Each scrape is a JSON-shaped record so jq can post-process later.
       while true; do
         ts=$(date -u +%FT%TZ)
-        body=$(curl --silent --fail --max-time 5 \
+        body=$(curl --silent --fail --max-time 5 ${vmAuthHeader} \
           "http://127.0.0.1:${toString cfg.promPort}/metrics" \
           | grep '^xtcp_' || true)
         if [ -z "$body" ]; then
@@ -1489,12 +1553,12 @@ let
       # Sum a Poller counter row (function="Poller",variable=$1) from /metrics.
       # Handles integer or scientific-notation values (awk coerces both).
       poller_counter() {
-        curl --silent --fail --max-time 3 "$PROM" 2>/dev/null \
+        curl --silent --fail --max-time 3 ${vmAuthHeader} "$PROM" 2>/dev/null \
           | awk -v v="variable=\"$1\"" '
               /^xtcp_counts/ && index($0,"function=\"Poller\"")>0 && index($0,v)>0 { s += $NF + 0 }
               END { printf "%d", s+0 }'
       }
-      setfreq() { xtcp2ctl set-poll-frequency -frequency "$1" -timeout "$2" -target 127.0.0.1 -port "$GPORT" >/dev/null 2>&1; }
+      setfreq() { xtcp2ctl set-poll-frequency -frequency "$1" -timeout "$2" ${vmGrpcTcp ''"$GPORT"''} >/dev/null 2>&1; }
       # within_tol ACTUAL EXPECTED → true when |actual-expected|*100/expected <= TOL.
       within_tol() {
         local a="$1" e="$2" d
@@ -1526,7 +1590,7 @@ let
       # ── Ready gate: xtcp2 metrics up AND rows already flowing into ClickHouse.
       ready=0
       for _ in $(seq 1 90); do
-        if curl --silent --fail --max-time 3 "$PROM" 2>/dev/null | grep -q '^xtcp_'; then
+        if curl --silent --fail --max-time 3 ${vmAuthHeader} "$PROM" 2>/dev/null | grep -q '^xtcp_'; then
           r=$(ch_rows); r=''${r:-0}
           if [ "$r" -gt 0 ]; then ready=1; break; fi
         fi
@@ -1586,14 +1650,14 @@ let
       # poll counter advanced by >=6 and 6× the rows were produced AND delivered.
       setfreq 3600s 1s; sleep "$SETTLE"
       pe0=$(poller_counter envelopeRows)
-      xtcp2ctl trigger-poll -target 127.0.0.1 -port "$GPORT" >/dev/null 2>&1
+      xtcp2ctl trigger-poll ${vmGrpcTcp ''"$GPORT"''} >/dev/null 2>&1
       sleep 8
       pe1=$(poller_counter envelopeRows)
       perpoll=$(( pe1 - pe0 ))
 
       pr0=$(poller_counter pollRequestCh); be0=$(poller_counter envelopeRows)
       bc0=$(ch_rows); bc0=''${bc0:-0}
-      xtcp2ctl poll-burst -count 6 -interval 10s -target 127.0.0.1 -port "$GPORT" >/dev/null 2>&1
+      xtcp2ctl poll-burst -count 6 -interval 10s ${vmGrpcTcp ''"$GPORT"''} >/dev/null 2>&1
       sleep 80   # 6 × 10s spacing + ClickHouse consume lag
       pr1=$(poller_counter pollRequestCh); be1=$(poller_counter envelopeRows)
       bc1=$(ch_rows); bc1=''${bc1:-0}
@@ -1724,7 +1788,7 @@ let
       # No S3 probe — xtcp2 itself owns the upload counter we
       # rely on, so the metrics endpoint is the right readiness gate.
       for _ in $(seq 1 60); do
-        if curl --silent --fail --max-time 2 \
+        if curl --silent --fail --max-time 2 ${vmAuthHeader} \
              http://127.0.0.1:9088/metrics >/dev/null 2>&1; then
           break
         fi
@@ -1765,7 +1829,7 @@ let
 
       while true; do
         sleep "$interval"
-        metrics=$(curl --silent --fail --max-time 5 \
+        metrics=$(curl --silent --fail --max-time 5 ${vmAuthHeader} \
                        http://127.0.0.1:9088/metrics 2>/dev/null || echo "")
         files=$(get_counter "$metrics" 'variable="upload"')
         bytes=$(get_counter "$metrics" 'variable="uploadBytes"')
@@ -2223,6 +2287,8 @@ let
     [
       "-dest"
       "s3parquet:http://127.0.0.1:9000"
+      # The in-VM Garage fixture is plaintext http; xtcp2 refuses that without the opt-in.
+      "-s3AllowInsecure"
       "-marshal"
       "protobufList"
       "-frequency"
@@ -2277,6 +2343,8 @@ let
   xtcp2ClickPipeParquetArgs = [
     "-dest"
     "s3parquet:http://127.0.0.1:9000"
+    # The in-VM Garage fixture is plaintext http; xtcp2 refuses that without the opt-in.
+    "-s3AllowInsecure"
     "-marshal"
     "protobufList"
     "-frequency"
@@ -2291,11 +2359,8 @@ let
     "xtcp2testsecretkey"
     "-s3ParquetFlushBytes"
     "262144"
-    "-promListen"
-    ":9089"
-    "-grpcPort"
-    "8890"
-  ];
+  ]
+  ++ mkTcpListenerArgs 9089 8890;
 
   # Both the basic and coverage flavors override the default dest. The
   # default in cmd/xtcp2 is `kafka:redpanda-0:9092` which makes the kafka
@@ -2350,29 +2415,13 @@ let
     "1s"
   ];
 
-  # UDS security flavor: private sockets plus a deterministic fixture token.
-  # This token is test data, not a deployment secret. The two *UnlinkStale*
-  # flags are Go bools, so their value must be attached (`-name=true`): a
-  # separate "true" is a positional argument, which xtcp2 rejects.
+  # UDS security flavor: the default metrics socket (the shape xtcp2 serves
+  # with no -listener) and the documented gRPC socket, both 0600 with the
+  # test token; the gRPC socket splits read and admin, with the same token
+  # file for both.
   xtcp2UdsSecurityArgs = xtcp2FileArgs ++ [
-    "-grpcListenNetwork"
-    "unix"
-    "-grpcListenAddress"
-    udsGrpcSocket
-    "-grpcUnixSocketMode"
-    "384"
-    "-grpcUnlinkStaleUnixSocket=true"
-    "-promListenNetwork"
-    "unix"
-    "-promListen"
-    udsPromSocket
-    "-promUnixSocketMode"
-    "384"
-    "-promUnlinkStaleUnixSocket=true"
-    "-listenerAuthMode"
-    "raw"
-    "-listenerRawToken"
-    udsAuthToken
+    "-listener=name=metrics,serves=health+metrics+metrics-detail,address=${udsPromSocket},tokenFile=${vmListenerTokenFile}"
+    "-listener=name=grpc,serves=grpc-read+grpc-admin,address=${udsGrpcSocket},tokenFile=${vmListenerTokenFile},adminTokenFile=${vmListenerTokenFile}"
     "-listenerAuthFailureJitterMin"
     "0s"
     "-listenerAuthFailureJitterMax"
@@ -2495,6 +2544,8 @@ let
   xtcp2S3ParquetArgs = [
     "-dest"
     "s3parquet:http://127.0.0.1:9000"
+    # The in-VM Garage fixture is plaintext http; xtcp2 refuses that without the opt-in.
+    "-s3AllowInsecure"
     "-marshal"
     "protobufList"
     "-frequency"
@@ -2629,8 +2680,11 @@ in
 
         microvm = {
           hypervisor = "qemu";
-          mem = effectiveMem;
-          inherit (cfg) vcpu;
+          mem = if isNlcapWorkbench then cfg.nlcapWs.mem else effectiveMem;
+          # The workbench runs `-j N` rows at once, each a tcpdump, the
+          # command and the helper's filtering; at 2 vCPUs -j 4 measured
+          # 0.95 s a row. See constants.nix nlcapWs.
+          vcpu = if isNlcapWorkbench then cfg.nlcapWs.vcpu else cfg.vcpu;
           cpu = if cfg.useKvm then null else cfg.qemuCpu;
           # Default: no disk. /var/lib/docker lives on the root tmpfs.
           # For clickhouse-pipeline this proved a problem at hour ~1
@@ -2820,6 +2874,16 @@ in
                 guest.port = 9090;
               }
             ]
+            ++ lib.optionals isNlcapWorkbench [
+              # The workbench's sshd, on loopback only: the key is the only
+              # credential, and nothing off this host has any business here.
+              {
+                from = "host";
+                host.address = "127.0.0.1";
+                host.port = cfg.nlcapWs.sshPort;
+                guest.port = 22;
+              }
+            ]
             ++ lib.optionals isClickPipeParquet [
               # Second xtcp2 instance's prom + grpc — the secondary
               # parquet-writing instance binds these (encoded in
@@ -2873,11 +2937,35 @@ in
               ))
             ]
             # The lacp pair's two dgram links; empty for every other flavor.
-            ++ lacpNicArgs;
+            ++ lacpNicArgs
+            # The workbench's ephemeral ssh key. A relative path, resolved in
+            # the directory the host CLI starts qemu from (its state dir), so
+            # the key is chosen at `up` time and never baked into the runner.
+            ++ lib.optionals isNlcapWorkbench [
+              "-fw_cfg"
+              "name=opt/xtcp2/authorized_keys,file=authorized_keys"
+            ];
           };
         };
 
         boot.kernelPackages = pkgs.linuxPackages_latest;
+        # The workbench and the goip-parity guest add the RPL and IOAM6
+        # lwtunnels, which the stock kernel lacks (its `encap rpl` and
+        # `encap ioam6` are ENOTSUP): the workbench so the lwtenc family can
+        # capture them (NC8-T01 in docs/netlink/goip-parity-next.md), the
+        # parity guest so its rpl and ioam6 rows install (NX9-T01). One
+        # patch, so both build the same kernel. Same version, so the corpus
+        # directory does not move; every other flavor keeps the stock kernel.
+        boot.kernelPatches = lib.optionals (isNlcapWorkbench || isGoipParity) [
+          {
+            name = "nlcap-lwtunnels";
+            patch = null;
+            structuredExtraConfig = with lib.kernel; {
+              IPV6_RPL_LWTUNNEL = yes;
+              IPV6_IOAM6_LWTUNNEL = yes;
+            };
+          }
+        ];
         boot.kernelParams = [
           "console=ttyS0,115200"
           "console=hvc0"
@@ -2914,6 +3002,10 @@ in
         ]
         ++ lib.optionals isCoverage [
           "d ${coverDir} 0755 root root -"
+        ]
+        ++ lib.optionals isGoipParity [
+          "d /run/nlcap-ws 0755 root root -"
+          "L+ /run/nlcap-ws/lwt_bpf.o - - - - ${nlcapLwtBpf}/lwt_bpf.o"
         ];
 
         # GOCOVERDIR for the coverage-instrumented xtcp2 build. The runtime
@@ -2930,10 +3022,6 @@ in
           })
           (lib.mkIf isUdsSecurity {
             environment = {
-              PROM_LISTEN_NETWORK = "unix";
-              PROM_LISTEN = udsPromSocket;
-              LISTENER_AUTH_MODE = "raw";
-              LISTENER_RAW_TOKEN = udsAuthToken;
               LISTENER_AUTH_FAILURE_JITTER_MIN = "0s";
               LISTENER_AUTH_FAILURE_JITTER_MAX = "0s";
             };
@@ -2982,6 +3070,11 @@ in
           };
         };
 
+        environment.etc."xtcp2/listener-token" = {
+          text = vmListenerToken;
+          mode = "0600";
+        };
+
         services.getty.autologinUser = "root";
         systemd.enableEmergencyMode = false;
 
@@ -3003,121 +3096,124 @@ in
           package = xtcp2Package;
           configFile = vmConfig;
           extraArgs =
-            if isCoverage then
-              xtcp2CoverageArgs
-            else if isClickPipeRate then
-              # Rate test: kafka pipeline with poll jitter disabled for a
-              # deterministic per-window poll count (see xtcp2ClickPipeRateArgs).
-              xtcp2ClickPipeRateArgs
-            else if isClickHttp then
-              # Direct HTTP→ClickHouse: insert straight into CH over HTTP,
-              # bypassing Kafka (must come before isAnyClickPipe, which it is
-              # a member of, so it doesn't fall into the kafka-dest branch).
-              xtcp2ClickHttpArgs
-            else if isClickPipeStress then
-              # Kafka pipeline + container-id resolution (before isAnyClickPipe).
-              xtcp2ClickPipeStressArgs
-            else if isClickPipe then
-              # Plain kafka pipeline + metadata enrichment (container/nic/lldp/
-              # nsid). Enrichers are best-effort; the ENRICH_* self-test checks
-              # assert they reach ClickHouse. Must precede isAnyClickPipe (of
-              # which isClickPipe is a member).
-              xtcp2ClickPipeEnrichArgs
-            else if isAnyClickPipe then
-              # Phase E: produce to redpanda → clickhouse via kafka dest.
-              # The mixed flavor uses these args for its primary xtcp2
-              # instance (kafka path); a second instance writing parquet
-              # is declared separately below.
-              xtcp2ClickPipeArgs
-            else if isS3Parquet then
-              # s3parquet lifecycle flavor: 1 MiB flush threshold so the
-              # 90 s boot exercise triggers a finalize+upload.
-              xtcp2S3ParquetArgs
-            else if isS3ParquetLong || isCapCheckFail then
-              # s3parquet-long flavor: production 63 MiB flush threshold,
-              # 10 s polling. Pairs with mkS3ParquetRunner.
-              # capcheck-fail reuses the same args (so the daemon's
-              # config is otherwise valid; the capability check is the
-              # only thing that fails).
-              xtcp2S3ParquetLongArgs
-            else if isS3ParquetStress then
-              # s3parquet-stress flavor: production parquet config under the
-              # tcp-stress load containers. Pairs with mkS3ParquetStressRunner.
-              xtcp2S3ParquetStressArgs
-            else if isS3ParquetLowfreq then
-              # s3parquet-lowfreq: 1h poll + 2 sockets/container — timer-only
-              # parquet flush. Reuses mkS3ParquetStressRunner.
-              xtcp2S3ParquetLowfreqArgs
-            else if isValkey then
-              # valkey flavor: PUBLISH each poll's records to the in-VM Valkey
-              # pub/sub channel; the self-test's subscriber counts deliveries.
-              xtcp2ValkeyArgs
-            else if isNats then
-              # nats flavor: PUBLISH each poll's records to the in-VM NATS
-              # subject; the self-test's subscriber counts deliveries.
-              xtcp2NatsArgs
-            else if isNsq then
-              # nsq flavor: PUBLISH each poll's records to the in-VM nsqd topic;
-              # the self-test reads nsqd's per-channel finish_count.
-              xtcp2NsqArgs
-            else if isInterfaceNaming then
-              # interface-naming: jsonl to a file (so the IFNAME check can read
-              # the enrich_socket_*_ifname fields) + the locality enricher, kept
-              # current by -localityEvents. The 10m refresh is only the
-              # listener's backstop, so it never runs inside the self-test: a
-              # change xtcp2 sees (the veths if it raced ahead, the
-              # LOCALITY_EVENTS check's address) has to come from the listener.
-              # -enrichAsn against the collector-produced artifact; the 5s
-              # -asnRefreshInterval is what picks the late-arriving file up (see
-              # asnDbPath above).
-              (
+            (
+              if isCoverage then
+                xtcp2CoverageArgs
+              else if isClickPipeRate then
+                # Rate test: kafka pipeline with poll jitter disabled for a
+                # deterministic per-window poll count (see xtcp2ClickPipeRateArgs).
+                xtcp2ClickPipeRateArgs
+              else if isClickHttp then
+                # Direct HTTP→ClickHouse: insert straight into CH over HTTP,
+                # bypassing Kafka (must come before isAnyClickPipe, which it is
+                # a member of, so it doesn't fall into the kafka-dest branch).
+                xtcp2ClickHttpArgs
+              else if isClickPipeStress then
+                # Kafka pipeline + container-id resolution (before isAnyClickPipe).
+                xtcp2ClickPipeStressArgs
+              else if isClickPipe then
+                # Plain kafka pipeline + metadata enrichment (container/nic/lldp/
+                # nsid). Enrichers are best-effort; the ENRICH_* self-test checks
+                # assert they reach ClickHouse. Must precede isAnyClickPipe (of
+                # which isClickPipe is a member).
+                xtcp2ClickPipeEnrichArgs
+              else if isAnyClickPipe then
+                # Phase E: produce to redpanda → clickhouse via kafka dest.
+                # The mixed flavor uses these args for its primary xtcp2
+                # instance (kafka path); a second instance writing parquet
+                # is declared separately below.
+                xtcp2ClickPipeArgs
+              else if isS3Parquet then
+                # s3parquet lifecycle flavor: 1 MiB flush threshold so the
+                # 90 s boot exercise triggers a finalize+upload.
+                xtcp2S3ParquetArgs
+              else if isS3ParquetLong || isCapCheckFail then
+                # s3parquet-long flavor: production 63 MiB flush threshold,
+                # 10 s polling. Pairs with mkS3ParquetRunner.
+                # capcheck-fail reuses the same args (so the daemon's
+                # config is otherwise valid; the capability check is the
+                # only thing that fails).
+                xtcp2S3ParquetLongArgs
+              else if isS3ParquetStress then
+                # s3parquet-stress flavor: production parquet config under the
+                # tcp-stress load containers. Pairs with mkS3ParquetStressRunner.
+                xtcp2S3ParquetStressArgs
+              else if isS3ParquetLowfreq then
+                # s3parquet-lowfreq: 1h poll + 2 sockets/container — timer-only
+                # parquet flush. Reuses mkS3ParquetStressRunner.
+                xtcp2S3ParquetLowfreqArgs
+              else if isValkey then
+                # valkey flavor: PUBLISH each poll's records to the in-VM Valkey
+                # pub/sub channel; the self-test's subscriber counts deliveries.
+                xtcp2ValkeyArgs
+              else if isNats then
+                # nats flavor: PUBLISH each poll's records to the in-VM NATS
+                # subject; the self-test's subscriber counts deliveries.
+                xtcp2NatsArgs
+              else if isNsq then
+                # nsq flavor: PUBLISH each poll's records to the in-VM nsqd topic;
+                # the self-test reads nsqd's per-channel finish_count.
+                xtcp2NsqArgs
+              else if isInterfaceNaming then
+                # interface-naming: jsonl to a file (so the IFNAME check can read
+                # the enrich_socket_*_ifname fields) + the locality enricher, kept
+                # current by -localityEvents. The 10m refresh is only the
+                # listener's backstop, so it never runs inside the self-test: a
+                # change xtcp2 sees (the veths if it raced ahead, the
+                # LOCALITY_EVENTS check's address) has to come from the listener.
+                # -enrichAsn against the collector-produced artifact; the 5s
+                # -asnRefreshInterval is what picks the late-arriving file up (see
+                # asnDbPath above).
+                (
+                  xtcp2FileArgs
+                  ++ [
+                    "-enrichLocality"
+                    "-localityEvents"
+                    "-localityRefreshInterval"
+                    "10m"
+                    "-enrichAsn"
+                    "-asnDbPath"
+                    asnDbPath
+                    "-asnRefreshInterval"
+                    "5s"
+                    "-ipmetaBootstrapPath"
+                    ""
+                    "-ipmetaCachePath"
+                    asnCachePath
+                  ]
+                )
+              else if isIpmetaBootstrap then
+                (
+                  xtcp2FileArgs
+                  ++ [
+                    "-enrichAsn"
+                    "-asnDbPath"
+                    ipmetaDbPath
+                    "-asnRefreshInterval"
+                    "5s"
+                    "-ipmetaBootstrapPath"
+                    ipmetaBootstrapPath
+                    "-ipmetaCachePath"
+                    ipmetaCachePath
+                  ]
+                )
+              else if isMinimal then
+                # minimal (lifecycle) writes jsonl to a file so OUTPUT_CONTENT
+                # can validate the daemon's serialized output.
                 xtcp2FileArgs
-                ++ [
-                  "-enrichLocality"
-                  "-localityEvents"
-                  "-localityRefreshInterval"
-                  "10m"
-                  "-enrichAsn"
-                  "-asnDbPath"
-                  asnDbPath
-                  "-asnRefreshInterval"
-                  "5s"
-                  "-ipmetaBootstrapPath"
-                  ""
-                  "-ipmetaCachePath"
-                  asnCachePath
-                ]
-              )
-            else if isIpmetaBootstrap then
-              (
-                xtcp2FileArgs
-                ++ [
-                  "-enrichAsn"
-                  "-asnDbPath"
-                  ipmetaDbPath
-                  "-asnRefreshInterval"
-                  "5s"
-                  "-ipmetaBootstrapPath"
-                  ipmetaBootstrapPath
-                  "-ipmetaCachePath"
-                  ipmetaCachePath
-                ]
-              )
-            else if isMinimal then
-              # minimal (lifecycle) writes jsonl to a file so OUTPUT_CONTENT
-              # can validate the daemon's serialized output.
-              xtcp2FileArgs
-            else if isUdsSecurity then
-              xtcp2UdsSecurityArgs
-            else if isSocketSink then
-              # socket-sink: stream jsonl over the raw tcp/udp/unix/unixgram
-              # dest to the ncat sink.
-              xtcp2SocketSinkArgs
-            else
-              # Soak reuses the basic args (`-dest null`, fast frequency).
-              # The point of soak is namespace + netlink churn, not
-              # downstream destination throughput.
-              xtcp2BasicArgs;
+              else if isUdsSecurity then
+                xtcp2UdsSecurityArgs
+              else if isSocketSink then
+                # socket-sink: stream jsonl over the raw tcp/udp/unix/unixgram
+                # dest to the ncat sink.
+                xtcp2SocketSinkArgs
+              else
+                # Soak reuses the basic args (`-dest null`, fast frequency).
+                # The point of soak is namespace + netlink churn, not
+                # downstream destination throughput.
+                xtcp2BasicArgs
+            )
+            ++ lib.optionals (!isUdsSecurity) (mkTcpListenerArgs cfg.promPort cfg.grpcPort);
           # capcheck-fail intentionally drops CAP_SYS_ADMIN. Anything
           # else gets the default full set.
           capabilities = lib.mkIf isCapCheckFail [
@@ -3712,6 +3808,9 @@ in
           scrapeConfigs = [
             {
               job_name = "xtcp2";
+              # The test token inline: the prometheus user cannot read the
+              # root-only token file.
+              authorization.credentials = vmListenerToken;
               static_configs = [
                 {
                   targets = [ "127.0.0.1:${toString cfg.promPort}" ];
@@ -4057,7 +4156,57 @@ in
           ]
           ++ lib.optional isNetlinkDumpCapture "bridge"
           ++ lib.optional needsBonding "bonding"
+          # The workbench's ssh key arrives as a fw_cfg blob; see
+          # nlcap-ws-authorized-keys.
+          ++ lib.optional isNlcapWorkbench "qemu_fw_cfg"
         );
+
+        # The workbench execs thousands of short processes (tcpdump, ip, tc,
+        # the helper's coreutils) out of the 9p /nix/store, and microvm.nix
+        # mounts it with no cache option, i.e. cache=none: every open, stat
+        # and page is a round trip to the host. Measured: `ip -V` 0.4 s, one
+        # write row 10 s. cache=loose lets the guest keep dentries, inodes and
+        # pages. That is safe for a store, whose paths never change once
+        # built; a path the host builds after boot has a name the guest has
+        # never looked up, so no stale entry can hide it.
+        fileSystems."/nix/store".options = lib.mkIf isNlcapWorkbench [ "cache=loose" ];
+
+        # The workbench is driven over ssh rather than the serial console.
+        # Keys only, root only: the guest is a throwaway with nothing on it,
+        # and the host side is a loopback hostfwd.
+        services.openssh = lib.mkIf isNlcapWorkbench {
+          enable = true;
+          settings = {
+            PermitRootLogin = "prohibit-password";
+            PasswordAuthentication = false;
+            KbdInteractiveAuthentication = false;
+          };
+        };
+
+        # Install the host CLI's ephemeral public key before sshd can accept
+        # a connection. qemu_fw_cfg exposes the blob under by_name; it is
+        # root-only, which is why this is a oneshot rather than an
+        # AuthorizedKeysCommand (sshd refuses to run that as root).
+        systemd.services.nlcap-ws-authorized-keys = lib.mkIf isNlcapWorkbench {
+          description = "nlcap workbench: install the host's ephemeral ssh key";
+          wantedBy = [ "multi-user.target" ];
+          before = [ "sshd.service" ];
+          requiredBy = [ "sshd.service" ];
+          path = [ pkgs.kmod ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+          };
+          script = ''
+            set -eu
+            modprobe qemu_fw_cfg 2>/dev/null || true
+            src=/sys/firmware/qemu_fw_cfg/by_name/opt/xtcp2/authorized_keys/raw
+            [ -r "$src" ] || { echo "NLCAP_WS_NOKEY $src" >&2; exit 1; }
+            install -d -m 700 /root/.ssh
+            install -m 600 "$src" /root/.ssh/authorized_keys
+            echo "NLCAP_WS_KEY_OK"
+          '';
+        };
 
         # `bonding` is for link-write-capture, for goip-parity's write rows
         # (link-write-path.md phase 7) and for both VMs of the lacp pair
@@ -4194,7 +4343,7 @@ in
         environment.systemPackages =
           (with pkgs; [
             coreutils
-            iproute2
+            (if isGoipParity then lib.hiPrio parityIproute2 else iproute2)
             netcat-gnu
             tcpdump
             curl
@@ -4236,7 +4385,24 @@ in
               rdmaNativeCapture
             ]
           )
-          ++ [ xtcp2AllPackage ];
+          # The workbench's tools for the families the generated rows cover.
+          # The capture helper and batch runner are deliberately absent: the
+          # host CLI runs them by store path (see isNlcapWorkbench).
+          ++ lib.optionals isNlcapWorkbench (
+            with pkgs;
+            [
+              kmod
+              gzip
+              gnutar
+              ethtool
+              conntrack-tools
+              ipset
+              python3
+            ]
+          )
+          # Every flavor but the workbench, which must not depend on the
+          # repository's source (see isNlcapWorkbench).
+          ++ lib.optionals (!isNlcapWorkbench) [ xtcp2AllPackage ];
       }
     )
   ];

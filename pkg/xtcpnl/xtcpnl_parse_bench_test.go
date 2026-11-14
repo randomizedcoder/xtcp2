@@ -36,12 +36,18 @@ var (
 
 // corpusAll returns every message in the DLT 253 pcaps under testdata, in
 // path order, read once per test binary. pcapng files and other link types
-// are skipped.
+// are skipped, and so is the 7.3.0 link-write set: it is a second capture of
+// the 7.1.4 set's rows (plus the kind corpus, which the kind tests read from
+// tdLinkWrite_7_3_0 directly), and the tallies the corpus tests assert count
+// one capture of each row.
 func corpusAll(tb testing.TB) []corpusMsg {
 	tb.Helper()
 	corpusOnce.Do(func() {
 		var paths []string
 		err := filepath.WalkDir(tdBase, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && d.IsDir() && path == filepath.Clean(tdLinkWrite_7_3_0) {
+				return fs.SkipDir
+			}
 			if err == nil && !d.IsDir() && strings.HasSuffix(path, ".pcap") {
 				paths = append(paths, path)
 			}
@@ -95,7 +101,19 @@ type benchKind struct {
 	cmds    []uint8
 	origin  benchOrigin
 	request bool
+	corpus  benchCorpus
 }
+
+// benchCorpus is the capture set a kind's picks come from: the corpusAll
+// set, or the brmpls rows, which corpusAll skips with the rest of the 7.3.0
+// link-write set and which hold the only AF_BRIDGE FDB, RTM_NEWVLAN and
+// AF_MPLS messages.
+type benchCorpus uint8
+
+const (
+	allCorpus benchCorpus = iota
+	brmplsCorpus
+)
 
 // benchOrigin narrows the kernel's messages by nlmsg_pid: an answer, a dump
 // included, carries the requester's port id, and a multicast event 0.
@@ -114,6 +132,13 @@ func rtnl(typ uint16) benchKind { return benchKind{proto: unix.NETLINK_ROUTE, ty
 // sends.
 func rtnlRequest(typ uint16) benchKind {
 	return benchKind{proto: unix.NETLINK_ROUTE, typ: typ, request: true}
+}
+
+// brmpls is the kernel's rtnetlink messages of type typ in the brmpls rows.
+func brmpls(typ uint16) benchKind {
+	k := rtnl(typ)
+	k.corpus = brmplsCorpus
+	return k
 }
 
 // xfrm is the NETLINK_XFRM messages of type typ.
@@ -148,7 +173,7 @@ func genlCmds(family string, cmds ...uint8) benchKind {
 
 // String is the kind as TestParseBenchCases pins it: proto/type or
 // proto/family, then /cmd and the commands, /answers or /events, then
-// /request for ip's requests.
+// /request for ip's requests, and @brmpls for a kind of the brmpls rows.
 func (k benchKind) String() string {
 	s := strconv.Itoa(int(k.proto)) + "/" + strconv.Itoa(int(k.typ))
 	if k.family != "" {
@@ -170,6 +195,11 @@ func (k benchKind) String() string {
 	}
 	if k.request {
 		s += "/request"
+	}
+	switch k.corpus {
+	case allCorpus:
+	case brmplsCorpus:
+		s += "@brmpls"
 	}
 	return s
 }
@@ -220,11 +250,44 @@ func benchPick(msgs []corpusMsg, k benchKind) []benchRecord {
 	}
 }
 
-// benchRecords is benchPick over the committed corpus. A kind the corpus
-// has no kernel message of fails the benchmark.
+// brmplsOnce and brmplsMsgs are corpusOnce and corpusMsgs for the brmpls
+// rows.
+var (
+	brmplsOnce sync.Once
+	brmplsMsgs []corpusMsg
+)
+
+// corpusBrMpls returns every message in the brmpls rows' pcaps, in path
+// order, read once per test binary.
+func corpusBrMpls(tb testing.TB) []corpusMsg {
+	tb.Helper()
+	brmplsOnce.Do(func() {
+		paths, err := filepath.Glob(filepath.Join(tdBrMpls_7_3_0, "*", "*.pcap"))
+		if err != nil {
+			tb.Fatal(err)
+		}
+		for _, path := range paths {
+			for _, m := range pcapNlMsgs(tb, path) {
+				brmplsMsgs = append(brmplsMsgs, corpusMsg{path: path, m: m})
+			}
+		}
+	})
+	if len(brmplsMsgs) == 0 {
+		tb.Fatal("the brmpls rows hold no netlink messages")
+	}
+	return brmplsMsgs
+}
+
+// benchRecords is benchPick over the committed corpus, or the brmpls rows
+// for a kind of theirs. A kind with no kernel message there fails the
+// benchmark.
 func benchRecords(tb testing.TB, k benchKind) []benchRecord {
 	tb.Helper()
-	recs := benchPick(corpusAll(tb), k)
+	msgs := corpusAll(tb)
+	if k.corpus == brmplsCorpus {
+		msgs = corpusBrMpls(tb)
+	}
+	recs := benchPick(msgs, k)
 	if recs == nil {
 		tb.Fatalf("no kernel message of kind %s in the corpus", k)
 	}
@@ -265,6 +328,7 @@ var (
 	resultXfrmInf XfrmInfo
 	resultXfrmEv  XfrmEvent
 	resultToken   LinkToken
+	resultBrVlan  BrVlanInfo
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -292,8 +356,8 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseNlMsgErr", kind: rtnl(unix.NLMSG_ERROR), parse: func(h NlMsgHdr, b []byte) (err error) { resultNlErr, err = ParseNlMsgErr(h.Flags, b); return err }},
 	{name: "ParseRtnetlinkEvent", kind: rtnl(unix.RTM_DELLINK), parse: func(h NlMsgHdr, b []byte) (err error) { resultEvent, err = ParseRtnetlinkEvent(h.Type, b); return err }},
 	{name: "ParseGenericNetlink", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultGenl, err = ParseGenericNetlink(b); return err }},
-	{name: "ParseGenericNetlinkFamily", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultFamily, err = ParseGenericNetlinkFamily(b); return err }},
-	{name: "ParseEthtool", kind: genl("ethtool"), parse: func(h NlMsgHdr, b []byte) (err error) { resultEthtool, err = ParseEthtool(b, h.Flags); return err }},
+	{name: "ParseGenericNetlinkFamily", kind: genlCmds("nlctrl", unix.CTRL_CMD_NEWFAMILY), parse: func(_ NlMsgHdr, b []byte) (err error) { resultFamily, err = ParseGenericNetlinkFamily(b); return err }},
+	{name: "ParseEthtool", kind: genlCmds("ethtool", ethtoolBenchCmds...), parse: func(h NlMsgHdr, b []byte) (err error) { resultEthtool, err = ParseEthtool(b, h.Flags); return err }},
 	{name: "ParseNsid", kind: rtnl(unix.RTM_NEWNSID), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNsid, err = ParseNsid(b); return err }},
 	{name: "ParseNexthopBucket", kind: rtnl(unix.RTM_NEWNEXTHOPBUCKET), parse: func(_ NlMsgHdr, b []byte) (err error) { resultBucket, err = ParseNexthopBucket(b); return err }},
 	{name: "ParseLinkProp", kind: rtnlRequest(unix.RTM_NEWLINKPROP), parse: func(_ NlMsgHdr, b []byte) (err error) { resultProp, err = ParseLinkProp(b); return err }},
@@ -313,6 +377,9 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseXfrmInfo", kind: xfrm(XfrmMsgNewSPDInfo), parse: func(h NlMsgHdr, b []byte) (err error) { resultXfrmInf, err = ParseXfrmInfo(h, b); return err }},
 	{name: "ParseXfrmEvent", kind: xfrm(XfrmMsgAcquire), parse: func(h NlMsgHdr, b []byte) (err error) { resultXfrmEv, err = ParseXfrmEvent(h, b); return err }},
 	{name: "ParseLinkToken", kind: rtnl(unix.RTM_NEWLINK), parse: func(_ NlMsgHdr, b []byte) (err error) { resultToken, err = ParseLinkToken(b); return err }},
+	{name: "ParseNeighFDB", kind: brmpls(unix.RTM_NEWNEIGH), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNeigh, err = ParseNeigh(b); return err }},
+	{name: "ParseBrVlan", kind: brmpls(unix.RTM_NEWVLAN), parse: func(_ NlMsgHdr, b []byte) (err error) { resultBrVlan, err = ParseBrVlan(b); return err }},
+	{name: "ParseNewRouteMPLS", kind: brmpls(unix.RTM_NEWROUTE), parse: func(_ NlMsgHdr, b []byte) (err error) { resultRoute, err = ParseNewRoute(b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -396,8 +463,15 @@ func BenchmarkParseGenericNetlink(b *testing.B) { benchParse(b, "ParseGenericNet
 func BenchmarkParseGenericNetlinkFamily(b *testing.B) { benchParse(b, "ParseGenericNetlinkFamily") }
 
 // BenchmarkParseEthtool decodes the smallest, a typical and the largest
-// ethtool message the kernel sent in the corpus.
+// ethtool message the kernel sent in the corpus, of the commands
+// ParseEthtool classifies.
 func BenchmarkParseEthtool(b *testing.B) { benchParse(b, "ParseEthtool") }
+
+// ethtoolBenchCmds are the kernel's ethtool commands ParseEthtool
+// classifies: each *_GET_REPLY and *_NTF of classifyEthtoolCommand. The
+// workbench rows also capture replies it doesn't, such as FEATURES and
+// TSINFO.
+var ethtoolBenchCmds = []uint8{2, 3, 4, 5, 6, 16, 17, 18, 19, 20, 21, 22, 23, 30, 31}
 
 // BenchmarkParseNsid decodes the smallest, a typical and the largest
 // RTM_NEWNSID the corpus holds (P1-T01).
@@ -480,6 +554,20 @@ func BenchmarkParseXfrmEvent(b *testing.B) { benchParse(b, "ParseXfrmEvent") }
 // BenchmarkParseLinkToken decodes the smallest, a typical and the largest
 // RTM_NEWLINK the corpus holds for `ip token` (G4-T03).
 func BenchmarkParseLinkToken(b *testing.B) { benchParse(b, "ParseLinkToken") }
+
+// BenchmarkParseNeighFDB decodes the smallest, a typical and the largest
+// RTM_NEWNEIGH of the brmpls rows: bridge FDB entries, with NDA_MASTER and
+// NDA_VLAN.
+func BenchmarkParseNeighFDB(b *testing.B) { benchParse(b, "ParseNeighFDB") }
+
+// BenchmarkParseBrVlan decodes the smallest, a typical and the largest
+// RTM_NEWVLAN of the brmpls rows.
+func BenchmarkParseBrVlan(b *testing.B) { benchParse(b, "ParseBrVlan") }
+
+// BenchmarkParseNewRouteMPLS decodes the smallest, a typical and the
+// largest RTM_NEWROUTE of the brmpls rows: AF_MPLS routes and routes with an
+// MPLS encap.
+func BenchmarkParseNewRouteMPLS(b *testing.B) { benchParse(b, "ParseNewRouteMPLS") }
 
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
@@ -635,11 +723,12 @@ func TestParseBenchCases(t *testing.T) {
 			expected: "ParseNewLink=0/16 ParseNewRoute=0/24 ParseNewAddr=0/20 ParseNeigh=0/28 ParseRule=0/32 ParseNewNexthop=0/104" +
 				" ParseNewAddrLabel=0/72 ParseNewNeighTbl=0/64 ParseNewNetconf=0/80 ParseNewStats=0/92" +
 				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
-				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
+				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl/cmd1 ParseEthtool=16/ethtool/cmd2,3,4,5,6,16,17,18,19,20,21,22,23,30,31" +
 				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
 				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1" +
 				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events ParseFOU=16/fou ParseILA=16/ila ParseL2TP=16/l2tp ParseMacsec=16/macsec" +
-				" ParseXfrmState=6/16 ParseXfrmPolicy=6/19 ParseXfrmInfo=6/36 ParseXfrmEvent=6/23 ParseLinkToken=0/16",
+				" ParseXfrmState=6/16 ParseXfrmPolicy=6/19 ParseXfrmInfo=6/36 ParseXfrmEvent=6/23 ParseLinkToken=0/16" +
+				" ParseNeighFDB=0/28@brmpls ParseBrVlan=0/112@brmpls ParseNewRouteMPLS=0/24@brmpls",
 		},
 	}
 	for _, tt := range tests {
@@ -693,6 +782,9 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseXfrmInfo decodes its three NEWSPDINFO picks", name: "ParseXfrmInfo", expected: "smallest ok, typical ok, largest ok"},
 		{description: "boundary: ParseXfrmEvent decodes its one ACQUIRE, picked three times", name: "ParseXfrmEvent", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseLinkToken decodes its three RTM_NEWLINK picks", name: "ParseLinkToken", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNeighFDB decodes its three bridge FDB picks", name: "ParseNeighFDB", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseBrVlan decodes its three RTM_NEWVLAN picks", name: "ParseBrVlan", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNewRouteMPLS decodes its three MPLS route picks", name: "ParseNewRouteMPLS", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
@@ -726,8 +818,8 @@ func TestParseBenchAllocs(t *testing.T) {
 		name        string
 		expected    string
 	}{
-		{description: "corner: ParseRule allocates nothing on any pick", name: "ParseRule", expected: "0/32: smallest 0, typical 0, largest 0"},
-		{description: "corner: ParseNewStats allocates nothing on its header-only picks, and once on the largest", name: "ParseNewStats", expected: "0/92: smallest 0, typical 0, largest 1"},
+		{description: "corner: ParseRule allocates nothing on its bare picks, and four times on the largest, a workbench rule whose from, to, iif and oif it copies", name: "ParseRule", expected: "0/32: smallest 0, typical 0, largest 4"},
+		{description: "corner: ParseNewStats allocates nothing on its header-only picks, and twice on the largest, a workbench bare show of a bridge whose AF_MPLS afstats and bridge VLAN xstats it appends", name: "ParseNewStats", expected: "0/92: smallest 0, typical 0, largest 2"},
 		{description: "corner: ParseNlMsgErr allocates nothing on its capped picks, and once on the largest, whose extended-ack TLVs it decodes", name: "ParseNlMsgErr", expected: "0/2: smallest 0, typical 0, largest 1"},
 		{description: "corner: ParseNsid allocates nothing on any pick", name: "ParseNsid", expected: "0/88: smallest 0, typical 0, largest 0"},
 		{description: "corner: ParseNexthopBucket allocates nothing on any pick", name: "ParseNexthopBucket", expected: "0/116: smallest 0, typical 0, largest 0"},

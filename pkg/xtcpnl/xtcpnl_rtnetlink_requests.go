@@ -503,6 +503,13 @@ func BuildDumpNexthopRequest(family uint8, seq uint32) []byte {
 // The reply is a single non-multipart message, so reading it needs
 // TalkRtnetlink; DumpRtnetlink would block on a NLMSG_DONE that never comes.
 func BuildGetNexthopByIDRequest(family uint8, id, seq uint32) ([]byte, error) {
+	return BuildGetNexthopByIDOpRequest(family, id, 0, seq)
+}
+
+// BuildGetNexthopByIDOpRequest is BuildGetNexthopByIDRequest with the
+// NHA_OP_FLAGS __ipnh_get_id sends: NexthopOpFlags of -s's count, for
+// `ip -s nexthop get id N` and `ip -s nexthop show id N`.
+func BuildGetNexthopByIDOpRequest(family uint8, id, opFlags, seq uint32) ([]byte, error) {
 	hdr := make([]byte, NhMsgSizeCst)
 	hdr[0] = family // nh_family; scope, protocol, resvd and flags stay 0
 
@@ -511,7 +518,7 @@ func BuildGetNexthopByIDRequest(family uint8, id, seq uint32) ([]byte, error) {
 	if err := ab.PutU32(NhaID, id); err != nil {
 		return nil, err
 	}
-	if err := ab.PutU32(NhaOpFlags, 0); err != nil {
+	if err := ab.PutU32(NhaOpFlags, opFlags); err != nil {
 		return nil, err
 	}
 	return BuildRequest(uint16(unix.RTM_GETNEXTHOP), 0, seq, hdr, ab.Bytes())
@@ -520,19 +527,22 @@ func BuildGetNexthopByIDRequest(family uint8, id, seq uint32) ([]byte, error) {
 // NexthopDumpFilter is the wire-filter set `ip nexthop show` appends to the dump
 // request (nh_dump_filter, ip/ipnexthop.c:70): OIF for `dev`, Master for `master`
 // and `vrf` (a VRF is just a master), and the zero-length flag attributes Groups
-// and Fdb. `protocol` is NOT here — iproute2 filters it client-side on the reply
+// and Fdb, and OpFlags for -s (NexthopOpFlags). `protocol` is NOT here — iproute2 filters it client-side on the reply
 // (print_cache_nexthop, :821), so it never reaches the request.
 type NexthopDumpFilter struct {
 	OIF    uint32 // NHA_OIF, 0 absent (index 0 is not a device)
 	Master uint32 // NHA_MASTER, 0 absent
 	Groups bool   // NHA_GROUPS flag
 	Fdb    bool   // NHA_FDB flag
+	// OpFlags is NHA_OP_FLAGS, 0 absent: nh_dump_filter sends it only when
+	// nonzero, so a dump without -s carries none.
+	OpFlags uint32
 }
 
 // BuildGetNexthopDumpRequest builds the filtered RTM_GETNEXTHOP dump
 // (NLM_F_REQUEST|NLM_F_DUMP) `ip nexthop show SELECTOR` sends: an nhmsg whose
 // nh_family is preferred_family, then the filter attrs in nh_dump_filter order —
-// NHA_OIF, NHA_GROUPS, NHA_MASTER, NHA_FDB. An empty filter is byte-identical to
+// NHA_OIF, NHA_GROUPS, NHA_MASTER, NHA_FDB, NHA_OP_FLAGS. An empty filter is byte-identical to
 // BuildDumpNexthopRequest's bare dump.
 func BuildGetNexthopDumpRequest(family uint8, f NexthopDumpFilter, seq uint32) ([]byte, error) {
 	hdr := make([]byte, NhMsgSizeCst)
@@ -557,6 +567,11 @@ func BuildGetNexthopDumpRequest(family uint8, f NexthopDumpFilter, seq uint32) (
 	}
 	if f.Fdb {
 		if err := ab.PutBytes(NhaFdb, nil); err != nil {
+			return nil, err
+		}
+	}
+	if f.OpFlags != 0 {
+		if err := ab.PutU32(NhaOpFlags, f.OpFlags); err != nil {
 			return nil, err
 		}
 	}
@@ -849,6 +864,86 @@ func BuildDumpStatsRequest(family uint8, ifindex, filterMask, seq uint32) []byte
 func BuildGetStatsByIndexRequest(ifindex, filterMask, seq uint32) ([]byte, error) {
 	hdr := ifStatsHdr(unix.AF_UNSPEC, ifindex, filterMask)
 	return BuildRequest(uint16(unix.RTM_GETSTATS), 0, seq, hdr, nil)
+}
+
+// StatsFilter is the selection `ip stats show` puts in a request: Mask is
+// if_stats_msg's filter_mask, a bit per IFLA_STATS_* group, and Xstats,
+// XstatsSlave and Offload are the sub-masks of the three groups ip selects
+// inside (ipstats_stat_dump_filters, ip/ipstats.c), a bit per
+// LINK_XSTATS_TYPE_* or IFLA_OFFLOAD_XSTATS_*.
+type StatsFilter struct {
+	Mask        uint32
+	Xstats      uint32
+	XstatsSlave uint32
+	Offload     uint32
+}
+
+// The full sub-mask of each selectable group, (1 << max) - 1, which ip sends
+// as no sub-mask at all (ipstats_req_should_filter_at): LINK_XSTATS_TYPE_MAX
+// is 2 and IFLA_OFFLOAD_XSTATS_MAX 3.
+const (
+	statsXstatsFullCst  = 1<<2 - 1
+	statsOffloadFullCst = 1<<3 - 1
+)
+
+// BuildStatsRequest builds the RTM_GETSTATS `ip stats show` sends for a
+// selection: a dump (NLM_F_DUMP, rtnl_statsdump_req_filter) for ifindex 0,
+// else ipstats_show_one's get of one device, NLM_F_REQUEST alone. When a
+// sub-mask is set and not full, an IFLA_STATS_GET_FILTERS nest carries
+// each such sub-mask as a u32 at its group's id, in id order
+// (ipstats_req_add_filters).
+func BuildStatsRequest(ifindex uint32, f StatsFilter, seq uint32) ([]byte, error) {
+	subs := []struct {
+		group      uint16
+		mask, full uint32
+	}{
+		{unix.IFLA_STATS_LINK_XSTATS, f.Xstats, statsXstatsFullCst},
+		{unix.IFLA_STATS_LINK_XSTATS_SLAVE, f.XstatsSlave, statsXstatsFullCst},
+		{unix.IFLA_STATS_LINK_OFFLOAD_XSTATS, f.Offload, statsOffloadFullCst},
+	}
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	var nest NestMark
+	open := false
+	for _, sub := range subs {
+		if sub.mask == 0 || sub.mask == sub.full {
+			continue
+		}
+		if !open {
+			m, err := ab.BeginNest(unix.IFLA_STATS_GET_FILTERS | unix.NLA_F_NESTED)
+			if err != nil {
+				return nil, err
+			}
+			nest, open = m, true
+		}
+		if err := ab.PutU32(sub.group, sub.mask); err != nil {
+			return nil, err
+		}
+	}
+	var attrs []byte
+	if open {
+		if err := ab.EndNest(nest); err != nil {
+			return nil, err
+		}
+		attrs = ab.Bytes()
+	}
+	hdr := ifStatsHdr(unix.AF_UNSPEC, ifindex, f.Mask)
+	if ifindex == 0 {
+		return BuildRequest(uint16(unix.RTM_GETSTATS), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
+	}
+	return BuildRequest(uint16(unix.RTM_GETSTATS), 0, seq, hdr, attrs)
+}
+
+// BuildDumpMulticastRequest builds the RTM_GETMULTICAST dump `ip maddress
+// show` sends from iproute2 7.3.0 (rtnl_mcaddrdump_req, lib/libnetlink.c):
+// an ifaddrmsg with ifa_family the caller's, ifa_index the device `dev`
+// names or 0, and no attributes. ip sends one per family, AF_INET then
+// AF_INET6, for a show of both.
+func BuildDumpMulticastRequest(family uint8, ifindex uint32, seq uint32) []byte {
+	hdr := make([]byte, IfAddrmsgSizeCst)
+	hdr[0] = family
+	binary.LittleEndian.PutUint32(hdr[4:8], ifindex)
+	return BuildDumpRequest(uint16(unix.RTM_GETMULTICAST), seq, hdr)
 }
 
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.

@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions replace action ife encode allow mark goto chain 42 index 90 cookie c1a0c1a0",
+ "desc": "negative: Replace ife encode action with invalid goto chain control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ife encode action pass.*type 0[xX]ED3E .*allow mark.*index 90 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/ife/a0e2",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action ife encode allow mark pass index 90"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action ife index 90",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ife encode allow mark pass index 90",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "a0e2",
+  "tdc": "actions/ife.json"
+ }
+}

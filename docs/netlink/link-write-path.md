@@ -1060,8 +1060,13 @@ The command line never applies anything. A write verb resolves the names it
 needs with `RTM_GETLINK` (`ll_name_to_index`: the per-command cache, then
 the get, then `ifN`), builds its request and writes it to `GOIP_WRITE_OUT`.
 Without that variable it exits 1 with `ErrWriteNotApplied`. A name that only
-an `IFLA_ALT_IFNAME` get could resolve is `ErrNotImplemented`, as is
-`address` on a non-create, which needs `nl_get_ll_addr_len`.
+an `IFLA_ALT_IFNAME` get could resolve is `ErrNotImplemented`. `address` on
+a non-create was too, until [goip-write-keywords.md](goip-write-keywords.md)'s
+GW2-T01 built `nl_get_ll_addr_len`: the get by index, and its reply's
+`IFLA_ADDRESS` length checked against the address. GW2 built the rest of
+`iplink_parse`'s generic keywords too, except `netns`, `link-netns`, `vf` and
+`xdp` with a program, which stay `ErrNotImplemented`
+([why](goip-write-keywords-status.md#decision-log)).
 
 `TestLinkWriteMatchesIpBytes` (`internal/goip/link_write_corpus_test.go`)
 replays each corpus row: the lookups are answered from the row's pcap and
@@ -1288,7 +1293,8 @@ transactions in order. Highlights:
   are not netlink, so they have no parity target.
 - **Other link kinds' `INFO_DATA`** (`bridge`, `vlan`, `macvlan`, `vxlan`, …).
   Each is its own attribute space; once the shared-option-table pattern is proven
-  on bond, each becomes a small follow-up.
+  on bond, each becomes a small follow-up. Those follow-ups are planned in
+  [goip-link-kinds.md](goip-link-kinds.md).
 - **`ip link set … vf …`, `xdp`, `netns`, `link-netnsid`.** Each needs its own
   fixtures and none bears on bonding.
 - **ethtool.** The pinned `~/Downloads/ethtool` is the legacy ioctl tool

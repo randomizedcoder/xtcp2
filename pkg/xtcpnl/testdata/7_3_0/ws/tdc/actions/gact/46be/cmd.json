@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action gact index 9",
+ "desc": "positive: Delete pipe action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: gact action pipe.*index 9 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/46be",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action pipe index 9"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action pipe index 9",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "46be",
+  "tdc": "actions/gact.json"
+ }
+}

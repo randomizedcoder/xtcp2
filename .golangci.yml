@@ -28,6 +28,8 @@ run:
     - dest_s3parquet
     - enrich_asn
     - enrich_locality
+    - capture
+    - dest_file
 
 formatters:
   enable:
@@ -117,6 +119,7 @@ linters:
         #       length fields) and io_uring batch indices; all are bounds-checked.
         - G115
         # G204: cmd/ns and cmd/nsTest spawn `ip netns exec ...`; required by design.
+        # cmd/xtcp2's soft restart execs os.Executable(), which no constant names.
         - G204
         # G304: register_schema reads .proto files whose path comes from CLI flags.
         - G304

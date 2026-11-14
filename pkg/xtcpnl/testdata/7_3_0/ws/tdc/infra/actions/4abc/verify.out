@@ -1,0 +1,9 @@
+filter parent ffff: protocol ip pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1: tunnel_key  set
+	src_ip 10.10.10.1
+	dst_ip 20.20.20.2
+	key_id 1
+	csum pipe
+	 index 1 ref 2 bind 1
+

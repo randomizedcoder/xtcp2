@@ -60,7 +60,8 @@ These are new; there is no node_exporter equivalent with the same semantics.
 | `baseline_up_links` | G / links | none | B | Expected up count; absent before valid baseline |
 | `up_links` | G / links | none | E | Current operationally up eligible count |
 | `up_links_delta` | G / links | none | E+B | Current minus baseline; absent until both are available |
-| `baseline_ready` | G / boolean | none | M | Valid baseline loaded or committed |
+| `baseline_ready` | G / boolean | none | M | Valid baseline loaded or committed, or provisional |
+| `baseline_provisional` | G / boolean | none | M | 1 while the baseline is the in-memory one taken at `-learn-deadline`; absent otherwise |
 | `baseline_write_errors_total` | C / errors | none | M | Failed durable saves |
 | `interface_up` | G / boolean | interface | E | Ethernet predicate from DESIGN; native IB requires ACTIVE and LINK_UP; RoCE counted once |
 | `interface_check` | G / one-hot | interface,check,status | S | check=max_speed/full_duplex/max_width; status=pass/fail/unknown/not_applicable; emit all four with exactly one 1 |
@@ -851,7 +852,7 @@ and its test and benchmark plan are in
 
 | Path | Default contents | Intended use |
 |---|---|---|
-| `/metrics` | Problem summary: `problems`, `up_links_delta`, `baseline_ready`, `collection_healthy`, `build_info` and the sparse `interface_problem`/`host_problem` series | Normal scrape interval (example 15s) and alerting |
+| `/metrics` | Problem summary: `problems`, `up_links_delta`, `baseline_ready`, `collection_healthy`, `build_info` and the sparse `baseline_provisional`, `interface_problem` and `host_problem` series | Normal scrape interval (example 15s) and alerting |
 | `/metrics/link` | Link counts, `interface_up`, checks, exceptions, speed and duplex, carrier and transition counters, last flap/error timestamps | Drill-down, 1m |
 | `/metrics/traffic` | Netdev `interface_{receive,transmit}_*_total`, multicast and collisions | Drill-down, 1m |
 | `/metrics/ethtool` | Driver identity, link modes, autonegotiation, pause, channels, rings, verified driver link-down events | Drill-down, 5m |
@@ -901,8 +902,8 @@ instead: `monitorprom.CoreMetricsPattern`, selected by `-metrics.core-include`
 minus `-metrics.core-exclude`, with each name prefixed `go_link_monitor_`:
 
 - Link count and freshness: `build_info`, `up_links`, `baseline_up_links`,
-  `up_links_delta`, `baseline_ready`, `collection_healthy`,
-  `last_successful_resync_timestamp_seconds`
+  `up_links_delta`, `baseline_ready`, `baseline_provisional`,
+  `collection_healthy`, `last_successful_resync_timestamp_seconds`
 - Port state and settings: `interface_up`, `interface_check`,
   `interface_speed_bits_per_second`, `interface_max_speed_bits_per_second`,
   `interface_duplex_info`, `interface_max_speed_exception`,
@@ -991,6 +992,7 @@ with a healthy zero.
 | No successful probe yet | `go_link_monitor_collector_support{status="unknown"} == 1` | 5m | `/metrics/collection` |
 | No flap-counter capability | `go_link_monitor_collector_support{collector="carrier",status="unsupported"} == 1` | 5m | `/metrics/collection` |
 | Baseline unavailable | `go_link_monitor_baseline_ready == 0` | 5m | `/metrics` |
+| Baseline never learned | `go_link_monitor_baseline_provisional == 1` | 1h | `/metrics` |
 | Link collection unhealthy | `go_link_monitor_collection_healthy == 0` | 1m | `/metrics` |
 | Scrape failure | `up{job="go-link-monitor"} == 0` | 1m | Prometheus |
 

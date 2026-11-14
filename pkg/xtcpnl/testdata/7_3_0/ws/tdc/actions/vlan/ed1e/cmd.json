@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action vlan index 999",
+ "desc": "positive: Delete vlan push action for protocol 802.1Q",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: vlan.*push id 4094 protocol 802.1Q priority 0 pipe.*index 999 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/vlan/ed1e",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action vlan push id 4094 protocol 802.1Q index 999"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action vlan",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action vlan push id 4094 protocol 802.1Q index 999",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ed1e",
+  "tdc": "actions/vlan.json"
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "256",
+  "local": "fe80::1",
+  "prefixlen": "64",
+  "proto": "255",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add fe80::1/64 mngtmpaddr proto 255 dev d0",
+ "desc": "corner: verb=add local=ll peer=absent brd=absent label=absent scope=absent metric=absent lft=absent flags=mngtmpaddr proto=255",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-058",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

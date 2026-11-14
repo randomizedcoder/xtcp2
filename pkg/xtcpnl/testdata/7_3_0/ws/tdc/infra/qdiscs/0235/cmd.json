@@ -1,0 +1,86 @@
+{
+ "cmd": "ping -c 1 10.10.11.1 -W0.01 -Ieth0 || true",
+ "desc": "positive: Force taprio to dequeue from its child's gso_skb with dualpi2 leaf",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0
+ },
+ "id": "tdc/infra/qdiscs/0235",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  [
+   "echo 1 > /sys/bus/netdevsim/del_device",
+   [
+    1,
+    2
+   ]
+  ],
+  "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+  "ip link set dev eth0 addrgenmode none || true",
+  "ip link set dev eth0 up || true",
+  "ip l set addr 01:02:03:04:05:06 dev eth0 || true",
+  "ip n add dev eth0 10.10.11.1 lladdr 01:02:03:04:05:06 dev eth0 || true",
+  "tc qdisc add dev eth0 root handle 1: taprio num_tc 2 map 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 queues 1@0 1@1 base-time 9000000000000000000 sched-entry S 03 200000 flags 0x0 clockid CLOCK_TAI",
+  "tc qdisc replace dev eth0 parent 1:1 handle 3: dualpi2",
+  "tc filter add dev eth0 parent 3: protocol ip prio 1 u32 match ip dst 10.10.11.1 classid 3:1 action ok"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j -s qdisc ls dev eth0 handle 3:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "echo 1 > /sys/bus/netdevsim/del_device",
+    "rc": 0
+   },
+   {
+    "cmd": "echo \"1 1 4\" > /sys/bus/netdevsim/new_device",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev eth0 addrgenmode none || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set dev eth0 up || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip l set addr 01:02:03:04:05:06 dev eth0 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "ip n add dev eth0 10.10.11.1 lladdr 01:02:03:04:05:06 dev eth0 || true",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev eth0 root handle 1: taprio num_tc 2 map 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 queues 1@0 1@1 base-time 9000000000000000000 sched-entry S 03 200000 flags 0x0 clockid CLOCK_TAI",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc replace dev eth0 parent 1:1 handle 3: dualpi2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev eth0 parent 3: protocol ip prio 1 u32 match ip dst 10.10.11.1 classid 3:1 action ok",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true,
+ "source": {
+  "id": "0235",
+  "tdc": "infra/qdiscs.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

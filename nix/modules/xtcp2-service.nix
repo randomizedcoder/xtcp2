@@ -27,9 +27,38 @@ let
       "-linkMonitorCollectionMode=${lm.collectionMode}"
       "-linkMonitorIPPaths=${lib.boolToString lm.ipPaths}"
     ]
-    ++ lib.optional (lm.ipListen != null) "-linkMonitorIPListen=${lm.ipListen}"
     ++ lm.extraArgs
   );
+
+  # The listeners, passed as LISTENERS so `xtcp2 -healthcheck` run with the
+  # unit's environment finds the same ones. Empty leaves the daemon's
+  # default: health, metrics and metrics-detail on /run/xtcp2/metrics.sock.
+  # linkMonitor.ipPaths and ipListen add the ip class: on the default
+  # socket, or on a loopback listener of its own.
+  serveIP = lm.enable && lm.ipPaths;
+  defaultListener = "name=metrics,serves=health+metrics+metrics-detail${
+    lib.optionalString (serveIP && lm.ipListen == null) "+ip"
+  },address=/run/xtcp2/metrics.sock";
+  ipListener = lib.optional (
+    serveIP && lm.ipListen != null
+  ) "name=ip,serves=ip,address=${lm.ipListen},network=tcp,auth=disabled";
+  listeners =
+    if cfg.listeners != [ ] then
+      cfg.listeners ++ ipListener
+    else
+      lib.optionals serveIP ([ defaultListener ] ++ ipListener);
+
+  generatedTokenFile = "/var/lib/xtcp2/listener-token";
+  tokenFile = if cfg.listenerTokenFile != null then cfg.listenerTokenFile else generatedTokenFile;
+  # A random token, written once: it survives restarts, so scrapers keep
+  # working, and is replaced only by deleting the file.
+  generateToken = pkgs.writeShellScript "xtcp2-listener-token" ''
+    if [ ! -s ${generatedTokenFile} ]; then
+      umask 077
+      ${pkgs.coreutils}/bin/head -c 32 /dev/urandom | ${pkgs.coreutils}/bin/base64 -w0 >${generatedTokenFile}.new
+      ${pkgs.coreutils}/bin/mv ${generatedTokenFile}.new ${generatedTokenFile}
+    fi
+  '';
 in
 {
   options.services.xtcp2 = {
@@ -112,6 +141,34 @@ in
       };
     };
 
+    listeners = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "name=metrics,serves=health+metrics+metrics-detail,address=/run/xtcp2/metrics.sock"
+        "name=grpc,serves=grpc-read+grpc-admin,address=/run/xtcp2/grpc.sock,adminTokenFile=/run/secrets/xtcp2-admin"
+      ];
+      description = ''
+        xtcp2's listeners, one `-listener` spec each (`xtcp2 -help` has the
+        syntax; docs/security.md#listeners the rules). Empty serves health,
+        metrics and metrics-detail on /run/xtcp2/metrics.sock (mode 0600),
+        with the token from `listenerTokenFile`. gRPC, pprof and /ip are
+        served only by a listener that names them.
+      '';
+    };
+
+    listenerTokenFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "/run/secrets/xtcp2-listener-token";
+      description = ''
+        File holding the bearer token for listeners without a tokenFile of
+        their own (LISTENER_RAW_TOKEN_FILE), readable only by the service
+        user. null generates a random one once, at
+        /var/lib/xtcp2/listener-token (0600).
+      '';
+    };
+
     linkMonitor = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -153,9 +210,10 @@ in
         type = lib.types.bool;
         default = false;
         description = ''
-          Serve the read-only `ip … show` paths under /ip and /i on the
-          Prometheus listener, or on `ipListen`. They expose host addresses,
-          so they are off by default.
+          Serve the read-only `ip … show` paths under /ip and /i: on the
+          default socket, or on `ipListen`. With `listeners` set, add the ip
+          class to one of them (or set `ipListen`). They expose host
+          addresses, so they are off by default.
         '';
       };
 
@@ -165,10 +223,10 @@ in
         example = "127.0.0.1:9089";
         description = ''
           A loopback host:port serving /ip and /i on a listener of their own,
-          without listener auth, instead of on the Prometheus listener. Needs
-          `ipPaths`. xtcp2 refuses a host that is not a loopback IP literal,
-          and closes connections from non-loopback source addresses. null
-          keeps one listener.
+          without listener auth. Needs `ipPaths`. xtcp2 refuses a host that
+          is not a loopback IP literal, and closes connections from
+          non-loopback source addresses. null serves them on the default
+          socket.
         '';
       };
 
@@ -214,12 +272,24 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = !(cfg.treatments.enable && cfg.treatments.mode == "standalone") || cfg.treatments.agentPackage != null;
+        assertion = lm.ipListen == null || lm.ipPaths;
+        message = "services.xtcp2.linkMonitor.ipListen needs linkMonitor.ipPaths";
+      }
+      {
+        assertion =
+          !(cfg.treatments.enable && cfg.treatments.mode == "standalone")
+          || cfg.treatments.agentPackage != null;
         message = "services.xtcp2.treatments.mode = \"standalone\" needs services.xtcp2.treatments.agentPackage";
       }
     ];
 
     systemd.services.xtcp2 = {
+      environment = {
+        LISTENER_RAW_TOKEN_FILE = lib.mkDefault tokenFile;
+      }
+      // lib.optionalAttrs (listeners != [ ]) {
+        LISTENERS = lib.concatStringsSep ";" listeners;
+      };
       description = "xtcp2 — TCP socket introspection via netlink";
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
@@ -237,6 +307,7 @@ in
         # `extraArgs` (CLI flags) instead. configFile is kept in the option
         # surface for forward-compatibility — when the daemon learns to
         # parse a JSON config, flip this back to `-config ${cfg.configFile}`.
+        ExecStartPre = lib.mkIf (cfg.listenerTokenFile == null) [ "${generateToken}" ];
         ExecStart = xtcp2Exec.mkExecStart cfg.package (
           linkMonitorArgs
           ++ lib.optionals (cfg.treatments.enable && cfg.treatments.mode == "embedded") [
@@ -283,35 +354,37 @@ in
     # reads the journal. Restarting one does not restart the other, and the
     # journal replay on agent start restores stable routes without a
     # controller round trip.
-    systemd.services.xtcp2-treatment-agent = lib.mkIf (cfg.treatments.enable && cfg.treatments.mode == "standalone") {
-      description = "xtcp2 route treatment agent";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
-      serviceConfig = {
-        Type = "simple";
-        User = cfg.user;
-        StateDirectory = "xtcp2";
-        StateDirectoryMode = "0750";
-        ExecStart = xtcp2Exec.escapeSystemdExecArgs [
-          "${cfg.treatments.agentPackage}/bin/xtcp2-treatment-agent"
-          "-config=${cfg.treatments.configFile}"
-        ];
-        # `systemctl reload` checks in and reconciles now, as SIGHUP does for
-        # the embedded agent.
-        ExecReload = "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
-        Restart = "always";
-        RestartSec = "2s";
-        AmbientCapabilities = [
-          "CAP_NET_ADMIN"
-          "CAP_SYS_PTRACE"
-        ];
-        CapabilityBoundingSet = [
-          "CAP_NET_ADMIN"
-          "CAP_SYS_PTRACE"
-        ];
-      };
-    };
+    systemd.services.xtcp2-treatment-agent =
+      lib.mkIf (cfg.treatments.enable && cfg.treatments.mode == "standalone")
+        {
+          description = "xtcp2 route treatment agent";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
+          serviceConfig = {
+            Type = "simple";
+            User = cfg.user;
+            StateDirectory = "xtcp2";
+            StateDirectoryMode = "0750";
+            ExecStart = xtcp2Exec.escapeSystemdExecArgs [
+              "${cfg.treatments.agentPackage}/bin/xtcp2-treatment-agent"
+              "-config=${cfg.treatments.configFile}"
+            ];
+            # `systemctl reload` checks in and reconciles now, as SIGHUP does for
+            # the embedded agent.
+            ExecReload = "${pkgs.coreutils}/bin/kill -HUP $MAINPID";
+            Restart = "always";
+            RestartSec = "2s";
+            AmbientCapabilities = [
+              "CAP_NET_ADMIN"
+              "CAP_SYS_PTRACE"
+            ];
+            CapabilityBoundingSet = [
+              "CAP_NET_ADMIN"
+              "CAP_SYS_PTRACE"
+            ];
+          };
+        };
 
     # Deliberately independent of xtcp2.service: daemon crashes must not leave
     # trial routes installed past their local lease deadline.

@@ -540,9 +540,6 @@ func xfrmStatePrint(c *runCtx, f *xfrmFilter, nokeys bool, m xfrmMsg) error {
 	}
 	o := render.XfrmOpt{Stats: c.stats(), Nokeys: nokeys, Family: c.family,
 		IndexName: func(idx int32) string { return genlIndexToName(c, idx) }}
-	if err := xfrmProtoOpt(&o, info.Sel.Proto); err != nil {
-		return err
-	}
 	out := render.XfrmStateInfo(info, attrs, &o)
 	if m.typ == xtcpnl.XfrmMsgExpire {
 		out += fmt.Sprintf("\thard %d\n", hard)
@@ -568,26 +565,6 @@ func xfrmStateParse(m xfrmMsg) (*xtcpnl.XfrmUsersaInfo, *xtcpnl.XfrmAttrs, uint8
 		return nil, nil, 0, err
 	}
 	return s.Info, &s.Attrs, 0, nil
-}
-
-// xfrmProtoOpt sets o's strxf_proto for the selectors' protocols: none,
-// or ones goip names; another is not implemented.
-func xfrmProtoOpt(o *render.XfrmOpt, protos ...uint8) error {
-	names := map[uint8]string{}
-	for _, proto := range protos {
-		if proto == 0 {
-			continue
-		}
-		name, err := xfrmProtoName(proto)
-		if err != nil {
-			return fmt.Errorf("a selector's %w", err)
-		}
-		names[proto] = name
-	}
-	if len(names) != 0 {
-		o.ProtoName = func(p uint8) string { return names[p] }
-	}
-	return nil
 }
 
 // xfrmStateIDRequest is xfrm_state_get_or_delete's loop and request: mark,

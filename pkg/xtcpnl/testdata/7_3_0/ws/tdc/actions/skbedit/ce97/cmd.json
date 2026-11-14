@@ -1,0 +1,73 @@
+{
+ "cmd": "tc actions flush action skbedit",
+ "desc": "positive: Flush skbedit actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*:  skbedit",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbedit/ce97",
+ "modules": [
+  "act_skbedit"
+ ],
+ "pre": [
+  "tc actions add action skbedit mark 500",
+  "tc actions add action skbedit mark 501",
+  "tc actions add action skbedit mark 502",
+  "tc actions add action skbedit mark 503",
+  "tc actions add action skbedit mark 504",
+  "tc actions add action skbedit mark 505",
+  "tc actions add action skbedit mark 506"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action skbedit",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions add action skbedit mark 500",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbedit mark 501",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbedit mark 502",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbedit mark 503",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbedit mark 504",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbedit mark 505",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action skbedit mark 506",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "ce97",
+  "tdc": "actions/skbedit.json"
+ }
+}

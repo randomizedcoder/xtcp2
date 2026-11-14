@@ -1,0 +1,3 @@
+999 ttl-propogate enabled
+	nexthop as to 300 via inet 10.0.0.2 dev d0 
+	nexthop as to 400 via inet 10.0.0.3 dev d0 

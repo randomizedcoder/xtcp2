@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter change dev v0p1 parent ffff: protocol ip prio 100 handle 0x10001 route classid 1:2",
+ "desc": "negative: Try to change a route filter with no routing attribute and a non-wildcard handle",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)fh 0x00010001 flowid 1:1 to 1 from 1",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/filters/route/907a",
+ "modules": [
+  "cls_route"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 parent ffff: protocol ip prio 100 route from 1 to 1 classid 1:1"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter ls dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: protocol ip prio 100 route from 1 to 1 classid 1:1",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "907a",
+  "tdc": "filters/route.json"
+ }
+}

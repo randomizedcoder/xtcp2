@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions get action gact index 3900800700",
+ "desc": "positive: Get gact action by index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)index 3900800700",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/525f",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action drop index 3900800700"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action gact index 3900800700",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action drop index 3900800700",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "525f",
+  "tdc": "actions/gact.json"
+ }
+}

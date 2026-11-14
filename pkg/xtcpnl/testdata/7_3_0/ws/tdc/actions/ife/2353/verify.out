@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1: ife encode action pass type 0XED3E 
+	allow tcindex dst 00:11:22:33:44:55 src 00:aa:bb:cc:dd:ee 
+	 index 11 ref 1 bind 0
+	not_in_hw

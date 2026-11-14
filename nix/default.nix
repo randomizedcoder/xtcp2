@@ -6,7 +6,6 @@
   pkgs,
   lib,
   src,
-  giouring,
   microvm,
   nixpkgs,
   xdp2,
@@ -25,7 +24,7 @@ let
     src = goSrc;
     inherit
       (import ./lib/goModules.nix {
-        inherit pkgs giouring;
+        inherit pkgs;
         src = goSrc;
         vendorHash = versions.goVendorHash;
       })
@@ -38,7 +37,6 @@ let
     inherit
       pkgs
       lib
-      giouring
       ;
     src = goSrc;
   };
@@ -48,7 +46,6 @@ let
     inherit
       pkgs
       src
-      giouring
       ;
     vendorHash = versions.goVendorHash;
   };
@@ -299,6 +296,14 @@ let
   # check` sandbox has no network, so it cannot answer "has upstream moved?".
   # Its hermetic counterpart, checks.upstream-pins, keeps the manifest honest.
   checkUpstreamPins = import ./check-upstream-pins.nix { inherit pkgs; };
+
+  # Live-database counterpart of checks.govulncheck, for the same reason.
+  govulncheckFresh = import ./govulncheck-fresh.nix {
+    inherit pkgs versions;
+    inherit (checks.govulncheck) allTags;
+  };
+
+  sbomFor = import ./lib/sbom.nix { inherit pkgs versions; };
 
   # The five golangci-lint tier helpers (lint-quick / lint /
   # lint-comprehensive / lint-fix / lint-new). They live in their own file
@@ -997,6 +1002,17 @@ in
     #   oci-ipfeed-collector           ASN artifact builder
     #   oci-xtcp2-tcp-stress           TCP_MODE-dispatched stress image
     // (lib.filterAttrs (n: _v: lib.hasPrefix "oci-" n) containers)
+    # sbom-<binary attr>: a CycloneDX SBOM per binary (nix/lib/sbom.nix).
+    // lib.mapAttrs' (name: drv: lib.nameValuePair "sbom-${name}" (sbomFor drv)) (
+      lib.filterAttrs (_n: lib.isDerivation) (
+        removeAttrs binaries [
+          "byVariant"
+          "joins"
+          "xtcp2ByFlavor"
+          "xtcp2OnlyByFlavor"
+        ]
+      )
+    )
     // containersWithIpmetaBootstrap
     // linkmonitorPackages
     # lint-quick / lint / lint-comprehensive / lint-fix / lint-new. `all` is
@@ -1068,6 +1084,18 @@ in
       # starts both; built here for the same closure and shellcheck value.
       microvm-x86_64-lacp-a = microvms.vmsLacpA.x86_64;
       microvm-x86_64-lacp-b = microvms.vmsLacpB.x86_64;
+      # The nl_mon capture workbench's guest and its host CLI. The guest
+      # does not depend on the repository's source (mkVm.nix
+      # isNlcapWorkbench), so this builds nothing new after a Go edit.
+      microvm-x86_64-nlcap-workbench = microvms.vmsNlcapWorkbench.x86_64;
+      nlcap-ws = microvms.nlcapWorkbench.x86_64.cli;
+      # iproute2 7.3.0, the parity pin (nix/iproute2-7-3-0.nix): the
+      # goip-parity guest's ip, and the workbench's `nlcap-ws batch --ip
+      # $(nix build --print-out-paths .#iproute2_7_3_0)`. Every other VM's ip
+      # stays on nixpkgs' iproute2.
+      iproute2_7_3_0 = import ./iproute2-7-3-0.nix { inherit pkgs; };
+      # The workbench's BPF lwt object, for `nlcap-ws batch --bpf` (NC8-T02).
+      nlcap-lwt-bpf = import ./nlcap-lwt-bpf { inherit pkgs; };
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
@@ -1164,6 +1192,10 @@ in
       # Microvm lifecycle per arch shows up alongside the rest of the checks.
       microvm-lifecycle-x86_64 = microvms.checks.x86_64;
 
+      # The nl_mon capture workbench's batch runner and CLI argument
+      # handling, with stubs for the helper and ip: no VM.
+      nlcap-ws = microvms.nlcapWorkbench.x86_64.check;
+
       # Every guest test above that runs unattended (vmTests), and vm-all,
       # which builds them all. The fault run needs /dev/net/tun in the
       # sandbox (extra-sandbox-paths); without it, it fails with
@@ -1229,6 +1261,11 @@ in
     check-upstream-pins = {
       type = "app";
       program = "${checkUpstreamPins}/bin/xtcp2-check-upstream-pins";
+    };
+    # Known vulnerabilities against the live database, and `go mod verify`.
+    govulncheck-fresh = {
+      type = "app";
+      program = "${govulncheckFresh}/bin/xtcp2-govulncheck-fresh";
     };
     # Run the whole microVM integration suite sequentially. Lifecycle sweep
     # by default; `-- --soak [--duration 1h]` adds the duration runners.
@@ -1502,6 +1539,15 @@ in
     #
     # Run from the repo root. `--out <dir>` overrides the destination. Not in
     # `nix flake check`: /dev/kvm plus a write to the working tree.
+    # The nl_mon capture workbench (docs/netlink/coverage-status.md,
+    # "Workbench and generated rows"): `nix run .#nlcap-ws -- up`, then
+    # `run` and `batch` as often as you like against the one VM, then
+    # `down`. Needs /dev/kvm; `batch` writes to the working tree.
+    nlcap-ws = {
+      type = "app";
+      program = "${microvms.nlcapWorkbench.x86_64.cli}/bin/xtcp2-nlcap-ws";
+    };
+
     microvm-x86_64-link-write-capture = {
       type = "app";
       program = "${microvms.linkWriteCapture.x86_64.runner}/bin/xtcp2-link-write-capture-x86_64";
@@ -1529,6 +1575,17 @@ in
       program = "${runner}/bin/xtcp2-rdma-capture-x86_64";
     }
   ) microvms.rdmaCapture.x86_64.kernels
+  # One section of the link-write capture: microvm-x86_64-link-write-capture-
+  # brmpls and so on, the runner above with `--only <section>`
+  # (scripts/link-write-sections.exp). Writes only that section's
+  # directories.
+  // lib.mapAttrs' (
+    section: app:
+    lib.nameValuePair "microvm-x86_64-link-write-capture-${section}" {
+      type = "app";
+      program = "${app}/bin/xtcp2-link-write-capture-${section}-x86_64";
+    }
+  ) microvms.linkWriteCapture.x86_64.sections
   # s3parquet-stress with an investigation variant (see
   # docs/investigations/envelope-post-flush-drop.md): -nl1/-nl4/-nl8 set
   # NETLINKERS, -iouring adds -ioUring, -cpuload adds stress-ng contention,

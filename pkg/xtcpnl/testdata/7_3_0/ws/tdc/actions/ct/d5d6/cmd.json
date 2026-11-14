@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ct zone 404 commit index 42",
+ "desc": "positive: Try ct with zone, commit",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ct commit zone 404 pipe.*index 42 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ct/d5d6",
+ "modules": [
+  "act_ct"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ct",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action ct",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ct",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "d5d6",
+  "tdc": "actions/ct.json"
+ }
+}

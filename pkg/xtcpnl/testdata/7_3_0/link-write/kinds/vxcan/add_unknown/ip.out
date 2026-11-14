@@ -1,0 +1,2 @@
+Usage: ip link <options> type vxcan [peer <options>]
+To get <options> type 'ip link add help'

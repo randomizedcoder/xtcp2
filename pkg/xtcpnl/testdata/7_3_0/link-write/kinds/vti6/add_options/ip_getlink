@@ -1,0 +1,2 @@
+4: v6@d0: <NOARP,M-DOWN> mtu 1460 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/tunnel6 :: brd 2001:db8::1 permaddr 253:d3f5:7b8b::

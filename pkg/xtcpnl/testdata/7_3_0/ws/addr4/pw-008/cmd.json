@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "family": "4",
+  "label": "d0:abcdefghijkl",
+  "local": "0.0.0.0",
+  "metric": "4294967295",
+  "noop": "1",
+  "preferred": "60",
+  "prefixlen": "24",
+  "proto": "2",
+  "scope": "253",
+  "valid": "60",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 0.0.0.0/24 label d0:abcdefghijkl scope link metric 4294967295 valid_lft 60 preferred_lft 60 proto kernel_ra dev d0",
+ "desc": "corner: verb=add local=zero peer=absent brd=absent label=15 scope=link metric=max lft=equal flags=absent proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-008",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

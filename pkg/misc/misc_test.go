@@ -169,11 +169,11 @@ func BenchmarkReadFile1000(b *testing.B) {
 // the binary is a 0555 symlink into /nix/store).
 func TestCheckFilePermissions(t *testing.T) {
 	dir := t.TempDir()
-	pTrue := filepath.Join(dir, "exec755")
-	if err := os.WriteFile(pTrue, []byte("x"), 0o755); err != nil { //nolint:gosec // G306: 0o755 IS the test fixture mode
+	pTrue := filepath.Join(dir, "read400")
+	if err := os.WriteFile(pTrue, []byte("x"), 0o400); err != nil {
 		t.Fatal(err)
 	}
-	pFalse := filepath.Join(dir, "exec600")
+	pFalse := filepath.Join(dir, "rw600")
 	if err := os.WriteFile(pFalse, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -183,9 +183,10 @@ func TestCheckFilePermissions(t *testing.T) {
 		permissions string
 		expected    bool
 	}{
-		{pTrue, "0755", true},
-		{pTrue, "0333", false},
+		{pTrue, "0400", true},
+		{pTrue, "0600", false},
 		{pFalse, "0600", true},
+		{pFalse, "0400", false},
 		// Missing-file case is omitted: CheckFilePermissions calls log.Fatal
 		// on os.Stat error, which would kill the test process.
 	}

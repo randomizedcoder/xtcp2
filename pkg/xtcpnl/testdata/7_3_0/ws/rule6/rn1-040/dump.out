@@ -1,0 +1,3 @@
+0:	from all lookup local
+0:	from 2001:db8:2::/64 to 2001:db8:3::/64 fwmark 0x10/0xff iif d0 uidrange 1000-2000 ipproto ipproto-255 sport 80 lookup 256 suppress_ifgroup 5 dscp 0 flowlabel 0x1/0x1
+32766:	from all lookup main

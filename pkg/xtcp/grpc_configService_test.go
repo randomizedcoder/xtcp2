@@ -2,6 +2,9 @@ package xtcp
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -11,10 +14,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 )
 
 // newConfigServiceFixture builds an xtcpConfigService directly,
@@ -70,7 +76,7 @@ func validSetConfig() *xtcp_config.XtcpConfig {
 		NlmsgSeq:               1,
 		Modulus:                1,
 		MarshalTo:              "protobufList",
-		Dest:                   "kafka:127.0.0.1:9092",
+		Dest:                   "udp:127.0.0.1:13000",
 		DebugLevel:             111,
 		GrpcPort:               8080,
 		CapturePath:            "/tmp",
@@ -80,6 +86,9 @@ func validSetConfig() *xtcp_config.XtcpConfig {
 		IoUringRecvBatchSize:   64,
 		IoUringCqeBatchSize:    128,
 		S3UploadMaxAttempts:    10,
+		// The read token every daemon runs with: the default listener needs
+		// one, and Set refuses a config the restart could not start.
+		ListenerAuth: &xtcp_config.ListenerAuth{RawToken: "set-token"},
 	}
 }
 
@@ -605,6 +614,83 @@ func TestConfigService_Set_happy(t *testing.T) {
 	}
 }
 
+// padConfigJSON grows cfg's enabled_deserializers map, which validation
+// leaves unbounded, until cfg's protojson is exactly n bytes with its
+// secrets redacted, the form Set measures.
+func padConfigJSON(t *testing.T, cfg *xtcp_config.XtcpConfig, n int) {
+	t.Helper()
+	size := func() int {
+		r, ok := proto.Clone(cfg).(*xtcp_config.XtcpConfig)
+		if !ok {
+			t.Fatal("clone failed")
+		}
+		RedactSecrets(r)
+		js, err := protojson.Marshal(r)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		return len(js)
+	}
+	cfg.EnabledDeserializers = &xtcp_config.EnabledDeserializers{Enabled: map[string]bool{}}
+	m := cfg.EnabledDeserializers.Enabled
+	for i := 0; size() < n-1024; i += 32 {
+		for j := i; j < i+32; j++ {
+			m[fmt.Sprintf("pad%07d", j)] = true
+		}
+	}
+	// 32 keys are about 600 bytes, so this stops short of n. One more key,
+	// its length chosen to land on n: measure what an entry
+	// with a one-byte key costs, then lengthen that key by the remainder.
+	before := size()
+	m["z"] = true
+	short := size() - before
+	delete(m, "z")
+	m[strings.Repeat("z", n-before-short+1)] = true
+	if got := size(); got != n {
+		t.Fatalf("padded config is %d bytes, want %d", got, n)
+	}
+}
+
+// TestConfigService_Set_configSizeLimit: Set refuses a config the restart's
+// environment variable could not carry, before it shuts anything down.
+func TestConfigService_Set_configSizeLimit(t *testing.T) {
+	tests := []struct {
+		category    string
+		description string
+		jsonBytes   int // 0 leaves validSetConfig unpadded
+		secrets     bool
+		expected    codes.Code
+	}{
+		{"positive", "a typical config restarts", 0, false, codes.OK},
+		{"boundary", "a config at exactly the limit restarts", ReconfigureMaxConfigBytes, false, codes.OK},
+		{"boundary", "a config one byte past the limit is refused", ReconfigureMaxConfigBytes + 1, false, codes.FailedPrecondition},
+		{"corner", "secrets don't count: they travel in the memfd, not the variable", ReconfigureMaxConfigBytes, true, codes.OK},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %v", tc.category, tc.description, tc.expected)
+			c, _ := newConfigServiceFixture(t)
+			restarted := false
+			c.reconfigureFunc = func(*xtcp_config.XtcpConfig) { restarted = true }
+			in := validSetConfig()
+			if tc.jsonBytes > 0 {
+				padConfigJSON(t, in, tc.jsonBytes)
+			}
+			if tc.secrets {
+				in.S3SecretKey = strings.Repeat("s", 4096)
+				in.S3AccessKey = strings.Repeat("a", 4096)
+			}
+			_, err := c.Set(context.Background(), &xtcp_config.SetRequest{Config: in})
+			if got := status.Code(err); got != tc.expected {
+				t.Fatalf("Set code = %v, want %v (err %v)", got, tc.expected, err)
+			}
+			if restarted != (tc.expected == codes.OK) {
+				t.Errorf("restarted = %v, want %v", restarted, tc.expected == codes.OK)
+			}
+		})
+	}
+}
+
 // Empty credential fields inherit the running config's values (so a
 // redacted Get → Set round-trip can't wipe creds).
 func TestConfigService_Set_secretPreservation(t *testing.T) {
@@ -731,5 +817,108 @@ func TestConfigService_Get_redactsSecrets(t *testing.T) {
 	// The live config must be untouched.
 	if c.config.S3SecretKey != "live-secret" || c.config.S3AccessKey != "live-access" {
 		t.Error("Get must not mutate the live config's credentials")
+	}
+}
+
+// TestConfigService_Set_listeners: Set refuses a listener config the restart
+// would refuse at startup, before the running daemon stops.
+// TestConfigService_Set_listeners: Set refuses, before scheduling the
+// restart, any listener set the restart would refuse at startup, and judges
+// a Get → edit → Set round trip with the secrets it will run with. Each row
+// starts from a running config holding a read and an admin token (admin
+// mode unset, so inferred raw), takes Get's redacted copy, sets its
+// listeners and calls Set.
+func TestConfigService_Set_listeners(t *testing.T) {
+	dir := t.TempDir()
+	file := func(name string, mode os.FileMode) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("file-token\n"), mode); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	goodFile := file("token", 0o600)
+	openFile := file("open-token", 0o644)
+	missingFile := filepath.Join(dir, "missing")
+
+	sock := func(name string, serves ...xtcp_config.EndpointClass) *xtcp_config.Listener {
+		return &xtcp_config.Listener{Name: name, Endpoint: &xtcp_config.ListenerEndpoint{Address: "/run/xtcp2/" + name + ".sock"}, Serves: serves}
+	}
+	withAuth := func(l *xtcp_config.Listener, auth, admin *xtcp_config.ListenerAuth) *xtcp_config.Listener {
+		l.Auth, l.AdminAuth = auth, admin
+		return l
+	}
+	tokenFile := func(p string) *xtcp_config.ListenerAuth { return &xtcp_config.ListenerAuth{RawTokenFile: p} }
+	ls := func(l ...*xtcp_config.Listener) []*xtcp_config.Listener { return l }
+
+	tests := []struct {
+		name, category, description string
+		listeners                   []*xtcp_config.Listener
+		expected                    codes.Code
+	}{
+		{"default_roundtrip", "positive", "no listeners: the default socket, with the running read token restored",
+			nil, codes.OK},
+		{"valid", "positive", "a valid listener set on the running tokens",
+			ls(sock("m", listeners.Health, listeners.Metrics)), codes.OK},
+		{"token_file", "positive", "a listener whose token file exists, mode 0600",
+			ls(withAuth(sock("m", listeners.Metrics), tokenFile(goodFile), nil)), codes.OK},
+		{"admin_inferred_roundtrip", "positive", "grpc-read and grpc-admin inheriting the redacted, mode-unset admin token: accepted once restored",
+			ls(sock("g", listeners.GRPCRead, listeners.GRPCAdmin)), codes.OK},
+		{"admin_inferred_roundtrip_http", "corner", "metrics and debug on one listener, the same inherited admin token",
+			ls(sock("m", listeners.Health, listeners.Metrics, listeners.Debug)), codes.OK},
+		{"class_twice", "negative", "a class served by two listeners",
+			ls(sock("a", listeners.Metrics), sock("b", listeners.Metrics)), codes.InvalidArgument},
+		{"inline_token", "negative", "a listener carrying its token inline",
+			ls(withAuth(sock("m", listeners.Metrics), &xtcp_config.ListenerAuth{RawToken: "x"}, nil)), codes.InvalidArgument},
+		{"missing_token_file", "negative", "a listener token file that does not exist is refused before the restart",
+			ls(withAuth(sock("m", listeners.Metrics), tokenFile(missingFile), nil)), codes.InvalidArgument},
+		{"open_token_file", "negative", "a world-readable listener token file is refused before the restart",
+			ls(withAuth(sock("m", listeners.Metrics), tokenFile(openFile), nil)), codes.InvalidArgument},
+		{"missing_admin_token_file", "boundary", "only the admin credential file is missing",
+			ls(withAuth(sock("g", listeners.GRPCAdmin), nil, tokenFile(missingFile))), codes.InvalidArgument},
+		{"untyped_tcp", "corner", "a TCP address without network=tcp",
+			ls(&xtcp_config.Listener{Name: "m", Endpoint: &xtcp_config.ListenerEndpoint{Address: ":9088"}, Serves: []xtcp_config.EndpointClass{listeners.Metrics}}), codes.InvalidArgument},
+	}
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %v", tc.category, tc.description, tc.expected)
+			c, _ := newConfigServiceFixture(t)
+			running := validSetConfig()
+			running.ListenerAuth = &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: "read-token"}
+			running.AdminListenerAuth = &xtcp_config.ListenerAuth{RawToken: "admin-token"}
+			c.config = running
+			var restarted *xtcp_config.XtcpConfig
+			c.reconfigureFunc = func(cfg *xtcp_config.XtcpConfig) { restarted = cfg }
+
+			got, err := c.Get(context.Background(), &xtcp_config.GetRequest{})
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+			cfg := got.GetConfig()
+			cfg.Listeners = tc.listeners
+			resp, err := c.Set(context.Background(), &xtcp_config.SetRequest{Config: cfg})
+			if code := status.Code(err); code != tc.expected {
+				t.Fatalf("%s: code = %v (%v), want %v", tc.description, code, err, tc.expected)
+			}
+			if tc.expected != codes.OK {
+				if restarted != nil {
+					t.Errorf("%s: a refused Set scheduled the restart", tc.description)
+				}
+				return
+			}
+			if restarted == nil {
+				t.Fatalf("%s: Set returned OK without scheduling the restart", tc.description)
+			}
+			if a := restarted.GetAdminListenerAuth().GetRawToken(); a != "admin-token" {
+				t.Errorf("%s: restart admin token = %q, want the running one restored", tc.description, a)
+			}
+			// The probe resolved a clone: file contents never reach the
+			// restart config or the response.
+			for _, l := range append(restarted.GetListeners(), resp.GetConfig().GetListeners()...) {
+				if l.GetAuth().GetRawToken() != "" || l.GetAdminAuth().GetRawToken() != "" {
+					t.Errorf("%s: listener %q carries a token read from its file", tc.description, l.GetName())
+				}
+			}
+		})
 	}
 }

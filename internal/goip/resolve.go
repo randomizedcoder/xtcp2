@@ -82,11 +82,12 @@ func isPchar(c byte) bool {
 	return strings.IndexByte("-._~!$&'()*+,;=:@", c) >= 0
 }
 
-// familyOptions are the -4, -6 and -0 spellings by family.
+// familyOptions are the -4, -6, -0 and -M spellings by family.
 var familyOptions = map[uint8]string{
 	unix.AF_INET:   "-4",
 	unix.AF_INET6:  "-6",
 	unix.AF_PACKET: "-0",
+	unix.AF_MPLS:   "-M",
 }
 
 // ResolveShow reads tokens as the arguments of `ip`, the way Run does, and
@@ -103,7 +104,7 @@ var familyOptions = map[uint8]string{
 // The errors are ErrRefusedOption (-netns, -batch, -force, -rcvbuf, -loops,
 // -help), ErrUnknownObject, ErrWriteVerb, ErrNotImplemented (an object,
 // option or read verb goip does not serve) and ErrInvalidArgument (an
-// unknown option or verb, no object, or `-s -s`).
+// unknown option or verb, no object, `-s -s` or `-d -d`).
 func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 	o, rest, err := parseOptions(tokens)
 	if err != nil {
@@ -117,6 +118,9 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 	if msg := statsCountMsg(o.showStats); msg != "" {
 		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
 	}
+	if msg := detailsCountMsg(o.showDetails); msg != "" {
+		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
+	}
 	if len(rest) == 0 {
 		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: no object", ErrInvalidArgument)
 	}
@@ -124,6 +128,10 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 	obj, err := resolveObject(rest[0])
 	if err != nil {
 		return ShowRequest{}, Resolved{}, err
+	}
+	if msg := familyMsg(o.family, &obj); msg != "" {
+		// Run's refusal: AF_MPLS outside route, AF_BRIDGE anywhere.
+		return ShowRequest{}, Resolved{}, fmt.Errorf("%s: %w", msg, ErrNotImplemented)
 	}
 	res := Resolved{Object: obj.name, Verb: showVerbOf(obj.canonical()), Selectors: rest[1:]}
 	if len(rest) > 1 {

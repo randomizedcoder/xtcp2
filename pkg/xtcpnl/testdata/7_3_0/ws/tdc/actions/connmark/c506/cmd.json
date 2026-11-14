@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions replace action connmark goto chain 42 index 90 cookie c1a0c1a0",
+ "desc": "negative: Replace connmark with invalid goto chain control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: connmark zone 0 pass.*index 90 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/connmark/c506",
+ "modules": [
+  "act_connmark"
+ ],
+ "pre": [
+  [
+   "tc actions flush action connmark",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action connmark pass index 90"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action connmark index 90",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action connmark",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action connmark pass index 90",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "c506",
+  "tdc": "actions/connmark.json"
+ }
+}

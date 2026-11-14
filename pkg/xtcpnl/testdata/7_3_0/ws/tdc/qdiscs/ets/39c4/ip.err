@@ -1,0 +1,2 @@
+One of "bands", "quanta" or "strict" needs to be specified
+Usage: ... ets [bands NUMBER] [strict NUMBER] [quanta Q1 Q2...] [priomap P1 P2...]

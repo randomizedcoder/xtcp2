@@ -1,0 +1,6 @@
+total acts 0
+
+	action order 1:  police 0x1 rate 10Mbit burst 10Kb mtu 2Kb action reclassify overhead 0b 
+	ref 1 bind 0 
+	cookie a1b1c1d1e1f12233bb
+	not_in_hw

@@ -1,0 +1,43 @@
+{
+ "cmd": "tc qdisc add dev dummy1 handle 1: root fq orphan_mask 255",
+ "desc": "positive: Create FQ with orphan_mask setting",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)qdisc fq 1: root refcnt [0-9]+ limit 10000p flow_limit 100p.*orphan_mask 255",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/fq/7582",
+ "modules": [
+  "sch_fq"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "tc qdisc show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "7582",
+  "tdc": "qdiscs/fq.json"
+ }
+}

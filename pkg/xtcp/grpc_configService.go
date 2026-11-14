@@ -12,10 +12,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
+	"github.com/randomizedcoder/xtcp2/pkg/secretfile"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
+
+// ReconfigureMaxConfigBytes bounds the protojson config, secrets blanked,
+// that Set's soft restart carries to the exec'd image in one environment
+// variable. The kernel caps each environment string at MAX_ARG_STRLEN, 32
+// pages (128 KiB), and the variable's name, '=' and the NUL need room out of
+// that, so execve would fail with E2BIG past it.
+const ReconfigureMaxConfigBytes = 32*4096 - 64
 
 type xtcpConfigService struct {
 	xtcp_config.UnimplementedConfigServiceServer
@@ -168,6 +178,17 @@ func (c *xtcpConfigService) Set(
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
+	// Same reasoning for the build-tag-gated debug writers (the netlink
+	// capture writer, the file destination): a binary built without them
+	// cannot be restarted into using them.
+	if err := CheckBuildSupport(in.Config); err != nil {
+		c.pC.WithLabelValues("Set", "notCompiledIn", "error").Inc()
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	if err := CheckS3Transport(in.Config); err != nil {
+		c.pC.WithLabelValues("Set", "s3Transport", "error").Inc()
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	// Secret preservation: an operator does Get → edit → Set, and Get redacts
 	// the S3 credentials (see below). Empty credential fields therefore mean
 	// "unchanged", not "clear" — inherit them from the running config so a
@@ -181,6 +202,22 @@ func (c *xtcpConfigService) Set(
 	preserveAuthSecrets(in.Config.ListenerAuth, c.config.ListenerAuth)
 	preserveAuthSecrets(in.Config.AdminListenerAuth, c.config.AdminListenerAuth)
 	if _, err := listenerauth.NewPolicy(in.Config.ListenerAuth, in.Config.AdminListenerAuth, nil); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+	// Resolve the listeners as the restart will: the rules (one listener per
+	// class, no inline credentials, auth off only on a socket or loopback,
+	// ...), every credential file read, every auth policy built. Anything the
+	// restart would refuse at startup, after this daemon has stopped, is
+	// refused here instead. After the secret preservation above, so a
+	// Get → Set round-trip is judged with the credentials it will run with;
+	// on a clone, so the file contents never enter in.Config or the response.
+	probe, ok := proto.Clone(in.Config).(*xtcp_config.XtcpConfig)
+	if !ok {
+		c.pC.WithLabelValues("Set", "clone", "error").Inc()
+		return nil, status.Error(codes.Internal, "config clone failed")
+	}
+	if _, _, err := listeners.Resolve(probe, secretfile.Read); err != nil {
+		c.pC.WithLabelValues("Set", "listeners", "error").Inc()
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -207,7 +244,21 @@ func (c *xtcpConfigService) Set(
 		c.pC.WithLabelValues("Set", "clone", "error").Inc()
 		return nil, status.Error(codes.Internal, "config clone failed")
 	}
-	redactSecrets(resp)
+	RedactSecrets(resp)
+
+	// The restart carries resp's JSON, the same config with the same secrets
+	// blanked, in the environment; refuse one execve could not carry while
+	// the daemon still runs the old config.
+	js, err := protojson.Marshal(resp)
+	if err != nil {
+		c.pC.WithLabelValues("Set", "marshal", "error").Inc()
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	if len(js) > ReconfigureMaxConfigBytes {
+		c.pC.WithLabelValues("Set", "tooLarge", "error").Inc()
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"config is %d bytes as JSON, past the %d a soft restart can carry", len(js), ReconfigureMaxConfigBytes)
+	}
 
 	c.reconfigureFunc(in.Config)
 	c.pC.WithLabelValues("Set", "reconfigure", "counter").Inc()
@@ -227,16 +278,25 @@ func (c *xtcpConfigService) redactedConfig() (*xtcp_config.XtcpConfig, error) {
 	if !ok {
 		return nil, status.Error(codes.Internal, "config clone failed")
 	}
-	redactSecrets(redacted)
+	RedactSecrets(redacted)
 	return redacted, nil
 }
 
-// redactSecrets blanks secrets in place. Set treats empty secret fields as
-// "unchanged", so a Get → edit → Set round-trip preserves them.
-func redactSecrets(cfg *xtcp_config.XtcpConfig) {
+// RedactSecrets blanks secrets in place. Set treats empty secret fields as
+// "unchanged", so a Get → edit → Set round-trip preserves them. It is the one
+// list of secret fields: the soft restart's splitSecrets blanks with it too.
+func RedactSecrets(cfg *xtcp_config.XtcpConfig) {
 	cfg.S3SecretKey = ""
 	cfg.S3AccessKey = ""
-	for _, a := range []*xtcp_config.ListenerAuth{cfg.ListenerAuth, cfg.AdminListenerAuth} {
+	auths := make([]*xtcp_config.ListenerAuth, 0, 2+2*len(cfg.GetListeners()))
+	auths = append(auths, cfg.ListenerAuth, cfg.AdminListenerAuth)
+	// Per-listener credentials are file paths (listeners refuse them inline),
+	// so there is nothing to carry across a soft restart; blank any inline
+	// value anyway so a response can never echo one.
+	for _, l := range cfg.GetListeners() {
+		auths = append(auths, l.GetAuth(), l.GetAdminAuth())
+	}
+	for _, a := range auths {
 		if a != nil {
 			a.RawToken = ""
 			a.HmacSharedKey = ""

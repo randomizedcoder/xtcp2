@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter change dev v0p1 parent ffff: handle 1 prio 1 protocol ip flow map key rxhash addend 0x22",
+ "desc": "positive: Change flow filter with map key num",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)filter parent ffff: protocol ip pref 1 flow chain [0-9]+ handle 0x1 map keys rxhash addend 0x22 baseclass",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/flow/4322",
+ "modules": [
+  "cls_flow"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 parent ffff: handle 1 prio 1 protocol ip flow map key rxhash addend 0xff"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter get dev v0p1 parent ffff: handle 1 prio 1 protocol ip flow",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: handle 1 prio 1 protocol ip flow map key rxhash addend 0xff",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4322",
+  "tdc": "filters/flow.json"
+ }
+}

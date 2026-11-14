@@ -40,6 +40,7 @@ const (
 	routeGetArmNotify
 	routeGetArmUID
 	routeGetArmFibmatch
+	routeGetArmAs
 )
 
 // routeGetKeyword is one test in the chain: an exact strcmp or a matches()
@@ -57,7 +58,7 @@ type routeGetKeyword struct {
 // The arms goip does not implement are refused by name rather than read as a
 // destination, which is where an unknown word goes: tos and dsfield (a
 // rt_dsfield name table), connected (a second get built from the first's
-// reply), vrf (a VRF check by name), as (MPLS), and the four flow keys.
+// reply), vrf (a VRF check by name), and the four flow keys.
 var routeGetKeywords = []routeGetKeyword{
 	{keyword: tosKeywordCst, arm: routeGetArmUnsupported},
 	{keyword: dsfieldKeywordCst, prefix: true, arm: routeGetArmUnsupported},
@@ -71,7 +72,7 @@ var routeGetKeywords = []routeGetKeyword{
 	{keyword: vrfKeywordCst, prefix: true, arm: routeGetArmUnsupported},
 	{keyword: "uid", prefix: true, arm: routeGetArmUID},
 	{keyword: "fibmatch", prefix: true, arm: routeGetArmFibmatch},
-	{keyword: "as", arm: routeGetArmUnsupported},
+	{keyword: routeAsKeywordCst, arm: routeGetArmAs},
 	{keyword: "sport", prefix: true, arm: routeGetArmUnsupported},
 	{keyword: "dport", prefix: true, arm: routeGetArmUnsupported},
 	{keyword: "ipproto", prefix: true, arm: routeGetArmUnsupported},
@@ -123,6 +124,15 @@ func (st *routeGetState) keyword(kw *routeGetKeyword, args []string, i int) (int
 		return i, nil
 	case routeGetArmFibmatch:
 		st.fibMatch = true
+		return i, nil
+	case routeGetArmAs:
+		// iproute_modify's as, into the get (ip/iproute.c:2121-2131).
+		a, i, err := asAddr(args, i, st.g.Family)
+		if err != nil {
+			return i, err
+		}
+		st.adoptFamily(a.family)
+		st.g.Attrs = append(st.g.Attrs, xtcpnl.RouteAttrBytes(uint16(unix.RTA_NEWDST), a.data))
 		return i, nil
 	default:
 		// The arms below take a value.

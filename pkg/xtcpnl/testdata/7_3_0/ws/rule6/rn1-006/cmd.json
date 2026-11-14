@@ -1,0 +1,52 @@
+{
+ "axes": {
+  "action": "6",
+  "dport": "80-80",
+  "dscp": "63",
+  "family": "6",
+  "flowlabel": "1",
+  "flowlabel_mask": "1",
+  "fwmark": "16",
+  "invert": "1",
+  "protocol": "255",
+  "sport": "1-1",
+  "src": "all",
+  "src_len": "0",
+  "verb": "del"
+ },
+ "cmd": "ip -6 rule del not from all fwmark 0x10 dscp 63 sport 1 dport 80 protocol 255 flowlabel 0x1/0x1 blackhole",
+ "desc": "corner: verb=del not=not from=all to=absent pref=absent fwmark=16 iif=absent oif=absent ds=dscp-63 ipproto=absent sport=1 dport=80 uidrange=absent suppress=absent protocol=255 extra=flowlabel-mask action=blackhole",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/rn1-006",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add not from all fwmark 0x10 dscp 63 sport 1 dport 80 protocol 255 flowlabel 0x1/0x1 blackhole"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add not from all fwmark 0x10 dscp 63 sport 1 dport 80 protocol 255 flowlabel 0x1/0x1 blackhole",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

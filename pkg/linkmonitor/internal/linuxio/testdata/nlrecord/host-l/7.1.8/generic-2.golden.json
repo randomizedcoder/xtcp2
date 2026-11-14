@@ -17,22 +17,22 @@
   {
     "call": "GetEthtool(linkinfo, 2)",
     "values": 1,
-    "digest": "90d9047cd8b1872a"
+    "digest": "5d9f28f0ba4fff87"
   },
   {
     "call": "GetEthtool(linkmodes, 2)",
     "values": 1,
-    "digest": "91ffce955baa2437"
+    "digest": "827a33823a3e02c1"
   },
   {
     "call": "GetEthtool(linkstate, 2)",
     "values": 1,
-    "digest": "9400912a03420ba0"
+    "digest": "1fc1c67b4787d07b"
   },
   {
     "call": "GetEthtool(rings, 2)",
     "values": 1,
-    "digest": "9bcec4fea4036e43"
+    "digest": "af7d7f34b0efab85"
   },
   {
     "call": "GetEthtool(channels, 2)",

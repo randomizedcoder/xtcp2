@@ -7,33 +7,6 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
-// TestAppendJSONWString checks jsonw_puts' escapes byte by byte, where
-// encoding/json would differ: <, > and &, and bytes that are not UTF-8.
-//
-// go test ./internal/goip/render/ -run TestAppendJSONWString
-func TestAppendJSONWString(t *testing.T) {
-	tests := []struct {
-		description string
-		in          string
-		expected    string
-	}{
-		{description: "positive: plain text is quoted", in: "sha256", expected: `"sha256"`},
-		{description: "positive: the seven named escapes", in: "\t\n\r\f\b\\\"", expected: `"\t\n\r\f\b\\\""`},
-		{description: "boundary: the empty string", in: "", expected: `""`},
-		{description: "boundary: 0x01 and 0x1f as \\u00XX, 0x20 as it is", in: "\x01\x1f ", expected: `"\u0001\u001f "`},
-		{description: "boundary: DEL as \\u007f", in: "\x7f", expected: `"\u007f"`},
-		{description: "corner: <, > and & as they are", in: "<unknown>&", expected: `"<unknown>&"`},
-		{description: "corner: bytes that are not UTF-8 as they are", in: "\x80\xff", expected: "\"\x80\xff\""},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			if got := string(AppendJSONWString(nil, []byte(tc.in))); got != tc.expected {
-				t.Errorf("got %q, want %q", got, tc.expected)
-			}
-		})
-	}
-}
-
 // TestSrHmacView checks print_dumphmac's line, object and warning for keys
 // the captures do not hold.
 //

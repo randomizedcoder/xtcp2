@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 126 // treatmentConfig (embedded agent) and treatmentAttribution (journal reader)
+	mainFlagsFieldCountCst = 130 // + treatmentConfig (embedded agent) and treatmentAttribution (journal reader)
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -180,6 +180,8 @@ func populatedMainFlags() *mainFlags {
 		s3SecretKey:          s(fakeS3SigningSentinelCst),
 		s3Region:             s("s3Region-v"),
 		s3SkipBucketProbe:    b(true),
+		s3AllowInsecure:      b(true),
+		s3CAFile:             s("s3CAFile-v"),
 		s3ParquetFlushBytes:  u(113),
 
 		pollJitterPct:             u(114),
@@ -227,6 +229,7 @@ func populatedMainFlags() *mainFlags {
 		linkMonitor:                   b(true),
 		linkMonitorBaselineFile:       s("linkMonitorBaselineFile-v"),
 		linkMonitorSettle:             ms(141),
+		linkMonitorLearnDeadline:      ms(160),
 		linkMonitorResync:             ms(142),
 		linkMonitorStatsInterval:      ms(143),
 		linkMonitorStatsInclude:       s("linkMonitorStatsInclude-v"),
@@ -274,6 +277,7 @@ func populatedMainFlags() *mainFlags {
 		promUnixSocketMode: u(133),
 		promUnlinkStaleUDS: b(true),
 		promPath:           s("promPath-v"),
+		listeners:          &listenerFlag{"listener-v"},
 		healthcheck:        b(false),
 		goMaxProcs:         u(134),
 		maxThreads:         i(135),
@@ -739,6 +743,8 @@ func TestPopulatedMainFlagsValuesAreDistinct(t *testing.T) {
 			key = fmt.Sprintf("int:%d", elem.Int())
 		case reflect.Uint, reflect.Uint64:
 			key = fmt.Sprintf("uint:%d", elem.Uint())
+		case reflect.Slice: // listenerFlag
+			key = "slice:" + strings.Join(*f.listeners, ";")
 		default:
 			t.Errorf("mainFlags.%s has unhandled element kind %s", field.Name, field.Type.Elem().Kind())
 			continue

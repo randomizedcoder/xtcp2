@@ -1,0 +1,6 @@
+02:00:00:00:00:02 vlan 1 master br0 static
+a6:79:f6:60:c6:fe vlan 10 master br0 permanent
+a6:79:f6:60:c6:fe vlan 1 master br0 permanent
+a6:79:f6:60:c6:fe master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

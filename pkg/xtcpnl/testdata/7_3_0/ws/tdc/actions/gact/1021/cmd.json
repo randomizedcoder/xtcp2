@@ -1,0 +1,49 @@
+{
+ "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action pass index \\$i \\\"; args=\"\\$args\\$cmd\"; done && tc actions add \\$args\"",
+ "desc": "positive: Add batch of 32 gact pass actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 32,
+   "pattern": "(?sm)^[ \t]+index [0-9]+ ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/1021",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  [
+   "tc actions flush action gact",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action gact",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "1021",
+  "tdc": "actions/gact.json"
+ }
+}

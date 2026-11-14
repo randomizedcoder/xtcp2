@@ -23,7 +23,7 @@ func (s *rdmaEventSchedule) diagnostics(failure error) {
 		result := model.Result{Job: job, Finished: now, Support: model.Supported, Err: failure}
 		if failure != nil {
 			result.Support, result.Reason = model.SupportUnknown, rdmaError(failure)
-			if errors.Is(failure, rdmaevents.ErrUnavailable) || errors.Is(failure, syscall.EOPNOTSUPP) || errors.Is(failure, syscall.EPROTONOSUPPORT) {
+			if rdmaEventsUnavailable(failure) {
 				result.Support = model.Unsupported
 			}
 		}
@@ -43,4 +43,10 @@ func (s *rdmaEventSchedule) invalidateDiagnostics(key model.DeviceKey) {
 	}
 	state.fresh = false
 	r.collectionChanged(job, state)
+}
+
+// rdmaEventsUnavailable reports a failure that means this host has no RDMA
+// events at all: no event source, or a kernel that refuses the subscription.
+func rdmaEventsUnavailable(err error) bool {
+	return errors.Is(err, rdmaevents.ErrUnavailable) || errors.Is(err, syscall.EOPNOTSUPP) || errors.Is(err, syscall.EPROTONOSUPPORT)
 }

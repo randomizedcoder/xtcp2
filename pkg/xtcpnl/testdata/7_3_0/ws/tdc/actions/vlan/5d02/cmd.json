@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action vlan push id 5 priority 10 index 1",
+ "desc": "negative: Add vlan push action with invalid IEEE 802.1p priority",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: vlan.*push id 5.*index 1 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/vlan/5d02",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action vlan",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "5d02",
+  "tdc": "actions/vlan.json"
+ }
+}

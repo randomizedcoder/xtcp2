@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from 198.51.100.0/24 fwmark 0xffffffff oif nosuch [detached] lookup [l3mdev-table] uidrange 1000-2000 ipproto udp sport 65534 dport 0x50/0xfff0 realms 10 dscp 4
+32766:	from all lookup main
+32767:	from all lookup default

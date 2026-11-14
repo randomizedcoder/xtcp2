@@ -21,6 +21,9 @@ const (
 	// ExitMinusTwo is do_cmd's -(2), for a command that returned 2:
 	// mptcp_monitor's listen ending in error (ip/ipmptcp.c).
 	ExitMinusTwo = 254
+	// ExitEINVAL is do_cmd's -(-EINVAL), for a command that returned
+	// -EINVAL: `ip stats` refusing a selection (ip/ipstats.c).
+	ExitEINVAL = 22
 )
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
@@ -55,8 +58,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		var oe *optionError
 		if !errors.As(err, &oe) {
+			// -family's invarg, which exits -1.
 			fmt.Fprintf(stderr, "goip: %v\n", err)
-			return ExitUsage
+			return ExitMinusOne
 		}
 		if oe.missing {
 			return missLoopCount(stderr)
@@ -102,6 +106,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// neigh). Refusing here, by name, keeps a dropped flag from showing up in
 	// the parity report as a full-render divergence. address is the one
 	// object that reads them (object.outputModes); see addrShow.
+	if msg := familyMsg(c.family, &obj); msg != "" {
+		fmt.Fprintf(stderr, "goip: %s\n", msg)
+		return ExitUsage
+	}
 	if msg := outputModeMsg(c, &obj); msg != "" {
 		fmt.Fprintf(stderr, "goip: %s\n", msg)
 		return ExitUsage
@@ -153,7 +161,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // ll_name_to_index does not find, an SA check_sa_args refuses and a dump
 // it cannot finish. xfrm exits 255 for what ip/xfrm*.c ends with exit(-1),
 // 1 for an SPI the protocol cannot take, an answer it cannot print and a
-// dump it cannot finish, and 2 for a kernel refusal.
+// dump it cannot finish, and 2 for a kernel refusal. vrf exits 255 for
+// what ipvrf.c ends with usage's exit(-1) — `vrf help`, two or more names
+// — and 1 for an Invalid VRF, ipvrf_show's NAME branch with a zero table.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
@@ -161,7 +171,15 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage),
 		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
 		errors.Is(err, ErrFouDumpTerminated), errors.Is(err, ErrIlaUsage), errors.Is(err, ErrIlaDumpTerminated),
-		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage):
+		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage),
+		errors.Is(err, ErrVrfUsage), errors.Is(err, ErrMaddrUsage), errors.Is(err, ErrStatsUsage):
+		return ExitMinusOne
+	case errors.Is(err, ErrStatsInval):
+		return ExitEINVAL
+	case errors.Is(err, ErrStatsShow):
+		return ExitFailure
+	case errors.Is(err, ErrLinkUsage):
+		// Ahead of ErrInvalidArgument, which its refusals wrap.
 		return ExitMinusOne
 	case errors.Is(err, ErrMptcpListen):
 		return ExitMinusTwo
@@ -179,7 +197,7 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrMptcpReply), errors.Is(err, ErrFouRefused), errors.Is(err, ErrIlaShowArgs),
 		errors.Is(err, ErrL2tpDumpTerminated), errors.Is(err, ErrMacsecRefused),
 		errors.Is(err, ErrMacsecDumpTerminated), errors.Is(err, ErrXfrmRefused),
-		errors.Is(err, ErrXfrmDumpTerminated):
+		errors.Is(err, ErrXfrmDumpTerminated), errors.Is(err, ErrVrfInvalid):
 		return ExitUsage
 	}
 	return ExitFailure

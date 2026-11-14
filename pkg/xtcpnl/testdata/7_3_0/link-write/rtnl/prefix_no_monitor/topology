@@ -1,0 +1,8 @@
+ok    [lacpa] ip link add r0 type veth peer name r0p
+ok    [lacpa] ip link set r0 addrgenmode none
+ok    [lacpa] ip link set r0p addrgenmode none
+ok    [lacpa] sysctl net.ipv6.conf.r0.accept_ra=2
+ok    [lacpa] sysctl net.ipv6.conf.r0.accept_ra_from_local=1
+ok    [lacpa] ip link set r0p up
+ok    [lacpa] ip link set r0 up
+ok    [lacpa] ip -6 addr add fe80::2/64 dev r0p nodad

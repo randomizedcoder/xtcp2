@@ -47,9 +47,6 @@ type linkMonitorPaths struct {
 	allPath        string
 	ipPaths        bool
 	ipMaxBytes     int
-	// ipListen, when set, moves /ip and /i off the Prometheus listener onto
-	// a loopback listener of their own (LinkMonitorIPHandler).
-	ipListen string
 }
 
 // newLinkMonitorPaths applies the defaults: every category, interface paths
@@ -57,7 +54,7 @@ type linkMonitorPaths struct {
 func newLinkMonitorPaths(c *xtcp_config.LinkMonitorConfig) linkMonitorPaths {
 	p := linkMonitorPaths{
 		categories: monitorprom.Categories(), interfacePaths: true, allPath: DefaultLinkMonitorAllPath,
-		ipPaths: c.GetIpPaths(), ipMaxBytes: int(c.GetIpMaxBytes()), ipListen: c.GetIpListen(),
+		ipPaths: c.GetIpPaths(), ipMaxBytes: int(c.GetIpMaxBytes()),
 	}
 	if c == nil {
 		return p
@@ -145,6 +142,9 @@ func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, 
 	}
 	if c.GetSettle() != nil {
 		cfg.Settle = c.GetSettle().AsDuration()
+	}
+	if c.GetLearnDeadline() != nil {
+		cfg.LearnDeadline = c.GetLearnDeadline().AsDuration()
 	}
 	if c.GetResync() != nil {
 		cfg.Resync = c.GetResync().AsDuration()
@@ -288,23 +288,23 @@ func (x *XTCP) setLinkMonitorUp(up bool) {
 	x.pGV.WithLabelValues("linkMonitor", "up", "gauge").Set(v)
 }
 
-// LinkMonitorHandler builds the embedded link monitor's detail paths for the
-// listener that serves promPath: promPath/<category> with
-// promPath/<category>/<interface>, the all-metrics path with its interface
-// views and, when enabled without their own listener, the /ip and /i paths.
-// It is nil without a monitor. Unknown paths are 404, and every path is 503
-// once the monitor has failed. Call it once per daemon; the listener's own
-// auth policy applies.
+// LinkMonitorHandler builds the embedded link monitor's detail paths (the
+// metrics-detail endpoint class): promPath/<category> with
+// promPath/<category>/<interface>, and the all-metrics path with its
+// interface views. It is nil without a monitor. Unknown paths are 404, and
+// every path is 503 once the monitor has failed. The /ip paths are a class of
+// their own (LinkMonitorIPHandler), but with ip_paths on they still reserve
+// /ip and /i, so a promPath there is refused whichever listener serves them.
+// Call it once per daemon; the serving listener's auth policy applies.
 func (x *XTCP) LinkMonitorHandler(promPath string) (http.Handler, error) {
 	if x.linkMonitor == nil {
 		return nil, nil
 	}
 	p := x.linkMonitorPaths
-	ipHere := p.ipPaths && p.ipListen == ""
 	prefix := strings.TrimSuffix(promPath, "/") + "/"
 	layout := linkmonitorhttp.Paths{
 		CategoryPrefix: prefix, Categories: p.categories, AllPath: p.allPath,
-		InterfacePaths: p.interfacePaths, IPPaths: ipHere,
+		InterfacePaths: p.interfacePaths, IPPaths: p.ipPaths,
 		Reserved: []string{promPath, "/healthz", "/readyz", "/debug/pprof/"},
 	}
 	if err := layout.Validate(); err != nil {
@@ -320,23 +320,15 @@ func (x *XTCP) LinkMonitorHandler(promPath string) (http.Handler, error) {
 			return nil, fmt.Errorf("link monitor paths: %w", err)
 		}
 	}
-	if ipHere {
-		ip, err := linkmonitorhttp.IPRoute(goiphttp.Options{MaxBytes: p.ipMaxBytes})
-		if err != nil {
-			return nil, fmt.Errorf("link monitor ip paths: %w", err)
-		}
-		routes = append(routes, ip)
-	}
 	return x.linkMonitorMux(routes), nil
 }
 
-// LinkMonitorIPHandler builds the /ip and /i paths for their own listener,
-// set by ip_listen. It is nil without a monitor, with the /ip paths off, or
-// with no ip_listen, when LinkMonitorHandler serves them instead. Every path
-// is 503 once the monitor has failed, as on the Prometheus listener.
+// LinkMonitorIPHandler builds the /ip and /i paths (the ip endpoint class).
+// It is nil without a monitor or with ip_paths off. Every path is 503 once
+// the monitor has failed.
 func (x *XTCP) LinkMonitorIPHandler() (http.Handler, error) {
 	p := x.linkMonitorPaths
-	if x.linkMonitor == nil || !p.ipPaths || p.ipListen == "" {
+	if x.linkMonitor == nil || !p.ipPaths {
 		return nil, nil
 	}
 	ip, err := linkmonitorhttp.IPRoute(goiphttp.Options{MaxBytes: p.ipMaxBytes})

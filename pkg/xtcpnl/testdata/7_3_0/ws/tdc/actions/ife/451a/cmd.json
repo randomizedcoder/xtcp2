@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ife encode allow tcindex drop index 77",
+ "desc": "positive: Create valid ife encode action with tcindex and drop control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ife encode action drop.*type 0[xX]ED3E.*allow tcindex.*index 77",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ife/451a",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action ife index 77",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "451a",
+  "tdc": "actions/ife.json"
+ }
+}

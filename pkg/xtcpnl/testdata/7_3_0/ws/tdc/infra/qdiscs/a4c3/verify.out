@@ -1,0 +1,9 @@
+qdisc drr 1: root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc plug 2: parent 1:1 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc hfsc 3: parent 1:2  default 0x1 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

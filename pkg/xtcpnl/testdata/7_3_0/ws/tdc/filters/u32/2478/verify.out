@@ -1,0 +1,13 @@
+filter protocol all pref 99 u32 chain 0 
+filter protocol all pref 99 u32 chain 0 fh 1: ht divisor 256 
+filter protocol all pref 99 u32 chain 0 fh 1:4:800 order 2048 key ht 1 bkt 4 flowid 1:1 not_in_hw 
+  match 00000000/00000000 at 0
+filter protocol all pref 99 u32 chain 0 fh 1:4:801 order 2049 key ht 1 bkt 4 flowid 1:1 not_in_hw 
+  match 00000000/00000000 at 0
+filter protocol all pref 99 u32 chain 0 fh 1:4:802 order 2050 key ht 1 bkt 4 flowid 1:1 not_in_hw 
+  match 00000000/00000000 at 0
+filter protocol all pref 99 u32 chain 0 fh 1:4:803 order 2051 key ht 1 bkt 4 flowid 1:1 not_in_hw 
+  match 00000000/00000000 at 0
+filter protocol all pref 99 u32 chain 0 fh 1:4:804 order 2052 key ht 1 bkt 4 flowid 1:1 not_in_hw 
+  match 00000000/00000000 at 0
+filter protocol all pref 99 u32 chain 0 fh 800: ht divisor 1 

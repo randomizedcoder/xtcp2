@@ -1,0 +1,1 @@
+qdisc fq_pie 1: root refcnt 2 limit 10240p flows 65536 target 15ms tupdate 15ms alpha 2 beta 20 quantum 1514b memory_limit 32Mb ecn_prob 10 

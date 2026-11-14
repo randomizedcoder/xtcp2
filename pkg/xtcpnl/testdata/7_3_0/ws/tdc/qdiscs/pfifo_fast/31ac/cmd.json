@@ -1,0 +1,50 @@
+{
+ "cmd": "ip link add dev v0p1 type veth peer name v0p0 txqueuelen 500000",
+ "desc": "negative: Reject veth peer nest tx_queue_len above S16_MAX at create",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^[0-9]+: v0p1",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/qdiscs/pfifo_fast/31ac",
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  [
+   "ip link del dev v0p1",
+   [
+    1
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "ip -o link show",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link del dev v0p1",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "31ac",
+  "tdc": "qdiscs/pfifo_fast.json"
+ }
+}

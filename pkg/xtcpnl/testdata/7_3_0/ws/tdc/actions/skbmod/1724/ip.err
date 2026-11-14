@@ -1,0 +1,4 @@
+Invalid smac address 00:44:55:44:55
+bad action parsing
+parse_action: bad value (4:skbmod)!
+Illegal "action"

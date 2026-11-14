@@ -1,0 +1,48 @@
+{
+ "cmd": "tc class add dev dummy1 parent 1: classid 1:1 htb rate 20Kbit mpu 64",
+ "desc": "positive: Create HTB with class mpu setting",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)class htb 1:1 root prio 0 rate 20Kbit ceil 20Kbit burst 1600b cburst 1600b",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/qdiscs/htb/4359",
+ "modules": [
+  "sch_htb"
+ ],
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 handle 1: root htb"
+ ],
+ "readback": [
+  {
+   "cmd": "tc class show dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 handle 1: root htb",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4359",
+  "tdc": "qdiscs/htb.json"
+ }
+}

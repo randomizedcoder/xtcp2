@@ -15,6 +15,7 @@ package xtcpnl
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"net/netip"
 	"reflect"
@@ -924,6 +925,30 @@ func TestParseNewLink(t *testing.T) {
 			},
 		},
 		{
+			description: "positive: IFLA_IFALIAS as the kernel dumps it, NUL-terminated",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, 0),
+				rtattr(unix.IFLA_IFALIAS, append([]byte("uplink"), 0)),
+			),
+			want: LinkInfo{Index: 2, Type: 1, IfAlias: "uplink"},
+		},
+		{
+			description: "corner: IFLA_IFALIAS as ip sends it, with no NUL",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, 0),
+				rtattr(unix.IFLA_IFALIAS, []byte("uplink")),
+			),
+			want: LinkInfo{Index: 2, Type: 1, IfAlias: "uplink"},
+		},
+		{
+			description: "boundary: an empty IFLA_IFALIAS leaves IfAlias empty",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, 0),
+				rtattr(unix.IFLA_IFALIAS, nil),
+			),
+			want: LinkInfo{Index: 2, Type: 1},
+		},
+		{
 			// This row and the next are a pair, and they are the reason
 			// HasTxQLen exists. A present-but-zero IFLA_TXQLEN is a real case
 			// — three of the eleven links in the committed dump carry one —
@@ -1532,6 +1557,18 @@ func FuzzParseNewAddr(f *testing.F) {
 func FuzzParseNewRoute(f *testing.F) {
 	f.Add(rtmsgHdr(unix.AF_INET, 24, 0, unix.RT_TABLE_MAIN, 0, unix.RT_SCOPE_LINK, unix.RTN_UNICAST, 0))
 	f.Add(concat(rtmsgHdr(unix.AF_INET, 0, 0, unix.RT_TABLE_MAIN, 0, 0, unix.RTN_UNICAST, 0), rtattr(unix.RTA_GATEWAY, v4b(10, 0, 0, 1))))
+	// Captured AF_MPLS routes (ws/mpls): ttl-propagate before a swap, and on
+	// a multipath route.
+	for _, h := range []string{
+		"1c140000fe03000100000000080001000006410005001a000100000008001300000c81000800040003000000",
+		"1c140000fe03000100000000080001000006410005001a00010000003800090014000000030000000a00120002000a00000200002000000003000000160012000a0020010db80000000000000000000000020000",
+	} {
+		b, err := hex.DecodeString(h)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(b)
+	}
 	f.Add([]byte{})
 	f.Fuzz(func(_ *testing.T, body []byte) {
 		_, _ = ParseNewRoute(body)
@@ -1541,6 +1578,9 @@ func FuzzParseNewRoute(f *testing.F) {
 // FuzzParseNewLink ensures ParseNewLink never panics on arbitrary bytes.
 func FuzzParseNewLink(f *testing.F) {
 	f.Add(concat(ifinfomsgHdr(unix.AF_UNSPEC, 1, 2, unix.IFF_UP), rtattr(unix.IFLA_IFNAME, append([]byte("eth0"), 0))))
+	// An ovpn link's IFLA_LINKINFO, as the kernel sends it for mode mp.
+	f.Add(concat(ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_NONE, 4, 0), rtattr(unix.IFLA_LINKINFO, concat(
+		rtattr(unix.IFLA_INFO_KIND, []byte("ovpn")), rtattr(unix.IFLA_INFO_DATA, rtattr(IflaOvpnMode, []byte{OvpnModeMP}))))))
 	f.Add([]byte{})
 	f.Fuzz(func(_ *testing.T, body []byte) {
 		_, _ = ParseNewLink(body)

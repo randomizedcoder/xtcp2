@@ -139,6 +139,7 @@ func NormalizeMsg(m Msg) Msg {
 	}
 	_, attrs, _ := DecodeAttrs(m.Hdr.Type, body)
 	normalizeAttrs(m.Hdr.Type, attrs)
+	zeroLwtBpfFDs(m.Hdr.Type, body)
 
 	return out
 }

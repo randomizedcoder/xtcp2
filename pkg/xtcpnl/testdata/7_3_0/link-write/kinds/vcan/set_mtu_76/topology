@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add vn0 type vcan

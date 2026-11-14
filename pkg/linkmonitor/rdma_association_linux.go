@@ -51,6 +51,7 @@ func (s rdmaFilesystem) netdevices(ctx context.Context) (map[string]rdmaNetdev, 
 	}
 	result := make(map[string]rdmaNetdev, len(entries))
 	indices := make(map[uint32]bool)
+entries:
 	for _, entry := range entries {
 		if !rdmaName(entry.Name(), 15) {
 			return nil, linuxio.ErrReply
@@ -59,6 +60,11 @@ func (s rdmaFilesystem) netdevices(ctx context.Context) (map[string]rdmaNetdev, 
 		var numbers [4]uint64
 		for i, field := range [...]string{"ifindex", "iflink", "type", "dev_port"} {
 			text, err := rdmaScalar(ctx, filepath.Join(path, field))
+			// Not every entry is a netdev: the bonding module adds
+			// bonding_masters, a regular file.
+			if i == 0 && errors.Is(err, unix.ENOTDIR) {
+				continue entries
+			}
 			if i == 3 && errors.Is(err, fs.ErrNotExist) {
 				continue
 			}

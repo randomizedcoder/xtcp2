@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "256",
+  "label": "d0:1",
+  "local": "ff0e::1:1",
+  "metric": "5",
+  "peer": "2001:db8:9::",
+  "peer_len": "64",
+  "preferred": "0",
+  "prefixlen": "128",
+  "proto": "255",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "change"
+ },
+ "cmd": "ip -6 address change ff0e::1:1/128 peer 2001:db8:9::/64 label d0:1 scope link priority 5 preferred_lft 0 mngtmpaddr proto 255 dev d0",
+ "desc": "negative: verb=change local=mcast peer=64 brd=absent label=alias scope=link metric=priority lft=deprecated flags=mngtmpaddr proto=255: the unspecified address, or a multicast one without autojoin (ipv6_add_addr)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/rn1-011",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

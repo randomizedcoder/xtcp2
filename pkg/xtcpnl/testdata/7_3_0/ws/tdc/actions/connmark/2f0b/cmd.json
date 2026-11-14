@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action connmark zone 65536 reclassify index 21",
+ "desc": "negative: Add valid connmark action with invalid zone argument",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: connmark zone 65536 reclassify.*index 21 ref",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/connmark/2f0b",
+ "modules": [
+  "act_connmark"
+ ],
+ "pre": [
+  [
+   "tc actions flush action connmark",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action connmark index 1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action connmark",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2f0b",
+  "tdc": "actions/connmark.json"
+ }
+}

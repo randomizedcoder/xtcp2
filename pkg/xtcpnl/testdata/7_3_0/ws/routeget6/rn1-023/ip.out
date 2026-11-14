@@ -1,0 +1,1 @@
+default via 2001:db8:1::1 dev d0 metric 1024 pref medium

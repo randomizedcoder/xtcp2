@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "brd": "+",
+  "family": "4",
+  "flags": "512",
+  "label": "d0:1",
+  "local": "192.0.2.1",
+  "metric": "0",
+  "prefixlen": "0",
+  "proto": "255",
+  "scope": "254",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 192.0.2.1/0 brd + label d0:1 scope host metric 0 noprefixroute proto 255 dev d0",
+ "desc": "boundary: verb=add local=0 peer=absent brd=plus label=alias scope=host metric=0 lft=absent flags=noprefixroute proto=255",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-041",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

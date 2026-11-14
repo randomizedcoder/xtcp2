@@ -1,0 +1,40 @@
+{
+ "axes": {
+  "dst": "192.0.2.1",
+  "family": "4",
+  "lladdr": "02:00:00:00:00:01",
+  "ntf_ext": "4",
+  "state": "128",
+  "verb": "add"
+ },
+ "cmd": "ip -4 neigh add 192.0.2.1 lladdr 02:00:00:00:00:01 nud 256 extern_valid dev d0",
+ "desc": "negative: verb=add dst=onlink lladdr=mac nud=256 flags=extern_valid proto=absent: a numeric state past 8 bits",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 255,
+  "refused_by": "iproute2"
+ },
+ "id": "neigh4/ng-005",
+ "pre": [
+  "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 neigh show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type veth peer name d1 && ip link set d0 addrgenmode none && ip link set d1 addrgenmode none && ip link set d0 up && ip link set d1 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

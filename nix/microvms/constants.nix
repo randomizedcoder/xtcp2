@@ -118,6 +118,22 @@
         serialPort = 12057;
         virtioPort = 12058;
       };
+      # The nl_mon capture workbench (sink "nlcap-workbench",
+      # docs/netlink/coverage-status.md "Workbench and generated rows") is
+      # kept up for hours and driven over ssh while other sessions boot their
+      # VMs, so it has an identity and ports of its own: nothing it binds may
+      # be a port another flavor's qemu wants. sshPort is the hostfwd, bound
+      # to 127.0.0.1 only.
+      nlcapWs = {
+        hostname = "xtcp2-nlcap-ws-x86_64";
+        serialPort = 12059;
+        virtioPort = 12060;
+        sshPort = 12061;
+        # Rows run N at a time (`batch -j N`), each its own tcpdump; more
+        # vCPUs is more rows a second. 2304, not 2048: microvm.nix #171.
+        vcpu = 6;
+        mem = 2304;
+      };
       promPort = 9088;
       grpcPort = 8889;
     };

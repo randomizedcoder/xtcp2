@@ -1,0 +1,13 @@
+total acts 3
+
+	action order 0: ctinfo zone 20 pass
+	 index 101 ref 1 bind 0
+	not_in_hw
+
+	action order 1: ctinfo zone 0 drop
+	 index 102 ref 1 bind 0 cpmark 0x02000000
+	not_in_hw
+
+	action order 2: ctinfo zone 0 continue
+	 index 103 ref 1 bind 0
+	not_in_hw

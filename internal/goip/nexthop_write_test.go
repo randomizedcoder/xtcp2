@@ -235,7 +235,8 @@ func TestParseNexthopWriteArgs(t *testing.T) {
 		{"boundary: weights 256 and 65536 split into low and high bytes", 0, "group 1,256/2,65536",
 			result{nhm(0, 0, 0), cat(fraOf(xtcpnl.NhaGroup, append(grp(1, 0xff, 0), grp(2, 0xff, 0xff)...)...)), nil}},
 		{"boundary: resilient last adds no nest", 0, "type resilient", result{nhm(0, 0, 0), cat(resType), nil}},
-		{"boundary: a protocol past a byte keeps its low byte", 0, "protocol 0x1ff", result{nhm(0, 0xff, 0), "", nil}},
+		{"boundary: protocol 255, the largest rtnl_rtprot_a2n takes", 0, "protocol 255", result{nhm(0, 0xff, 0), "", nil}},
+		{"negative: protocol 256, past a byte", 0, "protocol 256", result{err: ErrInvalidArgument}},
 		{"boundary: no arguments is an empty request", 0, "", result{nhm(0, 0, 0), "", nil}},
 		{"corner: resilient then another keyword leaves an empty nest", 0, "type resilient fdb",
 			result{nhm(0, 0, 0), cat(resNest(), resType, fraOf(xtcpnl.NhaFdb)), nil}},
@@ -256,9 +257,7 @@ func TestParseNexthopWriteArgs(t *testing.T) {
 			result{err: ErrInvalidArgument}},
 		{"negative: an unknown protocol name", 0, "protocol bogus", result{err: ErrInvalidArgument}},
 		{"negative: an unknown keyword", 0, "bogus", result{err: ErrInvalidArgument}},
-		{"negative: encap is not implemented", 0, "encap mpls 100", result{err: ErrNotImplemented}},
-		{"negative: dst_port is not implemented", 0, "dst_port 4789", result{err: ErrNotImplemented}},
-		{"negative: hw_stats is not implemented", 0, "hw_stats on", result{err: ErrNotImplemented}},
+		{"negative: encap bpf's mode word is obj, not the file", 0, "encap bpf in obj.o", result{err: ErrBpfLoad}},
 		{"negative: help is not implemented", 0, "help", result{err: ErrNotImplemented}},
 	}
 	resolve := func(name string) (int32, error) {
@@ -272,7 +271,7 @@ func TestParseNexthopWriteArgs(t *testing.T) {
 			w, err := parseNexthopWriteArgs(tc.family, resolve, strings.Fields(tc.args))
 			var got result
 			if err != nil {
-				for _, e := range []error{ErrInvalidArgument, ErrNotImplemented} {
+				for _, e := range []error{ErrInvalidArgument, ErrNotImplemented, ErrBpfLoad} {
 					if errors.Is(err, e) {
 						got.err = e
 					}

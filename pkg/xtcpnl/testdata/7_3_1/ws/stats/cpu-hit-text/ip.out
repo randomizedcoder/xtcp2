@@ -1,0 +1,24 @@
+1: lo: group offload subgroup cpu_hit
+
+
+2: nlmon0: group offload subgroup cpu_hit
+
+
+3: d0: group offload subgroup cpu_hit
+
+
+4: br0: group offload subgroup cpu_hit
+
+
+5: d1: group offload subgroup cpu_hit
+
+
+6: bond0: group offload subgroup cpu_hit
+
+
+7: d2: group offload subgroup cpu_hit
+
+
+8: d3: group offload subgroup cpu_hit
+
+

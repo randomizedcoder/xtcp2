@@ -111,6 +111,17 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			t.Fatalf("ParseNewLink(msg %d): %v", i, err)
 		}
 		li.Detail = LinkDetail{}
+		// The three bridges' IFLA_INFO_DATA is decoded into Bridge, and
+		// veth179a698's port data into BridgeSlave, which the bridge tests
+		// cover; the rows here ask about the generic attributes, so only
+		// their presence is checked.
+		if (li.Kind == bridgeKindCst) != (li.Bridge != nil) {
+			t.Errorf("msg %d: kind %q with Bridge %v", i, li.Kind, li.Bridge != nil)
+		}
+		if (li.SlaveKind == bridgeKindCst) != (li.BridgeSlave != nil) {
+			t.Errorf("msg %d: slave kind %q with BridgeSlave %v", i, li.SlaveKind, li.BridgeSlave != nil)
+		}
+		li.Bridge, li.BridgeSlave = nil, nil
 		links = append(links, li)
 	}
 
@@ -161,7 +172,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				CarrierUpCount:   U32Attr{Value: 0, Present: true},
 				CarrierDownCount: U32Attr{Value: 0, Present: true},
 				OperState:        IfOperUnknown, HasOperState: true,
-				Carrier: 1, HasCarrier: true,
+				Carrier: 1, HasCarrier: true, HasProtoDown: true,
 				MTU: 65536, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0, 0, 0, 0, 0, 0},
@@ -195,7 +206,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				CarrierUpCount:   U32Attr{Value: 1, Present: true},
 				CarrierDownCount: U32Attr{Value: 0, Present: true},
 				OperState:        IfOperUp, HasOperState: true,
-				Carrier: 1, HasCarrier: true,
+				Carrier: 1, HasCarrier: true, HasProtoDown: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address:     []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
@@ -216,7 +227,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				CarrierUpCount:   U32Attr{Value: 3, Present: true},
 				CarrierDownCount: U32Attr{Value: 2, Present: true},
 				OperState:        IfOperUp, HasOperState: true,
-				Carrier: 1, HasCarrier: true,
+				Carrier: 1, HasCarrier: true, HasProtoDown: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address:     []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
@@ -247,7 +258,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				CarrierUpCount:   U32Attr{Value: 1, Present: true},
 				CarrierDownCount: U32Attr{Value: 1, Present: true},
 				OperState:        IfOperUp, HasOperState: true,
-				Carrier: 1, HasCarrier: true,
+				Carrier: 1, HasCarrier: true, HasProtoDown: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0x6e, 0x05, 0xd5, 0x51, 0x50, 0x25},
@@ -275,7 +286,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				CarrierUpCount:   U32Attr{Value: 1, Present: true},
 				CarrierDownCount: U32Attr{Value: 1, Present: true},
 				OperState:        IfOperUp, HasOperState: true,
-				Carrier: 1, HasCarrier: true,
+				Carrier: 1, HasCarrier: true, HasProtoDown: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
@@ -315,7 +326,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				// different fact from the attribute being absent, and the
 				// two are indistinguishable without it.
 				OperState: IfOperDown, HasOperState: true,
-				Carrier: 0, HasCarrier: true,
+				Carrier: 0, HasCarrier: true, HasProtoDown: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0x52, 0x54, 0x00, 0x52, 0x00, 0x04},
@@ -352,7 +363,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				CarrierUpCount:   U32Attr{Value: 1, Present: true},
 				CarrierDownCount: U32Attr{Value: 1, Present: true},
 				OperState:        IfOperUp, HasOperState: true,
-				Carrier: 1, HasCarrier: true,
+				Carrier: 1, HasCarrier: true, HasProtoDown: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address:   []byte{0x66, 0xcf, 0x08, 0xaa, 0x09, 0xd9},
@@ -380,7 +391,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				CarrierUpCount:   U32Attr{Value: 0, Present: true},
 				CarrierDownCount: U32Attr{Value: 0, Present: true},
 				OperState:        IfOperUnknown, HasOperState: true,
-				Carrier: 1, HasCarrier: true,
+				Carrier: 1, HasCarrier: true, HasProtoDown: true,
 				MTU: 3776, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
 				Address: nil, Broadcast: nil,

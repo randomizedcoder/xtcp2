@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	from all tos 0x10 fwmark 0x10/0xff iif nosuch [detached] uidrange 0-0 ipproto icmp sport 1 dport 1-65534 tun_id 7 unreachable
+32766:	from all lookup main
+32767:	from all lookup default

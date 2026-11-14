@@ -1,0 +1,53 @@
+{
+ "cmd": "tc filter replace dev v0p1 parent ffff: handle 1 prio 2 fw action ok index 16",
+ "desc": "positive: Replace fw filter index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)pref 2 fw.*handle 0x1.*gact action pass.*index 16",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/fw/67ec",
+ "modules": [
+  "cls_fw"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 parent ffff: handle 1 prio 2 fw action ok index 3"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: handle 1 prio 2 fw action ok index 3",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "67ec",
+  "tdc": "filters/fw.json"
+ }
+}

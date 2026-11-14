@@ -7,7 +7,7 @@
   {
     "call": "GetEthtool(channels, 4)",
     "values": 1,
-    "digest": "06ee6746090e45b2"
+    "digest": "b85c07b604f752fe"
   },
   {
     "call": "GetEthtool(pause, 4)",

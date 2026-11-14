@@ -1,0 +1,5 @@
+86:9e:93:74:f6:d1 vlan 10 master br0 permanent
+86:9e:93:74:f6:d1 vlan 1 master br0 permanent
+86:9e:93:74:f6:d1 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

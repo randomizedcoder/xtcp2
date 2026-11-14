@@ -1,0 +1,33 @@
+{
+ "axes": {
+  "mask": "17"
+ },
+ "cmd": "ip stats show group link group afstats",
+ "desc": "positive: ip stats show group link group afstats, text",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "stats/two-groups-text",
+ "modules": [
+  "bonding",
+  "mpls_router"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip stats set dev d0 l3_stats on && ip link add br0 type bridge && ip link set br0 addrgenmode none && ip link add d1 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link add bond0 type bond mode 802.3ad && ip link add d2 type dummy && ip link add d3 type dummy && ip link set d2 master bond0 && ip link set d3 master bond0"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip stats set dev d0 l3_stats on && ip link add br0 type bridge && ip link set br0 addrgenmode none && ip link add d1 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link add bond0 type bond mode 802.3ad && ip link add d2 type dummy && ip link add d3 type dummy && ip link set d2 master bond0 && ip link set d3 master bond0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -47,7 +47,6 @@
   pkgs,
   lib,
   src,
-  giouring,
   commit ? "nix",
   date ? "1970-01-01-00:00",
   # Release version stamped into main.version → the record's daemon_version.
@@ -59,7 +58,7 @@
 
 let
   versions = import ./versions.nix { inherit pkgs; };
-  mkGoBinary = import ./lib/mkGoBinary.nix { inherit pkgs lib giouring; };
+  mkGoBinary = import ./lib/mkGoBinary.nix { inherit pkgs lib; };
 
   binaryNames = [
     "clickhouse_http_insert_protobuflist"
@@ -140,7 +139,7 @@ let
   # slim again — before the enrichment build tags, pkg/ipasn dragged parquet-go
   # into every one of them including `min`.
   xtcp2ByFlavor = lib.mapAttrs (
-    _dest: destList:
+    dest: destList:
     lib.mapAttrs (
       _enrich: enrichList:
       mkGoBinary {
@@ -154,6 +153,8 @@ let
         variant = "default";
         destinations = destList;
         enrichments = enrichList;
+        # Every slim flavor is a production build; `full` is development.
+        production = dest != "full";
       }
     ) versions.enrichmentFlavors
   ) versions.destinationFlavors;
@@ -279,6 +280,23 @@ let
   # `enrichments = [ ]` is there for exactly the same reason: untagged host
   # tests don't compile the enrich_asn / enrich_locality files either, so
   # including them here would add blocks the host profile can never cover.
+  # The netlink capture writer (-writeFiles / -capturePath) is a debugging
+  # tool that writes raw netlink replies — every socket's addresses — to disk.
+  # It is compiled in only here; no flavor or image carries the tag (see
+  # versions.optInOnlyTags and nix/checks/flavor-tags.nix). Full destinations
+  # and enrichers otherwise, so it is the development build plus capture.
+  xtcp2-capture = mkGoBinary {
+    name = "xtcp2";
+    inherit
+      src
+      commit
+      date
+      version
+      ;
+    variant = "default";
+    extraTags = [ "capture" ];
+  };
+
   xtcp2-cover = mkGoBinary {
     name = "xtcp2";
     inherit
@@ -305,6 +323,9 @@ defaultBinaries
 
   # Coverage-instrumented xtcp2 for the microvm coverage harness.
   inherit xtcp2-cover;
+
+  # Development build with the netlink capture writer compiled in.
+  inherit xtcp2-capture;
 
   # Joined builds.
   xtcp2-all = joins.default;

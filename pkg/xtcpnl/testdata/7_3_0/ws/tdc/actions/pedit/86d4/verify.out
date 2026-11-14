@@ -1,0 +1,4 @@
+	 key #0  at eth+4: val 00001122 mask ffff0000
+	 key #1  at eth+8: val 33445566 mask 00000000
+	 key #2  at eth+0: val ffeeddcc mask 00000000
+	 key #3  at eth+4: val bbaa0000 mask 0000ffff

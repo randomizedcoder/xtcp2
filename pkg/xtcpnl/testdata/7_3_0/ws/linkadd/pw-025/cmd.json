@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "address": "02:00:00:00:01:01",
+  "kind": "vlan",
+  "link": "d0",
+  "name": "n0",
+  "txqlen": "100",
+  "vlan_id": "20",
+  "vlan_proto": "34984"
+ },
+ "cmd": "ip link add dev n0 txqueuelen 100 address 02:00:00:00:01:01 link d0 type vlan protocol 802.1ad id 20",
+ "desc": "corner: name=dev up=absent mtu=absent txqlen=100 address=mac queues=absent kind=vlan-ad",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkadd/pw-025",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show dev n0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

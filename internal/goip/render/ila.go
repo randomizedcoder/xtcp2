@@ -35,7 +35,7 @@ func ilaName(names map[uint8]string, v uint8) string {
 	if n, ok := names[v]; ok {
 		return n
 	}
-	return "unknown"
+	return unknownCst
 }
 
 // IlaMapping is print_ila_mapping's line and object (ip/ipila.c): the
@@ -74,7 +74,13 @@ func IlaMapping(m *xtcpnl.ILA, dev func(int32) string) (string, []byte) {
 func ilaLocid(o *genlOut, key string, v *uint64) {
 	s := "-"
 	if v != nil {
-		s = fmt.Sprintf("%x:%x:%x:%x", *v>>48, *v>>32&0xffff, *v>>16&0xffff, *v&0xffff)
+		s = addr64String(*v)
 	}
 	o.str(key, fmt.Sprintf("%-20s", s), s)
+}
+
+// addr64String is addr64_n2a (lib/utils.c): the four 16-bit groups, high
+// first, each in hex without leading zeros.
+func addr64String(v uint64) string {
+	return fmt.Sprintf("%x:%x:%x:%x", v>>48, v>>32&0xffff, v>>16&0xffff, v&0xffff)
 }

@@ -1,0 +1,4 @@
+0:	from all lookup local
+200:	from all iif nosuch [detached] sport 1000-2000 dport 1-65534 lookup main dscp 0x20/0x30
+32766:	from all lookup main
+32767:	from all lookup default

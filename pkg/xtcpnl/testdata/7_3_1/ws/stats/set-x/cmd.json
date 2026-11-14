@@ -1,0 +1,36 @@
+{
+ "cmd": "ip stats set dev d0 l3_stats x",
+ "desc": "negative: stats set l3_stats neither on nor off",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 22,
+  "refused_by": "iproute2"
+ },
+ "id": "stats/set-x",
+ "modules": [
+  "bonding",
+  "mpls_router"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip stats show dev d0 group offload subgroup l3_stats",
+   "name": "l3"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 22,
+  "status": "OK"
+ }
+}

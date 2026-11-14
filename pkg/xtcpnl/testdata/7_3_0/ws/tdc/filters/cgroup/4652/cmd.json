@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: handle 1 protocol ip prio 1 cgroup match 'u32(u8 0xaa 0xf0 at -14)' action pass",
+ "desc": "positive: Add cgroup filter with u32 ematch u8/negative offset and pass action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)^filter protocol ip pref 1 cgroup.*handle 0x1.*u32\\(0000a000/0000f000 at -16\\)",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/cgroup/4652",
+ "modules": [
+  "cls_cgroup"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4652",
+  "tdc": "filters/cgroup.json"
+ }
+}

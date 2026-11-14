@@ -151,13 +151,7 @@ func TestParseRouteWriteArgs(t *testing.T) {
 	}
 	via6 := append([]byte{unix.AF_INET6, 0}, netip.MustParseAddr("2001:db8::2").AsSlice()...)
 
-	tests := []struct {
-		description string
-		verb        string
-		family      uint8
-		args        string
-		expected    routeWriteExpected
-	}{
+	tests := []routeWriteRow{
 		// The verbs.
 		{description: "positive: replace", verb: "replace", args: p24 + " dev d0", expected: devRoute(create | replace)},
 		{description: "positive: add", verb: "add", args: p24 + " dev d0", expected: devRoute(create | excl)},
@@ -386,25 +380,39 @@ func TestParseRouteWriteArgs(t *testing.T) {
 			expected: routeWriteExpected{err: errFakeResolve, errMsg: "fake", resolved: []string{"boom"}}},
 
 		// Keywords goip does not implement.
-		{description: "negative: nexthop", verb: "add", args: p24 + " nexthop via 192.0.2.1", expected: notImpl(`"nexthop"`)},
-		{description: "negative: encap", verb: "add", args: p24 + " encap mpls 100 dev d0", expected: notImpl(`"encap"`)},
-		{description: "negative: vrf, which costs a lookup of its own in ip", verb: "add", args: p24 + " vrf red",
-			expected: notImpl(`"vrf"`)},
-		{description: "negative: tos", verb: "add", args: p24 + " tos 0x10", expected: notImpl(`"tos"`)},
-		{description: "negative: realms", verb: "add", args: p24 + " realms 1", expected: notImpl(`"realms"`)},
-		{description: "negative: nhid", verb: "add", args: p24 + " nhid 1", expected: notImpl(`"nhid"`)},
 		{description: "negative: via link", verb: "add", args: p24 + " via link 02:00:00:00:00:01", expected: notImpl("link")},
 		{description: "negative: help", verb: "add", args: "help", expected: notImpl("help")},
 		{description: "corner: h is help, since hoplimit is strcmp", verb: "add", args: "h", expected: notImpl("help")},
 	}
-	for _, tc := range tests {
+	runRouteWriteRows(t, tests)
+}
+
+// routeWriteRow is one argv after the verb and the RouteWrite, lookups or
+// error it parses to.
+type routeWriteRow struct {
+	description string
+	verb        string
+	family      uint8
+	args        string
+	expected    routeWriteExpected
+}
+
+// runRouteWriteRows parses each row with the fake links: d0 is ifindex 2,
+// boom a resolver failure, and any other name a miss. The fake VRF lookup
+// records "vrf NAME" in the same list, so a row shows its order against
+// dev's: vr0 is table 10, vr1 1000, default 254, boom a failure, and any
+// other name not a VRF.
+func runRouteWriteRows(t *testing.T, rows []routeWriteRow) {
+	t.Helper()
+	for i := range rows {
+		tc := &rows[i]
 		t.Run(tc.description, func(t *testing.T) {
 			verb := lookupRouteWriteVerb(tc.verb)
 			if verb == nil {
 				t.Fatalf("no verb %q", tc.verb)
 			}
 			links := newFakeLinks()
-			got, err := parseRouteWriteArgs(verb, tc.family, strings.Fields(tc.args), links.resolve)
+			got, err := parseRouteWriteArgs(verb, tc.family, strings.Fields(tc.args), links.resolve, links.vrfTable)
 			if !equalStrings(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}
@@ -422,6 +430,17 @@ func TestParseRouteWriteArgs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeVrfTables are the fake ipvrf_get_table's answers.
+var fakeVrfTables = map[string]uint32{"vr0": 10, "vr1": 1000, "default": unix.RT_TABLE_MAIN}
+
+func (f *fakeLinks) vrfTable(name string) (uint32, error) {
+	f.calls = append(f.calls, "vrf "+name)
+	if name == "boom" {
+		return 0, errFakeResolve
+	}
+	return fakeVrfTables[name], nil
 }
 
 func equalStrings(a, b []string) bool {
@@ -544,8 +563,8 @@ func TestRunRouteWrite(t *testing.T) {
 		{description: "negative: an argv error writes no file",
 			args: []string{"route", "add", "blackhole", "198.51.100.0/24", "quickack", "2"}, hook: hookSet,
 			expected: result{code: ExitUsage, stderr: `"quickack" value should be 0 or 1`}},
-		{description: "boundary: an unimplemented keyword writes no file",
-			args: []string{"route", "add", "198.51.100.0/24", "nexthop", "via", "192.0.2.1"}, hook: hookSet,
+		{description: "boundary: an unimplemented form writes no file",
+			args: []string{"route", "add", "198.51.100.0/24", "via", "link", "02:00:00:00:00:01", "dev", "d0"}, hook: hookSet,
 			expected: result{code: ExitUsage, stderr: "not implemented"}},
 	}
 	for _, tc := range tests {

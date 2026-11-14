@@ -1,0 +1,2 @@
+2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+2001:db8:2::/64  encap seg6 mode inline segs 2 [ 2001:db8:9::1 :: ] lookup 100 dev d0 metric 1024 pref medium

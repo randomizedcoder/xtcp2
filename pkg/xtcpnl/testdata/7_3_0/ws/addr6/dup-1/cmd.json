@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "family": "6",
+  "local": "2001:db8:1::1",
+  "prefixlen": "64",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add 2001:db8:1::1/64 dev d0",
+ "desc": "negative: verb=add local=64 peer=absent brd=absent label=absent scope=absent metric=absent lft=absent flags=absent proto=absent: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/dup-1",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -6 address add 2001:db8:1::1/64 dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 address add 2001:db8:1::1/64 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

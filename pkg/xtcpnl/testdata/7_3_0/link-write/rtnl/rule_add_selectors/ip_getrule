@@ -1,0 +1,16 @@
+0:	from all lookup local
+101:	from 192.0.2.0/24 lookup 100
+102:	from all to 198.51.100.0/24 lookup 100
+103:	from all tos 0x10 lookup 100
+104:	from all lookup 100 dscp AF11
+105:	from all fwmark 0x7/0xff lookup 100
+106:	from all iif d9 [detached] lookup 100
+107:	from all oif d9 [detached] lookup 100
+108:	from all uidrange 1000-2000 lookup 100
+109:	from all ipproto tcp sport 1000-2000 dport 80 lookup 100
+110:	not from 203.0.113.0/24 goto 112
+111:	from all lookup main suppress_prefixlength 0
+112:	from all lookup 100 proto static
+113:	from all lookup [l3mdev-table]
+32766:	from all lookup main
+32767:	from all lookup default

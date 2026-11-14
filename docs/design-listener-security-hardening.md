@@ -69,7 +69,7 @@ It registers:
 
 ### Prometheus HTTP
 
-`cmd/xtcp2/prom_server.go` starts Prometheus through `startPromServer(ctx, wg, promParams)`, which binds the listener before the daemon starts and serves it as a tracked worker that drains on shutdown. (Before this hardening, `servePromHandler` always called `lc.Listen(context.Background(), "tcp", promListen)` from a bare goroutine.)
+`cmd/xtcp2/prom_server.go` (now `listeners.go` and `http_server.go`, one listener per `-listener`) starts Prometheus through `startPromServer(ctx, wg, promParams)`, which binds the listener before the daemon starts and serves it as a tracked worker that drains on shutdown. (Before this hardening, `servePromHandler` always called `lc.Listen(context.Background(), "tcp", promListen)` from a bare goroutine.)
 
 `-promListen` and `-promPath` are flag/env-only settings, not part of `XtcpConfig`. `PROM_LISTEN` and `PROM_PATH` override flags.
 

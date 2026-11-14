@@ -4,11 +4,14 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"io"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -21,8 +24,12 @@ func nla(atype uint16, payload ...[]byte) []byte {
 	for _, p := range payload {
 		body = append(body, p...)
 	}
+	n, ok := cint.U16(4 + len(body))
+	if !ok {
+		panic("nla: an attribute past 64 KiB")
+	}
 	b := make([]byte, 4, 4+len(body)+3)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(4+len(body))) //nolint:gosec // test sizes are small
+	binary.LittleEndian.PutUint16(b[0:2], n)
 	binary.LittleEndian.PutUint16(b[2:4], atype)
 	b = append(b, body...)
 	for len(b)%4 != 0 {
@@ -57,6 +64,9 @@ type bondArgsExpected struct {
 	wire   []byte
 	err    error
 	errMsg string
+	// code is the refusal's exit status: 255 for invarg and NEXT_ARG's
+	// incomplete line, 1 for the rest.
+	code int
 }
 
 func checkBondArgs(t *testing.T, got []byte, err error, want bondArgsExpected) {
@@ -67,6 +77,9 @@ func checkBondArgs(t *testing.T, got []byte, err error, want bondArgsExpected) {
 		}
 		if !strings.Contains(err.Error(), want.errMsg) {
 			t.Fatalf("err = %q, want it to contain %q", err, want.errMsg)
+		}
+		if code := exitCodeOf(err); code != want.code {
+			t.Fatalf("exit %d, want %d (%v)", code, want.code, err)
 		}
 		return
 	}
@@ -87,9 +100,11 @@ func targets16(n int) string {
 }
 
 func targetNest16() []byte {
-	var subs [][]byte
-	for i := 1; i <= 16; i++ {
-		subs = append(subs, nla(uint16(i-1), []byte{10, 0, 0, byte(i)})) //nolint:gosec // i <= 16
+	subs := make([][]byte, 0, 16)
+	last := byte(1)
+	for typ := range uint16(16) {
+		subs = append(subs, nla(typ, []byte{10, 0, 0, last}))
+		last++
 	}
 	return nla(unix.IFLA_BOND_ARP_IP_TARGET, subs...)
 }
@@ -115,9 +130,9 @@ func TestEncodeBondOptions(t *testing.T) {
 		{description: "boundary: mode 6 is the last index", args: []string{"mode", "6"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_MODE, []byte{6})}},
 		{description: "boundary: mode 7 is past the table", args: []string{"mode", "7"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `argument "7" is wrong: invalid mode`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `argument "7" is wrong: invalid mode`, code: ExitMinusOne}},
 		{description: "negative: mode names are strcmp", args: []string{"mode", "802.3AD"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid mode"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid mode", code: ExitMinusOne}},
 		{description: "corner: m is a prefix of mode", args: []string{"m", "balance-rr"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_MODE, []byte{0})}},
 		{description: "positive: lacp_r is a prefix of lacp_rate", args: []string{"lacp_r", "fast"},
@@ -125,13 +140,13 @@ func TestEncodeBondOptions(t *testing.T) {
 		{description: "positive: lacp_active on", args: []string{"lacp_active", "on"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_AD_LACP_ACTIVE, []byte{1})}},
 		{description: "corner: lacp_active is strcmp, so lacp_act is unknown", args: []string{"lacp_act", "on"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `bond: unknown command "lacp_act"?`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `bond: unknown command "lacp_act"?`, code: ExitUsage}},
 		{description: "positive: arp_missed_max", args: []string{"arp_missed_max", "2"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_MISSED_MAX, []byte{2})}},
 		{description: "corner: arp_missed_max is strcmp, so arp_missed is unknown", args: []string{"arp_missed", "2"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "arp_missed"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "arp_missed"`, code: ExitUsage}},
 		{description: "negative: lacp_strict is not in the 7.1.0 parser", args: []string{"lacp_strict", "on"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "lacp_strict"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "lacp_strict"`, code: ExitUsage}},
 		{description: "corner: p is peer_notify_delay, tried before primary", args: []string{"p", "100"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_PEER_NOTIF_DELAY, le32(100))}},
 		{description: "corner: a is active_slave", args: []string{"a", "eth0"},
@@ -143,17 +158,17 @@ func TestEncodeBondOptions(t *testing.T) {
 		{description: "corner: ad_actor_sys is ad_actor_sys_prio, tried before ad_actor_system", args: []string{"ad_actor_sys", "65535"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_AD_ACTOR_SYS_PRIO, le16(65535))}},
 		{description: "boundary: ad_actor_sys_prio 65536 is past u16", args: []string{"ad_actor_sys_prio", "65536"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid ad_actor_sys_prio"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid ad_actor_sys_prio", code: ExitMinusOne}},
 		{description: "positive: ad_actor_system, six bytes", args: []string{"ad_actor_system", "02:00:00:00:00:0a"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_AD_ACTOR_SYSTEM, []byte{2, 0, 0, 0, 0, 0x0a})}},
 		{description: "corner: a short ad_actor_system encodes its two bytes (table 3 row 17, corrected)", args: []string{"ad_actor_system", "02:00"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_AD_ACTOR_SYSTEM, []byte{2, 0})}},
 		{description: "negative: ad_actor_system with a non-hex part", args: []string{"ad_actor_system", "zz:00"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid lladdr"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid lladdr", code: ExitUsage}},
 		{description: "boundary: use_carrier 0", args: []string{"use_carrier", "0"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_USE_CARRIER, []byte{0})}},
 		{description: "boundary: use_carrier 256 is past u8", args: []string{"use_carrier", "256"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid use_carrier"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "invalid use_carrier", code: ExitMinusOne}},
 		{description: "positive: ad_select actor_port_prio, the fourth name", args: []string{"ad_select", "actor_port_prio"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_AD_SELECT, []byte{3})}},
 		{description: "positive: xmit_hash_policy names are value order, not help order", args: []string{"xmit", "layer2+3"},
@@ -174,13 +189,13 @@ func TestEncodeBondOptions(t *testing.T) {
 		{description: "positive: clear_active_slave takes no value and sends 0", args: []string{"clear_active_slave", "miimon", "1"},
 			expected: bondArgsExpected{wire: catBytes(nla(unix.IFLA_BOND_ACTIVE_SLAVE, le32(0)), nla(unix.IFLA_BOND_MIIMON, le32(1)))}},
 		{description: "negative: active_slave names no device", args: []string{"active_slave", "nope"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `Cannot find device "nope"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `Cannot find device "nope"`, code: ExitUsage}},
 		{description: "positive: coupled_control off", args: []string{"coupled_control", "off"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_COUPLED_CONTROL, []byte{0})}},
 		{description: "positive: broadcast_neighbor on", args: []string{"broadcast_neighbor", "on"},
 			expected: bondArgsExpected{wire: nla(xtcpnl.IflaBondBroadcastNeigh, []byte{1})}},
 		{description: "negative: parse_on_off takes no numbers", args: []string{"coupled_control", "1"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `must be "on" or "off"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `must be "on" or "off"`, code: ExitUsage}},
 		{description: "positive: two arp targets, sub-attribute type is the position from 0", args: []string{"arp_ip_target", "10.0.0.1,10.0.0.2"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_ARP_IP_TARGET,
 				nla(0, []byte{10, 0, 0, 1}), nla(1, []byte{10, 0, 0, 2}))}},
@@ -196,23 +211,33 @@ func TestEncodeBondOptions(t *testing.T) {
 		{description: "boundary: a seventeenth target is dropped without a word", args: []string{"arp_ip_target", targets16(17)},
 			expected: bondArgsExpected{wire: targetNest16()}},
 		{description: "corner: NEXT_ARG_OK takes the next argument even when it is a keyword", args: []string{"arp_ip_target", "miimon", "100"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `an IP address is expected rather than "miimon"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `an IP address is expected rather than "miimon"`, code: ExitUsage}},
 		{description: "corner: a target part is strtoul base 0, so 08 is not octal and is refused", args: []string{"arp_ip_target", "10.0.0.08"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `an IP address is expected rather than "10.0.0.08"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `an IP address is expected rather than "10.0.0.08"`, code: ExitUsage}},
 		{description: "corner: and 010 is octal 8", args: []string{"arp_ip_target", "10.0.0.010"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_ARP_IP_TARGET, nla(0, []byte{10, 0, 0, 8}))}},
 		{description: "positive: ns_ip6_target", args: []string{"ns_ip6_target", "2001:db8::1"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_NS_IP6_TARGET, nla(0, v6))}},
 		{description: "corner: ns_ip6_target is strcmp", args: []string{"ns_ip6", "2001:db8::1"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "ns_ip6"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "ns_ip6"`, code: ExitUsage}},
 		{description: "negative: an IPv4 address in ns_ip6_target", args: []string{"ns_ip6_target", "10.0.0.1"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "inet6 address is expected"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "inet6 address is expected", code: ExitUsage}},
 		{description: "negative: a value is missing", args: []string{"miimon"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "Command line is not complete"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "Command line is not complete", code: ExitMinusOne}},
 		{description: "negative: an unknown keyword after a good one fails the whole command", args: []string{"miimon", "1", "bogus"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "bogus"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown command "bogus"`, code: ExitUsage}},
+		{description: "negative: an invalid value is invarg, 255", args: []string{"mode", "foo"},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `Error: argument "foo" is wrong: invalid mode`, code: ExitMinusOne}},
+		{description: "negative: an invalid number is invarg, 255", args: []string{"miimon", "x"},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `Error: argument "x" is wrong: invalid miimon`, code: ExitMinusOne}},
+		{description: "negative: a missing primary is nodev, 1", args: []string{"primary", "nosuch"},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `Cannot find device "nosuch"`, code: ExitUsage}},
+		{description: "negative: on/off is parse_on_off's, 1", args: []string{"coupled_control", "maybe"},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `argument of "coupled_control" must be "on" or "off", not "maybe"`, code: ExitUsage}},
+		{description: "negative: a bad target is get_addr32's exit(1)", args: []string{"arp_ip_target", "10.0.0.x"},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `Error: an IP address is expected rather than "10.0.0.x"`, code: ExitUsage}},
 		{description: "negative: help is not implemented", args: []string{"help"},
-			expected: bondArgsExpected{err: ErrNotImplemented, errMsg: "help"}},
+			expected: bondArgsExpected{err: ErrNotImplemented, errMsg: "help", code: ExitUsage}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -241,29 +266,31 @@ func TestEncodeBondSlaveOptions(t *testing.T) {
 		{description: "corner: q is a prefix of queue_id", args: []string{"q", "3"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_SLAVE_QUEUE_ID, le16(3))}},
 		{description: "boundary: queue_id 65536 is past u16", args: []string{"queue_id", "65536"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "queue_id is invalid"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "queue_id is invalid", code: ExitMinusOne}},
 		{description: "positive: prio -1 is a signed 32-bit value", args: []string{"prio", "-1"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_SLAVE_PRIO, le32(0xffffffff))}},
 		{description: "boundary: prio INT32_MIN", args: []string{"prio", "-2147483648"},
 			expected: bondArgsExpected{wire: nla(unix.IFLA_BOND_SLAVE_PRIO, le32(0x80000000))}},
 		{description: "boundary: prio past INT32_MAX", args: []string{"prio", "2147483648"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "prio is invalid"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "prio is invalid", code: ExitMinusOne}},
 		{description: "corner: prio is strcmp, so pri is unknown", args: []string{"pri", "1"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `bond_slave: unknown option "pri"?`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `bond_slave: unknown option "pri"?`, code: ExitUsage}},
 		{description: "positive: actor_port_prio", args: []string{"actor_port_prio", "65535"},
 			expected: bondArgsExpected{wire: nla(xtcpnl.IflaBondSlaveActorPortPrio, le16(65535))}},
 		{description: "boundary: actor_port_prio 65536", args: []string{"actor_port_prio", "65536"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "actor prio is invalid"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "actor prio is invalid", code: ExitMinusOne}},
 		{description: "corner: actor_port_prio is strcmp", args: []string{"actor", "1"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown option "actor"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown option "actor"`, code: ExitUsage}},
 		{description: "positive: argv order is wire order", args: []string{"prio", "5", "queue_id", "1"},
 			expected: bondArgsExpected{wire: catBytes(nla(unix.IFLA_BOND_SLAVE_PRIO, le32(5)), nla(unix.IFLA_BOND_SLAVE_QUEUE_ID, le16(1)))}},
 		{description: "negative: a bond keyword is not a port keyword", args: []string{"miimon", "1"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown option "miimon"`}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `unknown option "miimon"`, code: ExitUsage}},
 		{description: "negative: a value is missing", args: []string{"queue_id"},
-			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "Command line is not complete"}},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: "Command line is not complete", code: ExitMinusOne}},
+		{description: "negative: an invalid queue_id is invarg, 255", args: []string{"queue_id", "x"},
+			expected: bondArgsExpected{err: ErrInvalidArgument, errMsg: `Error: argument "x" is wrong: queue_id is invalid`, code: ExitMinusOne}},
 		{description: "negative: h is help, not implemented", args: []string{"h"},
-			expected: bondArgsExpected{err: ErrNotImplemented, errMsg: "help"}},
+			expected: bondArgsExpected{err: ErrNotImplemented, errMsg: "help", code: ExitUsage}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -291,7 +318,7 @@ func TestBondParseKeywordsCoverTable(t *testing.T) {
 		unparsed    []string
 		expected    int // keywords, help included
 	}{
-		{description: "positive: bond", chain: bondParseKeywords, table: xtcpnl.BondOptions, unparsed: []string{"lacp_strict"}, expected: 35},
+		{description: "positive: bond", chain: bondParseKeywords, table: xtcpnl.BondOptions, expected: 36},
 		{description: "positive: bond_slave", chain: bondSlaveParseKeywords, table: xtcpnl.BondSlaveOptions, expected: 4},
 	}
 	for _, tc := range tests {
@@ -332,6 +359,44 @@ func TestBondParseKeywordsCoverTable(t *testing.T) {
 				if !covered[s.ID] {
 					t.Errorf("%s: settable row has no keyword", s.Keyword)
 				}
+			}
+		})
+	}
+}
+
+// TestLinkIfindexBits is an ifindex's 32 bits going out where ip copies the
+// int: the bond resolver's PRIMARY and iplink_parse's MASTER. ip tests only
+// for 0, so a negative index, which ll_idx_a2n's "if%u" can give, is sent
+// as its bits rather than refused.
+func TestLinkIfindexBits(t *testing.T) {
+	tests := []struct {
+		description string
+		args        string
+		idx         int32
+		expected    []byte
+	}{
+		{"positive: a bond primary", "b0 type bond primary e0", 3,
+			nla(unix.IFLA_BOND_PRIMARY, le32(3))},
+		{"boundary: the top ifindex", "b0 type bond primary e0", math.MaxInt32,
+			nla(unix.IFLA_BOND_PRIMARY, le32(0x7fffffff))},
+		{"corner: a negative ifindex is sent as its bits", "b0 type bond primary e0", -1,
+			nla(unix.IFLA_BOND_PRIMARY, le32(0xffffffff))},
+		{"corner: a negative master is sent as its bits", "d9 master e0 type dummy", -1,
+			nla(unix.IFLA_MASTER, le32(0xffffffff))},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			resolve := func(string) (int32, error) { return tc.idx, nil }
+			w, err := buildLinkWrite(io.Discard, lookupLinkWriteVerb("add"), unix.AF_UNSPEC, strings.Fields(tc.args), resolve, nil, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := w.Data
+			if !w.HasData {
+				got = catBytes(nla(w.Attrs[0].Type, w.Attrs[0].Payload))
+			}
+			if !slices.Equal(got, tc.expected) {
+				t.Errorf("% x, want % x", got, tc.expected)
 			}
 		})
 	}

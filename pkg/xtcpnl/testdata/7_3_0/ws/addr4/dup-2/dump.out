@@ -1,0 +1,3 @@
+3: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    inet 192.0.2.1/32 metric 5 brd 192.0.2.127 scope nowhere dynamic proto 0xff d0
+       valid_lft 59sec preferred_lft 59sec

@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ct mark 0x42/0xf0 index 42",
+ "desc": "positive: Try ct with mark + mask",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ct mark 66/0xf0 zone 0 pipe.*index 42 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ct/9751",
+ "modules": [
+  "act_ct"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ct",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action ct",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ct",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "9751",
+  "tdc": "actions/ct.json"
+ }
+}

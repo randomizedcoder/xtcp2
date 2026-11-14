@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action tunnel_key set src_ip 10.10.10.1 dst_ip 10.10.10.2 id 7 foobar 999 index 4",
+ "desc": "negative: Add tunnel_key action with not-supported parameter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: tunnel_key.*src_ip 10.10.10.1.*dst_ip 10.10.10.2.*key_id 7.*foobar 999.*index 4",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/tunnel_key/2575",
+ "modules": [
+  "act_tunnel_key"
+ ],
+ "pre": [
+  [
+   "tc actions flush action tunnel_key",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action tunnel_key index 4",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action tunnel_key",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2575",
+  "tdc": "actions/tunnel_key.json"
+ }
+}

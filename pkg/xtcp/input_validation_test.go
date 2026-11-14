@@ -114,14 +114,6 @@ func TestValidateInput_happyPaths(t *testing.T) {
 			},
 		},
 		{
-			name: "file dest with path",
-			cfg: &xtcp_config.XtcpConfig{
-				MarshalTo: MarshallerProtoJSON,
-				Dest:      "file:/var/log/xtcp.csv",
-				Topic:     "xtcp",
-			},
-		},
-		{
 			name: "tcp dest host:port",
 			cfg: &xtcp_config.XtcpConfig{
 				MarshalTo: MarshallerProtoJSON,

@@ -1,0 +1,2 @@
+ok    [addra] ip link add v0 address 02:00:00:00:a0:00 type veth peer name v1 address 02:00:00:00:b0:00
+ok    [addra] ip -6 addr add 2001:db8::5/64 dev v0

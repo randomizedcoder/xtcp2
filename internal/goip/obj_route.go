@@ -51,6 +51,9 @@ func runRoute(c *runCtx, args []string) error {
 			if w := lookupRouteWriteVerb(v.name); w != nil {
 				return routeWrite(c, w, rest)
 			}
+			if c.family == unix.AF_MPLS && v.name != routeGetVerbCst {
+				return routeMplsUnserved(v.name)
+			}
 			switch v.name {
 			case routeGetVerbCst:
 				return routeGet(c, rest)
@@ -72,6 +75,12 @@ func runRoute(c *runCtx, args []string) error {
 		return err
 	}
 	return routeShow(c, sel)
+}
+
+// routeMplsUnserved refuses a route verb goip does not run in AF_MPLS: all
+// but the writes, get and show (goip-parity-next.md, NX3).
+func routeMplsUnserved(verb string) error {
+	return fmt.Errorf("route %s in family mpls: %w", verb, ErrNotImplemented)
 }
 
 // routeSelectors is the subset of iproute2's `struct filter` that
@@ -347,7 +356,7 @@ func routeTableID(arg string) (uint32, error) {
 		return unix.RT_TABLE_LOCAL, nil
 	case addrNameAllCst:
 		return unix.RT_TABLE_UNSPEC, nil
-	case "cache", "help":
+	case "cache", addrHelpKeywordCst:
 		return 0, fmt.Errorf("route show table %q: %w", arg, ErrNotImplemented)
 	}
 	// strtoul(arg, &end, 0): base 0, so 0x-prefixed and 0-prefixed forms are
@@ -457,6 +466,7 @@ func renderRoutes(c *runCtx, svc *service.Service, routes []model.Route, sel *ro
 		ProtoMask: sel.ProtoMask,
 		Details:   c.detailed(),
 		Stats:     c.stats(),
+		Realms:    new(render.Realms),
 	}
 	views := make([]render.RouteView, 0, len(routes))
 	for i := range routes {
@@ -509,12 +519,12 @@ func resolveRouteNexthops(c *runCtx, svc *service.Service, routes []model.Route,
 		}
 		text, ok := seen[id]
 		if !ok {
-			nh, err := svc.NexthopByID(c.family, id)
+			nh, err := svc.NexthopByID(c.family, id, xtcpnl.NexthopOpFlags(c.showStats))
 			if err != nil {
 				return err
 			}
 			resolveIndexName(c, svc, nh.OIF)
-			text, err = render.NexthopInfoText(xtcpnl.NexthopInfo(nh), c.lltab)
+			text, err = render.NexthopInfoText(xtcpnl.NexthopInfo(nh), c.showStats, c.lltab)
 			if err != nil {
 				return fmt.Errorf("-d on a route with nhid %d: %v: %w", id, err, ErrNotImplemented)
 			}
@@ -782,14 +792,47 @@ func routeMatchesOif(r *model.Route, oif uint32) bool {
 func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route, oifMask bool) {
 	for i := range routes {
 		r := &routes[i]
+		resolveEncapName(c, svc, r.Encap)
 		if !oifMask {
 			resolveIndexName(c, svc, int32(r.Oif))
 		}
 		resolveIndexName(c, svc, int32(r.Iif))
 		for j := range r.Multipath {
+			resolveEncapName(c, svc, r.Multipath[j].Encap)
 			resolveIndexName(c, svc, r.Multipath[j].Ifindex)
 		}
 	}
+}
+
+// resolveEncapName is lwt_print_encap's ll_index_to_name calls: an xfrm
+// encap's link_dev, or a seg6local encap's iif then oif. print_route prints the encap before the dev
+// (ip/iproute.c:887, :900), and print_rta_multipath a hop's before the
+// hop's dev (:727, :744), as print_nexthop does (ip/ipnexthop.c:571, :580),
+// so each caller resolves it first.
+func resolveEncapName(c *runCtx, svc *service.Service, e *xtcpnl.RouteEncap) {
+	for _, idx := range encapNameIndexes(e) {
+		resolveIndexName(c, svc, idx)
+	}
+}
+
+// encapNameIndexes is the ifindexes lwt_print_encap names, in the order it
+// asks for them; print_encap_seg6local returns before both without the
+// action.
+func encapNameIndexes(e *xtcpnl.RouteEncap) []int32 {
+	var idx []int32
+	switch {
+	case e == nil:
+	case e.Xfrm != nil && e.Xfrm.HasLink:
+		idx = append(idx, int32(e.Xfrm.Link))
+	case e.Seg6Local != nil && e.Seg6Local.HasAction:
+		if e.Seg6Local.HasIIF {
+			idx = append(idx, int32(e.Seg6Local.IIF))
+		}
+		if e.Seg6Local.HasOIF {
+			idx = append(idx, int32(e.Seg6Local.OIF))
+		}
+	}
+	return idx
 }
 
 // resolveIndexName is ll_index_to_name's cache-miss path. Index 0 is not a

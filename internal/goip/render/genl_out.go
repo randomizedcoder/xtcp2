@@ -3,6 +3,8 @@ package render
 import (
 	"strconv"
 	"strings"
+
+	"github.com/randomizedcoder/xtcp2/internal/jsonw"
 )
 
 // genlOut is one walk's two renders, the text line and the JSON object,
@@ -20,7 +22,7 @@ func (o *genlOut) key(k string) {
 	} else {
 		o.obj = append(o.obj, ',')
 	}
-	o.obj = AppendJSONWString(o.obj, []byte(k))
+	o.obj = jsonw.Append(o.obj, k)
 	o.obj = append(o.obj, ':')
 }
 
@@ -29,7 +31,7 @@ func (o *genlOut) key(k string) {
 func (o *genlOut) str(k, text, v string) {
 	o.text.WriteString(text)
 	o.key(k)
-	o.obj = AppendJSONWString(o.obj, []byte(v))
+	o.obj = jsonw.Append(o.obj, v)
 }
 
 // uint is print_uint(PRINT_ANY, k, ...).
@@ -63,7 +65,7 @@ func (o *genlOut) hex0x(k, text string, v uint64) {
 	if v != 0 {
 		s = "0x" + strconv.FormatUint(v, 16)
 	}
-	o.obj = AppendJSONWString(o.obj, []byte(s))
+	o.obj = jsonw.Append(o.obj, s)
 }
 
 // raw is a member whose value is JSON already, an array a nested walk

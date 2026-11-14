@@ -1,0 +1,2 @@
+class qfq 1:1 root weight 100 maxpkt 1514 
+class qfq 1:2 root weight 200 maxpkt 1514 

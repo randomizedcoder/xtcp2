@@ -1,0 +1,37 @@
+{
+ "axes": {
+  "ifindex": "1",
+  "verb": "add"
+ },
+ "cmd": "ip link add d8 index 1 type dummy",
+ "desc": "negative: verb=none form=index-used: an index lo already has (rtnl_newlink finds it, and add sets NLM_F_EXCL)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "kwlink/ng-001",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 group 5 && ip link add d1 type dummy && ip link set d1 group 5"
+ ],
+ "readback": [
+  {
+   "cmd": "ip link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 group 5 && ip link add d1 type dummy && ip link set d1 group 5",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,36 @@
+{
+ "axes": {
+  "protodown": "1"
+ },
+ "cmd": "ip link set dev d0 protodown on",
+ "desc": "negative: master=absent addrgenmode=absent carrier=protodown netns=absent xdp=absent: protodown on a dummy, which doesn't set change_proto_down (Protodown not supported by device)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ENOTSUP",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "linkattr/ng-009",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add br0 type bridge && ip link add v0 type vrf table 10",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

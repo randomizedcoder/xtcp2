@@ -1,0 +1,48 @@
+{
+ "cmd": "tc filter add dev v0p1 parent ffff: protocol ip prio 2 route from 10 to 2 classid 1:1 action pipe",
+ "desc": "positive: Add route filter with form tag and pipe action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)filter protocol ip pref.*route chain [0-9]+.*flowid 1:1 to 2 from 10.*action pipe",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/route/2812",
+ "modules": [
+  "cls_route"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter ls dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "2812",
+  "tdc": "filters/route.json"
+ }
+}

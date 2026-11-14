@@ -1,0 +1,58 @@
+{
+ "cmd": "tc filter del dev v0p1 parent ffff: handle 3 prio 9 fw action pass",
+ "desc": "positive: Del single fw filter x2",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)protocol all pref 9.*handle 0x3.*gact action pass",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/filters/fw/f54c",
+ "modules": [
+  "cls_fw"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 parent ffff: handle 5 prio 7 fw action pass",
+  "tc filter add dev v0p1 parent ffff: handle 3 prio 9 fw action pass"
+ ],
+ "readback": [
+  {
+   "cmd": "tc filter show dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: handle 5 prio 7 fw action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: handle 3 prio 9 fw action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "f54c",
+  "tdc": "filters/fw.json"
+ }
+}

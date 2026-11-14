@@ -1,0 +1,1 @@
+[{"kind":"matchall","chain":0},{"kind":"matchall","chain":0,"options":{"handle":1,"not_in_hw":true,"actions":[{"order":1,"kind":"ct","zone":0,"control_action":{"type":"pipe"},"index":42,"ref":1,"bind":1}]}}]

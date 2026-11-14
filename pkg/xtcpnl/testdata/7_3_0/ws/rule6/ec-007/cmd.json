@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "action": "2",
+  "dport": "1-65534",
+  "dscp": "0",
+  "family": "6",
+  "goto": "40000",
+  "sport": "1-65534",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add dscp 0 sport 1-65534 dport 1-65534 goto 40000",
+ "desc": "boundary: verb=add not=absent from=absent to=absent pref=absent fwmark=absent iif=absent oif=absent ds=dscp-0 ipproto=absent sport=full dport=full uidrange=absent suppress=absent protocol=absent extra=absent action=goto",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/ec-007",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

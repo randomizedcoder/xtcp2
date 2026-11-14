@@ -24,6 +24,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
+	"github.com/randomizedcoder/xtcp2/pkg/listeners"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcp"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -277,6 +278,8 @@ type mainFlags struct {
 	s3SecretKey          *string
 	s3Region             *string
 	s3SkipBucketProbe    *bool
+	s3AllowInsecure      *bool
+	s3CAFile             *string
 	s3ParquetFlushBytes  *uint
 
 	pollJitterPct             *uint
@@ -324,6 +327,7 @@ type mainFlags struct {
 	linkMonitor                   *bool
 	linkMonitorBaselineFile       *string
 	linkMonitorSettle             *time.Duration
+	linkMonitorLearnDeadline      *time.Duration
 	linkMonitorResync             *time.Duration
 	linkMonitorStatsInterval      *time.Duration
 	linkMonitorStatsInclude       *string
@@ -371,6 +375,7 @@ type mainFlags struct {
 	promUnixSocketMode *uint
 	promUnlinkStaleUDS *bool
 	promPath           *string
+	listeners          *listenerFlag
 	healthcheck        *bool
 	goMaxProcs         *uint
 	maxThreads         *int
@@ -453,7 +458,7 @@ func defineFlags() *mainFlags {
 	// packetSize of the buffer the netlinkers syscall.Recvfrom to read into
 	f.packetSize = flag.Uint64("packetSize", packetSizeCst, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
 	f.packetSizeMply = flag.Uint("packetSizeMply", packetSizeMplyCst, "netlinker packetSize multiplier.  buffer size = packetSize * packetSizeMply")
-	f.writeFiles = flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker")
+	f.writeFiles = flag.Uint("writeFiles", WriteFilesCst, "Write netlink packets to writeFiles number of files ( to generate test data ) per netlinker. Debugging only: needs a binary built with -tags capture")
 	f.capturePath = flag.String("capturePath", capturePathCst, "Write files path")
 	f.modulus = flag.Uint64("modulus", modulusCst, "modulus. Report every X inetd messages to output")
 	f.marshal = flag.String("marshal", marshalCst, "Marshaling of the exported data (protobufList, protoJson, protoText, msgpack, jsonl, csv, tsv)")
@@ -500,10 +505,12 @@ func defineS3Flags(f *mainFlags) {
 	f.s3Endpoint = flag.String("s3Endpoint", s3EndpointCst, "s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 for MinIO). Falls back to S3_ENDPOINT env, or the address after `s3parquet:` in -dest. Required when -dest s3parquet:...")
 	f.s3Bucket = flag.String("s3Bucket", s3BucketCst, "s3parquet: target bucket name. Falls back to S3_BUCKET env. Bucket must already exist; daemon does not auto-create.")
 	f.s3Prefix = flag.String("s3Prefix", s3PrefixCst, "s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.")
-	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Falls back to S3_ACCESS_KEY env, or S3_ACCESS_KEY_FILE (path to a file holding the key). Never logged.")
-	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Falls back to S3_SECRET_KEY env, or S3_SECRET_KEY_FILE (path to a file holding the key). Never logged.")
+	f.s3AccessKey = flag.String("s3AccessKey", s3AccessKeyCst, "s3parquet: S3 access key. Prefer S3_ACCESS_KEY_FILE (path to a file, mode 0400, holding the key): a flag value shows in ps and docker inspect, warns, and is refused by production builds. Never logged.")
+	f.s3SecretKey = flag.String("s3SecretKey", s3SecretKeyCst, "s3parquet: S3 secret key. Prefer S3_SECRET_KEY_FILE (path to a file, mode 0400, holding the key): a flag value shows in ps and docker inspect, warns, and is refused by production builds. Never logged.")
 	f.s3Region = flag.String("s3Region", s3RegionCst, "s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.")
 	f.s3SkipBucketProbe = flag.Bool("s3SkipBucketProbe", s3SkipBucketProbeCst, "s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.")
+	f.s3AllowInsecure = flag.Bool("s3AllowInsecure", false, "s3parquet: allow a plaintext http:// endpoint. The credential and every object cross the network unencrypted; for local test fixtures only. A bare host:port and https:// use TLS. Falls back to S3_ALLOW_INSECURE env.")
+	f.s3CAFile = flag.String("s3CAFile", "", "s3parquet: PEM bundle of CA certificates to trust for the S3 endpoint, on top of the system roots. Falls back to S3_CA_FILE env.")
 	f.s3ParquetFlushBytes = flag.Uint("s3ParquetFlushBytes", s3ParquetFlushThresholdBytesCst, "s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).")
 	f.s3FlushInterval = flag.Duration("s3FlushInterval", s3FlushIntervalCst, "s3parquet: staleness ceiling — force-flush the in-memory Parquet object after this long even if under the byte cap. 0 = derive as max(-frequency, 30m).")
 	f.s3FlushJitterPct = flag.Uint("s3FlushJitterPct", s3FlushJitterPctCst, "s3parquet: jitter as a percent (0-100) of -s3FlushInterval, applied to the timed flush so the fleet doesn't ceiling-flush in lockstep. 0 disables.")
@@ -545,7 +552,13 @@ func defineListenerFlags(f *mainFlags) {
 	f.promUnixSocketMode = flag.Uint("promUnixSocketMode", unixSocketModeCst, "Prometheus Unix socket file mode, e.g. 0600 or 0660. Falls back to PROM_UNIX_SOCKET_MODE env.")
 	f.promUnlinkStaleUDS = flag.Bool("promUnlinkStaleUnixSocket", unlinkStaleSocketCst, "remove an existing stale Prometheus Unix socket before binding. Falls back to PROM_UNLINK_STALE_UNIX_SOCKET env.")
 	f.promPath = flag.String("promPath", promPathCst, "Prometheus http path")
-	f.healthcheck = flag.Bool("healthcheck", false, "probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.")
+	f.listeners = &listenerFlag{}
+	flag.Var(f.listeners, "listener", "a listener, repeatable: "+listeners.SpecSyntax+
+		". Classes: health, metrics, metrics-detail, ip, debug, grpc-read, grpc-admin; each served by one listener. "+
+		"Credentials are files only. With none, xtcp2 serves health, metrics and metrics-detail on "+listeners.DefaultSocketPath+
+		" (mode 0600, raw bearer token from LISTENER_RAW_TOKEN_FILE). Replaces the deprecated -prom*/-grpc*/-linkMonitorIPListen flags. "+
+		"Falls back to LISTENERS env, specs separated by ';'.")
+	f.healthcheck = flag.Bool("healthcheck", false, "probe /readyz on the listener serving health and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); reads the same listener flags and env as the daemon.")
 }
 
 // defineRuntimeFlags registers the process-level knobs that are about how this
@@ -671,6 +684,8 @@ func printS3Flags(f *mainFlags) {
 	// they would leak via console logs, lifecycle test scrapers, etc.
 	fmt.Println("*s3Region:", *f.s3Region)
 	fmt.Println("*s3SkipBucketProbe:", *f.s3SkipBucketProbe)
+	fmt.Println("*s3AllowInsecure:", *f.s3AllowInsecure)
+	fmt.Println("*s3CAFile:", *f.s3CAFile)
 	fmt.Println("*s3ParquetFlushBytes:", *f.s3ParquetFlushBytes)
 	fmt.Println("*pollJitterPct:", *f.pollJitterPct)
 	fmt.Println("*s3FlushInterval:", *f.s3FlushInterval)
@@ -754,6 +769,7 @@ func printListenerEndpointFlags(f *mainFlags) {
 	fmt.Println("*promListenNetwork:", *f.promListenNetwork)
 	fmt.Println("*promUnixSocketMode:", *f.promUnixSocketMode)
 	fmt.Println("*promUnlinkStaleUnixSocket:", *f.promUnlinkStaleUDS)
+	fmt.Println("*listener:", f.listeners.String())
 }
 
 func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_config.XtcpConfig {
@@ -784,6 +800,8 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3SecretKey:                  *f.s3SecretKey,
 		S3Region:                     *f.s3Region,
 		S3SkipBucketProbe:            *f.s3SkipBucketProbe,
+		S3AllowInsecure:              *f.s3AllowInsecure,
+		S3CaFile:                     *f.s3CAFile,
 		S3ParquetFlushThresholdBytes: uint32(*f.s3ParquetFlushBytes),
 		PollJitterPct:                uint32(*f.pollJitterPct),
 		S3FlushInterval:              durationpb.New(*f.s3FlushInterval),
@@ -953,8 +971,17 @@ func startPyroscope(url, appName string, sampleHz, uploadSec uint, debugLevel ui
 // same package, called from tests) so the version-flag path is testable
 // without a subprocess.
 func versionString() string {
-	return fmt.Sprintf("xtcp commit:%s\tdate(UTC):%s\tversion:%s",
-		commit, date, version)
+	return fmt.Sprintf("xtcp commit:%s\tdate(UTC):%s\tversion:%s%s",
+		commit, date, version, buildSuffix())
+}
+
+// buildSuffix marks a binary that carries the netlink capture writer, so a
+// debug build is recognizable from its version line.
+func buildSuffix() string {
+	if xtcp.CaptureCompiledIn {
+		return "+capture"
+	}
+	return ""
 }
 
 // prepareConfig runs the env-override + validation portion of main() up
@@ -980,7 +1007,6 @@ func prepareConfig(f *mainFlags) (*xtcp_config.XtcpConfig, bool) {
 		printConfig(c, "Before environmentOverrideConfig")
 	}
 	environmentOverrideConfig(c, debugLevel)
-	warnListenerAuthSecretSource(f)
 	if debugLevel > 100 {
 		printConfig(c, "After environmentOverrideConfig")
 	}
@@ -1022,8 +1048,55 @@ func finishMain(code int, reexec func(*xtcp_config.XtcpConfig)) int {
 	return code
 }
 
+// startupConfig builds the config the daemon runs: flags and env, the
+// _FILE secrets, the soft-restart carry, then the checks that refuse it
+// before anything binds or starts. A nil config means exit with the code.
+func startupConfig(f *mainFlags) (*xtcp_config.XtcpConfig, int) {
+	c, done := prepareConfig(f)
+	if done {
+		return nil, 0
+	}
+	if err := applySecretFiles(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
+	if err := configureListeners(c, *f.listeners, legacyListenerSettings(flag.CommandLine), *f.promListen); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+
+	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
+	// config in the environment, that config wins over the flag/env-derived one.
+	// A malformed value is fatal — the restart intent is explicit, so silently
+	// falling back to the flag config would be surprising and wrong.
+	if envc, ok, err := loadReconfigureConfig(); err != nil {
+		fatalf("reconfigure: invalid %s: %v", reconfigureEnvKey, err)
+		return nil, 1
+	} else if ok {
+		c = envc
+		if debugLevel > 10 {
+			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
+		}
+	}
+
+	// Refuse a config that needs a debug writer this binary was built
+	// without (netlink capture, the file destination), before anything
+	// binds or starts. Checked after the soft-restart carry so that config
+	// is covered too.
+	if err := xtcp.CheckBuildSupport(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+	if err := xtcp.CheckS3Transport(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return nil, exitCodeFor(err)
+	}
+	return c, 0
+}
+
 // runMain wires the production main body. Extracted so tests can run
-// it with stubbed daemonRunner / promHandlerStarter.
+// it with stubbed daemonRunner / listenersStarter.
 func runMain(ctx context.Context) int {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -1037,38 +1110,41 @@ func runMain(ctx context.Context) int {
 		fmt.Fprintln(os.Stderr, "xtcp2:", err)
 		return 2
 	}
-	healthAuth := buildListenerAuth(f)
-	envOverrideListenerAuth(&xtcp_config.XtcpConfig{ListenerAuth: healthAuth}, 0)
+	if err := checkSecretFlags(flag.CommandLine, productionBuild()); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
+	}
 
 	// Container HEALTHCHECK mode: probe the local /readyz and exit, without
 	// starting the daemon. The scratch image has no shell/curl, so the binary
 	// self-checks (same pattern as the docker_custom_scrape exporter).
 	if *f.healthcheck {
-		authn, err := listenerauth.New(healthAuth)
-		if err != nil {
-			log.Printf("healthcheck: invalid listener auth config: %v", err)
-			return 1
-		}
-		return runHealthcheck(runCtx, *f.promListenNetwork, *f.promListen, authn, listenerauth.ClientAuth{RawToken: healthAuth.GetRawToken(), HMACSharedKey: healthAuth.GetHmacSharedKey()})
+		return runHealthcheck(runCtx, f)
 	}
 
-	c, done := prepareConfig(f)
-	if done {
-		return 0
+	c, code := startupConfig(f)
+	if c == nil {
+		return code
 	}
-
-	// Soft-restart carry: if a prior ConfigService.Set re-exec'd us with a full
-	// config in the environment, that config wins over the flag/env-derived one.
-	// A malformed value is fatal — the restart intent is explicit, so silently
-	// falling back to the flag config would be surprising and wrong.
-	if envc, ok, err := loadReconfigureConfig(); err != nil {
-		fatalf("reconfigure: invalid %s: %v", reconfigureEnvKey, err)
-		return 1
-	} else if ok {
-		c = envc
-		if debugLevel > 10 {
-			log.Printf("reconfigure: loaded config from %s (soft restart)", reconfigureEnvKey)
-		}
+	// Validate the whole config, then resolve the listeners and their
+	// credentials, before anything binds or starts.
+	if err := protovalidate.Validate(c); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2: config validation failed:", err)
+		return exitUsage
+	}
+	if err := checkTreatmentFlags(*f.treatmentConfig, *f.treatmentAttribution); err != nil {
+		// A build without the agent, or both modes at once, is a property of
+		// the deployment that is identical on every host: fail loudly.
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitUsage
+	}
+	specs, warnings, err := listeners.Resolve(c, readSecretFile)
+	for _, w := range warnings {
+		log.Printf("WARNING: %s", w)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
 	}
 
 	environmentOverrideGoMaxProcs(f.goMaxProcs, debugLevel)
@@ -1098,47 +1174,18 @@ func runMain(ctx context.Context) int {
 		uint(c.PyroscopeSampleHz), uint(c.PyroscopeUploadIntervalSec),
 		debugLevel)()
 
-	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
-	applyPrometheusListenerAddress(c, *f.promListen)
-	if _, err := listenerauth.NewPolicy(c.ListenerAuth, c.AdminListenerAuth, nil); err != nil {
-		fatalf("listener auth config invalid: %v", err)
-		return 1
-	}
 	linkMonitorHTTP.promPath = *f.promPath
-	// The prom server drains after the daemon, so scrapes and /readyz see the
-	// shutdown through to the end.
-	var promWG sync.WaitGroup
-	defer promWG.Wait()
+	// The HTTP listeners drain after the daemon, so scrapes and /readyz see
+	// the shutdown through to the end.
+	var httpWG sync.WaitGroup
+	defer httpWG.Wait()
 	defer cancel()
-	if err := promHandlerStarter(runCtx, &promWG, promParams{
-		path: *f.promPath, listener: c.PrometheusListener, listen: *f.promListen,
-		ipv4TTL: c.Ipv4Ttl, ipv6HopLimit: c.Ipv6HopLimit, auth: c.ListenerAuth, adminAuth: c.AdminListenerAuth,
-	}); err != nil {
-		fatalf("%v", err)
-		return 1
-	}
-	if debugLevel > 10 {
-		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
-	}
-	if err := ipServerStarter(runCtx, &promWG, c.GetLinkMonitor()); err != nil {
-		fatalf("%v", err)
-		return 1
+	grpcLns, err := listenersStarter(runCtx, &httpWG, specs, *f.promPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return exitCodeFor(err)
 	}
 
-	if err := protovalidate.Validate(c); err != nil {
-		fatalf("config validation failed: %v", err)
-		return 1
-	}
-	if debugLevel > 10 {
-		log.Println("config validation succeeded")
-	}
-
-	if err := checkTreatmentFlags(*f.treatmentConfig, *f.treatmentAttribution); err != nil {
-		// A build without the agent, or both modes at once, is a property of
-		// the deployment that is identical on every host: fail loudly.
-		fatalf("%v", err)
-		return 1
-	}
 	// c.Location, not the flag: LOCATION from the environment counts too.
 	stopTreatments, err := startTreatments(runCtx, *f.treatmentConfig, *f.treatmentAttribution, c.Location)
 	if err != nil {
@@ -1147,10 +1194,11 @@ func runMain(ctx context.Context) int {
 	} else {
 		defer stopTreatments()
 	}
-	daemonRunner(runCtx, cancel, c)
+	daemonRunner(runCtx, cancel, c, grpcLns)
+	closeGRPCListeners(grpcLns)
 	// The signal handler exits once complete is sent, so drain first.
 	cancel()
-	promWG.Wait()
+	httpWG.Wait()
 	select {
 	case complete <- struct{}{}:
 	default:
@@ -1163,11 +1211,12 @@ func runMain(ctx context.Context) int {
 
 // runDaemonDefault is the production daemon body: build an xtcp instance
 // and run RunWithPoller until ctx cancels the WG.
-func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig) {
+func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig, grpcLns []xtcp.GRPCListener) {
 	x := xtcp.NewXTCP(ctx, cancel, c)
 	if stamp := treatmentStamper(); stamp != nil {
 		x.SetTreatmentStamper(stamp)
 	}
+	x.SetGRPCListeners(grpcLns)
 	detach, err := linkMonitorHTTP.attach(x)
 	if err != nil {
 		fatalf("link monitor http: %v", err)
@@ -1213,46 +1262,80 @@ func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_co
 }
 
 // loadReconfigureConfig returns the full XtcpConfig carried across a
-// soft-restart re-exec via the reconfigureEnvKey environment variable. ok is
-// false when the variable is unset/empty (normal first boot). A non-nil error
-// means the variable was present but unparseable.
+// soft-restart re-exec: the config from the reconfigureEnvKey environment
+// variable, and its secrets from the memfd reconfigureMemfdFDKey names (see
+// reexec_handoff.go). ok is false when the variable is unset/empty (normal
+// first boot). A non-nil error means the carry was present but unusable.
 func loadReconfigureConfig() (c *xtcp_config.XtcpConfig, ok bool, err error) {
 	v, present := os.LookupEnv(reconfigureEnvKey)
 	if !present || v == "" {
+		if fd, set := os.LookupEnv(reconfigureMemfdFDKey); set && fd != "" {
+			return nil, false, fmt.Errorf("%w: %s is set without %s", errReconfigureSecrets,
+				reconfigureMemfdFDKey, reconfigureEnvKey)
+		}
 		return nil, false, nil
 	}
 	c = &xtcp_config.XtcpConfig{}
 	if err := protojson.Unmarshal([]byte(v), c); err != nil {
 		return nil, false, err
 	}
+	if err := loadReconfigureSecrets(c); err != nil {
+		return nil, false, err
+	}
 	return c, true, nil
 }
 
 // execSelfWithConfig re-execs this binary in place (same PID/container),
-// carrying newCfg as protojson in reconfigureEnvKey so the fresh process boots
-// with it. os.Args is preserved, so all process-level flags carry unchanged;
-// only the XtcpConfig is overridden at startup. On success syscall.Exec does
-// not return; on failure it logs and returns so the caller exits normally.
+// carrying newCfg so the fresh process boots with it: the config, secrets
+// blanked, as protojson in reconfigureEnvKey, and the secrets in a sealed
+// memfd (reexec_handoff.go). argv is rebuilt from the flags the command line
+// set, so process-level flags carry unchanged; only the XtcpConfig is
+// overridden at startup. On success syscall.Exec does not return; on failure
+// it logs and returns so the caller exits normally.
 func execSelfWithConfig(newCfg *xtcp_config.XtcpConfig) {
 	exe, err := os.Executable()
 	if err != nil {
 		log.Printf("reconfigure: os.Executable failed, cannot re-exec: %v", err)
 		return
 	}
-	js, err := protojson.Marshal(newCfg)
+	redacted, secrets := splitSecrets(newCfg)
+	js, err := protojson.Marshal(redacted)
 	if err != nil {
 		log.Printf("reconfigure: protojson.Marshal failed, cannot re-exec: %v", err)
 		return
 	}
-	env := append(envWithoutKey(os.Environ(), reconfigureEnvKey), reconfigureEnvKey+"="+string(js))
-	log.Printf("reconfigure: re-exec %s (soft restart, config %d bytes)", exe, len(js))
-	// G702 is a false positive here: this is an intentional in-place restart of
-	// THIS binary (os.Executable), preserving our own os.Args and environment
-	// plus a config we validated and serialized ourselves — not execution of an
-	// external, attacker-chosen command. The new config was protovalidate'd in
-	// the Set handler before reaching this path.
-	if err := syscall.Exec(exe, os.Args, env); err != nil { //nolint:gosec // G702: re-exec of self with validated config; see comment above
+	// ConfigService.Set refuses a config past this, so reaching it means a
+	// caller skipped Set; execve would fail with E2BIG.
+	if len(js) > xtcp.ReconfigureMaxConfigBytes {
+		log.Printf("reconfigure: config is %d bytes, past %d, cannot re-exec", len(js), xtcp.ReconfigureMaxConfigBytes)
+		return
+	}
+	env := envWithoutKey(envWithoutKey(os.Environ(), reconfigureEnvKey), reconfigureMemfdFDKey)
+	env = append(env, reconfigureEnvKey+"="+string(js))
+	var carried *os.File
+	if proto.Size(secrets) > 0 {
+		sb, err := protojson.Marshal(secrets)
+		if err != nil {
+			log.Printf("reconfigure: protojson.Marshal of the secrets failed, cannot re-exec: %v", err)
+			return
+		}
+		f, fd, err := secretsMemfd(sb)
+		if err != nil {
+			log.Printf("reconfigure: cannot carry the secrets, cannot re-exec: %v", err)
+			return
+		}
+		carried = f
+		env = append(env, reconfigureMemfdFDKey+"="+strconv.Itoa(fd))
+	}
+	argv := reexecArgv(exe, flag.CommandLine)
+	log.Printf("reconfigure: re-exec %s (soft restart, config %d bytes, %d flags)", exe, len(js), len(argv)-1)
+	if err := syscall.Exec(exe, argv, env); err != nil {
 		log.Printf("reconfigure: syscall.Exec failed: %v", err)
+	}
+	if carried != nil {
+		if err := carried.Close(); err != nil {
+			log.Printf("reconfigure: closing the secrets memfd: %v", err)
+		}
 	}
 }
 
@@ -1336,95 +1419,92 @@ func awaitSignalAndShutdown(
 	}
 }
 
-// runHealthcheck probes the local /readyz endpoint and returns a process exit
-// code: 0 when ready (HTTP 200), 1 otherwise (not ready, or unreachable). It is
-// the `-healthcheck` mode used by the container HEALTHCHECK on the scratch image
-// (no shell/curl to run an external probe). The port comes from PROM_LISTEN or
-// the -promListen flag; the daemon listens on 0.0.0.0, so 127.0.0.1 reaches it.
-func runHealthcheck(ctx context.Context, promNetwork, promListen string, authn *listenerauth.Authenticator, clientAuth listenerauth.ClientAuth) int {
-	network := promNetwork
-	if v, ok := os.LookupEnv("PROM_LISTEN_NETWORK"); ok && v != "" {
-		network = v
+// runHealthcheck probes /readyz on the listener serving health and returns a
+// process exit code: 0 when ready (HTTP 200), 1 otherwise (not ready, or
+// unreachable). It is the `-healthcheck` mode used by the container
+// HEALTHCHECK on the scratch image (no shell/curl to run an external probe).
+// It resolves the listeners from the same flags and env as the daemon,
+// quietly, and sends the health listener's credential.
+func runHealthcheck(ctx context.Context, f *mainFlags) int {
+	c := buildConfig(f, nil)
+	environmentOverrideConfig(c, 0)
+	environmentOverrideProm(f.promListen, f.promPath, 0)
+	err := applyListenerSecretFiles(c)
+	if err == nil {
+		err = configureListeners(c, *f.listeners, legacyListenerSettings(flag.CommandLine), *f.promListen)
 	}
-	addr := promListen
-	if v, ok := os.LookupEnv("PROM_LISTEN"); ok && v != "" {
-		addr = v
+	var specs []listeners.Spec
+	if err == nil {
+		specs, _, err = listeners.Resolve(c, readSecretFile)
 	}
-	parsed, err := listener.ParseNetwork(network)
 	if err != nil {
 		log.Printf("healthcheck: %v", err)
 		return 1
 	}
-	if parsed == xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX {
-		return runUnixHealthcheck(ctx, addr, authn, clientAuth)
+	s, ok := listeners.Find(specs, listeners.Health)
+	if !ok {
+		log.Printf("healthcheck: no listener serves health")
+		return 1
 	}
-	_, port, err := net.SplitHostPort(addr)
-	if err != nil || port == "" {
-		port = "9088" // promListenCst default
+	return probeReady(ctx, s.Endpoint, s.ClientAuth())
+}
+
+// probeReady GETs /readyz on ep. A TCP listener on an unspecified address is
+// probed on loopback.
+func probeReady(ctx context.Context, ep listener.Endpoint, clientAuth listenerauth.ClientAuth) int {
+	target := "unix:" + ep.Address
+	url := "http://unix/readyz"
+	var d net.Dialer
+	dial := func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return d.DialContext(ctx, listener.NetworkUnix, ep.Address)
 	}
-	url := "http://127.0.0.1:" + port + "/readyz"
+	if ep.Network == listener.NetworkTCP {
+		addr, err := loopbackTarget(ep.Address)
+		if err != nil {
+			log.Printf("healthcheck: %v", err)
+			return 1
+		}
+		target, url = addr, "http://"+addr+"/readyz"
+		dial = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return d.DialContext(ctx, listener.NetworkTCP, addr)
+		}
+	}
 	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
 	if err != nil {
-		log.Printf("healthcheck: new request %s: %v", url, err)
+		log.Printf("healthcheck: new request %s: %v", target, err)
 		return 1
 	}
-	if authn != nil {
-		listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
-	}
-	client := &http.Client{Timeout: 3 * time.Second}
+	listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
+	client := &http.Client{Timeout: 3 * time.Second, Transport: &http.Transport{DialContext: dial}}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("healthcheck: GET %s: %v", url, err)
+		log.Printf("healthcheck: GET %s /readyz: %v", target, err)
 		return 1
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusOK {
 		return 0
 	}
-	log.Printf("healthcheck: %s -> %d", url, resp.StatusCode)
+	log.Printf("healthcheck: %s /readyz -> %d", target, resp.StatusCode)
 	return 1
 }
 
-// runUnixHealthcheck is runHealthcheck over a Unix socket. It sends the same
-// credential as the TCP probe, so -listenerAuthMode on a socket listener
-// doesn't fail the container HEALTHCHECK with 401.
-func runUnixHealthcheck(ctx context.Context, socketPath string, authn *listenerauth.Authenticator, clientAuth listenerauth.ClientAuth) int {
-	if socketPath == "" {
-		log.Printf("healthcheck: unix socket path is empty")
-		return 1
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "http://unix/readyz", nil)
+// loopbackTarget is the address to probe a TCP listener on: its own, or
+// loopback when it listens on all addresses.
+func loopbackTarget(address string) (string, error) {
+	host, port, err := net.SplitHostPort(address)
 	if err != nil {
-		log.Printf("healthcheck: new unix request: %v", err)
-		return 1
+		return "", fmt.Errorf("health listener address %q: %w", address, err)
 	}
-	if authn != nil {
-		listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
+	switch host {
+	case "", "0.0.0.0":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
 	}
-	client := &http.Client{
-		Timeout: 3 * time.Second,
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, listener.NetworkUnix, socketPath)
-			},
-		},
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("healthcheck: GET unix:%s /readyz: %v", socketPath, err)
-		return 1
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusOK {
-		return 0
-	}
-	log.Printf("healthcheck: unix:%s /readyz -> %d", socketPath, resp.StatusCode)
-	return 1
+	return net.JoinHostPort(host, port), nil
 }
 
 // environmentOverrideProm MUTATES promListen, promPath, if the environment
@@ -1528,7 +1608,13 @@ func buildAdminListenerAuth(f *mainFlags) *xtcp_config.ListenerAuth {
 	return a
 }
 
+// listenerAuthModeValue parses a mode flag or env value. Empty is unset, not
+// disabled: an unset read credential resolves to raw, so turning auth off
+// has to be typed.
 func listenerAuthModeValue(s string) xtcp_config.ListenerAuthMode {
+	if strings.TrimSpace(s) == "" {
+		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED
+	}
 	mode, err := listenerauth.ParseMode(s)
 	if err != nil {
 		return xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_UNSPECIFIED
@@ -1562,57 +1648,24 @@ func envOverrideListenerAuth(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	admin.FailureJitterMax = a.FailureJitterMax
 }
 
-// envOverrideAuthCredential applies <prefix>AUTH_MODE, <prefix>RAW_TOKEN[_FILE]
-// and <prefix>HMAC_SHARED_KEY[_FILE].
+// envOverrideAuthCredential applies <prefix>AUTH_MODE, <prefix>RAW_TOKEN and
+// <prefix>HMAC_SHARED_KEY. The _FILE forms are read afterwards by
+// applySecretFiles, which can fail startup on a bad file.
 func envOverrideAuthCredential(a *xtcp_config.ListenerAuth, prefix, what string, debugLevel uint) {
-	if v, ok := envString(prefix + "AUTH_MODE"); ok {
+	if v, ok := envString(prefix + "AUTH_MODE"); ok && strings.TrimSpace(v) != "" {
 		if mode, err := listenerauth.ParseMode(v); err == nil {
 			a.Mode = mode
 			logEnv(prefix+"AUTH_MODE", what+" auth mode set", debugLevel)
 		}
 	}
-	if v, ok := secretEnv(prefix+"RAW_TOKEN", prefix+"RAW_TOKEN_FILE"); ok {
+	if v, ok := os.LookupEnv(prefix + "RAW_TOKEN"); ok {
 		a.RawToken = v
 		logEnv(prefix+"RAW_TOKEN", what+" raw token set", debugLevel)
 	}
-	if v, ok := secretEnv(prefix+"HMAC_SHARED_KEY", prefix+"HMAC_SHARED_KEY_FILE"); ok {
+	if v, ok := os.LookupEnv(prefix + "HMAC_SHARED_KEY"); ok {
 		a.HmacSharedKey = v
 		logEnv(prefix+"HMAC_SHARED_KEY", what+" HMAC key set", debugLevel)
 	}
-}
-
-func secretEnv(inlineKey, fileKey string) (string, bool) {
-	if path, ok := os.LookupEnv(fileKey); ok && path != "" {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return "", false
-		}
-		return strings.TrimSpace(string(b)), true
-	}
-	return os.LookupEnv(inlineKey)
-}
-
-func warnListenerAuthSecretSource(f *mainFlags) {
-	if *f.listenerRawToken != "" && !envSet("LISTENER_RAW_TOKEN", "LISTENER_RAW_TOKEN_FILE") {
-		log.Print("listener auth raw token came from CLI/config; prefer LISTENER_RAW_TOKEN or LISTENER_RAW_TOKEN_FILE")
-	}
-	if *f.listenerHMACKey != "" && !envSet("LISTENER_HMAC_SHARED_KEY", "LISTENER_HMAC_SHARED_KEY_FILE") {
-		log.Print("listener auth HMAC key came from CLI/config; prefer LISTENER_HMAC_SHARED_KEY or LISTENER_HMAC_SHARED_KEY_FILE")
-	}
-	if *f.listenerAdminToken != "" && !envSet("LISTENER_ADMIN_RAW_TOKEN", "LISTENER_ADMIN_RAW_TOKEN_FILE") {
-		log.Print("listener admin raw token came from CLI/config; prefer LISTENER_ADMIN_RAW_TOKEN or LISTENER_ADMIN_RAW_TOKEN_FILE")
-	}
-	if *f.listenerAdminHMAC != "" && !envSet("LISTENER_ADMIN_HMAC_SHARED_KEY", "LISTENER_ADMIN_HMAC_SHARED_KEY_FILE") {
-		log.Print("listener admin HMAC key came from CLI/config; prefer LISTENER_ADMIN_HMAC_SHARED_KEY or LISTENER_ADMIN_HMAC_SHARED_KEY_FILE")
-	}
-}
-
-func envSet(inlineKey, fileKey string) bool {
-	if v, ok := os.LookupEnv(fileKey); ok && v != "" {
-		return true
-	}
-	_, ok := os.LookupEnv(inlineKey)
-	return ok
 }
 
 // envUint64 parses an env var as base-10 int64 and yields it as uint64.
@@ -1716,31 +1769,6 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
-}
-
-// envStringFromFile reads a secret from the file whose path is the value of
-// the `key` env var (the Docker `_FILE` convention, e.g.
-// S3_SECRET_KEY_FILE=/run/secrets/s3). This keeps the secret out of the
-// process environment (visible via `docker inspect` / /proc/<pid>/environ)
-// and out of argv — the env only names a path, the bytes live in a file.
-//
-// The file contents are trimmed of surrounding whitespace (handles a trailing
-// newline from `echo`/`aws ssm get-parameter`). Returns ("", false) when the
-// env var is unset/empty, or when the named file can't be read — in the latter
-// case it logs a non-secret error so a misconfiguration is visible, and the
-// downstream destination fails fast on the resulting empty credential rather
-// than running half-configured. The file's contents are never logged.
-func envStringFromFile(key string) (string, bool) {
-	path, ok := os.LookupEnv(key)
-	if !ok || path == "" {
-		return "", false
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		log.Printf("key:%s error reading secret file: %v", key, err)
-		return "", false
-	}
-	return strings.TrimSpace(string(b)), true
 }
 
 func logEnv(key, msg string, debugLevel uint) {
@@ -1853,18 +1881,6 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.S3SecretKey = v
 		logEnv("S3_SECRET_KEY", "set", debugLevel)
 	}
-	// File-based variants (Docker `_FILE` convention). Applied after the
-	// inline S3_ACCESS_KEY / S3_SECRET_KEY blocks so a mounted/baked secret
-	// file wins when both are set. The env var holds only the path; the
-	// credential bytes live in the file. Value is never logged.
-	if v, ok := envStringFromFile("S3_ACCESS_KEY_FILE"); ok {
-		c.S3AccessKey = v
-		logEnv("S3_ACCESS_KEY_FILE", "set", debugLevel)
-	}
-	if v, ok := envStringFromFile("S3_SECRET_KEY_FILE"); ok {
-		c.S3SecretKey = v
-		logEnv("S3_SECRET_KEY_FILE", "set", debugLevel)
-	}
 	if v, ok := envString("S3_REGION"); ok {
 		c.S3Region = v
 		logEnv("S3_REGION", fmt.Sprintf("c.S3Region:%s", v), debugLevel)
@@ -1872,6 +1888,14 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envBool("S3_SKIP_BUCKET_PROBE"); ok {
 		c.S3SkipBucketProbe = v
 		logEnv("S3_SKIP_BUCKET_PROBE", fmt.Sprintf("c.S3SkipBucketProbe:%t", v), debugLevel)
+	}
+	if v, ok := envBool("S3_ALLOW_INSECURE"); ok {
+		c.S3AllowInsecure = v
+		logEnv("S3_ALLOW_INSECURE", fmt.Sprintf("c.S3AllowInsecure:%t", v), debugLevel)
+	}
+	if v, ok := envString("S3_CA_FILE"); ok {
+		c.S3CaFile = v
+		logEnv("S3_CA_FILE", fmt.Sprintf("c.S3CaFile:%s", v), debugLevel)
 	}
 	if v, ok := envUint32("S3_PARQUET_FLUSH_BYTES"); ok {
 		c.S3ParquetFlushThresholdBytes = v
@@ -2134,12 +2158,6 @@ func ensurePrometheusListener(c *xtcp_config.XtcpConfig) *xtcp_config.ListenerEn
 		c.PrometheusListener = &xtcp_config.ListenerEndpoint{UnlinkStaleUnixSocket: unlinkStaleSocketCst}
 	}
 	return c.PrometheusListener
-}
-
-func applyPrometheusListenerAddress(c *xtcp_config.XtcpConfig, promListen string) {
-	if c.PrometheusListener != nil && c.PrometheusListener.Address == "" {
-		c.PrometheusListener.Address = promListen
-	}
 }
 
 func printConfig(c *xtcp_config.XtcpConfig, comment string) {

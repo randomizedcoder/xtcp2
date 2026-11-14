@@ -47,21 +47,21 @@ import (
 // and the four that are not are the two bridges, a third bridge and the one
 // bridge port.
 //
-// IFLA_DPLL_PIN is out of scope for a different reason, and the reason is
-// version rather than effort: the `dpll-pin` block does not exist in iproute2
-// 7.1.0, which is the pin. It is in the 7.2.0 reference clone, which is why
-// reading only that clone makes this look like a gap. See xtcpnl.LinkDetail
-// for the second, independent reason it would print nothing regardless.
+// IFLA_DPLL_PIN is out of scope for a different reason: the `dpll-pin` token
+// (20e860c6, first released in iproute2 7.3.0) needs DPLL_A_PIN_ID inside the
+// nest, and every link without a DPLL recovered-clock pin, which is every link
+// a VM has, sends the nest empty. So 7.3.0 prints nothing there either. See
+// xtcpnl.LinkDetail.
 //
 // # A note on the citations in this file
 //
-// The line numbers are the 7.2.0 clone's, matching every other citation in
-// this repo. The detail block is byte-identical between 7.1.0 and 7.2.0 apart
-// from that dpll block and a print_hexstring refactor with the same output, so
-// the transcription holds for the pin; only the offsets differ, by about 18
-// lines. The one place where 7.1.0 and 7.2.0 BEHAVE differently in this area
-// is print_queuelen's ioctl fallback, which is not in this file — see
-// internal/goip/goip_details_test.go's sidecarWithoutIoctlQlen.
+// The line numbers are the 7.2.0 clone's, matching the other citations of
+// that era in this repo. The detail block is byte-identical between 7.1.0 and
+// 7.2.0 apart from a print_hexstring refactor with the same output, and 7.3.0
+// adds only the dpll block, so the transcription holds for each release; only
+// the offsets differ. The one place where 7.1.0 and 7.2.0 BEHAVE differently
+// in this area is print_queuelen's ioctl fallback, which is not in this file;
+// see internal/goip/goip_details_test.go's sidecarWithoutIoctlQlen.
 
 // LinkDetailView is the `-d` token run for one link.
 //
@@ -158,23 +158,63 @@ type LinkKindView struct {
 // info_data object, possibly empty. The kinds listed here are the ones
 // internal/goip's -d gate admits; every other kind with a nest is refused
 // there before this runs.
-func kindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
+func kindData(li *xtcpnl.LinkInfo, names NameTab, details int) *KindData {
 	switch li.Kind {
 	case VrfKindCst:
 		return vrfData(li.VrfTable)
 	case BondKindCst:
 		return bondData(li.Bond, names)
+	case BridgeKindCst:
+		return bridgeData(li.Bridge)
+	case VlanKindCst:
+		return vlanData(li.Vlan)
+	case MacvlanKindCst, MacvtapKindCst:
+		return macvlanData(li.Macvlan)
+	case IpvlanKindCst, IpvtapKindCst:
+		return ipvlanData(li.Ipvlan)
+	case VxlanKindCst:
+		return vxlanData(li.Vxlan, names, details)
+	case GeneveKindCst:
+		return geneveData(li.Geneve)
+	case BareudpKindCst:
+		return bareudpData(li.Bareudp)
+	case AmtKindCst:
+		return amtData(li.Amt, names)
+	case GtpKindCst:
+		return gtpData(li.Gtp)
+	case GreKindCst, GretapKindCst, ErspanKindCst:
+		return greData(li.Gre, names, false)
+	case IP6GreKindCst, IP6GretapKindCst, IP6ErspanKindCst:
+		return greData(li.Gre, names, true)
+	case IpipKindCst, SitKindCst:
+		return iptunData(li.Iptun, names, false)
+	case IP6TnlKindCst:
+		return iptunData(li.Iptun, names, true)
+	case VtiKindCst:
+		return vtiData(li.Vti, names, false)
+	case Vti6KindCst:
+		return vtiData(li.Vti, names, true)
+	case XfrmKindCst:
+		return xfrmData(li.Xfrm)
+	case HsrKindCst:
+		return hsrData(li.Hsr, names)
+	case NetkitKindCst:
+		return netkitData(li.Netkit)
+	case OvpnKindCst:
+		return ovpnData(li.Ovpn)
 	}
 	return nil
 }
 
 // slaveKindData is kindData for IFLA_INFO_SLAVE_KIND.
-func slaveKindData(li *xtcpnl.LinkInfo) *KindData {
+func slaveKindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
 	switch li.SlaveKind {
 	case VrfKindCst:
 		return vrfData(li.VrfPortTable)
 	case BondKindCst:
 		return bondSlaveData(li.BondSlave)
+	case BridgeKindCst:
+		return bridgeSlaveData(li.BridgeSlave, names)
 	}
 	return nil
 }
@@ -243,10 +283,13 @@ func u32Ptr(a xtcpnl.U32Attr) *uint32 {
 // parameter rather than a second constructor because it is the only difference
 // — LinkViewForAddr exists for the two differences that are structural.
 //
-// names is the same index cache LinkViewOf takes. Only a bond reads it, for
-// active_slave and primary, which bond_print_opt resolves with
-// ll_index_to_name.
-func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab) LinkView {
+// names is the same index cache LinkViewOf takes. The print_opts that
+// resolve an index with ll_index_to_name read it: bond's active_slave and
+// primary, bridge_slave's backup_port, and vxlan's and amt's dev.
+//
+// details is show_details, the `-d` count, which only vxlan_print_opt reads
+// past one.
+func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab, details int) LinkView {
 	d := li.Detail
 	dv := &LinkDetailView{
 		Promiscuity:    u32Ptr(d.Promiscuity),
@@ -280,10 +323,10 @@ func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab)
 	if li.Kind != "" || li.SlaveKind != "" {
 		kv := &LinkKindView{Kind: li.Kind, SlaveKind: li.SlaveKind}
 		if li.Kind != "" {
-			kv.InfoData = kindData(&li, names)
+			kv.InfoData = kindData(&li, names, details)
 		}
 		if li.SlaveKind != "" {
-			kv.SlaveData = slaveKindData(&li)
+			kv.SlaveData = slaveKindData(&li, names)
 		}
 		dv.LinkInfo = kv
 	}

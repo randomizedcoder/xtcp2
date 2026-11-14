@@ -115,6 +115,8 @@ type RouteInfo struct {
 	Mark         uint32 // RTA_MARK, the fwmark a `route get … mark` looked up with; `ip` prints it only when non-zero
 	UID          uint32 // RTA_UID, the uid a route lookup was made for
 	HasUID       bool   // RTA_UID present — `ip` prints `uid 0` on presence, as with HasPriority
+	Flow         uint32 // RTA_FLOW, `realms FROM/TO`: TO in the low 16 bits, FROM in the high
+	HasFlow      bool   // RTA_FLOW present — `ip` prints `realm 0` on presence
 
 	// Multipath is the decoded RTA_MULTIPATH nexthop list, nil when absent.
 	// An ECMP route's gateways exist ONLY here — see xtcpnl_rtnexthop.go for
@@ -143,6 +145,22 @@ type RouteInfo struct {
 	MfcStats   *RtaMfcStats
 	Expires    uint64
 	HasExpires bool
+
+	// NewDst is an AF_MPLS route's RTA_NEWDST, the labels it swaps the
+	// incoming one for, nil when absent (a pop). The route's own label is
+	// RTA_DST, one entry: ParseMPLSLabels(Dst). See xtcpnl_mpls.go.
+	NewDst []MPLSLabel
+
+	// TTLPropagate is an AF_MPLS route's RTA_TTL_PROPAGATE, 1 enabled or 0
+	// disabled, when HasTTLPropagate. The kernel sends it only for a route
+	// that set it (mpls_dump_route, net/mpls/af_mpls.c); absent is the
+	// sysctl's default, and ip prints nothing for it.
+	TTLPropagate    uint8
+	HasTTLPropagate bool
+
+	// Encap is RTA_ENCAP_TYPE and RTA_ENCAP, nil when neither is present:
+	// `encap mpls 100/200` on an IP route. See xtcpnl_mpls.go.
+	Encap *RouteEncap
 }
 
 // ParseNewRoute decodes an RTM_NEWROUTE message body (the bytes after the
@@ -192,6 +210,9 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 	}
 	if nestErr != nil {
 		return RouteInfo{}, nestErr
+	}
+	if eerr := ri.Encap.decode(); eerr != nil {
+		return RouteInfo{}, eerr
 	}
 	return ri, nil
 }
@@ -247,18 +268,28 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 			ri.Pref = val[0]
 			ri.HasPref = true
 		}
+	case uint16(unix.RTA_TTL_PROPAGATE):
+		// Its first byte, as rta_getattr_u8 reads it (ip/iproute.c).
+		if len(val) >= 1 {
+			ri.TTLPropagate, ri.HasTTLPropagate = val[0], true
+		}
 	case uint16(unix.RTA_TABLE):
 		if len(val) >= 4 {
 			ri.Table = binary.LittleEndian.Uint32(val[0:4])
 		}
 	case uint16(unix.RTA_MULTIPATH), uint16(unix.RTA_VIA),
-		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO):
+		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO),
+		uint16(unix.RTA_NEWDST), uint16(unix.RTA_ENCAP_TYPE), uint16(unix.RTA_ENCAP):
 		return parseRouteNestedAttr(ri, atype, val)
 	case uint16(unix.RTA_MFC_STATS), uint16(unix.RTA_EXPIRES):
 		return setRouteMcastAttr(ri, atype, val)
 	case RtaNhID:
 		if len(val) >= 4 {
 			ri.NhID = binary.LittleEndian.Uint32(val[0:4])
+		}
+	case uint16(unix.RTA_FLOW):
+		if len(val) >= 4 {
+			ri.Flow, ri.HasFlow = binary.LittleEndian.Uint32(val[0:4]), true
 		}
 	case uint16(unix.RTA_MARK):
 		if len(val) >= 4 {
@@ -277,7 +308,7 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 	return nil
 }
 
-// parseRouteNestedAttr decodes the four RTA_* attributes whose payload is a
+// parseRouteNestedAttr decodes the RTA_* attributes whose payload is a
 // struct or a stream of its own rather than a scalar, and is the only part of
 // route attribute decoding that can return an error.
 //
@@ -321,6 +352,15 @@ func parseRouteNestedAttr(ri *RouteInfo, atype uint16, val []byte) error {
 			return cerr
 		}
 		ri.CacheInfo = &ci
+	case uint16(unix.RTA_NEWDST):
+		labels, lerr := ParseMPLSLabels(val)
+		if lerr != nil {
+			return lerr
+		}
+		ri.NewDst = labels
+	case uint16(unix.RTA_ENCAP_TYPE), uint16(unix.RTA_ENCAP):
+		// Decoded by ParseNewRoute once the walk has both; see RouteEncap.
+		setEncapAttr(&ri.Encap, atype, val)
 	}
 	return nil
 }

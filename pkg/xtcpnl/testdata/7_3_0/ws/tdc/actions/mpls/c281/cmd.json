@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action mpls push protocol mpls_mc label 20",
+ "desc": "positive: Add mpls push action with mpls_mc protocol",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: mpls.*push.*protocol.*mpls_mc.*label.*20.*ttl.*[0-9]+.*pipe",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mpls/c281",
+ "modules": [
+  "act_mpls"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mpls",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mpls",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mpls",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "c281",
+  "tdc": "actions/mpls.json"
+ }
+}

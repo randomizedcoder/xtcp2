@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- **Listeners: no TCP port by default, auth on by default.** xtcp2 now serves health, metrics and the link monitor's detail paths on one Unix socket, `/run/xtcp2/metrics.sock` (mode `0600`), with a raw bearer token from `LISTENER_RAW_TOKEN_FILE`, and exits 64 without one. It no longer listens on `:9088` or `:8889`: gRPC, pprof and `/ip` are served only by a listener that names them. `-listener` (repeatable) / `LISTENERS` describes each listener, its credentials (files only) and the classes it serves: `health`, `metrics`, `metrics-detail`, `ip`, `debug`, `grpc-read`, `grpc-admin` ([listeners](docs/security.md#listeners)). TCP must be typed (`network=tcp`) and needs a credential unless it is loopback or serves health alone; `debug` and `grpc-admin` need an admin credential; pprof never serves `cmdline`. A `grpc-read` listener answers admin RPCs `Unimplemented`. Bad listener config, a missing token or token file exits 64; `ConfigService.Set` refuses the same.
+- **The per-listener flags are deprecated.** `-promListen*`, `-grpcPort`, `-grpcListen*`, `-grpc*UnixSocket*`, `-linkMonitorIPListen` and their variables still work, expanded to listeners with a `DEPRECATED` line naming the `-listener` equivalent; the Prometheus listener they describe no longer serves pprof, and as TCP it now needs a token. Giving them with `-listener` exits 64. An empty `-listenerAuthMode` / `LISTENER_AUTH_MODE=` now means unset (raw), not disabled.
+- **Clients dial the gRPC socket.** `xtcp2ctl` and `xtcp2client` default to `unix:/run/xtcp2/grpc.sock`; pass `-network tcp` for a TCP listener. The OCI images expose no ports, and `-healthcheck` probes the listener serving `health` from the same settings as the daemon. The NixOS module gains `listeners` and `listenerTokenFile` (null generates a token once, at `/var/lib/xtcp2/listener-token`); `linkMonitor.ipListen` becomes a loopback `ip` listener. New gauge `xtcp2_listener_active{name,network,class}`.
+- **S3 uses TLS unless told otherwise.** A bare `host:port` S3 endpoint now uses TLS (it was plaintext), and `http://` is refused at startup (exit 64) unless `-s3AllowInsecure` / `S3_ALLOW_INSECURE=true`, which logs a warning and sets `xtcp2_s3_insecure 1`. TLS 1.2 is the minimum; `-s3CAFile` / `S3_CA_FILE` adds a private CA. `ConfigService.Set` refuses a plaintext endpoint without the opt-in.
+- **Credentials on the command line.** The production (slim) flavors refuse `-s3AccessKey`, `-s3SecretKey` and the four `-listener*` secret flags with exit 64; development builds warn, now for the S3 flags too and even when the env var is also set. Use the `_FILE` variables.
+- **`_FILE` secrets are checked.** A missing or unreadable `*_FILE` path, a non-regular file, or one readable by group or others stops startup with exit 64. It used to be ignored silently (listener tokens) or logged (S3 keys), leaving the credential empty. Mount secrets mode `0400`.
+- **The debug writers are build-time opt-ins.** The netlink capture writer (`-writeFiles` / `-capturePath`) is compiled in only with `-tags capture`, which no flavor or image sets; use `nix build .#xtcp2-capture`. The `file:` destination needs `-tags dest_file` and is in the full (development) flavor only, so `xtcp2-<dest>` slim flavors and their images no longer have it. Asking for either on a binary without it exits 64 at startup with the tag to rebuild with; `ConfigService.Set` refuses it with `FailedPrecondition`. A capture build reports `+capture` in its version line, and when armed logs a warning and sets `xtcp2_debug_capture_enabled 1`.
+
+### New
+
+- **Vulnerability check.** `checks.govulncheck` runs govulncheck against a pinned snapshot of the Go vulnerability database, with no tags and with every flavor tag, and fails on a reachable finding not in its accepted list. One is accepted: GO-2026-6859 in `net/http`, fixed in go1.27.4, until the toolchain moves. `nix run .#govulncheck-fresh` checks against the live database and runs `go mod verify`; `nix build .#sbom-<binary>` writes a CycloneDX SBOM for any binary package.
+
+## 0.2.1 (2026-11)
+
+Fixes for what the first fleet rollout of 0.2.0 found: the link monitor baseline, the uplink columns, and container attribution. No schema, flag-default or `XtcpConfig` change; 0.2.0 clients and consumers work unchanged.
+
+### Upgrade checklist
+
+1. **Mount the netns dirs `rslave`** in a container deployment (`-v /run/netns:/run/netns:ro,rslave`, the same for `/run/docker/netns`). Without it, pods started after xtcp2 are not collected; 0.2.1 now warns at startup and sets a gauge (below).
+
+### New
+
+- **Link monitor learn deadline.** `-linkMonitorLearnDeadline` (`LINK_MONITOR_LEARN_DEADLINE`, `link_monitor.learn_deadline`; go-link-monitor `-learn-deadline`), default 5m, 0 waits forever. If no baseline is learned by then, the visible up count becomes a provisional baseline, so `up_links_delta` still reports when the count never becomes ready (a stuck RDMA port, a hardware fault). It is kept in memory only, never written to the baseline file, and flagged by the sparse `go_link_monitor_baseline_provisional 1`; a normally learned baseline replaces it and is saved.
+- **Netns mount propagation check.** In a container, `/run/netns` and `/run/docker/netns` must be mounted `rslave` (`-v /run/netns:/run/netns:ro,rslave`). With Docker's default `rprivate`, namespaces created after xtcp2 starts are invisible: their sockets aren't collected and their container name/image stays empty. xtcp2 now logs a warning at startup and sets `xtcp_gauges{function="checkNetnsPropagation",variable="private",type="<dir>"}` to 1 for each such dir.
+- **`goip vrf show NAME`**, `ip`'s `ipvrf_get_table` single lookup: prints `NAME TABLE`, `Invalid VRF` (exit 1) for a device that isn't a VRF, and table 254 for `default`. Byte-for-byte with iproute2 7.2.0; the parity matrix is 510 rows, 509 gated.
+
+### Fixes
+
+- **Link monitor baseline never written on most prod hosts.** Two causes, found on 78 of 105 hosts: the stock Ubuntu `ib_core` answers the RDMA netlink event subscription with `EOPNOTSUPP`, which was retried every 30 s and kept the count unready; and the bonding module's `/sys/class/net/bonding_masters`, a regular file, failed the RDMA netdev walk. A kernel without RDMA events now falls back to polled RDMA state (reported once, as `rdma_events` support `unsupported`), and non-netdev entries are skipped.
+- **Uplink columns: `lo` as UPLINK2, empty NIC and LLDP columns.** Automatic uplink detection took the kernel's `unreachable ::/0 dev lo`, which every host has, as a default route, and used a bond itself as the uplink, which has no NIC attributes and no LLDP neighbour. Only up, non-reject default routes off `lo` count now, and a bond, vlan or bridge holding the route is replaced by the physical NICs beneath it. `-uplinkInterfaces` is unchanged.
+
 ## 0.2.0 (2026-10)
 
 The first tagged release. These notes compare against `32a4fed4` (2026-08-17), the last revision most deployments built from; that tree also said `0.1.0` in `VERSION`.

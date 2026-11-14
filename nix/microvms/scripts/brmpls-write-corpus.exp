@@ -1,0 +1,335 @@
+###############################################################################
+# brmpls-write-corpus.exp - the bridge FDB, bridge VLAN and MPLS captures
+# BIRD's netlink parser needs (docs/netlink/coverage-status.md, "Captures an
+# outside consumer needs: BIRD's netlink parser", B1)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp,
+# addr-corpus.exp and rtnl-write-corpus.exp, by scripts/capture-link-writes.exp,
+# which loads MODULES and then runs each row into link-write/brmpls/<slug>/,
+# last of all, so no earlier fixture moves. Data plus small procs, kept out of
+# the driver so the hermetic check (scripts/brmpls-write-corpus-test.exp) can
+# read it without a console, as rtnl-write-corpus.exp is.
+#
+# A ROW IS {slug floor pre command readbacks rc}, as in rtnl-write-corpus.exp,
+# whose readback_args the driver uses for these rows too.
+#
+#   floor      2 for the write and its NLMSG_ERROR, or a dump and its
+#              NLMSG_DONE; 2 more when the command names a device (`ip` and
+#              `bridge` resolve it with an RTM_GETLINK of their own first).
+#              The event rows' floors count the canary's and the trigger's
+#              requests and answers, without the notifications, which are
+#              what the rows are for and which the until-EREs prove
+#   pre        steps run in the row's fresh namespace before the capture
+#              window opens; see pre_step
+#   rc         0 for an accepted write; 2 for one the kernel refused through
+#              `ip` (rtnl_talk's error, negated by do_cmd); 255 for one it
+#              refused through `bridge`, whose do_cmd returns the -1
+#              unnegated (bridge/bridge.c)
+#
+# WHY THE MODULES LOAD LAST
+#
+# mpls_router gives every Ethernet and loopback device an mpls_dev, and with
+# it an AF_MPLS netconf entry and RTM_GETSTATS afstats, so loading it before
+# any other row would change those rows' readbacks. bridge is already loaded
+# (the reads corpus builds br0); mpls_iptunnel is the encap mpls lwtunnel.
+###############################################################################
+
+namespace eval brmplscorpus {
+
+    variable SUBDIR brmpls
+    variable MODULES {mpls_router mpls_iptunnel}
+
+    # c0, the up dummy xtcp2-nl-ipmon joins its canary group on.
+    variable PRE_CANARY {{link add c0 type dummy} {link set c0 up}}
+
+    ###########################################################################
+    # Bridge FDB and VLAN state.
+    #
+    # br0 filters VLANs, so an FDB entry may name one; v0 is its port and v0p
+    # v0's veth peer, outside the bridge. Neither br0 nor v0 makes a
+    # link-local address (addrgenmode none), so the only frame that reaches
+    # the bridge is the one a row sends from v0p on purpose. v0p's address is
+    # fixed so the entry the bridge learns from it is the same on every run.
+    ###########################################################################
+    variable LEARNED_MAC 02:00:00:00:00:12
+    variable STATIC_MAC 02:00:00:00:00:21
+    variable VLAN_MAC 02:00:00:00:00:22
+
+    variable PRE_BR [list \
+        {link add br0 type bridge vlan_filtering 1} \
+        {link set br0 addrgenmode none} \
+        {link add v0 type veth peer name v0p} \
+        {link set v0 addrgenmode none} \
+        {link set v0p addrgenmode none} \
+        [list link set v0p address $LEARNED_MAC] \
+        {link set v0 master br0} \
+        {bridge vlan add vid 10 dev v0} \
+        {link set br0 up} \
+        {link set v0 up}]
+
+    # v0p up with an address that is not yet past DAD: its neighbor
+    # solicitation goes out of v0p into v0, and the bridge learns v0p's
+    # address on v0, in VLAN 1, v0's PVID.
+    variable LEARN_STEPS [list \
+        {-6 addr add fe80::12/64 dev v0p} \
+        {link set v0p up} \
+        [list wait-learned v0 $LEARNED_MAC]]
+
+    variable PRE_FDB_STATIC [concat $PRE_BR [list \
+        [list bridge fdb add $STATIC_MAC dev v0 master static]]]
+
+    # Every kind of entry `bridge fdb show` prints for one port: the static
+    # one, one in VLAN 10, the learned one, and the bridge's own permanent
+    # entries for br0 and v0.
+    variable PRE_FDB_ALL [concat $PRE_FDB_STATIC [list \
+        [list bridge fdb add $VLAN_MAC dev v0 master static vlan 10]] \
+        $LEARN_STEPS]
+
+    variable FDB_RB {{getneigh_bridge 4 {bridge fdb show dev v0}}}
+
+    # br0 and v0 only, for the VLAN rows.
+    variable PRE_VLAN {
+        {link add br0 type bridge vlan_filtering 1}
+        {link set br0 addrgenmode none}
+        {link add v0 type veth peer name v0p}
+        {link set v0 addrgenmode none}
+        {link set v0p addrgenmode none}
+        {link set v0 master br0}
+        {link set br0 up}
+        {link set v0 up}
+    }
+
+    # Every shape of VLAN entry: one vid, a range, the PVID untagged, and one
+    # on the bridge itself (self), which is also what `vlan global` lists.
+    variable PRE_VLAN_ALL [concat $PRE_VLAN {
+        {bridge vlan add vid 10 dev v0}
+        {bridge vlan add vid 20-30 dev v0 untagged}
+        {bridge vlan add vid 40 dev v0 pvid untagged}
+        {bridge vlan add vid 10 dev br0 self}
+    }]
+
+    # The new VLAN dump (RTM_GETVLAN, answered with RTM_NEWVLAN) for v0.
+    variable VLAN_RB {{getvlan 4 {bridge -d vlan show dev v0}}}
+
+    ###########################################################################
+    # MPLS state.
+    #
+    # platform_labels is the size of the namespace's label table, 0 until
+    # set, and input is what lets d0 receive labeled packets; both are per
+    # namespace. d0 is a dummy that is up, with an address in each family for
+    # the nexthops' via.
+    ###########################################################################
+    variable PRE_MPLS {
+        {sysctl net.mpls.platform_labels 1000}
+        {link add d0 type dummy}
+        {link set d0 addrgenmode none}
+        {link set d0 up}
+        {sysctl net.mpls.conf.d0.input 1}
+        {addr add 192.0.2.1/24 dev d0}
+        {-6 addr add 2001:db8::1/64 dev d0 nodad}
+    }
+
+    variable MPLS_SWAP {-f mpls route add 100 as 200/300 via inet 192.0.2.10 dev d0}
+    variable MPLS_POP {-f mpls route add 101 via inet 192.0.2.10 dev d0}
+    variable MPLS_MULTIPATH {-f mpls route add 102 nexthop as 201 via inet 192.0.2.10 dev d0 nexthop as 202 via inet 192.0.2.11 dev d0}
+    variable ENCAP_V4 {route add 198.18.20.0/24 encap mpls 100/200 via 192.0.2.10 dev d0}
+    variable ENCAP_V6 {-6 route add 2001:db8:20::/64 encap mpls 300 via 2001:db8::10 dev d0}
+    variable ENCAP_MULTIPATH {route add 198.18.21.0/24 nexthop encap mpls 101 via 192.0.2.10 dev d0 nexthop encap mpls 102 via 192.0.2.11 dev d0}
+
+    variable PRE_MPLS_ROUTES [concat $PRE_MPLS [list $MPLS_SWAP $MPLS_POP $MPLS_MULTIPATH]]
+    variable PRE_ENCAP_ROUTES [concat $PRE_MPLS [list $ENCAP_V4 $ENCAP_V6 $ENCAP_MULTIPATH]]
+
+    variable MPLS_RB {{getroute_mpls 2 {ip -f mpls route show}}}
+    variable ROUTE_RB {{getroute 4 {ip route show dev d0}}}
+    variable ROUTE6_RB {{getroute6 4 {ip -6 route show dev d0}}}
+
+    ###########################################################################
+    # Each namespace's links and addresses, for BIRD (coverage-status.md, B4).
+    #
+    # Every RTM_NEWLINK `ip` or `bridge` gets back for a `dev X` is a name
+    # lookup: 40 bytes, IFLA_IFNAME alone. BIRD needs a full link (IFLA_MTU,
+    # IFLA_LINKINFO) before it takes a route, FDB entry or VLAN on it, and a
+    # connected subnet before it takes a gateway. These two are dumps with no
+    # dev filter, so every link and address comes back whole. The rows BIRD
+    # reads append both, after the command: an event row's links are still up
+    # when its monitor exits.
+    ###########################################################################
+    variable LINK_RB {{getlink 2 {ip -d link show}}}
+    variable ADDR_RB {{getaddr 2 {ip addr show}}}
+    variable NS_RB [concat $LINK_RB $ADDR_RB]
+
+    ###########################################################################
+    # The event rows' triggers and what each monitor prints for them.
+    ###########################################################################
+    variable FDB_TRIGGER [join [list \
+        "bridge fdb add $STATIC_MAC dev v0 master static" \
+        "bridge fdb del $STATIC_MAC dev v0 master" \
+        "ip -6 addr add fe80::12/64 dev v0p" \
+        "ip link set v0p up"] "; "]
+    # `ip monitor all` prefixes each line with its group ([NEIGH]), so
+    # these are not anchored.
+    variable FDB_UNTIL [list \
+        "dev v0 lladdr $STATIC_MAC " \
+        "Deleted dev v0 lladdr $STATIC_MAC " \
+        "dev v0 lladdr $LEARNED_MAC "]
+
+    variable VLAN_TRIGGER "bridge vlan add vid 10 dev v0; bridge vlan add vid 20-30 dev v0; bridge vlan del vid 10 dev v0"
+    variable VLAN_UNTIL {
+        {^v0 +10( |$)}
+        {^v0 +20-30( |$)}
+        {^Deleted v0 +10( |$)}
+    }
+
+    variable MPLS_TRIGGER [join {
+        "ip -f mpls route add 104 as 204 via inet 192.0.2.10 dev d0"
+        "ip -f mpls route del 104"
+        "ip route add 198.18.23.0/24 encap mpls 105 via 192.0.2.10 dev d0"
+        "ip route del 198.18.23.0/24"
+    } "; "]
+    variable MPLS_UNTIL {
+        {^104 as to 204 via inet 192.0.2.10 dev d0}
+        {^Deleted 104 }
+        {^198.18.23.0/24 +encap mpls +105 }
+        {^Deleted 198.18.23.0/24 }
+    }
+
+    # brmon <groups> <trigger> <until-EREs> - an xtcp2-nl-brmon command line,
+    # with v0 the canary's port. <groups> must hold vlan: the canary is one.
+    proc brmon {groups trigger until} {
+        set cmd "xtcp2-nl-brmon v0 \"monitor $groups\" \"$trigger\""
+        foreach re $until {
+            append cmd " \"$re\""
+        }
+        return $cmd
+    }
+
+    variable rows [list \
+        [list fdb_show 4 $PRE_FDB_ALL "bridge fdb show br br0" \
+            [concat {{getneigh_bridge_all 2 {bridge fdb show}}} $NS_RB] 0] \
+        [list fdb_add_static 4 $PRE_BR "bridge fdb add $STATIC_MAC dev v0 master static" $FDB_RB 0] \
+        [list fdb_add_vlan 4 $PRE_BR "bridge fdb add $VLAN_MAC dev v0 master static vlan 10" $FDB_RB 0] \
+        [list fdb_add_existing 4 $PRE_FDB_STATIC "bridge fdb add $STATIC_MAC dev v0 master static" {} 255] \
+        [list fdb_replace 4 $PRE_FDB_STATIC "bridge fdb replace $STATIC_MAC dev v0 master static vlan 10" $FDB_RB 0] \
+        [list fdb_del 4 $PRE_FDB_STATIC "bridge fdb del $STATIC_MAC dev v0 master" $FDB_RB 0] \
+        [list fdb_del_missing 4 $PRE_BR "bridge fdb del $STATIC_MAC dev v0 master" {} 255] \
+        [list fdb_event 8 [concat $PRE_CANARY $PRE_BR] \
+            [rtnlcorpus::ipmon all $FDB_TRIGGER $FDB_UNTIL] $NS_RB 0] \
+        [list vlan_show 2 $PRE_VLAN_ALL "bridge -d vlan show" \
+            [concat {{getlink_brvlan 2 {bridge vlan show}}
+                     {getlink_brvlan_compressed 2 {bridge -c vlan show}}
+                     {getvlan_global 2 {bridge vlan global show}}} $NS_RB] 0] \
+        [list vlan_add 4 $PRE_VLAN "bridge vlan add vid 10 dev v0" $VLAN_RB 0] \
+        [list vlan_add_range 4 $PRE_VLAN "bridge vlan add vid 20-30 dev v0 untagged" $VLAN_RB 0] \
+        [list vlan_add_pvid 4 $PRE_VLAN "bridge vlan add vid 40 dev v0 pvid untagged" $VLAN_RB 0] \
+        [list vlan_add_self 4 $PRE_VLAN "bridge vlan add vid 10 dev br0 self" \
+            {{getvlan_global 2 {bridge vlan global show}}} 0] \
+        [list vlan_add_reserved 4 $PRE_VLAN "bridge vlan add vid 4095 dev v0" {} 255] \
+        [list vlan_del 4 [concat $PRE_VLAN {{bridge vlan add vid 10 dev v0}}] \
+            "bridge vlan del vid 10 dev v0" $VLAN_RB 0] \
+        [list vlan_del_range 4 [concat $PRE_VLAN {{bridge vlan add vid 20-30 dev v0}}] \
+            "bridge vlan del vid 20-30 dev v0" $VLAN_RB 0] \
+        [list vlan_set_state 4 [concat $PRE_VLAN {{bridge vlan add vid 10 dev v0}}] \
+            "bridge vlan set vid 10 dev v0 state blocking" $VLAN_RB 0] \
+        [list vlan_event 8 $PRE_VLAN [brmon vlan $VLAN_TRIGGER $VLAN_UNTIL] $NS_RB 0] \
+        [list mpls_route_add_swap 4 $PRE_MPLS "ip $MPLS_SWAP" $MPLS_RB 0] \
+        [list mpls_route_add_pop 4 $PRE_MPLS "ip $MPLS_POP" $MPLS_RB 0] \
+        [list mpls_route_add_multipath 4 $PRE_MPLS "ip $MPLS_MULTIPATH" $MPLS_RB 0] \
+        [list mpls_route_add_via6 4 $PRE_MPLS \
+            "ip -f mpls route add 103 as 203 via inet6 2001:db8::10 dev d0" \
+            [concat $MPLS_RB $NS_RB] 0] \
+        [list mpls_route_add_existing 4 [concat $PRE_MPLS [list $MPLS_SWAP]] "ip $MPLS_SWAP" {} 2] \
+        [list mpls_route_add_reserved 4 $PRE_MPLS \
+            "ip -f mpls route add 3 via inet 192.0.2.10 dev d0" {} 2] \
+        [list mpls_route_add_over_limit 4 $PRE_MPLS \
+            "ip -f mpls route add 2000 via inet 192.0.2.10 dev d0" {} 2] \
+        [list mpls_route_show 2 $PRE_MPLS_ROUTES "ip -f mpls route show" $NS_RB 0] \
+        [list mpls_route_get 2 $PRE_MPLS_ROUTES "ip -f mpls route get 100" {} 0] \
+        [list mpls_route_del 2 $PRE_MPLS_ROUTES "ip -f mpls route del 100" $MPLS_RB 0] \
+        [list mpls_route_del_missing 2 $PRE_MPLS "ip -f mpls route del 100" {} 0] \
+        [list mpls_route_del_over_limit 2 $PRE_MPLS "ip -f mpls route del 2000" {} 2] \
+        [list route_encap_mpls 4 $PRE_MPLS "ip $ENCAP_V4" $ROUTE_RB 0] \
+        [list route_encap_mpls_ttl 4 $PRE_MPLS \
+            "ip route add 198.18.22.0/24 encap mpls 100 ttl 64 via 192.0.2.10 dev d0" $ROUTE_RB 0] \
+        [list route6_encap_mpls 4 $PRE_MPLS "ip $ENCAP_V6" $ROUTE6_RB 0] \
+        [list route_multipath_encap_mpls 4 $PRE_MPLS "ip $ENCAP_MULTIPATH" $ROUTE_RB 0] \
+        [list route_encap_show 4 $PRE_ENCAP_ROUTES "ip route show dev d0" \
+            [concat $ROUTE6_RB $NS_RB] 0] \
+        [list mpls_event 8 [concat $PRE_CANARY $PRE_MPLS] \
+            [rtnlcorpus::ipmon route $MPLS_TRIGGER $MPLS_UNTIL] $NS_RB 0] \
+    ]
+
+    ###########################################################################
+    # pre_step <ns> <subdir> <step> - run one precondition; 1 if it held.
+    #
+    #   {sysctl KEY VALUE}       addrtopo::sysctl in <ns>
+    #   {bridge ARGS...}         `bridge -n <ns> ARGS`
+    #   {wait-learned DEV MAC}   poll `bridge fdb show dev DEV` in <ns>, for
+    #                            10 s, until MAC is on DEV
+    #   anything else            an `ip` argument list, through nltopo::topo
+    #
+    # A bridge step or a wait that fails is put in nltopo::refused, as a
+    # refused topo step is, so it fails the run.
+    ###########################################################################
+    proc pre_step {ns subdir step} {
+        switch -- [lindex $step 0] {
+            sysctl {
+                return [addrcorpus::pre_step $ns $subdir $step]
+            }
+            bridge {
+                set cmd "bridge -n $ns [join [lrange $step 1 end] { }]"
+                lassign [vmlib::run_out $cmd] rc _out
+                if {$rc != 0} {
+                    lappend nltopo::refused $cmd
+                    vmlib::log "topology step refused: $cmd"
+                    return 0
+                }
+                return 1
+            }
+            wait-learned {
+                if {[llength $step] != 3} {
+                    error "brmplscorpus: a wait is {wait-learned DEV MAC}: $step"
+                }
+                set cmd [wait_learned_cmd $ns {*}[lrange $step 1 end]]
+                lassign [vmlib::run_out $cmd 30] rc _out
+                if {$rc != 0} {
+                    lappend nltopo::refused $cmd
+                    vmlib::log "never learned: $cmd"
+                    return 0
+                }
+                return 1
+            }
+            default {
+                return [addrcorpus::pre_step $ns $subdir $step]
+            }
+        }
+    }
+
+    # rc_problem <slug> <want> <got> - rtnlcorpus::rc_problem, naming the
+    # row's own directory.
+    proc rc_problem {slug want got} {
+        variable SUBDIR
+        set problem [rtnlcorpus::rc_problem $slug $want $got]
+        if {$problem eq ""} {
+            return ""
+        }
+        return "$SUBDIR/[string range $problem [string length rtnl/] end]"
+    }
+
+    # learned_re <mac> - the grep pattern for <mac>'s entry in `bridge fdb
+    # show dev DEV`. With a dev filter, bridge leaves `dev DEV` out of its
+    # lines ("02:00:00:00:00:12 vlan 1 master br0"), so the pattern is the
+    # MAC alone; the filter is what puts it on DEV.
+    proc learned_re {mac} {
+        return "^$mac "
+    }
+
+    # wait_learned_cmd <ns> <dev> <mac> - the guest line wait-learned runs:
+    # 100 polls 100 ms apart, the shell's own loop, single-quoted so the
+    # console's shell expands nothing in it. timeout ends it at 20 s, inside
+    # pre_step's 30, so a loaded guest's slow polls can't leave the loop
+    # running on the console when the next command is typed.
+    proc wait_learned_cmd {ns dev mac} {
+        set re [learned_re $mac]
+        return "timeout 20 ip netns exec $ns sh -c 'i=0; while \[ \$i -lt 100 \]; do bridge fdb show dev $dev | grep -q \"$re\" && exit 0; i=\$((i+1)); sleep 0.1; done; exit 1'"
+    }
+}

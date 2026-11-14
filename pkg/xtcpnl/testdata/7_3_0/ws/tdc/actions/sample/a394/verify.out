@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1: sample rate 1/10 group 1 pipe
+	 index 20 ref 1 bind 0
+	not_in_hw

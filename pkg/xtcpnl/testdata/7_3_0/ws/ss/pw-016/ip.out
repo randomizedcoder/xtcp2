@@ -1,0 +1,3 @@
+State  Recv-Q Send-Q Local Address:Port Peer Address:Port
+LISTEN 0      8          127.0.0.1:22        0.0.0.0:*
+	 skmem:(r0,rb131072,t0,tb16384,f0,w0,o0,bl0,d0) cubic cwnd:10

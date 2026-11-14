@@ -1,0 +1,7 @@
+total acts 1
+
+	action order 0: mirred (Ingress Mirror to device lo) reclassify
+	index 1 ref 1 bind 0
+	cookie aa11bb22cc33dd44ee55
+	not_in_hw
+	used_hw_stats disabled

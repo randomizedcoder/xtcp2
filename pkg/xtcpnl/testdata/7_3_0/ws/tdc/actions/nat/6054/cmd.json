@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action nat egress all 20.20.20.1 pipe index 10 cookie aa1bc2d3eeff112233445566778800a1",
+ "desc": "positive: Add nat action on egress with cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+:  nat egress 0.0.0.0/0 20.20.20.1 pipe.*index 10 ref.*cookie aa1bc2d3eeff112233445566778800a1",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/nat/6054",
+ "modules": [
+  "act_nat"
+ ],
+ "pre": [
+  [
+   "tc actions flush action nat",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions get action nat index 10",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action nat",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6054",
+  "tdc": "actions/nat.json"
+ }
+}

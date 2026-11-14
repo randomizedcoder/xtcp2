@@ -1,0 +1,4 @@
+dev br0 port d0 grp 239.1.1.1 src 192.0.2.1 permanent vid 10
+dev br0 port d0 grp 239.1.1.1 src 192.0.2.1 permanent vid 1
+dev br0 port br0 grp ff02::6a temp vid 1
+dev br0 port br0 grp ff02::1:ff5d:b00f temp vid 1

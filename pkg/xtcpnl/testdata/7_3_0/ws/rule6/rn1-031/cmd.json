@@ -1,0 +1,47 @@
+{
+ "axes": {
+  "action": "7",
+  "dport": "80-80",
+  "family": "6",
+  "fwmark": "16",
+  "iif": "lo",
+  "invert": "1",
+  "oif": "nosuch",
+  "priority": "200",
+  "protocol": "2",
+  "src": "2001:db8:2::7",
+  "src_len": "128",
+  "tos": "16",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add not from 2001:db8:2::7/128 order 200 fwmark 0x10 iif lo oif nosuch tos 0x10 dport 80 protocol kernel unreachable",
+ "desc": "corner: verb=add not=not from=128 to=absent pref=order fwmark=16 iif=lo oif=nosuch ds=tos ipproto=absent sport=absent dport=80 uidrange=absent suppress=absent protocol=kernel extra=absent action=unreachable",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/rn1-031",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

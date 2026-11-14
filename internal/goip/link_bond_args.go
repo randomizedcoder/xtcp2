@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -25,9 +26,10 @@ import (
 // The rows point back at BondOptions by id, so the wire width and value
 // names still come from the one table.
 //
-// Two rows of BondOptions have no keyword here. `ad_info` is read-only, and
-// `lacp_strict` is newer than the pinned 7.1.0, whose parser does not know
-// it: `ip link add … type bond lacp_strict on` is "unknown command".
+// `ad_info`, a read-only row of BondOptions, has no keyword here.
+// `lacp_strict` is new in iproute2 7.3.0 (30365d09); before it, `ip link add
+// … type bond lacp_strict on` is "unknown command", and its arm is skipped
+// unless Keywords730.
 
 // ErrInvalidArgument is an argument `ip` refuses before it sends anything:
 // invarg, nodev, an unknown keyword, a missing value. The message after it
@@ -57,6 +59,8 @@ type bondKeyword struct {
 	arg     bondArgKind
 	// invarg is iproute2's message for a value it refuses.
 	invarg string
+	// ip730 is an arm iproute2 7.3.0 added, there only under Keywords730.
+	ip730 bool
 }
 
 // bondHelpKeywordCst is the help arm both chains end with.
@@ -100,6 +104,7 @@ var bondParseKeywords = []bondKeyword{
 	{keyword: "ad_user_port_key", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_AD_USER_PORT_KEY, arg: bondArgUint, invarg: "invalid ad_user_port_key"},
 	{keyword: "ad_actor_sys_prio", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_AD_ACTOR_SYS_PRIO, arg: bondArgUint, invarg: "invalid ad_actor_sys_prio"},
 	{keyword: "ad_actor_system", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_AD_ACTOR_SYSTEM, arg: bondArgLLAddr},
+	{keyword: "lacp_strict", match: xtcpnl.BondMatchPrefix, id: xtcpnl.IflaBondLacpStrict, arg: bondArgOnOff, ip730: true},
 	{keyword: "tlb_dynamic_lb", match: xtcpnl.BondMatchPrefix, id: unix.IFLA_BOND_TLB_DYNAMIC_LB, arg: bondArgUint, invarg: "invalid tlb_dynamic_lb"},
 	{keyword: bondHelpKeywordCst, match: xtcpnl.BondMatchPrefix, arg: bondArgHelp},
 }
@@ -128,6 +133,9 @@ func (k *bondKeyword) matches(arg string) bool {
 
 func lookupBondKeyword(chain []bondKeyword, arg string) *bondKeyword {
 	for i := range chain {
+		if chain[i].ip730 && !Keywords730 {
+			continue
+		}
 		if chain[i].matches(arg) {
 			return &chain[i]
 		}
@@ -203,20 +211,20 @@ func readBondValue(args []string, i int, kw *bondKeyword, s *xtcpnl.BondSetting,
 
 	// Every other arm is NEXT_ARG: a missing value ends the command.
 	if i+1 >= len(args) {
-		return i, fmt.Errorf("%w: Command line is not complete. Try option \"help\"", ErrInvalidArgument)
+		return i, linkUsage(incompleteErr())
 	}
 	i++
 	v := args[i]
 	invarg := func() error {
-		return fmt.Errorf("%w: argument %q is wrong: %s", ErrInvalidArgument, v, kw.invarg)
+		return linkUsage(invargErr(kw.invarg, v))
 	}
 	switch kw.arg {
 	case bondArgIndex:
-		n := getIndex(s.Spec.Names, v)
-		if n < 0 {
+		n, ok := cint.U32(getIndex(s.Spec.Names, v))
+		if !ok {
 			return i, invarg()
 		}
-		s.Value = uint32(n)
+		s.Value = n
 	case bondArgUint:
 		n, ok := readBondUint(v, s.Spec.Wire)
 		if !ok {
@@ -228,7 +236,7 @@ func readBondValue(args []string, i int, kw *bondKeyword, s *xtcpnl.BondSetting,
 		if !ok {
 			return i, invarg()
 		}
-		s.Value = uint32(n) //nolint:gosec // the wire s32, reinterpreted
+		s.Value = cint.Bits(n)
 	case bondArgIfindex:
 		idx, err := resolve(v)
 		if err != nil {
@@ -289,12 +297,12 @@ func parseBondTargets(list string, w xtcpnl.BondWire) ([]netip.Addr, error) {
 		if w == xtcpnl.BondWireIPv4Set {
 			a, ok = getAddrIPv4(f)
 			if !ok {
-				return nil, fmt.Errorf("%w: an IP address is expected rather than %q", ErrInvalidArgument, f)
+				return nil, fmt.Errorf("%w: Error: an IP address is expected rather than %q", ErrInvalidArgument, f)
 			}
 		} else {
 			a, ok = getAddrIPv6(f)
 			if !ok {
-				return nil, fmt.Errorf("%w: inet6 address is expected rather than %q", ErrInvalidArgument, f)
+				return nil, fmt.Errorf("%w: Error: inet6 address is expected rather than %q", ErrInvalidArgument, f)
 			}
 		}
 		out = append(out, a)

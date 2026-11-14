@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action ct commit force nat src addr 2001::1-2001::10 port 1000-2000 index 44",
+ "desc": "positive: Try ct with full nat ipv6 range syntax + force",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ct commit force zone 0 nat src addr 2001::1-2001::10 port 1000-2000 pipe.*index 44 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/ct/4470",
+ "modules": [
+  "act_ct"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ct",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action ct",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ct",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4470",
+  "tdc": "actions/ct.json"
+ }
+}

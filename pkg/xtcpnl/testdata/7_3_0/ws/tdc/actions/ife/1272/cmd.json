@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action ife index 10",
+ "desc": "negative: Delete ife encode action with invalid index",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: ife encode action pass.*type 0[xX]ED3E.*allow mark.*index 20",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/ife/1272",
+ "modules": [
+  "act_ife"
+ ],
+ "pre": [
+  [
+   "tc actions flush action ife",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action ife encode allow mark pass index 20"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action ife index 20",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action ife",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ife encode allow mark pass index 20",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "1272",
+  "tdc": "actions/ife.json"
+ }
+}

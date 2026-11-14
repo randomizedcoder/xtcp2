@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "bport": "br0",
+  "dev": "br0",
+  "grp": "239.1.1.1",
+  "src": "192.0.2.1",
+  "srclist": "192.0.2.5,192.0.2.6",
+  "state": "0",
+  "verb": "replace",
+  "vid": "1"
+ },
+ "cmd": "bridge mdb replace dev br0 port br0 grp 239.1.1.1 temp vid 1 src 192.0.2.1 source_list 192.0.2.5,192.0.2.6",
+ "desc": "negative: verb=replace dev=br0 bport=br0 grp=v4 state=temp vid=1 src=v4 mode=absent srclist=two proto=absent: a source list on a host group",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "mdbbr/rn1-025",
+ "pre": [
+  "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self && ip link add d9 type dummy && ip link add br1 type bridge && ip link add d2 type dummy && ip link set d2 master br1 && ip link set d2 up && ip link set br1 up"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev br0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 type bridge vlan_filtering 1 && ip link add d0 type dummy && ip link set d0 master br0 && ip link set d0 up && ip link set br0 up && bridge vlan add vid 10 dev d0 && bridge vlan add vid 10 dev br0 self && ip link add d9 type dummy && ip link add br1 type bridge && ip link add d2 type dummy && ip link set d2 master br1 && ip link set d2 up && ip link set br1 up",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

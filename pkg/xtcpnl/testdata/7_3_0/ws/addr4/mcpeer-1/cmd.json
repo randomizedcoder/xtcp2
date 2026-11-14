@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "family": "4",
+  "flags": "1024",
+  "local": "239.1.1.1",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "prefixlen": "32",
+  "verb": "add"
+ },
+ "cmd": "ip -4 address add 239.1.1.1/32 peer 198.51.100.1/32 autojoin dev d0",
+ "desc": "negative: autojoin on a multicast address with a peer, which IPv4 joins as the group (Multicast auto join failed)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr4/mcpeer-1",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

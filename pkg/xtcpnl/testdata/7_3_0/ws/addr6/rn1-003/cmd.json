@@ -1,0 +1,46 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "256",
+  "label": "d0:1",
+  "local": "2001:db8:1::1",
+  "metric": "7",
+  "preferred": "60",
+  "prefixlen": "128",
+  "proto": "99",
+  "scope": "253",
+  "valid": "60",
+  "verb": "del"
+ },
+ "cmd": "ip -6 address del 2001:db8:1::1/128 label d0:1 scope link preference 7 valid_lft 60 preferred_lft 60 mngtmpaddr proto 99 dev d0",
+ "desc": "negative: verb=del local=128 peer=absent brd=absent label=alias scope=link metric=preference lft=equal flags=mngtmpaddr proto=99: a delete of an address its add could not store",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr6/rn1-003",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

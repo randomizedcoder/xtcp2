@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "action": "8",
+  "dport": "65534-65534",
+  "dscp": "46",
+  "dst": "203.0.113.0",
+  "dst_len": "24",
+  "family": "4",
+  "flow": "10",
+  "iif": "nosuch",
+  "invert": "1",
+  "ipproto": "6",
+  "oif": "nosuch",
+  "priority": "0",
+  "protocol": "2",
+  "sport": "1000-2000",
+  "sup_pl": "24",
+  "verb": "add"
+ },
+ "cmd": "ip -4 rule add not to 203.0.113.0/24 pref 0 iif nosuch oif nosuch dscp 46/0x3f ipproto tcp sport 1000-2000 dport 65534 sup_pl 24 protocol kernel realms 10 type prohibit",
+ "desc": "corner: verb=add not=not from=absent to=24 pref=0 fwmark=absent iif=nosuch oif=nosuch ds=dscp-fullmask ipproto=tcp sport=range dport=65534 uidrange=absent suppress=sup_pl protocol=kernel extra=realms action=type-prohibit",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-010",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

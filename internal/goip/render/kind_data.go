@@ -48,6 +48,12 @@ func (k *KindData) add(key, text string, value any) {
 	k.calls = append(k.calls, printCall{key: key, text: text, value: value})
 }
 
+// addText records a print_*(PRINT_FP, NULL, ...) call: text with no JSON,
+// which a call with no key is.
+func (k *KindData) addText(text string) {
+	k.calls = append(k.calls, printCall{text: text})
+}
+
 // Text is the terminal render: every call's text, in order, nested objects
 // included. Like the rest of the detail run it has no newline and ends with
 // the last token's trailing space.
@@ -79,10 +85,15 @@ func (k *KindData) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteByte('{')
 	if k != nil {
-		for i, c := range k.calls {
-			if i > 0 {
+		n := 0
+		for _, c := range k.calls {
+			if c.key == "" {
+				continue
+			}
+			if n > 0 {
 				b.WriteByte(',')
 			}
+			n++
 			key, err := json.Marshal(c.key)
 			if err != nil {
 				return nil, err

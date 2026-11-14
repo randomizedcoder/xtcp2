@@ -1,0 +1,5 @@
+16:c6:88:65:c4:fc vlan 10 master br0 permanent
+16:c6:88:65:c4:fc vlan 1 master br0 permanent
+16:c6:88:65:c4:fc master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	not from all iif d0 uidrange 0-0 ipproto udp sport 0x50/0xfff0 dport 1 lookup 100 suppress_prefixlength 0 proto static dscp 4
+32766:	from all lookup main
+32767:	from all lookup default

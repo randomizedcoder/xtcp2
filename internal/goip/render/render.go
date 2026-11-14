@@ -48,6 +48,7 @@ package render
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -93,6 +94,30 @@ import (
 // for lo from an ioctl. goip never prints the ioctl value (see the package
 // doc), and with 7.2.0 neither does `ip`.
 var RenderQlenZero = true
+
+// RenderBondLacpStrict is whether bond `-d` prints IFLA_BOND_LACP_STRICT.
+//
+// iproute2 commit 30365d09 "ip/bond: add lacp_strict support", first released
+// in 7.3.0, added the attribute to bond_print_opt with print_on_off, after
+// all_slaves_active (ip/iplink_bond.c:654-656 in 7.3.0). 7.2.0's IFLA_BOND_MAX
+// stops before it, so parse_rtattr_nested drops it and nothing is printed,
+// although a 7.3 kernel sends it on every bond.
+//
+// true, the default and the parity target, iproute2 7.3.0, prints it; false
+// reproduces 7.2.0 and earlier, for the corpora captured with them.
+var RenderBondLacpStrict = true
+
+// RenderNhDstPort is whether a nexthop renders as iproute2 7.3.0's does.
+//
+// iproute2 commit ad2b2d95 "ip nexthop: support fdb destination port", first
+// released in 7.3.0, changed print_null's format from "fdb" to "fdb " and
+// added "dst_port %u " after it for a nonzero NHA_DST_PORT
+// (ip/ipnexthop.c:597-602 in 7.3.0). 7.2.0 ends an fdb line "fdb\n" and
+// prints no port.
+//
+// true, the default and the parity target, is 7.3.0's; false reproduces
+// 7.2.0 and earlier.
+var RenderNhDstPort = true
 
 // NameTab is what a renderer needs from the interface index cache, and no
 // more: iproute2's ll_index_to_name, ll_index_to_flags and ll_index_to_type.
@@ -228,6 +253,14 @@ func linkModeName(mode uint8) string {
 	}
 	return strconv.FormatUint(uint64(mode), 10)
 }
+
+// OperStateNames is a copy of the operstate table, indexed by
+// IFLA_OPERSTATE: get_operstate's names for `link set state`.
+func OperStateNames() []string { return slices.Clone(operStates[:]) }
+
+// LinkModeNames is a copy of the link mode table, indexed by IFLA_LINKMODE:
+// get_link_mode's names for `link set mode`.
+func LinkModeNames() []string { return slices.Clone(linkModes[:]) }
 
 // groupZeroName is the sole entry of the group table iproute2 ships
 // (etc/iproute2/group: "0 default"). It is named rather than inlined because

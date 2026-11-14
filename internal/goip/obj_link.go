@@ -3,10 +3,12 @@ package goip
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -232,12 +234,12 @@ func linkShowKind(c *runCtx, svc *service.Service, sel *linkShowSelectors, links
 
 // linkView is one printed link: the stanza, then -s, then -d.
 func linkView(c *runCtx, li xtcpnl.LinkInfo) render.LinkView {
-	v := render.LinkViewOf(li, c.lltab)
+	v := render.LinkViewOf(li, c.lltab).WithAlias(li)
 	if c.showStats > 0 {
 		v = v.WithStats(li)
 	}
 	if c.detailed() {
-		v = v.WithDetail(li, true, c.lltab)
+		v = v.WithDetail(li, true, c.lltab, c.showDetails)
 	}
 	return v
 }
@@ -340,11 +342,12 @@ func linkShowDev(c *runCtx, name string, sel *linkShowSelectors) error {
 //
 // print_linktype emits the kind and then, on the SAME line, the whole output
 // of that kind's print_opt (ip/ipaddress.c:230-244). Forty of those exist and
-// only vrf's and bond's are implemented here (renderableInfoData) — see the
-// header of render/link_detail.go for why that boundary is where it is. The
-// consequence is that a link with per-kind data has no partially-correct
-// render: a line reading `    bridge ` where `ip`'s reads `    bridge
-// forward_delay 200 hello_time 200 …` is not shorter, it is a different line.
+// only vrf's, bond's and bridge's are implemented here (renderableInfoData,
+// renderableSlaveInfoData) — see the header of render/link_detail.go for why
+// that boundary is where it is. The consequence is that a link with per-kind
+// data has no partially-correct render: a line reading `    ipip ` where
+// `ip`'s reads `    ipip any remote any local any …` is not shorter, it is a
+// different line.
 //
 // So this follows the `-s -s` precedent rather than the usual omitempty one.
 // An explicit error names the missing feature at the point it was asked for;
@@ -376,7 +379,7 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 		case li.HasInfoData && !renderableInfoData(li.Kind):
 			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_DATA for kind %q "+
 				"and goip does not: %w", li.Name, li.Kind, ErrNotImplemented)
-		case li.HasInfoSlaveData && !renderableInfoData(li.SlaveKind):
+		case li.HasInfoSlaveData && !renderableSlaveInfoData(li.SlaveKind):
 			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_SLAVE_DATA for slave kind %q "+
 				"and goip does not: %w", li.Name, li.SlaveKind, ErrNotImplemented)
 		}
@@ -385,14 +388,38 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 }
 
 // renderableInfoData reports whether goip reproduces the per-kind print_opt
-// output for a kind: vrf (a single table id) and bond (bond_print_opt and
-// bond_slave_print_opt, grounded on the 7_1_4 link-write fixtures). Every
-// other kind's blob stays undecoded and its -d render refused, which keeps
-// the gate kind-agnostic for everything goip has not verified against a
-// capture. The list is render's, so the gate and the renderer cannot
-// disagree about which kinds have a print_opt.
+// output for a kind: vrf (a single table id), bond (bond_print_opt,
+// grounded on the 7_1_4 link-write fixtures), bridge (bridge_print_opt),
+// the VLAN family, vlan, macvlan, macvtap, ipvlan and ipvtap, and the UDP
+// overlays, vxlan, geneve, bareudp, amt and gtp, the twelve IP tunnel
+// kinds (gre's six, ipip, sit, ip6tnl, vti, vti6 and xfrm), hsr and
+// netkit, grounded on the 7_3_0 kind corpus, and ovpn, on the v730 rows.
+// Every other kind's blob stays undecoded and its -d render refused, which
+// keeps the gate kind-agnostic
+// for everything goip has not verified against a capture. The list is
+// render's, so the gate and the renderer cannot disagree about which kinds
+// have a print_opt.
 func renderableInfoData(kind string) bool {
-	return kind == render.VrfKindCst || kind == render.BondKindCst
+	switch kind {
+	case render.VrfKindCst, render.BondKindCst, render.BridgeKindCst, render.VlanKindCst,
+		render.MacvlanKindCst, render.MacvtapKindCst, render.IpvlanKindCst, render.IpvtapKindCst,
+		render.VxlanKindCst, render.GeneveKindCst, render.BareudpKindCst, render.AmtKindCst, render.GtpKindCst,
+		render.GreKindCst, render.GretapKindCst, render.ErspanKindCst,
+		render.IP6GreKindCst, render.IP6GretapKindCst, render.IP6ErspanKindCst,
+		render.IpipKindCst, render.SitKindCst, render.IP6TnlKindCst,
+		render.VtiKindCst, render.Vti6KindCst, render.XfrmKindCst,
+		render.HsrKindCst, render.NetkitKindCst, render.OvpnKindCst:
+		return true
+	}
+	return false
+}
+
+// renderableSlaveInfoData is renderableInfoData for IFLA_INFO_SLAVE_KIND,
+// which names the master's kind: vrf, bond and bridge, whose ports'
+// slave_print_opt is another function from the master's, grounded on the
+// same corpus.
+func renderableSlaveInfoData(kind string) bool {
+	return kind == render.VrfKindCst || kind == render.BondKindCst || kind == render.BridgeKindCst
 }
 
 // resolveLinkRefs sends the side-gets print_linkinfo issues for the two
@@ -426,8 +453,51 @@ func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 	if c.detailed() && li.Kind == render.BondKindCst && li.Bond != nil {
 		for _, id := range []uint16{unix.IFLA_BOND_ACTIVE_SLAVE, unix.IFLA_BOND_PRIMARY} {
 			if v := li.Bond.Value(id); v.Present {
-				resolveIndexName(c, svc, int32(v.U)) //nolint:gosec // an ifindex: the kernel's int, sent as u32
+				// An ifindex: the kernel's int, sent as a u32.
+				resolveIndexName(c, svc, cint.Int(v.U))
 			}
 		}
 	}
+	// vxlan's and amt's dev, from the kind's print_opt.
+	if idx, ok := kindLowerIndex(li); ok && c.detailed() {
+		resolveIndexName(c, svc, idx)
+	}
+	// hsr_print_opt's slaves and interlink, unless a short attribute
+	// makes it print nothing.
+	if h := li.Hsr; c.detailed() && li.Kind == render.HsrKindCst && h != nil && !h.Short {
+		for _, s := range []struct {
+			has bool
+			idx uint32
+		}{{h.HasSlave1, h.Slave1}, {h.HasSlave2, h.Slave2}, {h.HasInterlink, h.Interlink}} {
+			if s.has && s.idx <= math.MaxInt32 {
+				resolveIndexName(c, svc, cint.Int(s.idx))
+			}
+		}
+	}
+	// bridge_slave_print_opt's backup_port, after the master's print_opt
+	// as print_linktype runs them.
+	if c.detailed() && li.SlaveKind == render.BridgeKindCst && li.BridgeSlave != nil {
+		if v := li.BridgeSlave.Value(unix.IFLA_BRPORT_BACKUP_PORT); v.Present && v.U <= math.MaxInt32 {
+			resolveIndexName(c, svc, int32(v.U))
+		}
+	}
+}
+
+// kindLowerIndex is the dev vxlan_print_opt and amt_print_opt pass to
+// ll_index_to_name, when the kernel sent one. vxlan's 0 isn't printed and
+// amt's resolves to "*", so neither is a get.
+func kindLowerIndex(li xtcpnl.LinkInfo) (int32, bool) {
+	var idx uint32
+	switch {
+	case li.Kind == render.VxlanKindCst && li.Vxlan != nil && li.Vxlan.HasLink:
+		idx = li.Vxlan.Link
+	case li.Kind == render.AmtKindCst && li.Amt != nil && li.Amt.HasLink:
+		idx = li.Amt.Link
+	default:
+		return 0, false
+	}
+	if idx > math.MaxInt32 {
+		return 0, false
+	}
+	return cint.Int(idx), true
 }

@@ -283,6 +283,7 @@ All are in `xtcp_counts`.
 | `xtcp_counts` | `Run` | `start` | counter | the daemon started |
 | `xtcp_gauge` | | | | namespaces tracked, set by `mapCountReporter` |
 | `xtcp_gauges` | `InitPromethus` | `compiledInEnrichers` | enricher name | 1 if the enricher is built into this binary, 0 if not |
+| `xtcp_gauges` | `checkNetnsPropagation` | `private` | netns dir | 1 if the dir is a private mount, so namespaces created after startup are invisible (mount it `rslave`); 0 if it receives them |
 
 ## Link monitor
 
@@ -322,7 +323,7 @@ grep -rnoE '\.(pC|pH|pG|pGV)\.WithLabelValues\([^)]*\)' --include=*.go pkg/xtcp 
 To see what a running daemon exports, including the dynamic label values:
 
 ```sh
-curl -s localhost:9088/metrics | grep -E '^xtcp_'
+curl -s --unix-socket /run/xtcp2/metrics.sock -H "Authorization: Bearer $(cat /etc/xtcp2/token)" http://xtcp2/metrics | grep -E '^xtcp_'
 ```
 
 ## See also

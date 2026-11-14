@@ -206,8 +206,12 @@
   # raw bearer authentication, including negative unauthenticated requests.
   runUdsSecurityCheck ? false,
   udsGrpcSocket ? "/run/xtcp2/grpc.sock",
-  udsPromSocket ? "/run/xtcp2/prometheus.sock",
+  udsPromSocket ? "/run/xtcp2/metrics.sock",
   udsAuthToken ? "",
+  # The token every guest listener checks (mkVm.nix writes it). Each scrape
+  # and client call sends it explicitly, so the unauthenticated negatives
+  # stay meaningful.
+  listenerTokenFile ? "/etc/xtcp2/listener-token",
   # When true (socket-sink flavors), the RAW_SOCKET check validates the records
   # xtcp2 streamed over the raw socket destination (tcp/udp/unix/unixgram) to
   # the in-VM ncat receiver (written to socketSinkFile), and the per-scheme
@@ -383,6 +387,9 @@ pkgs.writeShellApplication {
     ${import ./self-test-wait-metric.nix}
 
     uds_security_mode=${if runUdsSecurityCheck then "1" else "0"}
+    # The TCP listeners check the guest's test token (mkVm.nix).
+    prom_auth=(-H "Authorization: Bearer $(cat ${listenerTokenFile} 2>/dev/null)")
+    grpc_tcp=(-network tcp -target 127.0.0.1 -port "${toString grpcPort}" -auth-token-file ${listenerTokenFile})
 
     echo "================================================"
     echo " xtcp2 microvm self-test"
@@ -404,7 +411,7 @@ pkgs.writeShellApplication {
       local name="$1"
       local label_a="$2"
       local label_b="''${3:-}"
-      metric_curl_args=()
+      metric_curl_args=("''${prom_auth[@]}")
       metric_url="http://127.0.0.1:${toString promPort}/metrics"
       if [ "$uds_security_mode" -eq 1 ]; then
         metric_curl_args=(--unix-socket "${udsPromSocket}" -H "Authorization: Bearer ${udsAuthToken}")
@@ -447,7 +454,7 @@ pkgs.writeShellApplication {
       check2=0
     else
       for i in $(seq 1 "$(scaled 30)"); do
-        if curl --silent --fail --max-time 2 \
+        if curl --silent --fail --max-time 2 "''${prom_auth[@]}" \
              "http://127.0.0.1:${toString promPort}/metrics" \
              | grep -q '^xtcp_'; then
           echo "XTCP2_SELF_TEST_METRICS_PASS  (after ''${i}s)"
@@ -560,7 +567,7 @@ pkgs.writeShellApplication {
       # for "it connected"; anything else is a wire/handshake failure.
       # xtcp2client takes -target (host) + -port (numeric), not -addr.
       stream_until "$(scaled 3)" /tmp/xtcp2client.log . \
-        xtcp2client -target 127.0.0.1 -port "${toString grpcPort}"
+        xtcp2client "''${grpc_tcp[@]}"
       rc=$?
       if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]; then
         if [ -s /tmp/xtcp2client.log ]; then
@@ -596,8 +603,7 @@ pkgs.writeShellApplication {
     elif command -v xtcp2client >/dev/null 2>&1; then
       before_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
       stream_until "$(scaled 12)" /tmp/xtcp2poll.log '^\{' \
-        xtcp2client -poll -pollFrequency 2s -format json \
-        -target 127.0.0.1 -port "${toString grpcPort}"
+        xtcp2client -poll -pollFrequency 2s -format json "''${grpc_tcp[@]}"
       rc=$?
       after_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
       # Records are single-line JSON objects (printer.record); client debug
@@ -631,15 +637,17 @@ pkgs.writeShellApplication {
       echo "XTCP2_SELF_TEST_HEALTH_PASS  (covered by authenticated UDS check)"
       check5c=0
     else
-      hz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+      hz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "''${prom_auth[@]}" \
         "http://127.0.0.1:${toString promPort}/healthz" 2>/dev/null || echo 000)
-      rz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
+      rz=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "''${prom_auth[@]}" \
         "http://127.0.0.1:${toString promPort}/readyz" 2>/dev/null || echo 000)
     # -healthcheck probes /readyz itself and exits 0 (ready) / 1 (not); it does
-    # NOT start the daemon. Uses -promListen to find the port.
+    # NOT start the daemon. It finds the health listener from -listener, as
+    # the daemon does, and sends its token.
     hc_rc=1
     if command -v xtcp2 >/dev/null 2>&1; then
-      xtcp2 -healthcheck -promListen "127.0.0.1:${toString promPort}" \
+      xtcp2 -healthcheck \
+        -listener "name=prometheus,serves=health,address=127.0.0.1:${toString promPort},network=tcp,tokenFile=${listenerTokenFile}" \
         >/tmp/xtcp2-healthcheck.log 2>&1
       hc_rc=$?
     fi
@@ -701,8 +709,7 @@ pkgs.writeShellApplication {
     elif command -v xtcp2client >/dev/null 2>&1; then
       before_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
       stream_until "$(scaled 12)" /tmp/xtcp2listen.log '^\{' \
-        xtcp2client -format json \
-        -target 127.0.0.1 -port "${toString grpcPort}"
+        xtcp2client -format json "''${grpc_tcp[@]}"
       rc=$?
       after_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
       recs=$(grep -c '^{' /tmp/xtcp2listen.log 2>/dev/null || true)
@@ -864,7 +871,7 @@ pkgs.writeShellApplication {
     ${lib.optionalString (runInterfaceNamingCheck || runAsnCheck) ''
       enricherCompiledIn() {
         local want="$1" line
-        line=$(curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null \
+        line=$(curl -sf "''${prom_auth[@]}" "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null \
           | grep -E "^xtcp_gauges\{[^}]*variable=\"compiledInEnrichers\"[^}]*type=\"$want\"[^}]*\} " \
           | tail -1)
         if [ -z "$line" ]; then
@@ -995,7 +1002,7 @@ pkgs.writeShellApplication {
         fetchRetryOk=1
       fi
       echo "--- daemon loadAsn / refreshAsn metrics ---"
-      asn_metrics=$(curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true)
+      asn_metrics=$(curl -sf "''${prom_auth[@]}" "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true)
       grep -E 'loadAsn|refreshAsn|initAsnEnricher' <<<"$asn_metrics" || echo "(no asn metrics yet)"
       asn_prefixes=$(grep -E '^xtcp_gauges\{[^}]*function="loadAsn"[^}]*variable="prefixes"[^}]*\} ' <<<"$asn_metrics" \
         | awk '{print $2}' | head -1)
@@ -1048,7 +1055,7 @@ pkgs.writeShellApplication {
     ${lib.optionalString runLocalityEventsCheck ''
       echo "--- check: locality events (${localityEventsIf} += 203.0.113.1/24) ---"
       checkLe=1
-      le_metrics() { curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true; }
+      le_metrics() { curl -sf "''${prom_auth[@]}" "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true; }
       le_start=0
       for _ in $(seq 1 "$(scaled 20)"); do
         le_start=$(le_metrics | grep -E '^xtcp_counts\{[^}]*function="localityListener"[^}]*type="start"[^}]*variable="snapshot"[^}]*\} ' \
@@ -1178,7 +1185,7 @@ pkgs.writeShellApplication {
         fi
         sleep 2
       done
-      asn_metrics=$(curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true)
+      asn_metrics=$(curl -sf "''${prom_auth[@]}" "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true)
       ipmeta_prefixes=$(grep -E '^xtcp_gauges\{[^}]*function="loadAsn"[^}]*variable="prefixes"[^}]*\} ' <<<"$asn_metrics" \
         | awk '{print $2}' | head -1)
       if [ "$check5h_recovery" -eq 0 ] && [ "$ipmeta_prefixes" = "${ipmetaExpectedPrefixes}" ]; then
@@ -2109,7 +2116,7 @@ pkgs.writeShellApplication {
           -lldpdVersionHint 1.0.22 \
           -enrichContainer -dockerSocket /nonexistent/xtcp2-bogus-docker.sock \
           -enrichNic \
-          -promListen "$neg_prom" -grpcPort 8899 \
+          -listener "name=neg,serves=health+metrics,address=$neg_prom,network=tcp,auth=disabled" \
           >/tmp/xtcp2-enrich-neg.log 2>&1 &
         neg_pid=$!
         neg_up=0
@@ -2183,7 +2190,7 @@ pkgs.writeShellApplication {
     if [ "$uds_security_mode" -eq 1 ]; then
       CTL=(-network unix -unixSocket "${udsGrpcSocket}" -auth-token "${udsAuthToken}")
     else
-      CTL=(-target 127.0.0.1 -port ${toString grpcPort})
+      CTL=("''${grpc_tcp[@]}")
     fi
 
     echo "--- check 17: xtcp2ctl set-poll-frequency (hot change, no restart) ---"

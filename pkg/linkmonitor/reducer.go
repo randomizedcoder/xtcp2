@@ -34,6 +34,10 @@ type reducer struct {
 	resyncEpoch                                     uint64
 	routeEvents, rdmaEvents, resyncOverdue          bool
 	requiredRDMA, missingRDMA                       uint64
+	// rdmaEventsUnsupported is set once the kernel refuses RDMA events
+	// (rdmaEventsUnavailable). Health and the count then rely on polled RDMA
+	// state, which still expires, instead of waiting for events forever.
+	rdmaEventsUnsupported bool
 	// rdmaEventsBackend is the RDMA events backend, netlink; empty when RDMA
 	// events are not configured.
 	rdmaEventsBackend string

@@ -1,0 +1,56 @@
+{
+ "axes": {
+  "dport": "80-80",
+  "dport_mask": "65520",
+  "dscp": "32",
+  "dscp_mask": "48",
+  "family": "4",
+  "flow": "10",
+  "fwmark": "16",
+  "iif": "lo",
+  "invert": "1",
+  "oif": "d0",
+  "priority": "4294967295",
+  "protocol": "4",
+  "sport": "80-80",
+  "sup_group": "5",
+  "table": "4294967295",
+  "uidrange": "0-0",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del not pref 4294967295 fwmark 0x10 iif lo oif d0 dscp 32/0x30 sport 80 dport 0x50/0xfff0 uidrange 0-0 suppress_ifgroup 5 protocol static realms 10 table 4294967295",
+ "desc": "boundary: verb=del not=not from=absent to=absent pref=max fwmark=16 iif=lo oif=d0 ds=dscp-mask ipproto=absent sport=80 dport=mask uidrange=0 suppress=group protocol=static extra=realms action=max",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/rn1-013",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add not pref 4294967295 fwmark 0x10 iif lo oif d0 dscp 32/0x30 sport 80 dport 0x50/0xfff0 uidrange 0-0 suppress_ifgroup 5 protocol static realms 10 table 4294967295"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add not pref 4294967295 fwmark 0x10 iif lo oif d0 dscp 32/0x30 sport 80 dport 0x50/0xfff0 uidrange 0-0 suppress_ifgroup 5 protocol static realms 10 table 4294967295",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

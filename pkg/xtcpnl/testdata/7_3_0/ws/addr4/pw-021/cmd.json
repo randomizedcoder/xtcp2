@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "family": "4",
+  "local": "192.0.2.1",
+  "metric": "7",
+  "peer": "198.51.100.1",
+  "peer_len": "32",
+  "preferred": "0",
+  "prefixlen": "0",
+  "proto": "99",
+  "scope": "253",
+  "valid": "4294967295",
+  "verb": "change"
+ },
+ "cmd": "ip -4 address change 192.0.2.1/0 peer 198.51.100.1/32 scope link preference 7 preferred_lft 0 nodad proto 99 dev d0",
+ "desc": "corner: verb=change local=0 peer=32 brd=absent label=absent scope=link metric=preference lft=deprecated flags=nodad proto=99",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/pw-021",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "ip -4 address add 192.0.2.1/0 peer 198.51.100.1/32 scope link preference 7 preferred_lft 0 nodad proto 99 dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 address add 192.0.2.1/0 peer 198.51.100.1/32 scope link preference 7 preferred_lft 0 nodad proto 99 dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

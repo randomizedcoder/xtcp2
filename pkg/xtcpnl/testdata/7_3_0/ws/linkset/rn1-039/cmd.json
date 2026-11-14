@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "address": "02:00:00:00:00:aa",
+  "flag": "512",
+  "flag_on": "1",
+  "gso_max_size": "32768",
+  "mtu": "0",
+  "name": "d9",
+  "up": "0"
+ },
+ "cmd": "ip link set dev d0 down mtu 0 address 02:00:00:00:00:aa allmulticast on gso_max_size 32768 name d9",
+ "desc": "corner: updown=down mtu=0 txqlen=absent group=absent alias=absent address=mac flag=allmulti gso=gso_size mode=absent name=rename",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkset/rn1-039",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

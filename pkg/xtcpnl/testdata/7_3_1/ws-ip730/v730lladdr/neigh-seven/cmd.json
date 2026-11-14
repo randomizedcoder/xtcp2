@@ -1,0 +1,32 @@
+{
+ "cmd": "ip neigh add 192.0.2.5 lladdr 00:11:22:33:44:55:66 dev d0",
+ "desc": "positive: a seven-octet neighbor address, which both versions send",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.3.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "v730lladdr/neigh-seven",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip neigh show",
+   "name": "show"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

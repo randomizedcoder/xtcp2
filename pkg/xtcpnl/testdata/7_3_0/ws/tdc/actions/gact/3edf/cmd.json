@@ -1,0 +1,63 @@
+{
+ "cmd": "tc actions flush action gact",
+ "desc": "positive: Flush gact actions",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*: gact action reclassify",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/gact/3edf",
+ "modules": [
+  "act_gact"
+ ],
+ "pre": [
+  "tc actions add action reclassify index 101",
+  "tc actions add action reclassify index 102",
+  "tc actions add action reclassify index 103",
+  "tc actions add action reclassify index 104",
+  "tc actions add action reclassify index 105"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action gact",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions add action reclassify index 101",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action reclassify index 102",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action reclassify index 103",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action reclassify index 104",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action reclassify index 105",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3edf",
+  "tdc": "actions/gact.json"
+ }
+}

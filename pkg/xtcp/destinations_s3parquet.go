@@ -6,11 +6,15 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -19,6 +23,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/parquet-go/parquet-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/encoding/protodelim"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
@@ -134,26 +139,80 @@ type envelopeBytes struct {
 	buf *[]byte
 }
 
+// s3InsecureGauge is 1 while the s3parquet destination talks plaintext http
+// to its endpoint (-s3AllowInsecure).
+var s3InsecureGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	Namespace: "xtcp2",
+	Subsystem: "s3",
+	Name:      "insecure",
+	Help:      "1 when the s3parquet endpoint is plaintext http (-s3AllowInsecure)",
+})
+
+func init() {
+	prometheus.MustRegister(s3InsecureGauge)
+}
+
+// s3TLSMinVersion is the oldest TLS version the S3 client accepts. minio's
+// default transport sets the same floor today; pinning it here keeps it if
+// the library default ever changes.
+const s3TLSMinVersion = tls.VersionTLS12
+
+// s3Transport is minio's default transport with the TLS floor pinned and,
+// when caFile is set, its PEM certificates trusted on top of the system
+// roots (a private CA in front of an S3-compatible store). A CA file that
+// cannot be read or holds no certificate is an error, not a silent fallback
+// to the system roots.
+func s3Transport(secure bool, caFile string) (*http.Transport, error) {
+	tr, err := minio.DefaultTransport(secure)
+	if err != nil {
+		return nil, fmt.Errorf("s3 transport: %w", err)
+	}
+	if !secure {
+		return tr, nil
+	}
+	if tr.TLSClientConfig == nil {
+		tr.TLSClientConfig = &tls.Config{}
+	}
+	tr.TLSClientConfig.MinVersion = s3TLSMinVersion
+	if caFile == "" {
+		return tr, nil
+	}
+	pem, err := os.ReadFile(caFile)
+	if err != nil {
+		return nil, fmt.Errorf("s3 CA file: %w", err)
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("s3 CA file %q: no PEM certificate found", caFile)
+	}
+	tr.TLSClientConfig.RootCAs = pool
+	return tr, nil
+}
+
 // newS3ParquetDest dials MinIO/S3 from the configured endpoint + creds,
 // validates the bucket exists, and spawns the background worker. Fails
 // fast on config errors so a misconfigured deployment doesn't enter a
 // half-broken state.
 func newS3ParquetDest(ctx context.Context, x *XTCP) (Destination, error) {
-	endpoint := strings.TrimPrefix(x.config.Dest, schemeS3Parquet+":")
-	if endpoint == "" {
-		endpoint = x.config.S3Endpoint
+	// minio.New expects host:port without scheme; the Secure flag controls
+	// TLS. S3Endpoint refuses plaintext http:// unless S3AllowInsecure.
+	endpoint, secure, err := S3Endpoint(x.config)
+	if err != nil {
+		return nil, fmt.Errorf("newS3ParquetDest: %w", err)
 	}
-	if endpoint == "" {
-		return nil, errors.New("newS3ParquetDest endpoint is empty (set -dest s3parquet:<endpoint> or S3_ENDPOINT)")
+	transport, err := s3Transport(secure, x.config.S3CaFile)
+	if err != nil {
+		return nil, fmt.Errorf("newS3ParquetDest: %w", err)
 	}
-	// minio.New expects host:port without scheme. Strip http:// or https://
-	// for the Endpoint field; the boolean Secure flag controls TLS.
-	secure := false
-	if strings.HasPrefix(endpoint, "https://") {
-		secure = true
-		endpoint = strings.TrimPrefix(endpoint, "https://")
-	} else if strings.HasPrefix(endpoint, "http://") {
-		endpoint = strings.TrimPrefix(endpoint, "http://")
+	if secure {
+		s3InsecureGauge.Set(0)
+	} else {
+		s3InsecureGauge.Set(1)
+		log.Printf("WARNING: s3parquet endpoint %q is plaintext http (-s3AllowInsecure): the S3 credential "+
+			"and every uploaded object cross the network unencrypted. For local test fixtures only.", endpoint)
 	}
 
 	bucket := x.config.S3Bucket
@@ -168,9 +227,10 @@ func newS3ParquetDest(ctx context.Context, x *XTCP) (Destination, error) {
 	}
 
 	client, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
-		Secure: secure,
-		Region: region,
+		Creds:     credentials.NewStaticV4(accessKey, secretKey, ""),
+		Secure:    secure,
+		Region:    region,
+		Transport: transport,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("newS3ParquetDest minio.New: %w", err)

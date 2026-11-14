@@ -259,7 +259,8 @@ func TestFouArgs(t *testing.T) {
 		{"negative: a port that is not a number", "add port x gue", ExitMinusOne, "invalid port", "-"},
 		{"negative: ipproto 0", "add port 5555 ipproto 0", ExitMinusOne, "invalid ipproto", "-"},
 		{"boundary: ipproto 256", "add port 5555 ipproto 256", ExitMinusOne, "invalid ipproto", "-"},
-		{"negative: a protocol name goip does not know", "add port 5555 ipproto bogus", ExitUsage, "/etc/protocols", "-"},
+		{"negative: a protocol name /etc/protocols lacks", "add port 5555 ipproto bogus", ExitMinusOne,
+			`"bogus" is wrong: invalid ipproto`, "-"},
 		{"negative: peer port 0", "add port 5555 gue peer 192.0.2.2 peer_port 0", ExitMinusOne, "invalid peer port", "-"},
 		{"negative: a word ipfou.c does not know", "add port 5555 gue bogus", ExitMinusOne, `unknown command "bogus"?`, "-"},
 		{"negative: port with no value", "add port", ExitMinusOne, "not complete", "-"},
@@ -374,7 +375,9 @@ func TestFouProto(t *testing.T) {
 		{description: "negative: 0", val: "0", exit: ExitMinusOne},
 		{description: "negative: empty", val: "", exit: ExitMinusOne},
 		{description: "negative: a word starting with a digit", val: "4x", exit: ExitMinusOne},
-		{description: "negative: a name goip does not know", val: "IPv4", exit: ExitUsage},
+		{description: "positive: IPv4, iana-etc's alias for ipv4", val: "IPv4", expected: 4},
+		{description: "corner: 3pc, a name starting with a digit", val: "3pc", expected: 34},
+		{description: "negative: ospf, a name /etc/protocols lacks", val: "ospf", exit: ExitMinusOne},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

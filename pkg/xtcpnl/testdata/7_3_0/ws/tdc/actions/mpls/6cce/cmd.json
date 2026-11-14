@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions del action mpls index 44",
+ "desc": "positive: Delete mpls pop action",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]+: mpls.*pop.*index 44 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/mpls/6cce",
+ "modules": [
+  "act_mpls"
+ ],
+ "pre": [
+  [
+   "tc actions flush action mpls",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action mpls pop protocol ipv4 index 44"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action mpls",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action mpls",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action mpls pop protocol ipv4 index 44",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "6cce",
+  "tdc": "actions/mpls.json"
+ }
+}

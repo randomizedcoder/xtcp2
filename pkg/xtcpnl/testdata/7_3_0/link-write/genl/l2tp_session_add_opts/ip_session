@@ -1,0 +1,6 @@
+Session 10 in tunnel 1
+  Peer session 20, tunnel 2
+  interface name: l2tp9
+  offset 0, peer offset 0
+  cookie 0102030405060708  peer cookie 0a0b0c0d
+  sequence numbering: send recv

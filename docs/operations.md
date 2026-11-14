@@ -66,9 +66,11 @@ xtcp2 runs the link monitor by default ([design](design-linkmonitor-in-xtcp2.md)
 | Task | Command |
 |---|---|
 | Relearn the count after a planned link change | `systemctl reload xtcp2` (SIGUSR1), or `xtcp2ctl link rebaseline -reason "…"` |
-| Check the monitor | `curl -s localhost:9088/metrics \| grep -E '^go_link_monitor_\|linkMonitor'` |
+| Check the monitor | `curl -s --unix-socket /run/xtcp2/metrics.sock -H "Authorization: Bearer $(cat <token file>)" http://xtcp2/metrics \| grep -E '^go_link_monitor_\|linkMonitor'` |
 | Read the recorded count | `jq . /var/lib/xtcp2/link-monitor-baseline.json` |
 | Turn the monitor off | `-linkMonitor=false`, `LINK_MONITOR=false` or `services.xtcp2.linkMonitor.enable = false` |
+
+**No file after a few minutes.** The file is written only once the count is ready (every source healthy, then the settle interval). If that doesn't happen within `-linkMonitorLearnDeadline` (5 min), the monitor uses the visible up count as a provisional baseline, so `up_links_delta` still reports, and sets `go_link_monitor_baseline_provisional 1`. That baseline lives in memory only: no file is written until the count becomes ready. If it stays provisional, `/metrics/collection` shows which source isn't healthy.
 
 **When the monitor is down.** A corrupt, oversized (over 64 KiB) or locked baseline stops only the link monitor. xtcp2 keeps collecting and stays ready, `xtcp_gauges{function="linkMonitor",variable="up"}` reads 0, `xtcp_counts{function="linkMonitor",variable="failed"}` counts the failure, and the link monitor paths answer 503. The journal names the cause. To recover:
 

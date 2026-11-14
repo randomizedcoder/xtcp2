@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "action": "8",
+  "dscp": "46",
+  "family": "6",
+  "fwmark": "4294967295",
+  "fwmask": "4294967295",
+  "ipproto": "58",
+  "priority": "4294967295",
+  "tun_id": "7",
+  "verb": "add"
+ },
+ "cmd": "ip -6 rule add pref 4294967295 fwmark 0xffffffff/0xffffffff dscp 46/0x3f ipproto ipv6-icmp tun_id 7 type prohibit",
+ "desc": "corner: verb=add not=absent from=absent to=absent pref=max fwmark=max iif=absent oif=absent ds=dscp-fullmask ipproto=icmp sport=absent dport=absent uidrange=absent suppress=absent protocol=absent extra=tun_id action=type-prohibit",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-080",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

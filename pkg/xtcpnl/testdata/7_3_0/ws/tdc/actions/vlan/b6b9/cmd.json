@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action vlan pop jump 10 index 8",
+ "desc": "positive: Add vlan pop action with jump opcode",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: vlan.*jump 10.*index 8 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/vlan/b6b9",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action vlan",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "b6b9",
+  "tdc": "actions/vlan.json"
+ }
+}

@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "brd": "-",
+  "family": "4",
+  "local": "192.0.2.1",
+  "metric": "100",
+  "prefixlen": "24",
+  "proto": "2",
+  "scope": "254",
+  "verb": "del"
+ },
+ "cmd": "ip -4 address del 192.0.2.1/24 brd - scope host metric 100 nodad proto kernel_ra dev d0",
+ "desc": "negative: verb=del local=24 peer=absent brd=minus label=absent scope=host metric=100 lft=absent flags=nodad proto=kernel_ra: deleted but never added (EADDRNOTAVAIL)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EADDRNOTAVAIL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "addr4/gone-1",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

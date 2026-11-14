@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"strconv"
+
+	"github.com/randomizedcoder/xtcp2/internal/jsonw"
 )
 
 // outType is json_print.h's enum output_type: where a print_* call writes.
@@ -242,35 +244,9 @@ func (j *jsonWriter) eor() {
 	j.sep = ','
 }
 
-// puts is jsonw_puts: a quoted string with C's escapes, \u for the other
-// control bytes and DEL, and every other byte as is.
+// puts is jsonw_puts.
 func (j *jsonWriter) puts(s string) {
-	j.putc('"')
-	for i := range len(s) {
-		switch c := s[i]; c {
-		case '\t':
-			j.put(`\t`)
-		case '\n':
-			j.put(`\n`)
-		case '\r':
-			j.put(`\r`)
-		case '\f':
-			j.put(`\f`)
-		case '\b':
-			j.put(`\b`)
-		case '\\':
-			j.put(`\\`)
-		case '"':
-			j.put(`\"`)
-		default:
-			if c < 0x20 || c == 0x7f {
-				j.put(fmt.Sprintf(`\u%04x`, c))
-			} else {
-				j.putc(c)
-			}
-		}
-	}
-	j.putc('"')
+	j.put(string(jsonw.Append(nil, s)))
 }
 
 // destroy is jsonw_destroy: the final newline.

@@ -1,0 +1,55 @@
+{
+ "axes": {
+  "dport": "65534-65534",
+  "dscp": "46",
+  "family": "4",
+  "flow": "10",
+  "fwmark": "0",
+  "iif": "d0",
+  "ipproto": "1",
+  "oif": "nosuch",
+  "priority": "200",
+  "protocol": "4",
+  "sport": "1-65534",
+  "src": "all",
+  "src_len": "0",
+  "sup_pl": "24",
+  "table": "4294967295",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del from all order 200 fwmark 0 dev d0 oif nosuch dscp 46/0x3f ipproto icmp sport 1-65534 dport 65534 sup_pl 24 protocol static realms 10 table 4294967295",
+ "desc": "corner: verb=del not=absent from=all to=absent pref=order fwmark=0 iif=dev oif=nosuch ds=dscp-fullmask ipproto=icmp sport=full dport=65534 uidrange=absent suppress=sup_pl protocol=static extra=realms action=max",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/rn1-035",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add from all order 200 fwmark 0 dev d0 oif nosuch dscp 46/0x3f ipproto icmp sport 1-65534 dport 65534 sup_pl 24 protocol static realms 10 table 4294967295"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add from all order 200 fwmark 0 dev d0 oif nosuch dscp 46/0x3f ipproto icmp sport 1-65534 dport 65534 sup_pl 24 protocol static realms 10 table 4294967295",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

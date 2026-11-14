@@ -1,0 +1,4 @@
+0:	from all lookup local
+32766:	from all lookup main
+32767:	from all lookup default
+4294967295:	from 198.51.100.7 uidrange 0-4294967294 ipproto udp sport 1-65534 dport 1-65534 nop

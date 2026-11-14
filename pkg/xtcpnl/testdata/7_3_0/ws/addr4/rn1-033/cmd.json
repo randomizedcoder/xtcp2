@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "brd": "-",
+  "family": "4",
+  "label": "d0:1",
+  "local": "127.0.0.2",
+  "metric": "0",
+  "peer": "198.51.100.0",
+  "peer_len": "24",
+  "prefixlen": "8",
+  "proto": "2",
+  "scope": "254",
+  "verb": "replace"
+ },
+ "cmd": "ip -4 address replace 127.0.0.2/8 remote 198.51.100.0/24 brd - label d0:1 scope host metric 0 nodad proto kernel_ra dev d0",
+ "desc": "corner: verb=replace local=loopback peer=remote brd=minus label=alias scope=host metric=0 lft=absent flags=nodad proto=kernel_ra",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr4/rn1-033",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

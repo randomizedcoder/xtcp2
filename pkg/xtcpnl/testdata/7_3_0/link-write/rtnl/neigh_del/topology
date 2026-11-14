@@ -1,0 +1,4 @@
+ok    [lacpa] ip link add d0 type veth peer name d1
+ok    [lacpa] ip link set d1 up
+ok    [lacpa] ip link set d0 up
+ok    [lacpa] ip neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent

@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "hop1_dst": "203.0.113.5",
+  "hop1_encap": "ip",
+  "hop1_tun_id": "1",
+  "hop2_dst": "203.0.113.6",
+  "hop2_encap": "ip",
+  "hop2_tun_id": "2",
+  "verb": "add"
+ },
+ "cmd": "ip -4 route add 198.51.100.0/24 nexthop encap ip id 1 dst 203.0.113.5 via 192.0.2.1 dev d0 nexthop encap ip id 2 dst 203.0.113.6 via 192.0.2.2 dev d0",
+ "desc": "positive: verb=add form=hops-ip",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "lwthop/ec-002",
+ "modules": [
+  "mpls_router",
+  "mpls_iptunnel"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

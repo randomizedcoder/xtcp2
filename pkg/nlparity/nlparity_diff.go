@@ -72,6 +72,7 @@ package nlparity
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -556,6 +557,17 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 		if bytes.Equal(rs[0], ss[0]) {
 			continue
 		}
+		if a.Nested() && samePastPadding(rs[0], ss[0]) {
+			continue
+		}
+		if msgAttrFamily(m) == AttrFamilyRTA && a.BareType() == uint16(unix.RTA_MULTIPATH) &&
+			sameHopsPastPadding(rs[0], ss[0]) {
+			continue
+		}
+		if msgAttrFamily(m) == AttrFamilyRTA && a.BareType() == uint16(unix.RTA_METRICS) &&
+			samePastPadding(rs[0], ss[0]) {
+			continue
+		}
 
 		// IFLA_AF_SPEC is descended into rather than reported as one blob,
 		// because a locus has to be narrow enough to allowlist. Normalization
@@ -582,6 +594,71 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 	}
 
 	return out
+}
+
+// samePastPadding reports whether two NLA_F_NESTED payloads hold the same
+// attributes once the alignment padding between them is set aside, descending
+// into the nests inside them.
+//
+// A top-level attribute's value already stops at its nla_len, so its padding
+// is never compared; inside a nest the payload is one value, padding and all.
+// The kernel's nla_parse skips that padding unread, and ip does not always
+// zero it: ipnexthop.c builds an MPLS encap in an uninitialised stack buffer,
+// so the three bytes after MPLS_IPTUNNEL_TTL are whatever was there
+// (goip-live-forms-status.md, LF3-T02). Two payloads that do not both parse
+// to the end, or differ in any attribute's type, order or value, are not the
+// same.
+//
+// RTA_METRICS goes through it too, though ip sends it without the flag:
+// rta_addattr_l copies RTAX_CC_ALGO's string into an uninitialised stack
+// buffer and leaves its padding as found, so `cubic` can arrive as
+// "cubic\x00p\x00" (goip-parity-next-status.md, NX3a).
+func samePastPadding(ref, sub []byte) bool {
+	ra, rrem := SubAttrs(ref)
+	sa, srem := SubAttrs(sub)
+	if len(rrem) != 0 || len(srem) != 0 || len(ra) != len(sa) {
+		return false
+	}
+	for i := range ra {
+		if ra[i].Type != sa[i].Type {
+			return false
+		}
+		if bytes.Equal(ra[i].Val, sa[i].Val) {
+			continue
+		}
+		if !ra[i].Nested() || !samePastPadding(ra[i].Val, sa[i].Val) {
+			return false
+		}
+	}
+	return true
+}
+
+// sameHopsPastPadding reports whether two RTA_MULTIPATH payloads hold the
+// same hops once the alignment padding inside each is set aside: each
+// struct rtnexthop alike, and its attributes the same past their padding,
+// as samePastPadding has them.
+//
+// RTA_MULTIPATH isn't NLA_F_NESTED, so its payload is one value, padding
+// and all. parse_nexthops builds it in an uninitialised stack buffer, and a
+// hop's encap is lwt_parse_encap's, so the two bytes after a hop's
+// RTA_ENCAP_TYPE are whatever was there (goip-lwt-encap-status.md, LE4-T01).
+// Two payloads with a different number of hops, or a hop that runs past the
+// payload, are not the same.
+func sameHopsPastPadding(ref, sub []byte) bool {
+	const rtnhLen = unix.SizeofRtNexthop
+	for len(ref) > 0 || len(sub) > 0 {
+		if len(ref) < rtnhLen || len(sub) < rtnhLen {
+			return false
+		}
+		rl, sl := int(binary.LittleEndian.Uint16(ref)), int(binary.LittleEndian.Uint16(sub))
+		if rl != sl || rl < rtnhLen || rl > len(ref) || sl > len(sub) || !bytes.Equal(ref[2:rtnhLen], sub[2:rtnhLen]) ||
+			!samePastPadding(ref[rtnhLen:rl], sub[rtnhLen:rl]) {
+			return false
+		}
+		next := min(rl+(-rl&3), len(ref))
+		ref, sub = ref[next:], sub[min(next, len(sub)):]
+	}
+	return true
 }
 
 // diffAFSpec compares two IFLA_AF_SPEC payloads one address family at a time,

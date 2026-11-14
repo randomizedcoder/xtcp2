@@ -1,0 +1,1 @@
+class htb 1:1 root prio 1 rate 20Kbit ceil 20Kbit burst 1600b cburst 1600b

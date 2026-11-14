@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions change action simple sdata \"Not changed\" index 60",
+ "desc": "positive: Add simple action with change command",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: Simple <Not changed>.*index 60 ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/simple/4297",
+ "modules": [
+  "act_simple"
+ ],
+ "pre": [
+  [
+   "tc actions flush action simple",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action simple",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action simple",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "4297",
+  "tdc": "actions/simple.json"
+ }
+}

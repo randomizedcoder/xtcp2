@@ -1,0 +1,5 @@
+b2:ca:c3:8d:91:a7 vlan 10 master br0 permanent
+b2:ca:c3:8d:91:a7 vlan 1 master br0 permanent
+b2:ca:c3:8d:91:a7 master br0 permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

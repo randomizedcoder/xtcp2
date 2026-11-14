@@ -1,0 +1,4 @@
+0:	from all lookup local
+300:	from all fwmark 0x10 iif d0 uidrange 0-4294967294 ipproto ipproto-255 sport 80 lookup 100 dscp EF
+32766:	from all lookup main
+32767:	from all lookup default

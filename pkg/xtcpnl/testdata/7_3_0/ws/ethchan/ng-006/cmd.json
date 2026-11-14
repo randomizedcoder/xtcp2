@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "get": "17",
+  "rx": "1",
+  "set": "18"
+ },
+ "cmd": "ethtool -L eth0 rx 1",
+ "desc": "negative: dev=eth0 combined=absent rx=1 tx=absent other=absent: an RX channel, over max_rx 0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "extack": "requested channel count exceeds maximum",
+  "rc": 1,
+  "refused_by": "kernel"
+ },
+ "id": "ethchan/ng-006",
+ "modules": [
+  "netdevsim"
+ ],
+ "pre": [
+  "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null"
+ ],
+ "proto": "generic",
+ "readback": [
+  {
+   "cmd": "ethtool -l eth0",
+   "name": "show",
+   "proto": "generic"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "i=$((900+$(ip netns identify | tr -dc 0-9))); echo $i > /sys/bus/netdevsim/del_device 2>/dev/null; echo \"$i 1 4\" > /sys/bus/netdevsim/new_device && ip link show eth0 >/dev/null",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,19 @@
+1:	lo
+	inet  224.0.0.1
+	inet6 ff02::1
+	inet6 ff01::1
+2:	nlmon0
+	inet  224.0.0.1
+	inet6 ff02::1
+	inet6 ff01::1
+3:	d0
+	link  33:33:00:00:00:01
+	link  01:00:5e:00:00:01
+	link  33:33:00:00:00:99 static
+	link  01:00:5e:01:01:01
+	link  33:33:00:00:12:34
+	inet  239.1.1.1
+	inet  224.0.0.1
+	inet6 ff05::1234
+	inet6 ff02::1
+	inet6 ff01::1

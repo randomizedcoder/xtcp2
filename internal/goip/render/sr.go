@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/randomizedcoder/xtcp2/internal/jsonw"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -59,7 +60,7 @@ func SrHmacViewOf(m *xtcpnl.Seg6) SrHmacView {
 	case xtcpnl.Seg6HmacAlgoSHA256:
 		v.algo = "sha256"
 	default:
-		v.algo = "<unknown>"
+		v.algo = unknownNameCst
 	}
 	return v
 }
@@ -74,9 +75,9 @@ func (v *SrHmacView) JSON() []byte {
 	b := []byte(`{"hmac":`)
 	b = strconv.AppendUint(b, uint64(v.keyID), 10)
 	b = append(b, `,"algo":`...)
-	b = AppendJSONWString(b, []byte(v.algo))
+	b = jsonw.Append(b, v.algo)
 	b = append(b, `,"secret":`...)
-	b = AppendJSONWString(b, v.secret)
+	b = jsonw.Append(b, v.secret)
 	return append(b, '}')
 }
 
@@ -88,7 +89,7 @@ func SrTunsrcText(m *xtcpnl.Seg6) string {
 
 // SrTunsrcJSON is print_tunsrc's object.
 func SrTunsrcJSON(m *xtcpnl.Seg6) []byte {
-	b := append([]byte(`{"tunsrc":`), AppendJSONWString(nil, []byte(srTunsrc(m)))...)
+	b := append([]byte(`{"tunsrc":`), jsonw.Append(nil, srTunsrc(m))...)
 	return append(b, '}')
 }
 
@@ -99,38 +100,4 @@ func srTunsrc(m *xtcpnl.Seg6) string {
 		a = m.Dst.As16()
 	}
 	return inet6Ntop(a)
-}
-
-// AppendJSONWString appends s as jsonw_puts writes it (lib/json_writer.c):
-// quoted, with tab, newline, carriage return, form feed, backspace,
-// backslash and the quote escaped by name, any other byte below 0x20 and
-// DEL as \u00XX, and every other byte as it is. Unlike encoding/json it
-// leaves <, > and & alone and passes bytes that are not UTF-8 through.
-func AppendJSONWString(b, s []byte) []byte {
-	b = append(b, '"')
-	for _, c := range s {
-		switch c {
-		case '\t':
-			b = append(b, `\t`...)
-		case '\n':
-			b = append(b, `\n`...)
-		case '\r':
-			b = append(b, `\r`...)
-		case '\f':
-			b = append(b, `\f`...)
-		case '\b':
-			b = append(b, `\b`...)
-		case '\\':
-			b = append(b, `\\`...)
-		case '"':
-			b = append(b, `\"`...)
-		default:
-			if c < 0x20 || c == 0x7f {
-				b = fmt.Appendf(b, `\u%04x`, c)
-			} else {
-				b = append(b, c)
-			}
-		}
-	}
-	return append(b, '"')
 }

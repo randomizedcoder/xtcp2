@@ -1,0 +1,49 @@
+{
+ "cmd": "bash -c \"for i in \\`seq 1 32\\`; do cmd=\\\"action vlan push protocol 802.1q id 4094 priority 7 pipe index \\$i cookie aabbccddeeff112233445566778800a1 \\\"; args=\"\\$args\\$cmd\"; done && tc actions add \\$args\"",
+ "desc": "positive: Add batch of 32 vlan push actions with cookie",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 32,
+   "pattern": "(?sm)^[ \t]+index [0-9]+ ref",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/vlan/294e",
+ "modules": [
+  "act_vlan"
+ ],
+ "pre": [
+  [
+   "tc actions flush action vlan",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action vlan",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action vlan",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "294e",
+  "tdc": "actions/vlan.json"
+ }
+}

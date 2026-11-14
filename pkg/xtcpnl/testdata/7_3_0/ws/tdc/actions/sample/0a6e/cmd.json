@@ -1,0 +1,54 @@
+{
+ "cmd": "tc actions replace action sample rate 1024 group 7 goto chain 42 index 90 cookie c1a0c1a0",
+ "desc": "negative: Replace sample action with invalid goto chain control",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]+: sample rate 1/1024 group 4 pass.*index 90",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/sample/0a6e",
+ "modules": [
+  "act_sample"
+ ],
+ "pre": [
+  [
+   "tc actions flush action sample",
+   [
+    1,
+    255
+   ]
+  ],
+  "tc actions add action sample rate 1024 group 4 pass index 90"
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions list action sample",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action sample",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action sample rate 1024 group 4 pass index 90",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "0a6e",
+  "tdc": "actions/sample.json"
+ }
+}

@@ -1,0 +1,50 @@
+{
+ "axes": {
+  "csum": "2",
+  "encap": "ila",
+  "hook": "0",
+  "ident": "1",
+  "locator": "2001:0:0:2",
+  "verb": "add"
+ },
+ "cmd": "ip -6 route add 2001:db8:0:1::/64 encap ila 2001:0:0:2 csum-mode no-action ident-type luid hook-type output dev d0",
+ "desc": "negative: verb=add form=every: added twice (EEXIST)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EEXIST",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "ila/dup-2",
+ "modules": [
+  "ila",
+  "xfrm_interface"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 route add 2001:db8:0:1::/64 encap ila 2001:0:0:2 csum-mode no-action ident-type luid hook-type output dev d0"
+ ],
+ "readback": [
+  {
+   "cmd": "ip route show table all",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 route add 2001:db8:0:1::/64 encap ila 2001:0:0:2 csum-mode no-action ident-type luid hook-type output dev d0",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

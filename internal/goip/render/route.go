@@ -2,8 +2,10 @@ package render
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -38,38 +40,37 @@ import (
 // so they are absent rather than wrong. None of them appears on any route in
 // the two committed topologies:
 //
-//   - RTA_FLOW (`realms`) and RTA_TTL_PROPAGATE — not decoded into
-//     xtcpnl.RouteInfo. RTA_MARK and RTA_UID left this list with `route get`,
-//     the one command whose reply carries them. RTA_CACHEINFO used to be on
+//   - RTA_MARK, RTA_UID and RTA_FLOW (`realms`, NX7e) were on this list and
+//     are not any more: the first two left with `route get`, the one command
+//     whose reply carries them. RTA_CACHEINFO used to be on
 //     this list and is not
 //     any more; see applyRouteCacheinfo, and note that the claim it carried —
 //     "none of them appears on any route in the two committed topologies" —
 //     was true of the ATTRIBUTE's non-zero members and false of the attribute
 //     itself, which every IPv6 route in the corpus carries.
-//   - RTA_NEWDST (`as to`) and RTA_ENCAP, which are the MPLS and lightweight-
-//     tunnel surfaces; RTA_ENCAP alone is a second parser.
+//   - RTA_ENCAP of any type but mpls, seg6, seg6local, ip, ip6, ila and
+//     xfrm, which xtcpnl keeps raw: EncapViewOf renders the seven it decodes,
+//     and a route with another prints no encap at all rather than its type
+//     alone.
 //   - `nh_info`, which print_route emits only under `-d`, and
 //     print_rta_multipath's `Oifs: ` form for a cloned multicast route. goip
 //     rejects `route show cache`, and routeFilter drops a cloned route a dump
 //     sends anyway, which is what `ip` does too. `route get` is the one command
 //     that renders a cloned route, and its `cache` line is applyRouteCacheFlags.
 //
-// # Config files are not read, per the package's standing divergence
+// # Name tables
 //
 // rtnl_rtprot_n2a, rtnl_rttable_n2a and rtnl_dsfield_n2a each consult
 // /etc/iproute2/rt_protos, rt_tables and rt_dsfield (plus a CONF_USR_DIR copy
-// and a .d directory) on top of their built-in tables. The built-in tables are
-// transcribed below; the file contents are not read. Three consequences worth
-// naming, because each is a real host where goip and `ip` differ:
+// and a .d directory) on top of their built-in tables. goip compiles in the
+// built-in tables and the files iproute2 ships (names.go), not a host's own:
 //
 //   - rt_protos ships two names that have no built-in entry, `84 ovn` and
-//     `99 openr`, so a route installed by either renders as its number here.
+//     `99 openr`, which routeProtoNames carries.
 //   - rt_tables' built-in hash holds only default/main/local, so a numbered
 //     table a host has named renders as its number.
-//   - rtnl_rtdsfield_tab is built in as exactly one entry, `[0] = "0"`, and
-//     everything else — the whole AF/CS/EF set — comes from the file. Since
-//     print_route emits the `tos` token only when rtm_tos is non-zero, the one
-//     built-in entry is unreachable and every tos goip prints is numeric.
+//   - the tos print_route emits only when rtm_tos is non-zero is
+//     rtnl_dsfield_n2a's name, EF and the AF and CS classes, else 0x%02x.
 
 // icmpv6RouterPref are the RFC 4191 router preference values print_rt_pref
 // switches on. They are ICMPV6_ROUTER_PREF_* from
@@ -86,7 +87,9 @@ const (
 )
 
 // routeProtoNames is rtnl_rtprot_tab's static initializer
-// (lib/rt_names.c:127-151), the RTPROT_* names.
+// (lib/rt_names.c:127-151), the RTPROT_* names, plus the two the rt_protos
+// file iproute2 ships adds, ovn and openr, which a lookup that misses the
+// static table loads.
 var routeProtoNames = map[uint8]string{
 	unix.RTPROT_UNSPEC:     "unspec",
 	unix.RTPROT_REDIRECT:   "redirect",
@@ -109,7 +112,15 @@ var routeProtoNames = map[uint8]string{
 	unix.RTPROT_OSPF:       "ospf",
 	unix.RTPROT_RIP:        "rip",
 	unix.RTPROT_EIGRP:      "eigrp",
+	rtprotOvnCst:           "ovn",
+	rtprotOpenrCst:         "openr",
 }
+
+// The rt_protos file's two values with no RTPROT_* constant.
+const (
+	rtprotOvnCst   = 84
+	rtprotOpenrCst = 99
+)
 
 // routeProtoName is rtnl_rtprot_n2a (lib/rt_names.c:264-278), whose fallback
 // is `%u`.
@@ -185,10 +196,11 @@ func routeTableName(id uint32) string {
 	return strconv.FormatUint(uint64(id), 10)
 }
 
-// dsfieldName is rtnl_dsfield_n2a (lib/rt_names.c:606-620) with no config file
-// to read, so it is always the `0x%02x` fallback. See the file header.
+// dsfieldName is rtnl_dsfield_n2a (lib/rt_names.c:606-620) in an ip that
+// prints one DS field: a route's tos, never 0 when printed.
 func dsfieldName(tos uint8) string {
-	return fmt.Sprintf("0x%02x", tos)
+	var d Dsfield
+	return d.N2A(tos)
 }
 
 // rtFlagNames is print_rt_flags' sequence of tests (ip/iproute.c:388-417) in
@@ -295,9 +307,15 @@ type ViaView struct {
 // NextHopView is one RTA_MULTIPATH entry as print_rta_multipath renders it
 // (ip/iproute.c:694-766).
 type NextHopView struct {
+	// Encap is the hop's RTA_ENCAP, printed first (EncapViewOf).
+	Encap *EncapView `json:"encap,omitempty"`
+	// To is the hop's RTA_NEWDST, printed before its gateway.
+	To      string   `json:"to,omitempty"`
 	Gateway string   `json:"gateway,omitempty"`
 	Via     *ViaView `json:"via,omitempty"`
-	Dev     string   `json:"dev"`
+	// Flow is the path's RTA_FLOW, after its gateway (ip/iproute.c:737-738).
+	Flow *FlowView `json:"flow,omitempty"`
+	Dev  string    `json:"dev"`
 	// Weight is nil for an AF_MPLS route, the one family whose nexthops print
 	// no weight (ip/iproute.c:754). Everywhere else it is rtnh_hops + 1, so a
 	// two-way split configured `weight 1` / `weight 3` arrives as 0 and 2 and
@@ -316,11 +334,20 @@ type NextHopView struct {
 func (v NextHopView) Text() string {
 	var b strings.Builder
 	b.WriteString("\n\tnexthop ")
+	if v.Encap != nil {
+		b.WriteString(v.Encap.Text())
+	}
+	if v.To != "" {
+		fmt.Fprintf(&b, "as to %s ", v.To)
+	}
 	if v.Gateway != "" {
 		fmt.Fprintf(&b, "via %s ", v.Gateway)
 	}
 	if v.Via != nil {
 		fmt.Fprintf(&b, "via %s %s ", v.Via.Family, v.Via.Host)
+	}
+	if v.Flow != nil {
+		b.WriteString(v.Flow.Text())
 	}
 	fmt.Fprintf(&b, "dev %s ", v.Dev)
 	if v.Weight != nil {
@@ -609,6 +636,11 @@ type RouteShowFilter struct {
 	// corpus states this — it comes from the guard.
 	Details bool
 
+	// Realms is the process's rt_realms state, shared across a dump's routes
+	// so a realm 0 prints as ip's would after the routes before it; nil is a
+	// fresh process.
+	Realms *Realms
+
 	// Stats is show_stats, and on this object it gates three tokens that a
 	// route DUMP can never populate: `users`, `used` and `age`
 	// (print_rta_cacheinfo, ip/iproute.c:514-525).
@@ -656,6 +688,14 @@ type RouteView struct {
 	// next hop to.
 	NhID *uint32 `json:"nhid,omitempty"`
 
+	// To is RTA_NEWDST, an AF_MPLS route's outgoing label stack, `as to`
+	// (print_rta_newdst).
+	To string `json:"to,omitempty"`
+
+	// Encap is RTA_ENCAP, which print_route prints after RTA_NEWDST
+	// (EncapViewOf).
+	Encap *EncapView `json:"encap,omitempty"`
+
 	Tos string `json:"tos,omitempty"`
 
 	// Gateway is RTA_GATEWAY and Via is RTA_VIA. Both render a `via` token and
@@ -683,6 +723,9 @@ type RouteView struct {
 	// text form changes base at 16, `mark %u ` below and `mark 0x%llx ` from
 	// there, while the JSON form is always the number.
 	Mark uint32 `json:"mark,omitempty"`
+
+	// Flow is RTA_FLOW, `realm 5` or `realms 1/2` (ip/iproute.c:963-964).
+	Flow *FlowView `json:"flow,omitempty"`
 
 	// UID is RTA_UID, printed on presence like Metric, so root's lookup prints
 	// `uid 0` (:966-968).
@@ -741,6 +784,11 @@ type RouteView struct {
 	// (ip/iproute.c:436-438).
 	prefText string
 
+	// TTLPropagate is RTA_TTL_PROPAGATE. Its JSON key is ip's misspelling
+	// (ttlPropagateKeyCst), which no struct tag can carry past the spell
+	// checkers, so MarshalJSON writes it.
+	TTLPropagate *bool `json:"-"`
+
 	NextHops []NextHopView `json:"nexthops,omitempty"`
 
 	// NhInfo is the `\n\tnh_info ...` continuation line `ip -d route show` prints
@@ -787,6 +835,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		nhid := ri.NhID
 		v.NhID = &nhid
 	}
+	v.To = mplsLabelsString(ri.NewDst)
 	if ri.Tos != 0 {
 		v.Tos = dsfieldName(ri.Tos)
 	}
@@ -842,11 +891,11 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		metric := ri.Priority
 		v.Metric = &metric
 	}
-	v.Mark = ri.Mark
-	if ri.HasUID {
-		uid := ri.UID
-		v.UID = &uid
+	realms := f.Realms
+	if realms == nil {
+		realms = new(Realms)
 	}
+	setRouteMarkFlowUID(&v, ri, realms)
 	// The raw rtm_family, as for the cacheinfo below: only the AF_INET arm
 	// calls print_cache_flags (:970-972), so a cloned IPv6 route has no line.
 	if ri.Family == unix.AF_INET && ri.Flags&unix.RTM_F_CLONED != 0 {
@@ -859,14 +908,20 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 	// even though its real family is AF_INET.
 	applyRouteCacheinfo(&v, ri.Family, ri.CacheInfo, f.Stats)
 	v.Metrics = RouteMetricsViewOf(ri.Metrics)
+	v.Encap = EncapViewOf(ri.Encap, tab, f.Stats)
 	if ri.Iif != 0 {
 		v.Iif = tab.IndexToName(int32(ri.Iif))
 	}
 	if ri.HasPref {
 		v.Pref, v.prefText = routePref(ri.Pref)
 	}
+	if ri.HasTTLPropagate {
+		// rta_getattr_u8 into a bool: any non-zero byte is enabled.
+		p := ri.TTLPropagate != 0
+		v.TTLPropagate = &p
+	}
 	for i := range ri.Multipath {
-		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab))
+		v.NextHops = append(v.NextHops, nextHopView(ri.Multipath[i], ri.Family, tab, f.Stats, realms))
 	}
 	return v
 }
@@ -1033,6 +1088,66 @@ func routePrefix(addr []byte, prefixLen uint8, hostLen int, family uint8) string
 	return routePrefixWildcard
 }
 
+// writeTail is the end of print_route's line: pref, ttl-propagate, then
+// the nexthops, each on its own line.
+func (v RouteView) writeTail(b *strings.Builder) {
+	b.WriteString(v.prefText)
+	if v.TTLPropagate != nil {
+		// No trailing space, as for pref.
+		b.WriteString(ttlPropagateKeyCst + " " + enabledWord(*v.TTLPropagate))
+	}
+	for i := range v.NextHops {
+		b.WriteString(v.NextHops[i].Text())
+	}
+}
+
+// ttlPropagateKeyCst is RTA_TTL_PROPAGATE's word in ip's output, text and
+// JSON: misspelled with an o for the second a (ip/iproute.c, print_route).
+// It is spelled in two halves so the spell checkers pass the source.
+const ttlPropagateKeyCst = "ttl-prop" + "ogate"
+
+// MarshalJSON is the struct's encoding with ttlPropagateKeyCst after pref,
+// where print_route prints it: before the nexthops, the last key.
+func (v RouteView) MarshalJSON() ([]byte, error) {
+	type plain RouteView // the fields, without this method
+	b, err := json.Marshal(plain(v))
+	if err != nil || v.TTLPropagate == nil {
+		return b, err
+	}
+	kv := fmt.Appendf(nil, ",%q:%t", ttlPropagateKeyCst, *v.TTLPropagate)
+	at := len(b) - 1 // the closing brace
+	if len(v.NextHops) > 0 {
+		at = bytes.LastIndex(b, []byte(`,"nexthops":`))
+	}
+	return slices.Concat(b[:at], kv, b[at:]), nil
+}
+
+// mplsLabelsString is mpls_ntop over a decoded stack: the labels joined by
+// '/', or "" for none.
+func mplsLabelsString(labels []xtcpnl.MPLSLabel) string {
+	s := make([]string, len(labels))
+	for i, l := range labels {
+		s[i] = strconv.FormatUint(uint64(l.Label), 10)
+	}
+	return strings.Join(s, "/")
+}
+
+// mplsNtop is mpls_ntop1 (lib/mpls_ntop.c) over b, whose length is a
+// multiple of the entry size: each label, up to the one with the
+// bottom-of-stack bit. mpls_ntop1 reads on past the attribute when none
+// has it; this stops at the end of b.
+func mplsNtop(b []byte) string {
+	var s []string
+	for i := 0; i < len(b); i += xtcpnl.MPLSLabelEntrySizeCst {
+		e := binary.BigEndian.Uint32(b[i:])
+		s = append(s, strconv.FormatUint(uint64(e>>12), 10))
+		if e&(1<<8) != 0 {
+			break
+		}
+	}
+	return strings.Join(s, "/")
+}
+
 // routePref is print_rt_pref (ip/iproute.c:419-439), returning the JSON value
 // and the text form.
 //
@@ -1053,10 +1168,12 @@ func routePref(pref uint8) (any, string) {
 }
 
 // nextHopView is one iteration of print_rta_multipath's loop.
-func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab) NextHopView {
+func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab, stats bool, realms *Realms) NextHopView {
 	v := NextHopView{
 		Dev:   tab.IndexToName(nh.Ifindex),
 		Flags: RtFlagTokens(uint32(nh.Flags)),
+		To:    mplsLabelsString(nh.NewDst),
+		Encap: EncapViewOf(nh.Encap, tab, stats),
 	}
 	if nh.Gateway != nil {
 		// The family is the ROUTE's, not the nexthop's: print_rta_multipath
@@ -1070,11 +1187,43 @@ func nextHopView(nh xtcpnl.RouteNextHop, family uint8, tab NameTab) NextHopView 
 			Host:   addrString(nh.Via.Addr, viaFamily),
 		}
 	}
+	if nh.HasFlow {
+		v.Flow = FlowViewOf(nh.Flow, realms)
+	}
 	if family != unix.AF_MPLS {
 		w := int(nh.Weight())
 		v.Weight = &w
 	}
 	return v
+}
+
+// setRouteMarkFlowUID sets the three tokens print_route prints between the
+// flags and the cacheinfo (ip/iproute.c:948-968): mark, realms and uid.
+func setRouteMarkFlowUID(v *RouteView, ri xtcpnl.RouteInfo, realms *Realms) {
+	v.Mark = ri.Mark
+	if ri.HasFlow {
+		v.Flow = FlowViewOf(ri.Flow, realms)
+	}
+	if ri.HasUID {
+		uid := ri.UID
+		v.UID = &uid
+	}
+}
+
+// writeMarkFlowUID writes setRouteMarkFlowUID's tokens: mark's text changes
+// base at 16.
+func (v RouteView) writeMarkFlowUID(b *strings.Builder) {
+	if v.Mark >= markHexFromCst {
+		fmt.Fprintf(b, "mark 0x%x ", v.Mark)
+	} else if v.Mark != 0 {
+		fmt.Fprintf(b, "mark %d ", v.Mark)
+	}
+	if v.Flow != nil {
+		b.WriteString(v.Flow.Text())
+	}
+	if v.UID != nil {
+		fmt.Fprintf(b, "uid %d ", *v.UID)
+	}
 }
 
 // Text renders one route, newline terminated.
@@ -1104,6 +1253,12 @@ func (v RouteView) Text() string {
 	}
 	if v.NhID != nil {
 		fmt.Fprintf(&b, "nhid %d ", *v.NhID)
+	}
+	if v.To != "" {
+		fmt.Fprintf(&b, "as to %s ", v.To)
+	}
+	if v.Encap != nil {
+		b.WriteString(v.Encap.Text())
 	}
 	if v.Tos != "" {
 		fmt.Fprintf(&b, "tos %s ", v.Tos)
@@ -1135,14 +1290,7 @@ func (v RouteView) Text() string {
 	for _, f := range v.Flags {
 		fmt.Fprintf(&b, "%s ", f)
 	}
-	if v.Mark >= markHexFromCst {
-		fmt.Fprintf(&b, "mark 0x%x ", v.Mark)
-	} else if v.Mark != 0 {
-		fmt.Fprintf(&b, "mark %d ", v.Mark)
-	}
-	if v.UID != nil {
-		fmt.Fprintf(&b, "uid %d ", *v.UID)
-	}
+	v.writeMarkFlowUID(&b)
 	b.WriteString(v.cacheText)
 	// print_rta_cacheinfo's seven tokens, in its own order. Note `ts` alone
 	// carries NO trailing space in its format string — `"ts 0x%llx"` against
@@ -1179,10 +1327,7 @@ func (v RouteView) Text() string {
 	if v.Iif != "" {
 		fmt.Fprintf(&b, "iif %s ", v.Iif)
 	}
-	b.WriteString(v.prefText)
-	for i := range v.NextHops {
-		b.WriteString(v.NextHops[i].Text())
-	}
+	v.writeTail(&b)
 	// print_cache_nexthop_id runs near the end of print_route (ip/iproute.c:1002),
 	// after the main line's tokens and on its own `\n\t`-prefixed line. A route
 	// never carries both a multipath list and an nhid, so its position relative to

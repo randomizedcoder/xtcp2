@@ -1,0 +1,1731 @@
+###############################################################################
+# kind-write-corpus.exp - link kind writes: `ip link add ... type <kind>` and
+# `ip link set ... type <kind>` (docs/netlink/goip-link-kinds.md, KC2 on)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp and
+# addr-corpus.exp, by scripts/capture-link-writes.exp, which runs each row
+# into link-write/kinds/<kind>/<slug>/ AFTER late setup: the kind modules
+# load there (nltopo::late_modules). Data plus small procs, kept out of the
+# driver for rtnl-write-corpus.exp's reason: the hermetic check
+# (scripts/kind-write-corpus-test.exp) has to read it without a console.
+#
+# A ROW IS {slug floor pre command readbacks rc}, rtnl-write-corpus.exp's
+# shape, with <slug> as <kind>/<name>, so the row's directory is
+# link-write/kinds/<kind>/<name>/.
+#
+#   floor      2 for an add (the RTM_NEWLINK and its NLMSG_ERROR), 4 for a
+#              set, which resolves the device's name with an RTM_GETLINK
+#              first; 0 for a row `ip` refuses before it writes (it may
+#              still look a name up, as bridge_slave's backup_port does)
+#   pre        `ip` argument lists run in the row's fresh namespace before
+#              the capture window opens
+#   command    the write, run with `sh -c`; it must hold no single quote
+#   readbacks  {name floor command} reads straight after the write: the
+#              detailed text, the detailed JSON and the plain text of the
+#              device, so the renderer has all three to match
+#   rc         0 for an accepted write, 2 for one the kernel refused, 1 or
+#              255 for one `ip` refused before netlink (a parse error do_cmd
+#              negates, or an exit(-1)); such a row has floor 0 and no
+#              readback, and its ip.err is what it records
+###############################################################################
+
+namespace eval kindcorpus {
+
+    variable rows {}
+
+    # readbacks <dev> - the three reads of <dev> every row the kernel
+    # answers takes.
+    proc readbacks {dev} {
+        return [list \
+            [list getlink_detail 2 "ip -d link show dev $dev"] \
+            [list getlink_detail_json 2 "ip -d -j -p link show dev $dev"] \
+            [list getlink 2 "ip link show dev $dev"]]
+    }
+
+    # row <kind> <name> <pre> <command> <rc> ?<dev>? - one row, with the
+    # floor and readbacks its status and verb imply.
+    proc row {kind name pre command rc {dev ""}} {
+        if {$rc in {1 255}} {
+            return [list $kind/$name 0 $pre $command {} $rc]
+        }
+        set floor 2
+        if {[string match "ip link set *" $command]} {
+            set floor 4
+        }
+        return [list $kind/$name $floor $pre $command [readbacks $dev] $rc]
+    }
+
+    ###########################################################################
+    # bridge (KC2-T01). One add per value-taking option, each with a value
+    # the kernel takes and that differs from its default, then the flag,
+    # the 7.2.0 stp_mode names, the boolopts folded into one attribute,
+    # the change path and the refusals. br_changelink and br_policy
+    # (net/bridge/br_netlink.c) argue each status.
+    #
+    # A refusal by `ip` is 1 when bridge_parse_opt returns its error (an
+    # unknown word, as a strcmp keyword's abbreviation is, or a name
+    # parse_one_of does not know) and 255 when it exits (invarg,
+    # incomplete_command).
+    #
+    # mcast_vlan_snooping needs vlan_filtering on (br_multicast_toggle_
+    # vlan_snooping), which br_changelink applies first, so its row sets
+    # both. mcast_hash_elasticity is accepted and ignored: the kernel keeps
+    # 16. The intervals are in centiseconds and above the kernel's minimums.
+    ###########################################################################
+    variable BRIDGE_OPTIONS {
+        forward_delay 400
+        hello_time 100
+        max_age 1000
+        ageing_time 15000
+        stp_state 1
+        priority 100
+        vlan_filtering 1
+        vlan_protocol 802.1ad
+        group_fwd_mask 8
+        group_address 01:80:c2:00:00:0e
+        no_linklocal_learn 1
+        mst_enabled 1
+        fdb_max_learned 100
+        vlan_default_pvid 10
+        vlan_stats_enabled 1
+        vlan_stats_per_port 1
+        mcast_router 2
+        mcast_snooping 0
+        mcast_vlan_snooping 1
+        mcast_query_use_ifaddr 1
+        mcast_querier 1
+        mcast_hash_elasticity 8
+        mcast_hash_max 1024
+        mcast_last_member_count 3
+        mcast_startup_query_count 3
+        mcast_last_member_interval 200
+        mcast_membership_interval 30000
+        mcast_querier_interval 30000
+        mcast_query_interval 15000
+        mcast_query_response_interval 500
+        mcast_startup_query_interval 1000
+        mcast_stats_enabled 1
+        mcast_igmp_version 3
+        mcast_mld_version 2
+        nf_call_iptables 1
+        nf_call_ip6tables 1
+        nf_call_arptables 1
+        mdb_offload_fail_notification 1
+        fdb_local_vlan_0 1
+    }
+
+    variable PRE_BR {{link add br0 type bridge}}
+    variable PRE_BR_STP {{link add br0 type bridge stp_state 1}}
+
+    proc bridge {name words rc {pre {}}} {
+        return [row bridge $name $pre [string trimright "ip link add br0 type bridge $words"] $rc br0]
+    }
+
+    proc bridge_set {name words rc pre} {
+        return [row bridge $name $pre "ip link set br0 type bridge $words" $rc br0]
+    }
+
+    lappend rows [bridge add_default {} 0]
+    foreach {option value} $BRIDGE_OPTIONS {
+        set words "$option $value"
+        if {$option eq "mcast_vlan_snooping"} {
+            set words "vlan_filtering 1 $words"
+        }
+        lappend rows [bridge add_$option $words 0]
+    }
+    lappend rows \
+        [bridge add_fdb_flush fdb_flush 0] \
+        [bridge add_stp_mode_auto {stp_mode auto} 0] \
+        [bridge add_stp_mode_user {stp_mode user} 0] \
+        [bridge add_stp_mode_kernel {stp_mode kernel} 0] \
+        [bridge add_boolopts {mst_enabled 1 mdb_offload_fail_notification 1 fdb_local_vlan_0 1} 0] \
+        [bridge add_several {stp_state 1 priority 100 vlan_filtering 1 mcast_snooping 0} 0] \
+        [bridge_set set_ageing_time {ageing_time 15000} 0 $PRE_BR] \
+        [bridge_set set_vlan_filtering {vlan_filtering 1} 0 $PRE_BR] \
+        [bridge_set set_stp_mode {stp_mode user} 0 $PRE_BR] \
+        [bridge_set set_stp_mode_busy {stp_mode user} 2 $PRE_BR_STP] \
+        [bridge add_abbrev {forward_d 400} 0] \
+        [bridge add_stp_mode_abbrev {stp_m user} 1] \
+        [bridge add_group_address_bad {group_address 01:80:c2:00:00:01} 2] \
+        [bridge add_group_fwd_mask_bad {group_fwd_mask 1} 2] \
+        [bridge add_igmp_version_bad {mcast_igmp_version 4} 2] \
+        [bridge add_mcast_vlan_snooping_no_vlan {mcast_vlan_snooping 1} 2] \
+        [bridge add_stp_mode_bad {stp_mode bogus} 1] \
+        [bridge add_vlan_protocol_bad {vlan_protocol 802.1x} 255] \
+        [bridge add_priority_bad {priority x} 255] \
+        [bridge add_no_value forward_delay 255]
+
+    ###########################################################################
+    # bridge_slave (KC2-T02). Port options are set, not added: p0 and p1 are
+    # dummies enslaved to br0, and each row sets p0. One set per value-
+    # taking option but neigh_forward_grat and backup_port, which have rows
+    # of their own, each with a value that differs from the port's default,
+    # then the two flags, 7.2.0's neigh_forward_grat, the backup port, the
+    # abbreviation rules and the refusals. br_setport and br_port_policy
+    # (net/bridge/br_netlink.c) argue each status.
+    #
+    # A bad on/off value exits 1 (bridge_slave_parse_on_off's exit(1)); an
+    # unknown word, as a strcmp keyword's abbreviation is, returns and exits
+    # 1 too; invarg and incomplete_command exit 255.
+    #
+    # state needs p0 up (br_set_port_state), so its row brings p0 up, with
+    # no IPv6 address to come and go. mab needs locked on (and learning,
+    # which a port starts with), so its row sets both. backup_port names a
+    # port of the same bridge, which the readback prints by name.
+    ###########################################################################
+    variable SLAVE_OPTIONS {
+        state 4
+        priority 7
+        cost 10
+        hairpin on
+        guard on
+        root_block on
+        fastleave on
+        learning off
+        flood off
+        mcast_flood off
+        bcast_flood off
+        mcast_to_unicast on
+        proxy_arp on
+        proxy_arp_wifi on
+        mcast_router 2
+        mcast_fast_leave on
+        neigh_suppress on
+        neigh_vlan_suppress on
+        group_fwd_mask 8
+        vlan_tunnel on
+        isolated on
+        locked on
+        mab on
+        backup_nhid 5
+    }
+
+    variable PRE_PORTS [list \
+        {link add br0 type bridge} \
+        {link add p0 type dummy} \
+        {link add p1 type dummy} \
+        {link set p0 master br0} \
+        {link set p1 master br0}]
+
+    proc slave {name words rc {pre {}}} {
+        variable PRE_PORTS
+        if {$pre eq {}} {
+            set pre $PRE_PORTS
+        }
+        return [row bridge_slave $name $pre "ip link set dev p0 type bridge_slave $words" $rc p0]
+    }
+
+    foreach {option value} $SLAVE_OPTIONS {
+        set words "$option $value"
+        set pre {}
+        if {$option eq "mab"} {
+            set words "locked on $words"
+        }
+        if {$option eq "state"} {
+            set pre [concat $PRE_PORTS {{link set p0 addrgenmode none} {link set p0 up}}]
+        }
+        lappend rows [slave set_$option $words 0 $pre]
+    }
+    lappend rows \
+        [slave set_fdb_flush fdb_flush 0] \
+        [slave set_nobackup_port nobackup_port 0 \
+            [concat $PRE_PORTS {{link set dev p0 type bridge_slave backup_port p1}}]] \
+        [slave set_neigh_forward_grat {neigh_forward_grat on} 0] \
+        [slave set_backup_port {backup_port p1} 0] \
+        [slave set_several {cost 10 priority 7 learning off} 0] \
+        [slave set_abbrev {co 10} 0] \
+        [slave set_strcmp_abbrev {neigh_forward_g on} 1] \
+        [slave set_state_bad {state 5} 2] \
+        [slave set_priority_over {priority 64} 2] \
+        [slave set_cost_zero {cost 0} 2] \
+        [slave set_group_fwd_mask_bad {group_fwd_mask 2} 2] \
+        [slave set_mab_unlocked {mab on} 2] \
+        [slave set_backup_port_self {backup_port p0} 2] \
+        [slave set_not_enslaved {cost 10} 2 {{link add p0 type dummy}}] \
+        [slave set_backup_port_missing {backup_port nosuch} 255] \
+        [slave set_cost_bad {cost x} 255] \
+        [slave set_on_off_bad {learning maybe} 1] \
+        [slave set_no_value cost 255]
+
+    ###########################################################################
+    # The VLAN family (KC3): kinds stacked on a lower device. Every row's
+    # pre makes the dummy d0 they stack on; an add is `ip link add link d0
+    # name <dev> type <kind> ...`, a set `ip link set <dev> type <kind> ...`
+    # on a device its pre made.
+    ###########################################################################
+    variable PRE_D0 [list {link add d0 type dummy}]
+
+    # stacked <kind> <dev> <name> <words> <rc> ?<pre>? ?<lower>? - an add of
+    # <dev> on <lower>, after d0 and <pre>.
+    proc stacked {kind dev name words rc {pre {}} {lower d0}} {
+        variable PRE_D0
+        return [row $kind $name [concat $PRE_D0 $pre] \
+            [string trimright "ip link add link $lower name $dev type $kind $words"] $rc $dev]
+    }
+
+    # stacked_set <kind> <dev> <name> <words> <rc> <pre> - a set of <dev>,
+    # after d0 and <pre>, which makes <dev>.
+    proc stacked_set {kind dev name words rc pre} {
+        variable PRE_D0
+        return [row $kind $name [concat $PRE_D0 $pre] "ip link set $dev type $kind $words" $rc $dev]
+    }
+
+    ###########################################################################
+    # vlan (KC3-T01). The device is v0, and id is required, so every add
+    # but add_no_id sends one. vlan_validate and vlan_newlink (net/8021q/
+    # vlan_netlink.c) argue the kernel's statuses; vlan_changelink ignores
+    # the id, so set_id is accepted and changes nothing. vlan's on_off and
+    # its unknown-command error return (1); get_u16, ll_proto_a2n, a bad
+    # QoS mapping and NEXT_ARG exit (255). parse_mapping stops at a word
+    # with no colon, which is then an unknown command.
+    ###########################################################################
+    variable VLAN_FLAGS {
+        reorder_hdr off
+        gvrp on
+        mvrp on
+        loose_binding on
+        bridge_binding on
+    }
+
+    variable PRE_V0 [list {link add link d0 name v0 type vlan id 10}]
+
+    proc vlan {name words rc {pre {}} {lower d0}} {
+        return [stacked vlan v0 $name $words $rc $pre $lower]
+    }
+
+    proc vlan_set {name words rc} {
+        variable PRE_V0
+        return [stacked_set vlan v0 $name $words $rc $PRE_V0]
+    }
+
+    lappend rows \
+        [vlan add_default {id 10} 0] \
+        [vlan add_protocol {id 10 protocol 802.1ad} 0]
+    foreach {flag value} $VLAN_FLAGS {
+        lappend rows [vlan add_$flag "id 10 $flag $value" 0]
+    }
+    lappend rows \
+        [vlan add_ingress_qos_map {id 10 ingress-qos-map 1:2 3:4} 0] \
+        [vlan add_egress_qos_map {id 10 egress-qos-map 2:1 4:3} 0] \
+        [vlan add_several {id 10 protocol 802.1ad gvrp on mvrp on} 0] \
+        [vlan add_id_max {id 4094} 0] \
+        [vlan add_abbrev {i 10} 0] \
+        [vlan_set set_flags {loose_binding on} 0] \
+        [vlan_set set_egress_qos_map {egress-qos-map 1:5} 0] \
+        [vlan_set set_id {id 20} 0] \
+        [vlan add_no_id {} 2] \
+        [row vlan add_no_link $PRE_D0 {ip link add name v0 type vlan id 10} 2 v0] \
+        [vlan add_id_over {id 4095} 2] \
+        [vlan add_protocol_unsupported {id 10 protocol ip} 2] \
+        [stacked vlan v1 add_duplicate_id {id 10} 2 $PRE_V0] \
+        [vlan add_on_loopback {id 10} 2 {} lo] \
+        [vlan add_on_off_bad {id 10 gvrp maybe} 1] \
+        [vlan add_unknown {id 10 bogus} 1] \
+        [vlan add_qos_no_colon {id 10 egress-qos-map 5} 1] \
+        [vlan add_id_bad {id x} 255] \
+        [vlan add_protocol_bad {protocol 802.1x} 255] \
+        [vlan add_qos_bad {id 10 ingress-qos-map 1:x} 255] \
+        [vlan add_no_value id 255]
+
+
+    ###########################################################################
+    # macvlan and macvtap (KC3-T02), one parser (macvlan_parse_opt) for two
+    # kinds. The device is m0 (t0 for macvtap). macvlan_validate,
+    # macvlan_common_newlink and macvlan_changelink (drivers/net/macvlan.c)
+    # argue the kernel's statuses: one passthru per lower, passthru not
+    # set or cleared by a change, source addresses only in source mode.
+    # Every ip refusal here returns (1) but NEXT_ARG's (255); nopromisc
+    # outside passthru is ip's own check, and bclim is strcmp, so `bcl` is
+    # an unknown word.
+    ###########################################################################
+    variable MACVLAN_MODES {private vepa bridge passthru source}
+    variable MAC1 02:00:00:00:00:01
+    variable MAC2 02:00:00:00:00:02
+    variable PRE_M0 [list {link add link d0 name m0 type macvlan mode bridge}]
+    variable PRE_M0_SOURCE [list "link add link d0 name m0 type macvlan mode source macaddr add $MAC1"]
+    variable PRE_M0_PASSTHRU [list {link add link d0 name m0 type macvlan mode passthru}]
+    variable PRE_T0 [list {link add link d0 name t0 type macvtap mode bridge}]
+
+    proc macvlan {name words rc {pre {}} {lower d0}} {
+        return [stacked macvlan m0 $name $words $rc $pre $lower]
+    }
+
+    proc macvlan_set {name words rc pre} {
+        return [stacked_set macvlan m0 $name $words $rc $pre]
+    }
+
+    lappend rows [macvlan add_default {} 0]
+    foreach mode $MACVLAN_MODES {
+        lappend rows [macvlan add_mode_$mode "mode $mode" 0]
+    }
+    lappend rows \
+        [macvlan add_flag_nodst {mode bridge flag nodst} 0] \
+        [macvlan add_nodst {mode bridge nodst} 0] \
+        [macvlan add_flag_null {mode bridge flag null} 0] \
+        [macvlan add_passthru_nopromisc {mode passthru nopromisc} 0] \
+        [macvlan add_bcqueuelen {bcqueuelen 2000} 0] \
+        [macvlan add_bclim {bclim 10} 0] \
+        [macvlan add_bclim_negative {bclim -1} 0] \
+        [macvlan add_macaddr_add "mode source macaddr add $MAC1" 0] \
+        [macvlan add_macaddr_set "mode source macaddr set $MAC1 $MAC2" 0] \
+        [macvlan add_abbrev {mo bridge} 0] \
+        [macvlan_set set_mode {mode private} 0 $PRE_M0] \
+        [macvlan_set set_macaddr_del "macaddr del $MAC1" 0 $PRE_M0_SOURCE] \
+        [macvlan_set set_macaddr_flush {macaddr flush} 0 $PRE_M0_SOURCE] \
+        [macvlan_set set_bcqueuelen {bcqueuelen 500} 0 $PRE_M0] \
+        [macvlan_set set_passthru {mode passthru} 2 $PRE_M0] \
+        [macvlan add_macaddr_not_source "mode bridge macaddr add $MAC1" 2] \
+        [macvlan add_macaddr_multicast {mode source macaddr add 01:00:5e:00:00:01} 2] \
+        [stacked macvlan m1 add_second_passthru {mode passthru} 2 $PRE_M0_PASSTHRU] \
+        [macvlan add_on_loopback {} 2 {} lo] \
+        [macvlan add_nopromisc_not_passthru {mode bridge nopromisc} 1] \
+        [macvlan add_mode_bad {mode bogus} 1] \
+        [macvlan add_flag_bad {flag bogus} 1] \
+        [macvlan add_macaddr_op_bad {macaddr bogus} 1] \
+        [macvlan add_macaddr_bad {mode source macaddr add zz} 1] \
+        [macvlan add_bcqueuelen_bad {bcqueuelen x} 1] \
+        [macvlan add_bclim_bad {bclim x} 1] \
+        [macvlan add_bclim_abbrev {bcl 10} 1] \
+        [macvlan add_no_value mode 255]
+
+    proc macvtap {name words rc {pre {}}} {
+        return [stacked macvtap t0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [macvtap add_default {} 0] \
+        [macvtap add_mode_bridge {mode bridge} 0] \
+        [macvtap add_mode_passthru {mode passthru} 0] \
+        [macvtap add_bcqueuelen {bcqueuelen 2000} 0] \
+        [stacked_set macvtap t0 set_mode {mode private} 0 $PRE_T0] \
+        [macvtap add_mode_bad {mode bogus} 1]
+
+    ###########################################################################
+    # ipvlan and ipvtap (KC3-T03), one parser (ipvlan_parse_opt) for two
+    # kinds. The device is i0 (j0 for ipvtap). Once any option follows the
+    # kind, ip sends IFLA_IPVLAN_FLAGS, 0 when no flag word is given, so a
+    # set of the mode alone clears the flags; with no option, parse_opt
+    # isn't called and no INFO_DATA is sent. ipvlan_link_new (drivers/net/
+    # ipvlan/ipvlan_main.c) argues the kernel's statuses: a lower is
+    # required, it must be Ethernet, and its rx handler must be free. ip
+    # takes one flag word; a second is an unknown option, returned (1).
+    ###########################################################################
+    variable IPVLAN_MODES {l2 l3 l3s}
+    variable IPVLAN_FLAGS {private vepa bridge}
+    variable PRE_I0 [list {link add link d0 name i0 type ipvlan}]
+    variable PRE_I0_PRIVATE [list {link add link d0 name i0 type ipvlan private}]
+    variable PRE_J0 [list {link add link d0 name j0 type ipvtap}]
+
+    proc ipvlan {name words rc {pre {}} {lower d0}} {
+        return [stacked ipvlan i0 $name $words $rc $pre $lower]
+    }
+
+    lappend rows [ipvlan add_default {} 0]
+    foreach mode $IPVLAN_MODES {
+        lappend rows [ipvlan add_mode_$mode "mode $mode" 0]
+    }
+    foreach flag $IPVLAN_FLAGS {
+        lappend rows [ipvlan add_$flag $flag 0]
+    }
+    lappend rows \
+        [ipvlan add_mode_and_flag {mode l2 vepa} 0] \
+        [ipvlan add_abbrev {mo l2} 0] \
+        [stacked_set ipvlan i0 set_mode {mode l2} 0 $PRE_I0_PRIVATE] \
+        [stacked_set ipvlan i0 set_flag vepa 0 $PRE_I0] \
+        [row ipvlan add_no_link $PRE_D0 {ip link add name i0 type ipvlan} 2 i0] \
+        [ipvlan add_on_loopback {} 2 {} lo] \
+        [ipvlan add_on_busy_lower {} 2 $PRE_M0] \
+        [ipvlan add_two_flags {private vepa} 1] \
+        [ipvlan add_mode_bad {mode l4} 1] \
+        [ipvlan add_unknown bogus 1] \
+        [ipvlan add_no_value mode 255]
+
+    proc ipvtap {name words rc {pre {}}} {
+        return [stacked ipvtap j0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ipvtap add_default {} 0] \
+        [ipvtap add_mode_l2 {mode l2} 0] \
+        [stacked_set ipvtap j0 set_mode {mode l2} 0 $PRE_J0] \
+        [ipvtap add_mode_bad {mode l4} 1]
+
+    # plain <kind> <dev> <name> <words> <rc> ?<pre>? - an add of <dev>
+    # with no lower, after <pre>. KC4's kinds are each a UDP socket in the
+    # namespace, not a device on another.
+    proc plain {kind dev name words rc {pre {}}} {
+        return [row $kind $name $pre [string trimright "ip link add $dev type $kind $words"] $rc $dev]
+    }
+
+    ###########################################################################
+    # vxlan (KC4-T01). The device is vx0. ip requires id (or external) and
+    # warns on stderr without a dstport, so rows but add_default send
+    # dstport 4789 ($VXLAN_BASE). ip's own checks pre-empt the kernel's id
+    # range, a multicast local, a group without dev, the family mismatch on
+    # an add and vnifilter without external. vxlan_validate, vxlan_nl2conf
+    # and vxlan_config_validate (drivers/net/vxlan/vxlan_core.c) argue the
+    # kernel's statuses; on a change, nl2conf refuses the VNI when it
+    # differs, the port even when it doesn't, and a flag changelink doesn't
+    # support. get_addr's failure exits 1, invarg and nodev 255.
+    ###########################################################################
+    variable VXLAN_BASE {id 42 dstport 4789}
+    variable VXLAN_FLAGS {
+        proxy rsc l2miss l3miss noudpcsum udp6zerocsumtx udp6zerocsumrx
+        remcsumtx remcsumrx nolearning nolocalbypass gbp mcroute
+    }
+    variable PRE_VX0 [list {link add vx0 type vxlan id 42 dstport 4789}]
+
+    proc vxlan {name words rc {pre {}}} {
+        return [plain vxlan vx0 $name $words $rc $pre]
+    }
+
+    # vxlan_base <name> <words> ?<pre>? - an accepted add of $VXLAN_BASE
+    # and <words>.
+    proc vxlan_base {name words {pre {}}} {
+        variable VXLAN_BASE
+        return [vxlan $name [string trimright "$VXLAN_BASE $words"] 0 $pre]
+    }
+
+    proc vxlan_set {name words rc {pre {}}} {
+        variable PRE_VX0
+        return [row vxlan $name [concat $pre $PRE_VX0] "ip link set vx0 type vxlan $words" $rc vx0]
+    }
+
+    lappend rows \
+        [vxlan add_default {id 42} 0] \
+        [vxlan_base add_dstport {}] \
+        [vxlan add_dstport_zero {id 42 dstport 0} 0] \
+        [vxlan add_id_zero {id 0 dstport 4789} 0] \
+        [vxlan add_id_max {id 16777215 dstport 4789} 0] \
+        [vxlan add_vni_abbrev {v 42 dstport 4789} 0] \
+        [vxlan_base add_remote {remote 10.0.0.1}] \
+        [vxlan_base add_remote6 {remote 2001:db8::1}] \
+        [vxlan_base add_group {group 239.1.1.1 dev d0} $PRE_D0] \
+        [vxlan_base add_group6 {group ff05::1 dev d0} $PRE_D0] \
+        [vxlan_base add_local {local 10.0.0.1}] \
+        [vxlan_base add_local6_link_local {local fe80::1 dev d0} $PRE_D0] \
+        [vxlan_base add_ttl {ttl 64}] \
+        [vxlan_base add_ttl_auto {ttl auto}] \
+        [vxlan_base add_ttl_inherit {ttl inherit}] \
+        [vxlan_base add_tos {tos 10}] \
+        [vxlan_base add_tos_inherit {tos inherit}]
+    foreach value {set unset inherit} {
+        lappend rows [vxlan_base add_df_$value "df $value"]
+    }
+    lappend rows \
+        [vxlan_base add_flowlabel {remote 2001:db8::1 flowlabel 0x12345}] \
+        [vxlan_base add_ageing {ageing 600}] \
+        [vxlan_base add_ageing_none {ageing none}] \
+        [vxlan_base add_maxaddress {maxaddress 100}] \
+        [vxlan_base add_srcport {srcport 1000 2000}]
+    foreach flag $VXLAN_FLAGS {
+        lappend rows [vxlan_base add_$flag $flag]
+    }
+    lappend rows \
+        [vxlan add_external external 0] \
+        [vxlan add_vnifilter {external vnifilter dstport 4789} 0] \
+        [vxlan add_gpe {external gpe} 0] \
+        [vxlan_base add_reserved_bits {reserved_bits 0}] \
+        [vxlan_base add_no_abbrev no] \
+        [vxlan_set set_changeable {ttl 32 tos inherit df set ageing 600 nolearning remote 10.0.0.2} 0] \
+        [vxlan_set set_dev {dev d0} 0 $PRE_D0] \
+        [vxlan_set set_id_same {id 42} 0] \
+        [vxlan add_no_option {} 2] \
+        [plain vxlan vx1 add_duplicate_vni $VXLAN_BASE 2 $PRE_VX0] \
+        [vxlan add_link_local_no_dev {id 42 local fe80::1} 2] \
+        [vxlan add_scope_mix {id 42 local fe80::1 remote 2001:db8::1} 2] \
+        [vxlan add_flowlabel_v4 {id 42 flowlabel 5} 2] \
+        [vxlan add_srcport_inverted {id 42 srcport 2000 1000} 2] \
+        [vxlan add_gpe_no_external {id 42 gpe} 2] \
+        [vxlan add_reserved_bits_overlap {id 42 reserved_bits 0x0800000000000000} 2] \
+        [vxlan_set set_id {id 43} 2] \
+        [vxlan_set set_dstport {dstport 4789} 2] \
+        [vxlan_set set_proxy proxy 2] \
+        [vxlan_set set_family {remote 2001:db8::1} 2] \
+        [vxlan add_no_id {dstport 4789} 1] \
+        [vxlan add_group_no_dev {id 42 group 239.1.1.1} 1] \
+        [vxlan add_group_and_remote {id 42 group 239.1.1.1 remote 10.0.0.1} 1] \
+        [vxlan add_external_and_id {external id 42} 1] \
+        [vxlan add_vnifilter_no_external {id 42 vnifilter} 1] \
+        [vxlan add_remote_bad {id 42 remote nosuch} 1] \
+        [vxlan add_strcmp_abbrev {id 42 localbyp} 1] \
+        [vxlan add_unknown {id 42 bogus} 1] \
+        [vxlan add_id_over {id 16777216} 255] \
+        [vxlan add_remote_multicast {id 42 remote 239.1.1.1} 255] \
+        [vxlan add_dev_missing {id 42 dev nosuch} 255] \
+        [vxlan add_ttl_over {id 42 ttl 256} 255] \
+        [vxlan add_srcport_one {id 42 srcport 1000} 255] \
+        [vxlan add_learning_twice {id 42 learning nolearning} 255] \
+        [vxlan add_no_value id 255]
+
+    ###########################################################################
+    # geneve (KC4-T02). The device is gn0. On an add ip requires id and
+    # remote unless external is given, and always sends ID, LABEL, TTL and
+    # TOS; on a set it requires id alone. 7.2.0's local is one strcmp
+    # keyword that sends IFLA_GENEVE_LOCAL or LOCAL6 by the address's
+    # family; local6 is an output key, not a keyword. geneve_nl2info and
+    # geneve_configure (drivers/net/geneve.c) argue the kernel's statuses;
+    # a change of the VNI, the port, the family, a new local or anything
+    # on an external device is -EOPNOTSUPP.
+    ###########################################################################
+    variable GENEVE_BASE {id 1 remote 10.0.0.1}
+    variable PRE_GN0 [list {link add gn0 type geneve id 1 remote 10.0.0.1}]
+    variable PRE_GN0_LOCAL [list {link add gn0 type geneve id 1 remote 10.0.0.1 local 10.0.0.2}]
+    variable PRE_GN0_EXTERNAL [list {link add gn0 type geneve external}]
+
+    proc geneve {name words rc {pre {}}} {
+        return [plain geneve gn0 $name $words $rc $pre]
+    }
+
+    # geneve_base <name> <words> <rc> - an add of $GENEVE_BASE and <words>.
+    proc geneve_base {name words rc} {
+        variable GENEVE_BASE
+        return [geneve $name [string trimright "$GENEVE_BASE $words"] $rc]
+    }
+
+    proc geneve_set {name words rc {pre {}}} {
+        variable PRE_GN0
+        if {$pre eq ""} {
+            set pre $PRE_GN0
+        }
+        return [row geneve $name $pre "ip link set gn0 type geneve $words" $rc gn0]
+    }
+
+    lappend rows \
+        [geneve_base add_default {} 0] \
+        [geneve add_remote6 {id 1 remote 2001:db8::1} 0] \
+        [geneve add_external external 0] \
+        [geneve add_id_max {id 16777215 remote 10.0.0.1} 0] \
+        [geneve add_abbrev {i 1 r 10.0.0.1} 0] \
+        [geneve_base add_local {local 10.0.0.2} 0] \
+        [geneve add_local6 {id 1 remote 2001:db8::1 local 2001:db8::2} 0] \
+        [geneve add_external_local {external local 192.168.0.1} 0] \
+        [geneve add_external_local6 {external local 2001:db8::1} 0] \
+        [geneve_base add_ttl {ttl 64} 0] \
+        [geneve_base add_ttl_inherit {ttl inherit} 0] \
+        [geneve_base add_tos {tos 10} 0] \
+        [geneve_base add_df {df set} 0] \
+        [geneve_base add_dstport {dstport 4789} 0] \
+        [geneve_base add_dstport_zero {dstport 0} 0] \
+        [geneve add_flowlabel {id 1 remote 2001:db8::1 flowlabel 0xfffff} 0] \
+        [geneve add_zero_csum6 {id 1 remote 2001:db8::1 udp6zerocsumtx udp6zerocsumrx} 0] \
+        [geneve_base add_csum_cancel {udpcsum udp6zerocsumtx} 0] \
+        [geneve_base add_innerprotoinherit innerprotoinherit 0] \
+        [geneve_set set_changeable {id 1 ttl 5 tos 10 df set} 0] \
+        [geneve_set set_remote {id 1 remote 10.0.0.9} 0] \
+        [geneve_set set_local_same {id 1 local 10.0.0.2} 0 $PRE_GN0_LOCAL] \
+        [geneve add_no_option {} 2] \
+        [geneve add_remote6_link_local {id 1 remote fe80::1} 2] \
+        [geneve add_local6_link_local {id 1 remote 2001:db8::1 local fe80::2} 2] \
+        [geneve_base add_local_family_mix {local 2001:db8::2} 2] \
+        [geneve_base add_flowlabel_v4 {label 5} 2] \
+        [geneve add_external_udpcsum {external udpcsum} 2] \
+        [plain geneve gn1 add_duplicate $GENEVE_BASE 2 $PRE_GN0] \
+        [plain geneve gn1 add_after_external $GENEVE_BASE 2 $PRE_GN0_EXTERNAL] \
+        [geneve_set set_id {id 2} 2] \
+        [geneve_set set_dstport {id 1 dstport 6081} 2] \
+        [geneve_set set_family {id 1 remote 2001:db8::1} 2] \
+        [geneve_set set_local_new {id 1 local 10.0.0.2} 2] \
+        [geneve_set set_on_external {id 0} 2 $PRE_GN0_EXTERNAL] \
+        [geneve add_no_id {remote 10.0.0.1} 1] \
+        [geneve add_no_remote {id 1} 1] \
+        [geneve add_external_and_id {external id 5} 1] \
+        [geneve_set set_no_id {ttl 5} 1] \
+        [geneve add_remote_bad {id 1 remote bogus} 1] \
+        [geneve_base add_local_abbrev {loc 10.0.0.2} 1] \
+        [geneve add_local6_word {id 1 remote 2001:db8::1 local6 2001:db8::2} 1] \
+        [geneve add_id_over {id 16777216 remote 10.0.0.1} 255] \
+        [geneve add_remote_multicast {id 1 remote 239.1.1.1} 255] \
+        [geneve_base add_local_multicast {local 224.0.0.1} 255] \
+        [geneve_base add_ttl_over {ttl 256} 255] \
+        [geneve add_flowlabel_over {id 1 remote 2001:db8::1 flowlabel 0x100000} 255] \
+        [geneve add_external_twice {external noexternal} 255] \
+        [geneve add_no_value id 255]
+
+    ###########################################################################
+    # bareudp and amt (KC4-T03), two small kinds with no changelink, so a
+    # set that passes validate is -EOPNOTSUPP. bareudp (b0) needs dstport
+    # and ethertype, which ip enforces with missarg (255); every keyword is
+    # matches. amt (a0) needs a lower, a mode and a local address, which
+    # only amt_validate enforces; every keyword is strcmp, and only local
+    # and discovery are checked for repeats, so a repeated mode is sent
+    # twice and the last wins. amt_newlink (drivers/net/amt.c) refuses a
+    # non-Ethernet lower, a loopback, zero or multicast local, a zero
+    # relay port and a multicast discovery address.
+    ###########################################################################
+    variable PRE_B0 [list {link add b0 type bareudp dstport 6635 ethertype ip}]
+
+    proc bareudp {name words rc {pre {}}} {
+        return [plain bareudp b0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [bareudp add_default {dstport 6635 ethertype mpls_uc} 0] \
+        [bareudp add_ethertype_ipv4 {dstport 6635 ethertype ipv4} 0] \
+        [bareudp add_ethertype_number {dstport 6635 ethertype 0x1234} 0] \
+        [bareudp add_srcportmin {dstport 6635 ethertype ip srcportmin 1000} 0] \
+        [bareudp add_multiproto {dstport 6635 ethertype mpls_uc multiproto} 0] \
+        [bareudp add_abbrev {d 6635 e ip s 1 m} 0] \
+        [bareudp add_no_option {} 2] \
+        [bareudp add_multiproto_ipv6 {dstport 6635 ethertype ipv6 multiproto} 2] \
+        [plain bareudp b1 add_port_busy {dstport 6635 ethertype mpls_uc} 2 $PRE_B0] \
+        [row bareudp set_same $PRE_B0 {ip link set b0 type bareudp dstport 6635 ethertype ip} 2 b0] \
+        [bareudp add_unknown {dstport 1 ethertype ip foo} 1] \
+        [bareudp add_no_dstport {ethertype ip} 255] \
+        [bareudp add_no_ethertype {dstport 6635} 255] \
+        [bareudp add_ethertype_bad {dstport 6635 ethertype foo} 255] \
+        [bareudp add_dstport_twice {dstport 1 dstport 2 ethertype ip} 255] \
+        [bareudp add_no_value dstport 255]
+
+    variable AMT_RELAY {mode relay dev d0 local 10.0.0.1}
+    variable AMT_GATEWAY {mode gateway dev d0 local 10.0.0.1 discovery 10.0.0.2}
+
+    # amt <name> <words> <rc> - an add of a0, after d0.
+    proc amt {name words rc} {
+        variable PRE_D0
+        return [plain amt a0 $name $words $rc $PRE_D0]
+    }
+
+    lappend rows \
+        [amt add_gateway $AMT_GATEWAY 0] \
+        [amt add_relay $AMT_RELAY 0] \
+        [amt add_ports "$AMT_GATEWAY relay_port 3000 gateway_port 3001 max_tunnels 10" 0] \
+        [amt add_max_tunnels_zero "$AMT_RELAY max_tunnels 0" 0] \
+        [amt add_mode_twice {mode gateway mode relay dev d0 local 10.0.0.1} 0] \
+        [amt add_no_option {} 2] \
+        [amt add_no_link {mode relay local 10.0.0.1} 2] \
+        [amt add_gateway_no_discovery {mode gateway dev d0 local 10.0.0.1} 2] \
+        [amt add_on_loopback {mode relay dev lo local 10.0.0.1} 2] \
+        [amt add_local_loopback {mode relay dev d0 local 127.0.0.1} 2] \
+        [amt add_relay_port_zero "$AMT_RELAY relay_port 0" 2] \
+        [amt add_discovery_multicast {mode gateway dev d0 local 10.0.0.1 discovery 224.0.0.1} 2] \
+        [row amt set_same [concat $PRE_D0 [list "link add a0 type amt $AMT_RELAY"]] \
+            "ip link set a0 type amt $AMT_RELAY" 2 a0] \
+        [amt add_abbrev {mod relay dev d0 local 10.0.0.1} 1] \
+        [amt add_mode_bad {mode foo} 1] \
+        [amt add_local_bad {local foo} 1] \
+        [amt add_dev_missing {dev nosuch} 255] \
+        [amt add_local_twice {local 10.0.0.1 local 10.0.0.3} 255] \
+        [amt add_port_over {relay_port 70000} 255] \
+        [amt add_no_value mode 255]
+
+    ###########################################################################
+    # gtp (KC4-T04), the device g0. Once any word follows type gtp, ip sends
+    # IFLA_GTP_CREATE_SOCKETS and the kernel binds its own UDP sockets on
+    # ports 3386 and 2152, so a second device in the namespace is refused.
+    # role is required (returned, 1), hsize defaults to 1024, every keyword
+    # is strcmp, and an unknown word is skipped silently. With no word, no
+    # INFO_DATA goes out and gtp_validate refuses it: KC0's probe. There is
+    # no changelink.
+    ###########################################################################
+    variable PRE_G0 [list {link add g0 type gtp role ggsn}]
+
+    proc gtp {name words rc} {
+        return [plain gtp g0 $name $words $rc]
+    }
+
+    # gtp_set <name> <words> <rc> - a set of g0, after PRE_G0.
+    proc gtp_set {name words rc} {
+        variable PRE_G0
+        return [row gtp $name $PRE_G0 [string trimright "ip link set g0 type gtp $words"] $rc g0]
+    }
+
+    lappend rows \
+        [gtp add_ggsn {role ggsn} 0] \
+        [gtp add_sgsn {role sgsn} 0] \
+        [gtp add_hsize {role ggsn hsize 4096} 0] \
+        [gtp add_hsize_max {role ggsn hsize 131071} 0] \
+        [gtp add_hsize_zero {role ggsn hsize 0} 0] \
+        [gtp add_restart_count {role ggsn restart_count 255} 0] \
+        [gtp add_unknown_skipped {role ggsn foo} 0] \
+        [gtp add_no_option {} 2] \
+        [plain gtp g1 add_second {role sgsn} 2 $PRE_G0] \
+        [gtp_set set_same {role ggsn} 2] \
+        [gtp_set set_no_option {} 2] \
+        [gtp add_no_role {hsize 10} 1] \
+        [gtp add_abbrev {rol ggsn} 1] \
+        [gtp_set set_no_role {hsize 5} 1] \
+        [gtp add_role_bad {role foo} 255] \
+        [gtp add_hsize_over {role ggsn hsize 131072} 255] \
+        [gtp add_restart_count_hex {role ggsn restart_count 0x1} 255] \
+        [gtp add_role_twice {role ggsn role sgsn} 255] \
+        [gtp add_no_value role 255]
+
+    ###########################################################################
+    # gre, gretap and erspan (KC5-T01). One parser, gre_parse_opt
+    # (ip/link_gre.c), for the three kinds; devices gr0, gt0 and es0 (gre0,
+    # gretap0 and erspan0 are the fallback names, and the namespace has no
+    # fallback devices). Any word sends the full IFLA_GRE_* set, and
+    # `external` sends COLLECT_METADATA alone. On a set, ip first GETLINKs
+    # the device and prefills what the kernel reports, because
+    # ipgre_netlink_parms rebuilds the parameters from the message. Each
+    # validate accepts no INFO_DATA, so a bare `type <kind>` creates a
+    # tunnel. ipgre_tap_validate checks IFLA_ADDRESS, and erspan_validate
+    # wants exactly seq|key unless the version is 0 or `external` is given.
+    # ip_tunnel_newlink and ip_tunnel_changelink (net/ipv4/ip_tunnel.c)
+    # refuse colliding tunnels, and for gre alone, a change in the
+    # point-to-point state. rtnl_changelink calls changelink only when
+    # INFO_DATA is present. The usage text is 1, get_addr 1, invarg,
+    # tnl_parse_key, NEXT_ARG and nodev 255.
+    ###########################################################################
+    variable PRE_GR0 [list {link add gr0 type gre remote 10.0.0.1}]
+    variable PRE_GR0_EXTERNAL [list {link add gr0 type gre external}]
+    variable PRE_GR0_IGNORE_DF [list {link add gr0 type gre remote 10.0.0.1 nopmtudisc ignore-df}]
+    variable PRE_GR1 [list {link add gr0 type gre remote 10.0.0.1} {link add gr1 type gre remote 10.0.0.2}]
+    variable PRE_GT0 [list {link add gt0 type gretap remote 10.0.0.1}]
+    variable PRE_GT0_EXTERNAL [list {link add gt0 type gretap external}]
+    variable PRE_ES0 [list {link add es0 type erspan remote 10.0.0.1 seq key 10}]
+    variable ERSPAN_BASE {remote 10.0.0.1 seq key 10}
+
+    proc gre {name words rc {pre {}}} {
+        return [plain gre gr0 $name $words $rc $pre]
+    }
+
+    # gre_set <name> <words> <rc> ?<pre>? - a set of gr0, after $PRE_GR0
+    # unless <pre> is given.
+    proc gre_set {name words rc {pre {}}} {
+        variable PRE_GR0
+        if {$pre eq {}} {
+            set pre $PRE_GR0
+        }
+        return [row gre $name $pre [string trimright "ip link set gr0 type gre $words"] $rc gr0]
+    }
+
+    lappend rows \
+        [gre add_default {remote 10.0.0.1} 0] \
+        [gre add_no_option {} 0] \
+        [gre add_local {remote any local 10.0.0.2} 0] \
+        [gre add_dev {remote 10.0.0.1 dev d0} 0 $PRE_D0] \
+        [gre add_key {remote 10.0.0.1 key 42} 0] \
+        [gre add_key_split {remote 10.0.0.1 ikey 1.2.3.4 okey 5} 0] \
+        [gre add_seq_csum {remote 10.0.0.1 seq csum noocsum} 0] \
+        [gre add_ttl_max {remote 10.0.0.1 hoplimit 255} 0] \
+        [gre add_tos_max {remote 10.0.0.1 tclass ff} 0] \
+        [gre add_tos_inherit {remote 10.0.0.1 tos inherit} 0] \
+        [gre add_nopmtudisc_ignore_df {remote 10.0.0.1 nopmtudisc ignore-df} 0] \
+        [gre add_fwmark {remote 10.0.0.1 fwmark 0x10} 0] \
+        [gre add_encap_none {remote 10.0.0.1 encap none} 0] \
+        [gre add_encap_fou {remote 10.0.0.1 encap fou encap-sport auto encap-dport 5555 encap-csum noencap-csum encap-udp6-csum encap-remcsum} 0] \
+        [gre add_external external 0] \
+        [gre add_external_encap {external encap fou} 0] \
+        [gre add_multicast {remote 239.1.1.1 local 10.0.0.1} 0] \
+        [gre add_abbrev {r 10.0.0.1 l 10.0.0.2 t 64 k 5 s c} 0] \
+        [gre add_no_abbrev {remote 10.0.0.1 key 5 no} 0] \
+        [plain gre gr1 add_second_keyed {remote 10.0.0.1 key 5} 0 $PRE_GR0] \
+        [gre_set set_changeable {ttl 32 tos 10 key 5 seq csum fwmark 7 local 10.0.0.2 remote 10.0.0.2} 0] \
+        [gre_set set_dev {dev d0} 0 [concat $PRE_D0 $PRE_GR0]] \
+        [gre_set set_no_option {} 0] \
+        [gre_set set_on_external {ttl 64} 0 $PRE_GR0_EXTERNAL] \
+        [gre add_ignore_df {remote 10.0.0.1 ignore-df} 2] \
+        [plain gre gr1 add_duplicate {remote 10.0.0.1} 2 $PRE_GR0] \
+        [plain gre gr1 add_second_external external 2 $PRE_GR0_EXTERNAL] \
+        [gre_set set_remote_any {remote any} 2] \
+        [row gre set_collide $PRE_GR1 {ip link set gr1 type gre remote 10.0.0.1} 2 gr1] \
+        [gre_set set_external external 2] \
+        [gre_set set_pmtudisc_ignore_df {pmtudisc noignore-df} 2 $PRE_GR0_IGNORE_DF] \
+        [gre add_unknown {remote 10.0.0.1 noexternal} 1] \
+        [gre add_strcmp_abbrev {remote 10.0.0.1 ext} 1] \
+        [gre add_encap_csum6_word {remote 10.0.0.1 encap-csum6} 1] \
+        [gre add_erspan_word {remote 10.0.0.1 erspan_ver 1} 1] \
+        [gre add_multicast_no_local {remote 239.1.1.1} 1] \
+        [gre add_remote6 {remote 2001:db8::1} 1] \
+        [gre add_key_dotted_bad {remote 10.0.0.1 key 1.2.3.x} 1] \
+        [row gre set_not_a_tunnel $PRE_D0 {ip link set d0 type gre ttl 5} 1 d0] \
+        [gre add_key_bad {remote 10.0.0.1 key foo} 255] \
+        [gre add_ttl_over {remote 10.0.0.1 ttl 256} 255] \
+        [gre add_tos_over {remote 10.0.0.1 tos 100} 255] \
+        [gre add_encap_bad {remote 10.0.0.1 encap foo} 255] \
+        [gre add_dev_missing {remote 10.0.0.1 dev nosuch} 255] \
+        [gre add_no_value remote 255]
+
+    proc gretap {name words rc {pre {}}} {
+        return [plain gretap gt0 $name $words $rc $pre]
+    }
+
+    proc gretap_set {name words rc {pre {}}} {
+        variable PRE_GT0
+        if {$pre eq {}} {
+            set pre $PRE_GT0
+        }
+        return [row gretap $name $pre [string trimright "ip link set gt0 type gretap $words"] $rc gt0]
+    }
+
+    lappend rows \
+        [gretap add_default {remote 10.0.0.1} 0] \
+        [gretap add_no_option {} 0] \
+        [gretap add_external external 0] \
+        [gretap add_multicast {remote 239.1.1.1 local 10.0.0.1} 0] \
+        [row gretap add_address {} {ip link add gt0 address 02:00:00:00:00:01 type gretap remote 10.0.0.1} 0 gt0] \
+        [gretap_set set_remote_any {remote any} 0] \
+        [row gretap add_address_multicast {} {ip link add gt0 address 01:00:5e:00:00:01 type gretap remote 10.0.0.1} 2 gt0] \
+        [plain gretap gt1 add_second_external external 2 $PRE_GT0_EXTERNAL] \
+        [gretap_set set_external external 2] \
+        [row gretap set_on_gre $PRE_GR0 {ip link set gr0 type gretap ttl 5} 2 gr0] \
+        [gretap add_erspan_word {remote 10.0.0.1 erspan 5} 1]
+
+    proc erspan {name words rc {pre {}}} {
+        return [plain erspan es0 $name $words $rc $pre]
+    }
+
+    # erspan_base <name> <words> <rc> - an add of $ERSPAN_BASE and <words>.
+    proc erspan_base {name words rc} {
+        variable ERSPAN_BASE
+        return [erspan $name [string trimright "$ERSPAN_BASE $words"] $rc]
+    }
+
+    proc erspan_set {name words rc} {
+        variable PRE_ES0
+        return [row erspan $name $PRE_ES0 "ip link set es0 type erspan $words" $rc es0]
+    }
+
+    lappend rows \
+        [erspan_base add_default {} 0] \
+        [erspan add_no_option {} 0] \
+        [erspan_base add_index {erspan 123} 0] \
+        [erspan_base add_index_max {erspan 1048575} 0] \
+        [erspan add_flags_split {remote 10.0.0.1 iseq okey 10} 0] \
+        [erspan add_key_max {remote 10.0.0.1 seq key 1023} 0] \
+        [erspan add_ver0 {remote 10.0.0.1 erspan_ver 0 csum} 0] \
+        [erspan_base add_ver2 {erspan_ver 2 erspan_dir egress erspan_hwid 7} 0] \
+        [erspan_base add_hwid_max {erspan_ver 2 erspan_hwid 0x3f} 0] \
+        [erspan_base add_dir_abbrev {erspan_ver 2 erspan_dir e} 0] \
+        [erspan_base add_dir_ver1 {erspan_dir egress erspan_hwid 7} 0] \
+        [erspan add_external external 0] \
+        [erspan_set set_index {erspan 200} 0] \
+        [erspan_set set_ver0_noseq {erspan_ver 0 noseq} 0] \
+        [erspan add_remote_only {remote 10.0.0.1} 2] \
+        [erspan_base add_csum csum 2] \
+        [erspan add_key_over {remote 10.0.0.1 seq key 1024} 2] \
+        [erspan_base add_hwid_over {erspan_ver 2 erspan_hwid 0x40} 2] \
+        [erspan_set set_noseq noseq 2] \
+        [erspan_base add_strcmp_abbrev {erspan_v 2} 1] \
+        [erspan_base add_index_zero {erspan 0} 255] \
+        [erspan_base add_index_over {erspan 1048576} 255] \
+        [erspan_base add_ver_over {erspan_ver 3} 255] \
+        [erspan_base add_dir_bad {erspan_ver 2 erspan_dir both} 255] \
+        [erspan_base add_no_value erspan 255]
+
+    ###########################################################################
+    # ip6gre, ip6gretap and ip6erspan (KC5-T02). One parser, gre_parse_opt
+    # in ip/link_gre6.c, serves all three: g6, gt6 and es6, never the
+    # fallback name ip6gre0. Any word makes ip send its defaults (TTL 64,
+    # ENCAP_LIMIT 4, ERSPAN_VER 1, ENCAP_FLAGS CSUM6); no word sends no
+    # INFO_DATA, which every validate here accepts, so the device gets the
+    # kernel's zeros. A set first fetches the device with RTM_GETLINK and
+    # resends everything it got back, with the encap ports byte-swapped.
+    # No keyword is checked for repeats. ip6gre_tunnel_find, _locate,
+    # ip6erspan_tap_validate and the two changelinks
+    # (net/ipv6/ip6_gre.c) decide the kernel's statuses. encap fou/gue need
+    # fou6, which late_modules doesn't load.
+    ###########################################################################
+    variable IP6GRE_BASE {remote 2001:db8::1}
+    variable PRE_G6 [list {link add g6 type ip6gre remote 2001:db8::1}]
+    variable PRE_G6_EXTERNAL [list {link add g6 type ip6gre external}]
+    variable PRE_G6_G7 [list {link add g6 type ip6gre remote 2001:db8::1} \
+        {link add g7 type ip6gre remote 2001:db8::2}]
+    variable PRE_G6_SPORT [list {link add g6 type ip6gre remote 2001:db8::1 encap-sport 4660}]
+
+    proc ip6gre {name words rc {pre {}}} {
+        return [plain ip6gre g6 $name $words $rc $pre]
+    }
+
+    # ip6gre_base <name> <words> <rc> ?<pre>? - an add of $IP6GRE_BASE and <words>.
+    proc ip6gre_base {name words rc {pre {}}} {
+        variable IP6GRE_BASE
+        return [ip6gre $name [string trimright "$IP6GRE_BASE $words"] $rc $pre]
+    }
+
+    # ip6gre_set <name> <words> <rc> ?<pre>? ?<dev>? - a set of <dev>, after
+    # <pre> ($PRE_G6 when empty).
+    proc ip6gre_set {name words rc {pre {}} {dev g6}} {
+        variable PRE_G6
+        if {$pre eq ""} {
+            set pre $PRE_G6
+        }
+        return [row ip6gre $name $pre [string trimright "ip link set $dev type ip6gre $words"] $rc $dev]
+    }
+
+    lappend rows \
+        [ip6gre_base add_default {} 0] \
+        [ip6gre add_no_option {} 0] \
+        [ip6gre_base add_dev {dev d0} 0 $PRE_D0] \
+        [ip6gre_base add_ttl_inherit {ttl inherit} 0] \
+        [ip6gre_base add_encaplimit_none {encaplimit none} 0] \
+        [ip6gre_base add_tops {hoplimit 255 tclass ff flowlabel 0xfffff} 0] \
+        [ip6gre_base add_flags {tclass inherit flowlabel inherit fwmark inherit dscp inherit allow-localremote} 0] \
+        [ip6gre_base add_fwmark {fwmark 0x10} 0] \
+        [ip6gre_base add_key {key 42 seq csum} 0] \
+        [ip6gre_base add_ikey_okey {ikey 1.2.3.4 okey 5 iseq ocsum} 0] \
+        [ip6gre_base add_no_forms {key 42 seq csum nokey noseq nocsum} 0] \
+        [ip6gre add_abbrev {r 2001:db8::1 l 2001:db8::2 h 10 tc 20 k 5} 0] \
+        [ip6gre_base add_repeat {hoplimit 10 hoplimit 20} 0] \
+        [ip6gre_base add_encap_none {encap none encap-sport 5555 encap-dport 6666 encap-csum encap-remcsum noencap-udp6-csum} 0] \
+        [ip6gre add_external external 0] \
+        [ip6gre_base add_erspan_ver_zero {erspan_ver 0} 0] \
+        [plain ip6gre g7 add_second_key {remote 2001:db8::1 key 1} 0 $PRE_G6] \
+        [ip6gre_set set_changeable {hoplimit 10 tclass 20 flowlabel 0x1 encaplimit 2 key 5 local 2001:db8::2} 0] \
+        [ip6gre_set set_no_option {} 0] \
+        [ip6gre_set set_external_ignored external 0] \
+        [ip6gre_set set_encap_sport_swap {hoplimit 10} 0 $PRE_G6_SPORT] \
+        [plain ip6gre g7 add_duplicate $IP6GRE_BASE 2 $PRE_G6] \
+        [plain ip6gre g7 add_external_twice external 2 $PRE_G6_EXTERNAL] \
+        [ip6gre_set set_collide {remote 2001:db8::1} 2 $PRE_G6_G7 g7] \
+        [ip6gre_base add_encap_fou {encap fou encap-dport 5555} 2] \
+        [ip6gre_base add_encap_gue {encap gue encap-dport 5555} 2] \
+        [row ip6gre set_not_tunnel $PRE_D0 {ip link set d0 type ip6gre hoplimit 5} 1 d0] \
+        [ip6gre add_remote_v4 {remote 10.0.0.1} 1] \
+        [ip6gre_base add_key_dotted_bad {key 1.2.3.x} 1] \
+        [ip6gre_base add_unknown bogus 1] \
+        [ip6gre_base add_strcmp_abbrev {encapl 2} 1] \
+        [ip6gre_base add_hoplimit_over {hoplimit 256} 255] \
+        [ip6gre_base add_flowlabel_over {flowlabel 0x100000} 255] \
+        [ip6gre_base add_key_bad {key foo} 255] \
+        [ip6gre_base add_dev_missing {dev nosuch} 255] \
+        [ip6gre add_no_value remote 255]
+
+    variable PRE_GT6 [list {link add gt6 type ip6gretap remote 2001:db8::1}]
+    variable PRE_GT6_GT7 [list {link add gt6 type ip6gretap remote 2001:db8::1} \
+        {link add gt7 type ip6gretap remote 2001:db8::2}]
+
+    proc ip6gretap {name words rc {pre {}}} {
+        return [plain ip6gretap gt6 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ip6gretap add_default $IP6GRE_BASE 0] \
+        [ip6gretap add_no_option {} 0] \
+        [ip6gretap add_remote_any {remote ::} 0] \
+        [ip6gretap add_beside_ip6gre $IP6GRE_BASE 0 $PRE_G6] \
+        [row ip6gretap set_changeable $PRE_GT6 {ip link set gt6 type ip6gretap hoplimit 10 key 5} 0 gt6] \
+        [row ip6gretap set_collide_unchecked $PRE_GT6_GT7 {ip link set gt7 type ip6gretap remote 2001:db8::1} 0 gt7] \
+        [plain ip6gretap gt7 add_duplicate $IP6GRE_BASE 2 $PRE_GT6] \
+        [ip6gretap add_external_beside_ip6gre external 2 $PRE_G6_EXTERNAL] \
+        [row ip6gretap set_kind_mismatch $PRE_GT6 {ip link set gt6 type ip6gre hoplimit 5} 2 gt6]
+
+    variable ERSPAN6_BASE {remote 2001:db8::1 key 10 seq}
+    variable PRE_ES6 [list {link add es6 type ip6erspan remote 2001:db8::1 key 10 seq}]
+
+    proc ip6erspan {name words rc {pre {}}} {
+        return [plain ip6erspan es6 $name $words $rc $pre]
+    }
+
+    # ip6erspan_base <name> <words> <rc> - an add of $ERSPAN6_BASE and <words>.
+    proc ip6erspan_base {name words rc} {
+        variable ERSPAN6_BASE
+        return [ip6erspan $name [string trimright "$ERSPAN6_BASE $words"] $rc]
+    }
+
+    proc ip6erspan_set {name words rc} {
+        variable PRE_ES6
+        return [row ip6erspan $name $PRE_ES6 "ip link set es6 type ip6erspan $words" $rc es6]
+    }
+
+    lappend rows \
+        [ip6erspan_base add_default {} 0] \
+        [ip6erspan add_no_option {} 0] \
+        [ip6erspan add_external external 0] \
+        [ip6erspan_base add_index_max {erspan 1048575} 0] \
+        [ip6erspan_base add_v2 {erspan_ver 2 erspan_dir e erspan_hwid 63} 0] \
+        [ip6erspan_base add_hwid_v1 {erspan_hwid 64} 0] \
+        [ip6erspan add_key_max {remote 2001:db8::1 key 1023 seq} 0] \
+        [ip6erspan add_split_flags {remote 2001:db8::1 ikey 10 oseq} 0] \
+        [ip6erspan_set set_v2 {erspan_ver 2 erspan_dir egress erspan_hwid 63} 0] \
+        [ip6erspan add_no_seq {remote 2001:db8::1 key 10} 2] \
+        [ip6erspan_base add_csum csum 2] \
+        [ip6erspan add_key_over {remote 2001:db8::1 key 1024 seq} 2] \
+        [ip6erspan_base add_ver_zero {erspan_ver 0} 2] \
+        [ip6erspan_base add_hwid_over {erspan_ver 2 erspan_hwid 64} 2] \
+        [ip6erspan_set set_noseq noseq 2] \
+        [ip6erspan_base add_strcmp_abbrev {erspan_v 2} 1] \
+        [ip6erspan_base add_index_over {erspan 1048576} 255] \
+        [ip6erspan_base add_ver_three {erspan_ver 3} 255] \
+        [ip6erspan_base add_dir_bad {erspan_ver 2 erspan_dir up} 255]
+
+    # tunnel_set <kind> <dev> <name> <words> <rc> <pre> - a set of <dev>
+    # after <pre>. link_iptnl.c and link_ip6tnl.c fetch the device first
+    # and send what it has plus <words>. (Merge with any KC5-T01/T02 helper
+    # of the same shape.)
+    proc tunnel_set {kind dev name words rc pre} {
+        return [row $kind $name $pre [string trimright "ip link set $dev type $kind $words"] $rc $dev]
+    }
+
+    ###########################################################################
+    # ipip and sit (KC5-T03). One parser, ip/link_iptnl.c. The devices are
+    # ip0 and st0 (ip1, st1 in the conflict rows). No word is required; with
+    # none no INFO_DATA is sent and both validates accept it, so the kernel
+    # makes a wildcard tunnel with its own defaults. dev and dsfield are
+    # matches, the rest strcmp; nothing is checked for repeats. isatap and
+    # mode ip6ip are sit's; the 6rd words are parsed for both and sent for
+    # sit alone, and the guest kernel (no CONFIG_IPV6_SIT_6RD) ignores them.
+    # A set prefetches the device. ip_tunnel_changelink/ipip6_changelink
+    # refuse a point-to-point flip, a collision and (ipip) collect_md; the
+    # updates copy neither the protocol nor sit's flags. get_addr and
+    # get_prefix exit 1, invarg and nodev 255.
+    #
+    # sit's wildcard (no INFO_DATA) gets ipip6_netlink_parms' ttl 64 and no
+    # DF, so a set's prefetch of it exits 255 ("ttl != 0 and nopmtudisc are
+    # incompatible") before netlink; a sit made with ttl inherit is the
+    # wildcard a set reaches. 6rd-reset has no row: link_iptnl.c:288 hands
+    # get_prefix a string literal, which get_prefix_1 writes into, and ip
+    # segfaults.
+    ###########################################################################
+    variable IPTNL_BASE {remote 10.0.0.1}
+    variable PRE_IP0 [list {link add ip0 type ipip remote 10.0.0.1}]
+    variable PRE_IP0_WILD [list {link add ip0 type ipip}]
+    variable PRE_IP0_TTL [list {link add ip0 type ipip remote 10.0.0.1 ttl 64}]
+    variable PRE_IP0_EXTERNAL [list {link add ip0 type ipip external}]
+    variable PRE_IP0_IP1 [list {link add ip0 type ipip remote 10.0.0.1} {link add ip1 type ipip remote 10.0.0.2}]
+    variable PRE_ST0 [list {link add st0 type sit remote 10.0.0.1}]
+    variable PRE_ST0_WILD [list {link add st0 type sit}]
+    variable PRE_ST0_INHERIT [list {link add st0 type sit ttl inherit}]
+    variable PRE_ST0_ST1 [list {link add st0 type sit remote 10.0.0.1} {link add st1 type sit remote 10.0.0.2}]
+
+    proc ipip {name words rc {pre {}}} {
+        return [plain ipip ip0 $name $words $rc $pre]
+    }
+
+    # ipip_base <name> <words> <rc> ?<pre>? - an add of $IPTNL_BASE and <words>.
+    proc ipip_base {name words rc {pre {}}} {
+        variable IPTNL_BASE
+        return [ipip $name [string trimright "$IPTNL_BASE $words"] $rc $pre]
+    }
+
+    proc ipip_set {name words rc {pre {}}} {
+        variable PRE_IP0
+        if {$pre eq ""} {
+            set pre $PRE_IP0
+        }
+        return [tunnel_set ipip ip0 $name $words $rc $pre]
+    }
+
+    proc sit {name words rc {pre {}}} {
+        return [plain sit st0 $name $words $rc $pre]
+    }
+
+    proc sit_base {name words rc {pre {}}} {
+        variable IPTNL_BASE
+        return [sit $name [string trimright "$IPTNL_BASE $words"] $rc $pre]
+    }
+
+    proc sit_set {name words rc {pre {}}} {
+        variable PRE_ST0
+        if {$pre eq ""} {
+            set pre $PRE_ST0
+        }
+        return [tunnel_set sit st0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ipip_base add_default {} 0] \
+        [ipip add_no_option {} 0] \
+        [ipip_base add_mode_ipip {mode ipip} 0] \
+        [ipip_base add_mode_mplsip {mode mplsip} 0] \
+        [ipip_base add_mode_any {mode any} 0] \
+        [ipip_base add_mode_alias {mode ip4ip4} 0] \
+        [ipip_base add_local {local 10.0.0.2} 0] \
+        [ipip_base add_dev {dev d0} 0 $PRE_D0] \
+        [ipip_base add_ttl {ttl 255} 0] \
+        [ipip_base add_ttl_inherit {ttl inherit} 0] \
+        [ipip_base add_tos {tos 10} 0] \
+        [ipip_base add_tos_inherit {tos inherit} 0] \
+        [ipip_base add_nopmtudisc nopmtudisc 0] \
+        [ipip_base add_fwmark {fwmark 0xffffffff} 0] \
+        [ipip add_external external 0] \
+        [ipip_base add_encap_fou {encap fou encap-sport auto encap-dport 5555} 0] \
+        [ipip_base add_encap_gue {encap gue encap-sport 1000 encap-dport 6000 encap-csum encap-udp6-csum encap-remcsum} 0] \
+        [ipip_base add_noencap {encap fou encap-csum noencap noencap-csum} 0] \
+        [ipip_base add_6rd_ignored {6rd-prefix 2001:db8::/32} 0] \
+        [ipip add_remote_multicast {remote 239.1.1.1} 0] \
+        [ipip_set set_changeable {hlim 64 dsf 10 fwmark 5 local 10.0.0.2} 0] \
+        [ipip_set set_dev {d d0} 0 [concat $PRE_D0 $PRE_IP0]] \
+        [ipip_set set_mode {mode mplsip} 0] \
+        [ipip_set set_encap {encap fou encap-dport 5555} 0] \
+        [ipip_set set_nopmtudisc nopmtudisc 0] \
+        [ipip_set set_no_option {} 0] \
+        [plain ipip ip1 add_duplicate $IPTNL_BASE 2 $PRE_IP0] \
+        [plain ipip ip1 add_external_second external 2 $PRE_IP0_EXTERNAL] \
+        [ipip_set set_remote_any {remote any} 2] \
+        [ipip_set set_remote_on_wildcard {remote 10.0.0.1} 2 $PRE_IP0_WILD] \
+        [ipip_set set_remote_multicast {remote 239.1.1.1} 2] \
+        [ipip_set set_collide {remote 10.0.0.2} 2 $PRE_IP0_IP1] \
+        [ipip_set set_on_external {ttl 64} 2 $PRE_IP0_EXTERNAL] \
+        [ipip_set set_external external 2] \
+        [ipip_base add_isatap isatap 1] \
+        [ipip add_remote6 {remote 2001:db8::1} 1] \
+        [ipip add_remote_abbrev {rem 10.0.0.1} 1] \
+        [ipip_base add_encap_csum6_word {encap fou encap-csum6} 1] \
+        [ipip add_noexternal noexternal 1] \
+        [ipip_base add_mode_ip6ip {mode ip6ip} 255] \
+        [ipip_base add_ttl_over {ttl 256} 255] \
+        [ipip_base add_ttl_nopmtudisc {ttl 64 nopmtudisc} 255] \
+        [ipip_set set_nopmtudisc_ttl nopmtudisc 255 $PRE_IP0_TTL] \
+        [ipip_base add_tos_over {tos 100} 255] \
+        [ipip_base add_encap_bad {encap foo} 255] \
+        [ipip_base add_dev_missing {dev nosuch} 255] \
+        [ipip add_no_value remote 255]
+
+    lappend rows \
+        [sit_base add_default {} 0] \
+        [sit add_no_option {} 0] \
+        [sit_base add_mode_ip6ip {mode ip6ip} 0] \
+        [sit_base add_mode_ipip {mode ipip} 0] \
+        [sit_base add_mode_mplsip {mode mplsip} 0] \
+        [sit_base add_mode_any {mode any} 0] \
+        [sit_base add_mode_alias {mode ipv6/ipv4} 0] \
+        [sit_base add_local_dev {local 10.0.0.2 dev d0} 0 $PRE_D0] \
+        [sit_base add_ttl_tos {ttl 64 tos inherit} 0] \
+        [sit_base add_nopmtudisc nopmtudisc 0] \
+        [sit add_isatap isatap 0] \
+        [sit_base add_fwmark {fwmark 7} 0] \
+        [sit_base add_6rd_prefix {6rd-prefix 2001:db8::/32 6rd-relay_prefix 10.0.0.0/8} 0] \
+        [sit_base add_6rd_overlong {6rd-prefix 2001:db8::/48 6rd-relay_prefix 10.0.0.0/8} 0] \
+        [sit add_external external 0] \
+        [sit_base add_encap_fou {encap fou encap-sport 1000 encap-dport 5555} 0] \
+        [sit_set set_changeable {ttl 64 tos 10 local 10.0.0.2} 0] \
+        [sit_set set_mode {mode ipip} 0] \
+        [sit_set set_isatap isatap 0] \
+        [sit_set set_external_wildcard external 255 $PRE_ST0_WILD] \
+        [sit_set set_no_option {} 0] \
+        [plain sit st1 add_duplicate $IPTNL_BASE 2 $PRE_ST0] \
+        [plain sit st1 add_duplicate_wildcard {} 2 $PRE_ST0_WILD] \
+        [sit_set set_remote_any {remote any} 2] \
+        [sit_set set_remote_on_wildcard {remote 10.0.0.1} 255 $PRE_ST0_WILD] \
+        [sit_set set_remote_on_inherit {remote 10.0.0.1} 2 $PRE_ST0_INHERIT] \
+        [sit_set set_collide {remote 10.0.0.2} 2 $PRE_ST0_ST1] \
+        [sit_set set_external external 2] \
+        [sit_base add_6rd_prefix_v4 {6rd-prefix 10.0.0.0/8} 1] \
+        [sit_base add_6rd_relay_v6 {6rd-relay_prefix 2001:db8::/32} 1] \
+        [sit_base add_6rd_prefix_overlen {6rd-prefix 2001:db8::/129} 1] \
+        [sit_base add_isatap_abbrev isa 1] \
+        [sit add_remote_bad {remote nosuch} 1] \
+        [sit_base add_mode_ip6ip6 {mode ip6ip6} 255] \
+        [sit_base add_ttl_nopmtudisc {ttl 0x1 nopmtudisc} 255] \
+        [sit_base add_tos_bad {tos zz} 255] \
+        [sit_base add_6rd_no_value 6rd-prefix 255]
+
+    ###########################################################################
+    # ip6tnl (KC5-T04). The device is t6 (t7 in the conflict rows). No word
+    # is required; with none ip6_tnl_netlink_parms zeroes everything. With
+    # any, ip sends hoplimit 64, encaplimit 4 and encap flags CSUM6. dev and
+    # dsfield are matches (dev first, and dscp doesn't match dsfield), the
+    # rest strcmp; tclass and flowlabel are hex; nothing is checked for
+    # repeats; a bad encaplimit is never refused and sends an uninitialized
+    # byte, so no row sends one. A set prefetches all but the encap values.
+    # fou6 isn't loaded, so encap fou is -EINVAL. ip6_tnl_changelink refuses
+    # collect_md and a collision, and copies the protocol.
+    ###########################################################################
+    variable IP6TNL_BASE {remote 2001:db8::1}
+    variable PRE_T6 [list {link add t6 type ip6tnl remote 2001:db8::1}]
+    variable PRE_T6_WILD [list {link add t6 type ip6tnl}]
+    variable PRE_T6_HOP [list {link add t6 type ip6tnl remote 2001:db8::1 hoplimit 10}]
+    variable PRE_T6_EXTERNAL [list {link add t6 type ip6tnl external}]
+    variable PRE_T6_T7 [list {link add t6 type ip6tnl remote 2001:db8::1} {link add t7 type ip6tnl remote 2001:db8::2}]
+
+    proc ip6tnl {name words rc {pre {}}} {
+        return [plain ip6tnl t6 $name $words $rc $pre]
+    }
+
+    proc ip6tnl_base {name words rc {pre {}}} {
+        variable IP6TNL_BASE
+        return [ip6tnl $name [string trimright "$IP6TNL_BASE $words"] $rc $pre]
+    }
+
+    proc ip6tnl_set {name words rc {pre {}}} {
+        variable PRE_T6
+        if {$pre eq ""} {
+            set pre $PRE_T6
+        }
+        return [tunnel_set ip6tnl t6 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ip6tnl_base add_default {} 0] \
+        [ip6tnl add_no_option {} 0] \
+        [ip6tnl_base add_mode_ip6ip6 {mode ip6ip6} 0] \
+        [ip6tnl_base add_mode_ipip6 {mode ipip6} 0] \
+        [ip6tnl_base add_mode_any {mode any} 0] \
+        [ip6tnl_base add_mode_alias {mode ip4ip6} 0] \
+        [ip6tnl_base add_local {local 2001:db8::2} 0] \
+        [ip6tnl_base add_dev {dev d0} 0 $PRE_D0] \
+        [ip6tnl_base add_hoplimit {hoplimit 255} 0] \
+        [ip6tnl_base add_hoplimit_inherit {hoplimit inherit} 0] \
+        [ip6tnl_base add_hoplimit_twice {hoplimit 10 ttl 20} 0] \
+        [ip6tnl_base add_encaplimit {encaplimit 0} 0] \
+        [ip6tnl_base add_encaplimit_none {encaplimit none} 0] \
+        [ip6tnl_base add_tclass {tclass ff} 0] \
+        [ip6tnl_base add_tclass_inherit {tclass inherit} 0] \
+        [ip6tnl_base add_dsfield_abbrev {dsf 10} 0] \
+        [ip6tnl_base add_flowlabel {flowlabel 0xfffff} 0] \
+        [ip6tnl_base add_flowlabel_inherit {fl inherit} 0] \
+        [ip6tnl_base add_dscp_inherit {dscp inherit} 0] \
+        [ip6tnl_base add_fwmark {fwmark 0xffffffff} 0] \
+        [ip6tnl_base add_fwmark_inherit {fwmark inherit} 0] \
+        [ip6tnl_base add_allow_localremote allow-localremote 0] \
+        [ip6tnl add_external external 0] \
+        [ip6tnl_base add_noencap {noencap encap-sport 1000 encap-dport 5555 encap-csum noencap-udp6-csum encap-remcsum} 0] \
+        [ip6tnl_set set_changeable {hlim 32 encaplimit none tclass inherit flowlabel 0x12345 dscp inherit} 0] \
+        [ip6tnl_set set_mode {mode ipip6} 0] \
+        [ip6tnl_set set_remote {remote 2001:db8::2} 0] \
+        [ip6tnl_set set_keeps_prefetch {tclass 0x20} 0 $PRE_T6_HOP] \
+        [ip6tnl_set set_no_option {} 0] \
+        [ip6tnl_base add_encap_fou {encap fou encap-dport 5555} 2] \
+        [plain ip6tnl t7 add_duplicate $IP6TNL_BASE 2 $PRE_T6] \
+        [plain ip6tnl t7 add_duplicate_wildcard {} 2 $PRE_T6_WILD] \
+        [plain ip6tnl t7 add_external_second external 2 $PRE_T6_EXTERNAL] \
+        [ip6tnl_set set_collide {remote 2001:db8::2} 2 $PRE_T6_T7] \
+        [ip6tnl_set set_on_external {hoplimit 5} 2 $PRE_T6_EXTERNAL] \
+        [ip6tnl_set set_external external 2] \
+        [ip6tnl add_remote_v4 {remote 10.0.0.1} 1] \
+        [ip6tnl_base add_encaplimit_abbrev {encapl 4} 1] \
+        [ip6tnl_base add_isatap isatap 1] \
+        [ip6tnl_base add_mode_ip6ip {mode ip6ip} 255] \
+        [ip6tnl_base add_hoplimit_over {hoplimit 256} 255] \
+        [ip6tnl_base add_tclass_over {tclass 100} 255] \
+        [ip6tnl_base add_flowlabel_over {flowlabel 0x100000} 255] \
+        [ip6tnl_base add_dscp_bad {dscp 10} 255] \
+        [ip6tnl_base add_fwmark_bad {fwmark foo} 255] \
+        [ip6tnl_base add_encap_abbrev {encap 4} 255] \
+        [ip6tnl_base add_encap_sport_over {encap-sport 65536} 255] \
+        [ip6tnl_base add_dev_missing {dev nosuch} 255] \
+        [ip6tnl add_no_value remote 255]
+
+    ###########################################################################
+    # vti, vti6 and xfrm (KC5-T05). The devices are vt0, v6 and xf0, never
+    # the fallback names ip_vti0 or ip6_vti0. link_vti.c and link_vti6.c
+    # prefetch the device's attributes with a GETLINK on a set and send
+    # them again with the changed words; a device without vti INFO_DATA
+    # fails that prefetch, which is ip's status 1. Neither validate checks
+    # anything, so a bare add is a remote-any tunnel. ip_tunnel_find
+    # (net/ipv4/ip_tunnel.c) ignores a vti key, and ip_tunnel_changelink
+    # refuses a change that adds or removes the remote (IFF_POINTOPOINT);
+    # vti6_locate (net/ipv6/ip6_vti.c) ignores the lower and vti6 has no
+    # point-to-point check. link_xfrm.c has no prefetch and requires if_id
+    # unless external; xfrmi_newlink and xfrmi_changelink
+    # (net/xfrm/xfrm_interface_core.c) refuse if_id 0, an if_id in use,
+    # a second external device, a collect_md change and a different lower.
+    ###########################################################################
+    variable PRE_VT0 [list {link add vt0 type vti remote 10.0.0.1}]
+    variable PRE_VT0_ANY [list {link add vt0 type vti}]
+    variable PRE_VT0_VT1 [list {link add vt0 type vti remote 10.0.0.1} \
+        {link add vt1 type vti remote 10.0.0.2}]
+    variable PRE_V6 [list {link add v6 type vti6 remote 2001:db8::1}]
+    variable PRE_V6_ANY [list {link add v6 type vti6}]
+    variable PRE_V6_V7 [list {link add v6 type vti6 remote 2001:db8::1} \
+        {link add v7 type vti6 remote 2001:db8::2}]
+    variable PRE_XF0 [list {link add xf0 type xfrm if_id 1}]
+    variable PRE_XF0_DEV [list {link add d0 type dummy} {link add xf0 type xfrm dev d0 if_id 1}]
+    variable PRE_XF0_EXTERNAL [list {link add xf0 type xfrm external}]
+    variable PRE_XF0_XF1 [list {link add xf0 type xfrm if_id 1} {link add xf1 type xfrm if_id 2}]
+
+    # tunnel_set <kind> <dev> <name> <words> <rc> <pre> - a set of <dev>,
+    # after <pre>.
+    proc tunnel_set {kind dev name words rc pre} {
+        return [row $kind $name $pre [string trimright "ip link set $dev type $kind $words"] $rc $dev]
+    }
+
+    proc vti {name words rc {pre {}}} {
+        return [plain vti vt0 $name $words $rc $pre]
+    }
+
+    proc vti6 {name words rc {pre {}}} {
+        return [plain vti6 v6 $name $words $rc $pre]
+    }
+
+    proc xfrm {name words rc {pre {}}} {
+        return [plain xfrm xf0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [vti add_default {remote 10.0.0.1 local 10.0.0.2} 0] \
+        [vti add_no_option {} 0] \
+        [vti add_ikey_okey {remote 10.0.0.1 ikey 1.2.3.4 okey 0x10} 0] \
+        [vti add_key_max {remote 10.0.0.1 key 4294967295} 0] \
+        [vti add_key_last_wins {remote 10.0.0.1 key 5 ikey 6} 0] \
+        [vti add_dev {remote 10.0.0.1 dev d0} 0 $PRE_D0] \
+        [vti add_fwmark {remote 10.0.0.1 fwmark 0x10} 0] \
+        [vti add_abbrev {r 10.0.0.1 l 10.0.0.2 i 1 o 2 d d0} 0 $PRE_D0] \
+        [plain vti vt1 add_second_other_dev {remote 10.0.0.1 dev d0} 0 [concat $PRE_D0 $PRE_VT0]] \
+        [tunnel_set vti vt0 set_fwmark {fwmark 5} 0 $PRE_VT0] \
+        [tunnel_set vti vt0 set_no_option {} 0 $PRE_VT0] \
+        [plain vti vt1 add_duplicate_other_key {remote 10.0.0.1 key 7} 2 $PRE_VT0] \
+        [plain vti vt1 add_duplicate_any {} 2 $PRE_VT0_ANY] \
+        [tunnel_set vti vt0 set_remote_on_any {remote 10.0.0.1} 2 $PRE_VT0_ANY] \
+        [tunnel_set vti vt0 set_remote_any {remote any} 2 $PRE_VT0] \
+        [tunnel_set vti vt1 set_collide {remote 10.0.0.1} 2 $PRE_VT0_VT1] \
+        [tunnel_set vti d0 set_on_dummy {fwmark 1} 1 $PRE_D0] \
+        [vti add_fwmark_abbrev {remote 10.0.0.1 fw 5} 1] \
+        [vti add_remote_v6 {remote 2001:db8::1} 1] \
+        [vti add_key_bad {key foo} 255] \
+        [vti add_key_over {key 4294967296} 255] \
+        [vti add_dev_missing {dev nosuch} 255] \
+        [vti add_no_value remote 255]
+
+    lappend rows \
+        [vti6 add_default {remote 2001:db8::1 local 2001:db8::2} 0] \
+        [vti6 add_no_option {} 0] \
+        [vti6 add_options {remote 2001:db8::1 key 5 dev d0 fwmark 0x10} 0 $PRE_D0] \
+        [tunnel_set vti6 v6 set_fwmark {fwmark 5} 0 $PRE_V6] \
+        [tunnel_set vti6 v6 set_no_option {} 0 $PRE_V6] \
+        [tunnel_set vti6 v6 set_remote_on_any {remote 2001:db8::1} 0 $PRE_V6_ANY] \
+        [tunnel_set vti6 v6 set_remote_any {remote any} 0 $PRE_V6] \
+        [plain vti6 v7 add_duplicate_other_dev {remote 2001:db8::1 dev d0} 2 [concat $PRE_D0 $PRE_V6]] \
+        [tunnel_set vti6 v7 set_collide {remote 2001:db8::1} 2 $PRE_V6_V7] \
+        [vti6 add_fwmark_abbrev {remote 2001:db8::1 fw 5} 1] \
+        [vti6 add_remote_v4 {remote 10.0.0.1} 1] \
+        [vti6 add_no_value local 255]
+
+    lappend rows \
+        [xfrm add_default {if_id 1} 0] \
+        [xfrm add_dev {dev d0 if_id 1} 0 $PRE_D0] \
+        [xfrm add_if_id_max {if_id 0xffffffff} 0] \
+        [xfrm add_external external 0] \
+        [xfrm add_abbrev {d d0 i 5} 0 $PRE_D0] \
+        [xfrm add_if_id_twice {if_id 1 if_id 2} 0] \
+        [tunnel_set xfrm xf0 set_if_id {if_id 2} 0 $PRE_XF0] \
+        [tunnel_set xfrm xf0 set_if_id_dev {dev d0 if_id 2} 0 $PRE_XF0_DEV] \
+        [tunnel_set xfrm xf0 set_no_option {} 0 $PRE_XF0] \
+        [xfrm add_no_option {} 2] \
+        [plain xfrm xf1 add_duplicate_other_dev {dev d0 if_id 1} 2 [concat $PRE_D0 $PRE_XF0]] \
+        [plain xfrm xf1 add_second_external external 2 $PRE_XF0_EXTERNAL] \
+        [tunnel_set xfrm xf0 set_drop_dev {if_id 2} 2 $PRE_XF0_DEV] \
+        [tunnel_set xfrm xf0 set_add_dev {dev d0 if_id 1} 2 [concat $PRE_D0 $PRE_XF0]] \
+        [tunnel_set xfrm xf1 set_collide {if_id 1} 2 $PRE_XF0_XF1] \
+        [tunnel_set xfrm xf0 set_external external 2 $PRE_XF0] \
+        [tunnel_set xfrm xf0 set_on_external {if_id 5} 2 $PRE_XF0_EXTERNAL] \
+        [xfrm add_external_if_id {external if_id 1} 1] \
+        [xfrm add_external_abbrev extern 1] \
+        [xfrm add_no_if_id {dev d0} 255 $PRE_D0] \
+        [xfrm add_if_id_zero {if_id 0} 255] \
+        [xfrm add_if_id_over {if_id 0x100000000} 255] \
+        [xfrm add_no_value if_id 255]
+
+    ###########################################################################
+    # hsr (KC6-T01). One parser, ip/iplink_hsr.c. The device is hs0, its
+    # slaves d0 and d1 and its interlink d2, which every row's pre makes.
+    # supervision, version, proto, slave1 and slave2 are matches, in that
+    # order (sl is slave1); interlink is strcmp. The numbers are get_u8 base
+    # 0 and the devices ll_name_to_index, each an invarg when bad. ip's
+    # version and proto checks test get_u8's return, not the value, so any
+    # u8 reaches the kernel. hsr_newlink (net/hsr/hsr_netlink.c) refuses a
+    # missing or repeated slave, an interlink that is a slave, proto 2 and
+    # up, version with PRP and version 2 and up; there is no validate and
+    # no changelink.
+    ###########################################################################
+    variable HSR_BASE {slave1 d0 slave2 d1}
+    variable PRE_HS [list {link add d0 type dummy} {link add d1 type dummy}]
+    variable PRE_HS_D2 [list {link add d0 type dummy} {link add d1 type dummy} {link add d2 type dummy}]
+    variable PRE_HS0 [list {link add d0 type dummy} {link add d1 type dummy} \
+        {link add hs0 type hsr slave1 d0 slave2 d1}]
+
+    proc hsr {name words rc {pre {}}} {
+        variable PRE_HS
+        if {$pre eq ""} {
+            set pre $PRE_HS
+        }
+        return [plain hsr hs0 $name $words $rc $pre]
+    }
+
+    # hsr_base <name> <words> <rc> ?<pre>? - an add of $HSR_BASE and <words>.
+    proc hsr_base {name words rc {pre {}}} {
+        variable HSR_BASE
+        return [hsr $name [string trimright "$HSR_BASE $words"] $rc $pre]
+    }
+
+    lappend rows \
+        [hsr_base add_default {} 0] \
+        [hsr_base add_supervision {supervision 42} 0] \
+        [hsr_base add_supervision_max {supervision 255} 0] \
+        [hsr_base add_supervision_hex {supervision 0xff} 0] \
+        [hsr_base add_supervision_twice {supervision 1 supervision 2} 0] \
+        [hsr_base add_version_1 {version 1} 0] \
+        [hsr_base add_proto_prp {proto 1} 0] \
+        [hsr_base add_interlink {interlink d2} 0 $PRE_HS_D2] \
+        [hsr add_abbrev {sl d0 slave2 d1 s 7 v 1 p 0} 0] \
+        [hsr add_no_option {} 2] \
+        [hsr add_slave1_only {slave1 d0} 2] \
+        [hsr add_slave2_only {slave2 d1} 2] \
+        [hsr add_same_slaves {slave1 d0 slave2 d0} 2] \
+        [hsr_base add_version_2 {version 2} 2] \
+        [hsr_base add_proto_2 {proto 2} 2] \
+        [hsr_base add_prp_version {proto 1 version 0} 2] \
+        [hsr_base add_interlink_slave {interlink d0} 2] \
+        [hsr add_slave_lo {slave1 lo slave2 d1} 2] \
+        [tunnel_set hsr hs0 set_option {supervision 5} 2 $PRE_HS0] \
+        [tunnel_set hsr hs0 set_no_option {} 0 $PRE_HS0] \
+        [hsr_base add_interlink_abbrev {inter d2} 1 $PRE_HS_D2] \
+        [hsr_base add_protocol {protocol 1} 1] \
+        [hsr_base add_unknown foo 1] \
+        [hsr add_help help 1] \
+        [hsr_base add_supervision_over {supervision 256} 255] \
+        [hsr_base add_supervision_bad {supervision abc} 255] \
+        [hsr_base add_version_over {version 256} 255] \
+        [hsr add_slave_missing {slave1 nosuch slave2 d1} 255] \
+        [hsr_base add_no_value supervision 255]
+
+    ###########################################################################
+    # netkit (KC6-T02). One parser, ip/iplink_netkit.c. The device is nt0,
+    # and nt1 the peer where a row names it. Every keyword is strcmp; mode
+    # and peer are checked for repeats. forward/blackhole and scrub send the
+    # peer's attribute after peer, and the first other word after peer
+    # hands the rest to iplink_parse inside PEER_INFO, where a set looks the
+    # name up (nodev, 1). The parser keeps state in statics, so no row runs
+    # under -batch. netkit_new_link (drivers/net/netkit.c) refuses an
+    # address in l3 mode and registers the peer first; its changelink takes
+    # only the two policies, and anything else, or any change through the
+    # peer, is -EACCES.
+    ###########################################################################
+    variable PRE_NT0 [list {link add nt0 type netkit}]
+    variable PRE_NT0_NT1 [list {link add nt0 type netkit peer name nt1}]
+
+    proc netkit {name words rc {pre {}}} {
+        return [plain netkit nt0 $name $words $rc $pre]
+    }
+
+    proc netkit_set {name words rc {pre {}}} {
+        variable PRE_NT0
+        if {$pre eq ""} {
+            set pre $PRE_NT0
+        }
+        return [tunnel_set netkit nt0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [netkit add_no_option {} 0] \
+        [netkit add_peer_only peer 0] \
+        [netkit add_mode_l2 {mode l2} 0] \
+        [netkit add_mode_l3 {mode l3} 0] \
+        [netkit add_blackhole blackhole 0] \
+        [netkit add_policy_twice {forward blackhole} 0] \
+        [netkit add_scrub_none {scrub none} 0] \
+        [netkit add_peer_blackhole {peer blackhole} 0] \
+        [netkit add_peer_scrub {peer scrub none} 0] \
+        [netkit add_peer_name {peer name nt1} 0] \
+        [netkit add_peer_bare_name {peer nt1} 0] \
+        [netkit add_peer_word {peer black} 0] \
+        [netkit add_peer_mode {peer mode l2} 0] \
+        [netkit add_peer_up {peer up} 0] \
+        [row netkit add_l2_address {} {ip link add nt0 address 02:00:00:00:00:01 type netkit mode l2} 0 nt0] \
+        [netkit add_peer_samename {peer name nt0} 2] \
+        [row netkit add_l3_address {} {ip link add nt0 address 02:00:00:00:00:01 type netkit} 2 nt0] \
+        [netkit add_l3_peer_address {peer address 02:00:00:00:00:01} 2] \
+        [row netkit add_mcast_address {} {ip link add nt0 address 01:00:00:00:00:01 type netkit mode l2} 2 nt0] \
+        [netkit_set set_blackhole blackhole 0] \
+        [netkit_set set_peer_policy {peer blackhole} 0] \
+        [netkit_set set_no_option {} 0] \
+        [netkit_set set_peer_only peer 0] \
+        [netkit_set set_mode {mode l3} 2] \
+        [netkit_set set_scrub {scrub none} 2] \
+        [netkit_set set_peer_name {peer name nt1} 2 $PRE_NT0_NT1] \
+        [tunnel_set netkit nt1 set_on_peer blackhole 2 $PRE_NT0_NT1] \
+        [netkit add_mode_bad {mode l4} 1] \
+        [netkit add_mode_case {mode L2} 1] \
+        [netkit add_mode_abbrev {mo l2} 1] \
+        [netkit add_scrub_bad {scrub all} 1] \
+        [netkit add_unknown foo 1] \
+        [netkit add_help help 1] \
+        [netkit add_headroom {headroom 64} 1] \
+        [netkit_set set_peer_nodev {peer name nosuch} 1] \
+        [netkit add_mode_missing mode 255] \
+        [netkit add_mode_twice {mode l3 mode l2} 255] \
+        [netkit add_scrub_missing scrub 255] \
+        [netkit add_peer_twice {peer peer} 255] \
+        [netkit add_peer_type {peer name nt1 type veth} 255] \
+        [netkit add_peer_help {peer help} 255] \
+        [netkit add_peer_name_then_word {peer name nt1 blackhole} 255] \
+        [netkit add_peer_name_long {peer name abcdefghijklmnop} 255]
+
+    ###########################################################################
+    # vrf, vrf_slave and vxcan (KC6-T03). ip/iplink_vrf.c has one keyword,
+    # table (matches), through rtnl_rttable_a2n; vrf_newlink
+    # (drivers/net/vrf.c) requires it nonzero, and vrf has no changelink.
+    # vrf_slave has no parser: its rows enslave d0 with master or vrf,
+    # whose names are looked up (invarg, 255). ip/iplink_vxcan.c wants peer
+    # first and hands the rest to iplink_parse, where a set looks the name
+    # up (nodev, 1). vxcan registers the peer first and has no changelink.
+    # The vrf is vr0, its second vr1, the vxcan vc0 and its peer vc1.
+    ###########################################################################
+    variable PRE_VR0 [list {link add vr0 type vrf table 10}]
+    variable PRE_VR0_D0 [list {link add vr0 type vrf table 10} {link add d0 type dummy}]
+    variable PRE_VR0_D0_SLAVE [list {link add vr0 type vrf table 10} {link add d0 type dummy} \
+        {link set d0 master vr0}]
+    variable PRE_VC0_VC1 [list {link add vc0 type vxcan peer name vc1}]
+
+    proc vrf {name words rc {pre {}}} {
+        return [plain vrf vr0 $name $words $rc $pre]
+    }
+
+    # vrf_slave <name> <command> <rc> <pre> <dev> - a whole command on <dev>.
+    proc vrf_slave {name command rc pre dev} {
+        return [row vrf_slave $name $pre $command $rc $dev]
+    }
+
+    proc vxcan {name words rc {pre {}}} {
+        return [plain vxcan vc0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [vrf add_table {table 10} 0] \
+        [vrf add_table_max {table 4294967295} 0] \
+        [vrf add_table_hex {table 0x10} 0] \
+        [vrf add_table_main {table main} 0] \
+        [vrf add_table_twice {table 10 table 20} 0] \
+        [vrf add_abbrev {t 10} 0] \
+        [vrf add_shared_table {table 10} 0 [list {link add vr1 type vrf table 10}]] \
+        [vrf add_no_option {} 2] \
+        [vrf add_table_zero {table 0} 2] \
+        [row vrf add_mcast_address {} {ip link add vr0 address 01:00:00:00:00:01 type vrf table 10} 2 vr0] \
+        [tunnel_set vrf vr0 set_table {table 20} 2 $PRE_VR0] \
+        [tunnel_set vrf vr0 set_no_option {} 0 $PRE_VR0] \
+        [vrf add_unknown {tbl 10} 1] \
+        [vrf add_help help 1] \
+        [vrf add_table_over {table 4294967296} 255] \
+        [vrf add_table_neg {table -1} 255] \
+        [vrf add_table_bad {table abc} 255] \
+        [vrf add_no_value table 255] \
+        [vrf_slave set_master {ip link set d0 master vr0} 0 $PRE_VR0_D0 d0] \
+        [vrf_slave set_vrf {ip link set d0 vrf vr0} 0 $PRE_VR0_D0 d0] \
+        [vrf_slave set_type {ip link set d0 type vrf_slave} 0 $PRE_VR0_D0_SLAVE d0] \
+        [vrf_slave set_nomaster {ip link set d0 nomaster} 0 $PRE_VR0_D0_SLAVE d0] \
+        [vrf_slave set_master_lo {ip link set lo master vr0} 2 $PRE_VR0 lo] \
+        [vrf_slave set_vrf_in_vrf {ip link set vr1 master vr0} 2 [concat $PRE_VR0 [list {link add vr1 type vrf table 20}]] vr1] \
+        [vrf_slave add {ip link add vs0 type vrf_slave} 2 {} vs0] \
+        [vrf_slave set_type_word {ip link set d0 type vrf_slave table 5} 1 $PRE_VR0_D0_SLAVE d0] \
+        [vrf_slave set_vrf_not_vrf {ip link set d0 vrf d1} 255 [list {link add d0 type dummy} {link add d1 type dummy}] d0] \
+        [vrf_slave set_master_missing {ip link set d0 master nosuch} 255 $PRE_D0 d0] \
+        [vxcan add_no_option {} 0] \
+        [vxcan add_peer peer 0] \
+        [vxcan add_peer_name {peer name vc1} 0] \
+        [vxcan add_peer_bare_name {peer vc1} 0] \
+        [row vxcan add_up {} {ip link add vc0 up type vxcan} 0 vc0] \
+        [vxcan add_peer_samename {peer name vc0} 2] \
+        [vxcan add_peer_up {peer up} 2] \
+        [tunnel_set vxcan vc0 set_peer {peer name vc1} 2 $PRE_VC0_VC1] \
+        [tunnel_set vxcan vc0 set_no_option {} 0 $PRE_VC0_VC1] \
+        [vxcan add_unknown foo 1] \
+        [vxcan add_abbrev pe 1] \
+        [vxcan add_help help 1] \
+        [tunnel_set vxcan vc0 set_peer_nodev {peer name nosuch} 1 $PRE_VC0_VC1] \
+        [vxcan add_peer_name_long {peer name abcdefghijklmnop} 255] \
+        [vxcan add_peer_name_missing {peer name} 255] \
+        [vxcan add_peer_type {peer type vxcan} 255] \
+        [vxcan add_peer_help {peer help} 255] \
+        [tunnel_set vxcan vc0 set_peer_bare peer 255 $PRE_VC0_VC1]
+
+    ###########################################################################
+    # batadv, ifb, nlmon, vcan, team and team_slave (KC6-T04).
+    # ip/iplink_batadv.c has one keyword, ra (matches), sent unchecked; the
+    # kernel's validate looks the name up case-sensitively, and there's no
+    # changelink. The other five have no parser, so a word after type is
+    # Garbage (1), or usage() (255) for a prefix of help, and their rows put
+    # the generic words before type. ifb refuses a multicast address,
+    # nlmon any address and an mtu under 16; vcan's ndo_change_mtu takes
+    # 16, 72 and 76 to 2060, never while up, and a create skips it. team
+    # enslaves without teamd, refusing loopback, itself and a port that is
+    # up. The devices are bat0, ib0, nm0, vn0 and tm0, with d0 the port.
+    ###########################################################################
+    variable PRE_BAT0 [list {link add bat0 type batadv}]
+    variable PRE_IB0 [list {link add ib0 type ifb}]
+    variable PRE_NM0 [list {link add nm0 type nlmon}]
+    variable PRE_VN0 [list {link add vn0 type vcan}]
+    variable PRE_TM0 [list {link add tm0 type team}]
+    variable PRE_TM0_D0 [list {link add tm0 type team} {link add d0 type dummy}]
+    variable PRE_TM0_D0_SLAVE [list {link add tm0 type team} {link add d0 type dummy} \
+        {link set d0 master tm0}]
+
+    proc batadv {name words rc {pre {}}} {
+        return [plain batadv bat0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [batadv add_no_option {} 0] \
+        [batadv add_ra_v {ra BATMAN_V} 0] \
+        [batadv add_ra_iv {ra BATMAN_IV} 0] \
+        [batadv add_abbrev {r BATMAN_V} 0] \
+        [batadv add_ra_twice {ra BATMAN_IV ra BATMAN_V} 0] \
+        [batadv add_duplicate {} 2 $PRE_BAT0] \
+        [batadv add_ra_bogus {ra BOGUS} 2] \
+        [batadv add_ra_lowercase {ra batman_v} 2] \
+        [row batadv add_mtu_low {} {ip link add bat0 mtu 67 type batadv} 2 bat0] \
+        [tunnel_set batadv bat0 set_ra {ra BATMAN_V} 2 $PRE_BAT0] \
+        [tunnel_set batadv bat0 set_ra_bogus {ra BOGUS} 2 $PRE_BAT0] \
+        [tunnel_set batadv bat0 set_no_option {} 0 $PRE_BAT0] \
+        [batadv add_unknown foo 1] \
+        [batadv add_ra_longer {rax BATMAN_V} 1] \
+        [batadv add_help help 1] \
+        [tunnel_set batadv bat0 set_nodev {ra BATMAN_V} 1 {}] \
+        [batadv add_no_value ra 255] \
+        [plain ifb ib0 add_no_option {} 0] \
+        [row ifb add_numtxqueues {} {ip link add ib0 numtxqueues 4 type ifb} 0 ib0] \
+        [tunnel_set ifb ib0 set_no_option {} 0 $PRE_IB0] \
+        [row ifb set_kind_mismatch $PRE_IB0 {ip link set ib0 type vcan} 0 ib0] \
+        [row ifb add_mcast_address {} {ip link add ib0 address 01:00:5e:00:00:01 type ifb} 2 ib0] \
+        [plain ifb ib0 add_garbage foo 1] \
+        [plain ifb ib0 add_mtu_after_type {mtu 1400} 1] \
+        [tunnel_set ifb ib0 set_garbage foo 1 $PRE_IB0] \
+        [plain ifb ib0 add_help_abbrev h 255] \
+        [plain nlmon nm0 add_no_option {} 0] \
+        [row nlmon add_mtu_min {} {ip link add nm0 mtu 16 type nlmon} 0 nm0] \
+        [row nlmon add_address {} {ip link add nm0 address 00:11:22:33:44:55 type nlmon} 2 nm0] \
+        [row nlmon add_mtu_below {} {ip link add nm0 mtu 15 type nlmon} 2 nm0] \
+        [tunnel_set nlmon nm0 set_no_option {} 0 $PRE_NM0] \
+        [plain nlmon nm0 add_garbage foo 1] \
+        [plain vcan vn0 add_no_option {} 0] \
+        [row vcan add_mtu_16 {} {ip link add vn0 mtu 16 type vcan} 0 vn0] \
+        [row vcan add_mtu_100 {} {ip link add vn0 mtu 100 type vcan} 0 vn0] \
+        [row vcan set_mtu_72 $PRE_VN0 {ip link set vn0 mtu 72} 0 vn0] \
+        [row vcan set_mtu_76 $PRE_VN0 {ip link set vn0 mtu 76} 0 vn0] \
+        [row vcan set_mtu_same $PRE_VN0 {ip link set vn0 mtu 2060} 0 vn0] \
+        [row vcan set_up_and_mtu $PRE_VN0 {ip link set vn0 up mtu 72} 0 vn0] \
+        [tunnel_set vcan vn0 set_no_option {} 0 $PRE_VN0] \
+        [row vcan set_mtu_75 $PRE_VN0 {ip link set vn0 mtu 75} 2 vn0] \
+        [row vcan set_mtu_2061 $PRE_VN0 {ip link set vn0 mtu 2061} 2 vn0] \
+        [row vcan set_mtu_up [concat $PRE_VN0 [list {link set vn0 up}]] {ip link set vn0 mtu 72} 2 vn0] \
+        [plain vcan vn0 add_garbage foo 1] \
+        [plain vcan vn0 add_mtu_after_type {mtu 72} 1] \
+        [plain team tm0 add_no_option {} 0] \
+        [tunnel_set team tm0 set_no_option {} 0 $PRE_TM0] \
+        [row team set_enslave $PRE_TM0_D0 {ip link set d0 master tm0} 0 d0] \
+        [row team add_enslaved $PRE_TM0 {ip link add d0 master tm0 type dummy} 0 d0] \
+        [row team set_enslave_again $PRE_TM0_D0_SLAVE {ip link set d0 master tm0} 0 d0] \
+        [row team set_nomaster $PRE_TM0_D0_SLAVE {ip link set d0 nomaster} 0 d0] \
+        [row team add_mcast_address {} {ip link add tm0 address 01:00:5e:00:00:01 type team} 2 tm0] \
+        [row team set_enslave_up $PRE_TM0_D0 {ip link set d0 up master tm0} 2 d0] \
+        [row team add_enslaved_up $PRE_TM0 {ip link add d0 up master tm0 type dummy} 2 d0] \
+        [row team set_enslave_lo $PRE_TM0 {ip link set lo master tm0} 2 lo] \
+        [row team set_enslave_self $PRE_TM0 {ip link set tm0 master tm0} 2 tm0] \
+        [plain team tm0 add_garbage {mode activebackup} 1] \
+        [plain team tm0 add_help help 255] \
+        [row team set_master_missing $PRE_D0 {ip link set d0 master nosuch} 255 d0] \
+        [row team_slave add {} {ip link add ts0 type team_slave} 2 ts0] \
+        [row team_slave set_no_option $PRE_TM0_D0_SLAVE {ip link set d0 type team_slave} 0 d0] \
+        [row team_slave set_unenslaved $PRE_D0 {ip link set d0 type team_slave} 0 d0] \
+        [row team_slave set_garbage $PRE_TM0_D0_SLAVE {ip link set d0 type team_slave prio 1} 1 d0]
+
+    ###########################################################################
+    # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
+    # list for one readback, which the driver hands to its capio proc.
+    ###########################################################################
+    proc readback_args {ns subdir readback} {
+        if {[llength $readback] != 3} {
+            error "kindcorpus: a readback is {name floor command}: $readback"
+        }
+        lassign $readback name floor command
+        return [list $ns $subdir netlink_route_$name $floor $command ip_$name]
+    }
+
+    ###########################################################################
+    # rc_problem <slug> <want> <got> - "" when the row's ip.rc is what the row
+    # says, else the line the driver reports. <got> is the file's content,
+    # or "" when it could not be read.
+    ###########################################################################
+    proc rc_problem {slug want got} {
+        set got [string trim $got]
+        if {$got eq $want} {
+            return ""
+        }
+        if {$got eq ""} {
+            return "kinds/$slug/ip.rc unreadable, want $want"
+        }
+        return "kinds/$slug/ip.rc is $got, want $want"
+    }
+}

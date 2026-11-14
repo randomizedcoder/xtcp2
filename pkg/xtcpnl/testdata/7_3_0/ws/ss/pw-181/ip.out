@@ -1,0 +1,5 @@
+State  Recv-Q Send-Q      Local Address:Port       Peer Address:Port
+LISTEN 0      8               127.0.0.1:22              0.0.0.0:*
+LISTEN 0      8                   [::1]:80                 [::]:*
+LISTEN 0      8                       *:443                   *:*
+ESTAB  0      0      [::ffff:127.0.0.1]:443  [::ffff:127.0.0.1]:45000

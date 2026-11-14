@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "dport": "1-1",
+  "dscp": "32",
+  "dscp_mask": "48",
+  "dst": "203.0.113.9",
+  "dst_len": "32",
+  "family": "4",
+  "fwmark": "16",
+  "iif": "nosuch",
+  "ipproto": "17",
+  "l3mdev": "1",
+  "priority": "100",
+  "sport": "80-80",
+  "sup_group": "0",
+  "tun_id": "7",
+  "verb": "del"
+ },
+ "cmd": "ip -4 rule del to 203.0.113.9/32 pref 100 fwmark 0x10 iif nosuch dscp 32/0x30 ipproto udp sport 80 dport 1 sup_group default tun_id 7 l3mdev",
+ "desc": "corner: verb=del not=absent from=absent to=32 pref=100 fwmark=16 iif=nosuch oif=absent ds=dscp-mask ipproto=udp sport=80 dport=1 uidrange=absent suppress=group-default protocol=absent extra=tun_id action=l3mdev",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule4/pw-011",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -4 rule add to 203.0.113.9/32 pref 100 fwmark 0x10 iif nosuch dscp 32/0x30 ipproto udp sport 80 dport 1 sup_group default tun_id 7 l3mdev"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -4 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -4 rule add to 203.0.113.9/32 pref 100 fwmark 0x10 iif nosuch dscp 32/0x30 ipproto udp sport 80 dport 1 sup_group default tun_id 7 l3mdev",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

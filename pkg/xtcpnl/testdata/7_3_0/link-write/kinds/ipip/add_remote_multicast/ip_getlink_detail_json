@@ -1,0 +1,40 @@
+[ {
+        "ifindex": 3,
+        "link": null,
+        "ifname": "ip0",
+        "flags": [ "POINTOPOINT","NOARP" ],
+        "mtu": 1480,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ipip",
+        "address": "0.0.0.0",
+        "link_pointtopoint": true,
+        "broadcast": "239.1.1.1",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 0,
+        "max_mtu": 0,
+        "linkinfo": {
+            "info_kind": "ipip",
+            "info_data": {
+                "proto": "any",
+                "remote": "239.1.1.1",
+                "local": "any",
+                "ttl": 0,
+                "pmtudisc": true
+            }
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 65536,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

@@ -1,0 +1,3 @@
+	 key #0  at 0: val 12345678 mask 00000000
+	 key #1  at 0: val 00000000 mask ff0000ff
+	 key #2  at 0: val 0000ff00 mask ffffffff

@@ -47,6 +47,8 @@ func (x *XTCP) Init(ctx context.Context) {
 		return
 	}
 
+	x.announceCapture()
+
 	// initChanenls first, so that signaling channels are ready
 	x.initChannels()
 
@@ -91,6 +93,9 @@ func (x *XTCP) Init(ctx context.Context) {
 	x.initContainerResolver()
 
 	wg.Wait()
+
+	// After InitPromethus, like the enrichers below: it sets a gauge.
+	x.checkNetnsPropagation()
 
 	// initEnrichers runs AFTER the wait, not before it. Every enricher reports
 	// its outcome through x.pC / x.pGV, which InitPromethus creates on one of

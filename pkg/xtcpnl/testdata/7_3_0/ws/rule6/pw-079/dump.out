@@ -1,0 +1,3 @@
+0:	from all lookup local
+32766:	from all lookup main
+4294967295:	from all fwmark 0x10/0xff sport 0x50/0xfff0 dport 1000-2000 unreachable dscp 4

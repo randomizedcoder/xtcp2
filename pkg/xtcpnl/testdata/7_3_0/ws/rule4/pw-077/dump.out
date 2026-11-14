@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all tos 0x08 iif d0 sport 0x50/0xfff0 dport 80 unreachable
+32766:	from all lookup main
+32767:	from all lookup default

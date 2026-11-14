@@ -68,6 +68,12 @@ func TestCorpus730MatchesSidecarsAt720(t *testing.T) {
 		// builds (nexthop ids 10/20, goip0, goipvrf). Elsewhere `ip` failed
 		// and saved an empty sidecar, and goip must refuse too.
 		cleanOnly bool
+		// failsEverywhere marks a row `ip` failed in every namespace —
+		// `vrf show $dev`, whose device exists everywhere but is no VRF
+		// (iplink_vrf.c:161-165's kind check) — so the sidecar is empty
+		// everywhere and goip must refuse everywhere. The rc and the
+		// stderr line stay VS2 unit assertions: capio records stdout only.
+		failsEverywhere bool
 	}
 	base := []row{
 		{category: "positive", description: "-s addr show", expected: "byte-identical",
@@ -114,6 +120,18 @@ func TestCorpus730MatchesSidecarsAt720(t *testing.T) {
 			args: []string{"stats", "show", "group", "xstats"}, pcap: "netlink_route_getstats_xstats", sidecar: "ip_stats_xstats"},
 		{category: "positive", description: "vrf show", expected: "byte-identical",
 			args: []string{"vrf", "show"}, pcap: "netlink_route_getvrf", sidecar: "ip_vrf"},
+		{category: "positive", description: "vrf show goipvrf, ipvrf_get_table's single lookup", expected: "byte-identical",
+			args: []string{"vrf", "show", "goipvrf"}, pcap: "netlink_route_getvrf_name", sidecar: "ip_vrf_name", cleanOnly: true},
+		{category: "positive", description: "-4 vrf show goipvrf, the family byte reaching the request", expected: "byte-identical",
+			args: []string{"-4", "vrf", "show", "goipvrf"}, pcap: "netlink_route_getvrf_name_v4", sidecar: "ip_vrf_name_v4", cleanOnly: true},
+		{category: "positive", description: "-6 vrf show goipvrf likewise", expected: "byte-identical",
+			args: []string{"-6", "vrf", "show", "goipvrf"}, pcap: "netlink_route_getvrf_name_v6", sidecar: "ip_vrf_name_v6", cleanOnly: true},
+		{category: "corner", description: "-0 vrf show goipvrf, the AF_PACKET byte no other vrf request carries", expected: "byte-identical",
+			args: []string{"-0", "vrf", "show", "goipvrf"}, pcap: "netlink_route_getvrf_name_0", sidecar: "ip_vrf_name_0", cleanOnly: true},
+		{category: "corner", description: "vrf show default, ENODEV's main-table arm", expected: "byte-identical in every namespace",
+			args: []string{"vrf", "show", "default"}, pcap: "netlink_route_getvrf_default", sidecar: "ip_vrf_default"},
+		{category: "negative", description: "vrf show $dev, an existing non-VRF device", expected: "goip refuses as ip did: non-zero exit, nothing on stdout",
+			args: []string{"vrf", "show"}, withDev: true, failsEverywhere: true, pcap: "netlink_route_getvrf_novrf", sidecar: "ip_vrf_novrf"},
 		{category: "corner", description: "-s neigh show", expected: "the same lines, in the dump's order",
 			args: []string{"-s", "neigh", "show"}, pcap: "netlink_route_getneigh_stats", sidecar: "ip_neigh_stats", sameLines: true},
 	}
@@ -129,7 +147,7 @@ func TestCorpus730MatchesSidecarsAt720(t *testing.T) {
 				name = "clean"
 			}
 			category, expected := r.category, r.expected
-			refuse := r.cleanOnly && ns.subdir != ""
+			refuse := (r.cleanOnly && ns.subdir != "") || r.failsEverywhere
 			if refuse {
 				category, expected = "negative", "goip refuses as ip did: non-zero exit, nothing on stdout"
 			}

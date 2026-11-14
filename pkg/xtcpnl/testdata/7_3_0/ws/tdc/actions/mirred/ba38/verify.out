@@ -1,0 +1,11 @@
+total acts 2
+
+	action order 0: mirred (Egress Mirror to device lo) pipe
+	index 1 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: mirred (Egress Redirect to device lo) stolen
+	index 2 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled

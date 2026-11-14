@@ -1,0 +1,11 @@
+ok    [lacpa] ip link add c0 type dummy
+ok    [lacpa] ip link set c0 up
+ok    [lacpa] ip link add br0 type bridge vlan_filtering 1
+ok    [lacpa] ip link set br0 addrgenmode none
+ok    [lacpa] ip link add v0 type veth peer name v0p
+ok    [lacpa] ip link set v0 addrgenmode none
+ok    [lacpa] ip link set v0p addrgenmode none
+ok    [lacpa] ip link set v0p address 02:00:00:00:00:12
+ok    [lacpa] ip link set v0 master br0
+ok    [lacpa] ip link set br0 up
+ok    [lacpa] ip link set v0 up

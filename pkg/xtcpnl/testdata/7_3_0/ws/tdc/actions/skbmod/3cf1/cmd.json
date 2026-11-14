@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action skbmod set etype 0xfefe",
+ "desc": "positive: Add skbmod action with valid etype",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)action order [0-9]*: skbmod pipe set etype 0xFEFE",
+   "readback": "verify"
+  },
+  "rc": 0
+ },
+ "id": "tdc/actions/skbmod/3cf1",
+ "modules": [
+  "act_skbmod"
+ ],
+ "pre": [
+  [
+   "tc actions flush action skbmod",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action skbmod",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action skbmod",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "source": {
+  "id": "3cf1",
+  "tdc": "actions/skbmod.json"
+ }
+}

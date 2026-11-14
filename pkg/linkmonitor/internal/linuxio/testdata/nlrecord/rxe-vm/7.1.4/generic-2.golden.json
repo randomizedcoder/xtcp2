@@ -17,17 +17,17 @@
   {
     "call": "GetEthtool(linkinfo, 4)",
     "values": 1,
-    "digest": "1a0052f1feb5a729"
+    "digest": "dfedeca617ee6646"
   },
   {
     "call": "GetEthtool(linkmodes, 4)",
     "values": 1,
-    "digest": "fb15aa9372b17ef5"
+    "digest": "fa618763b6c3a24c"
   },
   {
     "call": "GetEthtool(linkstate, 4)",
     "values": 1,
-    "digest": "9a2d4b5aa7d99280"
+    "digest": "6bd89c13d15939f5"
   },
   {
     "call": "GetEthtool(rings, 4)",

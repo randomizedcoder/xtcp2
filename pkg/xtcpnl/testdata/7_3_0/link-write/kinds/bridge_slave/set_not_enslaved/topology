@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add p0 type dummy

@@ -1,0 +1,50 @@
+{
+ "cmd": "ip link add dev dummy1 txqueuelen 500000 type dummy",
+ "desc": "negative: Reject creating device with oversized tx_queue_len (500000)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)^[0-9]+: dummy1",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/qdiscs/pfifo_fast/e777",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  [
+   "ip link del dev dummy1",
+   [
+    1
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "ip -o link show",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link del dev dummy1",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "e777",
+  "tdc": "qdiscs/pfifo_fast.json"
+ }
+}

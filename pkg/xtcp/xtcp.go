@@ -205,8 +205,10 @@ type XTCP struct {
 	linkMonitorDown atomic.Bool
 
 	flatRecordService *xtcpFlatRecordService
-	configService     *xtcpConfigService
-	grpcHealth        *grpchealth.Server
+	// grpcListeners are the gRPC listeners to serve (SetGRPCListeners).
+	grpcListeners []GRPCListener
+	configService *xtcpConfigService
+	grpcHealth    *grpchealth.Server
 
 	// reconfigureFunc is the process-level "soft restart" hook. The gRPC
 	// ConfigService.Set handler calls it with a validated new config; the cmd
@@ -332,7 +334,7 @@ func NewXTCP(ctx context.Context, cancel context.CancelFunc, config *xtcp_config
 // OnReconfigure registers the process-level soft-restart hook, invoked by the
 // gRPC ConfigService.Set handler with a validated new config. Must be called
 // after NewXTCP and before RunWithPoller, so it is set before the gRPC config
-// service is constructed in startGRPCflatRecordService. See cmd/xtcp2.
+// service is constructed in startGRPCServers. See cmd/xtcp2.
 func (x *XTCP) OnReconfigure(f func(*xtcp_config.XtcpConfig)) {
 	x.reconfigureFunc = f
 }
@@ -393,7 +395,7 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 
 	x.pC.WithLabelValues("Run", "start", "counter").Inc()
 
-	go x.startGRPCflatRecordService(ctx)
+	x.startGRPCServers(ctx)
 
 	if x.linkMonitor != nil {
 		workers.Add(1)

@@ -1,0 +1,5 @@
+unicast 2001:db8:1::/64 dev d0 table main proto kernel scope global metric 256 pref medium
+unicast 2001:db8:2::/64  encap rpl segs 3 [ 2001:db8:9::1 2001:db8:9::2 2001:db8:9::3 ] dev d0 table main proto boot scope global metric 1024 pref medium
+local ::1 dev lo table local proto kernel scope global metric 0 pref medium
+local 2001:db8:1::10 dev d0 table local proto kernel scope global metric 0 pref medium
+multicast ff00::/8 dev d0 table local proto kernel scope global metric 256 pref medium

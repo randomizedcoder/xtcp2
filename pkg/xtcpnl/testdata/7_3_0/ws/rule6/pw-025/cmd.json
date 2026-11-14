@@ -1,0 +1,54 @@
+{
+ "axes": {
+  "action": "2",
+  "dport": "1-1",
+  "dst": "2001:db8:3::",
+  "dst_len": "64",
+  "family": "6",
+  "goto": "40000",
+  "invert": "1",
+  "ipproto": "255",
+  "oif": "d0",
+  "sport": "65534-65534",
+  "sup_group": "5",
+  "tos": "8",
+  "tun_id": "7",
+  "uidrange": "1000-2000",
+  "verb": "del"
+ },
+ "cmd": "ip -6 rule del not to 2001:db8:3::/64 oif d0 dsfield 0x08 ipproto 255 sport 65534 dport 1 uidrange 1000-2000 suppress_ifgroup 5 tun_id 7 goto 40000",
+ "desc": "corner: verb=del not=not from=absent to=64 pref=absent fwmark=absent iif=absent oif=d0 ds=dsfield ipproto=255 sport=65534 dport=1 uidrange=1000 suppress=group protocol=absent extra=tun_id action=goto",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rule6/pw-025",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+  "ip -6 rule add not to 2001:db8:3::/64 oif d0 dsfield 0x08 ipproto 255 sport 65534 dport 1 uidrange 1000-2000 suppress_ifgroup 5 tun_id 7 goto 40000"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 rule show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 rule add not to 2001:db8:3::/64 oif d0 dsfield 0x08 ipproto 255 sport 65534 dport 1 uidrange 1000-2000 suppress_ifgroup 5 tun_id 7 goto 40000",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

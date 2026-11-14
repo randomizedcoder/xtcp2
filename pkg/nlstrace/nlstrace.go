@@ -122,7 +122,7 @@ func Parse(r io.Reader) ([]Datagram, error) {
 
 // ParseFile is Parse of the file at path.
 func ParseFile(path string) (dgs []Datagram, err error) {
-	f, err := os.Open(path) //nolint:gosec // the caller names the capture to read
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}

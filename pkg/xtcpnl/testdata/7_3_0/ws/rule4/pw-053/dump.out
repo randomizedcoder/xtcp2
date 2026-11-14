@@ -1,0 +1,4 @@
+0:	from all lookup local
+100:	from all tos 0x10 fwmark 0xffffffff ipproto ipproto-255 sport 0x50/0xfff0 dport 65534 goto 40000 [unresolved]
+32766:	from all lookup main
+32767:	from all lookup default

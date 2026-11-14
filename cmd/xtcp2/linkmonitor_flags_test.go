@@ -32,13 +32,15 @@ func TestEnvOverrideLinkMonitor(t *testing.T) {
 				"LINK_MONITOR_BASELINE_FILE": "/env.json", "LINK_MONITOR_STATS_INCLUDE": "^mlx",
 				"LINK_MONITOR_METRICS_CORE_EXCLUDE": "x", "LINK_MONITOR_MAX_SPEED_EXCEPTIONS": "eth0,eth1",
 				"LINK_MONITOR_RESYNC": "5m", "LINK_MONITOR_SETTLE": "0s", "LINK_MONITOR_METRICS_ALL": "1",
+				"LINK_MONITOR_LEARN_DEADLINE": "0s",
 			},
 			start: flagValue(),
 			check: func(m *xtcp_config.LinkMonitorConfig) bool {
 				return m.GetBaselineFile() == "/env.json" && m.GetStatsInclude() == "^mlx" &&
 					m.GetMetricsCoreExclude() == "x" && len(m.GetMaxSpeedExceptions()) == 2 &&
 					m.GetResync().AsDuration() == 5*time.Minute && m.GetSettle() != nil &&
-					m.GetSettle().AsDuration() == 0 && m.GetMetricsAll()
+					m.GetSettle().AsDuration() == 0 && m.GetMetricsAll() &&
+					m.GetLearnDeadline() != nil && m.GetLearnDeadline().AsDuration() == 0
 			},
 		},
 		{
@@ -120,7 +122,7 @@ func TestEnvOverrideLinkMonitor(t *testing.T) {
 			category: "corner", description: "no variables leave the flag values untouched",
 			expected: "unchanged", start: flagValue(),
 			check: func(m *xtcp_config.LinkMonitorConfig) bool {
-				return m.GetBaselineFile() == "/flag.json" && !m.GetEnable() && m.GetSettle() == nil &&
+				return m.GetBaselineFile() == "/flag.json" && !m.GetEnable() && m.GetSettle() == nil && m.GetLearnDeadline() == nil &&
 					m.ErrorClasses == nil && m.MetricsAllPath == nil && !m.GetIpPaths()
 			},
 		},

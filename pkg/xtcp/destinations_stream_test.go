@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -29,37 +28,6 @@ func TestStderrDestFactory(t *testing.T) {
 	}
 	if err := dest.Close(); err != nil {
 		t.Errorf("Close: %v", err)
-	}
-}
-
-// TestFileDest writes payloads and reads them back from the file.
-func TestFileDest(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "out.jsonl")
-	x := newTestXTCP(t, "file:"+path)
-	dest, err := newFileDest(context.Background(), x)
-	if err != nil {
-		t.Fatalf("newFileDest: %v", err)
-	}
-	payload := []byte("hello\n")
-	if _, err := dest.Send(context.Background(), &payload); err != nil {
-		t.Fatalf("Send: %v", err)
-	}
-	if err := dest.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != "hello\n" {
-		t.Errorf("file content = %q, want %q", got, "hello\n")
-	}
-}
-
-func TestFileDest_emptyPath(t *testing.T) {
-	x := newTestXTCP(t, "file:")
-	if _, err := newFileDest(context.Background(), x); err == nil {
-		t.Fatal("expected error for empty file path")
 	}
 }
 
@@ -162,7 +130,7 @@ func TestHTTPDest_non2xx(t *testing.T) {
 
 // TestNewStreamSchemesRegistered confirms all new schemes resolve.
 func TestNewStreamSchemesRegistered(t *testing.T) {
-	for _, s := range []string{schemeStderr, schemeFile, schemeTCP, schemeHTTP, schemeHTTPS} {
+	for _, s := range []string{schemeStderr, schemeTCP, schemeHTTP, schemeHTTPS} {
 		if _, status := lookupDestinationFactory(s); status != destLookupFound {
 			t.Errorf("scheme %q not registered (status %v)", s, status)
 		}

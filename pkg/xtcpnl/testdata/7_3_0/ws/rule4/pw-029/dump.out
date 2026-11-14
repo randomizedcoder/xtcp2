@@ -1,0 +1,4 @@
+0:	from all lookup local
+32765:	not from all to 203.0.113.0/24 oif nosuch [detached] uidrange 0-4294967294 ipproto udp sport 80 dport 65534 tun_id 7 lookup 4294967295 suppress_prefixlength 0 proto static dscp 63
+32766:	from all lookup main
+32767:	from all lookup default

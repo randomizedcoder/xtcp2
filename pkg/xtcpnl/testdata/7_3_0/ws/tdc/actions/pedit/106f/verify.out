@@ -1,0 +1,6 @@
+total acts 1
+
+	action order 0:  pedit action reclassify keys 1
+ 	 index 1 ref 1 bind 0
+	 key #0  at 0: val 00ff0000 mask ffffffff
+	not_in_hw

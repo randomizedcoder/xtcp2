@@ -47,6 +47,18 @@ func monRouteBody(family uint8, flags, oif uint32) []byte {
 	return catBytes(b, nla(unix.RTA_DST, []byte{10, 1, 0, 0}), nla(unix.RTA_OIF, le32(oif)))
 }
 
+// monTosRouteBody is monRouteBody's inet route with tos EF.
+func monTosRouteBody() []byte {
+	b := monRouteBody(unix.AF_INET, 0, 3)
+	b[3] = 0xb8
+	return b
+}
+
+// monDscpRuleBody is mruleBody's inet rule 100 with FRA_DSCP 0.
+func monDscpRuleBody() []byte {
+	return catBytes(mruleBody(unix.AF_INET, unix.RT_TABLE_MAIN, 100), nla(xtcpnl.FraDscp, []byte{0}))
+}
+
 // monNeighBody is an ndmsg of family on index, reachable, for 10.0.0.2.
 func monNeighBody(family uint8, index int32) []byte {
 	b := catBytes([]byte{family, 0, 0, 0}, le32(uint32(index)), le16(unix.NUD_REACHABLE), []byte{0, 0})
@@ -186,6 +198,19 @@ func TestMonitorAccept(t *testing.T) {
 			[]monitorMsg{monMsg(unix.RTM_NEWRULE, mruleBody(unix.AF_INET, unix.RT_TABLE_MAIN, 100)),
 				monMsg(unix.RTM_DELRULE, mruleBody(unix.AF_INET, unix.RT_TABLE_MAIN, 100))},
 			result{stdout: "100:\tfrom all lookup main\nDeleted 100:\tfrom all lookup main\n"}},
+		{"corner: a rule's dscp 0, the process's first DS field lookup, is the built-in 0", monitorArgs{}, 0, false,
+			[]monitorMsg{monMsg(unix.RTM_NEWRULE, monDscpRuleBody())},
+			result{stdout: "100:\tfrom all lookup main dscp 0\n"}},
+		{"positive: a route's tos loads the DS field table, so a later dscp 0 is default", monitorArgs{}, 0, false,
+			[]monitorMsg{monMsg(unix.RTM_NEWROUTE, monTosRouteBody()), monMsg(unix.RTM_NEWRULE, monDscpRuleBody())},
+			result{stdout: "10.1.0.0/16 tos EF dev c0 proto static \n100:\tfrom all lookup main dscp default\n"}},
+		{"positive: a route's realm 5 loads rt_realms, so a later rule's realms 0 is cosmos", monitorArgs{}, 0, false,
+			[]monitorMsg{monMsg(unix.RTM_NEWROUTE, catBytes(monRouteBody(unix.AF_INET, 0, 3), nla(unix.RTA_FLOW, le32(5)))),
+				monMsg(unix.RTM_NEWRULE, catBytes(mruleBody(unix.AF_INET, unix.RT_TABLE_MAIN, 100), nla(unix.FRA_FLOW, le32(0))))},
+			result{stdout: "10.1.0.0/16 dev c0 proto static realm 5 \n100:\tfrom all lookup main realms cosmos\n"}},
+		{"corner: a route's realm 0, the process's first realm lookup, is unknown", monitorArgs{}, 0, false,
+			[]monitorMsg{monMsg(unix.RTM_NEWROUTE, catBytes(monRouteBody(unix.AF_INET, 0, 3), nla(unix.RTA_FLOW, le32(0))))},
+			result{stdout: "10.1.0.0/16 dev c0 proto static realm unknown \n"}},
 		{"negative: -6 drops an inet rule", monitorArgs{}, unix.AF_INET6, false,
 			[]monitorMsg{monMsg(unix.RTM_NEWRULE, mruleBody(unix.AF_INET, unix.RT_TABLE_MAIN, 100))}, result{}},
 		{"positive: netconf", monitorArgs{label: true}, 0, false,
@@ -270,18 +295,25 @@ func TestMonitorLinkOptions(t *testing.T) {
 	tests := []struct {
 		description    string
 		stats, details int
+		alias          string // IFLA_IFALIAS, none when empty
 		expected       string
 	}{
-		{"positive: plain", 0, 0, line + "\n"},
-		{"negative: -s adds no statistics", 1, 0, line + "\n"},
-		{"positive: -d adds the detail run, but no addrgenmode", 0, 1, line + "numtxqueues 1 \n"},
-		{"corner: -s -d is -d", 1, 1, line + "numtxqueues 1 \n"},
+		{"positive: plain", 0, 0, "", line + "\n"},
+		{"negative: -s adds no statistics", 1, 0, "", line + "\n"},
+		{"positive: -d adds the detail run, but no addrgenmode", 0, 1, "", line + "numtxqueues 1 \n"},
+		{"corner: -s -d is -d", 1, 1, "", line + "numtxqueues 1 \n"},
+		{"negative: an alias without -d, as do_link is 0", 0, 0, "up", line + "\n"},
+		{"positive: -d prints the alias after the detail run", 0, 1, "up", line + "numtxqueues 1 \n    alias up\n"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			m, out, errOut := monitorFixture(&monitorArgs{}, 0, time.Time{})
 			m.c.showStats, m.c.showDetails = tc.stats, tc.details
-			if err := m.accept(monMsg(unix.RTM_NEWLINK, body)); err != nil {
+			b := body
+			if tc.alias != "" {
+				b = catBytes(body, nla(unix.IFLA_IFALIAS, strz(tc.alias)))
+			}
+			if err := m.accept(monMsg(unix.RTM_NEWLINK, b)); err != nil {
 				t.Fatal(err)
 			}
 			if out.String() != tc.expected || errOut.Len() != 0 {

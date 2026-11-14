@@ -1,0 +1,2 @@
+dev vx0 port vx0 grp 239.1.1.1 src 192.0.2.5 permanent blocked dst 2001:db8::1 vni 16777215 via d1
+dev vx0 port vx0 grp 239.1.1.1 permanent dst 2001:db8::1 vni 16777215 via d1

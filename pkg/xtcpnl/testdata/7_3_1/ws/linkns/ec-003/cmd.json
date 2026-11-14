@@ -1,0 +1,36 @@
+{
+ "axes": {
+  "netns": "fd",
+  "target": "path"
+ },
+ "cmd": "ip link set dev d0 netns /proc/self/ns/net",
+ "desc": "corner: target=self-path",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "linkns/ec-003",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -d link show",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

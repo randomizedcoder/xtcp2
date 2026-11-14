@@ -25,6 +25,17 @@ class ListenerAuthMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     LISTENER_AUTH_MODE_DISABLED: _ClassVar[ListenerAuthMode]
     LISTENER_AUTH_MODE_RAW_TOKEN: _ClassVar[ListenerAuthMode]
     LISTENER_AUTH_MODE_HMAC_UTC_MINUTE: _ClassVar[ListenerAuthMode]
+
+class EndpointClass(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    ENDPOINT_CLASS_UNSPECIFIED: _ClassVar[EndpointClass]
+    ENDPOINT_CLASS_HEALTH: _ClassVar[EndpointClass]
+    ENDPOINT_CLASS_METRICS: _ClassVar[EndpointClass]
+    ENDPOINT_CLASS_METRICS_DETAIL: _ClassVar[EndpointClass]
+    ENDPOINT_CLASS_IP: _ClassVar[EndpointClass]
+    ENDPOINT_CLASS_DEBUG: _ClassVar[EndpointClass]
+    ENDPOINT_CLASS_GRPC_READ: _ClassVar[EndpointClass]
+    ENDPOINT_CLASS_GRPC_ADMIN: _ClassVar[EndpointClass]
 LISTENER_NETWORK_UNSPECIFIED: ListenerNetwork
 LISTENER_NETWORK_TCP: ListenerNetwork
 LISTENER_NETWORK_UNIX: ListenerNetwork
@@ -32,6 +43,14 @@ LISTENER_AUTH_MODE_UNSPECIFIED: ListenerAuthMode
 LISTENER_AUTH_MODE_DISABLED: ListenerAuthMode
 LISTENER_AUTH_MODE_RAW_TOKEN: ListenerAuthMode
 LISTENER_AUTH_MODE_HMAC_UTC_MINUTE: ListenerAuthMode
+ENDPOINT_CLASS_UNSPECIFIED: EndpointClass
+ENDPOINT_CLASS_HEALTH: EndpointClass
+ENDPOINT_CLASS_METRICS: EndpointClass
+ENDPOINT_CLASS_METRICS_DETAIL: EndpointClass
+ENDPOINT_CLASS_IP: EndpointClass
+ENDPOINT_CLASS_DEBUG: EndpointClass
+ENDPOINT_CLASS_GRPC_READ: EndpointClass
+ENDPOINT_CLASS_GRPC_ADMIN: EndpointClass
 
 class GetRequest(_message.Message):
     __slots__ = ()
@@ -140,23 +159,41 @@ class ListenerEndpoint(_message.Message):
     def __init__(self, network: _Optional[_Union[ListenerNetwork, str]] = ..., address: _Optional[str] = ..., unix_socket_mode: _Optional[int] = ..., unlink_stale_unix_socket: _Optional[bool] = ..., max_connections: _Optional[int] = ..., accept_rate_per_second: _Optional[int] = ..., accept_burst: _Optional[int] = ...) -> None: ...
 
 class ListenerAuth(_message.Message):
-    __slots__ = ("mode", "raw_token", "hmac_shared_key", "signed_token_skew_minutes", "failure_jitter_min", "failure_jitter_max")
+    __slots__ = ("mode", "raw_token", "hmac_shared_key", "signed_token_skew_minutes", "failure_jitter_min", "failure_jitter_max", "raw_token_file", "hmac_shared_key_file")
     MODE_FIELD_NUMBER: _ClassVar[int]
     RAW_TOKEN_FIELD_NUMBER: _ClassVar[int]
     HMAC_SHARED_KEY_FIELD_NUMBER: _ClassVar[int]
     SIGNED_TOKEN_SKEW_MINUTES_FIELD_NUMBER: _ClassVar[int]
     FAILURE_JITTER_MIN_FIELD_NUMBER: _ClassVar[int]
     FAILURE_JITTER_MAX_FIELD_NUMBER: _ClassVar[int]
+    RAW_TOKEN_FILE_FIELD_NUMBER: _ClassVar[int]
+    HMAC_SHARED_KEY_FILE_FIELD_NUMBER: _ClassVar[int]
     mode: ListenerAuthMode
     raw_token: str
     hmac_shared_key: str
     signed_token_skew_minutes: int
     failure_jitter_min: _duration_pb2.Duration
     failure_jitter_max: _duration_pb2.Duration
-    def __init__(self, mode: _Optional[_Union[ListenerAuthMode, str]] = ..., raw_token: _Optional[str] = ..., hmac_shared_key: _Optional[str] = ..., signed_token_skew_minutes: _Optional[int] = ..., failure_jitter_min: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., failure_jitter_max: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ...) -> None: ...
+    raw_token_file: str
+    hmac_shared_key_file: str
+    def __init__(self, mode: _Optional[_Union[ListenerAuthMode, str]] = ..., raw_token: _Optional[str] = ..., hmac_shared_key: _Optional[str] = ..., signed_token_skew_minutes: _Optional[int] = ..., failure_jitter_min: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., failure_jitter_max: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., raw_token_file: _Optional[str] = ..., hmac_shared_key_file: _Optional[str] = ...) -> None: ...
+
+class Listener(_message.Message):
+    __slots__ = ("name", "endpoint", "auth", "admin_auth", "serves")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    ENDPOINT_FIELD_NUMBER: _ClassVar[int]
+    AUTH_FIELD_NUMBER: _ClassVar[int]
+    ADMIN_AUTH_FIELD_NUMBER: _ClassVar[int]
+    SERVES_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    endpoint: ListenerEndpoint
+    auth: ListenerAuth
+    admin_auth: ListenerAuth
+    serves: _containers.RepeatedScalarFieldContainer[EndpointClass]
+    def __init__(self, name: _Optional[str] = ..., endpoint: _Optional[_Union[ListenerEndpoint, _Mapping]] = ..., auth: _Optional[_Union[ListenerAuth, _Mapping]] = ..., admin_auth: _Optional[_Union[ListenerAuth, _Mapping]] = ..., serves: _Optional[_Iterable[_Union[EndpointClass, str]]] = ...) -> None: ...
 
 class LinkMonitorConfig(_message.Message):
-    __slots__ = ("enable", "baseline_file", "settle", "resync", "stats_interval", "stats_include", "stats_exclude", "netstat_fields", "max_speed_exceptions", "metrics_core_include", "metrics_core_exclude", "metrics_all", "collection_mode", "watch_interval", "slow_interval", "on_demand_ttl", "on_demand_wait", "error_window", "flap_window", "error_classes", "error_exclude", "metrics_categories", "metrics_interface_paths", "metrics_all_path", "ip_paths", "ip_max_bytes", "ip_listen")
+    __slots__ = ("enable", "baseline_file", "settle", "resync", "stats_interval", "stats_include", "stats_exclude", "netstat_fields", "max_speed_exceptions", "metrics_core_include", "metrics_core_exclude", "metrics_all", "collection_mode", "watch_interval", "slow_interval", "on_demand_ttl", "on_demand_wait", "error_window", "flap_window", "error_classes", "error_exclude", "metrics_categories", "metrics_interface_paths", "metrics_all_path", "ip_paths", "ip_max_bytes", "ip_listen", "learn_deadline")
     ENABLE_FIELD_NUMBER: _ClassVar[int]
     BASELINE_FILE_FIELD_NUMBER: _ClassVar[int]
     SETTLE_FIELD_NUMBER: _ClassVar[int]
@@ -184,6 +221,7 @@ class LinkMonitorConfig(_message.Message):
     IP_PATHS_FIELD_NUMBER: _ClassVar[int]
     IP_MAX_BYTES_FIELD_NUMBER: _ClassVar[int]
     IP_LISTEN_FIELD_NUMBER: _ClassVar[int]
+    LEARN_DEADLINE_FIELD_NUMBER: _ClassVar[int]
     enable: bool
     baseline_file: str
     settle: _duration_pb2.Duration
@@ -211,10 +249,11 @@ class LinkMonitorConfig(_message.Message):
     ip_paths: bool
     ip_max_bytes: int
     ip_listen: str
-    def __init__(self, enable: _Optional[bool] = ..., baseline_file: _Optional[str] = ..., settle: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., resync: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., stats_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., stats_include: _Optional[str] = ..., stats_exclude: _Optional[str] = ..., netstat_fields: _Optional[str] = ..., max_speed_exceptions: _Optional[_Iterable[str]] = ..., metrics_core_include: _Optional[str] = ..., metrics_core_exclude: _Optional[str] = ..., metrics_all: _Optional[bool] = ..., collection_mode: _Optional[str] = ..., watch_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., slow_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., on_demand_ttl: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., on_demand_wait: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., error_window: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., flap_window: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., error_classes: _Optional[str] = ..., error_exclude: _Optional[str] = ..., metrics_categories: _Optional[str] = ..., metrics_interface_paths: _Optional[bool] = ..., metrics_all_path: _Optional[str] = ..., ip_paths: _Optional[bool] = ..., ip_max_bytes: _Optional[int] = ..., ip_listen: _Optional[str] = ...) -> None: ...
+    learn_deadline: _duration_pb2.Duration
+    def __init__(self, enable: _Optional[bool] = ..., baseline_file: _Optional[str] = ..., settle: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., resync: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., stats_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., stats_include: _Optional[str] = ..., stats_exclude: _Optional[str] = ..., netstat_fields: _Optional[str] = ..., max_speed_exceptions: _Optional[_Iterable[str]] = ..., metrics_core_include: _Optional[str] = ..., metrics_core_exclude: _Optional[str] = ..., metrics_all: _Optional[bool] = ..., collection_mode: _Optional[str] = ..., watch_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., slow_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., on_demand_ttl: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., on_demand_wait: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., error_window: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., flap_window: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., error_classes: _Optional[str] = ..., error_exclude: _Optional[str] = ..., metrics_categories: _Optional[str] = ..., metrics_interface_paths: _Optional[bool] = ..., metrics_all_path: _Optional[str] = ..., ip_paths: _Optional[bool] = ..., ip_max_bytes: _Optional[int] = ..., ip_listen: _Optional[str] = ..., learn_deadline: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ...) -> None: ...
 
 class XtcpConfig(_message.Message):
-    __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "poll_jitter_pct", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "modulus", "enabled_deserializers", "io_uring", "io_uring_recv_batch_size", "io_uring_cqe_batch_size", "reconcile_frequency", "reconcile_before_poll", "write_files", "capture_path", "dest_write_files", "debug_level", "debug_prometheus", "dest", "marshal_to", "csv_columns", "xtcp_proto_file", "envelope_flush_threshold_bytes", "envelope_flush_threshold_rows", "topic", "kafka_schema_url", "kafka_produce_timeout", "kafka_compression", "s3_endpoint", "s3_region", "s3_bucket", "s3_prefix", "s3_access_key", "s3_secret_key", "s3_skip_bucket_probe", "s3_parquet_flush_threshold_bytes", "s3_flush_interval", "s3_flush_jitter_pct", "s3_flush_threshold_jitter_pct", "s3_upload_max_attempts", "s3_upload_backoff_cap", "hostname", "location", "label", "tag", "daemon_version", "ipv4_ttl", "ipv6_hop_limit", "listener_auth", "prometheus_listener", "admin_listener_auth", "grpc_port", "grpc_listener", "pyroscope_url", "pyroscope_app_name", "pyroscope_sample_hz", "pyroscope_upload_interval_sec", "resolve_container_id", "enrich_container_enable", "docker_socket_path", "enrich_lldp_enable", "lldpd_socket_path", "lldpd_version_hint", "enrich_nic_enable", "uplink_count", "uplink_interfaces", "populate_nsid", "enrich_asn_enable", "asn_db_path", "asn_refresh_interval", "ipmeta_bootstrap_path", "ipmeta_cache_path", "enrich_locality_enable", "locality_refresh_interval", "locality_events_enable", "link_monitor")
+    __slots__ = ("nl_timeout_milliseconds", "poll_frequency", "poll_timeout", "poll_jitter_pct", "max_loops", "netlinkers", "netlinkers_done_chan_size", "nlmsg_seq", "packet_size", "packet_size_mply", "modulus", "enabled_deserializers", "io_uring", "io_uring_recv_batch_size", "io_uring_cqe_batch_size", "reconcile_frequency", "reconcile_before_poll", "write_files", "capture_path", "dest_write_files", "debug_level", "debug_prometheus", "dest", "marshal_to", "csv_columns", "xtcp_proto_file", "envelope_flush_threshold_bytes", "envelope_flush_threshold_rows", "topic", "kafka_schema_url", "kafka_produce_timeout", "kafka_compression", "s3_endpoint", "s3_region", "s3_bucket", "s3_prefix", "s3_access_key", "s3_secret_key", "s3_skip_bucket_probe", "s3_allow_insecure", "s3_ca_file", "s3_parquet_flush_threshold_bytes", "s3_flush_interval", "s3_flush_jitter_pct", "s3_flush_threshold_jitter_pct", "s3_upload_max_attempts", "s3_upload_backoff_cap", "hostname", "location", "label", "tag", "daemon_version", "ipv4_ttl", "ipv6_hop_limit", "listener_auth", "prometheus_listener", "admin_listener_auth", "grpc_port", "grpc_listener", "listeners", "pyroscope_url", "pyroscope_app_name", "pyroscope_sample_hz", "pyroscope_upload_interval_sec", "resolve_container_id", "enrich_container_enable", "docker_socket_path", "enrich_lldp_enable", "lldpd_socket_path", "lldpd_version_hint", "enrich_nic_enable", "uplink_count", "uplink_interfaces", "populate_nsid", "enrich_asn_enable", "asn_db_path", "asn_refresh_interval", "ipmeta_bootstrap_path", "ipmeta_cache_path", "enrich_locality_enable", "locality_refresh_interval", "locality_events_enable", "link_monitor")
     NL_TIMEOUT_MILLISECONDS_FIELD_NUMBER: _ClassVar[int]
     POLL_FREQUENCY_FIELD_NUMBER: _ClassVar[int]
     POLL_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
@@ -254,6 +293,8 @@ class XtcpConfig(_message.Message):
     S3_ACCESS_KEY_FIELD_NUMBER: _ClassVar[int]
     S3_SECRET_KEY_FIELD_NUMBER: _ClassVar[int]
     S3_SKIP_BUCKET_PROBE_FIELD_NUMBER: _ClassVar[int]
+    S3_ALLOW_INSECURE_FIELD_NUMBER: _ClassVar[int]
+    S3_CA_FILE_FIELD_NUMBER: _ClassVar[int]
     S3_PARQUET_FLUSH_THRESHOLD_BYTES_FIELD_NUMBER: _ClassVar[int]
     S3_FLUSH_INTERVAL_FIELD_NUMBER: _ClassVar[int]
     S3_FLUSH_JITTER_PCT_FIELD_NUMBER: _ClassVar[int]
@@ -272,6 +313,7 @@ class XtcpConfig(_message.Message):
     ADMIN_LISTENER_AUTH_FIELD_NUMBER: _ClassVar[int]
     GRPC_PORT_FIELD_NUMBER: _ClassVar[int]
     GRPC_LISTENER_FIELD_NUMBER: _ClassVar[int]
+    LISTENERS_FIELD_NUMBER: _ClassVar[int]
     PYROSCOPE_URL_FIELD_NUMBER: _ClassVar[int]
     PYROSCOPE_APP_NAME_FIELD_NUMBER: _ClassVar[int]
     PYROSCOPE_SAMPLE_HZ_FIELD_NUMBER: _ClassVar[int]
@@ -334,6 +376,8 @@ class XtcpConfig(_message.Message):
     s3_access_key: str
     s3_secret_key: str
     s3_skip_bucket_probe: bool
+    s3_allow_insecure: bool
+    s3_ca_file: str
     s3_parquet_flush_threshold_bytes: int
     s3_flush_interval: _duration_pb2.Duration
     s3_flush_jitter_pct: int
@@ -352,6 +396,7 @@ class XtcpConfig(_message.Message):
     admin_listener_auth: ListenerAuth
     grpc_port: int
     grpc_listener: ListenerEndpoint
+    listeners: _containers.RepeatedCompositeFieldContainer[Listener]
     pyroscope_url: str
     pyroscope_app_name: str
     pyroscope_sample_hz: int
@@ -375,7 +420,7 @@ class XtcpConfig(_message.Message):
     locality_refresh_interval: _duration_pb2.Duration
     locality_events_enable: bool
     link_monitor: LinkMonitorConfig
-    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., poll_jitter_pct: _Optional[int] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., modulus: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ..., io_uring: _Optional[bool] = ..., io_uring_recv_batch_size: _Optional[int] = ..., io_uring_cqe_batch_size: _Optional[int] = ..., reconcile_frequency: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., reconcile_before_poll: _Optional[bool] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., dest_write_files: _Optional[int] = ..., debug_level: _Optional[int] = ..., debug_prometheus: _Optional[bool] = ..., dest: _Optional[str] = ..., marshal_to: _Optional[str] = ..., csv_columns: _Optional[str] = ..., xtcp_proto_file: _Optional[str] = ..., envelope_flush_threshold_bytes: _Optional[int] = ..., envelope_flush_threshold_rows: _Optional[int] = ..., topic: _Optional[str] = ..., kafka_schema_url: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., kafka_compression: _Optional[str] = ..., s3_endpoint: _Optional[str] = ..., s3_region: _Optional[str] = ..., s3_bucket: _Optional[str] = ..., s3_prefix: _Optional[str] = ..., s3_access_key: _Optional[str] = ..., s3_secret_key: _Optional[str] = ..., s3_skip_bucket_probe: _Optional[bool] = ..., s3_parquet_flush_threshold_bytes: _Optional[int] = ..., s3_flush_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., s3_flush_jitter_pct: _Optional[int] = ..., s3_flush_threshold_jitter_pct: _Optional[int] = ..., s3_upload_max_attempts: _Optional[int] = ..., s3_upload_backoff_cap: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., hostname: _Optional[str] = ..., location: _Optional[str] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., daemon_version: _Optional[str] = ..., ipv4_ttl: _Optional[int] = ..., ipv6_hop_limit: _Optional[int] = ..., listener_auth: _Optional[_Union[ListenerAuth, _Mapping]] = ..., prometheus_listener: _Optional[_Union[ListenerEndpoint, _Mapping]] = ..., admin_listener_auth: _Optional[_Union[ListenerAuth, _Mapping]] = ..., grpc_port: _Optional[int] = ..., grpc_listener: _Optional[_Union[ListenerEndpoint, _Mapping]] = ..., pyroscope_url: _Optional[str] = ..., pyroscope_app_name: _Optional[str] = ..., pyroscope_sample_hz: _Optional[int] = ..., pyroscope_upload_interval_sec: _Optional[int] = ..., resolve_container_id: _Optional[bool] = ..., enrich_container_enable: _Optional[bool] = ..., docker_socket_path: _Optional[str] = ..., enrich_lldp_enable: _Optional[bool] = ..., lldpd_socket_path: _Optional[str] = ..., lldpd_version_hint: _Optional[str] = ..., enrich_nic_enable: _Optional[bool] = ..., uplink_count: _Optional[int] = ..., uplink_interfaces: _Optional[_Iterable[str]] = ..., populate_nsid: _Optional[bool] = ..., enrich_asn_enable: _Optional[bool] = ..., asn_db_path: _Optional[str] = ..., asn_refresh_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., ipmeta_bootstrap_path: _Optional[str] = ..., ipmeta_cache_path: _Optional[str] = ..., enrich_locality_enable: _Optional[bool] = ..., locality_refresh_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., locality_events_enable: _Optional[bool] = ..., link_monitor: _Optional[_Union[LinkMonitorConfig, _Mapping]] = ...) -> None: ...
+    def __init__(self, nl_timeout_milliseconds: _Optional[int] = ..., poll_frequency: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., poll_timeout: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., poll_jitter_pct: _Optional[int] = ..., max_loops: _Optional[int] = ..., netlinkers: _Optional[int] = ..., netlinkers_done_chan_size: _Optional[int] = ..., nlmsg_seq: _Optional[int] = ..., packet_size: _Optional[int] = ..., packet_size_mply: _Optional[int] = ..., modulus: _Optional[int] = ..., enabled_deserializers: _Optional[_Union[EnabledDeserializers, _Mapping]] = ..., io_uring: _Optional[bool] = ..., io_uring_recv_batch_size: _Optional[int] = ..., io_uring_cqe_batch_size: _Optional[int] = ..., reconcile_frequency: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., reconcile_before_poll: _Optional[bool] = ..., write_files: _Optional[int] = ..., capture_path: _Optional[str] = ..., dest_write_files: _Optional[int] = ..., debug_level: _Optional[int] = ..., debug_prometheus: _Optional[bool] = ..., dest: _Optional[str] = ..., marshal_to: _Optional[str] = ..., csv_columns: _Optional[str] = ..., xtcp_proto_file: _Optional[str] = ..., envelope_flush_threshold_bytes: _Optional[int] = ..., envelope_flush_threshold_rows: _Optional[int] = ..., topic: _Optional[str] = ..., kafka_schema_url: _Optional[str] = ..., kafka_produce_timeout: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., kafka_compression: _Optional[str] = ..., s3_endpoint: _Optional[str] = ..., s3_region: _Optional[str] = ..., s3_bucket: _Optional[str] = ..., s3_prefix: _Optional[str] = ..., s3_access_key: _Optional[str] = ..., s3_secret_key: _Optional[str] = ..., s3_skip_bucket_probe: _Optional[bool] = ..., s3_allow_insecure: _Optional[bool] = ..., s3_ca_file: _Optional[str] = ..., s3_parquet_flush_threshold_bytes: _Optional[int] = ..., s3_flush_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., s3_flush_jitter_pct: _Optional[int] = ..., s3_flush_threshold_jitter_pct: _Optional[int] = ..., s3_upload_max_attempts: _Optional[int] = ..., s3_upload_backoff_cap: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., hostname: _Optional[str] = ..., location: _Optional[str] = ..., label: _Optional[str] = ..., tag: _Optional[str] = ..., daemon_version: _Optional[str] = ..., ipv4_ttl: _Optional[int] = ..., ipv6_hop_limit: _Optional[int] = ..., listener_auth: _Optional[_Union[ListenerAuth, _Mapping]] = ..., prometheus_listener: _Optional[_Union[ListenerEndpoint, _Mapping]] = ..., admin_listener_auth: _Optional[_Union[ListenerAuth, _Mapping]] = ..., grpc_port: _Optional[int] = ..., grpc_listener: _Optional[_Union[ListenerEndpoint, _Mapping]] = ..., listeners: _Optional[_Iterable[_Union[Listener, _Mapping]]] = ..., pyroscope_url: _Optional[str] = ..., pyroscope_app_name: _Optional[str] = ..., pyroscope_sample_hz: _Optional[int] = ..., pyroscope_upload_interval_sec: _Optional[int] = ..., resolve_container_id: _Optional[bool] = ..., enrich_container_enable: _Optional[bool] = ..., docker_socket_path: _Optional[str] = ..., enrich_lldp_enable: _Optional[bool] = ..., lldpd_socket_path: _Optional[str] = ..., lldpd_version_hint: _Optional[str] = ..., enrich_nic_enable: _Optional[bool] = ..., uplink_count: _Optional[int] = ..., uplink_interfaces: _Optional[_Iterable[str]] = ..., populate_nsid: _Optional[bool] = ..., enrich_asn_enable: _Optional[bool] = ..., asn_db_path: _Optional[str] = ..., asn_refresh_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., ipmeta_bootstrap_path: _Optional[str] = ..., ipmeta_cache_path: _Optional[str] = ..., enrich_locality_enable: _Optional[bool] = ..., locality_refresh_interval: _Optional[_Union[datetime.timedelta, _duration_pb2.Duration, _Mapping]] = ..., locality_events_enable: _Optional[bool] = ..., link_monitor: _Optional[_Union[LinkMonitorConfig, _Mapping]] = ...) -> None: ...
 
 class EnabledDeserializers(_message.Message):
     __slots__ = ("enabled",)

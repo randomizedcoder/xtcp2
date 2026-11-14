@@ -1,0 +1,54 @@
+{
+ "cmd": "tc filter change dev v0p1 parent ffff: protocol ip prio 100 handle 0x10001 route from 2 to 2 classid 1:1 action ok",
+ "desc": "negative: Try to change a route filter onto an already used handle",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 2
+ },
+ "id": "tdc/filters/route/c05a",
+ "modules": [
+  "cls_route"
+ ],
+ "pre": [
+  "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+  "tc qdisc add dev v0p1 ingress",
+  "tc filter add dev v0p1 parent ffff: protocol ip prio 100 route from 1 to 1 classid 1:1 action ok",
+  "tc filter add dev v0p1 parent ffff: protocol ip prio 100 route from 2 to 2 classid 1:2 action drop"
+ ],
+ "readback": [
+  {
+   "cmd": "tc -j filter show dev v0p1 parent ffff:",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add v0p1 type veth peer name v0p0 && ip link set v0p1 up && ip link set v0p0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev v0p1 ingress",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: protocol ip prio 100 route from 1 to 1 classid 1:1 action ok",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev v0p1 parent ffff: protocol ip prio 100 route from 2 to 2 classid 1:2 action drop",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "c05a",
+  "tdc": "filters/route.json",
+  "unchecked": "matchJSON is not checked"
+ }
+}

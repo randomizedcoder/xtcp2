@@ -1,0 +1,4 @@
+0:	from all lookup local
+0:	from all to 203.0.113.9 uidrange 0-0 ipproto ipproto-255 sport 1-65534 dport 1-65534 lookup 4294967295 suppress_prefixlength 2147483647 proto 255 dscp 0
+32766:	from all lookup main
+32767:	from all lookup default

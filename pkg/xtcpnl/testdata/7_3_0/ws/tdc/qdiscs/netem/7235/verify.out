@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 slot 10ns 200ns packets 2000 bytes 9000 seed 2930088393831983967

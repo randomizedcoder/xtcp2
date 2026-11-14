@@ -1,0 +1,9 @@
+3: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    inet6 2001:db8:3::1/48 scope global nodad 
+       valid_lft forever preferred_lft forever
+    inet6 2001:db8:2::1/64 scope global nodad mngtmpaddr noprefixroute 
+       valid_lft forever preferred_lft forever
+    inet6 2001:db8:1::1/64 scope global home 
+       valid_lft forever preferred_lft forever
+    inet6 2001:db8::1/64 scope global nodad 
+       valid_lft forever preferred_lft forever

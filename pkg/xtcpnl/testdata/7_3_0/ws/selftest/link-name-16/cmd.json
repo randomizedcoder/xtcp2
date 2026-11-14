@@ -1,0 +1,20 @@
+{
+ "cmd": "ip link add abcdefghijklmnop type dummy",
+ "desc": "boundary: a 16-byte name, IFNAMSIZ, reaches the kernel (iproute2 checks a positional name against ALTIFNAMSIZ since afd67550) and fails IFLA_IFNAME's NLA_STRING policy with ERANGE",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "ERANGE",
+  "extack": "Attribute failed policy validation",
+  "rc": 2,
+  "refused_by": "kernel",
+  "sent": 1
+ },
+ "id": "selftest/link-name-16",
+ "result": {
+  "rc": 2,
+  "status": "OK"
+ }
+}

@@ -24,7 +24,7 @@ func TestRDMAEnabledLifecycle(t *testing.T) {
 		name, category, description, expectedOutcome string
 		fail, closeFail                              bool
 	}{
-		{"native", "positive", "native discovery and required state in real owner loop", "fresh readiness, no claimed verbs event health, joined shutdown", false, false},
+		{"native", "positive", "native discovery and required state in real owner loop", "fresh readiness; healthy on polled state since events are unavailable (F2); joined shutdown", false, false},
 		{"startup", "negative", "required state factory fails", "startup error and acquired resources joined", true, false},
 		{"close", "negative", "required state close fails", "close error returned after joining", false, true},
 	} {
@@ -35,8 +35,8 @@ func TestRDMAEnabledLifecycle(t *testing.T) {
 			s.rdma = true
 			s.inventory = func(context.Context) (inventoryBackend, error) { return inventory, nil }
 			// Without this, the session subscribes to the host's real RDMA netlink,
-			// and on a host with RDMA devices it reconciles and turns collection
-			// healthy, so the unhealthy state awaited below is only a brief window.
+			// so the outcome would depend on the host. With no event source the
+			// monitor falls back to polled RDMA state, as on a stock Ubuntu ib_core.
 			s.rdmaEventSource = func(context.Context, rdmaEventSet) (rdmaevents.Source, error) {
 				return nil, rdmaevents.ErrUnavailable
 			}
@@ -64,7 +64,7 @@ func TestRDMAEnabledLifecycle(t *testing.T) {
 						}
 						return true
 					})
-					return found && !snapshot.Health().CollectionHealthy
+					return found && snapshot.Health().CollectionHealthy
 				})
 			}
 			if !tc.fail {

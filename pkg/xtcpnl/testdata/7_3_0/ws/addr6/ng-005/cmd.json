@@ -1,0 +1,38 @@
+{
+ "axes": {
+  "family": "6",
+  "local": "2001:db8:1::1",
+  "prefixlen": "64",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add 2001:db8:1::1/64 valid_lft 10 preferred_lft 20 dev d0",
+ "desc": "negative: verb=add local=64 peer=absent brd=absent label=absent scope=absent metric=absent lft=pref-over flags=absent proto=absent: a preferred lifetime past the valid one (preferred_lft is greater than valid_lft)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "addr6/ng-005",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 1,
+  "status": "OK"
+ }
+}

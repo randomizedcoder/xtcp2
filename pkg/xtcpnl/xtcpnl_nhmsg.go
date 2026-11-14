@@ -3,6 +3,8 @@ package xtcpnl
 import (
 	"encoding/binary"
 	"errors"
+
+	"golang.org/x/sys/unix"
 )
 
 // This file decodes RTM_NEWNEXTHOP, the reply to the RTM_GETNEXTHOP single-get
@@ -46,11 +48,19 @@ const (
 	NhaBlackhole uint16 = 4  // NHA_BLACKHOLE: a flag attribute, no payload
 	NhaOIF       uint16 = 5  // NHA_OIF: the outgoing interface index
 	NhaGateway   uint16 = 6  // NHA_GATEWAY: the next hop, network order
+	NhaEncapType uint16 = 7  // NHA_ENCAP_TYPE: u16, LWTUNNEL_ENCAP_*
+	NhaEncap     uint16 = 8  // NHA_ENCAP: nested lwt encap data
 	NhaGroups    uint16 = 9  // NHA_GROUPS: dump flag, return only groups
 	NhaMaster    uint16 = 10 // NHA_MASTER: dump filter, master dev index
 	NhaFdb       uint16 = 11 // NHA_FDB: flag, nexthop belongs to a bridge fdb
 	NhaResGroup  uint16 = 12 // NHA_RES_GROUP: nested resilient-group args
 	NhaOpFlags   uint16 = 14 // NHA_OP_FLAGS: op filter (request) / resvd (reply)
+	// NhaHwStatsEnable is NHA_HW_STATS_ENABLE, u32: `ip nexthop … hw_stats`.
+	NhaHwStatsEnable uint16 = 16
+	// NhaDstPort is NHA_DST_PORT, be16: an fdb nexthop's UDP destination
+	// port, `ip nexthop … fdb dst_port PORT` (iproute2 7.3.0). The kernel
+	// echoes it only when nonzero.
+	NhaDstPort uint16 = 18
 
 	// NexthopGrpTypeMpath is NEXTHOP_GRP_TYPE_MPATH, the default group type that
 	// iproute2 prints no `type` token for. NexthopGrpTypeRes is
@@ -82,6 +92,9 @@ var (
 	// ErrNhGroupBad is an NHA_GROUP payload that is not a whole number of
 	// nexthop_grp entries.
 	ErrNhGroupBad = errors.New("NHA_GROUP payload not a multiple of nexthop_grp")
+
+	// ErrNhDstPortLen is an NHA_DST_PORT payload that is not a be16.
+	ErrNhDstPortLen = errors.New("NHA_DST_PORT payload is not 2 bytes")
 )
 
 // GroupMember is one entry of an NHA_GROUP array: a member nexthop id and its
@@ -116,13 +129,28 @@ type NexthopInfo struct {
 	OIF         int32  // 0 is absent: index 0 is not a device
 	Gateway     []byte // network order, nil when absent
 	Blackhole   bool
-	Fdb         bool // NHA_FDB present: an L2 bridge-fdb nexthop (via, no oif)
+	Fdb         bool   // NHA_FDB present: an L2 bridge-fdb nexthop (via, no oif)
+	DstPort     uint16 // NHA_DST_PORT, host order, valid when HasDstPort
+	HasDstPort  bool   // NHA_DST_PORT present: an fdb nexthop with a port
 	HasGroup    bool
 	Group       []GroupMember // NHA_GROUP members, nil when not a group
 	GroupType   uint16        // NHA_GROUP_TYPE, NEXTHOP_GRP_TYPE_*
 	HasResGroup bool          // NHA_RES_GROUP present (resilient)
 	ResGroup    ResGroup      // decoded NHA_RES_GROUP, valid when HasResGroup
 	RespOpFlags uint32        // NHA_OP_FLAGS from the reply (weight gate)
+	// HwStatsSupported is NHA_HW_STATS_ENABLE present, whatever its value:
+	// ip prints `hw_stats … used …` under -d or -s only then.
+	// HwStatsEnabled and HwStatsUsed are NHA_HW_STATS_ENABLE and
+	// NHA_HW_STATS_USED nonzero; a short one reads as false.
+	HwStatsSupported, HwStatsEnabled, HwStatsUsed bool
+	// HasGroupStats is NHA_GROUP_STATS present: ip then prints a `stats:`
+	// block of one line per NHA_GROUP member, from GroupStats in order, a
+	// member past GroupStats' end printing zeros.
+	HasGroupStats bool
+	GroupStats    []NhGroupStat
+	// Encap is NHA_ENCAP_TYPE and NHA_ENCAP, decoded as a route's
+	// RTA_ENCAP_TYPE and RTA_ENCAP are; nil when neither is present.
+	Encap *RouteEncap
 }
 
 // DeserializeNhmsg does an offset read of the fixed nhmsg header.
@@ -153,8 +181,14 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 
 	var groupRaw []byte    // NHA_GROUP bytes, resolved to members after the walk
 	var resGroupRaw []byte // NHA_RES_GROUP nested bytes, decoded after the walk
+	var perr error         // a malformed attribute, reported after the walk
+	var seen attrSeen      // first-wins, as parse_rtattr, for the stats attrs
 	err := WalkRTAttrs(body[NhMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
+		case NhaHwStatsEnable, NhaHwStatsUsed, NhaGroupStats:
+			if seen.first(atype) {
+				perr = errors.Join(perr, nh.setStatsAttr(atype, val))
+			}
 		case NhaID:
 			if len(val) >= 4 {
 				nh.ID = binary.LittleEndian.Uint32(val[0:4])
@@ -169,6 +203,12 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			nh.Blackhole = true
 		case NhaFdb:
 			nh.Fdb = true
+		case NhaDstPort:
+			if len(val) != 2 {
+				perr = ErrNhDstPortLen
+				return
+			}
+			nh.DstPort, nh.HasDstPort = binary.BigEndian.Uint16(val), true
 		case NhaGroup:
 			nh.HasGroup = true
 			groupRaw = CopyBytes(val)
@@ -183,9 +223,13 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			if len(val) >= 4 {
 				nh.RespOpFlags = binary.LittleEndian.Uint32(val[0:4])
 			}
+		case NhaEncapType:
+			setEncapAttr(&nh.Encap, uint16(unix.RTA_ENCAP_TYPE), val)
+		case NhaEncap:
+			setEncapAttr(&nh.Encap, uint16(unix.RTA_ENCAP), val)
 		}
 	})
-	if err != nil {
+	if err = errors.Join(err, perr); err != nil {
 		return nh, err
 	}
 	if err := resolveNhGroup(&nh, groupRaw); err != nil {
@@ -194,7 +238,29 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 	if err := decodeResGroup(&nh, resGroupRaw); err != nil {
 		return nh, err
 	}
+	if err := nh.Encap.decode(); err != nil {
+		return nh, err
+	}
 	return nh, nil
+}
+
+// setStatsAttr records NHA_HW_STATS_ENABLE, NHA_HW_STATS_USED or
+// NHA_GROUP_STATS, as ipnh_parse_nhmsg reads them.
+func (nh *NexthopInfo) setStatsAttr(atype uint16, val []byte) error {
+	on := len(val) >= 4 && binary.LittleEndian.Uint32(val) != 0
+	switch atype {
+	case NhaHwStatsEnable:
+		nh.HwStatsSupported, nh.HwStatsEnabled = true, on
+	case NhaHwStatsUsed:
+		nh.HwStatsUsed = on
+	case NhaGroupStats:
+		stats, err := parseNhGroupStats(val)
+		if err != nil {
+			return err
+		}
+		nh.HasGroupStats, nh.GroupStats = true, stats
+	}
+	return nil
 }
 
 // resolveNhGroup fills nh.Group from the raw NHA_GROUP bytes once RespOpFlags is

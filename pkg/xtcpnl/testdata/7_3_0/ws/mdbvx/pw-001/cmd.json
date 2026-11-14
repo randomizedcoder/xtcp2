@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "bport": "vx0",
+  "dev": "vx0",
+  "dport": "0",
+  "grp": "ff0e::1",
+  "mode": "1",
+  "proto": "186",
+  "src_vni": "300",
+  "srclist": "192.0.2.5",
+  "state": "1",
+  "verb": "del",
+  "via": "d1",
+  "vid": "0",
+  "vni": "0"
+ },
+ "cmd": "bridge mdb del dev vx0 port vx0 grp ff0e::1 permanent dst_port 0 vni 0 src_vni 300 via d1 filter_mode include source_list 192.0.2.5 proto bgp",
+ "desc": "negative: verb=del dev=vx0 bport=vx0 grp=v6 state=permanent vid=absent dst=absent dport=0 vni=0 srcvni=other via=d1 src=absent mode=include srclist=one proto=bgp: no underlay destination (Missing remote destination IP address)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "mdbvx/pw-001",
+ "pre": [
+  "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "bridge mdb show dev vx0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 type dummy && ip link set d1 up && ip addr add 192.0.2.10/24 dev d1 && ip link add vx0 type vxlan id 100 dstport 4789 local 192.0.2.10 nolearning && ip link set vx0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

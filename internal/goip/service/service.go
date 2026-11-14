@@ -5,6 +5,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
@@ -118,6 +119,18 @@ func (s *Service) Vrfs() ([]model.Link, error) {
 	return out, nil
 }
 
+// linkNotFoundError is the dump fallback's miss: the request asked for a link
+// the dump does not hold. It is a type rather than a fmt.Errorf so
+// VrfTableByName can recognize it with errors.As and normalize it to the
+// kernel's ENODEV — the fallback stands in for a get, whose miss the kernel
+// answers ENODEV. Its text is linkFromGet's old one, unchanged for every
+// other caller.
+type linkNotFoundError struct{ selector string }
+
+func (e *linkNotFoundError) Error() string {
+	return fmt.Sprintf("goip: link %s not found", e.selector)
+}
+
 // linkFromGet is the body every single-get link accessor shares: send the
 // caller's request over Talk when the source can do single-gets, otherwise fall
 // back to one dump plus exact filtering, and hold both answers to the same
@@ -156,7 +169,7 @@ func (s *Service) linkFromGet(request []byte, match func(model.Link) bool, selec
 			return links[i], nil
 		}
 	}
-	return model.Link{}, fmt.Errorf("goip: link %s not found", selector)
+	return model.Link{}, &linkNotFoundError{selector: selector}
 }
 
 // matchName is the name test both by-name accessors apply to a reply.
@@ -206,6 +219,63 @@ func (s *Service) IsVRF(family uint8, name string) (bool, error) {
 	return l.Kind == "vrf", nil
 }
 
+// VRFTable is ipvrf_get_table as iproute_modify's `vrf NAME` uses it
+// (ip/iplink_vrf.c:102-166): VrfTableByName's get, with the ladder `ip`
+// applies to a refusal. A get of "default" refused with ENODEV is the main
+// table, and any other kernel errno is 0, which the caller reports as not a
+// VRF. Anything else, a build or decode error, is returned.
+func (s *Service) VRFTable(family uint8, name string) (uint32, error) {
+	table, err := s.VrfTableByName(family, name)
+	var errno unix.Errno
+	if err != nil && errors.As(err, &errno) {
+		if errno == unix.ENODEV && name == "default" {
+			return unix.RT_TABLE_MAIN, nil
+		}
+		return 0, nil
+	}
+	return table, err
+}
+
+// VrfTableByName performs ipvrf_get_table (ip/iplink_vrf.c:102-166): the
+// one RTM_GETLINK by-name single-get behind `ip vrf show NAME`, answered with
+// the device's VRF table id. family is preferred_family, which lands in the
+// request's ifi_family byte and nothing else (the kernel resolves the name
+// without consulting it, net/core/rtnetlink.c:4346-4353).
+//
+// The request is name_is_vrf's (req.VrfCheckByName; iplink_vrf.c:102-133 and
+// :170-222 build the same bytes), byte-pinned over both corpora by
+// TestVrfShowNameRequestIsNameIsVrf, and the spine is linkFromGet's. The
+// outcome ladder follows IsVRF's precedent rather than `ip`'s swallow
+// (decision 3, docs/netlink/vrf-show-name.md): a kernel errno is the answer
+// and reaches the caller as-is, so the object can apply ipvrf_get_table's
+// ENODEV rules; anything else — a build or decode error — propagates loudly.
+// The one normalization is the dump fallback's miss, which becomes ENODEV
+// (decision 2) so the object's `default` rule behaves the same under
+// GOIP_REPLAY as live.
+//
+// A reply that is not a vrf device is (0, nil) — `ip`'s Invalid VRF, the
+// object's to print. A vrf-kind reply with no IFLA_VRF_TABLE is also (0, nil):
+// that is iplink_vrf.c:161-165's BUG line, unreachable on any kernel that
+// creates vrf devices, and documented rather than printed (decision 1).
+func (s *Service) VrfTableByName(family uint8, name string) (uint32, error) {
+	r, err := req.VrfCheckByName(family, name, s.nextSeq())
+	if err != nil {
+		return 0, fmt.Errorf("goip: build vrf table request: %w", err)
+	}
+	l, err := s.linkFromGet(r, matchName(name), fmt.Sprintf("%q", name))
+	if err != nil {
+		var miss *linkNotFoundError
+		if errors.As(err, &miss) {
+			return 0, fmt.Errorf("goip: vrf table %q: %w", name, unix.ENODEV)
+		}
+		return 0, err
+	}
+	if l.Kind != "vrf" {
+		return 0, nil
+	}
+	return l.VrfTable.Value, nil
+}
+
 // LinkShowDev performs iplink_get (ip/iplink.c:1497-1515), the second and last
 // request `ip link show dev NAME` sends and the one whose reply print_linkinfo
 // renders (ip/ipaddress.c:2293).
@@ -234,6 +304,69 @@ func (s *Service) LinkByIndex(index int32) (model.Link, error) {
 	}
 	match := func(l model.Link) bool { return l.Index == index }
 	return s.linkFromGet(r, match, fmt.Sprintf("index %d", index))
+}
+
+// LinkInfoData is what a tunnel parser's prefetch reads off its reply: the
+// kind, the raw IFLA_INFO_DATA, and whether IFLA_LINKINFO and
+// IFLA_INFO_DATA were there. AddrLen is IFLA_ADDRESS's length, which
+// nl_get_ll_addr_len reads off the same get; HasAddress says it was there.
+type LinkInfoData struct {
+	Kind        string
+	HasLinkInfo bool
+	HasInfoData bool
+	Data        []byte
+	HasAddress  bool
+	AddrLen     int
+}
+
+// LinkInfoDataByIndex is the get every tunnel parser but xfrm's sends before
+// a set (ip/link_gre.c:69-201 and its siblings, iproute2 v7.2.0): RTM_GETLINK
+// with NLM_F_REQUEST alone, ifi_family the preferred family, the device's
+// index, and no attribute, 32 bytes. LinkByIndex's get carries
+// IFLA_EXT_MASK, which this one doesn't. A kernel refusal is the talk's
+// error; a reply too short for an ifinfomsg has neither nest. iplink_modify's
+// address-length check (nl_get_ll_addr_len, ip/iplink.c:216) sends the same
+// bytes.
+func (s *Service) LinkInfoDataByIndex(family uint8, index int32) (LinkInfoData, error) {
+	r, err := xtcpnl.BuildGetLinkByIndexRequest(family, index, 0, s.nextSeq())
+	if err != nil {
+		return LinkInfoData{}, fmt.Errorf("goip: build link get request: %w", err)
+	}
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK")
+	if err != nil {
+		return LinkInfoData{}, err
+	}
+	var d LinkInfoData
+	if len(body) < xtcpnl.IfInfomsgSizeCst {
+		return d, nil
+	}
+	// parse_rtattr keeps the last of a repeated attribute; the kernel
+	// sends one of each.
+	var nerr error
+	err = xtcpnl.WalkRTAttrs(body[xtcpnl.IfInfomsgSizeCst:], func(atype uint16, val []byte) {
+		switch atype &^ unix.NLA_F_NESTED {
+		case unix.IFLA_ADDRESS:
+			d.HasAddress, d.AddrLen = true, len(val)
+		case unix.IFLA_LINKINFO:
+			d.Kind, d.HasInfoData, d.Data = "", false, nil
+			d.HasLinkInfo = true
+			nerr = xtcpnl.WalkRTAttrsNested(val, func(itype uint16, ival []byte) {
+				switch itype &^ unix.NLA_F_NESTED {
+				case unix.IFLA_INFO_KIND:
+					d.Kind = strings.TrimRight(string(ival), "\x00")
+				case unix.IFLA_INFO_DATA:
+					d.HasInfoData, d.Data = true, xtcpnl.CopyBytes(ival)
+				}
+			})
+		}
+	})
+	if err == nil {
+		err = nerr
+	}
+	if err != nil {
+		return LinkInfoData{}, fmt.Errorf("goip: decode RTM_NEWLINK: %w", err)
+	}
+	return d, nil
 }
 
 func contains(v []string, want string) bool {
@@ -487,8 +620,8 @@ func (s *Service) RouteGet(g xtcpnl.RouteGet) (model.Route, error) {
 // the one nexthop reply the capture's `ip -d route show` fetched. Either way the
 // reply's own id is checked against the request, because a get that answers with
 // a different nexthop is a kernel- or replay-level surprise worth seeing.
-func (s *Service) NexthopByID(family uint8, id uint32) (model.Nexthop, error) {
-	r, err := req.NexthopGetByID(family, id, s.nextSeq())
+func (s *Service) NexthopByID(family uint8, id, opFlags uint32) (model.Nexthop, error) {
+	r, err := req.NexthopGetByID(family, id, opFlags, s.nextSeq())
 	if err != nil {
 		return model.Nexthop{}, fmt.Errorf("goip: build nexthop get request: %w", err)
 	}

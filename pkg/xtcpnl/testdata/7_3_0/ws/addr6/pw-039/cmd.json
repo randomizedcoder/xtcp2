@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "family": "6",
+  "flags": "4",
+  "local": "fe80::1",
+  "metric": "100",
+  "preferred": "50",
+  "prefixlen": "64",
+  "proto": "0",
+  "valid": "100",
+  "verb": "add"
+ },
+ "cmd": "ip -6 address add fe80::1/64 metric 100 valid_lft 100 preferred_lft 50 optimistic proto unspec dev d0",
+ "desc": "corner: verb=add local=ll peer=absent brd=absent label=absent scope=absent metric=100 lft=finite flags=optimistic proto=unspec",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "addr6/pw-039",
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 address show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

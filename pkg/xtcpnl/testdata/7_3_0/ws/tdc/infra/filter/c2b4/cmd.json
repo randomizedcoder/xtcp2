@@ -1,0 +1,55 @@
+{
+ "cmd": "tc filter add dev dummy1 chain 0 parent 1:",
+ "desc": "negative: Soft lockup alarm will be not generated after delete the prio 0 filter of the chain",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 1,
+   "pattern": "(?sm)chain parent 1: chain 0",
+   "readback": "verify"
+  },
+  "rc": 2
+ },
+ "id": "tdc/infra/filter/c2b4",
+ "pre": [
+  "ip link add dummy1 type dummy && ip link set dummy1 up",
+  "tc qdisc add dev dummy1 root handle 1: htb default 1",
+  "tc chain add dev dummy1",
+  "tc filter del dev dummy1 chain 0 parent 1: prio 0"
+ ],
+ "readback": [
+  {
+   "cmd": "tc chain ls dev dummy1",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add dummy1 type dummy && ip link set dummy1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev dummy1 root handle 1: htb default 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc chain add dev dummy1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter del dev dummy1 chain 0 parent 1: prio 0",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ },
+ "source": {
+  "id": "c2b4",
+  "tdc": "infra/filter.json"
+ }
+}

@@ -1,0 +1,49 @@
+{
+ "cmd": "tc actions add action police rate 3mbit burst 250k conform-exceed 10/drop index 1",
+ "desc": "negative: Add police actions with conform-exceed control <invalid>/drop",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.0"
+ },
+ "expect": {
+  "match": {
+   "count": 0,
+   "pattern": "(?sm)action order [0-9]*:  police 0x1 rate 3Mbit burst 250Kb mtu 2Kb action ",
+   "readback": "verify"
+  },
+  "rc": 255
+ },
+ "id": "tdc/actions/police/29b1",
+ "modules": [
+  "act_police"
+ ],
+ "pre": [
+  [
+   "tc actions flush action police",
+   [
+    1,
+    255
+   ]
+  ]
+ ],
+ "readback": [
+  {
+   "cmd": "tc actions ls action police",
+   "name": "verify"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "tc actions flush action police",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ },
+ "source": {
+  "id": "29b1",
+  "tdc": "actions/police.json"
+ }
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -86,7 +87,7 @@ func (r *rd) cbError(m Msg) error {
 	}
 	e, err := xtcpnl.ParseNlMsgErr(m.Flags, m.Body)
 	if err != nil {
-		e = xtcpnl.NlMsgErr{Errno: int32(binary.LittleEndian.Uint32(m.Body))} //nolint:gosec // the wire int
+		e = xtcpnl.NlMsgErr{Errno: cint.Int(binary.LittleEndian.Uint32(m.Body))}
 	}
 	errno := e.Errno
 	if errno < 0 {
@@ -107,7 +108,7 @@ func (r *rd) cbDone(m Msg) error {
 	if len(m.Body) < 4 {
 		return nil
 	}
-	n := int32(binary.LittleEndian.Uint32(m.Body)) //nolint:gosec // the wire int
+	n := cint.Int(binary.LittleEndian.Uint32(m.Body))
 	if n >= 0 {
 		return nil
 	}

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -21,7 +22,11 @@ const linkWriteCorpusDir = "../../pkg/xtcpnl/testdata/7_1_4/link-write/write"
 // nlmsg_seq and nlmsg_pid zero, so it compares with zeroSeqPidCopy output.
 func wireBytesOf(m nlparity.Msg) []byte {
 	out := make([]byte, xtcpnl.NlMsgHdrSizeCst+len(m.Body))
-	binary.LittleEndian.PutUint32(out[0:4], uint32(len(out))) //nolint:gosec // a captured message
+	n, ok := cint.U32(len(out))
+	if !ok {
+		panic("a captured message past 4 GiB")
+	}
+	binary.LittleEndian.PutUint32(out[0:4], n)
 	binary.LittleEndian.PutUint16(out[4:6], m.Hdr.Type)
 	binary.LittleEndian.PutUint16(out[6:8], m.Hdr.Flags)
 	copy(out[xtcpnl.NlMsgHdrSizeCst:], m.Body)
