@@ -1,6 +1,7 @@
 package xtcp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
@@ -157,5 +158,37 @@ func TestUplinkStamp_apply(t *testing.T) {
 	empty.apply(r2)
 	if r2.Uplink1Ifname != "keep" {
 		t.Fatalf("disabled apply must be a no-op, got %q", r2.Uplink1Ifname)
+	}
+}
+
+// TestBuildUplinkStamp_strPolicy: LLDP fields come from the link peer and
+// NIC strings from the driver; the stamp cleans them once per refresh.
+func TestBuildUplinkStamp_strPolicy(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		neigh       lldp.Neighbor
+		nic         nicinfo.NIC
+		expected    [2]string // lldpChassisName, nicModel
+	}{
+		{name: "plain", category: "P", description: "ordinary values are unchanged",
+			neigh: lldp.Neighbor{ChassisName: "sw-a"}, nic: nicinfo.NIC{Ifname: "eth0", Model: "CX6"},
+			expected: [2]string{"sw-a", "CX6"}},
+		{name: "lldp_escape", category: "N", description: "ESC in the chassis name is replaced",
+			neigh: lldp.Neighbor{ChassisName: "sw\x1b[31m"}, nic: nicinfo.NIC{Ifname: "eth0"},
+			expected: [2]string{"sw�[31m", ""}},
+		{name: "lldp_long", category: "N", description: "a 1 kB chassis name is cut to 256 bytes",
+			neigh: lldp.Neighbor{ChassisName: strings.Repeat("c", 1024)}, nic: nicinfo.NIC{Ifname: "eth0", Model: "m\xff"},
+			expected: [2]string{strings.Repeat("c", 256), "m�"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := buildUplinkStamp([]string{"eth0"}, []nicinfo.NIC{tc.nic}, map[string]lldp.Neighbor{"eth0": tc.neigh})
+			got := [2]string{s.slots[0].lldpChassisName, s.slots[0].nicModel}
+			if got != tc.expected {
+				t.Errorf("%s: got %q, expected %q", tc.description, got, tc.expected)
+			}
+		})
 	}
 }
