@@ -138,8 +138,8 @@ defer timer.Stop()
 for {
     select {
     case <-d.closedCh:
-        // drain queueCh, finalize, return (unchanged)
-    case item := <-d.queueCh:
+        // drain the queue, finalize, return (unchanged)
+    case <-d.queue.notify:
         processItem(item) // finalizes when accumBytes >= effectiveThreshold (jittered cap)
     case <-timer.C:
         finalize()        // staleness ceiling
@@ -185,7 +185,9 @@ For a `24h` poll: `cap = 24h/10 → clamp → 1h`; 10 attempts of full-jittered 
 
 ### Back-pressure & memory
 
-While the worker is in `uploadWithRetry`, it isn't draining `queueCh` (capacity 16). During an outage the queue fills, `Send` blocks, and `flushEnvelope` in the poller blocks — back-pressuring collection. This is *intended* bounded behavior: memory is capped at the queue + one in-flight Parquet object. To keep an outage from stalling collection past one cycle, bound total retry time to roughly one `PollFrequency` — with `base=1s`, `cap=PollFrequency/10`, `attempts=10`, the worst-case sum of windows is ≈ `PollFrequency` (full jitter averages half that). Outages longer than that fall back to today's documented drop-and-continue. Persistent on-disk spooling is explicitly [future work](#open-questions--future-work).
+While the worker is in `uploadWithRetry`, it isn't draining its queue. `Send` never blocks: the queue holds at most `-s3QueueDepth` envelopes (default 16, max 4096) and `-s3MaxBufferedBytes` of them (default 64 MiB, `0` = no byte bound), and past either bound it drops the oldest, counted in `xtcp_s3_dropped_total{reason}` and `xtcp_s3_dropped_bytes_total{reason}`. The newest envelope is always kept. Polling keeps its cadence through an outage; the cost is the oldest data. (Before this bound, a full queue blocked `Send`, and with it `flushEnvelope` mid-poll, stalling collection.)
+
+Memory budget: ≈ `-s3MaxBufferedBytes` (queued envelopes) + the flush threshold (the object being built, ≈ 63 MiB by default) + one object during upload. With the defaults that is about 2–3× the threshold, ≈ 190 MiB; size `GOMEMLIMIT` and the container limit above it. `xtcp_s3_buffered_bytes{stage}` shows the first two. To keep an outage from stalling collection past one cycle, bound total retry time to roughly one `PollFrequency` — with `base=1s`, `cap=PollFrequency/10`, `attempts=10`, the worst-case sum of windows is ≈ `PollFrequency` (full jitter averages half that). Outages longer than that fall back to today's documented drop-and-continue. Persistent on-disk spooling is explicitly [future work](#open-questions--future-work).
 
 ## New configuration surface
 

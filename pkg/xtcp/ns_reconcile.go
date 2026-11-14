@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
+	"github.com/randomizedcoder/xtcp2/pkg/strpolicy"
 )
 
 // mapReconciler is a ticking loop around reconcile, which converges xtcp's set
@@ -263,7 +264,7 @@ func (x *XTCP) addNew(ctx context.Context, live map[uint64]nsIdentity, stop nsdi
 		}
 	}
 	for _, id := range admit {
-		id.name = x.nsResolver.Name(id.inode, id.pid)
+		id.name = strpolicy.Clean(x.nsResolver.Name(id.inode, id.pid), strpolicy.MaxLen)
 		x.nsAdd(ctx, id)
 		stores++
 	}

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -40,11 +41,6 @@ const S3ParquetFlushThresholdBytesCst = 63 * 1024 * 1024
 // nsPerDayCst is one UTC day in nanoseconds — used to memoize the event_date
 // string across the many same-day rows in a file.
 const nsPerDayCst = 24 * 60 * 60 * 1_000_000_000
-
-// s3ParquetDestQueueCapacity bounds the in-flight backlog between
-// Send() and the worker. Full queue → Send blocks; queueFull counter
-// bumps so operators can spot back-pressure.
-const s3ParquetDestQueueCapacity = 16
 
 // s3ParquetWorkerDrainTimeout caps how long Close() will wait for the
 // worker to flush its final partial Parquet to S3 before giving up.
@@ -113,11 +109,11 @@ type s3ParquetDest struct {
 	sleep     func(context.Context, time.Duration) bool
 	newTimer  func(time.Duration) (<-chan time.Time, func() bool)
 
-	// queueCh carries marshaled envelopes from Send to the worker.
-	// IMPORTANT: never closed by Close (sending on a closed channel
-	// panics, and Close races with concurrent Sends). The worker exits
-	// via closedCh instead, draining queueCh's residual items first.
-	queueCh chan envelopeBytes
+	// queue carries marshaled envelopes from Send to the worker, bounded
+	// by depth and bytes (see envelopeQueue). The worker exits via
+	// closedCh, draining the queue's residual items first.
+	queue   *envelopeQueue
+	metrics *s3QueueMetrics
 
 	// closedCh is closed by Close exactly once. Send checks it before
 	// each channel-send and bails with errSendOnClosed if closed.
@@ -281,12 +277,28 @@ func newS3ParquetDest(ctx context.Context, x *XTCP) (Destination, error) {
 		jitterInt:          misc.JitterIntN,
 		sleep:              misc.SleepCtx,
 		newTimer:           func(dur time.Duration) (<-chan time.Time, func() bool) { t := time.NewTimer(dur); return t.C, t.Stop },
-		queueCh:            make(chan envelopeBytes, s3ParquetDestQueueCapacity),
+		queue:              newEnvelopeQueue(resolveS3QueueDepth(x.config), resolveS3MaxBufferedBytes(x.config)),
+		metrics:            newS3QueueMetrics(x.registry),
 		closedCh:           make(chan struct{}),
 		workerDone:         make(chan struct{}),
 	}
 	go d.worker(ctx)
 	return d, nil
+}
+
+// resolveS3QueueDepth returns the envelope depth bound: s3_queue_depth, or
+// s3QueueDepthDefaultCst when unset (0), capped at s3QueueDepthMaxCst.
+func resolveS3QueueDepth(c *xtcp_config.XtcpConfig) int {
+	if c.S3QueueDepth == 0 {
+		return s3QueueDepthDefaultCst
+	}
+	return int(min(c.S3QueueDepth, s3QueueDepthMaxCst))
+}
+
+// resolveS3MaxBufferedBytes returns the queue's byte bound: 0 (none) when
+// s3_max_buffered_bytes is unset, saturating at the largest int.
+func resolveS3MaxBufferedBytes(c *xtcp_config.XtcpConfig) int {
+	return int(min(c.S3MaxBufferedBytes, uint64(math.MaxInt)))
 }
 
 // resolveFlushInterval returns the staleness-ceiling flush interval: the
@@ -319,49 +331,55 @@ func resolveBackoffCap(c *xtcp_config.XtcpConfig) time.Duration {
 	return capDur
 }
 
-// Send enqueues the marshaled envelope for the background worker. The
-// fast path is a non-blocking channel send (queue has slack); if the
-// worker is behind (e.g. mid-upload), Send falls back to a blocking
-// send and bumps queueFull so operators can spot the back-pressure.
+// Send enqueues the marshaled envelope for the background worker and never
+// blocks: flushEnvelope runs mid-poll, so a slow or unreachable S3 must not
+// stall polling. Past the queue's depth or byte bound the oldest envelopes
+// are dropped, counted (s3_dropped_total, s3_dropped_bytes_total and the
+// queueFull counter) and their buffers returned to destBytesPool.
 //
-// closedCh is checked in every select so Send never tries to write to a
-// closed-and-replaced queueCh (which would panic). Sends arriving after
-// Close return errSendOnClosed and refund the buffer to destBytesPool
-// so the upstream pool stays warm.
+// Sends arriving after Close return errSendOnClosed and refund the buffer
+// to destBytesPool so the upstream pool stays warm.
 //
 // Returns (1, nil) on enqueue to mirror the per-record accounting the
 // caller (flushEnvelope in poller.go) expects.
-func (d *s3ParquetDest) Send(ctx context.Context, b *[]byte) (int, error) {
-	// Closed-first fast check so Sends arriving after Close exit cheaply.
+func (d *s3ParquetDest) Send(_ context.Context, b *[]byte) (int, error) {
 	select {
 	case <-d.closedCh:
 		d.refundOnReject(b)
 		return 0, errSendOnClosed
 	default:
 	}
-	// Non-blocking enqueue when queue has slack.
-	select {
-	case d.queueCh <- envelopeBytes{buf: b}:
-		return 1, nil
-	case <-d.closedCh:
-		d.refundOnReject(b)
-		return 0, errSendOnClosed
-	default:
+	for _, drop := range d.queue.push(envelopeBytes{buf: b}) {
+		d.countDrop(drop)
+		d.returnBuf(drop.item.buf)
 	}
-	// Queue full → blocking path. Bump counter so back-pressure shows up
-	// in dashboards.
+	d.observeQueue()
+	return 1, nil
+}
+
+// countDrop records one envelope the queue evicted.
+func (d *s3ParquetDest) countDrop(drop droppedEnvelope) {
 	if d.x.pC != nil {
 		d.x.pC.WithLabelValues("destS3Parquet", "queueFull", "error").Inc()
 	}
-	select {
-	case d.queueCh <- envelopeBytes{buf: b}:
-		return 1, nil
-	case <-d.closedCh:
-		d.refundOnReject(b)
-		return 0, errSendOnClosed
-	case <-ctx.Done():
-		d.refundOnReject(b)
-		return 0, ctx.Err()
+	if d.metrics != nil {
+		d.metrics.dropped.WithLabelValues(drop.reason).Inc()
+		d.metrics.droppedBytes.WithLabelValues(drop.reason).Add(float64(len(*drop.item.buf)))
+	}
+}
+
+// observeQueue sets the queue stage of the buffered-bytes gauge.
+func (d *s3ParquetDest) observeQueue() {
+	if d.metrics != nil {
+		_, n := d.queue.stats()
+		d.metrics.buffered.WithLabelValues(s3StageQueue).Set(float64(n))
+	}
+}
+
+// observeBuilder sets the builder stage of the buffered-bytes gauge.
+func (d *s3ParquetDest) observeBuilder(n int) {
+	if d.metrics != nil {
+		d.metrics.buffered.WithLabelValues(s3StageBuilder).Set(float64(n))
 	}
 }
 
@@ -379,9 +397,8 @@ func (d *s3ParquetDest) refundOnReject(b *[]byte) {
 // if the worker doesn't finish in time, but the daemon shuts down
 // regardless (closeDestination is best-effort during teardown).
 //
-// Closes closedCh only — never closes queueCh, since concurrent Sends
-// would panic on a send-to-closed channel. The worker drains queueCh
-// via its own select on closedCh.
+// Closes closedCh only; the worker drains the queue via its own select
+// on closedCh.
 func (d *s3ParquetDest) Close() error {
 	var err error
 	d.closeOnce.Do(func() {
@@ -396,7 +413,7 @@ func (d *s3ParquetDest) Close() error {
 }
 
 // worker is the only goroutine that touches the Parquet builder.
-// Receives marshaled envelopes from queueCh, decodes them, appends each
+// Receives marshaled envelopes from the queue, decodes them, appends each
 // row to the in-memory writer, and finalizes + uploads when the
 // accumulated byte threshold is reached. On queue close (Close was
 // called) finalizes whatever's left and exits.
@@ -427,6 +444,7 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 		// fresh random target in [threshold*(1-pct/100), threshold], so
 		// identically-loaded hosts don't cross the byte cap in lockstep.
 		effectiveThreshold = jitteredThreshold(d.threshold, d.thresholdJitterPct, d.jitterInt)
+		d.observeBuilder(0)
 	}
 	startBuilder()
 
@@ -488,6 +506,17 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 				finalize()
 			}
 		}
+		d.observeBuilder(accumBytes)
+	}
+	drain := func() {
+		for {
+			item, ok := d.queue.pop()
+			if !ok {
+				return
+			}
+			d.observeQueue()
+			processItem(item)
+		}
 	}
 
 	// Staleness-ceiling flush timer. Fires on a jittered interval so the
@@ -502,19 +531,12 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 		select {
 		case <-d.closedCh:
 			// Drain any items already enqueued (a Send that won the
-			// race against closedCh and got onto the channel before
-			// the close), then exit.
-			for {
-				select {
-				case item := <-d.queueCh:
-					processItem(item)
-				default:
-					finalize()
-					return
-				}
-			}
-		case item := <-d.queueCh:
-			processItem(item)
+			// race against closedCh), then exit.
+			drain()
+			finalize()
+			return
+		case <-d.queue.notify:
+			drain()
 		case <-flushCh:
 			finalize() // no-op when the builder is empty
 			flushStop()

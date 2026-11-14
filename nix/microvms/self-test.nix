@@ -84,6 +84,10 @@
 #   XTCP2_SELF_TEST_S3PARQUET_ROWS_{PASS,FAIL}        (s3parquet only)
 #                                              duckdb decodes the file and
 #                                              returns ≥1 row
+#   XTCP2_SELF_TEST_S3PARQUET_OUTAGE_{PASS,FAIL}      (s3parquet only)
+#                                              Garage stopped: polls continue,
+#                                              xtcp_s3_dropped_total rises,
+#                                              uploads resume after restart
 #   XTCP2_SELF_TEST_VALKEY_CONSUME_{PASS,FAIL}        (valkey only)
 #                                              ≥1 record published to a real
 #                                              in-VM Valkey server AND consumed
@@ -1667,6 +1671,49 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (no parquet file to test)"
       fi
       if [ "$check14b" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── Check 14c: S3 outage — polling continues, drops are counted ──
+      # Stop Garage for a while. The upload worker blocks in its retries,
+      # the bounded queue (-s3QueueDepth 2 in this flavor) drops the oldest
+      # envelopes, and Send never blocks the poller: polls keep their
+      # cadence, xtcp_s3_dropped_total rises and RSS stays bounded. After
+      # Garage restarts, a new object lands.
+      echo "--- check 14c: s3parquet — S3 outage drops, never stalls polling ---"
+      check14c=1
+      xtcp2_rss_kb() {
+        awk '/^VmRSS:/ {print $2}' "/proc/$(systemctl show -p MainPID --value xtcp2)/status" 2>/dev/null || echo 0
+      }
+      objects_before=$(rclone lsf -R --files-only --include '*.parquet' s3:${s3Bucket} 2>/dev/null | wc -l)
+      polls_before=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollingLoops"')
+      drops_before=$(metric_value "xtcp_s3_dropped_total" "" "")
+      rss_before=$(xtcp2_rss_kb)
+      outage_s=$(scaled 40)
+      systemctl stop garage
+      sleep "$outage_s"
+      polls_during=$(( $(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollingLoops"') - polls_before ))
+      drops_during=$(( $(metric_value "xtcp_s3_dropped_total" "" "") - drops_before ))
+      rss_after=$(xtcp2_rss_kb)
+      systemctl start garage
+      # -frequency 2s: expect at least half the polls the outage had room for.
+      min_polls=$(( outage_s / 4 ))
+      objects_after=$objects_before
+      for _ in $(seq 1 "$(scaled 90)"); do
+        objects_after=$(rclone lsf -R --files-only --include '*.parquet' s3:${s3Bucket} 2>/dev/null | wc -l)
+        if [ "$objects_after" -gt "$objects_before" ]; then
+          break
+        fi
+        sleep 1
+      done
+      rss_growth_kb=$(( rss_after - rss_before ))
+      detail="polls=$polls_during (min $min_polls), dropped=$drops_during, rss_kb=$rss_before->$rss_after, objects=$objects_before->$objects_after"
+      if [ "$polls_during" -ge "$min_polls" ] && [ "$drops_during" -gt 0 ] \
+        && [ "$rss_growth_kb" -lt 131072 ] && [ "$objects_after" -gt "$objects_before" ]; then
+        echo "XTCP2_SELF_TEST_S3PARQUET_OUTAGE_PASS  ($detail)"
+        check14c=0
+      else
+        echo "XTCP2_SELF_TEST_S3PARQUET_OUTAGE_FAIL  ($detail)"
+      fi
+      if [ "$check14c" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runValkeyCheck ''

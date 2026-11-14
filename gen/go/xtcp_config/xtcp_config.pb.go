@@ -1762,6 +1762,14 @@ type XtcpConfig struct {
 	// [0, window], window grows exponentially up to this cap). 0 = derive as
 	// clamp(poll_frequency/10, 1s, 1h).
 	S3UploadBackoffCap *durationpb.Duration `protobuf:"bytes,115,opt,name=s3_upload_backoff_cap,json=s3UploadBackoffCap,proto3" json:"s3_upload_backoff_cap,omitempty"`
+	// Envelopes queued between the poller and the S3 worker. Past this depth
+	// the oldest is dropped (xtcp_s3_dropped_total{reason="queue_depth"}), so
+	// an S3 outage never blocks polling. 0 = 16.
+	S3QueueDepth uint32 `protobuf:"varint,116,opt,name=s3_queue_depth,json=s3QueueDepth,proto3" json:"s3_queue_depth,omitempty"`
+	// Marshaled envelope bytes the S3 queue may hold. Past this the oldest
+	// envelope is dropped (reason="buffered_bytes"); the newest is always
+	// kept. 0 = no byte bound (the depth bound alone). Flag default 64 MiB.
+	S3MaxBufferedBytes uint64 `protobuf:"varint,117,opt,name=s3_max_buffered_bytes,json=s3MaxBufferedBytes,proto3" json:"s3_max_buffered_bytes,omitempty"`
 	// Hostname override. When empty the daemon uses os.Hostname(); set this to
 	// stamp an explicit hostname on records — required in containers, where
 	// os.Hostname() returns the container id, not the host. Set via -hostname
@@ -2341,6 +2349,20 @@ func (x *XtcpConfig) GetS3UploadBackoffCap() *durationpb.Duration {
 	return nil
 }
 
+func (x *XtcpConfig) GetS3QueueDepth() uint32 {
+	if x != nil {
+		return x.S3QueueDepth
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetS3MaxBufferedBytes() uint64 {
+	if x != nil {
+		return x.S3MaxBufferedBytes
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetHostname() string {
 	if x != nil {
 		return x.Hostname
@@ -2745,7 +2767,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0e_error_classesB\x15\n" +
 	"\x13_metrics_categoriesB\x1a\n" +
 	"\x18_metrics_interface_pathsB\x13\n" +
-	"\x11_metrics_all_path\"\xd7*\n" +
+	"\x11_metrics_all_path\"\xc5+\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2825,7 +2847,9 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x1ds3_flush_threshold_jitter_pct\x18q \x01(\rB\n" +
 	"\xbaH\a\xc8\x01\x00*\x02\x18dR\x19s3FlushThresholdJitterPct\x12A\n" +
 	"\x16s3_upload_max_attempts\x18r \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x01R\x13s3UploadMaxAttempts\x12Y\n" +
-	"\x15s3_upload_backoff_cap\x18s \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap\x12(\n" +
+	"\x15s3_upload_backoff_cap\x18s \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap\x121\n" +
+	"\x0es3_queue_depth\x18t \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\x80 R\fs3QueueDepth\x129\n" +
+	"\x15s3_max_buffered_bytes\x18u \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x12s3MaxBufferedBytes\x12(\n" +
 	"\bhostname\x18\x82\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x12(\n" +
 	"\blocation\x18\x83\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\blocation\x12!\n" +
 	"\x05label\x18\x84\x01 \x01(\tB\n" +

@@ -566,8 +566,8 @@ func (c *xtcpConfigService) SetEnvelopeFlush(
 
 // preserveCaps keeps the running daemon's tenant caps (-maxDumpBytes,
 // -maxRecordsPerNetns, -maxNetns, -maxRecordsPerPoll, -maxNetnsPerOwner,
-// -maxNetnsAddsPerReconcile, -reconcileTimeout and the sockstat ring sizing)
-// across a Set. They bound what a workload can cost the collector, so they
+// -maxNetnsAddsPerReconcile, -reconcileTimeout, the sockstat ring sizing and
+// the S3 queue bounds -s3QueueDepth and -s3MaxBufferedBytes) across a Set. They bound what a workload can cost the collector, so they
 // are startup-only: a Set that omitted them would otherwise turn them off (0),
 // and one that raised them would undo the bound from the admin plane. Change
 // them with flags or env and a restart.
@@ -580,6 +580,8 @@ func preserveCaps(in, running *xtcp_config.XtcpConfig) {
 	in.IoUringSockstatWorkers = running.GetIoUringSockstatWorkers()
 	in.MaxNetnsPerOwner = running.GetMaxNetnsPerOwner()
 	in.MaxNetnsAddsPerReconcile = running.GetMaxNetnsAddsPerReconcile()
+	in.S3QueueDepth = running.GetS3QueueDepth()
+	in.S3MaxBufferedBytes = running.GetS3MaxBufferedBytes()
 	in.ReconcileTimeout = nil
 	if rt := running.GetReconcileTimeout(); rt != nil {
 		in.ReconcileTimeout = durationpb.New(rt.AsDuration())

@@ -120,7 +120,8 @@ func newS3ParquetFixtureCustom(t *testing.T, threshold int, injectErr func(int) 
 		jitterInt:          func(int) int { return 0 },
 		sleep:              func(context.Context, time.Duration) bool { return true },
 		newTimer:           func(time.Duration) (<-chan time.Time, func() bool) { return neverFire, func() bool { return true } },
-		queueCh:            make(chan envelopeBytes, s3ParquetDestQueueCapacity),
+		queue:              newEnvelopeQueue(s3QueueDepthDefaultCst, 0),
+		metrics:            newS3QueueMetrics(reg),
 		closedCh:           make(chan struct{}),
 		workerDone:         make(chan struct{}),
 	}
@@ -372,48 +373,39 @@ func TestS3ParquetDest_corner_sendAfterClose(t *testing.T) {
 }
 
 func TestS3ParquetDest_corner_queueFull(t *testing.T) {
-	// Hold the worker by injecting a slow uploader.
+	// Hold the worker in its first upload; Sends past the queue's depth
+	// must return at once, dropping the oldest and ticking queueFull.
 	hold := make(chan struct{})
+	uploading := make(chan struct{}, 1)
 	d, _, x := newS3ParquetFixture(t, 1, func(_ int) error {
-		<-hold // block forever in the worker
-		return nil
-	})
-
-	// Fill the queue: capacity + 1 sends so the (cap+1)th has to fall
-	// through to the blocking path, ticking the queueFull counter.
-	bufs := make([]*[]byte, s3ParquetDestQueueCapacity+1)
-	for i := range bufs {
-		bufs[i] = marshalEnvelopeBuf(t, x, mkEnvelope(1))
-	}
-	// Send the first N+1; the (N+1)th blocks. Use a goroutine + timeout.
-	doneCh := make(chan struct{})
-	go func() {
-		for _, b := range bufs {
-			_, _ = d.Send(context.Background(), b)
-		}
-		close(doneCh)
-	}()
-
-	// Wait for the queueFull counter to tick. The loop breaks the instant
-	// the counter reaches 1, so a passing run finishes in milliseconds; the
-	// deadline only bounds the genuine-failure case. Keep it generous so a
-	// loaded CI box (full `go test ./...`, esp. under -race) can't trip a
-	// false negative just because the sender goroutine scheduled late.
-	deadline := time.After(30 * time.Second)
-	for {
 		select {
-		case <-deadline:
-			t.Fatal("queueFull counter never ticked")
+		case uploading <- struct{}{}:
 		default:
 		}
-		v := promCounterValue(t, x, "destS3Parquet", "queueFull", "error")
-		if v >= 1 {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
+		<-hold
+		return nil
+	})
+	if _, err := d.Send(context.Background(), marshalEnvelopeBuf(t, x, mkEnvelope(1))); err != nil {
+		t.Fatalf("Send: %v", err)
 	}
-	close(hold) // release worker so Close can drain
-	<-doneCh
+	<-uploading // the worker holds the first envelope in its upload
+	for range s3QueueDepthDefaultCst + 1 {
+		buf := marshalEnvelopeBuf(t, x, mkEnvelope(1))
+		done := make(chan struct{})
+		go func() {
+			_, _ = d.Send(context.Background(), buf)
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			t.Fatal("Send blocked on a full queue")
+		}
+	}
+	if v := promCounterValue(t, x, "destS3Parquet", "queueFull", "error"); v != 1 {
+		t.Errorf("queueFull = %v, want 1", v)
+	}
+	close(hold)
 	_ = d.Close()
 }
 

@@ -200,7 +200,7 @@ All are in `xtcp_counts`.
 | `destS3Parquet` | `uploadRetry` | error | an upload attempt failed and will be retried |
 | `destS3Parquet` | `uploadErrorClass` | `tls`, `timeout`, `canceled`, `dns`, `refused`, `other` | why an attempt failed |
 | `destS3Parquet` | `uploadRowsDropped`, `uploadBytesDropped` | error | rows and bytes lost with a failed upload |
-| `destS3Parquet` | `queueFull` | error | the upload queue was full |
+| `destS3Parquet` | `queueFull` | error | an envelope was dropped from the upload queue, past `-s3QueueDepth` or `-s3MaxBufferedBytes` (`Send` never blocks; see below) |
 | `destS3Parquet` | `unmarshal`, `write`, `writerClose` | error | building the Parquet file failed |
 | `destS3Parquet` | `setS3Flush` | count | the flush settings were changed over gRPC |
 | `destKafka` | `Produce` | count / error | produces and produce failures; also in histograms, as how long a produce took |
@@ -216,6 +216,14 @@ All are in `xtcp_counts`.
 | `destUDPIoUring`, `destUnixGramIoUring` / `destUnixIoUring` | `EnqueueSend` / `EnqueueWritev` | error | a write couldn't be queued on the ring |
 | `destNull`, `destStdout` | `start` | count | sends |
 | marshaller name, such as `protobufListMarshal` | `marshal` | error | the envelope couldn't be marshalled |
+
+The s3parquet upload queue has its own series. Past either bound it drops the oldest envelope, so an S3 outage costs data rather than stalling the poller:
+
+| metric | labels | meaning |
+|---|---|---|
+| `xtcp_s3_dropped_total` | `reason="queue_depth"\|"buffered_bytes"` | envelopes dropped past `-s3QueueDepth` or `-s3MaxBufferedBytes` |
+| `xtcp_s3_dropped_bytes_total` | `reason` | their marshaled bytes |
+| `xtcp_s3_buffered_bytes` | `stage="queue"\|"builder"` | bytes held: envelopes awaiting the worker, and approximate row bytes in the Parquet object being built |
 
 ### Enrichment
 
