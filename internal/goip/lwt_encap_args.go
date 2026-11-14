@@ -10,7 +10,7 @@ import (
 )
 
 // lwtEncapTypes are read_encap_type's names (ip/iproute_lwtunnel.c:76).
-var lwtEncapTypes = []string{mplsKeywordCst, lwtEncapIPCst, lwtEncapIP6Cst, lwtEncapILACst, "bpf", lwtEncapSeg6Cst,
+var lwtEncapTypes = []string{mplsKeywordCst, lwtEncapIPCst, lwtEncapIP6Cst, lwtEncapILACst, lwtEncapBpfCst, lwtEncapSeg6Cst,
 	lwtEncapSeg6LocalCst, lwtEncapRplCst, lwtEncapIoam6Cst, lwtEncapXfrmCst}
 
 // mplsKeywordCst is "mpls": read_family's word for AF_MPLS, and an encap
@@ -28,6 +28,7 @@ const (
 	lwtEncapRplCst       = "rpl"
 	lwtEncapIoam6Cst     = "ioam6"
 	lwtEncapXfrmCst      = "xfrm"
+	lwtEncapBpfCst       = "bpf"
 
 	lwtKeyID     = "id"
 	lwtKeyDst    = "dst"
@@ -52,7 +53,7 @@ var lwtTunnelFlagWords = map[string]uint16{
 // be the last word, then the type's parser. It returns the encap and the
 // index of the last word the parser used. resolve is ll_name_to_index for
 // seg6local's iif and oif and xfrm's link_dev, which ip looks up as it
-// reads them. Every type is built but bpf, which loads a program object.
+// reads them. bpf loads its programs as it reads them.
 func lwtEncapArgs(args []string, i int, resolve linkResolver) (xtcpnl.LwtEncap, int, error) {
 	i, err := nextArg(args, i)
 	if err != nil {
@@ -94,6 +95,8 @@ func lwtEncapArgs(args []string, i int, resolve linkResolver) (xtcpnl.LwtEncap, 
 		return ioam6EncapArgs(args, i)
 	case lwtEncapRplCst:
 		return rplEncapArgs(args, i)
+	case lwtEncapBpfCst:
+		return bpfEncapArgs(args, i)
 	}
 	return xtcpnl.LwtEncap{}, i, fmt.Errorf("encap %s: %w", typ, ErrNotImplemented)
 }

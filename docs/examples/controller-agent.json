@@ -1,0 +1,15 @@
+{
+  "agent_id": "host-001",
+  "location": "dc-example",
+  "controller": "controller.example.net:9443",
+  "server_name": "controller.example.net",
+  "certificate": "/etc/xtcp2/agent.crt",
+  "private_key": "/etc/xtcp2/agent.key",
+  "ca": "/etc/xtcp2/controller-ca.crt",
+  "directory": "/var/lib/xtcp2/routes",
+  "enable_apply": false,
+  "table": 10002,
+  "rule_priority": 30000,
+  "protocol": 242,
+  "protected_prefixes": ["192.0.2.0/24", "2001:db8:ffff::/48"]
+}

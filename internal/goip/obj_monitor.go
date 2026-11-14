@@ -331,6 +331,12 @@ type monitor struct {
 	netns     netnsMap
 	netnsName func(int32) (string, bool)
 	now       func() time.Time
+	// dsfield is the process's DS field table, which a route's tos loads
+	// for a later rule's dscp.
+	dsfield render.Dsfield
+	// realms is the process's rt_realms table, which a route's or a rule's
+	// realms load.
+	realms render.Realms
 }
 
 func newMonitor(c *runCtx, a *monitorArgs) *monitor {
@@ -509,8 +515,11 @@ func (m *monitor) route(msg *monitorMsg) (out, errOut string, err error) {
 			return "", "", nil
 		}
 	}
-	f := render.RouteShowFilter{OifMask: m.ifindex > 0, Details: m.c.detailed(), Stats: m.c.stats()}
+	f := render.RouteShowFilter{OifMask: m.ifindex > 0, Details: m.c.detailed(), Stats: m.c.stats(), Realms: &m.realms}
 	v := render.RouteViewOf(ri, m.c.lltab, f)
+	if ri.Tos != 0 {
+		m.dsfield.Load() // print_route's rtnl_dsfield_n2a
+	}
 	return m.headers("[ROUTE]", msg.nsid) + deleted(del) + v.Text(), "", nil
 }
 
@@ -535,7 +544,7 @@ func (m *monitor) nexthop(msg *monitorMsg) (out, errOut string, err error) {
 	if perr != nil {
 		return "", refusal(&msg.hdr, perr), nil
 	}
-	line, rerr := render.NexthopText(nh, m.c.detailed(), m.c.lltab)
+	line, rerr := render.NexthopText(nh, m.c.detailed(), m.c.showStats, m.c.lltab)
 	if rerr != nil {
 		return "", refusal(&msg.hdr, rerr), nil
 	}
@@ -561,7 +570,7 @@ func (m *monitor) link(msg *monitorMsg) (out, errOut string, err error) {
 	// clear, so no qlen.
 	v := render.LinkViewForAddr(li, m.c.lltab, unix.AF_UNSPEC, m.c.detailed()).WithoutQlen()
 	if m.c.detailed() {
-		v = v.WithDetail(li, false, m.c.lltab, m.c.showDetails)
+		v = v.WithDetail(li, false, m.c.lltab, m.c.showDetails).WithAlias(li)
 	}
 	return m.headers("[LINK]", msg.nsid) + deleted(del) + v.Text(), "", nil
 }
@@ -646,13 +655,10 @@ func (m *monitor) rule(msg *monitorMsg) (out, errOut string, err error) {
 	if m.c.family != unix.AF_UNSPEC && ri.Family != m.c.family {
 		return "", "", nil
 	}
-	if rerr := checkRuleRenderable([]xtcpnl.RuleInfo{ri}); rerr != nil {
-		return "", refusal(&msg.hdr, rerr), nil
-	}
 	if !m.c.detailed() && (ri.Protocol == 0 || ri.Protocol == unix.RTPROT_KERNEL) {
 		ri.HasProtocol = false
 	}
-	v := render.RuleViewOf(ri)
+	v := render.RuleViewOfIn(ri, &m.dsfield, &m.realms)
 	return m.headers("[RULE]", msg.nsid) + deleted(msg.hdr.Type == unix.RTM_DELRULE) + v.Text(), "", nil
 }
 

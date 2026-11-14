@@ -33,6 +33,15 @@
 # See ./nix/README.md for individual targets, logs and Nix policy checks.
 #
 # Quick references:
+#   nix run path:.#test-tcp-controller-vm -- --accel=auto
+#   nix run path:.#test-tcp-controller-soak-vm -- --cycles=3 --interval=3m
+#   nix build path:.#test-tcp-controller-unit path:.#test-tcp-controller-race
+#   nix build path:.#bench-tcp-controller
+#     Repeated RTT changes, automatic discovery, test-operator approval,
+#     automatic rollback and cooldown checks (~30 minutes by default).
+#     Seven guests: TCP load, netem RTT bands, ClickHouse/PostgreSQL, reviewed
+#     canary, withdrawal and independent expiry. Also checks.vm-tcp-controller,
+#     checks.vm-all, and integration-all (nix/tests/tcp-controller).
 #   nix develop                          # dev shell
 #   nix build .#xtcp2                    # main binary
 #   nix build .#xtcp2-all                # every cmd/* binary

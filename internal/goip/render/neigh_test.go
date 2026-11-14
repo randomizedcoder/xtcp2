@@ -1186,3 +1186,48 @@ func TestNeighViewStatsJSON(t *testing.T) {
 		})
 	}
 }
+
+// TestNeighViewProtocol checks NDA_PROTOCOL, printed after the state
+// (ip/ipneigh.c:465-470): text and JSON, from the neigh spaces' captures.
+func TestNeighViewProtocol(t *testing.T) {
+	base := xtcpnl.NeighInfo{Family: unix.AF_INET, Ifindex: 3, State: unix.NUD_REACHABLE, Flags: unix.NTF_ROUTER,
+		Dst: []byte{192, 0, 2, 2}, LLAddr: []byte{0x02, 0, 0, 0, 0, 0x01}}
+	with := func(p uint8, has bool) xtcpnl.NeighInfo { n := base; n.Protocol, n.HasProtocol = p, has; return n }
+	tests := []struct {
+		description string
+		in          xtcpnl.NeighInfo
+		text, json  string
+	}{
+		{description: "positive: static, from neigh4 ec-002", in: with(unix.RTPROT_STATIC, true),
+			text: "192.0.2.2 dev goip0 lladdr 02:00:00:00:00:01 router REACHABLE proto static \n",
+			json: `{"dst":"192.0.2.2","dev":"goip0","lladdr":"02:00:00:00:00:01","router":null,"state":["REACHABLE"],"protocol":"static"}`},
+		{description: "positive: 255 has no name and prints as a number", in: with(255, true),
+			text: "192.0.2.2 dev goip0 lladdr 02:00:00:00:00:01 router REACHABLE proto 255 \n",
+			json: `{"dst":"192.0.2.2","dev":"goip0","lladdr":"02:00:00:00:00:01","router":null,"state":["REACHABLE"],"protocol":"255"}`},
+		{description: "negative: no NDA_PROTOCOL", in: with(0, false),
+			text: "192.0.2.2 dev goip0 lladdr 02:00:00:00:00:01 router REACHABLE \n",
+			json: `{"dst":"192.0.2.2","dev":"goip0","lladdr":"02:00:00:00:00:01","router":null,"state":["REACHABLE"]}`},
+		{description: "boundary: NDA_PROTOCOL 0 prints nothing, as ip tests the value", in: with(0, true),
+			text: "192.0.2.2 dev goip0 lladdr 02:00:00:00:00:01 router REACHABLE \n",
+			json: `{"dst":"192.0.2.2","dev":"goip0","lladdr":"02:00:00:00:00:01","router":null,"state":["REACHABLE"]}`},
+		{description: "corner: a protocol with no state, the key still last",
+			in:   func() xtcpnl.NeighInfo { n := with(unix.RTPROT_KERNEL, true); n.State, n.Flags = 0, 0; return n }(),
+			text: "192.0.2.2 dev goip0 lladdr 02:00:00:00:00:01 proto kernel \n",
+			json: `{"dst":"192.0.2.2","dev":"goip0","lladdr":"02:00:00:00:00:01","protocol":"kernel"}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			v := NeighViewOf(tc.in, neighTabNames, NeighShowFilter{})
+			if got := v.Text(); got != tc.text {
+				t.Errorf("text\n got  %q\n want %q", got, tc.text)
+			}
+			b, err := json.Marshal(v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != tc.json {
+				t.Errorf("json\n got  %s\n want %s", b, tc.json)
+			}
+		})
+	}
+}

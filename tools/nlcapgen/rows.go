@@ -63,9 +63,13 @@ type readback struct {
 // expect is what the run must show; see wsExpect in
 // pkg/xtcpnl/xtcpnl_ws_corpus_test.go for the meaning of each field.
 type expect struct {
-	RC        *int    `json:"rc,omitempty"`
-	Errno     string  `json:"errno,omitempty"`
-	Extack    string  `json:"extack,omitempty"`
+	RC     *int   `json:"rc,omitempty"`
+	Errno  string `json:"errno,omitempty"`
+	Extack string `json:"extack,omitempty"`
+	// Sent is how many requests the command sends, for a row whose
+	// command is not a netlink tool (a ping sends none, so who refused
+	// it can't be read from the capture).
+	Sent      *int    `json:"sent,omitempty"`
 	RefusedBy refuser `json:"refused_by,omitempty"`
 	Match     *match  `json:"match,omitempty"`
 }

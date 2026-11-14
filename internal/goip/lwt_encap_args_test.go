@@ -164,7 +164,7 @@ func TestLwtEncapArgs(t *testing.T) {
 			last:        1,
 		},
 		{description: "corner: help as the type", args: "encap help me", err: ErrNotImplemented, errText: "encap help"},
-		{description: "corner: bpf, which loads a program object", args: "encap bpf in obj.o", err: ErrNotImplemented, errText: "encap bpf"},
+		{description: "corner: bpf's mode word is obj, not the file", args: "encap bpf in obj.o", err: ErrBpfLoad, errText: `What mode is "obj.o"?`},
 	}
 	for i := range tests {
 		tt := &tests[i]

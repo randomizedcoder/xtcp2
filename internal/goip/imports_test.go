@@ -22,6 +22,7 @@ const (
 var goipPackages = []string{
 	modulePath + "/cmd/goip",
 	modulePath + "/internal/goip",
+	modulePath + "/internal/goip/actuate",
 	modulePath + "/internal/goip/model",
 	modulePath + "/internal/goip/render",
 	modulePath + "/internal/goip/req",
@@ -45,6 +46,9 @@ var goipMayImport = map[string]string{
 		"pkg/nlparity as the answer. The plan's import set listed only xtcpnl; this is the one addition, and it " +
 		"satisfies the same §16 property.",
 	modulePath + "/internal/jsonw": "jsonw_puts, the one string escaper json_writer.c's ports share with gordma; stdlib only",
+	"github.com/cilium/ebpf": "`encap bpf` and seg6local `endpoint` load an object's program as ip's libbpf does " +
+		"(bpf_load.go): the ELF and BTF parse, relocations and BPF_PROG_LOAD. Pure Go, so `go build ./cmd/goip` " +
+		"still links outside nix.",
 }
 
 // forbiddenFirstParty are the first-party packages whose presence anywhere in
@@ -163,6 +167,7 @@ func TestGoipImportSetIsHermetic(t *testing.T) {
 			modulePath + "/internal/goip/req":      "the pure request builders",
 			modulePath + "/internal/goip/service":  "shared request, decode, filter and ordering application layer",
 			modulePath + "/internal/goip/goiphttp": "the read-only /ip HTTP paths over goip.Show",
+			modulePath + "/internal/goip/actuate":  "the treatment route actuator, the one live-write consumer, on xtcpnl's typed builders",
 			modulePath + "/pkg/xtcpnl":             "the subject under test",
 			modulePath + "/pkg/nlparity":           "the tolerant walker, for ReplaySource",
 			modulePath + "/pkg/cint":               "the C int conversions; stdlib only",

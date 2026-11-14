@@ -234,7 +234,7 @@ func linkShowKind(c *runCtx, svc *service.Service, sel *linkShowSelectors, links
 
 // linkView is one printed link: the stanza, then -s, then -d.
 func linkView(c *runCtx, li xtcpnl.LinkInfo) render.LinkView {
-	v := render.LinkViewOf(li, c.lltab)
+	v := render.LinkViewOf(li, c.lltab).WithAlias(li)
 	if c.showStats > 0 {
 		v = v.WithStats(li)
 	}

@@ -37,8 +37,9 @@ const (
 )
 
 type XTCP struct {
-	ctx    context.Context
-	cancel context.CancelFunc
+	treatmentStamp func(*xtcp_flat_record.XtcpFlatRecord)
+	ctx            context.Context
+	cancel         context.CancelFunc
 
 	config *xtcp_config.XtcpConfig
 

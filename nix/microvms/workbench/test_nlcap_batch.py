@@ -4,6 +4,7 @@ No VM and no root: xtcp2-nlcap and ip are stubs that log their argv and
 fake the files a real write leaves behind.
 """
 
+import gzip
 import json
 import os
 import stat
@@ -299,6 +300,81 @@ class TestIpBin(unittest.TestCase):
         self.assertEqual(rc, 2, out)
         self.assertIn("NLCAP_ERR no ip in " + d, out)
         self.assertEqual(e.calls(), [], "no row may run")
+
+
+class TestBpfObj(unittest.TestCase):
+    """--bpf-obj: the object is linked at --bpf-link before any row runs."""
+
+    CASES: ClassVar[list[tuple]] = [
+        # (description, make the object, link exists before, want exit,
+        # want the link to point at the object)
+        ("positive: an object is linked", True, False, 0, True),
+        ("corner: a stale link is replaced", True, True, 0, True),
+        ("negative: no such object", False, False, 2, False),
+    ]
+
+    def test_cases(self):
+        for desc, make, stale, want_rc, want_link in self.CASES:
+            with self.subTest(desc):
+                e = Env(self, [row()])
+                obj = os.path.join(e.tmp.name, "lwt.o")
+                if make:
+                    with open(obj, "wb") as f:
+                        f.write(b"\x7fELF")
+                link = os.path.join(e.tmp.name, "run", "lwt_bpf.o")
+                if stale:
+                    os.makedirs(os.path.dirname(link))
+                    os.symlink("/nonexistent", link)
+                rc, out = e.run("--bpf-obj", obj, "--bpf-link", link)
+                self.assertEqual(rc, want_rc, out)
+                if not want_link:
+                    self.assertIn("NLCAP_ERR no bpf object " + obj, out)
+                    self.assertEqual(e.calls(), [], "no row may run")
+                    continue
+                self.assertEqual(os.readlink(link), obj)
+                self.assertEqual(e.cmd_json("t/r")["env"]["lwt_bpf"], link)
+
+    def test_no_flag_no_key(self):
+        e = Env(self, [row()])
+        rc, out = e.run()
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("lwt_bpf", e.cmd_json("t/r")["env"])
+
+
+class TestKconfig(unittest.TestCase):
+    """The guest's lwtunnel options land in env.kconfig, sorted."""
+
+    CASES: ClassVar[list[tuple]] = [
+        # (description, config text or None for no file, want kconfig)
+        ("positive: both options set",
+         "CONFIG_IPV6_RPL_LWTUNNEL=y\nCONFIG_NET=y\nCONFIG_IPV6_IOAM6_LWTUNNEL=y\n",
+         ["CONFIG_IPV6_IOAM6_LWTUNNEL=y", "CONFIG_IPV6_RPL_LWTUNNEL=y"]),
+        ("positive: an unset option is recorded too",
+         "# CONFIG_IPV6_RPL_LWTUNNEL is not set\nCONFIG_LWTUNNEL=y\n",
+         ["# CONFIG_IPV6_RPL_LWTUNNEL is not set", "CONFIG_LWTUNNEL=y"]),
+        ("negative: no config file", None, None),
+        ("boundary: no lwtunnel line", "CONFIG_NET=y\n", None),
+    ]
+
+    def test_cases(self):
+        for desc, text, want in self.CASES:
+            with self.subTest(desc):
+                e = Env(self, [row()])
+                path = os.path.join(e.tmp.name, "config.gz")
+                if text is not None:
+                    with gzip.open(path, "wt") as f:
+                        f.write(text)
+                rc, out = e.run("--kconfig", path)
+                self.assertEqual(rc, 0, out)
+                self.assertEqual(e.cmd_json("t/r")["env"].get("kconfig"), want)
+
+    def test_corrupt_file(self):
+        e = Env(self, [row()])
+        path = os.path.join(e.tmp.name, "config.gz")
+        with open(path, "wb") as f:
+            f.write(b"not gzip")
+        self.assertEqual(nlcap_batch.kconfig_lwt(path), [],
+                         "corner: a file that is not gzip reads as none")
 
 
 class TestSegments(unittest.TestCase):

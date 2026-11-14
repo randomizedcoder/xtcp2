@@ -711,17 +711,36 @@ func TestRouteViewOfText(t *testing.T) {
 			want:   "198.18.100.0/24 dev goip0 table 100 \n",
 		},
 		{
-			// rt_protos ships `84 ovn`, but the built-in rtnl_rtprot_tab does
-			// not, so goip prints the number. Same divergence class as the
-			// table row above, and named in the file header.
-			description: "negative: a protocol with no built-in name renders as its number",
+			// rt_protos ships `84 ovn`, which the built-in rtnl_rtprot_tab
+			// lacks; the miss loads the file.
+			description: "positive: ovn, a protocol the shipped rt_protos names",
 			in: xtcpnl.RouteInfo{
 				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
 				Type: unix.RTN_UNICAST, Protocol: 84,
 				Dst: v4(198, 18, 84, 0), Oif: 3,
 			},
 			filter: filterMain,
-			want:   "198.18.84.0/24 dev goip0 proto 84 \n",
+			want:   "198.18.84.0/24 dev goip0 proto ovn \n",
+		},
+		{
+			description: "negative: a protocol no table names renders as its number",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: 85,
+				Dst: v4(198, 18, 85, 0), Oif: 3,
+			},
+			filter: filterMain,
+			want:   "198.18.85.0/24 dev goip0 proto 85 \n",
+		},
+		{
+			description: "corner: a tos rt_dsfield names, EF",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 24, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT, Tos: 0xb8,
+				Dst: v4(198, 18, 86, 0), Oif: 3,
+			},
+			filter: filterMain,
+			want:   "198.18.86.0/24 tos EF dev goip0 \n",
 		},
 	}
 
@@ -1123,7 +1142,7 @@ func TestRouteNameTables(t *testing.T) {
 			want:        "4294967295",
 		},
 		{
-			description: "corner: dsfieldName is always the 0x%02x fallback, since no rt_dsfield file is read",
+			description: "corner: a DS field rt_dsfield does not name is the 0x%02x fallback",
 			got:         dsfieldName(0x0a),
 			want:        "0x0a",
 		},
@@ -1131,6 +1150,11 @@ func TestRouteNameTables(t *testing.T) {
 			description: "boundary: dsfieldName zero-pads to two digits",
 			got:         dsfieldName(0x02),
 			want:        "0x02",
+		},
+		{
+			description: "positive: dsfieldName names EF from the shipped rt_dsfield",
+			got:         dsfieldName(0xb8),
+			want:        "EF",
 		},
 		{
 			description: "positive: viaFamilyName resolves AF_INET6 to inet6, the family in ip_route_main:4",
@@ -2011,7 +2035,7 @@ func TestNexthopInfoText(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := NexthopInfoText(tc.in, routeTabNames)
+			got, err := NexthopInfoText(tc.in, 0, routeTabNames)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("no error, want one")

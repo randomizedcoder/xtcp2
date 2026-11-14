@@ -2,7 +2,7 @@
 
 ## Status
 
-**Last updated:** 2026-11-09
+**Last updated:** 2026-11-11
 
 **Summary:**
 - Every earlier goip plan is closed and merged (`main` 3904f318: #287, #288, #290). The workbench differential (`internal/goip/testdata/ws-differential.txt`, O5) has 27 `refuses` rows left, all in `linkattr`: 26 `link set … netns` and 1 `xdp`. `differs` and `sends` are 0 everywhere.
@@ -26,6 +26,8 @@
 - [Tier P: parsers, tests and benchmarks](#tier-p-parsers-tests-and-benchmarks)
 - [Tier G: goip and the matrix](#tier-g-goip-and-the-matrix)
 - [Follow-ups after Tier G](#follow-ups-after-tier-g)
+- [NC8 rpl, ioam6 and bpf encaps and `nexthop show -s`, captures first](#nc8-rpl-ioam6-and-bpf-encaps-and-nexthop-show--s-captures-first)
+- [NX9 the parity guest's rpl, ioam6 and bpf rows](#nx9-the-parity-guests-rpl-ioam6-and-bpf-rows)
 - [See also](#see-also)
 
 ## Reference sources
@@ -585,7 +587,7 @@ NX5 is done in three parts:
 
 ## Follow-ups after Tier G
 
-Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP.
+Two gaps Tier G recorded and left: nlparity comparing ip's uninitialised RTA_METRICS padding, and `route show` printing no RTA_ENCAP. NX6c extends NX6a and NX6b to the ip and ip6 encaps, NX6d to ila and xfrm, and NX6e to seg6local. NX7 holds every other readback in the corpus to ip.
 
 ### NF1 nlparity sets RTA_METRICS padding aside
 
@@ -626,6 +628,393 @@ ip sends RTA_METRICS without `NLA_F_NESTED`, and `rta_addattr_l` leaves RTAX_CC_
 | positive: the corpus | `TestWsEncapReadbacks`, kwnh and lwtxnh | every mpls and seg6 nexthop readback as ip printed it |
 | negative: a label stack cut short | | the parse fails, as for a route |
 | corner: an undecoded type, or NHA_ENCAP without its type | | kept raw; nothing printed |
+
+### NX6c `route show` and `nexthop show` print the ip and ip6 encaps
+
+`xtcpnl.ParseIPEncap` reads an LWTUNNEL_ENCAP_IP or IP6 payload as print_encap_ip and print_encap_ip6 do. The first of a repeated attribute wins, and a short scalar is dropped. LWTUNNEL_IP_OPTS are read as lwtunnel_print_opts chooses them: geneve, else vxlan, else erspan, whatever the order sent. Geneve options use print_geneve_opts' stride, the data's length plus 20 bytes. An opts member ip would dereference (a geneve option's class, type or data; vxlan's gbp; erspan's version, then its index or its direction and hardware id) fails the parse with `ErrIPEncapOpts`; the kernel always sends them.
+
+`EncapViewOf` prints them through the NX6a call sequence, in routes, multipath hops and nexthop objects alike:
+- the id, src, dst, then ttl and tos (ip6: hoplimit and tc);
+- `key`, `csum` and `seq` for the TUNNEL_* bits, read big-endian;
+- the options on a new tab-indented line: geneve's `CLASS:TYPE:DATA` comma-separated with a space after the last, `vxlan_opts GBP`, and `erspan_opts VER:INDEX:DIR:HWID` with 0 for the fields the version doesn't carry.
+
+`render.Printer.Bool` is print_bool: a JSON boolean, and a verbless text format written as it is.
+
+| description | input | expected |
+|---|---|---|
+| positive: captured lwtroute4 ec-004 to ec-010, lwtroute6 ec-002 | the dump pcaps' payloads | id, addresses, scalars, flags and each opts kind decoded |
+| positive: the corpus | `TestWsEncapReadbacks`: lwtroute4, lwtroute6, lwthop and lwtnh | every readback as ip printed it; 24 that differed now match |
+| positive: ip6's names | hoplimit 64, tc 16, `key` | `hoplimit 64 tc 16 key`, `"hoplimit":64,"tc":16,"key":true` |
+| positive: two geneve options | | `\n\tgeneve_opts 258:128:00112233,258:129:44556677 `, a `geneve_opts` array |
+| positive: erspan version 1 or 2 | | `1:4660:0:0` / `2:0:1:7` |
+| negative: a geneve option without data, vxlan without gbp, erspan without its version's fields | | `ErrIPEncapOpts` |
+| negative: the class last and unpadded, so the stride runs past the end | | `ErrIPEncapOpts` |
+| boundary: id 2^64-1; an empty payload; a 7-byte id | | printed in full; an empty encap; the id dropped |
+| corner: only the kernel's GENEVE_OPT flag (0x0800) | | no flag printed |
+| corner: an empty geneve nest | | `geneve_opts` alone, `"geneve_opts":[]` |
+| corner: vxlan sent before geneve | | geneve printed |
+| corner: an opts nest of no known kind | | nothing after the scalars |
+
+### NX6d `route show` and `nexthop show` print the ila and xfrm encaps
+
+`xtcpnl.ParseIlaEncap` and `ParseXfrmEncap` read the payloads as print_encap_ila and print_encap_xfrm do. The first of a repeated attribute wins, and a short scalar is dropped. ila's locator is read big-endian, so addr64_n2a's four groups are its 16-bit words from the top. xfrm's if_id and link are host-order u32s.
+
+`EncapViewOf` prints them through the same call sequence, and now takes the `NameTab`:
+- ila: the locator, then `csum-mode`, `ident-type` and `hook-type`. Each format has a space before and after, so the text has double spaces (`encap ila  2001:0:0:2  csum-mode no-action`). A value with no name prints `unknown`, from the tables `ip ila show` uses.
+- xfrm: `if_id`, then `link_dev` through ll_index_to_name: `*` for 0, `if%u` for an index not in the cache.
+
+ip resolves `link_dev` before the `dev` it prints after it: print_route's encap comes before RTA_OIF, a hop's before the hop's dev, and print_nexthop's before NHA_OIF. So `resolveEncapName` resolves it first in each of `route show`, `route get` and `nexthop show`, and the RTM_GETLINK for an uncached index goes out in ip's order.
+
+| description | input | expected |
+|---|---|---|
+| positive: captured ila ec-001 and ec-003 | the dump pcaps' payloads | the locator, and the csum-mode, ident-type and hook-type the kernel fills in |
+| positive: captured xfrm ec-001 to ec-003 | | if_id 1 and 7, link 3 |
+| positive: the corpus | `TestWsEncapReadbacks`: ila and xfrm | all 12 readbacks as ip printed them; they all differed before |
+| positive: ila's text | every attribute | ` encap ila  2001:0:0:2  csum-mode no-action  ident-type luid  hook-type output ` |
+| positive: xfrm with a cached link | if_id 1, link 4 (`d0`) | ` encap xfrm if_id 1 link_dev d0 `, `{"encap_type":"xfrm","if_id":1,"link_dev":"d0"}` |
+| negative: an attribute longer than its payload | | `ErrRTAttrSmall` |
+| boundary: if_id 0 and 4294967295; a 7-byte locator; a 3-byte link | | printed; printed; dropped; dropped |
+| corner: link 0, or one not in the cache | | `link_dev *`, `link_dev if99` |
+| corner: ila values with no name | 9 | `unknown` for each |
+| corner: a repeated attribute | | the first wins, even when it is short and dropped |
+
+### NX6e `route show` and `nexthop show` print the seg6local encap
+
+`xtcpnl.ParseSeg6LocalEncap` reads the payload as print_encap_seg6local does. The first of a repeated attribute wins, and a short scalar is dropped. The u32s are host order. The SRH, nh4 and nh6 are copied as sent, and their presence is what ip tests, so an empty one still prints its keyword. The BPF, counters and flavors nests carry NLA_F_NESTED, which the walk masks.
+
+`EncapViewOf` prints in print_encap_seg6local's order, and nothing past the type without the action:
+- `action`, by seg6_action_names: `<unknown>` for 0, `<invalid>` past End.DT46 (16).
+- `srh`, through print_srh, which is an `srh` object in JSON.
+- `table` and `vrftable`, through the route table names.
+- `nh4` and `nh6`.
+- `iif` and `oif`, through ll_index_to_name.
+- `endpoint`, the BPF program's name; JSON says `<unknown>` without one.
+- The counters, only under `-s`: `packets N bytes N errors N`, or a `stats64` object in JSON. goip's `nexthop show` has no `-s`, so it never prints them.
+- `flavors`, comma-separated in text and an array in JSON, then `lblen` and `nflen`.
+
+`resolveEncapName` resolves seg6local's iif, then its oif, before the route's dev, as NX6d does xfrm's link_dev. `encapNameIndexes` is the order it asks in.
+
+| description | input | expected |
+|---|---|---|
+| positive: captured ec-002 to ec-012 | the seg6local dump pcaps' payloads | the action, flavors, nh4, nh6, oif, table, SRH and zeroed counters each row set |
+| positive: the corpus | `TestWsEncapReadbacks`: seg6local and lwtxnh | all 15 seg6local and both lwtxnh seg6local readbacks as ip printed them; they all differed before |
+| positive: End.X | nh6 2001:db8:1::1, oif 3 (`d0`) | ` encap seg6local action End.X nh6 2001:db8:1::1 oif d0 ` |
+| positive: flavors | next-csid, lblen 32, nflen 16 | `flavors next-csid lblen 32 nflen 16`; JSON `"flavors":["next-csid"],"lblen":32,"nflen":16` |
+| positive: counters under -s | 3, 300, 1 | `packets 3 bytes 300 errors 1`; JSON `"stats64":{…}` |
+| negative: counters without -s | | not printed |
+| negative: an attribute longer than its payload, or inside a nest | | `ErrRTAttrSmall` |
+| negative: no action | a table and nothing else | ` encap seg6local `, and no index is resolved |
+| boundary: action 0, 17 and 4294967295 | | `<unknown>`, `<invalid>`, `<invalid>` |
+| boundary: a 3-byte action | | dropped, so no action |
+| corner: a BPF nest with no name; a name with no NUL | | `endpoint`, JSON `<unknown>`; the name whole |
+| corner: flavor bits with no name | bits 0 and 5 | `flavors  `, JSON `[]` |
+| corner: iif and oif both uncached | | resolved iif first, then oif |
+
+### NX7 `show` readbacks print what ip printed
+
+The encap and v730 readback tests cover only their own spaces. O9 (`TestWsReadbacks`) replays every workbench row's readbacks through goip, over the row's own dump capture. goip must print ip's stdout and send ip's requests. Each readback that doesn't is listed in `internal/goip/testdata/ws-readbacks.txt`, named by the first word of ip's line that goip lacks, or by goip's refusal. Each task below shrinks that list; regenerate it with `-update-ws-readbacks`.
+
+At NX7-0, 2003 readbacks match and 414 differ:
+
+| Task | Gap | Readbacks | Spaces |
+|---|---|---|---|
+| NX7a | neigh `proto` (NDA_PROTOCOL) | 63 | neigh4, neigh6 |
+| NX7b | link `mtu` and `qlen` when 0 | 60 | linkset, linkadd |
+| NX7c | link `alias` (IFLA_IFALIAS) | 36 | linkset |
+| NX7d | `protodown` and `protodown_reason`, with ip's faults (P14) | 11 | linkpd |
+| NX7e | route `realm` and `realms` (RTA_FLOW) | 4 | kwroute4 |
+| NX7f | rule `tos` names from rt_dsfield (`EF` where goip printed `0xb8`) | 8 | rule6 |
+| NX7f | neigh `proto openr`, from the stock rt_protos (goip printed `99`) | 23 of NX7a's 63 | neigh4, neigh6 |
+| NX7f | rule show refused: FRA_DSCP (88) and FRA_IP_PROTO (144), by the no-config-files rule | 232 | rule4, rule6 |
+
+The NX7f rows were a decision first: ip names each value from a file iproute2 installs (`rt_dsfield`, `rt_protos`) or from `/etc/protocols`, and goip read no files. The decision (status doc, decision log) is to compile in the files the parity guest has.
+
+#### NX7a neigh `proto`
+
+print_neigh prints `proto %s` after the state when NDA_PROTOCOL is non-zero (ip/ipneigh.c:465-470), through rtnl_rtprot_n2a, and the JSON key `"protocol"` comes last. goip names it from `routeProtoName`, the static table `route show` uses. That covers 40 of the 63 readbacks. The other 23 are `proto openr` (99), a name only the stock `rt_protos` file has; goip prints `proto 99` there, and they wait on the decision above.
+
+| description | input | expected |
+|---|---|---|
+| positive: static | neigh4 ec-002 | `… router REACHABLE proto static `; JSON `…,"state":["REACHABLE"],"protocol":"static"}` |
+| positive: a value with no name | 255 | `proto 255`, `"protocol":"255"` |
+| negative: no NDA_PROTOCOL | | no `proto` |
+| boundary: NDA_PROTOCOL 0 | | no `proto`: ip tests the value |
+| corner: a protocol with no state | kernel, state 0 | `… lladdr 02:00:00:00:00:01 proto kernel `; the key last |
+| positive: the corpus | `TestWsReadbacks` | 40 neigh readbacks now match; 23 `lacks "openr"` |
+
+`TestWsReadbackFirstGap` checks how a readback is named:
+
+| description | input | expected |
+|---|---|---|
+| positive: the same output and requests | | not listed |
+| positive: a word ip prints and goip lacks | `… STALE ` against `… STALE proto static ` | `lacks "proto"` |
+| negative: goip refuses | goip's error, rc 1 | `refuses "rule pref N: …"`, numbers as N |
+| negative: the same output from other requests | | `requests` |
+| boundary: a refusal where ip printed nothing | an empty `.out` | not listed |
+| corner: goip prints a word more | | `adds words` |
+| corner: only the spacing differs | | `spacing` |
+| corner: a whole line goip lacks | `    alias hello` | `lacks "alias"` |
+
+#### NX7b link `mtu` and `qlen` when 0
+
+Two causes, one of them in the test:
+
+- **`mtu`:** print_linkinfo prints `mtu %u ` whenever IFLA_MTU is present (ip/ipaddress.c:1021-1024). goip printed it only when the MTU was non-zero, so a dummy at `mtu 0` (linkset bd-001, ec-003) lost the token. `LinkView.MTU` is now a pointer, set when IFLA_MTU is present or non-zero; a hand-built LinkInfo marks presence with a non-zero MTU. JSON gains `"mtu":0`.
+- **`qlen`:** goip already prints `qlen 0` under iproute2 7.2.0 (`render.RenderQlenZero`). But the package's `main_test.go` turns the knob off for the 7.1.x fixtures, and O9 ran with it off. `TestWsReadbacks` now sets it, as `TestCorpus730MatchesSidecarsAt720` does (`useQlen720`).
+
+| description | input | expected |
+|---|---|---|
+| positive: a present 1500 | | `mtu 1500 `, `"mtu":1500` |
+| boundary: a present 0 | linkset bd-001 | `mtu 0 `, `"mtu":0` |
+| negative: no IFLA_MTU | | no `mtu` |
+| corner: a non-zero MTU without HasMTU | a hand-built LinkInfo | printed |
+| boundary: the largest u32 | 4294967295 | `mtu 4294967295 ` |
+| positive: the corpus | `TestWsReadbacks` | linkadd 111 of 111; no `mtu` or `qlen` gap; 17 more linkset rows reach their `alias` line (`alias` 36 → 53) |
+
+#### NX7c link `alias`
+
+print_linkinfo prints `\n    alias %s` when IFLA_IFALIAS is present and `do_link || show_details` (ip/ipaddress.c:1273-1277). It comes after the `-d` detail run and before the statistics and the altnames, and the JSON key is `"ifalias"`. `ip link show` sets do_link, so it prints the alias without `-d`; `ip addr show` and `ip monitor` print it only with `-d`. goip printed it nowhere. `LinkView.WithAlias` sets it; `link show` always calls it, and `addr show` and `monitor` call it under `-d`.
+
+| description | input | expected |
+|---|---|---|
+| positive: an alias | `hello` | `\n    alias hello`, `"ifalias":"hello"` |
+| positive: before an altname | `hello`, altname `a0` | the alias line, then `    altname a0` |
+| negative: not asked for | `ip addr show` without `-d` | no alias line, no key |
+| boundary: no IFLA_IFALIAS | | no alias line |
+| corner: an alias with spaces | `a b` | printed whole |
+| negative: monitor without `-d` | RTM_NEWLINK with IFLA_IFALIAS `up` | no alias line |
+| positive: monitor with `-d` | the same | `numtxqueues 1 \n    alias up` |
+| positive: the corpus, `link show` | linkset ec-002's dump (`TestWsLinkAlias`) | `\n    alias hello` without `-d`; `"ifalias":"hello"` under `-j`; after `gro_ipv4_max_size 65536 ` under `-d` |
+| positive: O9 | `TestWsReadbacks` | linkset 130 of 130; no `alias` gap |
+
+#### NX7d `protodown` and `protodown_reason`
+
+print_proto_down (ip/ipaddress.c:904-941) runs when IFLA_PROTO_DOWN is present, outside the link/ line's guard and outside `-d`, so `link show`, `addr show` and the monitor all print it. goip decoded neither attribute. xtcpnl now reads IFLA_PROTO_DOWN (u8) and the IFLA_PROTO_DOWN_REASON nest's value (u32, the first of a repeat), and `LinkViewOf` prints them with ip's faults (P14):
+
+- ` protodown on ` when the u8 is non-zero; JSON `"proto_down":true`.
+- The reasons only when the link's own `tb[2]`, IFLA_BROADCAST, is present: ip tests the wrong table.
+- Only the value's low 8 bits: ip reads the u32 with `rta_getattr_u8`. Reason 31 alone prints nothing (linkpd ec-004, pw-006, rn1-004).
+- `protodown_reason <0,3>` with no space before it; JSON `"proto_down_reason":["0","3"]`, strings. The reasons are numbers: protodown_reason_n2a names them from protodown_reasons.d, and iproute2 ships none.
+
+| description | input | expected |
+|---|---|---|
+| positive: protodown on | u8 1 | `brd ff:ff:ff:ff:ff:ff protodown on `, `"proto_down":true` |
+| positive: on, reasons 0 and 3 | value 0x9 | ` protodown on protodown_reason <0,3>` |
+| positive: a reason while off | value 1 | `ff:ff:ff:ff:ff:ffprotodown_reason <0>` |
+| negative: off | u8 0 | nothing |
+| negative: no IFLA_PROTO_DOWN | a reason nest | nothing |
+| boundary: reason 7 | 0x80 | `<7>` |
+| boundary: reason 8 alone | 0x100 | nothing (the u8 read) |
+| corner: reasons 0 and 31 | 0x80000001 | `<0>` only |
+| corner: no IFLA_BROADCAST | on, value 1 | ` protodown on ` and no reasons |
+| positive: O9 | `TestWsReadbacks` | linkpd 20 of 20 |
+
+xtcpnl's decode (`TestParseNewLinkProtoDown`): on; a value as the kernel sends it; neither; off is present; a nest with only a mask; the first of a repeated value; a short value dropped; an empty IFLA_PROTO_DOWN dropped. `TestParseNewLinkRealFixture`'s links all gain `HasProtoDown`, as the kernel sends IFLA_PROTO_DOWN on every link.
+
+The new LinkInfo fields move four of linkmonitor's recorded-contract digests (`TestRecordedContracts`, regenerated with `-update`): every recorded link now carries `HasProtoDown`.
+
+#### NX7e route `realm` and `realms`
+
+print_rta_flow (ip/iproute.c:536-561) prints RTA_FLOW as `realm TO ` or, when FROM (the high 16 bits) is non-zero, `realms FROM/TO `. On a route it comes after `mark` (:963-964); on a multipath path, after the gateway and before `dev` (:737-738). JSON is `"flow":{"from","to"}`, `from` only when non-zero. goip decoded RTA_FLOW nowhere. xtcpnl now reads it on a route and on each path (`Flow`, `HasFlow`, the first of a repeat), and `render.FlowViewOf` prints it.
+
+The names come from rt_realms through rtnl_rtrealm_n2a, which has rt_dsfield's lazy load (R2): the built-in table names realm 0 `unknown`, and the stock file, loaded by the first lookup of any other realm below 256, renames it `cosmos`. `render.Realms` is that state, shared across a `route show` or `rule show` dump (`RouteShowFilter.Realms`, `RuleViewOfIn`) and across `ip monitor`. Rule show printed `realms 0` as `0`; it now goes through the same table. A realm of 256 or more prints as its number. goip has no `-n`, under which ip prints numbers throughout; `route show realms` stays refused, so its suppression of the token never applies.
+
+| description | input | expected |
+|---|---|---|
+| positive: realm 5 | RTA_FLOW 5 | `scope link realm 5 `, `"flow":{"to":"5"}` |
+| positive: realms 1/2 | 0x10002 | `realms 1/2 `, `"flow":{"from":"1","to":"2"}` |
+| positive: a path's realm | path RTA_FLOW 3 | `nexthop via 192.0.2.1 realm 3 dev …` |
+| negative: no RTA_FLOW | | no token, no key |
+| boundary: realm 0 first | | `realm unknown ` |
+| boundary: realm 256 | | `256`, and the table stays unloaded |
+| corner: realm 0 after realm 5 in one dump | route show, rule show, monitor | `cosmos` |
+| corner: realms 2/0 | FROM is looked up first | `realms 2/cosmos ` |
+| positive: O9 | `TestWsReadbacks` | kwroute4 13 of 13: every readback in the corpus matches |
+
+xtcpnl (`TestParseNewRouteFlow`): realm 5; 1/2; none; realm 0 present; a short value dropped; the first of a repeat; a path's realm; a path's short value; a path's repeat; a path with none.
+
+#### NX7f the stock name tables, compiled in
+
+goip compiles in the files the parity guest reads (`internal/goip/render/names.go`):
+
+- `rt_dsfield` as iproute2 7.2.0 and 7.3.0 ship it: `default`, AF11–AF43, CS1–CS7, EF;
+- `rt_protos`' two names the built-in table lacks, `84 ovn` and `99 openr`;
+- `/etc/protocols` from NixOS's iana-etc 20251215: 137 lines, each a name, a number and one alias.
+
+A name a host adds to any of these is unknown to goip, which prints the number, as ip does without that line.
+
+What uses them:
+
+- **Reads:**
+  - rule `tos`, `ipproto` (`inet_proto_n2a`, `ipproto-N` for none) and `dscp` (`rtnl_dscp_n2a`; the `%#x/%#x` text arm for a partial mask);
+  - route `tos`;
+  - `proto` in route, nexthop, neigh and rule;
+  - an XFRM selector's protocol (`strxf_proto`, the number for none).
+- **Writes:** getprotobyname for rule and fou `ipproto` and the XFRM selector `proto`. It matches a name or its alias, case-sensitively. An unknown name now gets ip's own refusal (`Invalid "ipproto" value`, `invalid ipproto`, `PROTO value is invalid`) instead of not-implemented.
+- **Removed:** `checkRuleRenderable`, and the not-implemented paths in fou, XFRM and rule.
+
+**ip's lazy load, replicated.** `rtnl_rtdsfield_tab` starts as `[0] = "0"`, and the file loads only when a lookup finds an empty slot. So DS field 0 prints `0` until another tos or dscp lookup in the same process has loaded the file, and `default` after that. The 32 corpus readbacks with `dscp 0` print `0`.
+
+- `render.Dsfield` holds one process's state.
+- `ruleShow` shares it across a dump's rules.
+- `ip monitor` keeps it for its whole run, and a printed route's tos loads it.
+- The bug is in the upstream notes (`iproute2-rt-names-table-load.md`, R2), along with an off-by-one in `rtnl_tab_initialize` (R1).
+
+| description | input | expected |
+|---|---|---|
+| positive: EF | tos 0xb8 | `EF`; the table loads |
+| negative: a DS field with no line | 0x10 | `0x10` |
+| corner: DS field 0 before a load | the first lookup | `0`; nothing loads |
+| corner: DS field 0 after a load | | `default` |
+| positive: dscp 46 | | `EF` |
+| negative: dscp 4 | | `4` |
+| boundary: dscp 63 | | `63`; the table loads |
+| boundary: dscp 64 | | `64`; shifted past the table, nothing loads |
+| positive: ipproto tcp | after uidrange, before sport | ` ipproto tcp`, JSON `"ipproto":"tcp"` |
+| negative: ipproto 255 | | `ipproto-255` |
+| positive: dscp 8, mask 0x30 | | text ` dscp 0x8/0x30`; JSON `"dscp":"CS1","dscp_mask":"0x30"` |
+| boundary: dscp 0, mask 0x30 | | ` dscp 0/0x30`: C's `%#x` of 0 |
+| corner: tos then dscp 0 on one rule | | `tos EF … dscp default` |
+| corner: `ip monitor`, a route with tos, then a rule with dscp 0 | | the rule prints `dscp default` |
+| positive: getprotobyname by alias | `rule add ipproto TCP` | FRA_IP_PROTO 6 |
+| corner: a name that starts with a digit | `ipproto 3pc` | 34 |
+| negative: a name iana-etc lacks | `ipproto ospf` (89 is `ospfigp`) | `Invalid "ipproto" value`, rc 255 |
+| negative: xfrm `sel proto ospf` | | `PROTO value is invalid`, rc 255 |
+| corner: xfrm `sel proto 200 sport 1` | | refused naming `PROTO value "200"` |
+| positive: route proto 84 | | `proto ovn` |
+| positive: the corpus | `TestWsReadbacks` | rule4 and rule6 203 of 203; neigh4 138 of 138; neigh6 137 of 137 |
+
+## NC8 rpl, ioam6 and bpf encaps and `nexthop show -s`, captures first
+
+After NX7 every readback in the corpus prints as ip's, but two gaps have no capture at all:
+
+- **Encaps:** route and nexthop show print no encap for rpl, ioam6 or bpf. The workbench guest ran nixpkgs' `linuxPackages_latest`, which has `LWTUNNEL_BPF=y` but neither `IPV6_RPL_LWTUNNEL` nor `IPV6_IOAM6_LWTUNNEL`, so lwtxreq ec-001, ec-002 and ec-006 are ENOTSUP (`tools/nlcapgen/matrix_lwtx.go`). bpf needs an ELF object, so no row was generated.
+- **`nexthop show -s`:** goip has no `-s` there. So it never prints group stats, `hw_stats`, or seg6local's counters on a nexthop.
+
+Captures come first (NC8), then the parsers (NP8), then goip (NX8). Tier C sets Tier P's and G's counts. The kernel decision (the user's choice, "Workbench kernel + 2 opts") gives only the workbench guest the two options; the parity VM stays stock until Tier G decides.
+
+Out of scope: traffic-dependent counter values as gated readbacks, `ip ioam` genl objects beyond the namespace a row needs, and XDP.
+
+### NC8-T01 a workbench kernel with RPL and IOAM6 lwtunnels
+
+`nix/microvms/mkVm.nix` gives the workbench (`isNlcapWorkbench`) a `boot.kernelPatches` entry with no patch, only `structuredExtraConfig` turning on `IPV6_RPL_LWTUNNEL` and `IPV6_IOAM6_LWTUNNEL`. Every other VM's kernel derivation is unchanged. The version stays 7.3.1, so `kver_dir` puts the corpus where it goes now. The batch records the guest's `/proc/config.gz` lines naming LWTUNNEL in each row's guest sidecar (`kconfig`), so a corpus shows which kernel made it. The `lwtx` corpus is not recaptured: its ENOTSUP rows would turn into rc 0, and the generator test pinning them stays.
+
+| description | input | expected |
+|---|---|---|
+| positive: the workbench has both options | boot, the guest sidecar | `CONFIG_IPV6_RPL_LWTUNNEL=y`, `CONFIG_IPV6_IOAM6_LWTUNNEL=y` |
+| positive: an rpl route installs | `ip -6 route add … encap rpl segs A dev d0` | rc 0 |
+| negative: other VMs unchanged | the goip-parity VM's kernel drv (`nix-store -qR` of its runner drv) | the same drv as before |
+| boundary: the same kernel version | `uname -r` | 7.3.1, so the corpus directory is unchanged |
+| positive: `kconfig_lwt` | a gzip config | the LWTUNNEL lines, sorted, de-duplicated |
+| negative: `kconfig_lwt` | a missing or corrupt file | `[]`, and no `kconfig` key |
+
+### NC8-T02 a BPF lwt object for the workbench
+
+`nix/nlcap-lwt-bpf` builds `lwt_bpf.o`: `pass_in`, `pass_out` and `pass_xmit` in sections `lwt_in`, `lwt_out` and `lwt_xmit`, each returning `BPF_OK`, built with `clang -target bpf -O2 -g`. Its check phase lists the sections. `xtcp2-nlcap-ws.sh batch|run --bpf FILE` passes the store path, which the guest sees over 9p; the batch links it at `/run/nlcap-ws/lwt_bpf.o` before any row runs. ip names the program `basename:[section]` and the kernel echoes that in `LWT_BPF_PROG_NAME`, so the fixed link keeps readbacks deterministic. Only the fd in the request varies, and O3 zeroes it.
+
+| description | input | expected |
+|---|---|---|
+| positive: the object loads | `encap bpf in obj $O sec lwt_in dev d0` | rc 0, `LWT_BPF_IN{PROG_FD, PROG_NAME}` |
+| negative: a missing section | `sec nosuch` | ip's refusal, rc 255, nothing sent |
+| negative: a missing file | `obj /nonexistent/lwt.o` | ip's refusal, rc 255, nothing sent |
+| positive: `--bpf-obj` | a file | linked at `--bpf-link`; `lwt_bpf` in the sidecar |
+| negative: `--bpf-obj` | no such file | `no bpf object …`, before any row |
+
+### NC8-T03 the `lwtenc` family
+
+`tools/nlcapgen/matrix_lwtenc.go`: five spaces on `buildLwtx`'s setup, a new family so `lwtx` stays byte-identical. Every row reads back the table dump (`ip -6 route show table all`, `ip -4 …` for bpf, `ip nexthop show` for nexthops) plain, as `-j` and as `-d`. 63 rows: 48 forms (30 at rc 0, 11 at 255, 6 at 2, 1 at 1) and 15 duplicates. Expectations come from the source and are fixed against the capture.
+
+| space | positive | negative, boundary, corner |
+|---|---|---|
+| `rplroute` | one seg; three segs; no segs (ip sends `::`) | an IPv4 seg (get_addr, rc 1); `segs` twice (duparg, 255); on an IPv4 route (EINVAL) |
+| `ioam6route` | inline, encap and auto modes; `freq 1/2` | size 4 and 244, 248 too big; ns 0 and 65535; size 13, k>n, tundst inline, encap without tundst (255); type bit 12 (EINVAL); with and without `ip ioam namespace add 1` |
+| `bpfroute` | in, out, xmit alone; all three with headroom 16 | headroom 1 and 256, 257 (ERANGE); headroom 0 (invarg); headroom alone (EINVAL); a missing section or file (255); `in` twice |
+| `lwtencnh` | rpl, ioam6 and bpf on `ip -6 nexthop add id N` | whether the kernel takes each, as captured |
+| `lwtenchop` | the same on a multipath hop | as captured |
+
+### NC8-T04 the `nhstats` family
+
+`tools/nlcapgen/matrix_nhstats.go`. The point is the readbacks: `ip nexthop show`, `-s`, `-s -s`, `-j -s`, `-j -s -s`, `ip -s nexthop get id N` and `ip -s nexthop show id N`. Under `-s` the dump sends NHA_OP_FLAGS 1, under `-s -s` 3; a get always sends it, 0 without `-s` (ipnh_get_op_flags). 11 rows: 7 forms, 3 duplicates and one traffic row.
+
+| description | setup | expected |
+|---|---|---|
+| positive: a 2-way group | `id 1`, `id 2`, `id 10 group 1/2` | NHA_OP_FLAGS in the dump; replies carry NHA_GROUP_STATS |
+| positive: a resilient group | `type resilient buckets 8` | group stats and the res nest |
+| positive: hw_stats on | `group 1/2 hw_stats on` | NHA_HW_STATS_ENABLE/USED; `hw_stats on used off` |
+| positive: a weighted group | `group 1,3/2,7` | one stats entry per member |
+| positive: seg6local with count | `-6 nexthop add id 20 encap seg6local action End count` | SEG6_LOCAL_COUNTERS 0; `packets 0 bytes 0 errors 0` only under `-s` |
+| negative: a plain nexthop under `-s` | `id 3 via 192.0.2.3` | no stats text; NHA_OP_FLAGS still in the request |
+| boundary: no `-s` | | no NHA_OP_FLAGS in the dump |
+| corner: a group of one | `group 1` | one entry, no newline after it (print_nh_grp_stats) |
+| corner: traffic | three pings via `198.51.100.0/24 nhid 10` | ping rc 1; counted, not compared byte for byte |
+
+### NC8-T05 the gate
+
+Two fresh-boot batches per family must agree row for row on rc and message types, and every rc must be what the generator wrote. The first batch goes to `pkg/xtcpnl/testdata/<kver>/ws/{rplroute,ioam6route,bpfroute,lwtencnh,lwtenchop,nhstats}`, within the `ws/` size budget. No row but the traffic corner sends, so every counter is 0. O3 gets `pkg/xtcpnl/xtcpnl_ws_lwtenc_test.go` and `…_nhstats_test.go`: the rpl segs, the ioam6 trace, mode, freq and tunnel addresses, the bpf nests and headroom (fd zeroed), and NHA_OP_FLAGS, each against the row's axes. The status summary records which encaps the kernel takes on a nexthop and a hop, whether ioam6 needs the namespace, and ip's bpf program name.
+
+### NP8 the parsers (outline)
+
+`ParseRplEncap`, `ParseIoam6Encap` and `ParseBpfEncap` in `pkg/xtcpnl`, after `ParseSeg6LocalEncap`: the first of a repeat wins, a short scalar is dropped, NLA_F_NESTED is masked. The nexthop decode adds NHA_GROUP_STATS (entry id, packets, packets_hw), NHA_HW_STATS_ENABLE/USED and NHA_OP_FLAGS, and a request builder sends NHA_OP_FLAGS in the dump and get. Each gets a table test from the captures, a benchmark and fuzz seeds. Sized after NC8-T05.
+
+### NX8 goip (outline)
+
+- **NX8a/b/c:** `route show`, `nexthop show` and a hop print rpl, ioam6 and bpf, text and JSON, as print_encap_rpl, print_encap_ioam6 and print_encap_bpf do.
+- **NX8d:** `nexthop show -s` and `-s -s`: NHA_OP_FLAGS, the `stats:` block (`packets_hw` under `-s -s`), `hw_stats … used …` under `-d` or `-s`, and seg6local's counters.
+- O9 gains the new families; the goal is 0 differ. nhstats VM rows can gate on the stock parity kernel; rpl and ioam6 VM rows wait on a decision about the parity kernel, and bpf rows need the object in the parity guest.
+
+## NX9 the parity guest's rpl, ioam6 and bpf rows
+
+The user's decision (2026-11-12): the goip-parity guest gets the workbench's kernel, so the rpl and ioam6 encaps install there, and the BPF lwt object. `LWTUNNEL_BPF` is already in the stock kernel; bpf lacked only the object.
+
+### NX9-T01 the kernel and the object
+
+`nix/microvms/mkVm.nix` applies the workbench's `nlcap-lwtunnels` kernel patch to `isGoipParity` too, the same patch, so both build one kernel. The guest links `nlcap-lwt-bpf`'s `lwt_bpf.o` at `/run/nlcap-ws/lwt_bpf.o`, the workbench's path, so the rows read as the lwtenc corpus's. Every parity run, the full pre-push run included, now runs that kernel.
+
+| description | input | expected |
+|---|---|---|
+| positive: rpl installs | `gw_rplroute_ec_001` | rc 0 on ip and goip |
+| positive: the object loads | `lwtencReadSetup`'s bpf route | ip rc 0 in the setup |
+| boundary: the lwtxreq rows flip | `gw_lwtxreq_ec_001`, `_002`, `_006` | rc 0 where the stock kernel gave 2, still the same on both sides |
+
+### NX9-T02 the rows
+
+Thirteen writes from the lwtenc corpus (`gw_rplroute_*`, `gw_ioam6route_*`, `gw_lwtencnh_*`, `gw_lwtenchop_*`, rpl and ioam6 only; the bpf writes are NX10b's), and seven readbacks on `lwtencReadSetup`: `-6`, `-j -6` and `-d -6 route show table main`, `-4` and `-j -4 route show table main`, `-6` and `-j -6 nexthop show`. `gwCorpusDir` reads the 7_3_1 corpus too. Two clean section runs (route, nexthop) gate them, and a test pins the flip.
+
+| description | rows | expected |
+|---|---|---|
+| positive: the writes | 13 | GOIP_PARITY_PASS, txns as ip, on both runs |
+| positive: the readbacks | 7 | GOIP_PARITY_PASS with stdout=0 |
+| negative: bpf writes | none | not rows here; NX10b gates them |
+
+## NX10 goip writes bpf encaps
+
+The user's decision (2026-11-13): goip loads the BPF object with cilium/ebpf, so `encap bpf` and seg6local's End.BPF `endpoint` write as ip's do, and their VM rows gate.
+
+### NX10a the loader and the writes
+
+`bpf_do_parse`'s grammar (`obj` or `object-file`, `pinned` or `object-pinned` or `fd`, then `section`, `program`, `verbose`), then iproute2_load_libbpf's checks: the ELF header, the section or program, and the kernel load as the hook's type. The request carries LWT_BPF_PROG_FD and LWT_BPF_PROG_NAME, `<basename>:[<sec>]` or `[*fsobj]` for a pin. ip's loader messages and exit 255 on each failure. nlparity zeroes the fd, which differs between processes. Not implemented: `verbose`, `m:` pins, pinned maps, two programs in one section.
+
+| description | input | expected |
+|---|---|---|
+| positive: a hook | `encap bpf in obj O sec lwt_in` | ip's request, fd zeroed |
+| positive: headroom | `xmit obj O sec lwt_xmit headroom 16` | LWT_BPF_XMIT_HEADROOM 16; only the first written |
+| positive: End.BPF | `action End.BPF endpoint obj O sec lwt_xmit` | SEG6_LOCAL_BPF nest |
+| negative: headroom 0 | | `headroom is invalid`, exit 255 |
+| negative: a missing file or section | | ip's messages, nothing sent |
+| corner: not an eBPF ELF | another machine, an ET_EXEC | `ELF format error, ELF file not for eBPF?` |
+
+### NX10b the VM rows
+
+The bpf writes from the lwtenc corpus as GW rows on `gwWsSetupD0`: those ip sends (rc 0 or 2), each command once. Two clean `--section route,nexthop` runs gate them, and `TestBpfWriteRowsGated` pins them.
+
+| description | rows | expected |
+|---|---|---|
+| positive: the hooks, alone and together | bpfroute ec-001 to ec-004 | GOIP_PARITY_PASS, txns as ip |
+| boundary: headroom 1 and 256; 257 | ec-005, ec-006; ng-002 | rc 0; rc 2 (ERANGE) on both |
+| corner: a retyped section, a repeated hook, two headrooms | ec-007, ec-008, ec-009 | ip's request |
+| negative: a headroom and no prog | ng-003 | rc 2 (EINVAL) on both |
+| positive: on a nexthop and a hop | lwtencnh ec-003, ec-004; lwtenchop ec-003 | ip's request |
+| negative: ip's refusals before sending | ng-001, ng-004, ng-005 | not rows |
 
 ## See also
 

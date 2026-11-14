@@ -21,6 +21,9 @@ func TestPrinter(t *testing.T) {
 		p.OpenObject("stats64")
 		p.U64(PrintAny, "bytes", "%d bytes", 18446744073709551615)
 		p.OnOff(PrintAny, "on", " %s", true)
+		p.Bool(PrintAny, "key", " key", true)
+		p.Bool(PrintAny, "csum", " %s", false)
+		p.Bool(PrintJSON, "seq", " seq", true)
 		p.OpenArray("flags")
 		p.String(PrintAny, "", " %s", "PVID")
 		p.String(PrintAny, "", " %s", "a\"b\\c\x01\x7f")
@@ -36,10 +39,10 @@ func TestPrinter(t *testing.T) {
 		json        bool
 		expected    string
 	}{
-		{"positive: text writes the FP and ANY formats", false,
-			"1: lo: group link\n18446744073709551615 bytes on PVID a\"b\\c\x01\x7f"},
+		{"positive: text writes the FP and ANY formats; corner: print_bool's verbless format as it is", false,
+			"1: lo: group link\n18446744073709551615 bytes on key false PVID a\"b\\c\x01\x7f"},
 		{"positive: json writes the members, comma-separated and escaped; corner: control bytes and DEL as \\u00XX, as jsonw_puts writes them", true,
-			`[{"ifindex":1,"ifname":"lo","group":"link","stats64":{"bytes":18446744073709551615,"on":true,` +
+			`[{"ifindex":1,"ifname":"lo","group":"link","stats64":{"bytes":18446744073709551615,"on":true,"key":true,"csum":false,"seq":true,` +
 				`"flags":["PVID","a\"b\\c\u0001\u007f"]}},{}]` + "\n"},
 	}
 	for _, tc := range tests {

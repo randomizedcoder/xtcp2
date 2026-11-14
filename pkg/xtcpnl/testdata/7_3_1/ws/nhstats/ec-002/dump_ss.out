@@ -1,0 +1,6 @@
+id 1 via 192.0.2.1 dev d0 scope link 
+id 2 via 192.0.2.2 dev d0 scope link 
+id 11 group 1/2 type resilient buckets 8 idle_timer 120 unbalanced_timer 0 unbalanced_time 0 hw_stats off used off 
+  stats:
+    id 1 packets 0 packets_hw 0
+    id 2 packets 0 packets_hw 0

@@ -1,0 +1,58 @@
+//
+// xTCP - treatment agent service
+//
+// The outbound-only RPC surface an agent uses: check in with observed state,
+// fetch the authoritative desired state, and watch for revision hints. Every
+// method requires an agent certificate whose SPIFFE id matches agent_id and
+// whose location matches the request; see pkg/treatment/identity.
+
+syntax = "proto3";
+
+package xtcp_treatment.v1;
+
+option go_package = "github.com/randomizedcoder/xtcp2/gen/go/xtcp_treatment";
+
+import "buf/validate/validate.proto";
+import "xtcp_treatment/v1/treatment.proto";
+
+service AgentControlService {
+  rpc CheckIn(CheckInRequest) returns (CheckInResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_AGENT;
+  }
+  rpc GetDesiredState(GetDesiredStateRequest) returns (GetDesiredStateResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_AGENT;
+  }
+  rpc WatchDesiredState(WatchDesiredStateRequest) returns (stream WatchDesiredStateResponse) {
+    option (xtcp_treatment.v1.role) = ROLE_AGENT;
+  }
+}
+
+message CheckInRequest {
+  string agent_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  string location = 2 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  Capabilities capabilities = 3 [(buf.validate.field).required = true];
+  uint64 desired_revision = 4;
+  repeated ApplicationRecord records = 5 [(buf.validate.field).repeated.max_items = 8192];
+  bool locally_suspended = 6;
+}
+
+message CheckInResponse {
+  DesiredState desired = 1;
+}
+
+message GetDesiredStateRequest {
+  string agent_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+}
+
+message GetDesiredStateResponse {
+  DesiredState desired = 1;
+}
+
+message WatchDesiredStateRequest {
+  string agent_id = 1 [(buf.validate.field).string.pattern = "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$"];
+  uint64 after_revision = 2;
+}
+
+message WatchDesiredStateResponse {
+  uint64 revision = 1;
+}

@@ -107,10 +107,18 @@ type NeighView struct {
 	Confirmed *uint32 `json:"-"`
 	Updated   *uint32 `json:"-"`
 	Probes    *uint32 `json:"-"`
+
+	// Protocol is NDA_PROTOCOL through rtnl_rtprot_n2a, printed after the
+	// state (ip/ipneigh.c:465-470), so `json:"-"` for State's reason. ip
+	// tests the value, not the attribute's presence: 0 prints nothing.
+	Protocol string `json:"-"`
 }
 
 func NeighViewOf(n xtcpnl.NeighInfo, names NameTab, f NeighShowFilter) NeighView {
 	v := NeighView{State: neighStates(n.State), Flags: NeighFlagTokens(n.Flags, n.FlagsExt)}
+	if n.Protocol != 0 {
+		v.Protocol = routeProtoName(n.Protocol)
+	}
 	if !f.IndexSet && n.Ifindex != 0 {
 		v.Dev = names.IndexToName(n.Ifindex)
 	}
@@ -274,7 +282,7 @@ func (v NeighView) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(v.Flags) == 0 && len(v.State) == 0 &&
+	if len(v.Flags) == 0 && len(v.State) == 0 && v.Protocol == "" &&
 		v.Refcnt == nil && v.Used == nil && v.Probes == nil {
 		return raw, nil
 	}
@@ -322,6 +330,14 @@ func (v NeighView) MarshalJSON() ([]byte, error) {
 		}
 		b.WriteString(`,"state":`)
 		b.Write(state)
+	}
+	if v.Protocol != "" {
+		proto, err := json.Marshal(v.Protocol)
+		if err != nil {
+			return nil, err
+		}
+		b.WriteString(`,"protocol":`)
+		b.Write(proto)
 	}
 	b.WriteByte('}')
 	return b.Bytes(), nil
@@ -373,6 +389,11 @@ func (v NeighView) Text() string {
 	}
 	for _, s := range v.State {
 		b.WriteString(s)
+		b.WriteByte(' ')
+	}
+	if v.Protocol != "" {
+		b.WriteString("proto ")
+		b.WriteString(v.Protocol)
 		b.WriteByte(' ')
 	}
 	b.WriteByte('\n')
