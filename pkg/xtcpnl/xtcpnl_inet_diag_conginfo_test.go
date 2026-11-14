@@ -19,7 +19,36 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
+
+func TestDeserializeCongInfoXTCPName(t *testing.T) {
+	// Reuse the same record to catch a stale enum after an unknown algorithm.
+	record := new(xtcp_flat_record.XtcpFlatRecord)
+	for _, tc := range []struct {
+		wire      string
+		name      string
+		algorithm xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm
+	}{
+		{"cubic\x00\x00\x00", "cubic", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC},
+		{"reno\x00", "reno", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED},
+		{"bbr\x00", "bbr", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1},
+		{"bbr2\x00", "bbr2", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2},
+		{"bbr3\x00", "bbr3", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := []byte(tc.wire)
+			if err := DeserializeCongInfoXTCP(data, record); err != nil {
+				t.Fatal(err)
+			}
+			data[0] = 'x' // The netlink receive buffer is reused after decoding.
+			if record.InetDiagCong != tc.name || record.InetDiagCongEnum != tc.algorithm {
+				t.Fatalf("algorithm = %q/%v, want %q/%v", record.InetDiagCong, record.InetDiagCongEnum, tc.name, tc.algorithm)
+			}
+		})
+	}
+}
 
 type DeserializeCongInfoTest struct {
 	description string
