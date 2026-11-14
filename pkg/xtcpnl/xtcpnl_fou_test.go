@@ -230,3 +230,37 @@ func TestParseFOUCorpus(t *testing.T) {
 		})
 	}
 }
+
+// FuzzParseFOU drives ParseFOU with arbitrary bodies: it must never panic,
+// and a body it accepts must leave the addresses valid-or-absent and no
+// scalar past its width. Seeds are a kernel GET answer, a bare header and a
+// couple of built bodies.
+//
+// go test ./pkg/xtcpnl/ -run '^$' -fuzz FuzzParseFOU
+func FuzzParseFOU(f *testing.F) {
+	add := []byte{FOUCmdAdd, 1, 0, 0}
+	get := []byte{FOUCmdGet, 1, 0, 0}
+	f.Add(cat(get,
+		rtattr(FOUAttrAF, []byte{2}),
+		rtattr(FOUAttrPort, []byte{0x15, 0xb3}),
+		rtattr(FOUAttrIPProto, []byte{4}),
+		rtattr(FOUAttrType, []byte{1}),
+		rtattr(FOUAttrPeerPort, []byte{0, 0}),
+		rtattr(FOUAttrLocalV4, []byte{0, 0, 0, 0}),
+		rtattr(FOUAttrPeerV4, []byte{0, 0, 0, 0})))
+	f.Add(get)
+	f.Add(cat(add, rtattr(FOUAttrPort, []byte{0x15, 0xb3}), rtattr(FOUAttrAF, []byte{2}), rtattr(FOUAttrType, []byte{1})))
+	f.Add(cat(get, rtattr(FOUAttrLocalV4, []byte{192, 0, 2, 1}), rtattr(FOUAttrPeerV4, []byte{192, 0, 2, 2})))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		m, err := ParseFOU(body)
+		if err != nil {
+			return
+		}
+		if m.Local.IsValid() && !m.Local.Is4() && !m.Local.Is6() {
+			t.Fatalf("local %v is neither v4 nor v6", m.Local)
+		}
+		if m.Peer.IsValid() && !m.Peer.Is4() && !m.Peer.Is6() {
+			t.Fatalf("peer %v is neither v4 nor v6", m.Peer)
+		}
+	})
+}

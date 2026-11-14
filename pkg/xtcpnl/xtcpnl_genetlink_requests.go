@@ -31,6 +31,21 @@ func BuildGetFamilyRequestVersion(name string, version uint8, seq uint32) ([]byt
 	return buildGenericGet(GenlControllerID, 3, version, seq, a.Bytes()), nil
 }
 
+// BuildGetFOURequest builds `ip fou show`'s dump request (ip/ipfou.c
+// do_show): FOU_CMD_GET with NLM_F_REQUEST|NLM_F_DUMP, genl version 1, and
+// no attributes (ip sends only the genl header, and the kernel's dumpit
+// lists every fou in the namespace). It takes no ACK, matching ip's
+// rtnl_send + rtnl_dump_filter. family must be a resolved fou family id,
+// above the controller's.
+func BuildGetFOURequest(family uint16, seq uint32) ([]byte, error) {
+	if family <= GenlControllerID {
+		return nil, ErrGenericNetlink
+	}
+	out := buildGenericGet(family, FOUCmdGet, 1, seq, nil)
+	binary.LittleEndian.PutUint16(out[6:8], unix.NLM_F_REQUEST|unix.NLM_F_DUMP)
+	return out, nil
+}
+
 // BuildGetFamilyByIDRequest builds genl_add_mcast_grp's CTRL_CMD_GETFAMILY
 // (lib/libgenl.c): version 0, the family by CTRL_ATTR_FAMILY_ID, whose
 // answer names the family's multicast groups. id must be a family's, above
