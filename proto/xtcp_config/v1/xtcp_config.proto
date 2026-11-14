@@ -778,6 +778,49 @@ message XtcpConfig {
 			lte: 4096
 	}];
 
+	// Cap on the bytes of one namespace's inet_diag dump per poll. Packets
+	// past it are drained from the socket without being decoded, and the
+	// dump is counted in xtcp_dump_dropped_total{reason="bytes"}, so a
+	// namespace with a huge socket table costs a metric, not the collector.
+	// Startup-only. 0 = unlimited. Daemon default 256 MiB.
+	uint64 max_dump_bytes                             = 25 [
+		(buf.validate.field).required = false
+	];
+
+	// Cap on the records one namespace contributes per poll. Records past it
+	// are dropped before attribute decode and enrichment, and the dump is
+	// counted in xtcp_dump_dropped_total{reason="records"}. Startup-only.
+	// 0 = unlimited. Daemon default 262144.
+	uint64 max_records_per_netns                      = 26 [
+		(buf.validate.field).required = false
+	];
+
+	// Budget on the records all namespaces contribute per poll. Before each
+	// poll xtcp2 reads every namespace's TCP socket count (sockstat) and,
+	// when the total is over the budget, splits it max-min fairly: a
+	// namespace over its share first stops asking for TIME_WAIT and
+	// SYN_RECV, then is sampled by port range across polls. Counted in
+	// xtcp_poll_degraded_total. Startup-only. 0 = off (sockstat is not read).
+	// Daemon default 1048576.
+	uint64 max_records_per_poll                       = 27 [
+		(buf.validate.field).required = false
+	];
+
+	// Sockstat reads queued per io_uring submit when io_uring=true.
+	// Ignored otherwise. 0 = daemon default 64; at most 1024.
+	uint32 io_uring_sockstat_batch_size               = 28 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = { lte: 1024 }
+	];
+
+	// Cap on io_uring's kernel worker threads for sockstat reads (procfs
+	// reads are handed to io-wq workers). Ignored unless io_uring=true.
+	// 0 = daemon default 4; at most 64.
+	uint32 io_uring_sockstat_workers                  = 29 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = { lte: 64 }
+	];
+
 	// ---- namespace reconcile (40-49) -----------------------------------------
 
 	// Period of the background namespace-reconcile ticker (Method B /proc scan
@@ -800,6 +843,46 @@ message XtcpConfig {
 	// discovery cadence to poll cadence; the /proc scan is zero-allocation and
 	// mutex-serialized with the background reconciler. Default true.
 	bool reconcile_before_poll                         = 41;
+
+	// Cap on the network namespaces tracked, xtcp2's own included. Each costs
+	// a netlink socket, a receiver and its decoders. At the cap, tracked
+	// namespaces keep their slots until they die; the rest wait, are counted
+	// in xtcp_netns_dropped_total each reconcile, and get freed slots in the
+	// order xtcp2 first saw them. Startup-only.
+	// 0 = unlimited. Daemon default 4096.
+	uint32 max_netns                                   = 42 [
+		(buf.validate.field).required = false
+	];
+
+	// Time budget for one reconcile's namespace scan. A scan cut short adds
+	// what it found but deletes nothing (a partial view cannot prove a
+	// namespace is gone), and is counted in
+	// xtcp_reconcile_incomplete_total{reason="timeout"}. Bounds how long a
+	// namespace flood can delay a poll. The scan also stops after
+	// 4 x max_netns distinct namespaces (reason="scan_cap").
+	// Startup-only. 0 = no limit. Daemon default 1s.
+	google.protobuf.Duration reconcile_timeout         = 43 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+	}];
+
+	// Cap on the namespaces one owner (the outermost container id in the
+	// namespace's cgroup) may have tracked. Bind-mounted namespaces with no
+	// live process are exempt. Candidates over it keep their queue place and
+	// are counted in xtcp_netns_dropped_total{reason="owner_quota"}.
+	// Startup-only. 0 = no limit. Daemon default 64.
+	uint32 max_netns_per_owner                         = 44 [
+		(buf.validate.field).required = false
+	];
+
+	// Cap on namespaces added per reconcile, so a burst cannot open
+	// thousands of sockets (each a setns on a locked thread) at once. The
+	// rest wait their turn (reason="add_rate"). Startup-only.
+	// 0 = no limit. Daemon default 256.
+	uint32 max_netns_adds_per_reconcile                = 45 [
+		(buf.validate.field).required = false
+	];
 
 	// ---- capture / debug (50-59) ---------------------------------------------
 

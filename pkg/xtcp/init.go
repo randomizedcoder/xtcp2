@@ -96,6 +96,7 @@ func (x *XTCP) Init(ctx context.Context) {
 
 	// After InitPromethus, like the enrichers below: it sets a gauge.
 	x.checkNetnsPropagation()
+	x.checkFDLimit()
 
 	// initEnrichers runs AFTER the wait, not before it. Every enricher reports
 	// its outcome through x.pC / x.pGV, which InitPromethus creates on one of

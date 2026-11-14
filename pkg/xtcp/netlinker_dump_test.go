@@ -127,6 +127,13 @@ type dumpHarness struct {
 
 func newDumpHarness(t testing.TB, variant string, netlinkers uint32, hook func(fd int, packet []byte)) *dumpHarness {
 	t.Helper()
+	return newDumpHarnessWith(t, variant, netlinkers, hook, nil)
+}
+
+// newDumpHarnessWith is newDumpHarness with configure run on the XTCP
+// before the netlinkers start, for settings they read once (the caps).
+func newDumpHarnessWith(t testing.TB, variant string, netlinkers uint32, hook func(fd int, packet []byte), configure func(*XTCP)) *dumpHarness {
+	t.Helper()
 	if variant == variantIoUring {
 		requireIoUring(t)
 	}
@@ -149,6 +156,10 @@ func newDumpHarness(t testing.TB, variant string, netlinkers uint32, hook func(f
 			return
 		}
 		x.netlinkerSyscall(ctx, wg, nsName, inode, fd, netlinkers)
+	}
+
+	if configure != nil {
+		configure(x)
 	}
 
 	readFD, writeFD, _ := makeSocketPair(t)
@@ -516,15 +527,36 @@ func BenchmarkNetlinkerDump(b *testing.B) {
 	for _, variant := range dumpVariants {
 		for _, netlinkers := range []uint32{1, 2, 4, 8} {
 			b.Run(fmt.Sprintf("%s/netlinkers=%d", variant, netlinkers), func(b *testing.B) {
-				benchDump(b, variant, netlinkers, pkts, perDump)
+				benchDump(b, variant, netlinkers, pkts, perDump, nil)
 			})
 		}
 	}
 }
 
 // benchDump runs BenchmarkNetlinkerDump for one variant and decoder count.
-func benchDump(b *testing.B, variant string, netlinkers uint32, pkts [][]byte, perDump int) {
-	h := newDumpHarness(b, variant, netlinkers, nil)
+// BenchmarkNetlinkerDumpCaps is BenchmarkNetlinkerDump with the daemon's
+// default -maxDumpBytes and -maxRecordsPerNetns set, which the dump stays
+// under: the caps' cost on the hot path when they never trip.
+func BenchmarkNetlinkerDumpCaps(b *testing.B) {
+	const dataPkts = 1700
+	c := loadDumpCorpus(b)
+	pkts := c.dump(dataPkts)
+	perDump := countRecords(pkts)
+
+	for _, variant := range dumpVariants {
+		for _, netlinkers := range []uint32{1, 4} {
+			b.Run(fmt.Sprintf("%s/netlinkers=%d", variant, netlinkers), func(b *testing.B) {
+				benchDump(b, variant, netlinkers, pkts, perDump, func(x *XTCP) {
+					x.config.MaxDumpBytes = 256 << 20
+					x.config.MaxRecordsPerNetns = 1 << 18
+				})
+			})
+		}
+	}
+}
+
+func benchDump(b *testing.B, variant string, netlinkers uint32, pkts [][]byte, perDump int, configure func(*XTCP)) {
+	h := newDumpHarnessWith(b, variant, netlinkers, nil, configure)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

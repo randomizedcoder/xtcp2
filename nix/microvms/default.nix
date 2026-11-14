@@ -503,6 +503,24 @@ let
       sink = "discovery-bench";
     };
 
+  # socket-scale: root VM that runs xtcp2 against namespaces with 10^5
+  # sockets, a SYN flood and a namespace flood, then powers off.
+  mkOneSocketScale =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "socket-scale";
+    };
+
   # nlmon-capture: root VM that triggers a scripted sequence of real kernel
   # network events, captures them off an nlmon device, emits the pcap +
   # sidecars over the serial console, then powers off. No xtcp2 daemon — a
@@ -724,6 +742,8 @@ let
   vmsNsq = lib.genAttrs constants.supportedArchs mkOneNsq;
 
   vmsDiscoveryBench = lib.genAttrs constants.supportedArchs mkOneDiscoveryBench;
+
+  vmsSocketScale = lib.genAttrs constants.supportedArchs mkOneSocketScale;
 
   vmsNlmonCapture = lib.genAttrs constants.supportedArchs mkOneNlmonCapture;
 
@@ -985,6 +1005,13 @@ let
     runner = microvmLib.mkDiscoveryBenchRunner {
       inherit arch;
       vm = vmsDiscoveryBench.${arch};
+    };
+  });
+
+  socketScale = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkSocketScaleRunner {
+      inherit arch;
+      vm = vmsSocketScale.${arch};
     };
   });
 
@@ -1264,6 +1291,7 @@ in
     vmsS3ParquetLowfreq
     vmsCapCheckFail
     vmsDiscoveryBench
+    vmsSocketScale
     vmsNlmonCapture
     vmsNetlinkDumpCapture
     vmsGoipParity
@@ -1275,6 +1303,7 @@ in
     vmsIpmetaBootstrap
     s3parquetLong
     discoveryBench
+    socketScale
     nlmonCapture
     netlinkDumpCapture
     goipParity

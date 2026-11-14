@@ -17,7 +17,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 )
 
-func newPollerFixture(t *testing.T) *XTCP {
+func newPollerFixture(t testing.TB) *XTCP {
 	t.Helper()
 	x := &XTCP{
 		config: &xtcp_config.XtcpConfig{

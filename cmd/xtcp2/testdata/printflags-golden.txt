@@ -30,6 +30,15 @@
 *s3UploadBackoffCap: 119ms
 *reconcileFrequency: 120ms
 *reconcileBeforePoll: false
+*maxDumpBytes: 1201
+*maxRecordsPerNetns: 1202
+*maxNetns: 1203
+*maxRecordsPerPoll: 1204
+*ioUringSockstatBatchSize: 1205
+*ioUringSockstatWorkers: 1206
+*reconcileTimeout: 1.207s
+*maxNetnsPerOwner: 1208
+*maxNetnsAddsPerReconcile: 1209
 *pyroscopeUrl: pyroscopeUrl-v
 *pyroscopeAppName: pyroscopeAppName-v
 *pyroscopeSampleHz: 136

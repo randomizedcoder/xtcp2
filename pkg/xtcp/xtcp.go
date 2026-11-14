@@ -70,6 +70,13 @@ type XTCP struct {
 	// access as well as a coherent nsMap diff.
 	reconcileMu sync.Mutex
 
+	// nsWaiting queues the live namespaces -maxNetns keeps out: inode →
+	// the reconcile sequence that first saw it waiting. Admission is in
+	// that order, so a namespace cannot jump the queue. Owned by reconcile
+	// (under reconcileMu); empty unless the cap is reached.
+	nsWaiting    map[uint64]uint64
+	nsWaitingSeq uint64
+
 	packetBufferPool xsync.Pool[*[]byte]
 	xtcpEnvelopePool xsync.Pool[*xtcp_flat_record.Envelope]
 	xtcpRecordPool   xsync.Pool[*xtcp_flat_record.XtcpFlatRecord]
@@ -225,6 +232,24 @@ type XTCP struct {
 	// hold a locality snapshot / sit in the retry backoff).
 	pGV *prometheus.GaugeVec
 
+	// pDumpDropped counts dumps cut short by a cap, by reason ("bytes",
+	// "records"); pNetnsDropped counts namespaces reconcile left untracked
+	// at -maxNetns. See caps.go. nil until InitPromethus.
+	pDumpDropped  *prometheus.CounterVec
+	pNetnsDropped *prometheus.CounterVec
+	// The socket-count gate and reconcile limits (pollgate.go,
+	// ns_reconcile.go).
+	pPollSockets         prometheus.Gauge
+	pPollDegraded        *prometheus.CounterVec
+	pReconcileIncomplete *prometheus.CounterVec
+	gate                 *pollGate
+	// nsOwners caches each waiting candidate's owner (inode → owner), so a
+	// namespace kept out by a cap isn't re-read every reconcile. Pruned to
+	// the current candidates each reconcile. Owned by reconcile. Kept down
+	// here, with the other FP-5 additions: a field added above the pools
+	// shifts the hot pool fields and cost 5-10% at 4-8 decoders.
+	nsOwners map[uint64]string
+
 	debugLevel uint32
 }
 
@@ -243,6 +268,9 @@ type nsIdentity struct {
 	pid   int
 	name  string
 	path  string
+	// owner is pid's quota owner (nsdiscover.Resolver.Owner), resolved for
+	// candidates only when -maxNetnsPerOwner is on.
+	owner string
 }
 
 // network namespace item
@@ -260,6 +288,13 @@ type netNSitem struct {
 	cancel   context.CancelFunc
 	wg       *sync.WaitGroup
 	socketFD int
+	// stat is this namespace's sockstat fd, opened in the namespace for the
+	// socket-count gate (sockstat.go). nil: the gate is off, the open
+	// failed, or the slot is still reserved.
+	stat *statHandle
+	// owner is the namespace's owner for -maxNetnsPerOwner (see
+	// nsIdentity.owner).
+	owner string
 }
 
 type netlinkerDone struct {

@@ -35,6 +35,9 @@ const (
 	OpRecvMultishot Operation = 4
 	// OpCancel — the async-cancel SQE Close submits for a multishot recv.
 	OpCancel Operation = 5
+	// OpReadAt — a positioned read SQE (EnqueueReadAt), e.g. a procfs
+	// file such as /proc/<pid>/net/sockstat re-read at offset 0.
+	OpReadAt Operation = 6
 )
 
 // EncodedRequest is the in-memory representation of a CQE userdata.

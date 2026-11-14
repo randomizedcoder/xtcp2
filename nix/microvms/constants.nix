@@ -100,6 +100,11 @@
       # shared libc pages) plus the created namespaces; 4096 MiB leaves clear
       # headroom for the largest (pids=3000) cell and the page cache.
       memDiscoveryBench = 4096;
+      # sink="socket-scale": up to 500k TCP sockets at once (~2 KiB of kernel
+      # memory each) plus xtcp2 decoding a 200k-record poll. 4 vCPUs so the
+      # fill, hping3 and xtcp2 don't serialize on one another.
+      memSocketScale = 8192;
+      vcpuSocketScale = 4;
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;

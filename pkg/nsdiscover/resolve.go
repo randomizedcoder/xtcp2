@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -90,6 +91,116 @@ func (r *Resolver) Name(inode uint64, pid int) string {
 		return cid
 	}
 	return "netns:[" + strconv.FormatUint(inode, 10) + "]"
+}
+
+// Owner is the quota owner of pid's namespace, from its cgroup v2 path
+// (the "0::" line; the first line on a v1-only host):
+//
+//   - under user.slice: the user's slice, /user.slice/user-<uid>.slice.
+//     Everything below is delegated to the user (rootless containers
+//     included), so it is all one owner.
+//   - else the path cut just after a container runtime's component, where
+//     runtimes put it: /system.slice or /machine.slice +
+//     <runtime>-<id>.scope (docker-, cri-containerd-, crio-, libpod-),
+//     /docker/<id>, or a container under kubepods with only kubelet
+//     components (kubepods*, burstable, besteffort, pod*) above it.
+//   - else its first two components (one system service).
+//
+// A process can create sub-cgroups, named anything, only below its own. A
+// runtime component is only accepted where the components above it are the
+// runtime's, so a sub-cgroup named like a container doesn't make a new
+// owner. A service that delegates its cgroup (Delegate=yes) is one owner.
+//
+// ok is false when pid's cgroup can't be read (it exited): the caller
+// should try again later rather than file it under any owner.
+func (r *Resolver) Owner(pid int) (owner string, ok bool) {
+	if pid <= 0 {
+		return "", false
+	}
+	data, err := os.ReadFile(filepath.Join(r.procRoot, strconv.Itoa(pid), "cgroup"))
+	if err != nil {
+		return "", false
+	}
+	return ownerFromCgroup(data), true
+}
+
+// ownerFromCgroup is Owner on a /proc/<pid>/cgroup file.
+func ownerFromCgroup(data []byte) string {
+	comps := strings.Split(strings.Trim(cgroupPath(data), "/"), "/")
+	cut := func(n int) string { return "/" + strings.Join(comps[:min(n, len(comps))], "/") }
+	switch {
+	case comps[0] == "user.slice":
+		return cut(2)
+	case len(comps) >= 2 && (comps[0] == "system.slice" || comps[0] == "machine.slice") && runtimeScope(comps[1]):
+		return cut(2)
+	case len(comps) >= 2 && comps[0] == "docker" && isContainerID(comps[1]):
+		return cut(2)
+	case strings.HasPrefix(comps[0], "kubepods"):
+		for i := 1; i < len(comps); i++ {
+			if runtimeScope(comps[i]) || isContainerID(comps[i]) {
+				return cut(i + 1)
+			}
+			if !kubeParent(comps[i]) {
+				break
+			}
+		}
+	}
+	return cut(2)
+}
+
+// cgroupPath returns the v2 ("0::") path, else the first line's path.
+func cgroupPath(data []byte) string {
+	var first string
+	for _, line := range strings.Split(string(data), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		if parts[0] == "0" && parts[1] == "" {
+			return parts[2]
+		}
+		if first == "" {
+			first = parts[2]
+		}
+	}
+	return first
+}
+
+// kubeParent reports whether c is a kubelet cgroup above a container: a
+// kubepods* slice, a QoS class (cgroupfs driver), or a pod.
+func kubeParent(c string) bool {
+	return strings.HasPrefix(c, "kubepods") || strings.HasPrefix(c, "pod") || c == "burstable" || c == "besteffort"
+}
+
+var runtimeScopePrefixes = []string{"docker-", "cri-containerd-", "crio-", "libpod-"}
+
+// runtimeScope reports whether c is <runtime>-<id>.scope.
+func runtimeScope(c string) bool {
+	id, ok := strings.CutSuffix(c, ".scope")
+	if !ok {
+		return false
+	}
+	for _, p := range runtimeScopePrefixes {
+		if rest, ok := strings.CutPrefix(id, p); ok && isContainerID(rest) {
+			return true
+		}
+	}
+	return false
+}
+
+func isContainerID(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for i := range len(s) {
+		if !isHexLower(s[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // containerID reads /proc/<pid>/cgroup and returns the first container id found
