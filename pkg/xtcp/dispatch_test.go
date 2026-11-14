@@ -21,22 +21,70 @@ type fakeDest struct{}
 func (fakeDest) Send(_ context.Context, _ *[]byte) (int, error) { return 0, nil }
 func (fakeDest) Close() error                                   { return nil }
 
-func TestRegisterDestination_lookupFound(t *testing.T) {
-	// Pick a scheme name unlikely to collide with anything real.
-	scheme := "test_register_dest_scheme"
+// registerTestDestination registers a fake factory for scheme and removes
+// it when the test ends, so the test can run again in the same process
+// (-count=N) without tripping RegisterDestination's duplicate guard.
+func registerTestDestination(t *testing.T, scheme string) {
+	t.Helper()
 	RegisterDestination(scheme, func(_ context.Context, _ *XTCP) (Destination, error) {
 		return fakeDest{}, nil
 	})
-	f, status := lookupDestinationFactory(scheme)
-	if status != destLookupFound {
-		t.Fatalf("status = %d, want destLookupFound", status)
+	t.Cleanup(func() {
+		destRegistryMu.Lock()
+		delete(destRegistry, scheme)
+		destRegistryMu.Unlock()
+	})
+}
+
+func TestRegisterDestination(t *testing.T) {
+	// Scheme names unlikely to collide with anything real.
+	tests := []struct {
+		name          string
+		category      string
+		description   string
+		run           func(t *testing.T, scheme string)
+		expectedPanic bool
+	}{
+		{name: "lookup_found", category: "P", description: "a registered scheme's factory is found and builds its destination",
+			run: func(t *testing.T, scheme string) {
+				registerTestDestination(t, scheme)
+				f, status := lookupDestinationFactory(scheme)
+				if status != destLookupFound {
+					t.Fatalf("status = %d, want destLookupFound", status)
+				}
+				d, err := f(context.Background(), nil)
+				if err != nil {
+					t.Fatalf("factory err: %v", err)
+				}
+				if _, ok := d.(fakeDest); !ok {
+					t.Errorf("factory returned wrong type: %T", d)
+				}
+			}},
+		{name: "duplicate_panics", category: "N", description: "registering a scheme twice panics (two files claiming one dest_ tag)",
+			run: func(t *testing.T, scheme string) {
+				registerTestDestination(t, scheme)
+				registerTestDestination(t, scheme)
+			},
+			expectedPanic: true},
+		{name: "cleanup_unregisters", category: "C", description: "after a subtest's cleanup the scheme is gone and can be registered again",
+			run: func(t *testing.T, scheme string) {
+				t.Run("register", func(t *testing.T) { registerTestDestination(t, scheme) })
+				if _, status := lookupDestinationFactory(scheme); status == destLookupFound {
+					t.Fatalf("scheme %q still registered after cleanup", scheme)
+				}
+				registerTestDestination(t, scheme)
+			}},
 	}
-	d, err := f(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("factory err: %v", err)
-	}
-	if _, ok := d.(fakeDest); !ok {
-		t.Errorf("factory returned wrong type: %T", d)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scheme := "test_register_dest_" + tc.name
+			defer func() {
+				if r := recover(); (r != nil) != tc.expectedPanic {
+					t.Errorf("%s: panic %v, expected panic %v", tc.description, r, tc.expectedPanic)
+				}
+			}()
+			tc.run(t, scheme)
+		})
 	}
 }
 

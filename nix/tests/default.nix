@@ -36,6 +36,7 @@ in
 {
   go-unit = import ./go-unit.nix { inherit pkgs vendoredSource; };
   go-bench = import ./go-bench.nix { inherit pkgs vendoredSource; };
+  tcp-controller-quality = import ./tcp-controller/quality.nix { inherit pkgs vendoredSource; };
   # No lib: that runner has no such argument any more. This file's own lib arg
   # stays — focused-quality.nix, both go-test-* imports and the mapAttrs' below
   # all need it.
