@@ -1,0 +1,85 @@
+# vagrant/Vagrantfile
+#
+# Red-team harness topology (docs/redteam-plan.md, docs/redteam-implementation.md,
+# docs/redteam-harness.md). Two Ubuntu 24.04 guests on a private libvirt network:
+#
+#   victim   the "prod host": dockerd + the xtcp2 daemon container (deployment
+#            matrix from XTCP2_* env), the RT-11 work population, the catcher,
+#            and the co-tenant attacker container
+#   attacker the host-side attacker: static repo client binaries + attack tooling
+#
+# The deployment matrix is read from the environment so one Vagrantfile serves
+# every scenario row; the scenario apps (nix/redteam.nix) set/validate it:
+#
+#   XTCP2_MODE     host | bridge      daemon container network shape
+#   XTCP2_AUTH     off | raw | hmac   listener credential shape
+#   XTCP2_CAPS     priv | min         daemon container capability shape
+#   XTCP2_ATTACKER plain | read-cred | privileged | admin
+#
+# Run everything through `nix run .#redteam-*` from the repo root; that pins
+# VAGRANT_CWD/VAGRANT_HOME to vagrant/.gen so no state leaks into ~/.vagrant.d.
+
+# Box pin: the official Ubuntu cloud-image team's 24.04 box, which ships a
+# libvirt provider (the Vagrant Cloud catalog has no "ubuntu/noble64"; see
+# vagrant/README.md for the pin record and how to move it forward).
+BOX = "cloud-image/ubuntu-24.04"
+BOX_VERSION = "20260926.0.0"
+
+MODE = ENV.fetch("XTCP2_MODE", "host")
+AUTH = ENV.fetch("XTCP2_AUTH", "off")
+CAPS = ENV.fetch("XTCP2_CAPS", "priv")
+ATTACKER = ENV.fetch("XTCP2_ATTACKER", "plain")
+
+Vagrant.configure("2") do |config|
+  config.vm.box = BOX
+  config.vm.box_version = BOX_VERSION
+
+  # The harness ships its own files via scp over vagrant's own ssh config
+  # (vagrant/lib/ssh.sh). The default synced folder would need rsync in the
+  # guest, which the minimal cloud image does not carry — the box's own docs
+  # disable it for the same reason.
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  config.vm.provider :libvirt do |lv|
+    lv.driver = "kvm"
+    lv.uri = "qemu:///system"
+    lv.cpu_mode = "host-passthrough"
+  end
+
+  # Private mgmt network. Static IPs are required: vagrant-libvirt 0.12.2
+  # crashes creating a DHCP-only named network (create_networks.rb to_range on
+  # nil). The scenario/DoD assertion is `virsh net-list` naming exactly this
+  # network beyond the pre-existing libvirt ones.
+  # attacker gets 192.168.142.11; 192.168.142.0/24 is the network subnet.
+
+  config.vm.define "victim" do |victim|
+    victim.vm.hostname = "rt-victim"
+    victim.vm.network :private_network,
+      :ip => "192.168.142.10",
+      :libvirt__network_name => "xtcp2-redteam-mgmt"
+
+    victim.vm.provider :libvirt do |lv|
+      lv.memory = 6144
+      lv.cpus = 4
+    end
+
+    victim.vm.provision "shell", path: "provision/common.sh"
+    victim.vm.provision "shell", path: "provision/victim.sh",
+      args: [MODE, AUTH, CAPS, ATTACKER]
+  end
+
+  config.vm.define "attacker" do |attacker|
+    attacker.vm.hostname = "rt-attacker"
+    attacker.vm.network :private_network,
+      :ip => "192.168.142.11",
+      :libvirt__network_name => "xtcp2-redteam-mgmt"
+
+    attacker.vm.provider :libvirt do |lv|
+      lv.memory = 2048
+      lv.cpus = 2
+    end
+
+    attacker.vm.provision "shell", path: "provision/common.sh"
+    attacker.vm.provision "shell", path: "provision/attacker.sh"
+  end
+end

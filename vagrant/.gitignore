@@ -1,0 +1,5 @@
+# VM state, uploaded images, generated ssh configs (nix/redteam.nix pins
+# VAGRANT_HOME to vagrant/.gen/.vagrant.d so nothing leaks into ~/.vagrant.d).
+.gen/
+# Scenario evidence (findings.md quotes the relevant bytes instead).
+redteam/evidence/
