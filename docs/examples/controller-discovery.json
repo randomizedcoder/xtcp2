@@ -1,0 +1,23 @@
+[
+  {
+    "id": "nearby-cubic",
+    "location": "dc-example",
+    "congestion_control": "cubic",
+    "rto_min_ms": 5,
+    "quick_ack": true,
+    "initial_congestion_window": 100,
+    "initial_receive_window": 100,
+    "minimum_rtt_ms": 0,
+    "maximum_rtt_ms": 2,
+    "minimum_retransmission_ratio": 0,
+    "prefixes": ["10.0.0.0/8"]
+  },
+  {
+    "id": "distant-loss-bbr",
+    "location": "dc-example",
+    "congestion_control": "bbr",
+    "minimum_rtt_ms": 150,
+    "maximum_rtt_ms": 2000,
+    "minimum_retransmission_ratio": 0.001
+  }
+]

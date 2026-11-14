@@ -43,6 +43,13 @@ let
         nativeBuildInputs = [ xtcp2 ];
       }
       ''
+        # The listeners start before the capability check, and the
+        # default one needs a token file (mode 0400) and /run/xtcp2,
+        # which the sandbox cannot create; give it both in $TMPDIR.
+        printf token > "$TMPDIR/token"
+        chmod 0400 "$TMPDIR/token"
+        export LISTENER_RAW_TOKEN_FILE="$TMPDIR/token"
+
         set +e
         # Spawn xtcp2 with -dest null (no destination to bind) and
         # -maxLoops 1 (exit after one cycle). The cap check runs in
@@ -54,6 +61,7 @@ let
           -maxLoops 1 \
           -frequency 2s \
           -timeout 1s \
+          -listener "name=metrics,serves=health+metrics+metrics-detail,address=$TMPDIR/metrics.sock" \
           2>&1)
         rc=$?
         set -e
