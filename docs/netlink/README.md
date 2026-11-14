@@ -102,7 +102,10 @@ Every write verb, and every write builder in `pkg/xtcpnl`, compiles only with
 with. The daemons that serve `goip show` over HTTP (`xtcp2` and
 `go-link-monitor`, at `/ip`) are built without it: `/ip` refuses a write verb
 by name with 400, and behind that refusal the verb is `ErrWriteNotCompiled`,
-with no encoder in the binary. `checks.no-write-encoders` proves that with `go list -deps` and
+with no encoder in the binary. The exception is the `treatment` tag, which
+compiles the route and rule builders for the treatment actuator
+(`internal/goip/actuate`) and nothing else of the write set.
+`checks.no-write-encoders` proves that with `go list -deps` and
 `go tool nm`; see [build flavors](../build-flavors.md#goip-write-verbs).
 
 Supported families have expanded beyond those initial paths; the
