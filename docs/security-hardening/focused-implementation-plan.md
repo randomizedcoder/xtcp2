@@ -208,11 +208,21 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 ### FP-6 — S3 queue bound and string policy (C3, C4)
 
-- [ ] `pkg/xtcp/destinations_s3parquet.go`: explicit `-s3QueueDepth` and `-s3MaxBufferedBytes`; drop-oldest with `xtcp2_s3_dropped_total{reason}`; `xtcp2_s3_buffered_bytes` gauge; document the memory budget (≈ 2–3× flush threshold) next to `GOMEMLIMIT` guidance.
-- [ ] New `pkg/xtcp/strpolicy.go`: `clean(s, max)` — truncate at a rune boundary, replace invalid UTF-8 with U+FFFD, replace C0/C1 controls. Applied once where the enrichment values enter the record (container name/image/label, LLDP chassis names, congestion-control name), not per row in `rowFromProto`, so the cost is per container or per interface, not per socket.
-- [ ] Log call sites that print these strings use the same function.
+- [x] `pkg/xtcp/destinations_s3parquet.go`: explicit `-s3QueueDepth` and `-s3MaxBufferedBytes`; drop-oldest with `xtcp2_s3_dropped_total{reason}`; `xtcp2_s3_buffered_bytes` gauge; document the memory budget (≈ 2–3× flush threshold) next to `GOMEMLIMIT` guidance. *Done as:* `envelopeQueue` (`pkg/xtcp/s3queue.go`), a mutex ring with a byte count; `Send` never blocks (it used to block the poller once 16 envelopes were queued). `XtcpConfig` fields 116 (`s3_queue_depth`, default 16, max 4096) and 117 (`s3_max_buffered_bytes`, flag default 64 MiB, `0` = depth bound only); env `S3_QUEUE_DEPTH`, `S3_MAX_BUFFERED_BYTES`; kept across `ConfigService.Set` by `preserveCaps`. Metrics in the package's `xtcp` subsystem: `xtcp_s3_dropped_total{reason="queue_depth"|"buffered_bytes"}`, `xtcp_s3_dropped_bytes_total{reason}`, `xtcp_s3_buffered_bytes{stage="queue"|"builder"}`; `xtcp_counts{function="destS3Parquet",variable="queueFull"}` now counts drops. No row counts: a dropped envelope is never unmarshaled. Budget in `design-jitter-and-backoff.md` and `focused-container-hardening.md`.
+- [x] New `pkg/xtcp/strpolicy.go`: `clean(s, max)` — truncate at a rune boundary, replace invalid UTF-8 with U+FFFD, replace C0/C1 controls. Applied once where the enrichment values enter the record (container name/image/label, LLDP chassis names, congestion-control name), not per row in `rowFromProto`, so the cost is per container or per interface, not per socket. *Done as:* `pkg/strpolicy.Clean` (its own package so dockermeta, localnet, ipasn and xtcpnl can import it), which also replaces DEL. Limits: 256 bytes, 16 for interface and congestion names. Applied in `dockermeta.inspect` (name, image), `buildUplinkStamp` (NIC strings, LLDP fields, uplink ifnames), `localnet.BuildSnapshot` (the tenant's ifnames), the ipasn load (network owner), reconcile (netns name) and `DeserializeCongInfoXTCP`. The congestion name is per socket, so its decoder folds the printable check into its NUL scan and calls `Clean` only otherwise. Container labels are not collected.
+- [x] Log call sites that print these strings use the same function. *Done as:* every value is cleaned where it enters, so the logs that print them (netns names, containers) print cleaned values.
 
-**Tests:** FC `s3_queue_full`, `long_container_name`, `invalid_utf8`; benchmark guard on the enrichment path.
+**Tests:** FC `s3_queue_full`, `long_container_name`, `invalid_utf8`; benchmark guard on the enrichment path. *Done as:* `TestClean`, `FuzzClean`, `TestEnvelopeQueue` (+ concurrent), `TestS3ParquetDest_queueBounds`, the reworked `corner_queueFull` and one source test per call site, plus flag, env, validation and `preserveCaps` rows.
+
+| benchmark | result | verdict |
+|---|---|---|
+| `BenchmarkClean` ascii16 / ascii256 / dirty256 | 12 ns / 149 ns / 1.05 µs; 0 / 0 / 1 allocs | ASCII fast path allocation-free ✓ |
+| `BenchmarkDeserializeCongInfoXTCP` vs main, 10 interleaved runs | 20.8 → 23.9 ns median (+3 ns), allocs unchanged (1) | accepted: a whole record decodes in µs. Calling `Clean` after `IndexByte` cost +7–10 ns; folding the check into one scan brought it to +3 |
+| `BenchmarkS3Send` queue vs the old channel send | 52 ns vs 118 ns | faster ✓ |
+
+**Status:** done; PR pending.
+
+**FP-6 TODOs:** `max_len` in protovalidate for the operator strings (`label`, `tag`, `location`, `hostname`), which are trusted and not cleaned; spill the S3 queue to disk during long outages (out of scope: memory bound only).
 
 ### FP-7 — fuzzers (D4)
 

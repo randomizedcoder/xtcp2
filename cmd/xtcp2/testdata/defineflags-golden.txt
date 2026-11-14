@@ -120,8 +120,10 @@ s3Endpoint		s3parquet: S3-compatible endpoint URL (e.g. http://127.0.0.1:9000 fo
 s3FlushInterval	0s	s3parquet: staleness ceiling — force-flush the in-memory Parquet object after this long even if under the byte cap. 0 = derive as max(-frequency, 30m).
 s3FlushJitterPct	20	s3parquet: jitter as a percent (0-100) of -s3FlushInterval, applied to the timed flush so the fleet doesn't ceiling-flush in lockstep. 0 disables.
 s3FlushThresholdJitterPct	20	s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.
+s3MaxBufferedBytes	67108864	s3parquet: marshaled envelope bytes the upload queue may hold. Past it the oldest envelope is dropped (reason="buffered_bytes"); the newest is always kept. 0 = no byte bound. Falls back to S3_MAX_BUFFERED_BYTES env.
 s3ParquetFlushBytes	0	s3parquet: soft cap on the in-memory Parquet builder's uncompressed row bytes before finalize+upload. 0 = daemon default (63 MiB).
 s3Prefix		s3parquet: optional key prefix within the bucket. Combined with Hive-style partitioning host=…/date=…/hour=…/<file>.parquet.
+s3QueueDepth	16	s3parquet: envelopes queued for the upload worker (max 4096). Past it the oldest is dropped and counted in xtcp_s3_dropped_total{reason="queue_depth"}, so an S3 outage never blocks polling. 0 = 16. Falls back to S3_QUEUE_DEPTH env.
 s3Region		s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.
 s3SecretKey		s3parquet: S3 secret key. Prefer S3_SECRET_KEY_FILE (path to a file, mode 0400, holding the key): a flag value shows in ps and docker inspect, warns, and is refused by production builds. Never logged.
 s3SkipBucketProbe	false	s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.

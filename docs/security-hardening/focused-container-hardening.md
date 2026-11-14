@@ -83,7 +83,7 @@ What to tighten (each is in the focused set below):
 - **Secrets:** `S3_SECRET_KEY_FILE` / `S3_ACCESS_KEY_FILE` from a mounted secret, never the flag. Make the flag a startup error in the production flavor.
 - **Transport:** refuse `http://` endpoints unless `-s3AllowInsecure`; TLS ≥ 1.2; optional CA bundle path for private endpoints.
 - **Bounds:** cap the pending-upload queue depth and total buffered bytes (`queueCh` exists; make the depth explicit and metered), cap rows per object, and cap every tenant-controlled string column (length, valid UTF-8, no C0/C1 control characters) in `rowFromProto`.
-- **Memory:** `parquet-go` holds column buffers plus the serialized page; budget ≈ 2–3× the flush threshold and size `GOMEMLIMIT` accordingly, or lower the threshold for small hosts.
+- **Memory:** `parquet-go` holds column buffers plus the serialized page; budget ≈ `-s3MaxBufferedBytes` (64 MiB) + the flush threshold + one object in upload, about 2–3× the threshold (≈ 190 MiB with the defaults), and size `GOMEMLIMIT` accordingly, or lower the threshold and `-s3MaxBufferedBytes` for small hosts. `xtcp_s3_buffered_bytes{stage}` shows what is held.
 
 ## Focused hardening set
 

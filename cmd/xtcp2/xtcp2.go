@@ -116,12 +116,14 @@ const (
 	// docs/design-jitter-and-backoff.md. A 0 pct disables the corresponding
 	// jitter (restoring deterministic behavior); the two 0-valued durations
 	// mean "derive from poll_frequency" (see the s3parquet destination).
-	pollJitterPctCst             uint = 20
-	s3FlushIntervalCst                = 0 * time.Second
-	s3FlushJitterPctCst          uint = 20
-	s3FlushThresholdJitterPctCst uint = 20
-	s3UploadMaxAttemptsCst       uint = 10
-	s3UploadBackoffCapCst             = 0 * time.Second
+	pollJitterPctCst             uint   = 20
+	s3FlushIntervalCst                  = 0 * time.Second
+	s3FlushJitterPctCst          uint   = 20
+	s3FlushThresholdJitterPctCst uint   = 20
+	s3UploadMaxAttemptsCst       uint   = 10
+	s3UploadBackoffCapCst               = 0 * time.Second
+	s3QueueDepthCst              uint   = 16
+	s3MaxBufferedBytesCst        uint64 = 64 * 1024 * 1024
 
 	// Namespace-reconcile cadence defaults (Method B /proc-scan discovery).
 	// reconcileBeforePoll ties discovery to poll cadence (reconcile before each
@@ -309,6 +311,8 @@ type mainFlags struct {
 	s3FlushThresholdJitterPct *uint
 	s3UploadMaxAttempts       *uint
 	s3UploadBackoffCap        *time.Duration
+	s3QueueDepth              *uint
+	s3MaxBufferedBytes        *uint64
 
 	reconcileFrequency  *time.Duration
 	reconcileBeforePoll *bool
@@ -550,6 +554,8 @@ func defineS3Flags(f *mainFlags) {
 	f.s3FlushThresholdJitterPct = flag.Uint("s3FlushThresholdJitterPct", s3FlushThresholdJitterPctCst, "s3parquet: per-object downward jitter as a percent (0-100) of the byte cap; each object finalizes at threshold*(1-rand[0,pct/100]) to de-sync the size-cap upload path. 0 disables.")
 	f.s3UploadMaxAttempts = flag.Uint("s3UploadMaxAttempts", s3UploadMaxAttemptsCst, "s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.")
 	f.s3UploadBackoffCap = flag.Duration("s3UploadBackoffCap", s3UploadBackoffCapCst, "s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).")
+	f.s3QueueDepth = flag.Uint("s3QueueDepth", s3QueueDepthCst, "s3parquet: envelopes queued for the upload worker (max 4096). Past it the oldest is dropped and counted in xtcp_s3_dropped_total{reason=\"queue_depth\"}, so an S3 outage never blocks polling. 0 = 16. Falls back to S3_QUEUE_DEPTH env.")
+	f.s3MaxBufferedBytes = flag.Uint64("s3MaxBufferedBytes", s3MaxBufferedBytesCst, "s3parquet: marshaled envelope bytes the upload queue may hold. Past it the oldest envelope is dropped (reason=\"buffered_bytes\"); the newest is always kept. 0 = no byte bound. Falls back to S3_MAX_BUFFERED_BYTES env.")
 }
 
 // defineCapFlags registers the three caps on what a tenant can cost the
@@ -742,6 +748,8 @@ func printS3Flags(f *mainFlags) {
 	fmt.Println("*s3FlushThresholdJitterPct:", *f.s3FlushThresholdJitterPct)
 	fmt.Println("*s3UploadMaxAttempts:", *f.s3UploadMaxAttempts)
 	fmt.Println("*s3UploadBackoffCap:", *f.s3UploadBackoffCap)
+	fmt.Println("*s3QueueDepth:", *f.s3QueueDepth)
+	fmt.Println("*s3MaxBufferedBytes:", *f.s3MaxBufferedBytes)
 	fmt.Println("*reconcileFrequency:", *f.reconcileFrequency)
 	fmt.Println("*reconcileBeforePoll:", *f.reconcileBeforePoll)
 }
@@ -871,6 +879,8 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3FlushThresholdJitterPct:    uint32(*f.s3FlushThresholdJitterPct),
 		S3UploadMaxAttempts:          uint32(*f.s3UploadMaxAttempts),
 		S3UploadBackoffCap:           durationpb.New(*f.s3UploadBackoffCap),
+		S3QueueDepth:                 uint32(*f.s3QueueDepth),
+		S3MaxBufferedBytes:           *f.s3MaxBufferedBytes,
 		ReconcileFrequency:           durationpb.New(*f.reconcileFrequency),
 		ReconcileBeforePoll:          *f.reconcileBeforePoll,
 		MaxDumpBytes:                 *f.maxDumpBytes,
@@ -1993,6 +2003,14 @@ func envOverrideMarshalAndDest(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.S3UploadBackoffCap = durationpb.New(d)
 		logEnv("S3_UPLOAD_BACKOFF_CAP", fmt.Sprintf("c.S3UploadBackoffCap:%s", c.S3UploadBackoffCap.String()), debugLevel)
 	}
+	if v, ok := envUint32("S3_QUEUE_DEPTH"); ok {
+		c.S3QueueDepth = v
+		logEnv("S3_QUEUE_DEPTH", fmt.Sprintf("c.S3QueueDepth:%d", v), debugLevel)
+	}
+	if v, ok := envUint64("S3_MAX_BUFFERED_BYTES"); ok {
+		c.S3MaxBufferedBytes = v
+		logEnv("S3_MAX_BUFFERED_BYTES", fmt.Sprintf("c.S3MaxBufferedBytes:%d", v), debugLevel)
+	}
 	if d, ok := envDuration("RECONCILE_FREQUENCY"); ok {
 		c.ReconcileFrequency = durationpb.New(d)
 		logEnv("RECONCILE_FREQUENCY", fmt.Sprintf("c.ReconcileFrequency:%s", c.ReconcileFrequency.String()), debugLevel)
@@ -2261,6 +2279,8 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.S3FlushThresholdJitterPct:", c.S3FlushThresholdJitterPct)
 	fmt.Println("c.S3UploadMaxAttempts:", c.S3UploadMaxAttempts)
 	fmt.Println("c.S3UploadBackoffCap:", c.S3UploadBackoffCap.AsDuration())
+	fmt.Println("c.S3QueueDepth:", c.S3QueueDepth)
+	fmt.Println("c.S3MaxBufferedBytes:", c.S3MaxBufferedBytes)
 	fmt.Println("c.ReconcileFrequency:", c.ReconcileFrequency.AsDuration())
 	fmt.Println("c.ReconcileBeforePoll:", c.ReconcileBeforePoll)
 	printConfigCaps(c)

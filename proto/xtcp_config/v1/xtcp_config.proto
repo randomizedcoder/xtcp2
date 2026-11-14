@@ -1188,6 +1188,22 @@ message XtcpConfig {
 			gte: { seconds: 0 }
 	}];
 
+	// Envelopes queued between the poller and the S3 worker. Past this depth
+	// the oldest is dropped (xtcp_s3_dropped_total{reason="queue_depth"}), so
+	// an S3 outage never blocks polling. 0 = 16.
+	uint32 s3_queue_depth                              = 116 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 4096
+	}];
+
+	// Marshaled envelope bytes the S3 queue may hold. Past this the oldest
+	// envelope is dropped (reason="buffered_bytes"); the newest is always
+	// kept. 0 = no byte bound (the depth bound alone). Flag default 64 MiB.
+	uint64 s3_max_buffered_bytes                       = 117 [
+		(buf.validate.field).required = false
+	];
+
 	// ---- identity & labels stamped on every record (130-149) -----------------
 
 	// Hostname override. When empty the daemon uses os.Hostname(); set this to

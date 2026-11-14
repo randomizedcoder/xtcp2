@@ -476,6 +476,7 @@ func TestSetPreservesCaps(t *testing.T) {
 			MaxDumpBytes: 100, MaxRecordsPerNetns: 200, MaxNetns: 300,
 			MaxRecordsPerPoll: 400, IoUringSockstatBatchSize: 16, IoUringSockstatWorkers: 2,
 			MaxNetnsPerOwner: 5, MaxNetnsAddsPerReconcile: 6,
+			S3QueueDepth: 32, S3MaxBufferedBytes: 64 << 20,
 			ReconcileTimeout: durationpb.New(700 * time.Millisecond),
 		}
 	}
@@ -493,7 +494,8 @@ func TestSetPreservesCaps(t *testing.T) {
 			running: newRunning(),
 			in: &xtcp_config.XtcpConfig{MaxDumpBytes: 1 << 40, MaxRecordsPerNetns: 1 << 40, MaxNetns: 1 << 20,
 				MaxRecordsPerPoll: 1 << 40, IoUringSockstatBatchSize: 1024, IoUringSockstatWorkers: 64,
-				MaxNetnsPerOwner: 1 << 20, MaxNetnsAddsPerReconcile: 1 << 20, ReconcileTimeout: durationpb.New(time.Hour)},
+				MaxNetnsPerOwner: 1 << 20, MaxNetnsAddsPerReconcile: 1 << 20, ReconcileTimeout: durationpb.New(time.Hour),
+				S3QueueDepth: 4096, S3MaxBufferedBytes: 0},
 			expected: newRunning()},
 		{name: "set_same_caps", category: "P", description: "a Get→Set round trip",
 			running: newRunning(), in: newRunning(), expected: newRunning()},

@@ -28,6 +28,8 @@
 *s3FlushThresholdJitterPct: 117
 *s3UploadMaxAttempts: 118
 *s3UploadBackoffCap: 119ms
+*s3QueueDepth: 1191
+*s3MaxBufferedBytes: 1192
 *reconcileFrequency: 120ms
 *reconcileBeforePoll: false
 *maxDumpBytes: 1201
