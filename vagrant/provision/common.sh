@@ -27,9 +27,12 @@ fi
 
 apt-get install -y -qq jq socat tcpdump strace iperf3 nghttp2-client chrony
 systemctl enable --now chrony
+journalctl --vacuum-size=100M
+apt-get clean
 
-# The scenario scripts scp harness files here before `vagrant provision`
-# runs (vagrant/lib/ssh.sh); victim.sh and attacker.sh consume them.
-mkdir -p /tmp/xtcp2-redteam
+# The scenario scripts scp harness files to the vagrant-owned ~/xtcp2-redteam
+# before `vagrant provision` runs (vagrant/lib/ssh.sh); victim.sh and
+# attacker.sh consume them from there. (Not /tmp: a root provisioner cannot
+# leave a dir the vagrant user can scp into.)
 
 echo "common: done (docker $(docker --version | cut -d, -f1))"

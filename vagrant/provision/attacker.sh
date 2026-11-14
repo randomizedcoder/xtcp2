@@ -15,11 +15,11 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -qq slowhttptest
 
 mkdir -p /opt/xtcp2-redteam
-if [ -f /tmp/xtcp2-redteam/xtcp2-redteam-attacker-tools.tar ]; then
-  tar -xf /tmp/xtcp2-redteam/xtcp2-redteam-attacker-tools.tar -C /opt/xtcp2-redteam
+if [ -f /home/vagrant/xtcp2-redteam/xtcp2-redteam-attacker-tools.tar ]; then
+  tar -xf /home/vagrant/xtcp2-redteam/xtcp2-redteam-attacker-tools.tar -C /opt/xtcp2-redteam
   ls -l /opt/xtcp2-redteam/bin
 else
-  echo "attacker.sh: /tmp/xtcp2-redteam/xtcp2-redteam-attacker-tools.tar missing — the scenario app scps it before provisioning; run via nix run .#redteam-*" >&2
+  echo "attacker.sh: /home/vagrant/xtcp2-redteam/xtcp2-redteam-attacker-tools.tar missing — the scenario app scps it before provisioning; run via nix run .#redteam-*" >&2
 fi
 
 echo "attacker: done (slowhttptest $(slowhttptest --help 2>&1 | head -1 || true))"

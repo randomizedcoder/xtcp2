@@ -61,6 +61,10 @@ Vagrant.configure("2") do |config|
     victim.vm.provider :libvirt do |lv|
       lv.memory = 6144
       lv.cpus = 4
+      # 10G fills across re-provisions: the box (~3.5G) plus each docker load's
+      # containerd leftovers. The image-prune in provision/victim.sh keeps the
+      # steady state small; 20G gives the Phase 4 DoS scenarios headroom too.
+      lv.machine_virtual_size = 20
     end
 
     victim.vm.provision "shell", path: "provision/common.sh"

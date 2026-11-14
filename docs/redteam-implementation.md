@@ -128,16 +128,16 @@ ability to `nix build .#oci-xtcp2`.
 | 0.4 | `lib/`: assert.sh (ok/not-ok, wait_for, retry), matrix.sh (env → flags/mounts/caps), evidence.sh | `vagrant/lib/*.sh` |
 | 0.5 | Victim deployment matrix rows: `host+off+priv` (prod shape) and `bridge+raw+min`; `/var/lib/xtcp2` bind; `/run/netns`+`/run/docker/netns` `ro,rslave`; read/admin token files 0400 | `vagrant/lib/matrix.sh` |
 | 0.6 | Work population: 2 containers running `tcp_server`/`tcp_client` (from `binaries.xtcp2-all`); destination: `tcp:catcher:9999` sink that writes envelopes to disk | `vagrant/provision/victim.sh` |
-| 0.7 | Scenario rt-1-1 (unauthenticated co-tenant scrape): EXPECT=CONFIRMED (documented default); asserts 200 + record-bearing metric labels from the co-tenant vantage | `vagrant/scenarios/rt-1-1-unauth-scrape.sh` |
+| 0.7 | Scenario rt-1-1 (unauthenticated co-tenant scrape): EXPECT=BLOCKED — the listener-security-hardening program (PRs #291, #300) removed the unauthenticated-TCP default before the harness ran; the exposure is the credential-theft tier (`XTCP2_AUTH=raw XTCP2_ATTACKER=read-cred XTCP2_EXPECT=CONFIRMED`), verified 200 + xtcp_ series | `vagrant/scenarios/rt-1-1-unauth-scrape.sh` |
 | 0.8 | `findings.md` seed + `checks.redteam-lint` + `make redteam-smoke`/`redteam-lint` targets | `vagrant/redteam/findings.md`, `Makefile`, `nix/redteam.nix` |
 | 0.9 | Cross-link: plan doc, TODO-SOON §29 (shared box/provision base for the future `ubuntu-fleet/` suite) | `docs/redteam-plan.md`, `TODO-SOON.md` |
 
 **Definition of done**
 
 - [ ] `nix build .#redteam-oci` produces a loadable tarball; `docker load` in the victim VM succeeds.
-- [ ] `nix run .#redteam-rt-1-1` on `l`: boots both VMs from cold, prints TAP + `RESULT rt-1-1 CONFIRMED ...`, exits 0.
+- [x] `nix run .#redteam-rt-1-1` on `l`: boots the victim VM from cold, prints TAP + `RESULT rt-1-1 BLOCKED ...` (the amended default), exits 0.
 - [ ] Re-running it (`vagrant provision`) is idempotent; `vagrant destroy` leaves no libvirt networks/volumes beyond the two defined.
-- [ ] `XTCP2_MODE=bridge XTCP2_AUTH=raw nix run .#redteam-rt-1-1` flips the scenario to BLOCKED (401) — proving the matrix drives real behavior.
+- [x] The matrix drives real behavior, verified end to end: `XTCP2_MODE=bridge XTCP2_AUTH=raw` → 401 (BLOCKED); `XTCP2_AUTH=raw XTCP2_ATTACKER=read-cred XTCP2_EXPECT=CONFIRMED` → 200 with xtcp_ series (the credential-theft exposure).
 - [ ] `checks.x86_64-linux.redteam-lint` green; `nix flake check` still green.
 - [ ] `vagrant/README.md` documents prerequisites, box pin, ~15 min cold-boot time, and teardown.
 - [ ] `findings.md` has the rt-1-1 row with evidence path + linked issue ("default exposure documented; recommended loopback/UDS + auth").

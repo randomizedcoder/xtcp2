@@ -46,9 +46,14 @@ case "$ATTACKER_TIER" in
   *) die "invalid XTCP2_ATTACKER '$ATTACKER_TIER'" ;;
 esac
 
-HARNESS_DIR=/tmp/xtcp2-redteam
+HARNESS_DIR=/home/vagrant/xtcp2-redteam
 DAEMON_IMAGE=xtcp2:latest
 STRESS_IMAGE=xtcp2-tcp-stress:latest
+
+# Each `docker load` of a rebuilt image leaves the previous layers in
+# containerd (reclaimed only by its delayed GC), and 10G disks fill across
+# re-provision cycles. Prune first: images with a running container stay.
+docker image prune -af >/dev/null
 
 [ -f "$HARNESS_DIR/xtcp2-oci.tar.gz" ] \
   || die "$HARNESS_DIR/xtcp2-oci.tar.gz missing — run via nix run .#redteam-* (it scp's the tarballs before provisioning)"
@@ -62,13 +67,21 @@ docker load <"$HARNESS_DIR/xtcp2-tcp-stress.tar.gz"
 # from its container netns; host mode dials 127.0.0.1, bridge mode the docker0
 # gateway 172.17.0.1 — socat binds 0.0.0.0, so both reach it.
 mkdir -p /var/lib/xtcp2-catcher
+# socat's OPEN:...append does not O_CREAT — the file must exist before the unit
+# starts, or every connection's child exits with ENOENT and the daemon's
+# envelope writes land on a broken pipe.
+touch /var/lib/xtcp2-catcher/records.jsonl
 cat >/etc/systemd/system/xtcp2-catcher.service <<'EOF'
 [Unit]
 Description=xtcp2 redteam catcher (TCP jsonl sink)
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/socat TCP-LISTEN:9999,reuseaddr,fork OPEN:/var/lib/xtcp2-catcher/records.jsonl,append
+# SYSTEM:'cat >> file', not OPEN:file: OPEN reads the plain file's EOF
+# immediately, so each fork child exits after socat's 0.5s poll timeout and
+# the daemon's single-shot TCP connection (pkg/xtcp/destinations_tcp.go dials
+# once, never reconnects) lands on a broken pipe within seconds.
+ExecStart=/usr/bin/socat TCP-LISTEN:9999,reuseaddr,fork SYSTEM:'cat >> /var/lib/xtcp2-catcher/records.jsonl'
 Restart=always
 
 [Install]
@@ -108,33 +121,59 @@ esac
 
 CAP_ARGS=()
 case "$CAPS" in
-  # priv: docker defaults — everything the daemon might need (rt-5-3's blast
-  # radius tier). min: exactly the startup capability check's required set
-  # (pkg/xtcp/init_capabilities.go), the rt-5-4 recipe's Phase 0 approximation.
+  # priv: docker's defaults DROP NET_ADMIN/SYS_ADMIN — the §29 prod shape
+  # (build/containers/docker-compose.yml) adds exactly these three.
+  priv)
+    CAP_ARGS=(--cap-add=NET_ADMIN --cap-add=SYS_ADMIN --cap-add=SYS_CHROOT)
+    ;;
+  # min: the daemon's own startup check remediation (pkg/xtcp/init_capabilities.go
+  # + the exit-64 text): the recommended AmbientCapabilities set, nothing more.
+  # rt-5-4 refines per-feature; this is its Phase 0 baseline row.
   min)
-    CAP_ARGS=(--cap-drop=ALL --cap-add=NET_ADMIN --cap-add=SYS_ADMIN)
+    CAP_ARGS=(
+      --cap-drop=ALL
+      --cap-add=NET_ADMIN
+      --cap-add=SYS_ADMIN
+      --cap-add=SYS_PTRACE
+      --cap-add=NET_RAW
+      --cap-add=SYS_RESOURCE
+    )
     ;;
 esac
 
-AUTH_ENVS=()
+# Listener specs — the -listener flag shape nix/tests/xtcp2-scrape-auth.nix
+# uses. The current daemon (the listener-security-hardening program, PRs
+# #291/#300) refuses to start on an unauthenticated non-loopback TCP
+# listener, so the matrix's AUTH rows are:
+#
+#   off  — the one legal unauthenticated shape (docs/security.md "listeners"):
+#          loopback TCP with auth=disabled. The red-team point of the row: a
+#          co-tenant container must NOT be able to reach it (loopback is the
+#          host netns' 127.0.0.1, the co-tenant is another netns) → BLOCKED.
+#   raw  — the TODO-SOON §29 prod shape: :9088/:8889 inheriting the mounted
+#          read/admin token files (an unset mode with a tokenFile is raw).
+#          No token → 401 (BLOCKED); a stolen read token → 200 (the
+#          read-cred tier's CONFIRMED exposure).
+LISTENER_ARGS=()
 SECRET_MOUNTS=()
 case "$AUTH" in
-  off) ;;
+  off)
+    LISTENER_ARGS=(
+      -listener "name=prometheus,serves=health+metrics+metrics-detail,address=127.0.0.1:9088,network=tcp,auth=disabled"
+      -listener "name=grpc,serves=grpc-read,address=127.0.0.1:8889,network=tcp,auth=disabled"
+    )
+    ;;
   raw)
-    AUTH_ENVS=(
-      -e LISTENER_AUTH_MODE=raw
-      -e LISTENER_RAW_TOKEN_FILE=/run/secrets/read
-      -e LISTENER_ADMIN_AUTH_MODE=raw
-      -e LISTENER_ADMIN_RAW_TOKEN_FILE=/run/secrets/admin
+    LISTENER_ARGS=(
+      -listener "name=prometheus,serves=health+metrics+metrics-detail,address=:9088,network=tcp,tokenFile=/run/secrets/read,adminTokenFile=/run/secrets/admin"
+      -listener "name=grpc,serves=grpc-read+grpc-admin,address=:8889,network=tcp,tokenFile=/run/secrets/read,adminTokenFile=/run/secrets/admin"
     )
     SECRET_MOUNTS=(-v /opt/xtcp2-redteam/secrets:/run/secrets:ro)
     ;;
   hmac)
-    AUTH_ENVS=(
-      -e LISTENER_AUTH_MODE=hmac-utc-minute
-      -e LISTENER_HMAC_SHARED_KEY_FILE=/run/secrets/read
-      -e LISTENER_ADMIN_AUTH_MODE=hmac-utc-minute
-      -e LISTENER_ADMIN_HMAC_SHARED_KEY_FILE=/run/secrets/admin
+    LISTENER_ARGS=(
+      -listener "name=prometheus,serves=health+metrics+metrics-detail,address=:9088,network=tcp,hmacKeyFile=/run/secrets/read,adminHmacKeyFile=/run/secrets/admin"
+      -listener "name=grpc,serves=grpc-read+grpc-admin,address=:8889,network=tcp,hmacKeyFile=/run/secrets/read,adminHmacKeyFile=/run/secrets/admin"
     )
     SECRET_MOUNTS=(-v /opt/xtcp2-redteam/secrets:/run/secrets:ro)
     ;;
@@ -144,7 +183,6 @@ docker rm -f rt-xtcp2 >/dev/null 2>&1 || true
 docker run -d --name rt-xtcp2 \
   "${NET_ARGS[@]}" \
   "${CAP_ARGS[@]}" \
-  "${AUTH_ENVS[@]}" \
   "${SECRET_MOUNTS[@]}" \
   -v /var/lib/xtcp2:/var/lib/xtcp2 \
   -v /run/netns:/run/netns:ro,rslave \
@@ -152,6 +190,7 @@ docker run -d --name rt-xtcp2 \
   --cgroupns=host \
   -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
   "$DAEMON_IMAGE" \
+  "${LISTENER_ARGS[@]}" \
   -dest "tcp:$DEST_ADDR:9999" \
   -marshal jsonl \
   -frequency 2s \
