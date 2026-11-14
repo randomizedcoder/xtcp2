@@ -141,6 +141,7 @@ var families = map[string]func() []*space{
 	},
 	"devlink": func() []*space { return []*space{devlinkSpace()} },
 	"vdpa":    func() []*space { return []*space{vdpaSpace()} },
+	"fou":     func() []*space { return []*space{fouSpace()} },
 }
 
 // namedFamilies are families of named rows, written out as they are

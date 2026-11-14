@@ -218,8 +218,8 @@ func TestParseFOUCorpus(t *testing.T) {
 	}{
 		{description: "positive: ip's ADD requests decode, nine with a port", got: tally(FOUCmdAdd, true), expected: "11 decoded, 0 errors, 9 port, 3 local, 2 peer, 2 ifindex"},
 		{description: "positive: ip's DEL requests decode, one bound to both ends", got: tally(FOUCmdDel, true), expected: "5 decoded, 0 errors, 5 port, 1 local, 1 peer, 0 ifindex"},
-		{description: "positive: ip's GET requests decode, every one a dump of the genl header alone", got: tally(FOUCmdGet, true), expected: "11 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex"},
-		{description: "positive: every port the kernel answered decodes with both addresses and an ifindex", got: tally(FOUCmdGet, false), expected: "10 decoded, 0 errors, 10 port, 10 local, 10 peer, 10 ifindex"},
+		{description: "positive: ip's GET requests decode, every one a dump of the genl header alone", got: tally(FOUCmdGet, true), expected: "21 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex"},
+		{description: "positive: every port the kernel answered decodes with both addresses and an ifindex", got: tally(FOUCmdGet, false), expected: "22 decoded, 0 errors, 22 port, 22 local, 22 peer, 22 ifindex"},
 		{description: "negative: the kernel answers no ADD or DEL", got: tally(FOUCmdAdd, false) + "|" + tally(FOUCmdDel, false), expected: "0 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex|0 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex"},
 	}
 	for _, tt := range tests {
