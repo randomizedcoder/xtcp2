@@ -167,6 +167,24 @@ let
     artifact = tests.test-linkmonitor-performance;
   };
 
+  # Red-team harness wiring (docs/redteam-plan.md, docs/redteam-implementation.md,
+  # docs/redteam-harness.md). Apps run on the harness host (l); only the lint is
+  # a `nix flake check` member.
+  # vagrant is licensed bsl11, which nixpkgs marks unfree: it is evaluated in
+  # its own allowUnfree instance so neither the dev shell nor any other flake
+  # output needs NIXPKGS_ALLOW_UNFREE. Only the redteam-* apps pull it in.
+  redteamVagrant =
+    (import nixpkgs {
+      inherit (pkgs.stdenv.hostPlatform) system;
+      config.allowUnfree = true;
+    }).vagrant;
+  redteam = import ./redteam.nix {
+    inherit pkgs lib src;
+    vagrant = redteamVagrant;
+    inherit (binaries) xtcp2client xtcp2ctl;
+    inherit (containers) oci-xtcp2 oci-xtcp2-tcp-stress;
+  };
+
   # Guest tests that report through the serial console, each built around
   # microvms/mkVmCheck.nix's runner: checks.vm-<name>, run in the build
   # sandbox with KVM and cached by its inputs, and the app test-<name>-vm,
@@ -1181,7 +1199,9 @@ in
     # Per-flavor + per-package test targets. The two imports above each
     # return an attrset whose keys already start with `test-` so they
     # merge straight into the flake's packages namespace.
-    // (lib.filterAttrs (n: _v: lib.hasPrefix "test-" n) tests);
+    // (lib.filterAttrs (n: _v: lib.hasPrefix "test-" n) tests)
+    # Red-team harness images/tools (docs/redteam-harness.md).
+    // redteam.packages;
 
   devShells = {
     default = devshell;
@@ -1232,7 +1252,12 @@ in
     // {
       inherit (tests) test-linkmonitor;
     }
-    // (lib.filterAttrs (n: _v: lib.hasPrefix "test-go-flavor-" n) tests);
+    // (lib.filterAttrs (n: _v: lib.hasPrefix "test-go-flavor-" n) tests)
+    # Red-team harness lint — the only hermetic member of the red-team program
+    # (VM scenarios are apps; see nix/redteam.nix).
+    // {
+      redteam-lint = redteam.checks.redteam-lint;
+    };
 
   apps = {
     test-tcp-controller-vm = {
@@ -1672,7 +1697,10 @@ in
       type = "app";
       program = "${drv}/bin/${name}";
     }) tiers
-  );
+  )
+  # Red-team harness: one app per scenario (vagrant/scenarios/rt-*.sh) plus
+  # lifecycle helpers. See nix/redteam.nix.
+  // redteam.apps;
 
   inherit tests;
 }
