@@ -10,6 +10,9 @@ https://github.com/randomizedcoder/xtcp2.
 
 The execution companion — harness architecture, per-phase tasks, and
 definition of done — is [redteam-implementation.md](redteam-implementation.md).
+The concrete Phase 0 wiring into `flake.nix` and `nix/` — including what the
+existing infrastructure already provides and the commit-by-commit build
+sequence — is [redteam-harness.md](redteam-harness.md).
 
 Related: [listener security guide](security.md), [hardening design](design-listener-security-hardening.md),
 [integration testing](integration-testing.md), [TODO-SOON §29](../TODO-SOON.md)
@@ -340,7 +343,7 @@ suites):
 ```text
 vagrant/
   README.md                  # how to run, prerequisites (libvirt, vagrant, nix build of the image)
-  base/                      # Vagrantfile base: ubuntu/noble64 (24.04) + jammy (22.04) boxes, libvirt provider
+  base/                      # Vagrantfile base: cloud-image/ubuntu-24.04 + jammy boxes, libvirt provider
   provision/
     victim.sh                # docker-ce install, load oci-xtcp2 tarball, compose daemon (env matrix below)
     attacker.sh               # attack tools: slowhttptest, h2load, ghz, grpcurl(repo), socat, jq, tcpdump, strace
