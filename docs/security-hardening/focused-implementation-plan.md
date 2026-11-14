@@ -204,7 +204,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | `BenchmarkPollPrepass` n=4096 (pread) | 15.6 ms | < 20 ms ✓ |
 | hot path vs #301 head (`BenchmarkNetlinkerDump`, 8 interleaved runs) | geomean −1.5%, no row slower | within noise ✓ (after moving `nsOwners` off the pools' cache lines: placed above them it cost +5–10% at 4–8 decoders) |
 
-**Status:** open as #301.
+**Status:** merged (#301).
 
 ### FP-6 — S3 queue bound and string policy (C3, C4)
 
@@ -255,7 +255,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 - [x] Structural test in CI: `go list -deps ./cmd/xtcp2` has no file matching the write set; `go tool nm` on the daemon finds no `BuildWriteRequest`; no `os/exec`. *Done as:* `checks.no-write-encoders`, for xtcp2 and go-link-monitor with each binary's own tags, each proof with a positive control (the listing with `goip_write` names write files; tagged `goip` has `BuildWriteRequest`). A manual negative run (`BuildWriteRequest` untagged and referenced from `goip.Show`) fails it. After #282 the `treatment` tag (fat builds, the standalone agent and watchdog) compiles `internal/goip/actuate` and the route/rule builders it needs (`goip_write || treatment`); the check exempts exactly those three files and symbols under that tag, fails if any is missing (stale list), and covers `xtcp2-min` (no tag) for files and `no_exec`.
 
 **Tests:** FD `no_write_encoders`, `no_exec`; goip's own suites run with the tag. *Done as:* `internal/goip/notag_test.go` (untagged) runs every write verb against a socket that refuses requests and expects `ErrWriteNotCompiled`, exit 1 and no request; `TestWriteOpsUntagged`/`TestWriteOpsTagged` pin the table either way. Mixed tests split into `*_write_test.go`; shared tables skip a write row untagged. `test-focused-goip` runs goip, goipparity, nlparity and xtcpnl with the tag.
-**Status:** open as #297 (FP-8a, moves), #298 (FP-8b, seam, tags, Nix) and #299 (FP-8c, the check and docs), stacked. No `goip_write` leg in `go-test-flavors`, whose legs test `pkg/xtcp` only; `test-focused-goip` carries the tagged tests, and `internal/goipparity`'s tests moved there from the untagged `go test ./...`.
+**Status:** merged: #297 (FP-8a, moves) directly; #298 (FP-8b, seam, tags, Nix) and #299 (FP-8c, the check and docs) merged into their stacked bases and reached main through #305; #306 fixed the lint the `treatment` build tag exposed. No `goip_write` leg in `go-test-flavors`, whose legs test `pkg/xtcp` only; `test-focused-goip` carries the tagged tests, and `internal/goipparity`'s tests moved there from the untagged `go test ./...`.
 
 ### FP-9 — capability settlement (B1 prerequisite; subset of phased-plan PR-18)
 
