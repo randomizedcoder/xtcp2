@@ -87,6 +87,10 @@ let
     # pkg/xtcpnl's ParseDevlink (internal/godevlink). Listed for the same
     # reason as gordma, so a later live parity run can find it in the guest.
     "godevlink"
+    # govdpa is the arc's vdpa(8) clone: it replays vdpa's ws pcap corpus to
+    # exercise pkg/xtcpnl's ParseVdpa and BuildGetVdpaRequest
+    # (internal/govdpa). Listed for the same reason as godevlink.
+    "govdpa"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"
