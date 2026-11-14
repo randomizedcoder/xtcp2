@@ -144,7 +144,9 @@ func wsStatsCheck(t *testing.T, row wsStatsRow) {
 	written := filepath.Join(t.TempDir(), "write.bin")
 	t.Setenv(writeOutEnvCst, written)
 	rc := ExitOK
-	if err := run(c, args); err != nil {
+	err = run(c, args)
+	skipIfNotCompiled(t, err)
+	if err != nil {
 		rc = exitCodeOf(err)
 	}
 	if rc != row.rc {

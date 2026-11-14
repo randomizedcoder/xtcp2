@@ -31,6 +31,10 @@ import (
 //
 // The daemon (cmd/xtcp2) must never reach the controller, a SQL driver or the
 // ClickHouse client: that was the regression that prompted this file.
+//
+// local, agent, internal/goip/actuate and the two standalone binaries build
+// only with the `treatment` tag, the one tag besides goip_write that compiles
+// pkg/xtcpnl's route and rule write builders (FP-8b). Their rules walk with it.
 const (
 	modulePath = "github.com/randomizedcoder/xtcp2"
 	repoRoot   = "../.."
@@ -54,7 +58,7 @@ func treatmentBoundaryRules() []boundaryRule {
 		{
 			description: "positive: the untagged daemon reads journals only: no agent, no TLS identity, no RPC proto, no controller, no SQL driver, no ClickHouse",
 			root:        tp("cmd/xtcp2"),
-			forbidden:   []string{tp("pkg/treatment/agent"), tp("pkg/treatment/identity"), tp("pkg/treatment/local"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("pkg/treatment/controller"), tp("pkg/treatment/experiment")},
+			forbidden:   []string{tp("pkg/treatment/agent"), tp("pkg/treatment/identity"), tp("pkg/treatment/local"), tp("internal/goip/actuate"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment"), tp("pkg/treatment/controller"), tp("pkg/treatment/experiment")},
 			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse"},
 			expectAny:   []string{tp("pkg/xtcp"), tp("pkg/treatment/attribution")},
 		},
@@ -69,6 +73,7 @@ func treatmentBoundaryRules() []boundaryRule {
 		{
 			description: "positive: the standalone agent binary stands on the agent library, never on the controller or a database",
 			root:        tp("cmd/xtcp2-treatment-agent"),
+			tags:        []string{"treatment"},
 			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/experiment"), tp("pkg/xtcp")},
 			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse"},
 			expectAny:   []string{tp("pkg/treatment/agent"), tp("pkg/treatment/local"), tp("pkg/treatment/attribution")},
@@ -76,6 +81,7 @@ func treatmentBoundaryRules() []boundaryRule {
 		{
 			description: "positive: the agent library stands on identity and the contract, never on the controller",
 			root:        tp("pkg/treatment/agent"),
+			tags:        []string{"treatment"},
 			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/experiment")},
 			forbidden3p: []string{"database/sql", "jackc/pgx"},
 			expectAny:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment")},
@@ -103,6 +109,7 @@ func treatmentBoundaryRules() []boundaryRule {
 			// are clean: the reconcile rule below forbids gRPC.
 			description: "boundary: the watchdog never reaches the controller, a database, TLS identity, the agent or the RPC proto",
 			root:        tp("cmd/xtcp2-treatmentctl"),
+			tags:        []string{"treatment"},
 			forbidden:   []string{tp("pkg/treatment/controller"), tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/attribution"), tp("pkg/treatment/wire"), tp("pkg/treatment/experiment"), tp("gen/go/xtcp_treatment")},
 			forbidden3p: []string{"database/sql", "jackc/pgx", "clickhouse", "google.golang.org/grpc/credentials"},
 			expectAny:   []string{tp("pkg/treatment"), tp("pkg/treatment/local"), tp("pkg/treatment/reconcile")},
@@ -117,6 +124,7 @@ func treatmentBoundaryRules() []boundaryRule {
 		{
 			description: "positive: the local package builds the kernel-backed reconciler on the goip actuator, without TLS or the RPC proto",
 			root:        tp("pkg/treatment/local"),
+			tags:        []string{"treatment"},
 			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/attribution"), tp("pkg/treatment/controller"), tp("pkg/treatment/experiment"), tp("pkg/treatment/wire"), tp("gen/go/xtcp_treatment")},
 			forbidden3p: []string{"database/sql", "google.golang.org/grpc/credentials"},
 			expectAny:   []string{tp("pkg/treatment/reconcile"), tp("internal/goip/actuate"), tp("internal/goip")},

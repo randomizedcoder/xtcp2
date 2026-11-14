@@ -95,6 +95,16 @@ nix build .#xtcp2client
 nix build .#xtcp2_kafka_client
 ```
 
+### goip write verbs
+
+`goip` and `goip-parity` are built with `-tags goip_write` (`nix/binaries.nix` → `extraTagsByName`); no other binary is. The tag compiles in goip's write verbs (`ip link add`, `route flush`, `xfrm state add`, …, all dry runs written to `GOIP_WRITE_OUT`) and `pkg/xtcpnl`'s write builders (`BuildWriteRequest`, `BuildGenlWriteRequest`, …). `xtcp2` and `go-link-monitor`, which serve `goip show` at `/ip`, are built without it: `/ip` refuses a write verb by name with 400 as before, and behind that refusal the verb is now `ErrWriteNotCompiled`, with no encoder in the binary to reach. An untagged `go build ./cmd/goip` answers every write verb `ErrWriteNotCompiled`, with exit 1.
+
+One exemption: the `treatment` tag (the full-destination builds, which embed the route treatment agent, and `xtcp2-treatment-agent`/`xtcp2-treatmentctl`) compiles `internal/goip/actuate` and, of the write builders, only the route and rule ones it uses (`BuildWriteRequest`, `BuildRouteWriteRequest`, `BuildRuleWriteRequest`). Link, address, nsid, genl and xfrm builders stay `goip_write`-only, and the slim flavors and `go-link-monitor` carry none.
+
+`nix flake check` runs `no-write-encoders`, which fails if a daemon's (`xtcp2-debug`, `xtcp2-min`, `go-link-monitor`) `go list -deps` names a write file beyond treatment's route and rule files, or `go tool nm` finds a write builder, an `Encode*InfoData` or a goip write arm in it, or if `goip` lacks `BuildWriteRequest`. It also fails if a package in either daemon's deps imports `os/exec`, bar the one it lists (minio-go's credentials provider, in the s3parquet destination).
+
+To test the write path: `go test -tags goip_write ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`, or `nix build .#test-focused-goip`. Untagged, `internal/goip/notag_test.go` checks that every write verb is `ErrWriteNotCompiled` and sends nothing.
+
 ## OCI images
 
 The three "fat" images carry every cmd binary; the slim images carry only the single matching `xtcp2-<flavor>` binary.
@@ -251,6 +261,8 @@ The absent ones are published as `0` deliberately: a binary built without the ta
 | `destinations_core.go`, `destinations_null.go`, `destinations_stderr.go`, `destinations_udp.go`, `destinations_unix.go`, `destinations_unixgram.go` | (none) | always |
 | `destinations_file.go` | `//go:build dest_file` | only with `-tags dest_file` (full flavor) |
 | `netlinker_capture.go` / `netlinker_nocapture.go` | `//go:build capture` / `!capture` | the capture writer, or its no-op stub |
+| `internal/goip` write files, `write_ops_goip_write.go`; `pkg/xtcpnl` write builders; `pkg/nlparity/nlparity_write.go` | `//go:build goip_write` | `goip` and `goip-parity` only ([goip write verbs](#goip-write-verbs)) |
+| `pkg/xtcpnl` route/rule builders (`xtcpnl_{route,rule}_write.go`, `xtcpnl_write_request.go`) | `//go:build goip_write \|\| treatment` | as above, plus `treatment` builds ([goip write verbs](#goip-write-verbs)) |
 | `destinations_kafka.go` | `//go:build dest_kafka` | only with `-tags dest_kafka` |
 | `destinations_nats.go` | `//go:build dest_nats` | only with `-tags dest_nats` |
 | `destinations_nsq.go` | `//go:build dest_nsq` | only with `-tags dest_nsq` |

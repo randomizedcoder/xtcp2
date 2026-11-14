@@ -167,14 +167,14 @@ func runNeigh(c *runCtx, args []string) error {
 			return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
 		}
 		if v.kind != verbShow {
-			if w := lookupNeighWriteVerb(v.name); w != nil {
-				return neighModify(c, w, args[1:])
+			if ok, err := writeOps.neigh(c, v.name, args[1:]); ok {
+				return err
 			}
 			switch v.name {
 			case neighGetVerbCst:
 				return neighGet(c, args[1:])
 			case routeFlushVerbCst:
-				return neighFlush(c, args[1:])
+				return writeOps.neighFlush(c, args[1:])
 			}
 			return fmt.Errorf("neigh %q: %w", v.name, ErrNotImplemented)
 		}

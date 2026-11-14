@@ -300,6 +300,7 @@ func TestXfrmStateArgs(t *testing.T) {
 				f.dumpErr = unix.EPERM
 			}
 			r := xfrmRunArgs(f, tc.family, false, tc.args)
+			skipIfNotCompiled(t, r.err)
 			if code := ioamExit(r.err); code != tc.exit {
 				t.Fatalf("exit %d (%v), want %d", code, r.err, tc.exit)
 			}

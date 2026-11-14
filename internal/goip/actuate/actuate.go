@@ -1,3 +1,5 @@
+//go:build treatment
+
 // Package actuate is the treatment route actuator: the one consumer of goip
 // that applies a request to a live kernel. It owns a private routing table,
 // a private rule priority and a private route protocol, installs host routes

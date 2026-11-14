@@ -1,3 +1,5 @@
+//go:build treatment
+
 // Package local is the host-side configuration shared by every process that
 // touches the treatment journal (the embedded or standalone agent, the
 // watchdog and the treatmentctl commands) and the construction of the

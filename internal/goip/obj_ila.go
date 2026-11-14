@@ -65,9 +65,9 @@ func runIla(c *runCtx, args []string) error {
 	verb, rest := args[0], args[1:]
 	switch {
 	case matchesPrefix(verb, ilaAddCst):
-		return ilaModify(c, id, xtcpnl.ILACmdAdd, rest)
+		return writeOps.ilaModify(c, id, xtcpnl.ILACmdAdd, rest)
 	case matchesPrefix(verb, ilaDeleteCst):
-		return ilaModify(c, id, xtcpnl.ILACmdDel, rest)
+		return writeOps.ilaModify(c, id, xtcpnl.ILACmdDel, rest)
 	case matchesAny(verb, ilaListVerbs):
 		return ilaList(c, id, rest)
 	}

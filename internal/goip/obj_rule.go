@@ -42,13 +42,13 @@ func runRule(c *runCtx, args []string) error {
 	case matchesPrefix(verb, routeSaveVerbCst):
 		return ruleSave(c, rest)
 	case matchesPrefix(verb, routeRestoreVerbCst):
-		return ruleRestore(c, rest)
+		return writeOps.ruleRestore(c, rest)
 	case matchesPrefix(verb, ruleAddVerbCst):
-		return ruleModify(c, unix.RTM_NEWRULE, rest)
+		return writeOps.ruleModify(c, unix.RTM_NEWRULE, rest)
 	case matchesPrefix(verb, ruleDeleteVerbCst):
-		return ruleModify(c, unix.RTM_DELRULE, rest)
+		return writeOps.ruleModify(c, unix.RTM_DELRULE, rest)
 	case matchesPrefix(verb, routeFlushVerbCst):
-		return ruleFlush(c, rest)
+		return writeOps.ruleFlush(c, rest)
 	}
 	return fmt.Errorf("rule %q: %w", verb, ErrNotImplemented)
 }

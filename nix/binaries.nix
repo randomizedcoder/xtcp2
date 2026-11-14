@@ -104,6 +104,14 @@ let
 
   variantNames = builtins.attrNames versions.buildVariants;
 
+  # Per-binary build tags on top of the variant's. goip and goip-parity carry
+  # goip's write path; every other binary, the daemons included, is built
+  # without it.
+  extraTagsByName = {
+    goip = versions.goipWriteTags;
+    goip-parity = versions.goipWriteTags;
+  };
+
   # Attr-name suffix for an enrichment flavor. The `none` cell keeps the
   # historical unsuffixed name (xtcp2-min, xtcp2-s3parquet, …) so existing
   # references stay valid; the other cells append their flavor name.
@@ -125,6 +133,7 @@ let
           date
           version
           ;
+        extraTags = extraTagsByName.${name} or [ ];
       }
     )
   );

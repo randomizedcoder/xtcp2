@@ -105,13 +105,13 @@ func runMacsec(c *runCtx, args []string) error {
 	case matchesPrefix(verb, macsecShowCst):
 		return macsecShow(c, id, rest)
 	case matchesPrefix(verb, macsecAddCst):
-		return macsecModify(c, id, &macsecVerbAdd, rest)
+		return writeOps.macsecModify(c, id, &macsecVerbAdd, rest)
 	case matchesPrefix(verb, macsecSetCst):
-		return macsecModify(c, id, &macsecVerbUpd, rest)
+		return writeOps.macsecModify(c, id, &macsecVerbUpd, rest)
 	case matchesPrefix(verb, macsecDeleteCst):
-		return macsecModify(c, id, &macsecVerbDel, rest)
+		return writeOps.macsecModify(c, id, &macsecVerbDel, rest)
 	case matchesPrefix(verb, macsecOffloadCst):
-		return macsecOffload(c, id, rest)
+		return writeOps.macsecOffload(c, id, rest)
 	}
 	return fmt.Errorf("%w: Command %q is unknown, try \"ip macsec help\"", ErrMacsecUsage, verb)
 }

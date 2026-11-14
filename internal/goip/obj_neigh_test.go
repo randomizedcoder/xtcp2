@@ -835,6 +835,7 @@ func TestRunNeighArgs(t *testing.T) {
 			t.Setenv("GOIP_REPLAY_PORTID", neighDumpPortid)
 			var stdout, stderr bytes.Buffer
 			code := Run(tc.args, &stdout, &stderr)
+			skipIfNotCompiledText(t, stderr.String())
 			if code != tc.wantCode {
 				t.Errorf("Run(%q) = %d, want %d; stderr: %s", tc.args, code, tc.wantCode, stderr.String())
 			}

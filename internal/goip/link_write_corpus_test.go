@@ -1,37 +1,21 @@
+//go:build goip_write
+
 package goip
 
 import (
 	"bytes"
-	"encoding/binary"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
 
 // linkWriteCorpusDir holds the write rows capture-link-writes.exp recorded:
 // one `ip link …` run per directory, in a fresh namespace.
 const linkWriteCorpusDir = "../../pkg/xtcpnl/testdata/7_1_4/link-write/write"
-
-// wireBytesOf rebuilds a captured message as the datagram `ip` sent, with
-// nlmsg_seq and nlmsg_pid zero, so it compares with zeroSeqPidCopy output.
-func wireBytesOf(m nlparity.Msg) []byte {
-	out := make([]byte, xtcpnl.NlMsgHdrSizeCst+len(m.Body))
-	n, ok := cint.U32(len(out))
-	if !ok {
-		panic("a captured message past 4 GiB")
-	}
-	binary.LittleEndian.PutUint32(out[0:4], n)
-	binary.LittleEndian.PutUint16(out[4:6], m.Hdr.Type)
-	binary.LittleEndian.PutUint16(out[6:8], m.Hdr.Flags)
-	copy(out[xtcpnl.NlMsgHdrSizeCst:], m.Body)
-	return out
-}
 
 // TestLinkWriteMatchesIpBytes is Phase 6's exit evidence: for every write
 // row of the corpus, goip sends the same name lookups `ip` sent, in the same

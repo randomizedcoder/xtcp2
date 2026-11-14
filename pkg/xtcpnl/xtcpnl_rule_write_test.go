@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package xtcpnl
 
 import (

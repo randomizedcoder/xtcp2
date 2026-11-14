@@ -1,3 +1,5 @@
+//go:build treatment
+
 package agent
 
 import (

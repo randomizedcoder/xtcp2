@@ -955,6 +955,7 @@ func TestRunLinkArgs(t *testing.T) {
 			t.Setenv("GOIP_REPLAY", linkDumpPcap)
 			var stdout, stderr bytes.Buffer
 			code := Run(tc.args, &stdout, &stderr)
+			skipIfNotCompiledText(t, stderr.String())
 			if code != tc.wantCode {
 				t.Errorf("Run(%q) = %d, want %d; stderr: %s", tc.args, code, tc.wantCode, stderr.String())
 			}
@@ -1990,6 +1991,7 @@ func runLinkWith(t *testing.T, src Source, family uint8, args []string) (string,
 		family: family,
 	}
 	err := runLink(c, args)
+	skipIfNotCompiled(t, err)
 	return out.String(), err
 }
 

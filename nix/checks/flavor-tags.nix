@@ -61,6 +61,7 @@ pkgs.runCommand "xtcp2-flavor-tags"
     t=$(tags_of ${binaries.xtcp2})
     has_tag "$t" dest_file || { echo "FAIL: full flavor lacks dest_file (tags: $t)"; fail=1; }
     has_tag "$t" capture && { echo "FAIL: full flavor carries capture (tags: $t)"; fail=1; }
+    has_tag "$t" goip_write && { echo "FAIL: full flavor carries goip_write (tags: $t)"; fail=1; }
 
     t=$(tags_of ${binaries.xtcp2-capture})
     has_tag "$t" capture || { echo "FAIL: xtcp2-capture lacks capture (tags: $t)"; fail=1; }

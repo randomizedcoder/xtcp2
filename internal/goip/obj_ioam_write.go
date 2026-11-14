@@ -1,9 +1,12 @@
+//go:build goip_write
+
 package goip
 
 import (
 	"errors"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -50,4 +53,19 @@ func ioamWriteAttrs(r *ioamReq) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+// ioamWrite is ioam6_do_cmd's command: the request, NLM_F_ACK, to
+// GOIP_WRITE_OUT.
+func ioamWrite(c *runCtx, id uint16, r *ioamReq) error {
+	attrs, err := ioamWriteAttrs(r)
+	if err != nil {
+		return err
+	}
+	req, err := xtcpnl.BuildGenlWriteRequest(xtcpnl.IOAM6GenlName, id, r.cmd, xtcpnl.IOAM6GenlVersion,
+		unix.NLM_F_ACK, c.nextSeq(), attrs)
+	if err != nil {
+		return err
+	}
+	return writeAddrOut(req)
 }

@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import (
@@ -65,8 +67,6 @@ type fakeLinks struct {
 	calls []string
 }
 
-var errFakeResolve = errors.New("fake resolver failure")
-
 func newFakeLinks() *fakeLinks {
 	return &fakeLinks{idx: map[string]int32{
 		"d0": 2, "la1": 3, "bond0": 4, "la2": 5, "v0": 6,
@@ -90,12 +90,6 @@ type linkWriteExpected struct {
 	err      error
 	errMsg   string
 }
-
-func ifinfomsg(index int32, flags, change uint32) []byte {
-	return xtcpnl.EncodeIfInfomsg(unix.AF_UNSPEC, index, flags, change)
-}
-
-func strz(s string) []byte { return append([]byte(s), 0) }
 
 // TestBuildLinkWrite is argv after the verb, through iplink_parse and
 // iplink_modify, into the LinkWrite the encoder takes. It carries
@@ -542,20 +536,6 @@ func (s *talkLinks) Talk(request []byte, _ uint16) ([]byte, error) {
 		return b, nil
 	}
 	return nil, fmt.Errorf("xtcpnl: rtnetlink error: %w", syscall.ENODEV)
-}
-
-// newLinkBody is an RTM_NEWLINK body: the ifinfomsg, IFLA_IFNAME and the
-// altnames in IFLA_PROP_LIST.
-func newLinkBody(index int32, name string, alts ...string) []byte {
-	b := catBytes(ifinfomsg(index, 0, 0), nla(unix.IFLA_IFNAME, strz(name)))
-	if len(alts) > 0 {
-		list := make([][]byte, 0, len(alts))
-		for _, a := range alts {
-			list = append(list, nla(unix.IFLA_ALT_IFNAME, strz(a)))
-		}
-		b = append(b, nla(unix.IFLA_PROP_LIST, list...)...)
-	}
-	return b
 }
 
 // TestNewLinkNameResolver is ll_name_to_index: the cache, ll_link_get, and

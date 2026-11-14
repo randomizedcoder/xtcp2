@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package xtcpnl
 
 import (
@@ -13,23 +15,6 @@ import (
 // ErrXfrmWrite is a type BuildXfrmWriteRequest refuses: not one of the XFRM
 // writes IsAdmittedXfrmWrite admits.
 var ErrXfrmWrite = errors.New("xtcpnl: XFRM writes are built by BuildXfrmWriteRequest, and only those IsAdmittedXfrmWrite admits")
-
-// IsAdmittedXfrmWrite reports whether msgType is an XFRM write goip may
-// build: the SA writes `ip xfrm state` sends, NEWSA (`add`), UPDSA
-// (`update`), ALLOCSPI (`allocspi`), DELSA (`delete` and `deleteall`) and
-// FLUSHSA (`flush`) (ip/xfrm_state.c), and the policy writes `ip xfrm
-// policy` sends, NEWPOLICY (`add`), UPDPOLICY (`update`), DELPOLICY
-// (`delete` and `deleteall`), FLUSHPOLICY (`flush`), NEWSPDINFO (`set`)
-// and SETDEFAULT (`setdefault`) (ip/xfrm_policy.c).
-func IsAdmittedXfrmWrite(msgType uint16) bool {
-	switch msgType {
-	case XfrmMsgNewSA, XfrmMsgUpdSA, XfrmMsgAllocSPI, XfrmMsgDelSA, XfrmMsgFlushSA,
-		XfrmMsgNewPolicy, XfrmMsgUpdPolicy, XfrmMsgDelPolicy, XfrmMsgFlushPolicy, XfrmMsgNewSPDInfo,
-		XfrmMsgSetDefault:
-		return true
-	}
-	return false
-}
 
 // BuildXfrmWriteRequest lays out an XFRM write as BuildXfrmRequest lays out
 // a read: flags plus NLM_F_REQUEST, the type's fixed header, which must be

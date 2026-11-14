@@ -125,12 +125,12 @@ var xfrmStateWrites = []struct {
 	verb string
 	run  func(*runCtx, []string) error
 }{
-	{xfrmAddCst, func(c *runCtx, a []string) error { return xfrmStateModify(c, xtcpnl.XfrmMsgNewSA, a) }},
-	{xfrmUpdateCst, func(c *runCtx, a []string) error { return xfrmStateModify(c, xtcpnl.XfrmMsgUpdSA, a) }},
-	{xfrmAllocspiCst, xfrmStateAllocspi},
-	{fouDeleteCst, xfrmStateDelete},
-	{xfrmDeleteallCst, xfrmStateDeleteall},
-	{"delall", xfrmStateDeleteall},
+	{xfrmAddCst, func(c *runCtx, a []string) error { return writeOps.xfrmStateModify(c, xtcpnl.XfrmMsgNewSA, a) }},
+	{xfrmUpdateCst, func(c *runCtx, a []string) error { return writeOps.xfrmStateModify(c, xtcpnl.XfrmMsgUpdSA, a) }},
+	{xfrmAllocspiCst, func(c *runCtx, a []string) error { return writeOps.xfrmStateAllocspi(c, a) }},
+	{fouDeleteCst, func(c *runCtx, a []string) error { return writeOps.xfrmStateDelete(c, a) }},
+	{xfrmDeleteallCst, func(c *runCtx, a []string) error { return writeOps.xfrmStateDeleteall(c, a) }},
+	{"delall", func(c *runCtx, a []string) error { return writeOps.xfrmStateDeleteall(c, a) }},
 }
 
 // xfrmState is do_xfrm_state. goip renders none of its show_stats > 1
@@ -155,7 +155,7 @@ func xfrmState(c *runCtx, args []string) error {
 	case matchesPrefix(verb, "get"):
 		return xfrmStateGet(c, rest)
 	case matchesPrefix(verb, xfrmFlushCst):
-		return xfrmStateFlush(c, rest)
+		return writeOps.xfrmStateFlush(c, rest)
 	case matchesPrefix(verb, "count"):
 		return xfrmStateCount(c)
 	case matchesPrefix(verb, xfrmHelpCst):

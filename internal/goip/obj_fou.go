@@ -68,9 +68,9 @@ func runFou(c *runCtx, args []string) error {
 	verb, rest := args[0], args[1:]
 	switch {
 	case matchesPrefix(verb, fouAddCst):
-		return fouModify(c, id, xtcpnl.FOUCmdAdd, rest)
+		return writeOps.fouModify(c, id, xtcpnl.FOUCmdAdd, rest)
 	case matchesPrefix(verb, fouDeleteCst):
-		return fouModify(c, id, xtcpnl.FOUCmdDel, rest)
+		return writeOps.fouModify(c, id, xtcpnl.FOUCmdDel, rest)
 	case matchesPrefix(verb, fouShowCst):
 		return fouShow(c, id, rest)
 	}

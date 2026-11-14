@@ -42,18 +42,18 @@ func runAddress(c *runCtx, args []string) error {
 	if v.kind == verbShow {
 		return addrShow(c, args[1:])
 	}
-	if w := lookupAddrWriteVerb(v.name); w != nil {
-		return addrWrite(c, w, args[1:])
+	if ok, err := writeOps.addr(c, v.name, args[1:]); ok {
+		return err
 	}
 	switch v.name {
 	case flushVerb.name:
-		return addrFlush(c, args[1:])
+		return writeOps.addrFlush(c, args[1:])
 	case saveVerb.name:
 		return addrSave(c, args[1:])
 	case showdumpVerb.name:
 		return addrShowdump(c, args[1:])
 	case restoreVerb.name:
-		return addrRestore(c, args[1:])
+		return writeOps.addrRestore(c, args[1:])
 	}
 	return fmt.Errorf("address %q: %w", v.name, ErrNotImplemented)
 }

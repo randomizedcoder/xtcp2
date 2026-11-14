@@ -111,9 +111,9 @@ func runL2tp(c *runCtx, args []string) error {
 	verb, rest := args[0], args[1:]
 	switch {
 	case matchesPrefix(verb, l2tpAddCst):
-		return l2tpAdd(c, id, rest)
+		return writeOps.l2tpAdd(c, id, rest)
 	case matchesPrefix(verb, l2tpDeleteCst):
-		return l2tpDel(c, id, rest)
+		return writeOps.l2tpDel(c, id, rest)
 	case matchesAny(verb, l2tpListVerbs):
 		return l2tpShow(c, id, rest)
 	}

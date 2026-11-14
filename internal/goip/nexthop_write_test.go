@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import (
@@ -14,23 +16,6 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
-
-// runNexthopCtx runs `ip nexthop` args on c, as runRuleCtx runs `ip rule`.
-func runNexthopCtx(c *runCtx, args []string) (int, string, string) {
-	var out, errOut bytes.Buffer
-	if c.out == nil {
-		c.out = &out
-	}
-	c.errOut = &errOut
-	if c.lltab == nil {
-		c.lltab = NewLLTab()
-	}
-	if err := runNexthop(c, args); err != nil {
-		errOut.WriteString("goip: " + err.Error() + "\n")
-		return exitCodeOf(err), out.String(), errOut.String()
-	}
-	return ExitOK, out.String(), errOut.String()
-}
 
 // nexthopFlushReplay answers the n-th dump with the replies of the n-th
 // RTM_GETNEXTHOP dump in a capture, where ReplaySource answers every dump

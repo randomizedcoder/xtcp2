@@ -176,6 +176,7 @@ func TestNexthopGetMatchesIp(t *testing.T) {
 			var out bytes.Buffer
 			c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: io.Discard}
 			err := runNexthop(c, strings.Fields(tc.args))
+			skipIfNotCompiled(t, err)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("runNexthop = %v, want %v", err, tc.wantErr)
 			}
@@ -244,6 +245,7 @@ func TestRunNexthopBucketDispatch(t *testing.T) {
 			var out bytes.Buffer
 			c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: io.Discard}
 			err := runNexthop(c, strings.Fields(tc.args))
+			skipIfNotCompiled(t, err)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("runNexthop = %v, want %v", err, tc.wantErr)
 			}

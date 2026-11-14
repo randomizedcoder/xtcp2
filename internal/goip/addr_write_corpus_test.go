@@ -1,3 +1,5 @@
+//go:build goip_write
+
 package goip
 
 import (
@@ -303,20 +305,6 @@ func TestAddrWriteCorpusComplete(t *testing.T) {
 			}
 		})
 	}
-}
-
-// addrSlugWrite is the write request `ip` sent for a slug, seq and pid zeroed.
-func addrSlugWrite(t *testing.T, slug string) []byte {
-	t.Helper()
-	c, err := nlparity.ParseRouteCaptureFile(filepath.Join(addrWriteCorpusDir, slug, "ip.pcap"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	reqs := c.Requests()
-	if len(reqs) == 0 {
-		t.Fatalf("%s: capture holds no requests", slug)
-	}
-	return wireBytesOf(reqs[len(reqs)-1])
 }
 
 // TestRunAddressWrite is the CLI end to end: the GOIP_WRITE_OUT hook, the

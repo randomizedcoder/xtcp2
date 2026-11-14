@@ -20,7 +20,7 @@ var ntableShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
 func runNTable(c *runCtx, args []string) error {
 	if len(args) > 0 {
 		if matchesPrefix(args[0], ntableChangeVerbCst) || matchesPrefix(args[0], ntableChgVerbCst) {
-			return ntableChange(c, args[1:])
+			return writeOps.ntableChange(c, args[1:])
 		}
 		if !matchesAny(args[0], ntableShowVerbs) {
 			return fmt.Errorf("ntable %q: %w", args[0], ErrNotImplemented)

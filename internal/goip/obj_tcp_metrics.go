@@ -195,9 +195,9 @@ func tcpmDoCmd(c *runCtx, cmd int, args []string) error {
 	}
 	switch {
 	case cmd == tcpmCmdDel:
-		return tcpmDelete(c, id, &f)
+		return writeOps.tcpmDelete(c, id, &f)
 	case cmd == tcpmCmdFlush:
-		return tcpmFlush(c, id, &f)
+		return writeOps.tcpmFlush(c, id, &f)
 	case f.atype >= 0:
 		return tcpmGet(c, id, &f)
 	}

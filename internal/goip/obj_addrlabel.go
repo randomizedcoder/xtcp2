@@ -25,11 +25,11 @@ func runAddrLabel(c *runCtx, args []string) error {
 		switch {
 		case matchesAny(verb, addrLabelShowVerbs):
 		case matchesPrefix(verb, addrLabelAddVerbCst):
-			return addrLabelModify(c, unix.RTM_NEWADDRLABEL, args[1:])
+			return writeOps.addrLabelModify(c, unix.RTM_NEWADDRLABEL, args[1:])
 		case matchesPrefix(verb, addrLabelDelVerbCst):
-			return addrLabelModify(c, unix.RTM_DELADDRLABEL, args[1:])
+			return writeOps.addrLabelModify(c, unix.RTM_DELADDRLABEL, args[1:])
 		case matchesPrefix(verb, addrLabelFlushVerbCst):
-			return addrLabelFlush(c, args[1:])
+			return writeOps.addrLabelFlush(c, args[1:])
 		default:
 			return fmt.Errorf("addrlabel %q: %w", verb, ErrNotImplemented)
 		}

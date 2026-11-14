@@ -29,6 +29,7 @@ func mptcpRunArgs(t *testing.T, src Source, json bool, args string, opts ...func
 		o(c)
 	}
 	err := runMptcp(c, strings.Fields(args))
+	skipIfNotCompiled(t, err)
 	var writes []nlparity.Msg
 	if _, serr := os.Stat(out); serr == nil {
 		writes = genlWrites(t, out, xtcpnl.MPTCPPMGenlName)

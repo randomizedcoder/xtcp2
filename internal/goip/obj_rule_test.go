@@ -629,7 +629,9 @@ func TestRunRuleArgs(t *testing.T) {
 			t.Setenv("GOIP_REPLAY", ruleDumpPcap)
 			t.Setenv(writeOutEnvCst, "")
 			var stdout, stderr bytes.Buffer
-			if code := Run(tt.args, &stdout, &stderr); code != tt.wantCode {
+			code := Run(tt.args, &stdout, &stderr)
+			skipIfNotCompiledText(t, stderr.String())
+			if code != tt.wantCode {
 				t.Fatalf("Run(%q) = %d, want %d; stderr=%s",
 					tt.args, code, tt.wantCode, stderr.String())
 			}
