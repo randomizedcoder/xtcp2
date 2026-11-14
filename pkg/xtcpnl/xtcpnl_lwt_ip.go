@@ -249,6 +249,7 @@ type LwtEncap struct {
 	Xfrm      *XfrmEncap
 	Ioam6     *Ioam6Encap
 	Rpl       *RplEncap
+	Bpf       *BpfEncap
 }
 
 // ErrLwtEncap is an LwtEncap with no field set, or more than one.
@@ -259,7 +260,7 @@ func (e *LwtEncap) set() int {
 	n := 0
 	for _, p := range []bool{
 		e.MPLS != nil, e.IP != nil, e.Seg6 != nil, e.Seg6Local != nil,
-		e.ILA != nil, e.Xfrm != nil, e.Ioam6 != nil, e.Rpl != nil,
+		e.ILA != nil, e.Xfrm != nil, e.Ioam6 != nil, e.Rpl != nil, e.Bpf != nil,
 	} {
 		if p {
 			n++
@@ -304,6 +305,8 @@ func (e *LwtEncap) other(ab *AttrBuilder) (uint16, func() error) {
 		return unix.LWTUNNEL_ENCAP_XFRM, func() error { return putXfrmEncap(ab, e.Xfrm) }
 	case e.Ioam6 != nil:
 		return unix.LWTUNNEL_ENCAP_IOAM6, func() error { return putIoam6Encap(ab, e.Ioam6) }
+	case e.Bpf != nil:
+		return unix.LWTUNNEL_ENCAP_BPF, func() error { return putBpfEncap(ab, e.Bpf) }
 	}
 	return unix.LWTUNNEL_ENCAP_RPL, func() error { return putRplEncap(ab, e.Rpl) }
 }

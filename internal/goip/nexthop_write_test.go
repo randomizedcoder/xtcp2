@@ -257,7 +257,7 @@ func TestParseNexthopWriteArgs(t *testing.T) {
 			result{err: ErrInvalidArgument}},
 		{"negative: an unknown protocol name", 0, "protocol bogus", result{err: ErrInvalidArgument}},
 		{"negative: an unknown keyword", 0, "bogus", result{err: ErrInvalidArgument}},
-		{"negative: encap bpf is not implemented", 0, "encap bpf in obj.o", result{err: ErrNotImplemented}},
+		{"negative: encap bpf's mode word is obj, not the file", 0, "encap bpf in obj.o", result{err: ErrBpfLoad}},
 		{"negative: help is not implemented", 0, "help", result{err: ErrNotImplemented}},
 	}
 	resolve := func(name string) (int32, error) {
@@ -271,7 +271,7 @@ func TestParseNexthopWriteArgs(t *testing.T) {
 			w, err := parseNexthopWriteArgs(tc.family, resolve, strings.Fields(tc.args))
 			var got result
 			if err != nil {
-				for _, e := range []error{ErrInvalidArgument, ErrNotImplemented} {
+				for _, e := range []error{ErrInvalidArgument, ErrNotImplemented, ErrBpfLoad} {
 					if errors.Is(err, e) {
 						got.err = e
 					}

@@ -212,9 +212,6 @@ func (m *xfrmMon) acquire(x xfrmMsg) error {
 	}
 	o := render.XfrmOpt{Stats: m.c.stats(), Family: m.c.family,
 		IndexName: func(idx int32) string { return genlIndexToName(m.c, idx) }}
-	if err := xfrmProtoOpt(&o, e.Acquire.Sel.Proto, e.Acquire.Policy.Sel.Proto); err != nil {
-		return err
-	}
 	return m.write(render.XfrmAcquire(e.Acquire, &e.Attrs, &o))
 }
 
@@ -225,10 +222,7 @@ func (m *xfrmMon) aevent(x xfrmMsg) error {
 	if err != nil {
 		return fmt.Errorf("an async event: %w: %w", err, ErrNotImplemented)
 	}
-	name, err := xfrmProtoName(s.AEvent.SAID.Proto)
-	if err != nil {
-		return err
-	}
+	name := render.StrxfProto(s.AEvent.SAID.Proto)
 	return m.write(render.XfrmAevent(s.AEvent, name))
 }
 
@@ -239,9 +233,6 @@ func (m *xfrmMon) mapping(x xfrmMsg) error {
 	if err != nil {
 		return fmt.Errorf("a mapping change: %w: %w", err, ErrNotImplemented)
 	}
-	name, err := xfrmProtoName(e.Mapping.ID.Proto)
-	if err != nil {
-		return err
-	}
+	name := render.StrxfProto(e.Mapping.ID.Proto)
 	return m.write(render.XfrmMapping(e.Mapping, name))
 }

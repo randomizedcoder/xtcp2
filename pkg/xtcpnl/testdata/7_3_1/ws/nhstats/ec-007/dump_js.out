@@ -1,0 +1,1 @@
+[{"id":1,"gateway":"192.0.2.1","dev":"d0","scope":"link","flags":[]},{"id":14,"group":[{"id":1}],"flags":[],"hw_stats":{"enabled":false,"used":false},"group_stats":[{"id":1,"packets":0}]}]

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
-	"golang.org/x/sys/unix"
 )
 
 // llIdxA2N is ll_idx_a2n: sscanf(name, "if%u"), so "if3" is ifindex 3 and
@@ -63,15 +62,4 @@ func rtnlNameA2N8(names map[string]uint32, arg string) (uint8, bool) {
 		return 0, false
 	}
 	return cint.U8From64(uint64(v))
-}
-
-// ruleProtoNames is the getprotobyname subset goip knows for `ipproto`: the
-// IANA names /etc/protocols carries for the protocols the kernel's
-// FRA_IP_PROTO selector is used with. goip reads no config files, so any
-// other name is refused rather than looked up.
-var ruleProtoNames = map[string]uint8{
-	"icmp": unix.IPPROTO_ICMP, "tcp": unix.IPPROTO_TCP, "udp": unix.IPPROTO_UDP,
-	"ipv6-icmp": unix.IPPROTO_ICMPV6, "sctp": unix.IPPROTO_SCTP, "dccp": unix.IPPROTO_DCCP,
-	"udplite": unix.IPPROTO_UDPLITE, "gre": unix.IPPROTO_GRE, "esp": unix.IPPROTO_ESP,
-	"ah": unix.IPPROTO_AH,
 }

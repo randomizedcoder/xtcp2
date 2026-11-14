@@ -1071,6 +1071,8 @@ in
       # $(nix build --print-out-paths .#iproute2_7_3_0)`. Every other VM's ip
       # stays on nixpkgs' iproute2.
       iproute2_7_3_0 = import ./iproute2-7-3-0.nix { inherit pkgs; };
+      # The workbench's BPF lwt object, for `nlcap-ws batch --bpf` (NC8-T02).
+      nlcap-lwt-bpf = import ./nlcap-lwt-bpf { inherit pkgs; };
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.

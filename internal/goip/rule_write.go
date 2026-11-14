@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -353,7 +354,7 @@ func (w *ruleWrite) uidrange(args []string, i int) (int, error) {
 	return i, w.attrs.PutBytes(unix.FRA_UID_RANGE, binary.LittleEndian.AppendUint32(b, end))
 }
 
-// ipproto is inet_proto_a2n: get_u8 base 10, then the protocol's name.
+// ipproto is inet_proto_a2n: get_u8 base 10, then getprotobyname.
 func (w *ruleWrite) ipproto(args []string, i int) (int, error) {
 	i, err := nextArg(args, i)
 	if err != nil {
@@ -361,9 +362,8 @@ func (w *ruleWrite) ipproto(args []string, i int) (int, error) {
 	}
 	p, ok := getU8(args[i], 10)
 	if !ok {
-		if p, ok = ruleProtoNames[args[i]]; !ok {
-			return i, fmt.Errorf("rule ipproto %q: iproute2 looks the name up in /etc/protocols and goip "+
-				"reads no config files: %w", args[i], ErrNotImplemented)
+		if p, ok = protoByName(args[i]); !ok {
+			return i, invargErr("Invalid \"ipproto\" value\n", args[i])
 		}
 	}
 	return i, w.attrs.PutU8(unix.FRA_IP_PROTO, p)
@@ -500,7 +500,7 @@ func (w *ruleWrite) ruleType(args []string, i int) (int, error) {
 // rtnlDsfieldA2N is rtnl_dsfield_a2n: a name from the rt_dsfield file
 // iproute2 ships, then strtoul base 16 over the whole argument, at most 255.
 func rtnlDsfieldA2N(arg string) (uint8, bool) {
-	if v, ok := dsfieldNames[arg]; ok {
+	if v, ok := render.DsfieldByName(arg); ok {
 		return v, true
 	}
 	r := cStrtoul(arg, 16)
@@ -518,18 +518,6 @@ func rtnlDscpA2N(arg string) (uint32, bool) {
 	}
 	ds, ok := rtnlDsfieldA2N(arg)
 	return uint32(ds) >> 2, ok
-}
-
-// dsfieldNames is etc/iproute2/rt_dsfield as iproute2-7.1.0 ships it.
-var dsfieldNames = map[string]uint8{
-	addrDefaultGroupCst: 0x0,
-	"AF11":              0x28, "AF12": 0x30, "AF13": 0x38,
-	"AF21": 0x48, "AF22": 0x50, "AF23": 0x58,
-	"AF31": 0x68, "AF32": 0x70, "AF33": 0x78,
-	"AF41": 0x88, "AF42": 0x90, "AF43": 0x98,
-	"CS1": 0x20, "CS2": 0x40, "CS3": 0x60, "CS4": 0x80,
-	"CS5": 0xA0, "CS6": 0xC0, "CS7": 0xE0,
-	"EF": 0xB8,
 }
 
 // scanUintPair is sscanf(arg, "%u-%u", ...) == 2: each %u is strtoul base

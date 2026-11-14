@@ -102,7 +102,7 @@ var objects = []object{
 	{name: "netconf", run: runNetconf, verbs: netconfVerbs},
 	{name: vrfKeywordCst, run: runVrf, verbs: vrfVerbs},
 	{name: "sr", run: runSr, verbs: srVerbs, noShow: true},
-	{name: objNexthopCst, run: runNexthop, verbs: nexthopVerbs},
+	{name: objNexthopCst, run: runNexthop, verbs: nexthopVerbs, wideStats: true},
 	{name: "mptcp", run: runMptcp, verbs: mptcpVerbs, noShow: true},
 	{name: "ioam", run: runIoam, verbs: ioamVerbs, noShow: true},
 	{name: "stats", run: runStats, verbs: statsVerbs},
@@ -317,8 +317,9 @@ func (c *runCtx) detailed() bool { return c.showDetails > 0 }
 
 // stats is show_stats as a boolean, for the renderers whose only use of it is
 // a presence test. Every `if (show_stats)` guard in iproute2 that goip
-// reproduces tests for non-zero, not for a specific count; the one place the
-// count matters is `-s -s`, which goip refuses at the option loop.
+// reproduces tests for non-zero, not for a specific count. Where the count
+// matters, `-s -s`, the option loop refuses it, except for the wideStats
+// objects, which read c.showStats themselves.
 func (c *runCtx) stats() bool { return c.showStats > 0 }
 
 // outputMode names the -brief or -oneline option this invocation set, or
