@@ -163,6 +163,17 @@ clear_docker_volumes:
 protos:
 	nix run .#regen-protos
 
+# Red-team harness (vagrant/, docs/redteam-plan.md). VM scenarios run on the
+# harness host (l): KVM + libvirtd + network. The lint is hermetic CI.
+redteam-lint:
+	nix build .#checks.x86_64-linux.redteam-lint -L
+
+redteam-smoke:
+	nix run .#redteam-rt-1-1
+
+redteam-destroy:
+	nix run .#redteam-destroy
+
 nuke_clickhouse:
 	rm -rf ./build/containers/clickhouse/db/*
 	docker volume rm xtcp_clickhouse_db
