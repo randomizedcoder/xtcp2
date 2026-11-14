@@ -74,7 +74,7 @@ func tnlEncap(k *KindData, e xtcpnl.TunnelEncap) {
 		on := e.Flags&f.bit != 0
 		o.add(f.name, noPrefix(on)+"encap-"+f.name+" ", on)
 	}
-	k.add("encap", "", o)
+	k.add(encapCst, "", o)
 }
 
 // tnlTTL is the ttl (or hoplimit) word: `inherit` in text for 0, the

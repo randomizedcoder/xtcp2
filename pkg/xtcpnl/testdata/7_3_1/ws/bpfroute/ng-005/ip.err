@@ -1,0 +1,3 @@
+Error opening object /nonexistent/lwt.o: No such file or directory
+Cannot initialize ELF context!
+Failed to parse eBPF program: Operation not permitted

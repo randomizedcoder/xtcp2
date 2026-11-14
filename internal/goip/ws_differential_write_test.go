@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -27,6 +28,7 @@ import (
 func TestWsGoipDifferential(t *testing.T) {
 	useLLMap720(t) // the rows ran ip 7.2.0, whose lookups ask for names alone
 	useWsO5Netns(t)
+	useFakeBpf(t, nil)
 	var report []string
 	counts := map[string]map[string]int{}
 	lookupNotes := map[string]int{}
@@ -52,7 +54,10 @@ func TestWsGoipDifferential(t *testing.T) {
 			if row.Result.Status != "OK" {
 				t.Fatalf("%s: status %s, which O1 already fails", row.ID, row.Result.Status)
 			}
-			if _, _, args, err := wsO5Argv(wsO5Subst(row.Cmd)); err == nil && !wsO5Applies(args) {
+			// A row whose command is not ip's, nhstats' ping, sends no
+			// request of ip's to compare.
+			if _, _, args, err := wsO5Argv(wsO5Subst(row.Cmd)); (err == nil && !wsO5Applies(args)) ||
+				!strings.HasPrefix(row.Cmd, "ip ") {
 				counts[sp]["n/a"]++
 				continue
 			}
@@ -160,18 +165,6 @@ var updateWsO5 = flag.Bool("update-ws-o5", false, "rewrite testdata/ws-different
 // wsO5Golden lists every row whose outcome is not "same".
 const wsO5Golden = "testdata/ws-differential.txt"
 
-// wsO5Spaces are the row directories O5 reads, in report order: the
-// matrix's, then those mined from the fib selftests, then the address,
-// neighbor and link matrices', then the kwlive keyword forms', then the
-// lwt encap forms', then the lwtx ones', then the netns and MPLS rows',
-// then NC3-T02's rows at 7.2.0 and at 7.3.0.
-var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
-	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
-	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh",
-	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh", "linkns", "mpls",
-	"v730lladdr", "v730nh", "v730bond", "v730seg6", "v730ovpn", "v730maddr",
-	"ip730/v730lladdr", "ip730/v730nh", "ip730/v730bond", "ip730/v730seg6", "ip730/v730ovpn", "ip730/v730maddr"}
-
 // The words the workbench's shell expanded in a row's command, and what O5
 // puts in their place: the pid of the row's shell, and the name `ip netns
 // identify` gave its namespace. wsO5Netns answers for the paths they make.
@@ -256,7 +249,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 	var writes [][]byte
 	if _, err := os.Stat(out); err == nil {
 		for _, m := range restoreWrites(t, out) {
-			w := wsO5ZeroNetnsFd(wireBytesOf(m))
+			w := nlparity.ZeroLwtBpfFDs(wsO5ZeroNetnsFd(wireBytesOf(m)))
 			writes = append(writes, w)
 		}
 	}
@@ -271,7 +264,7 @@ func wsO5Row(t *testing.T, dir string, row wsRowFile) (outcome, detail, lookups 
 		pad = pad || z
 		ipWrites[i], z = wsO5ZeroEncapPad(ipWrites[i])
 		encapPad = encapPad || z
-		ipWrites[i] = wsO5ZeroNetnsFd(ipWrites[i])
+		ipWrites[i] = nlparity.ZeroLwtBpfFDs(wsO5ZeroNetnsFd(ipWrites[i]))
 	}
 	lookups = wsO5Lookups("lookup", look, src.gets)
 	if d := wsO5Lookups("dump", dumps, src.dumpReqs); d != "" {

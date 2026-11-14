@@ -95,14 +95,14 @@ func TestRenderNhDstPort(t *testing.T) {
 			defer func() { RenderNhDstPort = old }()
 			nh := xtcpnl.NexthopInfo{ID: 1, Family: unix.AF_INET, Gateway: []byte{192, 0, 2, 1}, Scope: unix.RT_SCOPE_LINK,
 				Fdb: tc.fdb, DstPort: tc.port, HasDstPort: tc.port != 0}
-			got, err := NexthopText(nh, false, fakeNames{})
+			got, err := NexthopText(nh, false, 0, fakeNames{})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got != tc.expected {
 				t.Errorf("text %q, want %q", got, tc.expected)
 			}
-			v, err := NexthopViewOf(nh, false, fakeNames{})
+			v, err := NexthopViewOf(nh, false, 0, fakeNames{})
 			if err != nil {
 				t.Fatal(err)
 			}

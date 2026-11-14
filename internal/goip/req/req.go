@@ -685,9 +685,10 @@ func StatsGetXstatsSlaveByIndex(ifindex uint32, seq uint32) ([]byte, error) {
 
 // NexthopGetByID is the single-get RTM_GETNEXTHOP `ip -d route show` sends for a
 // route delegating its next hop to a nexthop object (ipnh_cache_add). family is
-// preferred_family, which for a plain `route show` is AF_UNSPEC.
-func NexthopGetByID(family uint8, id, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildGetNexthopByIDRequest(family, id, seq)
+// preferred_family, which for a plain `route show` is AF_UNSPEC. opFlags is
+// the NHA_OP_FLAGS __ipnh_get_id sends, xtcpnl.NexthopOpFlags of -s's count.
+func NexthopGetByID(family uint8, id, opFlags, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNexthopByIDOpRequest(family, id, opFlags, seq)
 }
 
 // NexthopDump is the RTM_GETNEXTHOP dump behind `ip nexthop show` — the

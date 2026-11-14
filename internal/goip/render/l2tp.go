@@ -56,7 +56,7 @@ func L2tpTunnel(p *L2tpParm, json bool) (string, []byte) {
 	case xtcpnl.L2TPEncapIP:
 		encap = "IP"
 	}
-	o.str("encap", " encap "+encap+"\n", encap)
+	o.str(encapCst, " encap "+encap+"\n", encap)
 	local, peer := p.Local.String(), p.Peer.String()
 	o.str("local", "  From "+local+" ", local)
 	o.str("peer", "to "+peer+"\n", peer)

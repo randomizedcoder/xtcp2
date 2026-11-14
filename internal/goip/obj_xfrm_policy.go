@@ -380,9 +380,6 @@ func xfrmPolicyPrint(c *runCtx, f *xfrmPolicyFilter, m xfrmMsg) error {
 	}
 	o := render.XfrmOpt{Stats: c.stats(), Family: c.family,
 		IndexName: func(idx int32) string { return genlIndexToName(c, idx) }}
-	if err := xfrmProtoOpt(&o, info.Sel.Proto); err != nil {
-		return err
-	}
 	out := render.XfrmPolicyInfo(info, &p.Attrs, &o)
 	if p.Expire != nil {
 		out += fmt.Sprintf("\thard %d\n", p.Expire.Hard)

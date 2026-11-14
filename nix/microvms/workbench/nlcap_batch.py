@@ -33,6 +33,16 @@ writeShellApplication PATH would otherwise win). The guest sees the host's
 guest captures the same rows at two iproute2 versions
 (docs/netlink/goip-parity-next.md, NC0-T01).
 
+--bpf-obj FILE links FILE, a BPF ELF object, at --bpf-link (default
+/run/nlcap-ws/lwt_bpf.o) before the first row, so a row's command names one
+fixed path however the store path moves: `encap bpf in obj
+/run/nlcap-ws/lwt_bpf.o sec lwt_in`. ip names the program by the path's
+basename and section, so the readbacks do not move either (NC8-T02).
+
+The guest's lwtunnel kernel options, read from --kconfig (default
+/proc/config.gz), go into each row's env as "kconfig", so a corpus shows
+whether its kernel had RPL and IOAM6 (NC8-T01).
+
 Each row's directory gets cmd.json: the row as given, the kernel and
 iproute2 versions, and the result. That is the record a table test reads.
 Nothing in it depends on the clock, so a replay on a fresh boot diffs clean.
@@ -44,6 +54,7 @@ usage.
 
 import argparse
 import concurrent.futures
+import gzip
 import json
 import os
 import re
@@ -267,15 +278,44 @@ class Runner:
         return row["id"], result
 
 
-def guest_env(ip):
+def kconfig_lwt(path):
+    """The kernel config's lwtunnel lines, sorted; [] when unreadable."""
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            return sorted({ln.strip() for ln in f if "LWTUNNEL" in ln})
+    except (OSError, EOFError, ValueError):
+        return []
+
+
+def link_bpf(obj, link):
+    """Point link at obj, replacing what was there; False if obj is no file."""
+    if not os.path.isfile(obj):
+        return False
+    os.makedirs(os.path.dirname(link) or ".", exist_ok=True)
+    tmp = link + ".tmp"
+    if os.path.lexists(tmp):
+        os.unlink(tmp)
+    os.symlink(os.path.abspath(obj), tmp)
+    os.replace(tmp, link)
+    return True
+
+
+def guest_env(ip, kconfig="", bpf_link=""):
     def out(args):
         try:
-            p = subprocess.run(args, capture_output=True, text=True, check=False)
+            p = subprocess.run(args, capture_output=True, text=True,
+                               check=False)
         except OSError:
             return ""
         return p.stdout.strip()
-    return {"kernel": out(["uname", "-r"]),
-            "iproute2": out([ip, "-V"])}
+    env = {"kernel": out(["uname", "-r"]),
+           "iproute2": out([ip, "-V"])}
+    lines = kconfig_lwt(kconfig) if kconfig else []
+    if lines:
+        env["kconfig"] = lines
+    if bpf_link:
+        env["lwt_bpf"] = bpf_link
+    return env
 
 
 def load_modules(rows, log):
@@ -310,7 +350,8 @@ def run_all(runner, rows, jobs):
                     slots.append(pending.pop(fut))
                     rid, res = fut.result()
                     results[rid] = res
-                    print(f"NLCAP_ROW {res['status']} {rid} rc={res.get('rc', '-')}",
+                    rc = res.get('rc', '-')
+                    print(f"NLCAP_ROW {res['status']} {rid} rc={rc}",
                           flush=True)
     return results
 
@@ -323,6 +364,10 @@ def main(argv=None):
     ap.add_argument("--ip", default="ip")
     ap.add_argument("--ip-bin", default="",
                     help="a directory whose ip every row runs")
+    ap.add_argument("--bpf-obj", default="",
+                    help="a BPF object to link at --bpf-link")
+    ap.add_argument("--bpf-link", default="/run/nlcap-ws/lwt_bpf.o")
+    ap.add_argument("--kconfig", default="/proc/config.gz")
     ap.add_argument("--no-modules", action="store_true",
                     help="skip modprobe (hermetic tests)")
     ap.add_argument("rows")
@@ -335,6 +380,8 @@ def main(argv=None):
         a.ip = os.path.join(a.ip_bin, "ip")
         if not os.access(a.ip, os.X_OK):
             fail("no ip in " + a.ip_bin)
+    if a.bpf_obj and not link_bpf(a.bpf_obj, a.bpf_link):
+        fail("no bpf object " + a.bpf_obj)
     only = [s for s in a.only.split(",") if s]
     try:
         rows = load_rows(a.rows, only)
@@ -346,7 +393,8 @@ def main(argv=None):
         if bad:
             fail("modules failed to load: " + ", ".join(bad))
     runner = Runner(a.nlcap, a.ip, os.path.abspath(a.outdir),
-                    guest_env(a.ip), a.ip_bin)
+                    guest_env(a.ip, a.kconfig,
+                              a.bpf_link if a.bpf_obj else ""), a.ip_bin)
     results = run_all(runner, rows, a.jobs)
     with open(os.path.join(a.outdir, ".batch-results.jsonl"), "w",
               encoding="utf-8") as f:

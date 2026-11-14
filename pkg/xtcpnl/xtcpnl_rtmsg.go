@@ -115,6 +115,8 @@ type RouteInfo struct {
 	Mark         uint32 // RTA_MARK, the fwmark a `route get … mark` looked up with; `ip` prints it only when non-zero
 	UID          uint32 // RTA_UID, the uid a route lookup was made for
 	HasUID       bool   // RTA_UID present — `ip` prints `uid 0` on presence, as with HasPriority
+	Flow         uint32 // RTA_FLOW, `realms FROM/TO`: TO in the low 16 bits, FROM in the high
+	HasFlow      bool   // RTA_FLOW present — `ip` prints `realm 0` on presence
 
 	// Multipath is the decoded RTA_MULTIPATH nexthop list, nil when absent.
 	// An ECMP route's gateways exist ONLY here — see xtcpnl_rtnexthop.go for
@@ -284,6 +286,10 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 	case RtaNhID:
 		if len(val) >= 4 {
 			ri.NhID = binary.LittleEndian.Uint32(val[0:4])
+		}
+	case uint16(unix.RTA_FLOW):
+		if len(val) >= 4 {
+			ri.Flow, ri.HasFlow = binary.LittleEndian.Uint32(val[0:4]), true
 		}
 	case uint16(unix.RTA_MARK):
 		if len(val) >= 4 {

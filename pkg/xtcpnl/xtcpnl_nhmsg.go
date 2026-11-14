@@ -138,6 +138,16 @@ type NexthopInfo struct {
 	HasResGroup bool          // NHA_RES_GROUP present (resilient)
 	ResGroup    ResGroup      // decoded NHA_RES_GROUP, valid when HasResGroup
 	RespOpFlags uint32        // NHA_OP_FLAGS from the reply (weight gate)
+	// HwStatsSupported is NHA_HW_STATS_ENABLE present, whatever its value:
+	// ip prints `hw_stats … used …` under -d or -s only then.
+	// HwStatsEnabled and HwStatsUsed are NHA_HW_STATS_ENABLE and
+	// NHA_HW_STATS_USED nonzero; a short one reads as false.
+	HwStatsSupported, HwStatsEnabled, HwStatsUsed bool
+	// HasGroupStats is NHA_GROUP_STATS present: ip then prints a `stats:`
+	// block of one line per NHA_GROUP member, from GroupStats in order, a
+	// member past GroupStats' end printing zeros.
+	HasGroupStats bool
+	GroupStats    []NhGroupStat
 	// Encap is NHA_ENCAP_TYPE and NHA_ENCAP, decoded as a route's
 	// RTA_ENCAP_TYPE and RTA_ENCAP are; nil when neither is present.
 	Encap *RouteEncap
@@ -172,8 +182,13 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 	var groupRaw []byte    // NHA_GROUP bytes, resolved to members after the walk
 	var resGroupRaw []byte // NHA_RES_GROUP nested bytes, decoded after the walk
 	var perr error         // a malformed attribute, reported after the walk
+	var seen attrSeen      // first-wins, as parse_rtattr, for the stats attrs
 	err := WalkRTAttrs(body[NhMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
+		case NhaHwStatsEnable, NhaHwStatsUsed, NhaGroupStats:
+			if seen.first(atype) {
+				perr = errors.Join(perr, nh.setStatsAttr(atype, val))
+			}
 		case NhaID:
 			if len(val) >= 4 {
 				nh.ID = binary.LittleEndian.Uint32(val[0:4])
@@ -227,6 +242,25 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 		return nh, err
 	}
 	return nh, nil
+}
+
+// setStatsAttr records NHA_HW_STATS_ENABLE, NHA_HW_STATS_USED or
+// NHA_GROUP_STATS, as ipnh_parse_nhmsg reads them.
+func (nh *NexthopInfo) setStatsAttr(atype uint16, val []byte) error {
+	on := len(val) >= 4 && binary.LittleEndian.Uint32(val) != 0
+	switch atype {
+	case NhaHwStatsEnable:
+		nh.HwStatsSupported, nh.HwStatsEnabled = true, on
+	case NhaHwStatsUsed:
+		nh.HwStatsUsed = on
+	case NhaGroupStats:
+		stats, err := parseNhGroupStats(val)
+		if err != nil {
+			return err
+		}
+		nh.HasGroupStats, nh.GroupStats = true, stats
+	}
+	return nil
 }
 
 // resolveNhGroup fills nh.Group from the raw NHA_GROUP bytes once RespOpFlags is

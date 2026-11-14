@@ -60,7 +60,7 @@ func SrHmacViewOf(m *xtcpnl.Seg6) SrHmacView {
 	case xtcpnl.Seg6HmacAlgoSHA256:
 		v.algo = "sha256"
 	default:
-		v.algo = "<unknown>"
+		v.algo = unknownNameCst
 	}
 	return v
 }
