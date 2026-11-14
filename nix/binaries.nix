@@ -82,6 +82,11 @@ let
     # (internal/gordma). Listed for the same reason as goip, so a later live
     # parity run can find it in the guest beside the pinned rdma.
     "gordma"
+    # godevlink is the genl-clones arc's sibling for devlink(8): a read-only
+    # clone that replays devlink's nlmon (ws) pcap corpus to exercise
+    # pkg/xtcpnl's ParseDevlink (internal/godevlink). Listed for the same
+    # reason as gordma, so a later live parity run can find it in the guest.
+    "godevlink"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"
