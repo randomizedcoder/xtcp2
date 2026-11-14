@@ -131,6 +131,7 @@ let
       xdp2
       lintBaselineMeasure
       ;
+    linkmonitor = linkmonitorPackages.go-link-monitor;
   };
 
   # Behavioral test runners
