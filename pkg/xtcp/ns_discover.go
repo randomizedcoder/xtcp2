@@ -31,7 +31,11 @@ import (
 //
 // Not safe for concurrent use: nsScanner and nsResolver are reused single-owner
 // state, so only the reconcile owner (mapReconciler) may call this.
-func (x *XTCP) discoverNamespaces() map[uint64]nsIdentity {
+//
+// lim bounds the /proc scan and the bind-mount pass together; stop says
+// whether either was cut short. Names are not resolved here (that reads
+// each pid's cgroup): reconcile resolves them for the namespaces it adds.
+func (x *XTCP) discoverNamespaces(lim nsdiscover.ScanLimits) (map[uint64]nsIdentity, nsdiscover.ScanStop) {
 
 	startTime := time.Now()
 	defer func() {
@@ -46,11 +50,10 @@ func (x *XTCP) discoverNamespaces() map[uint64]nsIdentity {
 	out := make(map[uint64]nsIdentity)
 
 	// Pass 1: /proc scan (live-pid entry).
-	skipped := x.nsScanner.Scan(func(ns nsdiscover.Namespace) {
+	skipped, stop := x.nsScanner.ScanLimited(lim, func(ns nsdiscover.Namespace) {
 		out[ns.Inode] = nsIdentity{
 			inode: ns.Inode,
 			pid:   ns.Pid,
-			name:  x.nsResolver.Name(ns.Inode, ns.Pid),
 		}
 	})
 	procFound := len(out)
@@ -62,10 +65,15 @@ func (x *XTCP) discoverNamespaces() map[uint64]nsIdentity {
 		if _, ok := out[inode]; ok {
 			return
 		}
+		if lim.MaxNamespaces > 0 && len(out) >= lim.MaxNamespaces && (lim.Keep == nil || !lim.Keep(inode)) {
+			if stop == nsdiscover.ScanComplete {
+				stop = nsdiscover.ScanCap
+			}
+			return
+		}
 		out[inode] = nsIdentity{
 			inode: inode,
 			pid:   0, // no live pid; entered via path
-			name:  x.nsResolver.Name(inode, 0),
 			path:  path,
 		}
 		bindFound++
@@ -96,5 +104,5 @@ func (x *XTCP) discoverNamespaces() map[uint64]nsIdentity {
 		x.refreshLocality(out)
 	}
 
-	return out
+	return out, stop
 }

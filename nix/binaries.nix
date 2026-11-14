@@ -228,6 +228,10 @@ let
     # snapshots and events. Rides xtcp2AllPackage into every lifecycle microvm,
     # where the self-test runs it as the RTNL_EVENTS check.
     "rtnlmon-probe"
+    # sockfill: holds N loopback TCP pairs (or a never-accepting listener)
+    # open in its namespace. Rides xtcp2AllPackage into the socket-scale
+    # microvm, which builds 100k-500k socket tables with it.
+    "sockfill"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:
@@ -338,6 +342,7 @@ defaultBinaries
     tcp_client
     discovery-bench
     rtnlmon-probe
+    sockfill
     ;
 
   # Internal nested sets for downstream consumers (containers/).

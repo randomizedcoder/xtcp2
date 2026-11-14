@@ -58,6 +58,12 @@ func TestNamespaceChurn_threadBoundedUnderRestoreFailure(t *testing.T) {
 	prevCap := runtimeDebug.SetMaxThreads(150)
 	t.Cleanup(func() { runtimeDebug.SetMaxThreads(prevCap) })
 
+	// The runtime also starts spinning Ms for idle Ps; on a 256-CPU host
+	// those alone took the delta to ~75. Pin Ps so the count measures M
+	// recycling, not the host's core count.
+	prevProcs := runtime.GOMAXPROCS(8)
+	t.Cleanup(func() { runtime.GOMAXPROCS(prevProcs) })
+
 	baseline := readSelfThreads(t)
 
 	// N iterations of the LockOSThread + restore-fails + exit pattern.
@@ -66,12 +72,21 @@ func TestNamespaceChurn_threadBoundedUnderRestoreFailure(t *testing.T) {
 	// exactly the same sequence: lock, snapshot origNs, simulate
 	// state-modifying work, defer a conditional-restore-then-unlock,
 	// exit.
+	//
+	// At most inFlight run at once: each holds a locked M while it sleeps,
+	// so with all N started together the live M count followed GOMAXPROCS
+	// and passed the 150 cap on hosts with 64+ CPUs. Leaked Ms still pile
+	// up across all N iterations, so a leak still trips the cap.
 	const N = 400
+	const inFlight = 16
+	sem := make(chan struct{}, inFlight)
 	var wg sync.WaitGroup
 	for i := 0; i < N; i++ {
 		wg.Add(1)
+		sem <- struct{}{}
 		go func() {
 			defer wg.Done()
+			defer func() { <-sem }()
 			runtime.LockOSThread()
 			origNs, err := os.Open("/proc/thread-self/ns/net")
 			if err != nil {

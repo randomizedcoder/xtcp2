@@ -1050,6 +1050,15 @@ func TestPrintFlags(t *testing.T) {
 	f.s3UploadBackoffCap = &d
 	f.reconcileFrequency = &d
 	f.reconcileBeforePoll = &b
+	f.maxDumpBytes = &n64
+	f.maxRecordsPerNetns = &n64
+	f.maxNetns = &n
+	f.maxRecordsPerPoll = &n64
+	f.ioUringSockstatBatchSize = &n
+	f.ioUringSockstatWorkers = &n
+	f.reconcileTimeout = &d
+	f.maxNetnsPerOwner = &n
+	f.maxNetnsAddsPerReconcile = &n
 	f.pyroscopeUrl = &s
 	f.pyroscopeAppName = &s
 	f.pyroscopeSampleHz = &n
@@ -1271,6 +1280,15 @@ func TestBuildConfig(t *testing.T) {
 		s3UploadBackoffCap:        &subc,
 		reconcileFrequency:        &rf,
 		reconcileBeforePoll:       &rbp,
+		maxDumpBytes:              &nl,
+		maxRecordsPerNetns:        &nl,
+		maxNetns:                  &wf,
+		maxRecordsPerPoll:         &nl,
+		ioUringSockstatBatchSize:  &wf,
+		ioUringSockstatWorkers:    &wf,
+		reconcileTimeout:          &rf,
+		maxNetnsPerOwner:          &wf,
+		maxNetnsAddsPerReconcile:  &wf,
 		pyroscopeUrl:              &mar,
 		pyroscopeAppName:          &mar,
 		pyroscopeSampleHz:         &wf,
@@ -1815,6 +1833,108 @@ func TestRunMainRejectsPositional(t *testing.T) {
 					t.Errorf("rc = %d, want %d", rc, tc.expected)
 				}
 			})
+		})
+	}
+}
+
+// TestEnvOverrideReconcileLimits: the FP-5 gate and reconcile-limit env vars
+// override their flags (0 included); unset or unparsable keeps the flag value.
+func TestEnvOverrideReconcileLimits(t *testing.T) {
+	type got struct {
+		perPoll                     uint64
+		batch, workers, owner, adds uint32
+		timeout                     time.Duration
+	}
+	flagCfg := func() *xtcp_config.XtcpConfig {
+		return &xtcp_config.XtcpConfig{
+			MaxRecordsPerPoll:        maxRecordsPerPollCst,
+			IoUringSockstatBatchSize: uint32(ioUringSockstatBatchSizeCst),
+			IoUringSockstatWorkers:   uint32(ioUringSockstatWorkersCst),
+			ReconcileTimeout:         durationpb.New(reconcileTimeoutCst),
+			MaxNetnsPerOwner:         uint32(maxNetnsPerOwnerCst),
+			MaxNetnsAddsPerReconcile: uint32(maxNetnsAddsPerReconcileCst),
+		}
+	}
+	defaults := got{1 << 20, 64, 4, 64, 256, time.Second}
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		env         map[string]string
+		expected    got
+	}{
+		{name: "defaults", category: "P", description: "no env keeps the flag defaults", expected: defaults},
+		{name: "env_set", category: "P", description: "each env var overrides its flag",
+			env: map[string]string{"MAX_RECORDS_PER_POLL": "200000", "IO_URING_SOCKSTAT_BATCH_SIZE": "128",
+				"IO_URING_SOCKSTAT_WORKERS": "8", "MAX_NETNS_PER_OWNER": "10", "MAX_NETNS_ADDS_PER_RECONCILE": "32",
+				"RECONCILE_TIMEOUT": "250ms"},
+			expected: got{200000, 128, 8, 10, 32, 250 * time.Millisecond}},
+		{name: "env_zero", category: "B", description: "0 turns the gate, quota, add rate and timeout off",
+			env: map[string]string{"MAX_RECORDS_PER_POLL": "0", "MAX_NETNS_PER_OWNER": "0",
+				"MAX_NETNS_ADDS_PER_RECONCILE": "0", "RECONCILE_TIMEOUT": "0s"},
+			expected: got{0, 64, 4, 0, 0, 0}},
+		{name: "env_invalid", category: "N", description: "unparsable values keep the flag defaults",
+			env: map[string]string{"MAX_RECORDS_PER_POLL": "lots", "IO_URING_SOCKSTAT_BATCH_SIZE": "-1",
+				"MAX_NETNS_PER_OWNER": "4294967296", "RECONCILE_TIMEOUT": "soon"},
+			expected: defaults},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			c := flagCfg()
+			envOverrideCaps(c, 0)
+			g := got{c.MaxRecordsPerPoll, c.IoUringSockstatBatchSize, c.IoUringSockstatWorkers,
+				c.MaxNetnsPerOwner, c.MaxNetnsAddsPerReconcile, c.ReconcileTimeout.AsDuration()}
+			if g != tc.expected {
+				t.Errorf("%s: got %+v, expected %+v", tc.description, g, tc.expected)
+			}
+		})
+	}
+}
+
+// TestEnvOverrideCaps: MAX_DUMP_BYTES, MAX_RECORDS_PER_NETNS and MAX_NETNS
+// override the flag values, 0 included (it turns a cap off); unset or
+// unparsable leaves the flag value.
+func TestEnvOverrideCaps(t *testing.T) {
+	flagCfg := func() *xtcp_config.XtcpConfig {
+		return &xtcp_config.XtcpConfig{
+			MaxDumpBytes:       maxDumpBytesCst,
+			MaxRecordsPerNetns: maxRecordsPerNetnsCst,
+			MaxNetns:           uint32(maxNetnsCst),
+		}
+	}
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		env         map[string]string
+		expected    [3]uint64
+	}{
+		{name: "flags_env_defaults", category: "P", description: "no env keeps the flag defaults",
+			expected: [3]uint64{256 << 20, 1 << 18, 4096}},
+		{name: "env_set", category: "P", description: "each env var overrides its cap",
+			env:      map[string]string{"MAX_DUMP_BYTES": "1048576", "MAX_RECORDS_PER_NETNS": "1000", "MAX_NETNS": "16"},
+			expected: [3]uint64{1 << 20, 1000, 16}},
+		{name: "env_zero", category: "B", description: "0 turns every cap off",
+			env:      map[string]string{"MAX_DUMP_BYTES": "0", "MAX_RECORDS_PER_NETNS": "0", "MAX_NETNS": "0"},
+			expected: [3]uint64{0, 0, 0}},
+		{name: "env_invalid", category: "N", description: "unparsable values leave the flag defaults",
+			env:      map[string]string{"MAX_DUMP_BYTES": "lots", "MAX_RECORDS_PER_NETNS": "-1", "MAX_NETNS": "4294967296"},
+			expected: [3]uint64{256 << 20, 1 << 18, 4096}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			c := flagCfg()
+			envOverrideCaps(c, 0)
+			got := [3]uint64{c.MaxDumpBytes, c.MaxRecordsPerNetns, uint64(c.MaxNetns)}
+			if got != tc.expected {
+				t.Errorf("%s: caps %v, expected %v", tc.description, got, tc.expected)
+			}
 		})
 	}
 }

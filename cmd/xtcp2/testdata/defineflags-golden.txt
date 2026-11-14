@@ -28,6 +28,8 @@ hostname		hostname stamped on records; defaults to os.Hostname(). Set this in a 
 ioUring	false	Opt in to io_uring for netlink reads, one multishot recv per socket (Linux 6.1+). Destination writes stay syscalls
 ioUringCqeBatch	128	io_uring max CQEs reaped per PeekBatchCQE call (1-4096)
 ioUringRecvBatch	64	io_uring receive buffers per socket, rounded up to a power of two (1-4096). Each holds one packet; with all in use, receiving pauses until they are recycled.
+ioUringSockstatBatchSize	64	io_uring: sockstat reads per submit (1-1024). Ignored unless -ioUring. Falls back to IO_URING_SOCKSTAT_BATCH_SIZE env.
+ioUringSockstatWorkers	4	io_uring: cap on kernel io-wq workers for sockstat reads (1-64). Ignored unless -ioUring. Falls back to IO_URING_SOCKSTAT_WORKERS env.
 ipmetaBootstrapPath	/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst	optional zstd-compressed lookup artifact baked into the image and used by -enrichAsn before live refresh. Falls back to IPMETA_BOOTSTRAP_PATH env.
 ipmetaCachePath	/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst	optional writable zstd-compressed lookup artifact used by -enrichAsn before the image bootstrap and refreshed after successful live reloads. Falls back to IPMETA_CACHE_PATH env.
 ipv4Ttl	3	outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. The low default keeps replies from traveling far if the host is internet-exposed; raise it for a distant scraper. Falls back to IPV4_TTL env.
@@ -79,7 +81,13 @@ localityEvents	false	with -enrichLocality, keep each namespace's locality snapsh
 localityRefreshInterval	1m0s	how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.
 location		deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.
 marshal	protobufList	Marshaling of the exported data (protobufList, protoJson, protoText, msgpack, jsonl, csv, tsv)
+maxDumpBytes	268435456	cap on the bytes of one namespace's inet_diag dump per poll; packets past it are drained undecoded and counted in xtcp_dump_dropped_total{reason="bytes"}. 0 = unlimited. Falls back to MAX_DUMP_BYTES env.
 maxLoops	0	Maximum number of loops, or zero (0) for forever
+maxNetns	4096	cap on the network namespaces tracked, xtcp2's own included; at the cap new namespaces wait for a freed slot, first come first served, and are counted in xtcp_netns_dropped_total. 0 = unlimited. Falls back to MAX_NETNS env.
+maxNetnsAddsPerReconcile	256	cap on namespaces added per reconcile; the rest wait their turn (xtcp_netns_dropped_total{reason="add_rate"}). 0 = no limit. Falls back to MAX_NETNS_ADDS_PER_RECONCILE env.
+maxNetnsPerOwner	64	cap on the namespaces one owner (outermost container id) may have tracked; bind-mounted namespaces with no process are exempt (xtcp_netns_dropped_total{reason="owner_quota"}). 0 = no limit. Falls back to MAX_NETNS_PER_OWNER env.
+maxRecordsPerNetns	262144	cap on the records one namespace contributes per poll; the rest are dropped before decode and counted in xtcp_dump_dropped_total{reason="records"}. 0 = unlimited. Falls back to MAX_RECORDS_PER_NETNS env.
+maxRecordsPerPoll	1048576	budget on the records all namespaces contribute per poll, checked before the dump from each namespace's sockstat count; over it, namespaces above their fair share stop asking for TIME_WAIT/SYN_RECV, then are sampled by port range across polls (xtcp_poll_degraded_total). 0 = off. Falls back to MAX_RECORDS_PER_POLL env.
 maxThreads	2000	cap on Go runtime OS threads (debug.SetMaxThreads); 0 = use Go default 10000
 modulus	1	modulus. Report every X inetd messages to output
 netlinkers	2	decoders per socket that parse netlink dump packets (one receiver reads each socket). increase this if you have many flows
@@ -102,6 +110,7 @@ pyroscopeUploadSec	15	Seconds between batched profile uploads to Pyroscope.
 pyroscopeUrl		Pyroscope server URL (e.g. http://127.0.0.1:4040). Empty disables the agent. Falls back to PYROSCOPE_URL env.
 reconcileBeforePoll	true	Reconcile namespaces immediately before each poll cycle, so a newly-appeared namespace is entered within ~1 poll interval. Ties discovery cadence to poll cadence.
 reconcileFrequency	6h0m0s	Period of the background namespace-reconcile ticker (Method B /proc scan). With -reconcileBeforePoll carrying discovery this is a rare safety-net expected to find nothing (watch mapReconciler dels/stores in Prometheus); default is long (6h). 0 disables it (startup reconcile still runs once).
+reconcileTimeout	1s	time budget for one reconcile's namespace scan; a scan cut short adds what it found but deletes nothing (xtcp_reconcile_incomplete_total). 0 = no limit. Falls back to RECONCILE_TIMEOUT env.
 resolveContainerId	false	resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.
 s3AccessKey		s3parquet: S3 access key. Prefer S3_ACCESS_KEY_FILE (path to a file, mode 0400, holding the key): a flag value shows in ps and docker inspect, warns, and is refused by production builds. Never logged.
 s3AllowInsecure	false	s3parquet: allow a plaintext http:// endpoint. The credential and every object cross the network unencrypted; for local test fixtures only. A bare host:port and https:// use TLS. Falls back to S3_ALLOW_INSECURE env.

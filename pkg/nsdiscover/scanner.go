@@ -13,6 +13,7 @@ package nsdiscover
 
 import (
 	"bytes"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -34,12 +35,13 @@ const scannerMapHint = 64
 // buffer + the dedup map, so steady-state allocation is zero regardless of the
 // process count. Call Close at shutdown.
 type Scanner struct {
-	fd   int                 // persistent procfs dir fd, rewound each scan
-	dbuf []byte              // getdents buffer
-	pbuf []byte              // NUL-terminated relative-path scratch ("<pid>/ns/net\0")
-	lbuf []byte              // readlink target buffer
-	seen map[uint64]struct{} // per-scan dedup set (cleared, not reallocated)
-	skip int                 // pid Scan ignores (0: none); see SkipPid
+	fd       int                 // persistent procfs dir fd, rewound each scan
+	dbuf     []byte              // getdents buffer
+	pbuf     []byte              // NUL-terminated relative-path scratch ("<pid>/ns/net\0")
+	lbuf     []byte              // readlink target buffer
+	seen     map[uint64]struct{} // per-scan dedup set (cleared, not reallocated)
+	skip     int                 // pid Scan ignores (0: none); see SkipPid
+	reported int                 // namespaces reported this scan
 }
 
 // NewScanner opens procRoot (typically "/proc"). If the open fails the scanner
@@ -76,18 +78,61 @@ func (s *Scanner) Close() error {
 // looks gone and is never deleted. pid 0 (the default) skips nothing.
 func (s *Scanner) SkipPid(pid int) { s.skip = pid }
 
+// ScanLimits bounds one Scan. The zero value is unlimited.
+type ScanLimits struct {
+	// Deadline stops the scan once passed (checked every
+	// scanDeadlineEvery pids). Zero: none.
+	Deadline time.Time
+	// MaxNamespaces bounds the new namespaces one scan reports. Past it
+	// the scan still walks every pid (within Deadline) but reports only
+	// namespaces Keep accepts (tracked or already waiting), so a flood of
+	// new namespaces can't hide the ones already known. 0: none.
+	MaxNamespaces int
+	// Keep reports whether a namespace is reported even past
+	// MaxNamespaces. nil: none are.
+	Keep func(inode uint64) bool
+}
+
+// scanDeadlineEvery is how many pids pass between deadline checks.
+const scanDeadlineEvery = 256
+
+// ScanStop says why a limited Scan stopped early.
+type ScanStop uint8
+
+const (
+	// ScanComplete: every pid was seen and every namespace reported.
+	ScanComplete ScanStop = iota
+	// ScanTimeout: ScanLimits.Deadline passed; later pids weren't seen,
+	// so a namespace not reported may still be live.
+	ScanTimeout
+	// ScanCap: every pid was seen, but past ScanLimits.MaxNamespaces new
+	// namespaces (not Keep) weren't reported. Every Keep namespace that is
+	// live was reported.
+	ScanCap
+)
+
 // Scan rewinds procfs and calls fn exactly once per distinct network namespace.
 // It returns the number of pids skipped (the pid exited mid-scan, or readlinkat
 // returned EACCES when unprivileged). Zero steady-state allocation. fn receives
 // a Namespace by value; it may copy it but must not assume any ordering.
 func (s *Scanner) Scan(fn func(Namespace)) (skipped int) {
+	skipped, _ = s.ScanLimited(ScanLimits{}, fn)
+	return skipped
+}
+
+// ScanLimited is Scan within lim; stop says what, if anything, it left
+// out (see ScanStop). A timeout wins over the cap.
+func (s *Scanner) ScanLimited(lim ScanLimits, fn func(Namespace)) (skipped int, stop ScanStop) {
 	clear(s.seen)
+	s.reported = 0
 	if s.fd < 0 {
-		return 0
+		return 0, ScanComplete
 	}
 	if _, err := unix.Seek(s.fd, 0, unix.SEEK_SET); err != nil {
-		return 0
+		return 0, ScanComplete
 	}
+	pids := 0
+	stop = ScanComplete
 	for {
 		n, gerr := unix.Getdents(s.fd, s.dbuf)
 		if gerr != nil || n <= 0 {
@@ -109,28 +154,41 @@ func (s *Scanner) Scan(fn func(Namespace)) (skipped int) {
 			if !ok || pid == s.skip {
 				continue
 			}
+			pids++
+			if pids%scanDeadlineEvery == 0 && !lim.Deadline.IsZero() && time.Now().After(lim.Deadline) {
+				return skipped, ScanTimeout
+			}
 
-			// Relative path "<pid>/ns/net\0" resolved against the procfs fd.
-			s.pbuf = append(s.pbuf[:0], name...)
-			s.pbuf = append(s.pbuf, "/ns/net\x00"...)
-
-			m, ok := rawReadlinkat(s.fd, s.pbuf, s.lbuf)
+			ino, ok := s.pidNetns(name)
 			if !ok {
 				skipped++
 				continue
 			}
-			ino, ok := parseNetInode(s.lbuf[:m])
-			if !ok {
-				skipped++
+			if _, dup := s.seen[ino]; dup {
 				continue
 			}
-			if _, dup := s.seen[ino]; !dup {
-				s.seen[ino] = struct{}{}
-				fn(Namespace{Inode: ino, Pid: pid})
+			if lim.MaxNamespaces > 0 && s.reported >= lim.MaxNamespaces && (lim.Keep == nil || !lim.Keep(ino)) {
+				stop = ScanCap
+				continue
 			}
+			s.seen[ino] = struct{}{}
+			s.reported++
+			fn(Namespace{Inode: ino, Pid: pid})
 		}
 	}
-	return skipped
+	return skipped, stop
+}
+
+// pidNetns reads /proc/<pid>/ns/net's inode. name is pid's decimal form.
+func (s *Scanner) pidNetns(name []byte) (uint64, bool) {
+	// Relative path "<pid>/ns/net\0" resolved against the procfs fd.
+	s.pbuf = append(s.pbuf[:0], name...)
+	s.pbuf = append(s.pbuf, "/ns/net\x00"...)
+	m, ok := rawReadlinkat(s.fd, s.pbuf, s.lbuf)
+	if !ok {
+		return 0, false
+	}
+	return parseNetInode(s.lbuf[:m])
 }
 
 // direntName returns the NUL-terminated name of a getdents64 record as a byte
