@@ -219,6 +219,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | `BenchmarkClean` ascii16 / ascii256 / dirty256 | 12 ns / 149 ns / 1.05 µs; 0 / 0 / 1 allocs | ASCII fast path allocation-free ✓ |
 | `BenchmarkDeserializeCongInfoXTCP` vs main, 10 interleaved runs | 21.0 → 23.3 ns median (+2 ns), allocs unchanged (1) | accepted: a whole record decodes in µs. Calling `Clean` after `IndexByte` cost +7–10 ns; folding the check into one scan brought it to +2 |
 | `BenchmarkS3Send` queue vs the old channel send | 52 ns vs 118 ns | faster ✓ |
+| `microvm-x86_64-lifecycle-s3parquet` Check 14c: Garage stopped for 160 s (4× wait scale), `-s3QueueDepth 2` | polls kept running (343), 22 envelopes dropped, RSS 50.8 → 55.8 MB, a new object after restart | pass ✓ |
 
 **Status:** done; PR pending.
 
