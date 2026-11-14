@@ -1,3 +1,5 @@
+//go:build treatment
+
 // xtcp2-treatment-agent runs the TCP route treatment agent as its own
 // process: the mTLS check-in loop, desired-state watch, journal and kernel
 // route reconciliation, beside an xtcp2 daemon that reads the journal with

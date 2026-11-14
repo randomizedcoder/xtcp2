@@ -1,3 +1,5 @@
+//go:build treatment
+
 // xtcp2-treatmentctl is the local, filesystem-permission-protected emergency
 // interface and independent lease watchdog. It never needs a controller RPC,
 // a certificate or DNS: it builds on pkg/treatment/local and

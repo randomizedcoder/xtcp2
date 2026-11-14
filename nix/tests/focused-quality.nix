@@ -101,6 +101,7 @@ in
     paths = [
       "./cmd/xtcp2"
       "./cmd/xtcp2-treatment-agent"
+      "./cmd/xtcp2-treatmentctl"
     ];
   };
 }

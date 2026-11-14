@@ -1,3 +1,5 @@
+//go:build treatment
+
 // Package agent is the controller-facing half of a treatment host: the mTLS
 // check-in loop, the desired-state watch and telemetry stamping, over the
 // offline Host from package local. It is a library with two front ends:
