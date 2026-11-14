@@ -44,13 +44,30 @@ const wsCorpusDir731IP730 = "../../pkg/xtcpnl/testdata/7_3_1/ws-ip730"
 // iproute2 7.3.0.
 const wsO5IP730Prefix = "ip730/"
 
+// wsO5Spaces are the row directories O5 reads, in report order: the
+// matrix's, then those mined from the fib selftests, then the address,
+// neighbor and link matrices', then the kwlive keyword forms', then the
+// lwt encap forms', then the lwtx ones', then the netns and MPLS rows',
+// then NC3-T02's rows at 7.2.0 and at 7.3.0, then NC8's lwtenc and nhstats
+// rows.
+var wsO5Spaces = []string{"route4", "route6", "rule4", "rule6", "nh4", "nh6", "nhgrp", "fibt", "fibnh", "fibrule",
+	"addr4", "addr6", "neigh4", "neigh6", "linkset", "linkadd", "linkattr", "linkpd", "linkprop",
+	"kwroute4", "kwroute6", "kwlink", "kwnh", "kwrule", "lwtroute4", "lwtroute6", "lwthop", "lwtnh",
+	"seg6route6", "seg6route4", "seg6local", "ila", "xfrm", "lwtxreq", "lwtxhop", "lwtxnh", "linkns", "mpls",
+	"v730lladdr", "v730nh", "v730bond", "v730seg6", "v730ovpn", "v730maddr",
+	"ip730/v730lladdr", "ip730/v730nh", "ip730/v730bond", "ip730/v730seg6", "ip730/v730ovpn", "ip730/v730maddr",
+	"rplroute", "ioam6route", "bpfroute", "lwtencnh", "lwtenchop", "nhstats"}
+
+// wsO5Spaces731 are the spaces outside v730 that the 7.3.1 kernel ran.
+var wsO5Spaces731 = []string{"linkns", "mpls", "rplroute", "ioam6route", "bpfroute", "lwtencnh", "lwtenchop", "nhstats"}
+
 // wsO5SpacePath is the directory of a space's rows: 7.3.1's for those
 // captured there, at 7.3.0 for an ip730/ space, else 7.3.0's kernel.
 func wsO5SpacePath(sp string) string {
 	if name, ok := strings.CutPrefix(sp, wsO5IP730Prefix); ok {
 		return filepath.Join(wsCorpusDir731IP730, name)
 	}
-	if sp == "linkns" || sp == "mpls" || strings.HasPrefix(sp, "v730") {
+	if slices.Contains(wsO5Spaces731, sp) || strings.HasPrefix(sp, "v730") {
 		return filepath.Join(wsCorpusDir731, sp)
 	}
 	return filepath.Join(wsCorpusDir, sp)

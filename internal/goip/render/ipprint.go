@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/jsonw"
 )
@@ -122,6 +123,25 @@ func (p *Printer) String(kind PrintKind, key, format, v string) {
 // OnOff is print_on_off: a JSON boolean, "on" or "off" in text.
 func (p *Printer) OnOff(kind PrintKind, key, format string, v bool) {
 	p.value(kind, key, format, strconv.FormatBool(v), onOff(v))
+}
+
+// Bool is print_bool: a JSON boolean, and in text the format with "true" or
+// "false". ip's formats for it mostly have no verb (`"key "`), and printf
+// ignores the unused argument, so such a format is written as it is.
+func (p *Printer) Bool(kind PrintKind, key, format string, v bool) {
+	if !p.json && !strings.Contains(format, "%") {
+		if kind != PrintJSON {
+			p.b.WriteString(format)
+		}
+		return
+	}
+	p.value(kind, key, format, strconv.FormatBool(v), strconv.FormatBool(v))
+}
+
+// Null is print_null(kind, key, text, NULL): JSON's null, or the text as
+// it is.
+func (p *Printer) Null(kind PrintKind, key, text string) {
+	p.value(kind, key, "%s", "null", text)
 }
 
 // value writes one print_* call: the JSON member, or the text through format.

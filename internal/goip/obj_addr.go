@@ -333,7 +333,7 @@ func renderAddrGroups(c *runCtx, svc *service.Service, f *addrFilter, links []xt
 			// on none.
 			lv := render.LinkViewForAddr(links[i], c.lltab, f.family, c.detailed())
 			if c.detailed() {
-				lv = lv.WithDetail(links[i], false, c.lltab, c.showDetails)
+				lv = lv.WithDetail(links[i], false, c.lltab, c.showDetails).WithAlias(links[i])
 			}
 			g.LinkView = lv
 			printed = append(printed, links[i])

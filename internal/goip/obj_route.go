@@ -466,6 +466,7 @@ func renderRoutes(c *runCtx, svc *service.Service, routes []model.Route, sel *ro
 		ProtoMask: sel.ProtoMask,
 		Details:   c.detailed(),
 		Stats:     c.stats(),
+		Realms:    new(render.Realms),
 	}
 	views := make([]render.RouteView, 0, len(routes))
 	for i := range routes {
@@ -518,12 +519,12 @@ func resolveRouteNexthops(c *runCtx, svc *service.Service, routes []model.Route,
 		}
 		text, ok := seen[id]
 		if !ok {
-			nh, err := svc.NexthopByID(c.family, id)
+			nh, err := svc.NexthopByID(c.family, id, xtcpnl.NexthopOpFlags(c.showStats))
 			if err != nil {
 				return err
 			}
 			resolveIndexName(c, svc, nh.OIF)
-			text, err = render.NexthopInfoText(xtcpnl.NexthopInfo(nh), c.lltab)
+			text, err = render.NexthopInfoText(xtcpnl.NexthopInfo(nh), c.showStats, c.lltab)
 			if err != nil {
 				return fmt.Errorf("-d on a route with nhid %d: %v: %w", id, err, ErrNotImplemented)
 			}
@@ -791,14 +792,47 @@ func routeMatchesOif(r *model.Route, oif uint32) bool {
 func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route, oifMask bool) {
 	for i := range routes {
 		r := &routes[i]
+		resolveEncapName(c, svc, r.Encap)
 		if !oifMask {
 			resolveIndexName(c, svc, int32(r.Oif))
 		}
 		resolveIndexName(c, svc, int32(r.Iif))
 		for j := range r.Multipath {
+			resolveEncapName(c, svc, r.Multipath[j].Encap)
 			resolveIndexName(c, svc, r.Multipath[j].Ifindex)
 		}
 	}
+}
+
+// resolveEncapName is lwt_print_encap's ll_index_to_name calls: an xfrm
+// encap's link_dev, or a seg6local encap's iif then oif. print_route prints the encap before the dev
+// (ip/iproute.c:887, :900), and print_rta_multipath a hop's before the
+// hop's dev (:727, :744), as print_nexthop does (ip/ipnexthop.c:571, :580),
+// so each caller resolves it first.
+func resolveEncapName(c *runCtx, svc *service.Service, e *xtcpnl.RouteEncap) {
+	for _, idx := range encapNameIndexes(e) {
+		resolveIndexName(c, svc, idx)
+	}
+}
+
+// encapNameIndexes is the ifindexes lwt_print_encap names, in the order it
+// asks for them; print_encap_seg6local returns before both without the
+// action.
+func encapNameIndexes(e *xtcpnl.RouteEncap) []int32 {
+	var idx []int32
+	switch {
+	case e == nil:
+	case e.Xfrm != nil && e.Xfrm.HasLink:
+		idx = append(idx, int32(e.Xfrm.Link))
+	case e.Seg6Local != nil && e.Seg6Local.HasAction:
+		if e.Seg6Local.HasIIF {
+			idx = append(idx, int32(e.Seg6Local.IIF))
+		}
+		if e.Seg6Local.HasOIF {
+			idx = append(idx, int32(e.Seg6Local.OIF))
+		}
+	}
+	return idx
 }
 
 // resolveIndexName is ll_index_to_name's cache-miss path. Index 0 is not a

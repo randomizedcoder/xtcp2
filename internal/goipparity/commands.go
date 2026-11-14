@@ -1506,6 +1506,80 @@ var commands = withArgs([]Command{
 		// No such id: ENOENT, exit 2 (2).
 		Setup: nexthopGetSetup, Floor: 2, Implemented: true,
 	},
+	// NX9-T03: the lwtenc readbacks, on routes and nexthops ip installs
+	// (lwtencReadSetup), the bpf ones included, since ip loads the object.
+	{
+		Name: "-6 route show table main", Slug: "lwtenc_route6_show",
+		// The dump plus d0 by index (4): rpl, ioam6 and an rpl hop.
+		Setup: lwtencReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -6 route show table main", Slug: "lwtenc_route6_show_json",
+		// The same requests; encap objects in JSON.
+		Setup: lwtencReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d -6 route show table main", Slug: "lwtenc_route6_show_detail",
+		// The same requests; -d's extra tokens around the encaps.
+		Setup: lwtencReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-4 route show table main", Slug: "lwtenc_route4_show",
+		// The bpf route: three progs named `lwt_bpf.o:[sec]`, headroom never dumped.
+		Setup: lwtencReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -4 route show table main", Slug: "lwtenc_route4_show_json",
+		// The same; a prog's name in JSON.
+		Setup: lwtencReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 nexthop show", Slug: "lwtenc_nexthop6_show",
+		// rpl, ioam6 and bpf on nexthops 81 to 83.
+		Setup: lwtencReadSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -6 nexthop show", Slug: "lwtenc_nexthop6_show_json",
+		// The same in JSON.
+		Setup: lwtencReadSetup, Floor: 4, Implemented: true,
+	},
+	// NX8 (goip-parity-next.md): `nexthop show -s` and `-s -s`, the nhstats
+	// readback forms. The dump and get carry NHA_OP_FLAGS (1 for -s, 3 for
+	// -s -s); a group prints its `stats:` block, the hw_stats group its
+	// `hw_stats on used off`, and the seg6local nexthop its counters. No row
+	// sends traffic, so every counter is 0 on all three sides.
+	{
+		Name: "-s nexthop show", Slug: "nexthop_show_stats",
+		// The dump plus d0 by index, as nexthop_show (4).
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s -s nexthop show", Slug: "nexthop_show_stats2",
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s nexthop show", Slug: "nexthop_show_stats_json",
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j -s -s nexthop show", Slug: "nexthop_show_stats2_json",
+		Setup: nexthopStatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s nexthop get id 10", Slug: "nexthop_get_stats",
+		// A group has no dev: the get and its reply (2).
+		Setup: nexthopStatsSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-s nexthop show id 12", Slug: "nexthop_show_id_stats",
+		// show id is the same get as get id (2).
+		Setup: nexthopStatsSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-d nexthop show id 12", Slug: "nexthop_show_id_detail",
+		// -d prints hw_stats without NHA_OP_FLAGS' stats (2).
+		Setup: nexthopStatsSetup, Floor: 2, Implemented: true,
+	},
 	{
 		Name: "nexthop bucket show id 20", Slug: "nexthop_bucket_show",
 		// The 1024 buckets of a resilient group in one dump; ip's capture held
@@ -6949,17 +7023,161 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_lwtxreq_ec_001",
-		// lwtxreq/ec-001: ioam6-inline (rc 2).
+		// lwtxreq/ec-001: ioam6-inline, rc 2 (ENOTSUP) in that corpus's stock
+		// kernel; rc 0 on the parity guest's (NX9-T01), as ioam6route/ec-001.
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 	{
 		Name: "-6 route add 2001:db8:2::/64 encap ioam6 freq 1/2 mode encap tunsrc 2001:db8:1::10 tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_lwtxreq_ec_002",
-		// lwtxreq/ec-002: ioam6-encap (rc 2).
+		// lwtxreq/ec-002: ioam6-encap, rc 2 there; rc 0 here, as ioam6route/ec-002.
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 	{
 		Name: "-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1,2001:db8:9::2 dev d0", Slug: "gw_lwtxreq_ec_006",
-		// lwtxreq/ec-006: rpl (rc 2).
+		// lwtxreq/ec-006: rpl, rc 2 there; rc 0 here (NX9-T01).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	// NX9-T03 (goip-parity-next.md): the lwtenc corpus's rpl and ioam6
+	// writes, which install on the parity guest's kernel (NX9-T01). The bpf
+	// writes follow (NX10b).
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1 dev d0", Slug: "gw_rplroute_ec_001",
+		// rplroute/ec-001: one seg (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1,2001:db8:9::2,2001:db8:9::3 dev d0", Slug: "gw_rplroute_ec_002",
+		// rplroute/ec-002: three segs (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap rpl dev d0", Slug: "gw_rplroute_ec_003",
+		// rplroute/ec-003: no segs, an empty SRH (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 mode encap tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_ioam6route_ec_003",
+		// ioam6route/ec-003: encap mode, no tunsrc (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 mode auto tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_ioam6route_ec_004",
+		// ioam6route/ec-004: auto mode (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 freq 1000000/1000000 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_ioam6route_ec_006",
+		// ioam6route/ec-006: the largest freq (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 4 dev d0", Slug: "gw_ioam6route_ec_007",
+		// ioam6route/ec-007: the smallest size (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 1 size 244 dev d0", Slug: "gw_ioam6route_ec_008",
+		// ioam6route/ec-008: the largest size (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 encap ioam6 trace prealloc type 0x800000 ns 65535 size 12 dev d0", Slug: "gw_ioam6route_ec_010",
+		// ioam6route/ec-010: the largest ns (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 81 encap rpl segs 2001:db8:9::1 dev d0", Slug: "gw_lwtencnh_ec_001",
+		// lwtencnh/ec-001: rpl on a nexthop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 82 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0", Slug: "gw_lwtencnh_ec_002",
+		// lwtencnh/ec-002: ioam6 on a nexthop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap rpl segs 2001:db8:9::1 nexthop via 2001:db8:1::2 dev d0", Slug: "gw_lwtenchop_ec_001",
+		// lwtenchop/ec-001: rpl on a multipath hop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0 nexthop via 2001:db8:1::2 dev d0", Slug: "gw_lwtenchop_ec_002",
+		// lwtenchop/ec-002: ioam6 on a multipath hop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	// NX10b (goip-parity-next.md): the lwtenc corpus's bpf writes, which goip
+	// loads with cilium/ebpf (NX10a). The parity guest links the object at
+	// /run/nlcap-ws/lwt_bpf.o; nlparity zeroes LWT_BPF_PROG_FD, the two
+	// processes' own descriptors. ip's refusals before sending (rc 255) are
+	// not rows.
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0", Slug: "gw_bpfroute_ec_001",
+		// bpfroute/ec-001: an in prog (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0", Slug: "gw_bpfroute_ec_002",
+		// bpfroute/ec-002: an out prog (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0", Slug: "gw_bpfroute_ec_003",
+		// bpfroute/ec-003: an xmit prog (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 16 dev d0", Slug: "gw_bpfroute_ec_004",
+		// bpfroute/ec-004: all three and a headroom (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 1 dev d0", Slug: "gw_bpfroute_ec_005",
+		// bpfroute/ec-005: the smallest headroom (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 256 dev d0", Slug: "gw_bpfroute_ec_006",
+		// bpfroute/ec-006: the largest headroom the kernel takes (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit dev d0", Slug: "gw_bpfroute_ec_007",
+		// bpfroute/ec-007: lwt_xmit's prog on the in hook, retyped (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in in obj /run/nlcap-ws/lwt_bpf.o sec lwt_out dev d0", Slug: "gw_bpfroute_ec_008",
+		// bpfroute/ec-008: a repeated in, both sent; the kernel keeps the last (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 8 headroom 9 dev d0", Slug: "gw_bpfroute_ec_009",
+		// bpfroute/ec-009: two headrooms, the first sent (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 257 dev d0", Slug: "gw_bpfroute_ng_002",
+		// bpfroute/ng-002: a headroom past LWT_BPF_MAX_HEADROOM, ERANGE (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-4 route add 198.51.100.0/24 encap bpf headroom 16 dev d0", Slug: "gw_bpfroute_ng_003",
+		// bpfroute/ng-003: a headroom and no prog, EINVAL (rc 2).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 83 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0", Slug: "gw_lwtencnh_ec_003",
+		// lwtencnh/ec-003: bpf on a nexthop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 nexthop add id 84 encap bpf xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 32 dev d0", Slug: "gw_lwtencnh_ec_004",
+		// lwtencnh/ec-004: bpf xmit and a headroom on a nexthop (rc 0).
+		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
+	},
+	{
+		Name: "-6 route add 2001:db8:2::/64 nexthop via 2001:db8:1::1 dev d0 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in nexthop via 2001:db8:1::2 dev d0", Slug: "gw_lwtenchop_ec_003",
+		// lwtenchop/ec-003: bpf on a multipath hop (rc 0).
 		Floor: 4, Implemented: true, Write: true, Setup: gwWsSetupD0,
 	},
 	{
@@ -7992,6 +8210,19 @@ var (
 	gwWsKwLink   = []string{"link add d0 type dummy", "link set d0 group 5", "link add d1 type dummy", "link set d1 group 5"}
 	gwWsSetupNh4 = append(slices.Clone(gwWsSetupD0), "nexthop add id 10 via 192.0.2.1 dev d0")
 	gwWsSetupNh6 = append(slices.Clone(gwWsSetupD0), "-6 nexthop add id 10 via 2001:db8:1::1 dev d0")
+	// lwtencReadSetup is the lwtenc corpus's positive forms side by side for
+	// the NX9 readback rows: rpl, two ioam6 modes and an rpl hop on IPv6
+	// routes, bpf on an IPv4 route, and rpl, ioam6 and bpf on nexthops. The
+	// bpf object is the parity guest's /run/nlcap-ws/lwt_bpf.o (mkVm.nix).
+	lwtencReadSetup = append(slices.Clone(gwWsSetupD0),
+		"-6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1,2001:db8:9::2,2001:db8:9::3 dev d0",
+		"-6 route add 2001:db8:3::/64 encap ioam6 freq 1/2 mode encap tunsrc 2001:db8:1::10 tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0",
+		"-6 route add 2001:db8:4::/64 encap ioam6 mode auto tundst 2001:db8:9::1 trace prealloc type 0x800000 ns 1 size 12 dev d0",
+		"-6 route add 2001:db8:5::/64 nexthop via 2001:db8:1::1 dev d0 encap rpl segs 2001:db8:9::1 nexthop via 2001:db8:1::2 dev d0",
+		"-4 route add 198.51.100.0/24 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in out obj /run/nlcap-ws/lwt_bpf.o sec lwt_out xmit obj /run/nlcap-ws/lwt_bpf.o sec lwt_xmit headroom 16 dev d0",
+		"-6 nexthop add id 81 encap rpl segs 2001:db8:9::1 dev d0",
+		"-6 nexthop add id 82 encap ioam6 trace prealloc type 0x800000 ns 1 size 12 dev d0",
+		"-6 nexthop add id 83 encap bpf in obj /run/nlcap-ws/lwt_bpf.o sec lwt_in dev d0")
 	// The groups' members: nlcapgen's nhMembers.
 	gwWsSetupNhGrp = append(slices.Clone(gwWsSetupD0), "nexthop add id 21 via 192.0.2.1 dev d0",
 		"nexthop add id 22 via 192.0.2.2 dev d0", "nexthop add id 23 dev d0", "-6 nexthop add id 26 via 2001:db8:1::1 dev d0",
@@ -8051,6 +8282,11 @@ var (
 	}
 	nexthopBucketSetup = append(append([]string{}, nexthopGetSetup...),
 		"nexthop add id 20 group 1/2 type resilient buckets 1024")
+	// nexthopStatsSetup is the nhstats corpus' groups (ec-001, ec-003) and
+	// a seg6local nexthop with counters, for the -s rows.
+	nexthopStatsSetup = append(append([]string{}, nexthopGetSetup...),
+		"nexthop add id 10 group 1/2", "nexthop add id 12 group 1/2 hw_stats on",
+		"-6 nexthop add id 30 encap seg6local action End count dev d0")
 	// nexthopD0Setup is PRE_D0_ADDR, nexthop_add_single's, and
 	// nexthopBlackholeSetup nexthop_add_existing's and nexthop_del's one step.
 	nexthopD0Setup        = nexthopGetSetup[:3:3]

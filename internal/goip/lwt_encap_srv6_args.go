@@ -9,6 +9,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/cilium/ebpf"
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -293,7 +294,7 @@ func seg6LocalEncapArgs(args []string, i int, resolve linkResolver) (xtcpnl.LwtE
 		case lwtKeySrh:
 			i, stop, again, err = p.srhArgs(args, i)
 		case lwtKeyEndpoint:
-			return xtcpnl.LwtEncap{}, i, fmt.Errorf("encap seg6local endpoint: a BPF program: %w", ErrNotImplemented)
+			i, err = p.endpoint(args, i)
 		default:
 			stop = true
 		}
@@ -321,6 +322,26 @@ func seg6LocalEncapArgs(args []string, i int, resolve linkResolver) (xtcpnl.LwtE
 	return xtcpnl.LwtEncap{Seg6Local: &p.e}, last, nil
 }
 
+// endpoint is `endpoint MODE FILE …`: NEXT_ARG, duparg2 on a second, then
+// lwt_parse_bpf into SEG6_LOCAL_BPF as BPF_PROG_TYPE_LWT_SEG6LOCAL. It
+// returns the index of the last word the program used.
+func (p *seg6LocalParse) endpoint(args []string, i int) (int, error) {
+	i, err := nextArg(args, i)
+	if err != nil {
+		return i, err
+	}
+	if p.seen[lwtKeyEndpoint] {
+		return i, duparg2Err(lwtKeyEndpoint, args[i])
+	}
+	p.seen[lwtKeyEndpoint] = true
+	prog, i, err := bpfProgArgs(args, i, ebpf.LWTSeg6Local)
+	if err != nil {
+		return i, err
+	}
+	p.e.Items = append(p.e.Items, xtcpnl.Seg6LocalItem{Kind: xtcpnl.Seg6LocalBPF, Prog: prog})
+	return i, nil
+}
+
 // valued is one of seg6local's words with a value, written as a u32 or an
 // address. The refusals' texts are ip's.
 func (p *seg6LocalParse) valued(args []string, i int) (int, error) {
@@ -335,9 +356,6 @@ func (p *seg6LocalParse) valued(args []string, i int) (int, error) {
 		a, ok := seg6ActionNames[v]
 		if !ok {
 			return i, invargErr("\"action\" value is invalid\n", v)
-		}
-		if a == seg6LocalActionEndBPFCst {
-			return i, fmt.Errorf("encap seg6local action End.BPF: a BPF program: %w", ErrNotImplemented)
 		}
 		p.action = a
 		it = xtcpnl.Seg6LocalItem{Kind: xtcpnl.Seg6LocalAction, U32: a}

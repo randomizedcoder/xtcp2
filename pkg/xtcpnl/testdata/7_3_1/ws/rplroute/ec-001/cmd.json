@@ -1,0 +1,58 @@
+{
+ "axes": {
+  "encap": "rpl",
+  "nsegs": "1",
+  "seg0": "2001:db8:9::1",
+  "verb": "add"
+ },
+ "cmd": "ip -6 route add 2001:db8:2::/64 encap rpl segs 2001:db8:9::1 dev d0",
+ "desc": "positive: verb=add form=one",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1",
+  "lwt_bpf": "/run/nlcap-ws/lwt_bpf.o"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "rplroute/ec-001",
+ "modules": [
+  "ila",
+  "xfrm_interface"
+ ],
+ "pre": [
+  "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad"
+ ],
+ "readback": [
+  {
+   "cmd": "ip -6 route show table all",
+   "name": "dump"
+  },
+  {
+   "cmd": "ip -j -6 route show table all",
+   "name": "dump_j"
+  },
+  {
+   "cmd": "ip -d -6 route show table all",
+   "name": "dump_d"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.10/24 dev d0 && ip -6 addr add 2001:db8:1::10/64 dev d0 nodad",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

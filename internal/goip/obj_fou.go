@@ -56,14 +56,6 @@ var (
 	ErrFouDumpTerminated = errors.New("dump terminated")
 )
 
-// fouProtoNames is the getprotobyname subset goip knows for `ipproto`:
-// the names /etc/protocols carries, as NixOS's iana-etc spells them, for
-// the protocols fou carries, and rule's. goip reads no config files, so
-// any other name is refused rather than looked up.
-var fouProtoNames = map[string]uint8{
-	"hopopt": 0, "ipv4": unix.IPPROTO_IPIP, "ipv6": unix.IPPROTO_IPV6,
-}
-
 // runFou is do_ipfou.
 func runFou(c *runCtx, args []string) error {
 	if len(args) == 0 || matchesPrefix(args[0], fouHelpCst) {

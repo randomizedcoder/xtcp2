@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -14,10 +15,8 @@ import (
 // ports, ICMP type and code, or GRE key.
 //
 // A protocol is read by getprotobyname, from /etc/protocols, before it is
-// read as a number, and a refusal names one by getprotobynumber. goip reads
-// no config files: it reads `any`, the names proto_names.go knows and
-// numbers, and refuses another name, and a refusal that would name a
-// protocol it does not know, as not implemented.
+// read as a number, and a refusal names one by getprotobynumber, else by
+// its number; goip's /etc/protocols is the parity guest's (proto_names.go).
 //
 // The parse also sets the masks a policy list filters on, as ip's sets its
 // global filter's: each address's length, and whether the device, the
@@ -235,7 +234,7 @@ func xfrmUpspecWord(a *xfrmArgs, sel *xfrmSel, u *xfrmUpspec) (bool, error) {
 }
 
 // xfrmUpspecProto is proto's value: any, else getprotobyname's, else get_u8
-// base 0; a name goip does not know is not implemented.
+// base 0.
 func xfrmUpspecProto(v string, sel *xfrmSel) error {
 	sel.protoSet = true
 	if v == addrNameAnyCst {
@@ -248,8 +247,7 @@ func xfrmUpspecProto(v string, sel *xfrmSel) error {
 	}
 	n, ok := getU8(v, 0)
 	if !ok {
-		return fmt.Errorf("the selector protocol %q: ip reads it through getprotobyname, from /etc/protocols, "+
-			"and goip reads no config files: %w", v, ErrNotImplemented)
+		return xfrmUsage(invargErr("PROTO value is invalid", v))
 	}
 	sel.proto = n
 	return nil
@@ -294,22 +292,7 @@ func xfrmUpspecCheck(sel *xfrmSel, u *xfrmUpspec) error {
 	default:
 		return nil
 	}
-	name, err := xfrmProtoName(sel.proto)
-	if err != nil {
-		return fmt.Errorf("%s with protocol %d: %w", what, sel.proto, err)
-	}
-	return fmt.Errorf("%w: %s with PROTO value %q", ErrXfrmRefused, what, name)
-}
-
-// xfrmProtoName is strxf_proto for a protocol goip knows: getprotobynumber's
-// name; one it does not know is not implemented, where ip would look it up.
-func xfrmProtoName(proto uint8) (string, error) {
-	name, ok := protoByNumber(proto)
-	if !ok {
-		return "", fmt.Errorf("protocol %d: ip names it through getprotobynumber, from /etc/protocols, and goip "+
-			"reads no config files: %w", proto, ErrNotImplemented)
-	}
-	return name, nil
+	return fmt.Errorf("%w: %s with PROTO value %q", ErrXfrmRefused, what, render.StrxfProto(sel.proto))
 }
 
 // xfrmProtoIn reports whether p is one of ps.

@@ -45,6 +45,9 @@ var goipMayImport = map[string]string{
 		"pkg/nlparity as the answer. The plan's import set listed only xtcpnl; this is the one addition, and it " +
 		"satisfies the same §16 property.",
 	modulePath + "/internal/jsonw": "jsonw_puts, the one string escaper json_writer.c's ports share with gordma; stdlib only",
+	"github.com/cilium/ebpf": "`encap bpf` and seg6local `endpoint` load an object's program as ip's libbpf does " +
+		"(bpf_load.go): the ELF and BTF parse, relocations and BPF_PROG_LOAD. Pure Go, so `go build ./cmd/goip` " +
+		"still links outside nix.",
 }
 
 // forbiddenFirstParty are the first-party packages whose presence anywhere in

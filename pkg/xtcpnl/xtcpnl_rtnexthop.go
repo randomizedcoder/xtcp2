@@ -141,6 +141,10 @@ type RouteNextHop struct {
 	// 101 via ...`), each nil when absent. See xtcpnl_mpls.go.
 	NewDst []MPLSLabel
 	Encap  *RouteEncap
+
+	// Flow is this path's RTA_FLOW, `nexthop … realms FROM/TO`, when HasFlow.
+	Flow    uint32
+	HasFlow bool
 }
 
 // Weight returns the weight iproute2 renders for this path.
@@ -219,6 +223,10 @@ func walkNextHopAttrs(attrs []byte, nh *RouteNextHop) error {
 			nh.NewDst = labels
 		case uint16(unix.RTA_ENCAP_TYPE), uint16(unix.RTA_ENCAP):
 			setEncapAttr(&nh.Encap, atype, val)
+		case uint16(unix.RTA_FLOW):
+			if len(val) >= 4 && !nh.HasFlow {
+				nh.Flow, nh.HasFlow = binary.LittleEndian.Uint32(val), true
+			}
 		}
 	}); err != nil {
 		return err

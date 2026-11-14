@@ -620,8 +620,8 @@ func (s *Service) RouteGet(g xtcpnl.RouteGet) (model.Route, error) {
 // the one nexthop reply the capture's `ip -d route show` fetched. Either way the
 // reply's own id is checked against the request, because a get that answers with
 // a different nexthop is a kernel- or replay-level surprise worth seeing.
-func (s *Service) NexthopByID(family uint8, id uint32) (model.Nexthop, error) {
-	r, err := req.NexthopGetByID(family, id, s.nextSeq())
+func (s *Service) NexthopByID(family uint8, id, opFlags uint32) (model.Nexthop, error) {
+	r, err := req.NexthopGetByID(family, id, opFlags, s.nextSeq())
 	if err != nil {
 		return model.Nexthop{}, fmt.Errorf("goip: build nexthop get request: %w", err)
 	}

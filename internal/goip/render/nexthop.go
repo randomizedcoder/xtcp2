@@ -22,7 +22,8 @@ var ErrNexthopGroup = errors.New("nexthop group not implemented by goip")
 // for one nexthop object. prefix precedes the `id` token — "\n\tnh_info " for
 // the route -d continuation, "" for a top-level `ip nexthop show` line — and
 // detailed is show_details, which forces the scope and proto tokens on even at
-// their RT_SCOPE_UNIVERSE / RTPROT_UNSPEC defaults.
+// their RT_SCOPE_UNIVERSE / RTPROT_UNSPEC defaults; stats is show_stats, the
+// count of -s.
 //
 // The token order is __print_nexthop_entry's and is shared because both C
 // callers reach it: print_cache_nexthop_id for the route line (ip/iproute.c:1003)
@@ -32,7 +33,7 @@ var ErrNexthopGroup = errors.New("nexthop group not implemented by goip")
 // byte against ip_nexthop (plain) and ip_nexthop_n (-d); the blackhole and
 // onlink arms reason from the C source, since the one captured object exercises
 // neither.
-func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups bool, tab NameTab) (string, error) {
+func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups bool, stats int, tab NameTab) (string, error) {
 	if nh.HasGroup {
 		// The route nh_info path grounds no group. The show path grounds mpath and
 		// resilient; any other group type is declined.
@@ -55,8 +56,9 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 			writeResGroup(&b, nh.ResGroup)
 		}
 	}
-	// lwt_print_encap (ip/ipnexthop.c:570), after the group, before via.
-	if e := EncapViewOf(nh.Encap); e != nil {
+	// lwt_print_encap (ip/ipnexthop.c:570), after the group, before via;
+	// seg6local's counters print under -s.
+	if e := EncapViewOf(nh.Encap, tab, stats > 0); e != nil {
 		b.WriteString(e.Text())
 	}
 	if len(nh.Gateway) > 0 {
@@ -91,7 +93,48 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 	if RenderNhDstPort && nh.DstPort != 0 {
 		fmt.Fprintf(&b, "dst_port %d ", nh.DstPort)
 	}
+	if nexthopHwStatsShown(&nh, detailed, stats) {
+		fmt.Fprintf(&b, "hw_stats %s used %s ", onOff(nh.HwStatsEnabled), onOff(nh.HwStatsUsed))
+	}
+	if nh.HasGroupStats && stats > 0 {
+		writeNexthopGroupStats(&b, nexthopGroupStats(&nh), stats)
+	}
 	return b.String(), nil
+}
+
+// nexthopHwStatsShown is __print_nexthop_entry's test for `hw_stats … used
+// …` (ip/ipnexthop.c:604): -d or -s, and NHA_HW_STATS_ENABLE present.
+func nexthopHwStatsShown(nh *xtcpnl.NexthopInfo, detailed bool, stats int) bool {
+	return (detailed || stats > 0) && nh.HwStatsSupported
+}
+
+// nexthopGroupStats is the nh_grp_stats array print_nh_grp_stats walks: one
+// entry per NHA_GROUP member (nh_groups_cnt, ip/ipnexthop.c:416), each the
+// NHA_GROUP_STATS_ENTRY at its index, or zero, as calloc leaves it, where
+// the nest has fewer. ip writes a nest past the members' count beyond the
+// array (V071); here it is dropped.
+func nexthopGroupStats(nh *xtcpnl.NexthopInfo) []xtcpnl.NhGroupStat {
+	out := make([]xtcpnl.NhGroupStat, len(nh.Group))
+	copy(out, nh.GroupStats)
+	return out
+}
+
+// writeNexthopGroupStats is print_nh_grp_stats' text (ip/ipnexthop.c:405):
+// a newline, `  stats:`, a newline, then one `    id N packets P` line per
+// entry, `packets_hw` under -s -s, with no newline after the last; the
+// caller's line end follows it. With no members the block is the heading
+// alone.
+func writeNexthopGroupStats(b *strings.Builder, gs []xtcpnl.NhGroupStat, stats int) {
+	b.WriteString("\n  stats:\n")
+	for i, g := range gs {
+		fmt.Fprintf(b, "    id %d packets %d", g.ID, g.Packets)
+		if stats > 1 {
+			fmt.Fprintf(b, " packets_hw %d", g.PacketsHW)
+		}
+		if i != len(gs)-1 {
+			b.WriteByte('\n')
+		}
+	}
 }
 
 // writeNexthopGroup renders print_nh_group (ip/ipnexthop.c:255): a `group ` label,
@@ -129,15 +172,17 @@ func clockSeconds(v uint64) string {
 
 // NexthopInfoText is the `nh_info ...` continuation `ip -d route show` prints
 // under a route that carries RTA_NH_ID. show_details is always set on that path,
-// so scope and proto always print.
-func NexthopInfoText(nh xtcpnl.NexthopInfo, tab NameTab) (string, error) {
-	return nexthopEntryText(nh, "\n\tnh_info ", true, false, tab)
+// so scope and proto always print. stats is -s's count.
+func NexthopInfoText(nh xtcpnl.NexthopInfo, stats int, tab NameTab) (string, error) {
+	return nexthopEntryText(nh, "\n\tnh_info ", true, false, stats, tab)
 }
 
-// NexthopText is one top-level `ip nexthop show` line. detailed is `-d`. mpath
-// groups are rendered here (groups=true); the route nh_info path is not.
-func NexthopText(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (string, error) {
-	return nexthopEntryText(nh, "", detailed, true, tab)
+// NexthopText is one top-level `ip nexthop show` line. detailed is `-d`, and
+// stats -s's count. mpath groups are rendered here (groups=true); the route
+// nh_info path is not. Under -s a group's stats block makes it several
+// lines, the last without its newline.
+func NexthopText(nh xtcpnl.NexthopInfo, detailed bool, stats int, tab NameTab) (string, error) {
+	return nexthopEntryText(nh, "", detailed, true, stats, tab)
 }
 
 // NexthopView is the `ip -j nexthop show` object for one nexthop. It is JSON-only;
@@ -160,6 +205,26 @@ type NexthopView struct {
 	Flags     []string // always non-nil; empty renders []
 	Fdb       bool
 	DstPort   uint16 // 0 when not printed: absent, zero, or before 7.3.0
+	// HwStats is the "hw_stats" object, nil when ip prints none
+	// (nexthopHwStatsShown).
+	HwStats *nhHwStats
+	// GroupStats is "group_stats", nil when ip prints none: no
+	// NHA_GROUP_STATS, or no -s.
+	GroupStats []nhGroupStat
+}
+
+// nhHwStats is the "hw_stats" object: NHA_HW_STATS_ENABLE and
+// NHA_HW_STATS_USED as print_on_off's booleans.
+type nhHwStats struct {
+	Enabled bool `json:"enabled"`
+	Used    bool `json:"used"`
+}
+
+// nhGroupStat is one "group_stats" element; packets_hw prints under -s -s.
+type nhGroupStat struct {
+	ID        uint32  `json:"id"`
+	Packets   uint64  `json:"packets"`
+	PacketsHW *uint64 `json:"packets_hw,omitempty"`
 }
 
 // nhGroupMember is one NHA_GROUP entry: weight is 0 when it is 1, which
@@ -179,8 +244,9 @@ type nhResArgs struct {
 }
 
 // NexthopViewOf builds the JSON view, declining an unknown-type group exactly as
-// the text path does (nexthopEntryText). detailed forces scope and protocol on.
-func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopView, error) {
+// the text path does (nexthopEntryText). detailed forces scope and protocol on;
+// stats is -s's count.
+func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, stats int, tab NameTab) (NexthopView, error) {
 	v := NexthopView{ID: nh.ID, Flags: nexthopFlagList(nh.Flags)}
 	if nh.HasGroup {
 		known := nh.GroupType == xtcpnl.NexthopGrpTypeMpath || nh.GroupType == xtcpnl.NexthopGrpTypeRes
@@ -207,7 +273,7 @@ func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopVi
 			}
 		}
 	}
-	v.Encap = EncapViewOf(nh.Encap)
+	v.Encap = EncapViewOf(nh.Encap, tab, stats > 0)
 	if len(nh.Gateway) > 0 {
 		v.Gateway = addrString(nh.Gateway, nh.Family)
 	}
@@ -224,6 +290,19 @@ func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopVi
 	v.Fdb = nh.Fdb
 	if RenderNhDstPort {
 		v.DstPort = nh.DstPort
+	}
+	if nexthopHwStatsShown(&nh, detailed, stats) {
+		v.HwStats = &nhHwStats{Enabled: nh.HwStatsEnabled, Used: nh.HwStatsUsed}
+	}
+	if nh.HasGroupStats && stats > 0 {
+		gs := nexthopGroupStats(&nh)
+		v.GroupStats = make([]nhGroupStat, len(gs))
+		for i, g := range gs {
+			v.GroupStats[i] = nhGroupStat{ID: g.ID, Packets: g.Packets}
+			if stats > 1 {
+				v.GroupStats[i].PacketsHW = &gs[i].PacketsHW
+			}
+		}
 	}
 	return v, nil
 }
@@ -324,16 +403,42 @@ func (v NexthopView) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	b.Write(f)
+	if err := v.writeTail(&b, sep); err != nil {
+		return nil, err
+	}
+	b.WriteByte('}')
+	return b.Bytes(), nil
+}
+
+// writeTail writes the members __print_nexthop_entry prints after the
+// flags, each when the view has it: "fdb", "dst_port", the "hw_stats"
+// object and the "group_stats" array.
+func (v NexthopView) writeTail(b *bytes.Buffer, sep func()) error {
 	if v.Fdb {
 		sep()
 		b.WriteString(`"fdb":null`)
 	}
 	if v.DstPort != 0 {
 		sep()
-		fmt.Fprintf(&b, `"dst_port":%d`, v.DstPort)
+		fmt.Fprintf(b, `"dst_port":%d`, v.DstPort)
 	}
-	b.WriteByte('}')
-	return b.Bytes(), nil
+	for _, m := range []struct {
+		key  string
+		v    any
+		show bool
+	}{{"hw_stats", v.HwStats, v.HwStats != nil}, {"group_stats", v.GroupStats, v.GroupStats != nil}} {
+		if !m.show {
+			continue
+		}
+		sep()
+		fmt.Fprintf(b, "%q:", m.key)
+		j, err := json.Marshal(m.v)
+		if err != nil {
+			return err
+		}
+		b.Write(j)
+	}
+	return nil
 }
 
 // MarshalJSON emits {"id":N} or {"id":N,"weight":W}, omitting weight when 1.

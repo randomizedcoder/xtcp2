@@ -43,13 +43,18 @@ usage: xtcp2-nlcap-ws <command> [args]
       --readback name='<cmd>'  a captured readback after it (repeatable)
       --proto route|generic|xfrm|sock_diag   --floor N   --expect-rc N
       --modules m1,m2          --serial
-      --out DIR  --helper PATH  --ip PATH   (as for batch)
+      --out DIR  --helper PATH  --ip PATH  --bpf FILE   (as for batch)
   batch <rows.jsonl> [-j N] [--only id,id] [--out DIR] [--helper PATH]
-        [--ip PATH]       run a rows file; rows land in
+        [--ip PATH] [--bpf FILE]
+                          run a rows file; rows land in
                           DIR (default pkg/xtcpnl/testdata/<kernel>/ws).
                           --ip: an iproute2 store path whose bin/ip every
                           row runs, e.g. nix build --print-out-paths
                           '.#iproute2_7_3_0^out' (^out: not the man output)
+                          --bpf: a BPF object the guest links at
+                          /run/nlcap-ws/lwt_bpf.o, which bpf encap rows
+                          name, e.g. \$(nix build --print-out-paths
+                          .#nlcap-lwt-bpf)/lwt_bpf.o
 
   Rows files: nix/microvms/workbench/*.rows.jsonl. State: $STATE
 EOF
@@ -174,7 +179,7 @@ kver_dir() {
 }
 
 cmd_batch() {
-  local rows="" jobs=8 only="" out="" helper="$NLCAP" ipdir=""
+  local rows="" jobs=8 only="" out="" helper="$NLCAP" ipdir="" bpf=""
   while [ $# -gt 0 ]; do
     case "$1" in
       -j) jobs=$2; shift 2 ;;
@@ -184,6 +189,9 @@ cmd_batch() {
       --ip)
         [ $# -ge 2 ] || die "batch: --ip wants an iproute2 store path"
         ipdir=$2; shift 2 ;;
+      --bpf)
+        [ $# -ge 2 ] || die "batch: --bpf wants a BPF object file"
+        bpf=$2; shift 2 ;;
       -*) die "batch: unknown arg $1" ;;
       *) [ -z "$rows" ] || die "batch: one rows file"; rows=$1; shift ;;
     esac
@@ -194,6 +202,9 @@ cmd_batch() {
   # The guest sees the host's /nix/store, so checking here checks there.
   if [ -n "$ipdir" ] && [ ! -x "$ipdir/bin/ip" ]; then
     die "batch: no ip in $ipdir/bin"
+  fi
+  if [ -n "$bpf" ] && [ ! -f "$bpf" ]; then
+    die "batch: no bpf object $bpf"
   fi
   need_up
   if [ -z "$out" ]; then
@@ -207,6 +218,7 @@ cmd_batch() {
   local args=(-j "$jobs" --nlcap "$helper/bin/xtcp2-nlcap")
   [ -z "$only" ] || args+=(--only "$only")
   [ -z "$ipdir" ] || args+=(--ip-bin "$ipdir/bin")
+  [ -z "$bpf" ] || args+=(--bpf-obj "$bpf")
   local rc=0
   gssh "$BATCH/bin/xtcp2-nlcap-batch ${args[*]} $rdir/rows.jsonl $rdir/out" || rc=$?
   if [ "$rc" -eq 2 ]; then
@@ -234,7 +246,7 @@ cmd_run() {
       --expect-rc) rc_want=$2; shift 2 ;;
       --modules) mods=$2; shift 2 ;;
       --serial) serial=true; shift ;;
-      --out | --helper | --ip)
+      --out | --helper | --ip | --bpf)
         [ $# -ge 2 ] || die "run: $1 wants a value"
         bargs+=("$1" "$2"); shift 2 ;;
       --) shift; break ;;

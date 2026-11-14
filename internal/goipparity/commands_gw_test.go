@@ -19,7 +19,11 @@ import (
 // The GW rows' sources: the workbench corpus and its O5 golden
 // (goip-write-keywords.md, "GW5 — matrix rows and the VM gate").
 const (
-	gwWsDirCst      = "../../pkg/xtcpnl/testdata/7_3_0/ws"
+	gwWsDirCst = "../../pkg/xtcpnl/testdata/7_3_0/ws"
+	// gwWsDir731Cst holds the lwtenc corpus, captured on the workbench's
+	// 7.3.1 kernel with the rpl and ioam6 lwtunnels (NC8-T05), which the
+	// NX9 rows name.
+	gwWsDir731Cst   = "../../pkg/xtcpnl/testdata/7_3_1/ws"
 	gwO5GoldenCst   = "../goip/testdata/ws-differential.txt"
 	gwSlugPrefixCst = "gw_"
 	gwIPPrefixCst   = "ip "
@@ -62,7 +66,20 @@ func gwSlug(id string) string {
 // gwCorpusDir is the workbench row directory a GW slug names.
 func gwCorpusDir(t *testing.T, slug string) string {
 	t.Helper()
-	fams, err := os.ReadDir(gwWsDirCst)
+	for _, root := range []string{gwWsDirCst, gwWsDir731Cst} {
+		if dir, ok := gwCorpusDirIn(t, root, slug); ok {
+			return dir
+		}
+	}
+	t.Fatalf("%s: no workbench family", slug)
+	return ""
+}
+
+// gwCorpusDirIn is gwCorpusDir within one corpus root: false when no family
+// there prefixes the slug.
+func gwCorpusDirIn(t *testing.T, root, slug string) (string, bool) {
+	t.Helper()
+	fams, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,19 +88,18 @@ func gwCorpusDir(t *testing.T, slug string) string {
 		if !ok {
 			continue
 		}
-		ents, err := os.ReadDir(filepath.Join(gwWsDirCst, fam.Name()))
+		ents, err := os.ReadDir(filepath.Join(root, fam.Name()))
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, e := range ents {
 			if gwSlug(fam.Name()+"/"+e.Name()) == slug {
-				return filepath.Join(gwWsDirCst, fam.Name(), e.Name())
+				return filepath.Join(root, fam.Name(), e.Name()), true
 			}
 		}
 		t.Fatalf("%s: no %s row %s", slug, fam.Name(), rest)
 	}
-	t.Fatalf("%s: no workbench family", slug)
-	return ""
+	return "", false
 }
 
 // gwPcapRecords counts a classic pcap's records.

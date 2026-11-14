@@ -82,7 +82,9 @@ func TestFouProto(t *testing.T) {
 		{description: "negative: 0", val: "0", exit: ExitMinusOne},
 		{description: "negative: empty", val: "", exit: ExitMinusOne},
 		{description: "negative: a word starting with a digit", val: "4x", exit: ExitMinusOne},
-		{description: "negative: a name goip does not know", val: "IPv4", exit: ExitUsage},
+		{description: "positive: IPv4, iana-etc's alias for ipv4", val: "IPv4", expected: 4},
+		{description: "corner: 3pc, a name starting with a digit", val: "3pc", expected: 34},
+		{description: "negative: ospf, a name /etc/protocols lacks", val: "ospf", exit: ExitMinusOne},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
