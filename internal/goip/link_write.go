@@ -32,13 +32,6 @@ import (
 // `ip` sends those gets before its write, so they are part of what the
 // parity harness compares (link-write-path.md, decision 5).
 
-// ErrWriteNotApplied is a write verb run without GOIP_WRITE_OUT.
-var ErrWriteNotApplied = errors.New("goip never applies a write; set " + writeOutEnvCst +
-	" to receive the request it would send")
-
-// writeOutEnvCst names the file a write verb writes its framed request to.
-const writeOutEnvCst = "GOIP_WRITE_OUT"
-
 // linkWriteVerb is one arm of do_iplink that reaches iplink_modify.
 type linkWriteVerb struct {
 	name    string
@@ -72,9 +65,6 @@ func (v *linkWriteVerb) create() bool { return v.flags&unix.NLM_F_CREATE != 0 }
 
 // setOp is a kind parser's set_op: an RTM_NEWLINK without NLM_F_CREATE.
 func (v *linkWriteVerb) setOp() bool { return v.msgType == unix.RTM_NEWLINK && !v.create() }
-
-// linkResolver is ll_name_to_index: the ifindex for a name, 0 for none.
-type linkResolver func(name string) (int32, error)
 
 // vrfChecker is name_is_vrf: whether the device called name is a vrf.
 type vrfChecker func(name string) (bool, error)
@@ -215,65 +205,18 @@ func lookupLinkKeyword(arg string) *linkKeyword {
 	return nil
 }
 
-// Limits from include/uapi/linux/if.h: IFNAMSIZ and ALTIFNAMSIZ include
-// the NUL, and IFALIASZ is the alias buffer.
+// Limits from include/uapi/linux/if.h: ALTIFNAMSIZ includes the NUL, and
+// IFALIASZ is the alias buffer. IFNAMSIZ is ifNameSizeCst, in args.go.
 const (
-	ifNameSizeCst    = 16
 	altIfNameSizeCst = 128
 	ifAliasSizeCst   = 256
 	// linkLLAddrBufCst is iplink_parse's char abuf[32].
 	linkLLAddrBufCst = 32
 )
 
-// checkIfname is lib/utils.c's check_ifname, which mirrors the kernel's
-// dev_valid_name.
-func checkIfname(name string) bool {
-	if name == "" || len(name) >= ifNameSizeCst || name == "." || name == ".." {
-		return false
-	}
-	for i := 0; i < len(name); i++ {
-		if name[i] == '/' || cIsSpace(name[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 // checkAltIfname is check_altifname: the `dev` argument may be an altname.
 func checkAltIfname(name string) bool {
 	return name != "" && len(name) < altIfNameSizeCst
-}
-
-// The error text iplink_parse prints, from lib/utils.c.
-func invargErr(msg, arg string) error {
-	return fmt.Errorf("%w: Error: argument %q is wrong: %s", ErrInvalidArgument, arg, msg)
-}
-
-func dupargErr(key, arg string) error {
-	return fmt.Errorf("%w: Error: duplicate %q: %q is the second value", ErrInvalidArgument, key, arg)
-}
-
-// ErrLinkUsage is a refusal iplink_parse ends with exit(-1), 255: invarg,
-// duparg, duparg2 and incomplete_command. Its returned refusals (a bad
-// lladdr, an on/off word, nodev) exit 1, as ErrInvalidArgument does.
-var ErrLinkUsage = errors.New("link")
-
-// linkUsage marks err as one of ErrLinkUsage's refusals.
-func linkUsage(err error) error {
-	return fmt.Errorf("%w: %w", ErrLinkUsage, err)
-}
-
-func incompleteErr() error {
-	return fmt.Errorf("%w: Command line is not complete. Try option \"help\"", ErrInvalidArgument)
-}
-
-func nodevErr(dev string) error {
-	return fmt.Errorf("%w: Cannot find device %q", ErrInvalidArgument, dev)
-}
-
-// nodevExitErr is a kind's exit(nodev(dev)): nodev's -1 as the status, 255.
-func nodevExitErr(dev string) error {
-	return linkUsage(nodevErr(dev))
 }
 
 // kindUnknownErr is a kind's parse_opt on a word it doesn't know, which it
@@ -1031,10 +974,7 @@ func (st *linkParseState) checkAddrLen() error {
 
 // Kinds iplink_modify treats specially.
 const (
-	kindBondCst      = "bond"
 	kindBondSlaveCst = "bond_slave"
-	kindVethCst      = "veth"
-	kindVxcanCst     = "vxcan"
 	kindDummyCst     = "dummy"
 	kindIfbCst       = "ifb"
 	kindNlmonCst     = "nlmon"
@@ -1307,52 +1247,6 @@ func newLinkNameResolver(svc *service.Service) linkResolver {
 	return newLinkNameResolverRemember(svc, nil)
 }
 
-// newLinkNameResolverRemember is newLinkNameResolver that also hands each
-// link it fetches to remember. ll_link_get stores its reply in the one ll_map
-// that ll_index_to_name reads later (lib/ll_map.c:296), so a command that
-// renders the names its lookups resolved, `ip addr show master bond0`, must
-// not fetch them a second time by index. remember may be nil.
-func newLinkNameResolverRemember(svc *service.Service, remember func(xtcpnl.LinkInfo)) linkResolver {
-	cache := map[string]int32{}
-	return func(name string) (int32, error) {
-		if idx, ok := cache[name]; ok {
-			return idx, nil
-		}
-		if !checkIfname(name) {
-			// ll_link_get would send IFLA_ALT_IFNAME; req.LinkShowByName
-			// has no captured example to build it from.
-			return 0, fmt.Errorf("resolving %q by IFLA_ALT_IFNAME: %w", name, ErrNotImplemented)
-		}
-		l, err := svc.LinkByName(name)
-		var errno syscall.Errno
-		switch {
-		case err == nil:
-			if remember != nil {
-				remember(xtcpnl.LinkInfo(l))
-			}
-			cache[l.Name] = l.Index
-			for _, alt := range l.AltNames {
-				cache[alt] = l.Index
-			}
-			return l.Index, nil
-		case errors.As(err, &errno):
-			return cint.Int(llIdxA2N(name)), nil
-		default:
-			return 0, err
-		}
-	}
-}
-
-// llIdxA2N is ll_idx_a2n: sscanf(name, "if%u"), so "if3" is ifindex 3 and
-// trailing characters after the digits are ignored.
-func llIdxA2N(name string) uint32 {
-	rest, ok := strings.CutPrefix(name, "if")
-	if !ok {
-		return 0
-	}
-	r := cStrtoul(rest, 10)
-	if r.end == 0 {
-		return 0
-	}
-	return cint.Low32(r.val)
-}
+// mtuKeywordCst is the `mtu` keyword, spelled the same in `ip link` and
+// `ip route`.
+const mtuKeywordCst = "mtu"

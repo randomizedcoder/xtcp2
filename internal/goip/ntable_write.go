@@ -20,10 +20,8 @@ import (
 // GOIP_WRITE_OUT.
 
 const (
-	ntableChangeVerbCst = "change"
-	ntableChgVerbCst    = "chg"
-	ntableNameKeyCst    = "name"
-	ntableModifyBufCst  = 1024
+	ntableNameKeyCst   = "name"
+	ntableModifyBufCst = 1024
 	// ntableNoChangeCst is ipntable_modify's refusal of a request that
 	// changes nothing.
 	ntableNoChangeCst = "Not enough information: changeable attributes required"

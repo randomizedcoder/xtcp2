@@ -382,3 +382,7 @@ func (p *vxlanParse) finish(errOut io.Writer, set bool) error {
 func vxlanErr(msg string) error {
 	return kindOptErr(kindVxlanCst, msg)
 }
+
+// groupKeywordCst is the `group` keyword, which vxlan and nexthop share
+// with `ip stats show`'s first level (ipstatsLevels).
+const groupKeywordCst = "group"

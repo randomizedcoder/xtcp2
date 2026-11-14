@@ -2,7 +2,6 @@ package goip
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 
@@ -25,19 +24,12 @@ import (
 // too.
 
 const (
-	addrLabelAddVerbCst    = "add"
-	addrLabelDelVerbCst    = "delete"
 	addrLabelPrefixKeyCst  = "prefix"
 	addrLabelLabelKeyCst   = "label"
 	addrLabelModifyBufCst  = 1024
 	addrLabelNoLabelCst    = math.MaxUint32
-	addrLabelFlushVerbCst  = "flush"
 	addrLabelFlushExtraCst = `"ip addrlabel flush" does not allow extra arguments`
 )
-
-// ErrAddrLabelFlushTerminated is `Flush terminated`: a failed dump or a short
-// reply, after which ipaddrlabel_flush returns -1, so 255.
-var ErrAddrLabelFlushTerminated = errors.New("addrlabel flush: Flush terminated")
 
 // addrLabelWrite is ipaddrlabel_modify's request: the ifaddrlblmsg fields
 // and the attributes, IFAL_LABEL then IFAL_ADDRESS.
@@ -223,13 +215,4 @@ func addrLabelFlushCopy(m []byte) (del []byte, ok bool, err error) {
 	binary.NativeEndian.PutUint16(del[4:6], unix.RTM_DELADDRLABEL)
 	binary.NativeEndian.PutUint16(del[6:8], unix.NLM_F_REQUEST|unix.NLM_F_ACK)
 	return del, true, nil
-}
-
-// addrLabelFamily is the listing's and the flush's `af`: preferred_family,
-// AF_INET6 if unset (ip/ipaddrlabel.c:101-104, :221-224).
-func addrLabelFamily(c *runCtx) uint8 {
-	if c.family == unix.AF_UNSPEC {
-		return unix.AF_INET6
-	}
-	return c.family
 }

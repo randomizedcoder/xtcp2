@@ -94,3 +94,12 @@ func addrLabelShow(c *runCtx) error {
 	}
 	return nil
 }
+
+// addrLabelFamily is the listing's and the flush's `af`: preferred_family,
+// AF_INET6 if unset (ip/ipaddrlabel.c:101-104, :221-224).
+func addrLabelFamily(c *runCtx) uint8 {
+	if c.family == unix.AF_UNSPEC {
+		return unix.AF_INET6
+	}
+	return c.family
+}

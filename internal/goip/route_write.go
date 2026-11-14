@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"math/bits"
 	"os"
 	"strconv"
 	"strings"
@@ -110,16 +109,9 @@ type routeKeyword struct {
 	scale uint32
 }
 
-// The route priority keywords, spelled the same in `ip address`
-// (ipaddr_modify) and `ip route` (iproute_modify).
-const (
-	routeMetricKeywordCst     = "metric"
-	routePriorityKeywordCst   = "priority"
-	routePreferenceKeywordCst = "preference"
-	// routeOnlinkKeywordCst is RTNH_F_ONLINK's word, on the route and in a
-	// hop.
-	routeOnlinkKeywordCst = "onlink"
-)
+// routeOnlinkKeywordCst is RTNH_F_ONLINK's word, on the route and in a
+// hop.
+const routeOnlinkKeywordCst = "onlink"
 
 // routeParseKeywords is iproute_modify's if/else chain in its order
 // (ip/iproute.c:1195-1572). Every keyword is listed, the unimplemented ones
@@ -182,24 +174,11 @@ func lookupRouteKeyword(arg string) *routeKeyword {
 }
 
 const (
-	// routeAsKeywordCst is RTA_NEWDST's word, on the route and in a hop.
-	routeAsKeywordCst   = "as"
 	routeLockKeywordCst = "lock"
-	routeToKeywordCst   = "to"
-	routeHelpKeywordCst = "help"
 )
-
-// The error text iproute_modify's helpers print, from lib/utils.c.
-func duparg2Err(key, arg string) error {
-	return fmt.Errorf("%w: Error: either %q is duplicate, or %q is garbage", ErrInvalidArgument, key, arg)
-}
 
 func routeUsageErr() error {
 	return fmt.Errorf("%w: ip route: no destination; iproute2 prints its usage", ErrInvalidArgument)
-}
-
-func routeHelpErr() error {
-	return fmt.Errorf("%w: ip route help is not implemented by goip", ErrNotImplemented)
 }
 
 // vrfTabler is ipvrf_get_table: a VRF device's table, or 0.
@@ -270,14 +249,6 @@ func parseRouteWriteArgs(verb *routeWriteVerb, family uint8, args []string, reso
 		return xtcpnl.RouteWrite{}, err
 	}
 	return st.w, nil
-}
-
-// nextArg is NEXT_ARG: the index of the value, or incomplete_command.
-func nextArg(args []string, i int) (int, error) {
-	if i+1 >= len(args) {
-		return i, incompleteErr()
-	}
-	return i + 1, nil
 }
 
 func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int, error) {
@@ -631,21 +602,6 @@ func (st *routeParseState) as(args []string, i int) (int, error) {
 	return i, nil
 }
 
-// asAddr is the as arms' reading, at the top level and in a hop.
-func asAddr(args []string, i int, family uint8) (inetPrefix, int, error) {
-	i, err := nextArg(args, i)
-	if err != nil {
-		return inetPrefix{}, i, err
-	}
-	if args[i] == routeToKeywordCst {
-		if i, err = nextArg(args, i); err != nil {
-			return inetPrefix{}, i, err
-		}
-	}
-	a, err := routeGetAddr(args[i], family)
-	return a, i, err
-}
-
 // defaultScope is the scope iproute_modify picks when argv gave none. A type
 // it does not name (blackhole, unreachable, prohibit, throw) keeps the
 // initial scope: universe on a write, nowhere on a delete.
@@ -903,221 +859,10 @@ func routeWrite(c *runCtx, verb *routeWriteVerb, args []string) error {
 // lib/utils.c: inet_prefix, get_addr, get_prefix, get_time_rtt
 ///////////////////////////////////////////////////////////////////////////////
 
-// inetPrefix is the part of iproute2's inet_prefix a route write reads.
-// data is the address bytes, bytelen long; bitlen is -1 for an address, -2
-// for default/all/any, and the prefix length after get_prefix.
-type inetPrefix struct {
-	family uint8
-	data   []byte
-	bitlen int
-}
-
 // prefixLen is bitlen as the one-byte rtm_dst_len or rtm_src_len.
 // routeGetPrefix leaves it in [0, 128], so the clamp never applies.
 func (p inetPrefix) prefixLen() uint8 {
 	return uint8(max(min(p.bitlen, math.MaxUint8), 0))
-}
-
-// afBitLen is af_bit_len; af_byte_len is it over 8.
-func afBitLen(f uint8) int {
-	switch f {
-	case unix.AF_INET6:
-		return 128
-	case unix.AF_INET:
-		return 32
-	case unix.AF_MPLS:
-		return 20
-	}
-	return 0
-}
-
-// familyLinkCst is AF_PACKET's family word, both ways.
-const familyLinkCst = "link"
-
-// familyNameVerbose is family_name_verbose, for the get_addr and
-// get_prefix messages.
-func familyNameVerbose(f uint8) string {
-	switch f {
-	case unix.AF_UNSPEC:
-		return "any valid"
-	case unix.AF_INET:
-		return "inet"
-	case unix.AF_INET6:
-		return "inet6"
-	case unix.AF_PACKET:
-		return familyLinkCst
-	case unix.AF_MPLS:
-		return mplsKeywordCst
-	case unix.AF_BRIDGE:
-		return "bridge"
-	}
-	return "???"
-}
-
-// readFamily is read_family: the family words `via` accepts.
-func readFamily(name string) uint8 {
-	switch name {
-	case "inet":
-		return unix.AF_INET
-	case "inet6":
-		return unix.AF_INET6
-	case familyLinkCst:
-		return unix.AF_PACKET
-	case mplsKeywordCst:
-		return unix.AF_MPLS
-	case "bridge":
-		return unix.AF_BRIDGE
-	}
-	return unix.AF_UNSPEC
-}
-
-// getAddr1 is __get_addr_1 for the families goip reads, AF_UNSPEC, AF_INET,
-// AF_INET6 and AF_MPLS. "default" is an all-zero address of the family's
-// length, so with no family yet it has no bytes at all; "all" and "any"
-// never have bytes; all three are refused in AF_MPLS. An address with a ':'
-// is IPv6; in AF_MPLS anything else is a label stack (mplsPton); otherwise
-// it is IPv4, and either is refused when the family is set to the other
-// one, or to bridge.
-func getAddr1(name string, family uint8) (inetPrefix, bool) {
-	a, _, ok := getAddr1Mpls(name, family)
-	return a, ok
-}
-
-// getAddr1Mpls is getAddr1 with tooMany, mplsPton's report of a stack past
-// its limit, for get_addr's message.
-//
-// __get_addr_1 refuses default, all and any in AF_MPLS before it reaches
-// mpls_pton; mplsPton refuses them too, since none starts with a digit, so
-// the one test serves. An address with a ':' never reaches mpls_pton, so it
-// never prints "too many labels".
-func getAddr1Mpls(name string, family uint8) (a inetPrefix, tooMany, ok bool) {
-	if family == unix.AF_MPLS && strings.IndexByte(name, ':') < 0 {
-		data, tooMany, ok := mplsPton(name)
-		if !ok {
-			return inetPrefix{}, tooMany, false
-		}
-		return inetPrefix{family: unix.AF_MPLS, data: data, bitlen: afBitLen(unix.AF_MPLS)}, false, true
-	}
-	a, ok = getAddr1Inet(name, family)
-	return a, false, ok
-}
-
-// getAddr1Inet is __get_addr_1 outside AF_MPLS.
-func getAddr1Inet(name string, family uint8) (inetPrefix, bool) {
-	switch name {
-	case addrNameDefaultCst:
-		return inetPrefix{family: family, data: make([]byte, afBitLen(family)/8), bitlen: -2}, true
-	case addrNameAllCst, addrNameAnyCst:
-		return inetPrefix{family: family, bitlen: -2}, true
-	}
-	if strings.IndexByte(name, ':') >= 0 {
-		if family != unix.AF_UNSPEC && family != unix.AF_INET6 {
-			return inetPrefix{}, false
-		}
-		a, ok := getAddrIPv6(name)
-		if !ok {
-			return inetPrefix{}, false
-		}
-		b := a.As16()
-		return inetPrefix{family: unix.AF_INET6, data: b[:], bitlen: -1}, true
-	}
-	if family != unix.AF_UNSPEC && family != unix.AF_INET {
-		return inetPrefix{}, false
-	}
-	a, ok := getAddrIPv4Parts(name)
-	if !ok {
-		return inetPrefix{}, false
-	}
-	b := a.As4()
-	return inetPrefix{family: unix.AF_INET, data: b[:], bitlen: -1}, true
-}
-
-// routeFamilySupported refuses the family whose addresses goip does not
-// parse: link (ll_addr_a2n, reached by `via link`).
-func routeFamilySupported(family uint8) error {
-	if family == unix.AF_PACKET {
-		return fmt.Errorf("route address in family %s: %w", familyNameVerbose(family), ErrNotImplemented)
-	}
-	return nil
-}
-
-// routeGetAddr is get_addr, which exits with its message on a bad address.
-func routeGetAddr(arg string, family uint8) (inetPrefix, error) {
-	if err := routeFamilySupported(family); err != nil {
-		return inetPrefix{}, err
-	}
-	a, tooMany, ok := getAddr1Mpls(arg, family)
-	if !ok {
-		msg := fmt.Sprintf("Error: %s address is expected rather than %q", familyNameVerbose(family), arg)
-		if tooMany {
-			// mpls_pton1's line, before get_addr's.
-			msg = "Error: too many labels.\n" + msg
-		}
-		return inetPrefix{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
-	}
-	return a, nil
-}
-
-// routeGetPrefix is get_prefix over get_prefix_1. With no slash the length
-// is the family's full width, or 0 for default/all/any; a slash after those
-// is refused. The length is get_netmask's.
-func routeGetPrefix(arg string, family uint8) (inetPrefix, error) {
-	if family == unix.AF_PACKET {
-		return inetPrefix{}, fmt.Errorf("%w: Error: %q may be inet prefix, but it is not allowed in this context",
-			ErrInvalidArgument, arg)
-	}
-	if err := routeFamilySupported(family); err != nil {
-		return inetPrefix{}, err
-	}
-	refused := fmt.Errorf("%w: Error: %s prefix is expected rather than %q",
-		ErrInvalidArgument, familyNameVerbose(family), arg)
-	addr, mask, slash := strings.Cut(arg, "/")
-	p, ok := getAddr1(addr, family)
-	if !ok {
-		return inetPrefix{}, refused
-	}
-	bitlen := afBitLen(p.family)
-	switch {
-	case slash:
-		if p.bitlen == -2 {
-			return inetPrefix{}, refused
-		}
-		plen, ok := getNetmask(mask)
-		if !ok || int64(plen) > int64(bitlen) {
-			return inetPrefix{}, refused
-		}
-		bitlen = int(plen)
-	case p.bitlen == -2:
-		bitlen = 0
-	}
-	p.bitlen = bitlen
-	return p, nil
-}
-
-// getNetmask is get_netmask: get_unsigned base 0, or a dotted-quad mask
-// that mask2bits accepts.
-func getNetmask(arg string) (uint32, bool) {
-	if v, ok := getU32(arg, 0); ok {
-		return v, true
-	}
-	a, ok := getAddr1(arg, unix.AF_INET)
-	if !ok || a.family != unix.AF_INET {
-		return 0, false
-	}
-	// "all" and "any" leave the memset data, so their mask is 0.
-	var b [4]byte
-	copy(b[:], a.data)
-	return mask2bits(binary.BigEndian.Uint32(b[:]))
-}
-
-// mask2bits is mask2bits on a mask in host order: the mask must be ones
-// then zeros.
-func mask2bits(mask uint32) (uint32, bool) {
-	host := ^mask
-	if host&(host+1) != 0 {
-		return 0, false
-	}
-	return cint.U32(bits.OnesCount32(mask))
 }
 
 // getTimeRtt is get_time_rtt (lib/utils.c:260): a number, then an optional
@@ -1218,49 +963,6 @@ func cStrtodPrefix(s string) int {
 ///////////////////////////////////////////////////////////////////////////////
 // lib/rt_names.c and ip/rtm_map.c
 ///////////////////////////////////////////////////////////////////////////////
-
-// The names rtnl_rtprot_a2n, rtnl_rtscope_a2n and rtnl_rttable_a2n know:
-// iproute2's built-in tables plus the rt_protos, rt_scopes and rt_tables
-// files it ships (etc/iproute2). A name added in a local file, or under
-// rt_*.d, is not known here and is refused as an invalid value.
-var (
-	routeProtoNames = map[string]uint32{
-		"unspec": 0, "redirect": 1, "kernel": 2, "boot": 3, "static": 4,
-		"gated": 8, "ra": 9, "mrt": 10, "zebra": 11, "bird": 12, "dnrouted": 13,
-		"xorp": 14, "ntk": 15, "dhcp": 16, "keepalived": 18, "babel": 42,
-		"ovn": 84, "openr": 99, "bgp": 186, "isis": 187, "ospf": 188,
-		"rip": 189, "eigrp": 192,
-	}
-	routeScopeNames = map[string]uint32{
-		"global": 0, "site": 200, "link": 253, "host": 254, "nowhere": 255,
-	}
-	routeTableNames = map[string]uint32{
-		"unspec": 0, "default": 253, "main": 254, "local": 255,
-	}
-)
-
-// rtnlNameA2N is the shape the three a2n functions share: the name by
-// strcmp, then strtoul base 0 over the whole argument, at most maxVal.
-func rtnlNameA2N(names map[string]uint32, arg string, maxVal uint64) (uint32, bool) {
-	if v, ok := names[arg]; ok {
-		return v, true
-	}
-	v, ok := cGetUnsigned(arg, 0, maxVal)
-	if !ok {
-		return 0, false
-	}
-	return cint.U32From64(v)
-}
-
-// rtnlNameA2N8 is rtnlNameA2N at most 255, for the one-byte rtm_scope and
-// rtm_protocol.
-func rtnlNameA2N8(names map[string]uint32, arg string) (uint8, bool) {
-	v, ok := rtnlNameA2N(names, arg, math.MaxUint8)
-	if !ok {
-		return 0, false
-	}
-	return cint.U8From64(uint64(v))
-}
 
 // rtnlRtntypeA2N is rtnl_rtntype_a2n (ip/rtm_map.c:59-93), in its order:
 // `b` is broadcast and `u` unreachable, not unicast.

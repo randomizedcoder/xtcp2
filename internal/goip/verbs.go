@@ -115,36 +115,55 @@ func chain(parts ...[]verb) []verb {
 	return out
 }
 
-// writeSegment turns a write table's names into chain entries, so the
-// chains of link, address and route take their write verbs from the tables
-// the write paths run from instead of a copy.
-func writeSegment[T any](table []T, name func(*T) (string, bool)) []verb {
-	out := make([]verb, len(table))
-	for i := range table {
-		n, exact := name(&table[i])
-		out[i] = verb{name: n, kind: verbWrite, exact: exact}
+// The write verbs of link, address and route, in their write tables'
+// order (linkWriteVerbs, addrWriteVerbs, routeWriteVerbs). The chains carry
+// only the names, so a build without the write paths still knows a write
+// verb when it sees one; TestWriteSegmentsMatchTables keeps the copies equal.
+var (
+	linkWriteSegment = []verb{
+		{name: addrVerbAddCst, kind: verbWrite},
+		{name: setVerbCst, kind: verbWrite},
+		{name: addrVerbChangeCst, kind: verbWrite},
+		{name: addrVerbReplaceCst, kind: verbWrite},
+		{name: addrVerbDeleteCst, kind: verbWrite},
 	}
-	return out
-}
+	addrWriteSegment = []verb{
+		{name: addrVerbAddCst, kind: verbWrite},
+		{name: addrVerbChangeCst, kind: verbWrite},
+		{name: addrVerbChgCst, kind: verbWrite, exact: true},
+		{name: addrVerbReplaceCst, kind: verbWrite},
+		{name: addrVerbDeleteCst, kind: verbWrite},
+	}
+	routeWriteSegment = []verb{
+		{name: addrVerbAddCst, kind: verbWrite},
+		{name: addrVerbChangeCst, kind: verbWrite},
+		{name: addrVerbChgCst, kind: verbWrite, exact: true},
+		{name: addrVerbReplaceCst, kind: verbWrite},
+		{name: "prepend", kind: verbWrite},
+		{name: "append", kind: verbWrite},
+		{name: "test", kind: verbWrite},
+		{name: addrVerbDeleteCst, kind: verbWrite},
+	}
+)
 
 // The verb chains, one per implemented object, each in its do_ip* function's
 // order in iproute2 7.1.0.
 var (
 	// linkVerbs is do_iplink (ip/iplink.c:1515-1546).
 	linkVerbs = chain(
-		writeSegment(linkWriteVerbs, func(v *linkWriteVerb) (string, bool) { return v.name, false }),
+		linkWriteSegment,
 		showLstList,
 		[]verb{{name: "xstats", kind: verbOther}, {name: "afstats", kind: verbOther}, {name: "property", kind: verbWrite}, helpVerb},
 	)
 	// addressVerbs is do_ipaddr (ip/ipaddress.c:2692-2712).
 	addressVerbs = chain(
-		writeSegment(addrWriteVerbs, func(v *addrWriteVerb) (string, bool) { return v.name, v.exact }),
+		addrWriteSegment,
 		listShowLst,
 		[]verb{flushVerb, saveVerb, showdumpVerb, restoreVerb, helpVerb},
 	)
 	// routeVerbs is do_iproute (ip/iproute.c:2422-2456).
 	routeVerbs = chain(
-		writeSegment(routeWriteVerbs, func(v *routeWriteVerb) (string, bool) { return v.name, v.exact }),
+		routeWriteSegment,
 		listShowLst,
 		[]verb{getVerb, flushVerb, saveVerb, restoreVerb, showdumpVerb, helpVerb},
 	)

@@ -22,8 +22,6 @@ import (
 //   - Parsing the peer into a fresh linkParsed is the save, zero and
 //     restore the C does around the shared ifinfomsg, as in vethData.
 
-const kindNetkitCst = "netkit"
-
 // The netkit words.
 const (
 	netkitForward   = "forward"

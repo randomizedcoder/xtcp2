@@ -1,7 +1,6 @@
 package goip
 
 import (
-	"errors"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -30,11 +29,6 @@ import (
 // `lacp_strict` is new in iproute2 7.3.0 (30365d09); before it, `ip link add
 // … type bond lacp_strict on` is "unknown command", and its arm is skipped
 // unless Keywords730.
-
-// ErrInvalidArgument is an argument `ip` refuses before it sends anything:
-// invarg, nodev, an unknown keyword, a missing value. The message after it
-// is iproute2's.
-var ErrInvalidArgument = errors.New("invalid argument")
 
 // bondArgKind is how one keyword reads its value.
 type bondArgKind uint8

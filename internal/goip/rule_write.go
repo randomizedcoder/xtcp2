@@ -26,8 +26,6 @@ const (
 	ruleDscpMaxMaskCst = 0x3F
 	// ruleLabelMaxMaskCst is LABEL_MAX_MASK, the flowlabel's 20 bits.
 	ruleLabelMaxMaskCst = 0xFFFFF
-	ruleAddVerbCst      = "add"
-	ruleDeleteVerbCst   = "delete"
 	ruleNotKeywordCst   = "not"
 	ruleTableKeywordCst = "table"
 	ruleFromKeywordCst  = "from"

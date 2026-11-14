@@ -1,7 +1,6 @@
 package goip
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -21,10 +20,6 @@ import (
 // GOIP_WRITE_OUT, as route flush does: its round 2 skips every entry it has
 // already copied, and GOIP_WRITE_OUT is checked at the first copy, so a flush
 // with nothing to delete sends what `ip` sends and needs no hook.
-
-// ErrNeighFlushTerminated is a neighbor dump failing inside `ip neigh flush`:
-// `ip` prints "Flush terminated" and exits 1 (ip/ipneigh.c:621-623).
-var ErrNeighFlushTerminated = errors.New("flush terminated")
 
 // neighFlushDropStatesCst is the states flush leaves alone: filter.state is
 // the int ~(NUD_PERMANENT|NUD_NOARP) (ip/ipneigh.c:521), every other state

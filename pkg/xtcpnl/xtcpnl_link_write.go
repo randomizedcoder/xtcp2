@@ -25,12 +25,6 @@ import (
 // Nothing here sends. BuildLinkWriteRequest goes through BuildWriteRequest,
 // and goip writes the result to a file (link-write-path.md, decision 5).
 
-// linkWriteBufCst is sizeof(struct iplink_req) in ip/iplink.c: the nlmsghdr,
-// the ifinfomsg and char buf[1024]. iproute2 passes it as maxlen to the
-// generic addattr calls, so a request longer than this is one `ip` cannot
-// build either.
-const linkWriteBufCst = NlMsgHdrSizeCst + IfInfomsgSizeCst + 1024
-
 // slaveKindSuffixCst is the spelling that sends a kind's options to
 // IFLA_INFO_SLAVE_DATA instead of IFLA_INFO_DATA.
 const slaveKindSuffixCst = "_slave"
@@ -44,13 +38,6 @@ var (
 	// opens the data nest inside IFLA_LINKINFO, so there is nowhere to put it.
 	ErrLinkWriteDataWithoutKind = errors.New("xtcpnl: link kind data without a kind")
 )
-
-// LinkAttr is one generic IFLA_* attribute of a link write, payload already
-// encoded. The constructors below are the shapes iplink_parse writes.
-type LinkAttr struct {
-	Type    uint16
-	Payload []byte
-}
 
 // LinkAttrU32 is addattr32: IFLA_MTU, IFLA_MASTER, IFLA_TXQLEN, IFLA_GROUP.
 func LinkAttrU32(atype uint16, v uint32) LinkAttr {
@@ -177,16 +164,6 @@ func LinkKindDataType(kind string) uint16 {
 	return uint16(unix.IFLA_INFO_DATA)
 }
 
-// EncodeIfInfomsg lays out a struct ifinfomsg. ifi_type is 0 on a request.
-func EncodeIfInfomsg(family uint8, index int32, flags, change uint32) []byte {
-	// family, pad, ifi_type, then index, flags and change.
-	b := make([]byte, 0, IfInfomsgSizeCst)
-	b = append(b, family, 0, 0, 0)
-	b = binary.LittleEndian.AppendUint32(b, cint.Bits(index))
-	b = binary.LittleEndian.AppendUint32(b, flags)
-	return binary.LittleEndian.AppendUint32(b, change)
-}
-
 // BuildLinkWriteRequest lays out w: the ifinfomsg, w.Attrs in order, then
 // IFLA_LINKINFO{IFLA_INFO_KIND "kind\0", data nest} when w.Kind is set.
 //
@@ -237,16 +214,6 @@ func putLinkInfo(ab *AttrBuilder, w LinkWrite) error {
 		}
 	}
 	return ab.EndNest(linkinfo)
-}
-
-// putRaw appends pre-encoded attributes. They are already aligned, because
-// every encoder here writes whole padded attributes.
-func putRaw(ab *AttrBuilder, b []byte) error {
-	if len(b) > len(ab.buf)-ab.n {
-		return ErrAttrNoSpace
-	}
-	ab.n += copy(ab.buf[ab.n:], b)
-	return nil
 }
 
 // BondSetting is one bond or bond-port option as bond_parse_opt (or
@@ -361,16 +328,6 @@ func putBondTargets(ab *AttrBuilder, s BondSetting) error {
 	return ab.EndNest(m)
 }
 
-// VethPeer is the `peer` half of `type veth peer …`: its own ifinfomsg and
-// attributes, which veth_parse_opt writes inside VETH_INFO_PEER by running
-// iplink_parse a second time on the same request.
-type VethPeer struct {
-	Index    int32
-	IfFlags  uint32
-	IfChange uint32
-	Attrs    []LinkAttr
-}
-
 // VethInfoPeer is VETH_INFO_PEER, include/uapi/linux/veth.h. x/sys/unix does
 // not name it.
 const VethInfoPeer uint16 = 1
@@ -392,22 +349,4 @@ func EncodeVethPeer(p VethPeer) ([]byte, error) {
 		return nil, err
 	}
 	return append([]byte(nil), ab.Bytes()...), nil
-}
-
-// putPeerNest writes the peer half veth, netkit and vxcan share: a nest of
-// atype holding the peer's raw ifinfomsg and then its attributes.
-func putPeerNest(ab *AttrBuilder, atype uint16, p VethPeer) error {
-	m, err := ab.BeginNest(atype)
-	if err != nil {
-		return err
-	}
-	if err := putRaw(ab, EncodeIfInfomsg(unix.AF_UNSPEC, p.Index, p.IfFlags, p.IfChange)); err != nil {
-		return err
-	}
-	for _, a := range p.Attrs {
-		if err := ab.PutBytes(a.Type, a.Payload); err != nil {
-			return err
-		}
-	}
-	return ab.EndNest(m)
 }

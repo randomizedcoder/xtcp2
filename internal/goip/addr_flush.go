@@ -23,10 +23,6 @@ import (
 // the rounds `ip` runs when the kernel deletes what it was asked to
 // (decision 5).
 
-// ErrFlushIncomplete is a flush that ran out of rounds: `ip -loops N` with
-// addresses still matching after N. `ip` exits 255 for it.
-var ErrFlushIncomplete = errors.New("flush remains incomplete")
-
 const (
 	// addrFlushBufCst is ipaddr_flush's `char flushb[4096-512]`
 	// (ip/ipaddress.c:1966).
@@ -68,8 +64,6 @@ func (b *flushBuf) end() {
 		b.cur = nil
 	}
 }
-
-func nlmsgAlign(n int) int { return (n + 3) &^ 3 }
 
 // flushKey is an address as the kernel finds it to delete: by family,
 // device, prefix length and the two addresses. It is the identity round 2
@@ -234,4 +228,19 @@ func flushDone(w io.Writer, stats bool, round int64) error {
 		_, err = fmt.Fprintf(w, "*** Flush is complete after %d rounds ***\n", round)
 	}
 	return err
+}
+
+// matchFlush is print_addrinfo's filter as ipaddr_flush runs it
+// (ip/ipaddress.c:1537-1553): the device, then matchCommon, then proto.
+// Nothing else applies. A flush calls neither ipaddr_filter nor
+// print_linkinfo, so `up`, `down`, `group`, `master` and `type` are parsed,
+// and `master`'s lookup is sent, but no address is kept or dropped by them.
+func (f *addrFilter) matchFlush(ai *xtcpnl.AddrInfo, devName func(int32) string) bool {
+	if f.ifindex != 0 && int64(ai.Index) != int64(f.ifindex) {
+		return false
+	}
+	if !f.matchCommon(ai, devName) {
+		return false
+	}
+	return !f.haveProto || !ai.HasProto || ai.Proto == f.proto
 }

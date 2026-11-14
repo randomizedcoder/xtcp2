@@ -34,8 +34,6 @@ const (
 	xfrmRtaBufCst = 2048
 	// xfrmAlgoKeyBufCst is XFRM_ALGO_KEY_BUF_SIZE, the longest key.
 	xfrmAlgoKeyBufCst = 512
-	// xfrmCtxBufCst is CTX_BUF_SIZE, ctx's buffer, which ip overruns.
-	xfrmCtxBufCst = 256
 	// xfrmDeleteallBufCst is NLMSG_DELETEALL_BUF_SIZE, deleteall's buffer.
 	xfrmDeleteallBufCst = 8192
 	// xfrmReplayESNMaxCst is XFRMA_REPLAY_ESN_MAX.
@@ -54,17 +52,10 @@ const (
 	xfrmModeTrigCst    = 3   // XFRM_MODE_IN_TRIGGER
 	xfrmPcpuUnsetCst   = 0xffffffff
 	// xfrmMarkLenCst is struct xfrm_mark's 8 bytes.
-	xfrmMarkLenCst   = 8
-	xfrmAddCst       = "add"
-	xfrmUpdateCst    = "update"
-	xfrmAllocspiCst  = "allocspi"
-	xfrmDeleteallCst = "deleteall"
-	xfrmFlushCst     = "flush"
-	xfrmDirCst       = "dir"
-	xfrmDirOutCst    = "out"
-	xfrmPcpuCst      = "pcpu-num"
-	xfrmSeqCst       = "seq"
-	xfrmMaskWordCst  = "mask"
+	xfrmMarkLenCst  = 8
+	xfrmPcpuCst     = "pcpu-num"
+	xfrmSeqCst      = "seq"
+	xfrmMaskWordCst = "mask"
 )
 
 // xfrmAddattr is a request ip builds in a fixed buffer: nlLen is
@@ -649,17 +640,6 @@ func (m *xfrmModify) secCtx(a *xfrmArgs) error {
 	return err
 }
 
-// xfrmSecCtxBytes is xfrm_sctx_parse's struct and the context.
-func xfrmSecCtxBytes(s string) []byte {
-	slen := len(s) + 1
-	b := binary.LittleEndian.AppendUint16(nil, uint16(xtcpnl.XfrmUserSecCtxSizeCst+slen))
-	b = binary.LittleEndian.AppendUint16(b, xtcpnl.XfrmAttrSecCtx)
-	b = append(b, 1, 1)
-	b = binary.LittleEndian.AppendUint16(b, uint16(slen))
-	b = append(b, s...)
-	return append(b, 0)
-}
-
 // offloadDev is offload: crypto or packet, then dev and its index, then
 // dir and its direction.
 func (m *xfrmModify) offloadDev(a *xfrmArgs) error {
@@ -1178,4 +1158,18 @@ func xfrmDeleteallMark(body []byte, hdrLen int) ([]byte, error) {
 		off += nlmsgAlign(l)
 	}
 	return mark, nil
+}
+
+// xfrmStateDelete is xfrm_state_get_or_delete's delete: the DELSA, with
+// NLM_F_ACK, to GOIP_WRITE_OUT.
+func xfrmStateDelete(c *runCtx, args []string) error {
+	hdr, attrs, err := xfrmStateIDRequest(c, args)
+	if err != nil {
+		return err
+	}
+	req, err := xtcpnl.BuildXfrmWriteRequest(xtcpnl.XfrmMsgDelSA, unix.NLM_F_ACK, c.nextSeq(), hdr, attrs)
+	if err != nil {
+		return err
+	}
+	return writeAddrOut(req)
 }

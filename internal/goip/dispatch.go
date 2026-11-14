@@ -202,7 +202,6 @@ const (
 // The keywords spelled the same in `ip link`, `ip route` and `ip nexthop`.
 const (
 	vrfKeywordCst = "vrf"
-	mtuKeywordCst = "mtu"
 )
 
 // lookupObject resolves an argument to an object, first match in table order.
