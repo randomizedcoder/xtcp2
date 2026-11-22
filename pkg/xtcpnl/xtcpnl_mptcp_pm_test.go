@@ -465,3 +465,53 @@ func TestParseMPTCPPMCorpus(t *testing.T) {
 		})
 	}
 }
+
+// FuzzParseMPTCPPM drives ParseMPTCPPM with arbitrary bodies: it must
+// never panic, and a body it accepts must leave each endpoint's address
+// valid-or-absent and, when valid, v4 or v6. Seeds are the kernel's
+// answers the ws rows hold (a v4 subflow, a v6 signal on a device, a
+// signal with a port, the limits), ip's get by id, and a bare header.
+//
+// go test ./pkg/xtcpnl/ -run '^$' -fuzz FuzzParseMPTCPPM
+func FuzzParseMPTCPPM(f *testing.F) {
+	getAddr := []byte{MPTCPPMCmdGetAddr, MPTCPPMGenlVersion, 0, 0}
+	getLimits := []byte{MPTCPPMCmdGetLimits, MPTCPPMGenlVersion, 0, 0}
+	nest := func(parts ...[]byte) []byte {
+		return rtattr(MPTCPPMAttrAddr|unix.NLA_F_NESTED, cat(parts...))
+	}
+	u16 := func(v uint16) []byte { return []byte{byte(v), byte(v >> 8)} }
+	u32 := func(v uint32) []byte { return []byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24)} }
+	f.Add(cat(getAddr, nest(
+		rtattr(MPTCPAddrAttrFamily, u16(unix.AF_INET)),
+		rtattr(MPTCPAddrAttrPort, u16(0)),
+		rtattr(MPTCPAddrAttrID, []byte{1}),
+		rtattr(MPTCPAddrAttrFlags, u32(MPTCPAddrFlagSubflow)),
+		rtattr(MPTCPAddrAttrAddr4, []byte{192, 0, 2, 1}))))
+	f.Add(cat(getAddr, nest(
+		rtattr(MPTCPAddrAttrFamily, u16(unix.AF_INET6)),
+		rtattr(MPTCPAddrAttrPort, u16(0)),
+		rtattr(MPTCPAddrAttrID, []byte{2}),
+		rtattr(MPTCPAddrAttrFlags, u32(MPTCPAddrFlagSignal)),
+		rtattr(MPTCPAddrAttrIfIdx, u32(3)),
+		rtattr(MPTCPAddrAttrAddr6, []byte{0x20, 0x01, 0x0d, 0xb8, 15: 1}))))
+	f.Add(cat(getAddr, nest(
+		rtattr(MPTCPAddrAttrFamily, u16(unix.AF_INET)),
+		rtattr(MPTCPAddrAttrPort, u16(10000)),
+		rtattr(MPTCPAddrAttrID, []byte{3}),
+		rtattr(MPTCPAddrAttrFlags, u32(MPTCPAddrFlagSignal|MPTCPAddrFlagBackup)),
+		rtattr(MPTCPAddrAttrAddr4, []byte{192, 0, 2, 2}))))
+	f.Add(cat(getAddr, nest(rtattr(MPTCPAddrAttrID, []byte{2}))))
+	f.Add(cat(getLimits, rtattr(MPTCPPMAttrRcvAddAddrs, u32(3)), rtattr(MPTCPPMAttrSubflows, u32(4))))
+	f.Add(getLimits)
+	f.Fuzz(func(t *testing.T, body []byte) {
+		m, err := ParseMPTCPPM(body)
+		if err != nil {
+			return
+		}
+		for _, a := range []*MPTCPAddr{m.Addr, m.AddrRemote} {
+			if a != nil && a.Addr.IsValid() && !a.Addr.Is4() && !a.Addr.Is6() {
+				t.Fatalf("address %v is neither v4 nor v6", a.Addr)
+			}
+		}
+	})
+}

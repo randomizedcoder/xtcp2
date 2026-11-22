@@ -43,6 +43,9 @@
   negatives. MPTCP is built in, so the workbench kernel needed nothing. ip's endpoint
   paths also dump links on rtnetlink (`ll_init_map`) to name a `dev`, so the rows capture
   on a new `generic+route` protocol. Two fresh boots are byte-identical (V089).
+  `goip` already clones `ip mptcp` (and `ip fou`, which `gofou` duplicates), so with the
+  user the increment was re-scoped: no `gomptcp`; 4P adds the fuzz target and O3/O4 over
+  the corpus (V090), and 4R holds goip to it.
 
 ## Contents
 
@@ -68,7 +71,7 @@
 | 1 — devlink | capture → parser → tests → `godevlink` clone → bug hunt | done | V079, V080, V081, DOC026 |
 | 2 — vdpa | capture → parser → tests → `govdpa` clone → bug hunt | done | V082, V083, V084, DOC027 |
 | 3 — fou | capture → parser → tests → `gofou` clone → bug hunt | done | V085, V086, V087, DOC028 |
-| 4 — mptcp | capture → parser → tests → `gomptcp` clone → bug hunt | in progress | V089 |
+| 4 — mptcp | capture → parser → tests → goip parity over the ws corpus → bug hunt | in progress | V090 |
 
 ## Task checklist
 
@@ -89,14 +92,15 @@
 | [x] | 3B | audit `ip/ipfou.c`, record findings only | done | DOC028 |
 | [x] | GATE-1 | whole-arc pre-push gates (increments 1–3) + push | done | V088 |
 | [x] | 4C (NC-MP) | `matrix_mptcp.go`, `generic+route` capture, two-boot capture | done | V089 |
-| [ ] | 4P (NP-MP) | extend `xtcpnl_mptcp_pm.go` + builders + table tests + fuzz + O3/O4 | not started | |
-| [ ] | 4R (NR-MP) | `gomptcp` clone + corpus/imports tests + nix pkg | not started | |
+| [x] | 4P (NP-MP) | `FuzzParseMPTCPPM` + `xtcpnl_ws_mptcp_test.go` O3/O4 (builders: `BuildGenlRequest`, as goip) | done | V090 |
+| [ ] | 4R (NR-MP) | goip replays the 26 ws rows (`internal/goip/ws_mptcp_test.go`); no `gomptcp` | not started | |
 | [ ] | 4B | audit `ip/ipmptcp.c`, record findings only | not started | |
 
 ## Verification ledger
 
 | ID | Task | Evidence |
 |---|---|---|
+| V090 | 4P | **Scope:** no new request builder. goip builds its mptcp requests with `BuildGenlRequest` (`obj_mptcp.go`), and the O3 test does the same, so a family-specific builder would be a third copy. `ParseMPTCPPM` already decoded every attribute the rows carry (`TestParseMPTCPPMCorpus`, V089), so no decoder change either. **`xtcpnl_ws_mptcp_test.go`:** `TestMptcpParseCmd` (15 rows: dump, get by id with boundaries 0/255/256, limits, a set's word in limits show, refusals, non-ip and non-mptcp commands) pins the classifier. `TestWsMptcpCorpus` is O3 and O4 over the 26 rows. A generic+route capture also holds the link dump, and RTM_NEWLINK is 16, GENL_ID_CTRL's number, so the test keeps NETLINK_GENERIC messages by the pcap's protocol before resolving the family. O3: each of the 19 rows that send a request sends exactly one. It equals `BuildGenlRequest` at the captured seq byte for byte: the GET_ADDR dump, the GET_ADDR whose `NLA_F_NESTED` ADDR holds only the id, and GET_LIMITS, with SUBFLOWS for `limits show subflows 3`. The seven refusals send none. The kernel's EINVAL row has no answer and prints nothing. Every answer decodes: 20 endpoints, each with family, id, flags and an address, and 8 limits. O4: the five `-j` endpoint outputs equal, object by object and key by key in ip's order, what the decoded endpoints print. That is address, port when non-zero, id, flags in `print_mptcp_addr_flags`' table order, and dev named from the capture's own link dump. The eight limits outputs, `-j` ones included, are the text `add_addr_accepted N subflows M ` with the decoded values. **`FuzzParseMPTCPPM`:** seeds are the rows' three endpoint shapes (v4 subflow, v6 signal with ifindex, v4 signal with port and backup), ip's get by id, a limits answer and a bare header. Invariant: no panic, and an accepted address is v4 or v6. 20 s run, 960k execs, no failure. **Mutation:** dropping `NLM_F_DUMP` from the O3 dump builder fails all 8 dump rows. Gates: `go vet`, `gofmt`, `go test ./pkg/xtcpnl/ ./internal/goip/ ./tools/nlcapgen/`, `checks.{lint-baseline,netlink-audit,kernel-citation-audit}`. |
 | V089 | 4C | **Kernel:** none. `MPTCP` is a bool Kconfig, built into the base workbench kernel (`MPTCP_IPV6` too: the v6 endpoint adds and dumps), so the rows load no module. **Rows:** `matrix_mptcp.go` generates `mptcp.rows.jsonl`, 26 rows, registered in `nlcapgen/main.go` (and `fou`, missed in 3C, was added to the `-family` help) and pinned by `TestMptcpSpace` (21 subtests). The `mptcp_pm` family is `netnsok=true` with per-netns endpoints and limits (`net/mptcp/pm_netlink.c:633`, `pm_nl_pernet`), so each row runs in its own fresh namespace: no `initns`, no `serial`. The positives are nine fixtures, each plain and `-j`: `ep-empty`, `ep-one`, `ep-multi` (a v4 subflow, a v6 signal on `dev d0`, a v4 signal with port 10000 and backup, a v4 subflow fullmesh), `ep-id` (`show id 2`), `ep-bare` (bare `endpoint`), `lim-default`, `lim-set` (limits set in `pre`), `lim-bare` and `lim-showarg` (`limits show subflows 3`). The negatives: `help` (rc 255, no wire), `badobj`, `endpoint junk`, `limits junk` (all rc 255), `endpoint show junk` (rc 1, see below), `endpoint show id 0` (rc 255, "cannot be 0"), `limits show junk` (rc 255) and `endpoint show id 9` (kernel EINVAL, extack "address not found", rc 2). **Capture protocol:** ip's endpoint paths call `ll_init_map(&rth)`, an RTM_GETLINK dump on its *rtnetlink* socket, to name an endpoint's dev. The dump path does it on the first endpoint it prints; `show id` does it in `mptcp_parse_opt`, before the GET_ADDR. A first capture on `generic` held none of it, yet printed `dev d0`, so no replay could reproduce the name. The helper's `nl_filter` now takes a filter expression (`PROTO_FILTER`), and a new protocol, `generic+route`, keeps NETLINK_GENERIC and NETLINK_ROUTE together. It is added to `rows.go`, `nlcap_batch.py` (+1 `test_nlcap_batch.py` row) and the `xtcp2-nlcap-ws.sh` usage. Existing protocols' filters are unchanged. The namespace is quiet, so the route records are ip's own, and the `ss -x` sentinel is still dropped. Every mptcp row uses it (a limits row captures no route traffic). **Wire shape:** `ec-003` is GETFAMILY, the GET_ADDR dump, four endpoints + DONE, then the link dump (three links: lo, the capture's nlmon device, d0). `ec-004`/`ng-006` put the link dump *before* their GET_ADDR. The empty dump and limits rows have no link dump. **First pass:** 25/26. `endpoint show junk` exits 1, not 255: a word that is no flag or keyword falls to `get_addr`, which prints "any valid address is expected" and exits 1 itself, so `mptcp_parse_opt`'s `invarg("unknown argument")` is unreachable. The expectation was corrected. **Determinism:** two fresh boots, 26/26 matched `Expect` each time. All `ip.out`/`ip.err`/`ip.rc` are byte-identical and all pcap sizes match. Corpus committed at `pkg/xtcpnl/testdata/7_3_1/ws/mptcp/` (26 row dirs, 130 files, 520K). **Parser tally:** `TestParseMPTCPPMCorpus` walks the whole corpus, so its counts rose, each reconciled against the rows: GET_ADDR requests 14→25 (+8 dumps, +3 gets by id), replies 12→32, GET_LIMITS requests 5→13 (2 carrying SUBFLOWS), replies 5→13. Gates: `go test ./tools/nlcapgen/ ./pkg/xtcpnl/` (the ws corpus checker re-derives every row's `refused_by` from its pcap), `test_nlcap_batch.py` (15), `checks.{nlcap-ws,vm-lib-exp,nix-fmt,statix,deadnix,gofmt,lint-baseline,netlink-audit,kernel-citation-audit}`. **Seen for 4B:** `ip -j mptcp limits show` prints *text*, because `mptcp_limit_get_set` never calls `new_json_obj` (`pw-006`–`pw-009`). `limits show subflows 3` sends SUBFLOWS in a GET_LIMITS, which the kernel's policy accepts and its doit ignores (`ec-009`). `print_mptcp_addrinfo` reads the kernel's u16 `FAMILY` (`nla_put_u16`, `pm_netlink.c:141`) with `rta_getattr_u8`, which is right only on little-endian. The limits block has no unknown branch, so `ip mptcp limits monitor` falls into the monitor (not captured, since it never exits). `get_addr` makes `invarg("unknown argument")` dead code. |
 | V088 | GATE-1 | Whole-arc pre-push gates for increments 1–3. `lint-baseline` had gained two `prealloc` findings in `internal/gofou/unit_test.go`, where `newFamilyMsg`/`fouMapMsg` built their byte slices with `append` chains. They were fixed in code by building each as one composite literal (`c17005018`, no `nolint`), and `lint-baseline` then passes. The full `go test ./...` and `nix build .#checks.x86_64-linux.test-go-race` both pass. `goip/genl-clones` was pushed to `origin` (`randomizedcoder/xtcp2`) with the user's OK on 2026-11-22. No PR was opened; the user deferred it. |
 | DOC025 | DOC-GC | Plan doc [genl-clones.md](genl-clones.md) and this status doc written, modeled on the closed `ip`-clone docs; ledger continues the shared sequence from V078. |
@@ -118,6 +122,13 @@
 - **2026-11-22 — increment 4 is mptcp.** With the three families done, the user chose
   `ip mptcp` (genl `mptcp_pm`) over `ip l2tp` and `teamnl`. Like fou, it is an `ip`
   sub-command over a hardware-free, netnsok family, and the repo already decodes it.
+- **2026-11-22 — increment 4 re-scoped to goip parity.** Starting 4P, `goip` turned out
+  to clone `ip mptcp` already (`internal/goip/obj_mptcp.go`, G6-T04), with replay tests
+  over the older `link-write/genl` corpus. It clones `ip fou` too (`obj_fou.go`,
+  G6-T05), which the plan missed for 3R: `gofou` duplicates it. The user chose to build
+  no `gomptcp` and instead hold goip to the new ws corpus (4P fuzz + O3/O4, 4R goip
+  replay of all 26 rows, 4B audit). `gofou` stays as it is (tested, standalone, a
+  byte-exact replay of its corpus), with the overlap recorded here.
 - **2026-11-22 — mptcp rows capture generic+route.** ip names an endpoint's dev from its
   own RTM_GETLINK dump (`ll_init_map`), on rtnetlink. Three alternatives were rejected: a
   `generic`-only capture plus a dev-name sidecar, a readback `ip link` capture, and a

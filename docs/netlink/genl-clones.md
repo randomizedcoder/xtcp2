@@ -150,19 +150,29 @@ than builds.
   to name an endpoint's `dev`. The rows capture on a new **`generic+route`** protocol so
   that dump is in the pcap and the clone can replay it.
 
-### 4P/4R/4B
-- Extend `xtcpnl_mptcp_pm.go`: request builders for the GET_ADDR dump, GET_ADDR by id
-  and GET_LIMITS; fill the grid; `FuzzParseMPTCPPM`; `xtcpnl_ws_mptcp_test.go`.
-- `cmd/gomptcp` + `internal/gomptcp/`: replay the generic+route pcap (replies attributed
-  per netlink protocol, since ip interleaves the link dump with the genl dump), dual
-  text/JSON, renderers for the endpoint and limits shows.
-- Audit `ip/ipmptcp.c`, record only.
+### 4P/4R/4B (re-scoped 2026-11-22)
+
+`goip` already clones `ip mptcp` whole (`internal/goip/obj_mptcp.go`, G6-T04), as it
+does `ip fou` (`obj_fou.go`, G6-T05) — which the plan missed when it scoped 3R, so
+`gofou` duplicates it. With the user, increment 4 therefore builds no `gomptcp`; it
+holds goip to the new ws corpus instead:
+
+- **4P:** no new request builder: goip builds its mptcp requests with
+  `BuildGenlRequest`, and the O3 test does too. `FuzzParseMPTCPPM`;
+  `xtcpnl_ws_mptcp_test.go` (O3: every row's request byte for byte; O4: the `-j`
+  endpoint JSON and the limits text against the decoded answers).
+- **4R:** `internal/goip/ws_mptcp_test.go` replays all 26 rows through goip over each
+  row's own generic+route pcap: stdout byte for byte, rc, every genl exchange replayed,
+  and ip's RTM_GETLINK dump request. A refusal keeps goip's own text (its `goip:`
+  prefix, no trailing period, no extack), so stderr is held byte for byte only where
+  ip printed nothing.
+- **4B:** audit `ip/ipmptcp.c`, record only.
 
 ## Verification
 
 **Per task (hermetic):** `go test ./tools/nlcapgen/`; `go test ./pkg/xtcpnl/`;
-`go test ./internal/{godevlink,govdpa,gofou,gomptcp}/`; `CGO_ENABLED=0 go build ./...`;
-`nix build --no-link .#{godevlink,govdpa,gofou,gomptcp}`; lint-baseline, netlink-audit,
+`go test ./internal/{godevlink,govdpa,gofou}/` (and `./internal/goip/` for mptcp); `CGO_ENABLED=0 go build ./...`;
+`nix build --no-link .#{godevlink,govdpa,gofou}`; lint-baseline, netlink-audit,
 kernel-citation-audit, statix, deadnix, nix-fmt, gofmt (fix findings in code — no
 `nolint`/`#nosec`); mutants on new decode/render logic under
 `systemd-run --user --scope -q -p MemoryMax=6G go test -timeout=180s`.
