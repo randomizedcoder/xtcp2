@@ -218,6 +218,9 @@ class TestRun(unittest.TestCase):
              row(proto="sock_diag", readback=[
                  {"name": "dump", "cmd": "ss -t", "proto": "sock_diag"}]),
              ["write --proto sock_diag", "capio --proto sock_diag"]),
+            ("positive: a generic+route row passes both to the helper",
+             row(proto="generic+route"),
+             ["write --proto generic+route"]),
             ("boundary: no proto is route", row(readback=[
                 {"name": "link", "cmd": "ip -j link"}]),
              ["write --proto route", "capio --proto route"]),

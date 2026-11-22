@@ -159,7 +159,7 @@ func (r row) validate() error {
 // validProto is a protocol the workbench captures; "" is route.
 func validProto(p string) bool {
 	switch p {
-	case "", "route", "generic", "xfrm", "sock_diag":
+	case "", "route", "generic", "generic+route", "xfrm", "sock_diag":
 		return true
 	}
 	return false

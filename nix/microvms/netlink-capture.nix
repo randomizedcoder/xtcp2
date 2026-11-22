@@ -1120,7 +1120,14 @@ pkgs.writeShellApplication {
     # sock_diag row closes its window on `ip link show dev lo` instead: one
     # NETLINK_ROUTE dump, tapped and countable alike, which the row's filter
     # drops. Either way the sentinel never shares the row's protocol.
-    PROTO=0
+    #
+    # generic+route keeps NETLINK_GENERIC and NETLINK_ROUTE together, for a
+    # genl command that also talks rtnetlink: `ip mptcp endpoint show` names
+    # an endpoint's dev through ll_init_map's RTM_GETLINK dump, on ip's
+    # rtnetlink socket, and a replay of its output needs that dump too. The
+    # row's namespace is quiet, so the route records kept are the command's
+    # own; the ss -x sentinel is still dropped.
+    PROTO_FILTER='ether[14:2]==0'
     PROTO_NAME=route
 
     mkdir -p "$OUT"
@@ -1141,26 +1148,27 @@ pkgs.writeShellApplication {
       PATH="$NLCAP_IP_BIN:$PATH"
     fi
 
-    # set_proto <name> - set PROTO and PROTO_NAME, or die on a name that is
-    # not one of the three.
+    # set_proto <name> - set PROTO_FILTER and PROTO_NAME, or die on a name
+    # that is not one of the PROTOCOLS.
     set_proto() {
       case "$1" in
-        route) PROTO=0 ;;
-        xfrm) PROTO=6 ;;
-        generic) PROTO=16 ;;
+        route) PROTO_FILTER='ether[14:2]==0' ;;
+        xfrm) PROTO_FILTER='ether[14:2]==6' ;;
+        generic) PROTO_FILTER='ether[14:2]==16' ;;
+        generic+route) PROTO_FILTER='ether[14:2]==16 or ether[14:2]==0' ;;
         sock_diag)
-          PROTO=4
+          PROTO_FILTER='ether[14:2]==4'
           SENTINEL_CMD='ip link show dev lo'
           SENTINEL_FILTER='ether[14:2]==0'
           ;;
-        *) die "unknown netlink protocol '$1'; want route, generic, xfrm or sock_diag" ;;
+        *) die "unknown netlink protocol '$1'; want route, generic, generic+route, xfrm or sock_diag" ;;
       esac
       PROTO_NAME=$1
     }
 
-    # nl_filter <in> <out> - keep only the records of protocol PROTO.
+    # nl_filter <in> <out> - keep only the records of the row's protocol(s).
     nl_filter() {
-      tcpdump -r "$1" -w "$2" "ether[14:2]==$PROTO" >/dev/null 2>&1 || true
+      tcpdump -r "$1" -w "$2" "$PROTO_FILTER" >/dev/null 2>&1 || true
     }
 
     # Poll a file until it contains a pattern, or the holder process dies, or

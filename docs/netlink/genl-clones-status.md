@@ -1,15 +1,15 @@
-# genl clones (devlink, vdpa, fou): implementation status
+# genl clones (devlink, vdpa, fou, mptcp): implementation status
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-22
 
 **Summary:**
 - The design and task plan are in [genl-clones.md](genl-clones.md). This document tracks
   progress against them. The arc follows the closed `ip`-clone work
   ([goip-parity-next.md](goip-parity-next.md)), whose ledger ran to V078; this arc's
   ledger starts at **V079**.
-- The arc does three increments — **devlink**, **vdpa**, **fou** — each
+- The arc did three increments — **devlink**, **vdpa**, **fou** — each
   captures → parser → table tests → read-only render clone, each continuing the iproute2
-  bug hunt (recorded only).
+  bug hunt (recorded only). A fourth, **mptcp**, was added after they closed.
 - **Increment 1 (devlink): complete.** 1C captured 22 rows (ten read-only dumps ×
   plain/`-j` + two negatives), serial with a fixed netdevsim bus id 0, two boots
   byte-identical (V079); 1P added `ParseDevlink` + table/fuzz tests + the O3/O4 corpus,
@@ -35,6 +35,14 @@
   all 13 rows byte-exact (V087). 3B recorded three `ip/ipfou.c` print-path findings, headed
   by a dropped `REMCSUM_NOPARTIAL` attribute (DOC028). **Increment 3 is done, and with it
   the whole three-family arc.**
+- **Pre-push gates and push (GATE-1): done.** Full `go test ./...`, `test-go-race` and
+  `lint-baseline` pass after a lint fix in the gofou tests; `goip/genl-clones` is pushed,
+  with no PR yet (V088).
+- **Increment 4 (mptcp): in progress.** The user chose `ip mptcp` (genl `mptcp_pm`). 4C
+  captured 26 rows: nine read-only endpoint/limits fixtures × plain/`-j`, plus eight
+  negatives. MPTCP is built in, so the workbench kernel needed nothing. ip's endpoint
+  paths also dump links on rtnetlink (`ll_init_map`) to name a `dev`, so the rows capture
+  on a new `generic+route` protocol. Two fresh boots are byte-identical (V089).
 
 ## Contents
 
@@ -60,6 +68,7 @@
 | 1 — devlink | capture → parser → tests → `godevlink` clone → bug hunt | done | V079, V080, V081, DOC026 |
 | 2 — vdpa | capture → parser → tests → `govdpa` clone → bug hunt | done | V082, V083, V084, DOC027 |
 | 3 — fou | capture → parser → tests → `gofou` clone → bug hunt | done | V085, V086, V087, DOC028 |
+| 4 — mptcp | capture → parser → tests → `gomptcp` clone → bug hunt | in progress | V089 |
 
 ## Task checklist
 
@@ -78,11 +87,18 @@
 | [x] | 3P (NP-FO) | extend `xtcpnl_fou.go` + table tests + fuzz + O3/O4 | done | V086 |
 | [x] | 3R (NR-FO) | `gofou` clone + corpus/imports tests + nix pkg | done | V087 |
 | [x] | 3B | audit `ip/ipfou.c`, record findings only | done | DOC028 |
+| [x] | GATE-1 | whole-arc pre-push gates (increments 1–3) + push | done | V088 |
+| [x] | 4C (NC-MP) | `matrix_mptcp.go`, `generic+route` capture, two-boot capture | done | V089 |
+| [ ] | 4P (NP-MP) | extend `xtcpnl_mptcp_pm.go` + builders + table tests + fuzz + O3/O4 | not started | |
+| [ ] | 4R (NR-MP) | `gomptcp` clone + corpus/imports tests + nix pkg | not started | |
+| [ ] | 4B | audit `ip/ipmptcp.c`, record findings only | not started | |
 
 ## Verification ledger
 
 | ID | Task | Evidence |
 |---|---|---|
+| V089 | 4C | **Kernel:** none. `MPTCP` is a bool Kconfig, built into the base workbench kernel (`MPTCP_IPV6` too: the v6 endpoint adds and dumps), so the rows load no module. **Rows:** `matrix_mptcp.go` generates `mptcp.rows.jsonl`, 26 rows, registered in `nlcapgen/main.go` (and `fou`, missed in 3C, was added to the `-family` help) and pinned by `TestMptcpSpace` (21 subtests). The `mptcp_pm` family is `netnsok=true` with per-netns endpoints and limits (`net/mptcp/pm_netlink.c:633`, `pm_nl_pernet`), so each row runs in its own fresh namespace: no `initns`, no `serial`. The positives are nine fixtures, each plain and `-j`: `ep-empty`, `ep-one`, `ep-multi` (a v4 subflow, a v6 signal on `dev d0`, a v4 signal with port 10000 and backup, a v4 subflow fullmesh), `ep-id` (`show id 2`), `ep-bare` (bare `endpoint`), `lim-default`, `lim-set` (limits set in `pre`), `lim-bare` and `lim-showarg` (`limits show subflows 3`). The negatives: `help` (rc 255, no wire), `badobj`, `endpoint junk`, `limits junk` (all rc 255), `endpoint show junk` (rc 1, see below), `endpoint show id 0` (rc 255, "cannot be 0"), `limits show junk` (rc 255) and `endpoint show id 9` (kernel EINVAL, extack "address not found", rc 2). **Capture protocol:** ip's endpoint paths call `ll_init_map(&rth)`, an RTM_GETLINK dump on its *rtnetlink* socket, to name an endpoint's dev. The dump path does it on the first endpoint it prints; `show id` does it in `mptcp_parse_opt`, before the GET_ADDR. A first capture on `generic` held none of it, yet printed `dev d0`, so no replay could reproduce the name. The helper's `nl_filter` now takes a filter expression (`PROTO_FILTER`), and a new protocol, `generic+route`, keeps NETLINK_GENERIC and NETLINK_ROUTE together. It is added to `rows.go`, `nlcap_batch.py` (+1 `test_nlcap_batch.py` row) and the `xtcp2-nlcap-ws.sh` usage. Existing protocols' filters are unchanged. The namespace is quiet, so the route records are ip's own, and the `ss -x` sentinel is still dropped. Every mptcp row uses it (a limits row captures no route traffic). **Wire shape:** `ec-003` is GETFAMILY, the GET_ADDR dump, four endpoints + DONE, then the link dump (three links: lo, the capture's nlmon device, d0). `ec-004`/`ng-006` put the link dump *before* their GET_ADDR. The empty dump and limits rows have no link dump. **First pass:** 25/26. `endpoint show junk` exits 1, not 255: a word that is no flag or keyword falls to `get_addr`, which prints "any valid address is expected" and exits 1 itself, so `mptcp_parse_opt`'s `invarg("unknown argument")` is unreachable. The expectation was corrected. **Determinism:** two fresh boots, 26/26 matched `Expect` each time. All `ip.out`/`ip.err`/`ip.rc` are byte-identical and all pcap sizes match. Corpus committed at `pkg/xtcpnl/testdata/7_3_1/ws/mptcp/` (26 row dirs, 130 files, 520K). **Parser tally:** `TestParseMPTCPPMCorpus` walks the whole corpus, so its counts rose, each reconciled against the rows: GET_ADDR requests 14→25 (+8 dumps, +3 gets by id), replies 12→32, GET_LIMITS requests 5→13 (2 carrying SUBFLOWS), replies 5→13. Gates: `go test ./tools/nlcapgen/ ./pkg/xtcpnl/` (the ws corpus checker re-derives every row's `refused_by` from its pcap), `test_nlcap_batch.py` (15), `checks.{nlcap-ws,vm-lib-exp,nix-fmt,statix,deadnix,gofmt,lint-baseline,netlink-audit,kernel-citation-audit}`. **Seen for 4B:** `ip -j mptcp limits show` prints *text*, because `mptcp_limit_get_set` never calls `new_json_obj` (`pw-006`–`pw-009`). `limits show subflows 3` sends SUBFLOWS in a GET_LIMITS, which the kernel's policy accepts and its doit ignores (`ec-009`). `print_mptcp_addrinfo` reads the kernel's u16 `FAMILY` (`nla_put_u16`, `pm_netlink.c:141`) with `rta_getattr_u8`, which is right only on little-endian. The limits block has no unknown branch, so `ip mptcp limits monitor` falls into the monitor (not captured, since it never exits). `get_addr` makes `invarg("unknown argument")` dead code. |
+| V088 | GATE-1 | Whole-arc pre-push gates for increments 1–3. `lint-baseline` had gained two `prealloc` findings in `internal/gofou/unit_test.go`, where `newFamilyMsg`/`fouMapMsg` built their byte slices with `append` chains. They were fixed in code by building each as one composite literal (`c17005018`, no `nolint`), and `lint-baseline` then passes. The full `go test ./...` and `nix build .#checks.x86_64-linux.test-go-race` both pass. `goip/genl-clones` was pushed to `origin` (`randomizedcoder/xtcp2`) with the user's OK on 2026-11-22. No PR was opened; the user deferred it. |
 | DOC025 | DOC-GC | Plan doc [genl-clones.md](genl-clones.md) and this status doc written, modeled on the closed `ip`-clone docs; ledger continues the shared sequence from V078. |
 | V079 | 1C | `matrix_devlink.go` + `main.go` registration generate `devlink.rows.jsonl` (22 rows: ten dumps × plain/`-j` + `nosuch`/`nodev` negatives, all serial, fixed netdevsim bus id 0). Captured on two fresh workbench boots; the batches agree row-for-row — file lists identical, `cmd.json` and all sidecars byte-identical, pcap sizes match — so no normalization is needed, and every row's rc matched its `Expect` (22/22). Corpus committed at `pkg/xtcpnl/testdata/7_3_1/ws/devlink/` (22 row dirs, 111 files). The O3/O4 Go corpus test is 1P (`xtcpnl_ws_devlink_test.go`). |
 | DOC026 | 1B | Audited `devlink/devlink.c`'s read-only print paths; recorded two findings in [upstream/iproute2-devlink-print-widths.md](upstream/iproute2-devlink-print-widths.md) (recorded only, never sent): (1) `resource_show` prints the u64 `occ`/`size_min`/`size_gran` through `print_uint` (an `unsigned int` printer), truncating any value ≥ 2³² — while the sibling `size`/`size_max` use `pr_out_u64`; reachable on a driver with a multi-gigabyte resource, not on netdevsim. (2) `pr_out_param_value_print`'s value-type switch omits the `DEVLINK_VAR_ATTR_TYPE_U64` arm its siblings handle, so a u64 param value would print its label with no number; latent, since no kernel param type is u64 today. Verified both against the checkout at `a3c19931` with exact line numbers and the `print_uint` signature. |
@@ -98,6 +114,16 @@
 | V080 | 1P | `xtcpnl_devlink.go` decodes the devlink genl reply **by attribute presence**, not command number: the capture kernel renumbers the `DEVLINK_CMD` enum (e.g. `resource show`'s request is 36 here vs 40 upstream, and the ten reply commands likewise shift), while the `DEVLINK_ATTR_*` tree is append-only and stable, so the parser keys its one typed section off the marker attribute. Table tests (`xtcpnl_devlink_test.go`): `TestDevlinkPositive` (10 rows, one per section, each `description`+`expected`), `TestDevlinkMalformed` (7 negatives: short hdr, partial attr, len zero, len overflow, dup singleton, wrong-width index, `NLA_F_NESTED` on a scalar), `TestDevlinkBoundaryCorner` (7: bodiless, handle-alone empty-dump member, unlimited u64 sentinel, unknown attr/command/param-type, request flag), and `FuzzParseDevlink` (15s, no crashers). O3/O4 corpus (`xtcpnl_ws_devlink_test.go`): all 22 rows — each dump goes over the devlink family (id 24, resolved from the capture) with `NLM_F_DUMP`; each reply decodes to the section its `words` axis names (kernel-independent, so the command skew is irrelevant); each `-j` stdout is keyed by that section and carries every identifier the decode pulled (22 requests, 18 sections, 9 JSON replies checked). Nine manual mutations under the 6G memory cap: seven killed outright; two teeth gaps found and closed in the same change (a u32 param value widened past 16 bits so a narrow read is caught; fixed/running/stored info versions given distinct values so a source-id swap is caught); one residual survivor is the defensive `NLA_F_NESTED` sibling filter in `infoVersions`, which no realistic reply exercises. `kernel-citation-audit`, `netlink-audit`, `lint-baseline`, `gofmt`, `go vet` all pass. **Correction to V079:** the `nosuch` negative (ng-001) was committed as `refused_by: iproute2`, but the capture shows one acknowledged `CTRL_CMD_GETFAMILY` (type 16) before devlink rejects the unknown object locally — `ack-then-fail` by the ws taxonomy; `matrix_devlink.go`, `devlink.rows.jsonl` and the committed `ng-001/cmd.json` label were corrected (wire bytes untouched; `TestWsCorpusRows` now passes). |
 
 ## Decision log
+
+- **2026-11-22 — increment 4 is mptcp.** With the three families done, the user chose
+  `ip mptcp` (genl `mptcp_pm`) over `ip l2tp` and `teamnl`. Like fou, it is an `ip`
+  sub-command over a hardware-free, netnsok family, and the repo already decodes it.
+- **2026-11-22 — mptcp rows capture generic+route.** ip names an endpoint's dev from its
+  own RTM_GETLINK dump (`ll_init_map`), on rtnetlink. Three alternatives were rejected: a
+  `generic`-only capture plus a dev-name sidecar, a readback `ip link` capture, and a
+  clone that never prints dev. None replays what ip sent, and byte-for-byte parity is
+  about what was sent. The helper filter became an expression so one row can keep two
+  protocols. The change is additive: existing protocols are untouched.
 
 - **2026-11-13 — families and the netdev swap.** Three increments: devlink, vdpa, fou.
   `netdev` genl was dropped (no userspace CLI — only the kernel's unpackaged `tools/net/ynl`),

@@ -1,4 +1,4 @@
-# genl clones: devlink, vdpa, fou — captures first
+# genl clones: devlink, vdpa, fou, mptcp — captures first
 
 **Status doc:** [genl-clones-status.md](genl-clones-status.md) tracks progress against this plan.
 
@@ -131,11 +131,38 @@ problem as netdev); devlink/vdpa *write* paths; live `monitor`.
   `FuzzParseFou`; add `xtcpnl_ws_fou_test.go`; `cmd/gofou` + `internal/gofou/`; audit
   `ip/ipfou.c`, record only.
 
+## Increment 4 — mptcp (genl, `ip mptcp` CLI, built-in MPTCP)
+
+Added on 2026-11-22, after the three-family arc closed and was pushed. Chosen by the user
+over `l2tp` and `team`: like fou, it is an `ip` sub-command over a hardware-free,
+`netnsok` genl family (`mptcp_pm`), and the repo already decodes it
+(`xtcpnl_mptcp_pm.go`, from the older `link-write/genl` corpus), so 4P extends rather
+than builds.
+
+### 4C: capture (NC-MP)
+- Guest readiness: none. `MPTCP` is a bool Kconfig (built in), so rows load no module.
+- `matrix_mptcp.go` space `mptcp`, read-only: `endpoint show` (dump), `endpoint show id
+  N` (one GET_ADDR), bare `endpoint`, `limits show`, bare `limits`, and `limits show
+  subflows N` (a set spelled into a read), each plain and `-j`, over a dummy-`d0`
+  topology with endpoints added in `pre`. Negatives: help, unknown object/sub-commands,
+  a non-address show argument, `id 0`, an absent id (kernel EINVAL), a bad limit.
+- ip's endpoint paths call `ll_init_map`, an RTM_GETLINK dump on its rtnetlink socket,
+  to name an endpoint's `dev`. The rows capture on a new **`generic+route`** protocol so
+  that dump is in the pcap and the clone can replay it.
+
+### 4P/4R/4B
+- Extend `xtcpnl_mptcp_pm.go`: request builders for the GET_ADDR dump, GET_ADDR by id
+  and GET_LIMITS; fill the grid; `FuzzParseMPTCPPM`; `xtcpnl_ws_mptcp_test.go`.
+- `cmd/gomptcp` + `internal/gomptcp/`: replay the generic+route pcap (replies attributed
+  per netlink protocol, since ip interleaves the link dump with the genl dump), dual
+  text/JSON, renderers for the endpoint and limits shows.
+- Audit `ip/ipmptcp.c`, record only.
+
 ## Verification
 
 **Per task (hermetic):** `go test ./tools/nlcapgen/`; `go test ./pkg/xtcpnl/`;
-`go test ./internal/{godevlink,govdpa,gofou}/`; `CGO_ENABLED=0 go build ./...`;
-`nix build --no-link .#{godevlink,govdpa,gofou}`; lint-baseline, netlink-audit,
+`go test ./internal/{godevlink,govdpa,gofou,gomptcp}/`; `CGO_ENABLED=0 go build ./...`;
+`nix build --no-link .#{godevlink,govdpa,gofou,gomptcp}`; lint-baseline, netlink-audit,
 kernel-citation-audit, statix, deadnix, nix-fmt, gofmt (fix findings in code — no
 `nolint`/`#nosec`); mutants on new decode/render logic under
 `systemd-run --user --scope -q -p MemoryMax=6G go test -timeout=180s`.

@@ -1,0 +1,1 @@
+[{"address":"192.0.2.1","id":1,"subflow":true},{"address":"2001:db8::1","id":2,"signal":true,"dev":"d0"},{"address":"192.0.2.2","port":10000,"id":3,"signal":true,"backup":true},{"address":"192.0.2.3","id":4,"subflow":true,"fullmesh":true}]
