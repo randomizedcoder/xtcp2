@@ -22,9 +22,9 @@ package main
 // address and port widths are network order on the wire.
 //
 // This space is read-only: the `ip fou add` setup runs in `pre`, outside
-// the capture window; no add/del is captured. The clone (internal/gofou)
-// replays these captures and must reproduce `ip fou show`'s stdout byte
-// for byte.
+// the capture window; no add/del is captured. goip's obj_fou.go replays
+// these captures (internal/goip's TestWsFouCorpus) and must reproduce
+// `ip fou show`'s stdout byte for byte.
 
 var fouModules = []string{"fou"}
 

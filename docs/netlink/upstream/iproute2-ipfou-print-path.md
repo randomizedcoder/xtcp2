@@ -140,9 +140,10 @@ index), silently (`ip/ipfou.c:284`).
   peer addresses as 4-or-16-byte values — so finding 1's attribute is not
   dropped and findings 2 and 3 are not decode hazards. `ParseFOU` is fuzzed
   (`FuzzParseFOU`) and bounded by attribute length throughout.
-- `internal/gofou` reproduces `ip fou show`'s *captured* output byte for
+- `internal/goip`'s `obj_fou.go` (which replaced `internal/gofou` on
+  2026-11-22) reproduces `ip fou show`'s *captured* output byte for
   byte, so it prints exactly what `ip` prints — including, deliberately, not
   showing remcsum-nopartial — because that is what parity means. The faults
   live in `ip/ipfou.c`'s own print and argument paths; the corpus exercises
   none of them (its ports are plain v4/v6 with no flag and no peer), so
-  gofou simply never reaches those branches.
+  goip's show simply never reaches those branches.

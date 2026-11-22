@@ -27,7 +27,8 @@ continuing the iproute2 bug hunt (recorded only, never sent).
 
 Each increment adds a read-only render clone modeled on `gordma` (the read-only
 `rdma(8)` clone): `godevlink`, `govdpa`, `gofou`. Each replays its own capture corpus
-and must reproduce the real CLI's stdout/stderr/rc byte for byte.
+and must reproduce the real CLI's stdout/stderr/rc byte for byte. (`gofou` was later
+retired into goip's `obj_fou.go`, which replays the same corpus; see 3P/3R/3B.)
 
 **Scope guard:** the clones cover only the read-only dump/show subcommands actually
 captured — not the full CLIs (devlink in particular is large). No writes, no
@@ -130,6 +131,8 @@ problem as netdev); devlink/vdpa *write* paths; live `monitor`.
   `FOU_ATTR_*` set; fill the positive/negative/boundary/corner grid; extend
   `FuzzParseFou`; add `xtcpnl_ws_fou_test.go`; `cmd/gofou` + `internal/gofou/`; audit
   `ip/ipfou.c`, record only.
+- **Retired (2026-11-22):** `gofou` duplicated goip's `obj_fou.go`. It is deleted, and
+  `internal/goip/ws_fou_test.go` holds goip to the 13 fou ws rows instead.
 
 ## Increment 4 — mptcp (genl, `ip mptcp` CLI, built-in MPTCP)
 
@@ -154,7 +157,7 @@ than builds.
 
 `goip` already clones `ip mptcp` whole (`internal/goip/obj_mptcp.go`, G6-T04), as it
 does `ip fou` (`obj_fou.go`, G6-T05) — which the plan missed when it scoped 3R, so
-`gofou` duplicates it. With the user, increment 4 therefore builds no `gomptcp`; it
+`gofou` duplicated it (since retired into goip). With the user, increment 4 therefore builds no `gomptcp`; it
 holds goip to the new ws corpus instead:
 
 - **4P:** no new request builder: goip builds its mptcp requests with
@@ -171,8 +174,8 @@ holds goip to the new ws corpus instead:
 ## Verification
 
 **Per task (hermetic):** `go test ./tools/nlcapgen/`; `go test ./pkg/xtcpnl/`;
-`go test ./internal/{godevlink,govdpa,gofou}/` (and `./internal/goip/` for mptcp); `CGO_ENABLED=0 go build ./...`;
-`nix build --no-link .#{godevlink,govdpa,gofou}`; lint-baseline, netlink-audit,
+`go test ./internal/{godevlink,govdpa}/` (and `./internal/goip/` for fou and mptcp); `CGO_ENABLED=0 go build ./...`;
+`nix build --no-link .#{godevlink,govdpa}`; lint-baseline, netlink-audit,
 kernel-citation-audit, statix, deadnix, nix-fmt, gofmt (fix findings in code — no
 `nolint`/`#nosec`); mutants on new decode/render logic under
 `systemd-run --user --scope -q -p MemoryMax=6G go test -timeout=180s`.

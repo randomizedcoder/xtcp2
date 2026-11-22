@@ -1,15 +1,8 @@
 package goip
 
 import (
-	"bytes"
-	"encoding/json"
-	"os"
-	"path/filepath"
-	"slices"
-	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -17,65 +10,6 @@ import (
 // endpoint and limits shows, captured on generic+route, so each pcap holds
 // the mptcp_pm exchanges and the RTM_GETLINK dump ip's ll_init_map made.
 const wsMptcpDir = "../../pkg/xtcpnl/testdata/7_3_1/ws/mptcp"
-
-// wsMptcpSrc is a row's replay, with the route dumps goip asked for, seq
-// and pid zeroed, kept to hold against ip's. It answers no single get:
-// ip names an endpoint's dev from its link map, never by RTM_GETLINK get.
-type wsMptcpSrc struct {
-	*ReplaySource
-	routeReqs [][]byte
-}
-
-func (s *wsMptcpSrc) Dump(req []byte, typ uint16) ([][]byte, error) {
-	s.routeReqs = append(s.routeReqs, zeroSeqPidCopy(req))
-	return s.ReplaySource.Dump(req, typ)
-}
-
-// wsMptcpResult is one row replayed through goip.
-type wsMptcpResult struct {
-	rc             int
-	stdout, stderr string
-	writes         []nlparity.Msg
-	src            *wsMptcpSrc
-}
-
-// wsMptcpRun replays the row in dir: `goip [-j] mptcp WORDS` over the
-// row's own pcap, both protocols of it. stderr is what goip prints, its
-// refusal included.
-func wsMptcpRun(t *testing.T, dir, cmd string) wsMptcpResult {
-	t.Helper()
-	f := strings.Fields(cmd)
-	if len(f) < 2 || f[0] != "ip" {
-		t.Fatalf("not an ip command: %q", cmd)
-	}
-	f = f[1:]
-	jsonOut := f[0] == "-j"
-	if jsonOut {
-		f = f[1:]
-	}
-	if len(f) == 0 || f[0] != "mptcp" {
-		t.Fatalf("not an ip mptcp command: %q", cmd)
-	}
-	rs, err := OpenReplay(filepath.Join(dir, "ip.pcap"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	src := &wsMptcpSrc{ReplaySource: rs}
-	out := filepath.Join(t.TempDir(), "write.bin")
-	t.Setenv(writeOutEnvCst, out)
-	var stdout, stderr bytes.Buffer
-	c := newRunCtx(nil, &stdout, &stderr)
-	c.src, c.json = src, jsonOut
-	rerr := runMptcp(c, f[1:])
-	if rerr != nil {
-		stderr.WriteString("goip: " + rerr.Error() + "\n")
-	}
-	r := wsMptcpResult{rc: ioamExit(rerr), stdout: stdout.String(), stderr: stderr.String(), src: src}
-	if _, serr := os.Stat(out); serr == nil {
-		r.writes = genlWrites(t, out, xtcpnl.MPTCPPMGenlName)
-	}
-	return r
-}
 
 // TestWsMptcpCorpus replays every row of the mptcp ws space through goip
 // (genl-clones 4R): a show prints ip's stdout byte for byte, the -j
@@ -89,11 +23,7 @@ func wsMptcpRun(t *testing.T, dir, cmd string) wsMptcpResult {
 // go test ./internal/goip/ -run TestWsMptcpCorpus
 func TestWsMptcpCorpus(t *testing.T) {
 	useLLMap720(t) // the rows ran ip 7.2.0, whose link dump asks for names alone
-	tests := []struct {
-		description string
-		row         string
-		expected    string // "" is ip's stdout, empty stderr; else a fragment of goip's stderr
-	}{
+	tests := []wsGenlCase{
 		{description: "boundary: no endpoints, NLMSG_DONE alone and no link dump", row: "ec-001"},
 		{description: "boundary: -j no endpoints, an empty array", row: "pw-002"},
 		{description: "positive: one endpoint, the link dump on its print", row: "pw-001"},
@@ -127,41 +57,5 @@ func TestWsMptcpCorpus(t *testing.T) {
 		{description: "corner: limits has no unknown branch of its own", row: "ng-008",
 			expected: `Command "junk" is unknown, try "ip mptcp help"`},
 	}
-	ents, err := os.ReadDir(wsMptcpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(ents) != len(tests) {
-		t.Errorf("%d rows on disk, %d in the table", len(ents), len(tests))
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			dir := filepath.Join(wsMptcpDir, tc.row)
-			var row wsRowFile
-			if err := json.Unmarshal([]byte(mustReadFile(t, filepath.Join(dir, "cmd.json"))), &row); err != nil {
-				t.Fatal(err)
-			}
-			r := wsMptcpRun(t, dir, row.Cmd)
-			if r.rc != row.Result.RC {
-				t.Fatalf("%s: exit %d, ip's %d\nstderr %q", row.Cmd, r.rc, row.Result.RC, r.stderr)
-			}
-			if stdout := mustReadFile(t, filepath.Join(dir, "ip.out")); r.stdout != stdout {
-				t.Errorf("%s: stdout\n got %q\nwant %q", row.Cmd, r.stdout, stdout)
-			}
-			if tc.expected == "" {
-				if r.stderr != "" || mustReadFile(t, filepath.Join(dir, "ip.err")) != "" {
-					t.Errorf("%s: stderr %q, ip.err must be empty and goip's too", row.Cmd, r.stderr)
-				}
-			} else if !strings.Contains(r.stderr, tc.expected) {
-				t.Errorf("%s: stderr %q lacks %q", row.Cmd, r.stderr, tc.expected)
-			}
-			ioamCheckExchanges(t, r.src.ReplaySource, r.writes)
-			ipReqs := mplsIPRequests(t, filepath.Join(dir, "ip.pcap"))
-			got := slices.Clone(r.src.routeReqs)
-			slices.SortFunc(got, bytes.Compare)
-			if !slices.EqualFunc(got, ipReqs, bytes.Equal) {
-				t.Errorf("%s: route requests\n got %x\nwant %x", row.Cmd, got, ipReqs)
-			}
-		})
-	}
+	wsGenlCheck(t, wsMptcpDir, "mptcp", xtcpnl.MPTCPPMGenlName, runMptcp, tests)
 }

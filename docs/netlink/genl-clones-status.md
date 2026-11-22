@@ -49,6 +49,11 @@
   stdout and exit status, and ip's genl and route requests, with no goip change needed
   (V091). 4B recorded seven `ip/ipmptcp.c` findings, headed by `-j limits show`
   printing text (DOC029). **Increment 4 is done.**
+- **gofou retired into goip: done.** `gofou` duplicated goip's `obj_fou.go`, so with
+  the user it was folded in. `internal/goip/ws_fou_test.go` now holds goip to all 13
+  fou ws rows: ip's stdout, exit status and genl exchanges, with no goip change
+  needed. The ws replay helpers are now shared by fou and mptcp (`ws_genl_test.go`).
+  `cmd/gofou`, `internal/gofou` and its nix binary entry are deleted (V092).
 
 ## Contents
 
@@ -73,7 +78,7 @@
 |---|---|---|---|
 | 1 — devlink | capture → parser → tests → `godevlink` clone → bug hunt | done | V079, V080, V081, DOC026 |
 | 2 — vdpa | capture → parser → tests → `govdpa` clone → bug hunt | done | V082, V083, V084, DOC027 |
-| 3 — fou | capture → parser → tests → `gofou` clone → bug hunt | done | V085, V086, V087, DOC028 |
+| 3 — fou | capture → parser → tests → `gofou` clone (retired into goip, V092) → bug hunt | done | V085, V086, V087, V092, DOC028 |
 | 4 — mptcp | capture → parser → tests → goip parity over the ws corpus → bug hunt | done | V089, V090, V091, DOC029 |
 
 ## Task checklist
@@ -98,11 +103,13 @@
 | [x] | 4P (NP-MP) | `FuzzParseMPTCPPM` + `xtcpnl_ws_mptcp_test.go` O3/O4 (builders: `BuildGenlRequest`, as goip) | done | V090 |
 | [x] | 4R (NR-MP) | goip replays the 26 ws rows (`internal/goip/ws_mptcp_test.go`); no `gomptcp` | done | V091 |
 | [x] | 4B | audit `ip/ipmptcp.c`, record findings only | done | DOC029 |
+| [x] | 3R-RET | retire `gofou`: goip replays the 13 fou ws rows (`ws_fou_test.go`); delete `cmd/gofou`, `internal/gofou`, nix entry | done | V092 |
 
 ## Verification ledger
 
 | ID | Task | Evidence |
 |---|---|---|
+| V092 | 3R-RET | **`internal/goip/ws_fou_test.go`, `TestWsFouCorpus`** (13 subtests, one per row, each with `description` and `expected`). `wsMptcpRun` and the per-row checks became `wsGenlRun`/`wsGenlCheck` in `ws_genl_test.go`, shared by `TestWsFouCorpus` and `TestWsMptcpCorpus` (unchanged, 26 passes). Each fou row runs `runFou` over its own generic pcap. The ten shows print ip's stdout byte for byte with empty stderr. The three refusals exit as ip did (help 255, `show junk` 1, `badobj` 255), and goip's stderr holds ip's message without its full stop. Every genl exchange is made and there is no write or route request, as ip made none. Mutation: sending the GET without `NLM_F_DUMP` fails all 10 show rows. **Ported from gofou:** nothing new. goip's `TestFouMatchesIp`, `TestFouShow` and `TestFouExitCodes` already covered gofou's show, prefix, refusal and dump-error cases. gofou's dump-error test expected exit 1, but `do_show`'s 1 is negated by `do_ipfou`'s caller, so ip exits 255, as goip's `TestFouExitCodes` pins (the `show junk` row confirms the negation: `do_show`'s -1 exits 1). Top-level option and object dispatch is goip's own `Run`. **Deleted:** `cmd/gofou`, `internal/gofou` (7 files), the `gofou` entry in `nix/binaries.nix`. Comments updated in `tools/nlcapgen/matrix_fou.go` and `upstream/iproute2-ipfou-print-path.md`. |
 | DOC029 | 4B | Audited `ip/ipmptcp.c`'s endpoint and limits paths and `do_mptcp` against the kernel's `mptcp_nl_fill_addr` (`net/mptcp/pm_netlink.c:132`), the GET/SET_LIMITS policy and handlers (`mptcp_pm_gen.c:47-55`, `pm_kernel.c:1401-1470`), and the `mptcp` corpus. Seven findings are recorded in [upstream/iproute2-mptcp-show-paths.md](upstream/iproute2-mptcp-show-paths.md), recorded only and never sent. (1) `ip -j mptcp limits show` prints text: `mptcp_limit_get_set` (`:433`) never calls `new_json_obj`, unlike the endpoint shows (`:317`, `:345`), so `is_json_context()` is false (`pw-006`–`pw-009`). (2) `limits show` runs the set's `mptcp_parse_limit` (`:440`). `limits show subflows 3` sends SUBFLOWS in a GET_LIMITS that the policy accepts and the doit ignores, so a mistyped set exits 0 having set nothing (`ec-009`). (3) `print_mptcp_addrinfo` reads the kernel's u16 FAMILY (`pm_netlink.c:141`; ip's own request writes it `addattr16`, `:202`) with `rta_getattr_u8` (`:242`). On big-endian every endpoint is `AF_UNSPEC`: a v4 address goes unprinted and a v6 one is formatted as `AF_UNSPEC`. (4) The `limits` block (`:654-666`) has no `goto unknown`, so `ip mptcp limits monitor` runs the monitor. (5) `get_addr` exits 1 itself (`lib/utils.c:738`), so `mptcp_parse_opt`'s `invarg("unknown argument")` (`:164`) is dead, and an unknown endpoint word exits 1, not the file's usual 255 (`ng-004`). (6) Eight `invarg` messages end in `\n` (`:140,150,155,176,178,180,374,380`), giving a blank line after the error (`ng-005`). (7) The u32 limits print with `%d` (`:418,424`), which is latent since the kernel caps them at 64 (`pm_kernel.c:1409`). goip reproduces all of them, as a byte-exact clone must, and `xtcpnl`'s O3/O4 documents 1 and 2. Static audit, no new live testing. Gates: `checks.kernel-citation-audit`, codespell. |
 | V091 | 4R | **`internal/goip/ws_mptcp_test.go`, `TestWsMptcpCorpus`** (26 subtests, one per row, each with `description` and `expected`). Each row runs `runMptcp` over a `ReplaySource` of the row's own generic+route pcap, which replays both protocols. A thin wrapper records the route dump requests. With `useLLMap720`, the rows ran ip 7.2.0. The checks: the exit status equals `ip.rc`, and stdout equals `ip.out` byte for byte (the `-j` limits' text, the empty `[]`, `dev d0` from the captured link dump). ioamCheckExchanges confirms every genl exchange (GETFAMILY, GET_ADDR dump or get, GET_LIMITS) was replayed and nothing was written. goip's route requests, sorted with seq and pid zeroed, equal ip's: the RTM_GETLINK dump where ip made one, none where it did not (empty dump, limits, refusals before `mptcp_parse_opt`). stderr: empty for both on the 18 positives. On the 8 refusals goip keeps its own refusal text, as it does across goip (a `goip:` prefix, Go's no-full-stop error style, no extack decoding), so the row's `expected` is ip's message without its full stop, which goip's stderr must contain. The kernel's EINVAL row expects goip's `invalid argument`, where ip prints the extack `Error: address not found.`. **Result:** goip needed no change. A first probe through the top-level `Run` with `GOIP_REPLAY` matched rc and stdout on all 26 rows. The only differences were those stderr texts. **Mutation:** dropping `useLLMap720` (7.3.x's link-dump request) fails the route-request check on all 11 rows that dump links, so that comparison is live. `gofou` is not touched (decision log). Gates: `go vet`, `gofmt`, `go test ./internal/goip/`, `checks.lint-baseline`. |
 | V090 | 4P | **Scope:** no new request builder. goip builds its mptcp requests with `BuildGenlRequest` (`obj_mptcp.go`), and the O3 test does the same, so a family-specific builder would be a third copy. `ParseMPTCPPM` already decoded every attribute the rows carry (`TestParseMPTCPPMCorpus`, V089), so no decoder change either. **`xtcpnl_ws_mptcp_test.go`:** `TestMptcpParseCmd` (15 rows: dump, get by id with boundaries 0/255/256, limits, a set's word in limits show, refusals, non-ip and non-mptcp commands) pins the classifier. `TestWsMptcpCorpus` is O3 and O4 over the 26 rows. A generic+route capture also holds the link dump, and RTM_NEWLINK is 16, GENL_ID_CTRL's number, so the test keeps NETLINK_GENERIC messages by the pcap's protocol before resolving the family. O3: each of the 19 rows that send a request sends exactly one. It equals `BuildGenlRequest` at the captured seq byte for byte: the GET_ADDR dump, the GET_ADDR whose `NLA_F_NESTED` ADDR holds only the id, and GET_LIMITS, with SUBFLOWS for `limits show subflows 3`. The seven refusals send none. The kernel's EINVAL row has no answer and prints nothing. Every answer decodes: 20 endpoints, each with family, id, flags and an address, and 8 limits. O4: the five `-j` endpoint outputs equal, object by object and key by key in ip's order, what the decoded endpoints print. That is address, port when non-zero, id, flags in `print_mptcp_addr_flags`' table order, and dev named from the capture's own link dump. The eight limits outputs, `-j` ones included, are the text `add_addr_accepted N subflows M ` with the decoded values. **`FuzzParseMPTCPPM`:** seeds are the rows' three endpoint shapes (v4 subflow, v6 signal with ifindex, v4 signal with port and backup), ip's get by id, a limits answer and a bare header. Invariant: no panic, and an accepted address is v4 or v6. 20 s run, 960k execs, no failure. **Mutation:** dropping `NLM_F_DUMP` from the O3 dump builder fails all 8 dump rows. Gates: `go vet`, `gofmt`, `go test ./pkg/xtcpnl/ ./internal/goip/ ./tools/nlcapgen/`, `checks.{lint-baseline,netlink-audit,kernel-citation-audit}`. |
@@ -132,8 +139,12 @@
   over the older `link-write/genl` corpus. It clones `ip fou` too (`obj_fou.go`,
   G6-T05), which the plan missed for 3R: `gofou` duplicates it. The user chose to build
   no `gomptcp` and instead hold goip to the new ws corpus (4P fuzz + O3/O4, 4R goip
-  replay of all 26 rows, 4B audit). `gofou` stays as it is (tested, standalone, a
-  byte-exact replay of its corpus), with the overlap recorded here.
+  replay of all 26 rows, 4B audit). At first `gofou` stayed, with the overlap recorded
+  here; see the next entry.
+- **2026-11-22 — gofou retired into goip.** After the push, the user chose to resolve
+  the overlap by retiring `gofou` rather than keeping two `ip fou` clones. goip already
+  reproduces all 13 fou ws rows and also covers add/del. `ws_fou_test.go` holds goip to
+  the corpus gofou was built on, and gofou is deleted (V092).
 - **2026-11-22 — mptcp rows capture generic+route.** ip names an endpoint's dev from its
   own RTM_GETLINK dump (`ll_init_map`), on rtnetlink. Three alternatives were rejected: a
   `generic`-only capture plus a dev-name sidecar, a readback `ip link` capture, and a
