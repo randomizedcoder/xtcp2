@@ -33,20 +33,24 @@ func (f *fakeSource) Talk(_ []byte) (Reply, error) {
 
 // newFamilyMsg is a CTRL_CMD_NEWFAMILY reply naming "fou" with id 42.
 func newFamilyMsg() Msg {
-	body := []byte{1, 0, 0, 0}                                    // genlmsghdr cmd=NEWFAMILY
-	body = append(body, 0x06, 0x00, 0x01, 0x00, 42, 0, 0, 0)      // CTRL_ATTR_FAMILY_ID u16
-	body = append(body, 0x08, 0x00, 0x02, 0x00, 'f', 'o', 'u', 0) // CTRL_ATTR_FAMILY_NAME
+	body := []byte{
+		1, 0, 0, 0, // genlmsghdr cmd=NEWFAMILY
+		0x06, 0x00, 0x01, 0x00, 42, 0, 0, 0, // CTRL_ATTR_FAMILY_ID u16
+		0x08, 0x00, 0x02, 0x00, 'f', 'o', 'u', 0, // CTRL_ATTR_FAMILY_NAME
+	}
 	return Msg{Type: genlIDCtrl, Body: body}
 }
 
 // fouMapMsg is one FOU_CMD_GET mapping: port 5555, ipproto 4 (IPIP), direct,
 // AF_INET. The port is big-endian on the wire.
 func fouMapMsg() Msg {
-	b := []byte{3, 1, 0, 0}                                 // genlmsghdr cmd=FOU_CMD_GET
-	b = append(b, 0x06, 0x00, 0x01, 0x00, 0x15, 0xb3, 0, 0) // FOU_ATTR_PORT be16 5555
-	b = append(b, 0x05, 0x00, 0x02, 0x00, 2, 0, 0, 0)       // FOU_ATTR_AF u8 AF_INET
-	b = append(b, 0x05, 0x00, 0x03, 0x00, 4, 0, 0, 0)       // FOU_ATTR_IPPROTO u8 4
-	b = append(b, 0x05, 0x00, 0x04, 0x00, 1, 0, 0, 0)       // FOU_ATTR_TYPE u8 DIRECT
+	b := []byte{
+		3, 1, 0, 0, // genlmsghdr cmd=FOU_CMD_GET
+		0x06, 0x00, 0x01, 0x00, 0x15, 0xb3, 0, 0, // FOU_ATTR_PORT be16 5555
+		0x05, 0x00, 0x02, 0x00, 2, 0, 0, 0, // FOU_ATTR_AF u8 AF_INET
+		0x05, 0x00, 0x03, 0x00, 4, 0, 0, 0, // FOU_ATTR_IPPROTO u8 4
+		0x05, 0x00, 0x04, 0x00, 1, 0, 0, 0, // FOU_ATTR_TYPE u8 DIRECT
+	}
 	return Msg{Type: 42, Body: b}
 }
 
