@@ -1,0 +1,5 @@
+[{"ifname":"ip6tnl0","mode":"ipv6/ipv6","remote":"::","local":"::","encap_limit":0,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000"}
+,{"ifname":"ip6_vti0","mode":"ipv6/ipv6","remote":"::","local":"::","encap_limit":0,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000"}
+,{"ifname":"ip6t1","mode":"ipv6/ipv6","remote":"2001:db8::2","local":"2001:db8::1","link":"d0","ip6_tnl_f_ign_encap_limit":null,"hoplimit":1,"ip6_tnl_f_use_orig_tclass":null,"flowlabel":"0x12345","flowinfo":"0x00012345","ip6_tnl_f_allow_local_remote":null}
+,{"ifname":"vti61","mode":"ipv6/ipv6","remote":"2001:db8::5","local":"2001:db8::1","encap_limit":0,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000","ikey":3,"okey":4}
+]

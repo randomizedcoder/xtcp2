@@ -1,0 +1,15 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "-6",
+   "tunnel",
+   "show",
+   "dscp",
+   "5"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Error: argument \"5\" is wrong: not inherit\n"
+ }
+}

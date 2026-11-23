@@ -1,0 +1,14 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "ttl",
+   "300"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Error: argument \"300\" is wrong: invalid TTL\n\n"
+ }
+}

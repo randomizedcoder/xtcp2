@@ -1,0 +1,61 @@
+{
+ "props": [
+  {
+   "dev": "tap0",
+   "prop": "tun_flags",
+   "value": "0x3802\n"
+  },
+  {
+   "dev": "tap0",
+   "prop": "owner",
+   "value": "1000\n"
+  },
+  {
+   "dev": "tap0",
+   "prop": "group",
+   "value": "100\n"
+  },
+  {
+   "dev": "tap2",
+   "prop": "tun_flags",
+   "value": "0x802\n"
+  },
+  {
+   "dev": "tap2",
+   "prop": "owner",
+   "value": "-1\n"
+  },
+  {
+   "dev": "tap2",
+   "prop": "group",
+   "value": "-1\n"
+  },
+  {
+   "dev": "tun1",
+   "prop": "tun_flags",
+   "value": "0x5901\n"
+  },
+  {
+   "dev": "tun1",
+   "prop": "owner",
+   "value": "-1\n"
+  },
+  {
+   "dev": "tun1",
+   "prop": "group",
+   "value": "-1\n"
+  }
+ ],
+ "run": {
+  "argv": [
+   "ip",
+   "-j",
+   "-6",
+   "tuntap",
+   "show"
+  ],
+  "rc": 0,
+  "stdout": "[{\"ifname\":\"tap0\",\"flags\":[\"tap\",\"one_queue\",\"persist\"],\"user\":1000,\"group\":100},{\"ifname\":\"tun1\",\"flags\":[\"tun\",\"multi_queue\",\"vnet_hdr\",\"persist\"]},{\"ifname\":\"tap2\",\"flags\":[\"tap\",\"pi\",\"persist\",\"filter\"]}]\n",
+  "stderr": ""
+ }
+}

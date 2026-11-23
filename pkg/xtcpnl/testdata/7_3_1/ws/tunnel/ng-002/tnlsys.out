@@ -1,0 +1,14 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "key",
+   "5"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "Keys are not allowed with ipip and sit tunnels\n"
+ }
+}

@@ -1,0 +1,1 @@
+sit0: ipv6/ip remote any local any ttl 64 nopmtudisc

@@ -1,0 +1,1 @@
+gre6x: any/ip remote 32.1.13.184 local 0.0.0.1 ttl inherit tos inherit nopmtudisc ikey 0

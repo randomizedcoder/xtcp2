@@ -1,0 +1,15 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "-6",
+   "tunnel",
+   "show",
+   "flowlabel",
+   "0x100000"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Error: argument \"0x100000\" is wrong: invalid Flowlabel\n"
+ }
+}

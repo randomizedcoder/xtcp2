@@ -347,8 +347,11 @@ func TestSpillOf(t *testing.T) {
 		want        []byte
 	}{
 		{"positive: an untouched window is no spill", fill, nil},
-		{"positive: one written byte returns the window", []byte{spillFill, 0, spillFill, spillFill}, []byte{spillFill, 0, spillFill, spillFill}},
+		{"positive: a written prefix is the spill", []byte{0, 6, spillFill, spillFill}, []byte{0, 6}},
+		{"positive: the whole window written", []byte{1, 2, 3, 4}, []byte{1, 2, 3, 4}},
 		{"boundary: an empty window", nil, nil},
+		{"boundary: one byte written", []byte{0, spillFill, spillFill, spillFill}, []byte{0}},
+		{"corner: a written spillFill inside the reply is kept", []byte{spillFill, 0, spillFill, spillFill}, []byte{spillFill, 0}},
 		{"corner: the last byte written", []byte{spillFill, spillFill, spillFill, 1}, []byte{spillFill, spillFill, spillFill, 1}},
 	}
 	for _, tc := range tests {

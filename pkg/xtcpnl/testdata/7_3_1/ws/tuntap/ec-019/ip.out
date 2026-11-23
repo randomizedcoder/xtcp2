@@ -1,0 +1,6 @@
+tap0: tap one_queue persist user 1000 group 100
+tun1: tun multi_queue vnet_hdr persist
+tap2: tap pi persist filter
+tap0: tap one_queue persist user 1000 group 100
+tun1: tun multi_queue vnet_hdr persist
+tap2: tap pi persist filter

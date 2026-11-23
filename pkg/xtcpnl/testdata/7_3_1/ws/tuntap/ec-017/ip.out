@@ -1,0 +1,6 @@
+tap0: tap one_queue persist user 1000 group 100
+	Attached to processes:python3(209912)
+tun1: tun multi_queue vnet_hdr persist
+	Attached to processes:python3(209915)python3(209918)
+tap2: tap pi persist filter
+	Attached to processes:

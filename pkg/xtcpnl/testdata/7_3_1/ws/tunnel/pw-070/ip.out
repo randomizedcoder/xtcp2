@@ -1,0 +1,16 @@
+gre0: gre/ip remote any local any ttl inherit nopmtudisc
+[{"ifname":"gre0","mode":"gre/ip","remote":"0.0.0.0","local":"0.0.0.0","nopmtudisc":null,"flags":[]}
+,{"ifname":"ip_vti0","mode":"ip/ip","remote":"0.0.0.0","local":"0.0.0.0","nopmtudisc":null,"key":0}
+,{"ifname":"tunl0","mode":"any/ip","remote":"0.0.0.0","local":"0.0.0.0","nopmtudisc":null}
+,{"ifname":"sit0","mode":"ipv6/ip","remote":"0.0.0.0","local":"0.0.0.0","ttl":64,"nopmtudisc":null}
+,{"ifname":"ipip1","mode":"any/ip","remote":"198.51.100.1","local":"192.0.2.1","dev":"d0","ttl":64,"tos":"0x10"}
+,{"ifname":"ipip2","mode":"any/ip","remote":"198.51.100.9","local":"0.0.0.0","nopmtudisc":null}
+,{"ifname":"gre1","mode":"gre/ip","remote":"198.51.100.2","local":"192.0.2.1","ttl":32,"key":5,"flags":["rx_drop_ooseq","rx_csum","tx_seq","tx_csum"]}
+,{"ifname":"gre2","mode":"gre/ip","remote":"198.51.100.3","local":"192.0.2.1","ikey":1,"okey":2,"flags":["rx_drop_ooseq","tx_csum"]}
+,{"ifname":"gre3","mode":"gre/ip","remote":"239.1.1.1","local":"192.0.2.1","ttl":1,"key":4009820417,"flags":[]}
+,{"ifname":"sit1","mode":"any/ip","remote":"198.51.100.4","local":"192.0.2.1","ttl":64}
+,{"ifname":"sit2","mode":"ipv6/ip","remote":"198.51.100.8","local":"192.0.2.1","ttl":16}
+,{"ifname":"isa1","mode":"ipv6/ip","remote":"0.0.0.0","local":"192.0.2.1","pr":"192.0.2.11","pdr":"192.0.2.10"}
+,{"ifname":"isan","mode":"any/ip","remote":"0.0.0.0","local":"192.0.2.2"}
+,{"ifname":"vti1","mode":"ip/ip","remote":"198.51.100.5","local":"192.0.2.1","nopmtudisc":null,"ikey":7,"okey":8}
+]

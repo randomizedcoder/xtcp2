@@ -1,0 +1,14 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "tos",
+   "bogus"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Error: argument \"bogus\" is wrong: bad TOS value\n"
+ }
+}

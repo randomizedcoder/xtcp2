@@ -69,12 +69,15 @@ func (l Live) Ioctl(family int, req uint32, name string, arg []byte) (spill []by
 	return spillOf(buf[len(arg):]), nil
 }
 
-// spillOf is the window past an argument when the kernel wrote into it,
-// nil when every byte is still spillFill.
+// spillOf is what the kernel wrote into a window past an argument that was
+// filled with spillFill: the window up to its last byte that is not
+// spillFill, nil when there is none. The kernel copies its reply from the
+// argument's start, so its write is a prefix of the window; a reply ending
+// in spillFill bytes is cut short by them.
 func spillOf(w []byte) []byte {
-	for _, c := range w {
-		if c != spillFill {
-			return append([]byte(nil), w...)
+	for i := len(w) - 1; i >= 0; i-- {
+		if w[i] != spillFill {
+			return append([]byte(nil), w[:i+1]...)
 		}
 	}
 	return nil

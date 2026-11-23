@@ -1,0 +1,12 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "prl"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Must specify device\n"
+ }
+}

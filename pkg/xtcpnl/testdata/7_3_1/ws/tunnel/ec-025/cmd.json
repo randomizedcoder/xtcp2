@@ -1,0 +1,109 @@
+{
+ "axes": {
+  "fix": "tnl4",
+  "json": "0",
+  "words": "tunnel show vti1"
+ },
+ "cmd": "ip tunnel show vti1",
+ "desc": "positive: opt=plain cmd=tnl4:tunnel_show_vti1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tunnel/ec-025",
+ "modules": [
+  "ipip",
+  "ip_gre",
+  "sit",
+  "ip_vti",
+  "ip6_tunnel",
+  "ip6_gre",
+  "ip6_vti"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:01:01 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.1/24 dev d0 && ip addr add 2001:db8::1/64 dev d0 nodad",
+  "ip link add ipip1 type ipip remote 198.51.100.1 local 192.0.2.1 ttl 64 tos 0x10 dev d0",
+  "ip link add ipip2 type ipip remote 198.51.100.9 nopmtudisc tos inherit",
+  "ip link add gre1 type gre remote 198.51.100.2 local 192.0.2.1 key 5 seq csum ttl 32",
+  "ip link add gre2 type gre remote 198.51.100.3 local 192.0.2.1 ikey 1 okey 2 iseq ocsum",
+  "ip link add gre3 type gre remote 239.1.1.1 local 192.0.2.1 ttl 1",
+  "ip link add sit1 type sit remote 198.51.100.4 local 192.0.2.1 ttl 64",
+  "ip tunnel add sit2 mode sit remote 198.51.100.8 local 192.0.2.1 ttl 16",
+  "ip tunnel add isa1 mode isatap local 192.0.2.1",
+  "ip tunnel prl dev isa1 prl-default 192.0.2.10 && ip tunnel prl dev isa1 prl-nodefault 192.0.2.11",
+  "ip link add isan type sit local 192.0.2.2 isatap && ip tunnel prl dev isan prl-default 192.0.2.12",
+  "ip link add vti1 type vti remote 198.51.100.5 local 192.0.2.1 ikey 7 okey 8"
+ ],
+ "proto": "route",
+ "readback": [
+  {
+   "cmd": "tnlsnap -- tunnel show vti1",
+   "name": "tnlsys"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:01:01 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.1/24 dev d0 && ip addr add 2001:db8::1/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add ipip1 type ipip remote 198.51.100.1 local 192.0.2.1 ttl 64 tos 0x10 dev d0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add ipip2 type ipip remote 198.51.100.9 nopmtudisc tos inherit",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add gre1 type gre remote 198.51.100.2 local 192.0.2.1 key 5 seq csum ttl 32",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add gre2 type gre remote 198.51.100.3 local 192.0.2.1 ikey 1 okey 2 iseq ocsum",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add gre3 type gre remote 239.1.1.1 local 192.0.2.1 ttl 1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add sit1 type sit remote 198.51.100.4 local 192.0.2.1 ttl 64",
+    "rc": 0
+   },
+   {
+    "cmd": "ip tunnel add sit2 mode sit remote 198.51.100.8 local 192.0.2.1 ttl 16",
+    "rc": 0
+   },
+   {
+    "cmd": "ip tunnel add isa1 mode isatap local 192.0.2.1",
+    "rc": 0
+   },
+   {
+    "cmd": "ip tunnel prl dev isa1 prl-default 192.0.2.10 && ip tunnel prl dev isa1 prl-nodefault 192.0.2.11",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add isan type sit local 192.0.2.2 isatap && ip tunnel prl dev isan prl-default 192.0.2.12",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add vti1 type vti remote 198.51.100.5 local 192.0.2.1 ikey 7 okey 8",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

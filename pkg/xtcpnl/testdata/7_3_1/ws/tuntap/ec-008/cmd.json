@@ -1,0 +1,63 @@
+{
+ "axes": {
+  "fix": "tun",
+  "json": "0",
+  "words": "tap"
+ },
+ "cmd": "ip tap",
+ "desc": "corner: opt=plain cmd=tun:tap",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tuntap/ec-008",
+ "modules": [
+  "tun"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:01:01 type dummy && ip link set d0 addrgenmode none",
+  "ip tuntap add tap0 mode tap user 1000 group 100 one_queue",
+  "ip tuntap add tun1 mode tun multi_queue vnet_hdr",
+  "ip tuntap add tap2 mode tap pi"
+ ],
+ "proto": "route",
+ "readback": [
+  {
+   "cmd": "tnlsnap -- tap",
+   "name": "tnlsys"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:01:01 type dummy && ip link set d0 addrgenmode none",
+    "rc": 0
+   },
+   {
+    "cmd": "ip tuntap add tap0 mode tap user 1000 group 100 one_queue",
+    "rc": 0
+   },
+   {
+    "cmd": "ip tuntap add tun1 mode tun multi_queue vnet_hdr",
+    "rc": 0
+   },
+   {
+    "cmd": "ip tuntap add tap2 mode tap pi",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

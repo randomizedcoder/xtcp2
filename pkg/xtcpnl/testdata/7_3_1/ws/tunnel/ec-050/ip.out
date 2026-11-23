@@ -1,0 +1,1 @@
+ip6t2: ip/ipv6 remote 2001:db8::3 local 2001:db8::1 encaplimit 2 hoplimit 64 tclass 0x20 flowlabel inherit (flowinfo 0x02000000) dscp inherit

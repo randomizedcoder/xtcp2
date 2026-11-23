@@ -1,0 +1,1 @@
+ip_vti0: ip/ip remote any local any ttl inherit nopmtudisc key 0

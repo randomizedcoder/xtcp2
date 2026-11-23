@@ -76,17 +76,26 @@ TunFDs() ([]TunFD, error)
 
 `tnlsnap -- ip ARGS...` (`cmd/tnlsnap`, nix package `tnlsnap`) does three things:
 1. It runs the real `ip` under ptrace (`tnlsys.Trace`, linux/amd64). At each `ioctl` entry for the three requests, it
-   reads the ifreq, then the argument plus `SpillWindow` bytes. At the exit, it reads the same window again.
+   reads the ifreq, then the argument plus `SpillWindow` bytes, and fills the bytes past the argument with `0xA5`, as
+   `Live` does. At the exit, it reads the window again:
+   - the spill is the window up to its last byte that is not `0xA5`, which is what the kernel wrote;
+   - the tracee gets its own bytes back after that.
+
+   Without the fill, the spill would include whatever `ip` kept on its stack past the argument, which varies from run
+   to run.
    - The family comes from the `socket(2)` that made the descriptor.
    - A `SIOCGETPRL` argument is sized from its own `datalen`.
    - Threads are followed (`PTRACE_O_TRACECLONE`), so a multithreaded test helper records as `ip` does.
 2. It records `tun_flags`, `owner` and `group` of every tun device in `/sys/class/net`.
-3. It records the `/dev/net/tun` descriptor walk.
+3. When `ip` would walk `/proc` itself, it records the `/dev/net/tun` descriptor walk. That is when `-details` is set
+   and the object is `tuntap` (or the run is a `-batch`, whose lines may name it). tnlsnap mirrors `ip.c`'s option loop
+   and `do_cmd`'s object order to decide. Any other walk would only record other rows' holder processes, which `ip`
+   never asks about and which vary between runs.
 
 It prints the snapshot as JSON. The traced run's own stdout, stderr and status go into the snapshot's `run`, so a
 capture can check that the recorded run matched the captured one.
 
-A capture row runs it as a readback, `{name: "tnlsys", cmd: "tnlsnap -- ip <the row's args>"}`. The readback goes to
+A capture row runs it as a readback, `{name: "tnlsys", cmd: "tnlsnap -- <the row's ip args>"}`. The readback goes to
 the row's `tnlsys.out`.
 
 ## Replay in goip

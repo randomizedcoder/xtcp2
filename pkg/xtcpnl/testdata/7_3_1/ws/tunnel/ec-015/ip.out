@@ -1,0 +1,14 @@
+ipip1: any/ip remote 198.51.100.1 local 192.0.2.1 dev d0 ttl 64 tos 0x10
+gre1: gre/ip remote 198.51.100.2 local 192.0.2.1 ttl 32 key 5
+  Drop packets out of sequence.
+  Checksum in received packet is required.
+  Sequence packets on output.
+  Checksum output packets.
+gre2: gre/ip remote 198.51.100.3 local 192.0.2.1 ttl inherit ikey 1 okey 2
+  Drop packets out of sequence.
+  Checksum output packets.
+gre3: gre/ip remote 239.1.1.1 local 192.0.2.1 ttl 1 key 4009820417
+sit1: any/ip remote 198.51.100.4 local 192.0.2.1 ttl 64
+sit2: ipv6/ip remote 198.51.100.8 local 192.0.2.1 ttl 16
+isa1: ipv6/ip remote any local 192.0.2.1 pr 192.0.2.11 pdr 192.0.2.10 ttl inherit
+vti1: ip/ip remote 198.51.100.5 local 192.0.2.1 ttl inherit nopmtudisc ikey 7 okey 8

@@ -1,0 +1,12 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tuntap",
+   "del"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "You failed to specify a tunnel mode\n"
+ }
+}

@@ -1,0 +1,12 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tuntap",
+   "help"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Usage: ip tuntap { add | del | show | list | lst | help } [ dev PHYS_DEV ]\n       [ mode { tun | tap } ] [ user USER ] [ group GROUP ]\n       [ one_queue ] [ pi ] [ vnet_hdr ] [ multi_queue ] [ name NAME ]\n\nWhere: USER  := { STRING | NUMBER }\n       GROUP := { STRING | NUMBER }\n"
+ }
+}

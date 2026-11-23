@@ -245,6 +245,12 @@ func (t *tracer) ioctlEntry(th *thread, tid int, fd int, req uint32, ifrAddr uin
 	if err := t.peek(tid, p.arg, p.in); err != nil {
 		return err
 	}
+	// Fill the window past the argument, as Live does, so that the exit
+	// can tell the kernel's bytes from the tracee's own (its stack, whose
+	// pointers vary run to run). ioctlExit restores what the kernel left.
+	if err := t.poke(tid, p.arg+uintptr(p.size), bytes.Repeat([]byte{spillFill}, SpillWindow)); err != nil {
+		return err
+	}
 	th.pend = p
 	return nil
 }
@@ -277,22 +283,37 @@ func retErrno(rax uint64) (unix.Errno, bool) {
 }
 
 func (t *tracer) ioctlExit(tid int, p *pendingIoctl, errno unix.Errno) error {
-	var s Snapshot
-	if errno != 0 {
-		s.AddIoctl(p.family, p.req, p.name, p.in[:p.size], nil, nil, errno)
-		t.recs = append(t.recs, s.Ioctls...)
-		return nil
-	}
 	out := make([]byte, len(p.in))
 	if err := t.peek(tid, p.arg, out); err != nil {
 		return err
 	}
-	var spill []byte
-	if !bytes.Equal(out[p.size:], p.in[p.size:]) {
-		spill = out[p.size:]
+	// The kernel's write past the argument is a prefix of the window; the
+	// tracee gets its own bytes back after it.
+	spill := spillOf(out[p.size:])
+	if keep := p.size + len(spill); keep < len(p.in) {
+		if err := t.poke(tid, p.arg+uintptr(keep), p.in[keep:]); err != nil {
+			return err
+		}
 	}
-	s.AddIoctl(p.family, p.req, p.name, p.in[:p.size], out[:p.size], spill, 0)
+	var s Snapshot
+	if errno != 0 {
+		s.AddIoctl(p.family, p.req, p.name, p.in[:p.size], nil, nil, errno)
+	} else {
+		s.AddIoctl(p.family, p.req, p.name, p.in[:p.size], out[:p.size], spill, 0)
+	}
 	t.recs = append(t.recs, s.Ioctls...)
+	return nil
+}
+
+// poke writes b into thread tid's memory at addr.
+func (t *tracer) poke(tid int, addr uintptr, b []byte) error {
+	n, err := unix.PtracePokeData(tid, addr, b)
+	if err != nil {
+		return fmt.Errorf("tnlsys: trace: poke %#x: %w", addr, err)
+	}
+	if n != len(b) {
+		return fmt.Errorf("tnlsys: trace: poke %#x: %d of %d bytes", addr, n, len(b))
+	}
 	return nil
 }
 

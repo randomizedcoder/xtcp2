@@ -1,0 +1,14 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "dev",
+   "nosuch"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "Cannot find device \"nosuch\"\n"
+ }
+}

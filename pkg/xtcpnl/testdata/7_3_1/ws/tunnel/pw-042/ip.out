@@ -1,0 +1,41 @@
+[{"ifname":"ip6tnl0","mode":"ipv6/ipv6","remote":"::","local":"::","encap_limit":0,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000"}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+,{"ifname":"ip6gre0","mode":"gre/ipv6","remote":"::","local":"::","encap_limit":0,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000","flags":[]}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+,{"ifname":"ip6_vti0","mode":"ipv6/ipv6","remote":"::","local":"::","encap_limit":0,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000"}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+,{"ifname":"ip6t1","mode":"ipv6/ipv6","remote":"2001:db8::2","local":"2001:db8::1","link":"d0","ip6_tnl_f_ign_encap_limit":null,"hoplimit":1,"ip6_tnl_f_use_orig_tclass":null,"flowlabel":"0x12345","flowinfo":"0x00012345","ip6_tnl_f_allow_local_remote":null}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+,{"ifname":"ip6t2","mode":"ip/ipv6","remote":"2001:db8::3","local":"2001:db8::1","encap_limit":2,"hoplimit":64,"tclass":"0x20","ip6_tnl_f_use_orig_flowlabel":null,"flowinfo":"0x02000000","ip6_tnl_f_rcv_dscp_copy":null}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+,{"ifname":"ip6g1","mode":"gre/ipv6","remote":"2001:db8::4","local":"2001:db8::1","encap_limit":4,"hoplimit":64,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000","key":9,"flags":["rx_drop_ooseq","rx_csum","tx_seq","tx_csum"]}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+,{"ifname":"vti61","mode":"ipv6/ipv6","remote":"2001:db8::5","local":"2001:db8::1","encap_limit":0,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000","ikey":3,"okey":4}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+,{"ifname":"gre6x","mode":"gre/ipv6","remote":"2001:db8::6","local":"2001:db8::1","encap_limit":4,"hoplimit":64,"tclass":"0x00","flowlabel":"0x00000","flowinfo":"0x00000000","flags":[]}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+]

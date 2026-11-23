@@ -1,0 +1,6 @@
+[{"ifname":"ip6t1","mode":"ipv6/ipv6","remote":"2001:db8::2","local":"2001:db8::1","link":"d0","ip6_tnl_f_ign_encap_limit":null,"hoplimit":1,"ip6_tnl_f_use_orig_tclass":null,"flowlabel":"0x12345","flowinfo":"0x00012345","ip6_tnl_f_allow_local_remote":null}
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     
+]

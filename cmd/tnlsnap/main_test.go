@@ -76,7 +76,15 @@ func TestSnapshot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	b, err := snapshot(self(), tnlsys.Live{SysRoot: sys, ProcRoot: proc})
+	b, err := snapshot(self(), tnlsys.Live{SysRoot: sys, ProcRoot: proc}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noWalk, err := snapshot(self(), tnlsys.Live{SysRoot: sys, ProcRoot: proc}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nw, err := tnlsys.Parse(noWalk)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,6 +104,7 @@ func TestSnapshot(t *testing.T) {
 		{"negative: no ioctls from a command that makes none", len(s.Ioctls), 0},
 		{"corner: d0 and bonding_masters are not tun devices", s.Props[0].Dev, "tap0"},
 		{"boundary: an empty /proc is a recorded empty walk", fmt.Sprint(len(fds), fdErr), "0 <nil>"},
+		{"corner: no walk asked, none recorded", nw.Fds == nil, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -105,7 +114,7 @@ func TestSnapshot(t *testing.T) {
 		})
 	}
 	t.Run("negative: a missing sysfs is an error", func(t *testing.T) {
-		if _, err := snapshot(self(), tnlsys.Live{SysRoot: filepath.Join(sys, "nope"), ProcRoot: proc}); err == nil {
+		if _, err := snapshot(self(), tnlsys.Live{SysRoot: filepath.Join(sys, "nope"), ProcRoot: proc}, true); err == nil {
 			t.Error("no error")
 		}
 	})
@@ -132,12 +141,51 @@ func TestRunIP(t *testing.T) {
 		{"positive: ip's status is recorded", s.Run.RC, 4},
 		{"positive: argv is ip and the arguments", fmt.Sprint(s.Run.Argv), "[ip -j tunnel show]"},
 		{"negative: nothing on stderr", errb.String(), ""},
-		{"corner: the walk is recorded on the live /proc", s.Fds != nil, true},
+		{"corner: no -d, no /proc walk", s.Fds == nil, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			if tc.got != tc.want {
 				t.Errorf("got %v, want %v", tc.got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWalksProc pins when tnlsnap records the /proc walk: when ip would
+// run show_processes.
+func TestWalksProc(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		expected    bool
+	}{
+		{"positive: -d tuntap", []string{"-d", "tuntap", "show"}, true},
+		{"positive: -details after -j, tap", []string{"-j", "-details", "tap"}, true},
+		{"positive: --det", []string{"--det", "tuntap"}, true},
+		{"positive: -d on a batch, whose lines may be tuntap", []string{"-d", "-batch", "b.txt"}, true},
+		{"positive: tunt is tuntap", []string{"-d", "tunt"}, true},
+		{"negative: no -d", []string{"-j", "tuntap", "show"}, false},
+		{"negative: -d tunnel", []string{"-d", "tunnel", "show"}, false},
+		{"negative: tun is tunnel, first in the table", []string{"-d", "tun"}, false},
+		{"negative: t is tunnel", []string{"-d", "t"}, false},
+		{"negative: -d after the object is an argument", []string{"tuntap", "show", "-d"}, false},
+		{"negative: a batch without -d", []string{"-batch", "-"}, false},
+		{"negative: an unknown option, ip exits", []string{"-d", "-bogus", "tuntap"}, false},
+		{"negative: -detailsx is no option", []string{"-detailsx", "tuntap"}, false},
+		{"boundary: no arguments", nil, false},
+		{"boundary: -d and nothing else", []string{"-d"}, false},
+		{"corner: -netns takes a value", []string{"-d", "-netns", "tuntap", "link"}, false},
+		{"corner: -n is -netns", []string{"-d", "-n", "x", "tap"}, true},
+		{"corner: -- ends the options", []string{"-d", "--", "tuntap"}, true},
+		{"corner: -color=never", []string{"-color=never", "-d", "tuntap"}, true},
+		{"corner: -de is a prefix of -details", []string{"-de", "tuntap"}, true},
+		{"corner: -d is -details, not -Version or -force", []string{"-d", "tap"}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := walksProc(tc.args); got != tc.expected {
+				t.Errorf("walksProc(%q) = %t, want %t", tc.args, got, tc.expected)
 			}
 		})
 	}

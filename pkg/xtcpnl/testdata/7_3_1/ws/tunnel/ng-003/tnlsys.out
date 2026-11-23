@@ -1,0 +1,14 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "mode",
+   "bogus"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Unknown tunnel mode \"bogus\"\n"
+ }
+}

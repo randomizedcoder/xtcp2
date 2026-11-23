@@ -1,0 +1,7 @@
+ip6gre0: gre/ipv6 remote :: local :: encaplimit 0 hoplimit inherit tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)
+ip6g1: gre/ipv6 remote 2001:db8::4 local 2001:db8::1 encaplimit 4 hoplimit 64 tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000) key 9
+  Drop packets out of sequence.
+  Checksum in received packet is required.
+  Sequence packets on output.
+  Checksum output packets.
+gre6x: gre/ipv6 remote 2001:db8::6 local 2001:db8::1 encaplimit 4 hoplimit 64 tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)

@@ -1,0 +1,4 @@
+ip6t1: ipv6/ipv6 remote 2001:db8::2 local 2001:db8::1 dev d0 encaplimit none hoplimit 1 tclass inherit flowlabel 0x12345 (flowinfo 0x00012345) allow-localremotegre0: gre/ip remote any local any ttl inherit nopmtudisc
+ip_vti0: ip/ip remote any local any ttl inherit nopmtudisc key 0
+tunl0: any/ip remote any local any ttl inherit nopmtudisc
+sit0: ipv6/ip remote any local any ttl 64 nopmtudisc

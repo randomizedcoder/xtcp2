@@ -1,0 +1,6 @@
+Usage: ip tuntap { add | del | show | list | lst | help } [ dev PHYS_DEV ]
+       [ mode { tun | tap } ] [ user USER ] [ group GROUP ]
+       [ one_queue ] [ pi ] [ vnet_hdr ] [ multi_queue ] [ name NAME ]
+
+Where: USER  := { STRING | NUMBER }
+       GROUP := { STRING | NUMBER }
