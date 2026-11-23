@@ -54,16 +54,16 @@ const relistInterval = 30 * time.Second
 // back to a re-list) after it errors or closes.
 const eventsRetryDelay = time.Second
 
-// Response body caps. The daemon is trusted, but container names, images and
-// labels in its bodies are the tenant's choice, so each read is bounded.
+// Response body bounds. The list and inspect bodies carry tenant-chosen
+// labels, so they are walked, not capped (see jsonwalk.go).
 const (
-	// maxVersionBody caps GET /version, a few hundred bytes in practice.
+	// maxVersionBody caps GET /version, a few hundred bytes and no tenant
+	// data, so a plain cap is safe.
 	maxVersionBody = 64 << 10
-	// maxListBody caps GET /containers/json: one summary per running
-	// container, labels included (a few KB each), so it scales with the host.
-	maxListBody = 32 << 20
-	// maxInspectBody caps GET /containers/{id}/json for one container.
-	maxInspectBody = 1 << 20
+	// requestTimeout bounds one list, inspect or version request, so a body
+	// that trickles in cannot stall the refresh goroutine. Not /events,
+	// which is a stream by design.
+	requestTimeout = 10 * time.Second
 	// maxDrain caps how much of an unread body drainClose discards for
 	// connection reuse; past it the connection is closed instead. /events
 	// never ends, so an unbounded drain there would block forever.
@@ -240,11 +240,6 @@ func splitVersion(s string) []int {
 	return out
 }
 
-// containerRef is one entry of GET /containers/json.
-type containerRef struct {
-	ID string `json:"Id"`
-}
-
 // inspect is the subset of GET /containers/{id}/json we decode.
 type inspect struct {
 	ID     string `json:"Id"`
@@ -266,16 +261,25 @@ type inspect struct {
 // per-container inspect failures are skipped so one bad container can't sink
 // the whole index.
 func (ix *Index) build(ctx context.Context) (map[uint64]Container, error) {
-	var refs []containerRef
-	if err := getJSON(ctx, ix.client, ix.baseURL+"/containers/json", maxListBody, &refs); err != nil {
+	var ids []string
+	dropped := 0
+	err := walkJSON(ctx, ix.client, ix.baseURL+"/containers/json", func(r io.Reader) error {
+		var err error
+		ids, dropped, err = decodeIDs(r, noLimit, maxListEntry)
+		return err
+	})
+	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
-	m := make(map[uint64]Container, len(refs))
-	for _, ref := range refs {
-		if ref.ID == "" {
+	if dropped > 0 {
+		log.Printf("dockermeta: list: %d container(s) skipped: entry over %d bytes or Id over %d", dropped, maxListEntry, maxIDRaw)
+	}
+	m := make(map[uint64]Container, len(ids))
+	for _, id := range ids {
+		if id == "" {
 			continue
 		}
-		if c, ok := ix.inspect(ctx, ref.ID); ok {
+		if c, ok := ix.inspect(ctx, id); ok {
 			m[c.NetnsInode] = c
 		}
 	}
@@ -287,7 +291,17 @@ func (ix *Index) build(ctx context.Context) (map[uint64]Container, error) {
 // (host network), or an unresolvable inode.
 func (ix *Index) inspect(ctx context.Context, id string) (Container, bool) {
 	var in inspect
-	if err := getJSON(ctx, ix.client, ix.baseURL+"/containers/"+id+"/json", maxInspectBody, &in); err != nil {
+	err := walkJSON(ctx, ix.client, ix.baseURL+"/containers/"+id+"/json", func(r io.Reader) error {
+		var err error
+		in, err = decodeInspect(r, maxInspectBody)
+		return err
+	})
+	if err != nil {
+		// A size refusal is worth seeing: it is the one skip a body's
+		// content can force. Other errors (gone, malformed) stay quiet.
+		if errors.Is(err, errBodyTooLarge) || errors.Is(err, errFieldTooLong) {
+			log.Printf("dockermeta: inspect %.12s skipped: %v", id, err)
+		}
 		return Container{}, false
 	}
 	return project(in, ix.stat)
@@ -425,10 +439,32 @@ func (ix *Index) rebuild(ctx context.Context) {
 	ix.snapshot.Store(&m)
 }
 
+// walkJSON does a GET and hands a 2xx body to decode. A non-2xx status is an
+// error without reading the body.
+func walkJSON(ctx context.Context, client *http.Client, url string, decode func(io.Reader) error) error {
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer drainClose(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("GET %s: status %d", url, resp.StatusCode)
+	}
+	return decode(resp.Body)
+}
+
 // getJSON does a GET and decodes the JSON body into v. A non-2xx status, a
 // body over limit bytes (errBodyTooLarge) or a decode error is returned so
 // callers can skip/fall back.
 func getJSON(ctx context.Context, client *http.Client, url string, limit int64, v any) error {
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err

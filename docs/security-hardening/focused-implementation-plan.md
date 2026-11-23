@@ -249,7 +249,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | Fix `RegisterIOWQMaxWorkers` signature in the giouring fork | giouring PR |
 | Upstream RFC for an all-namespace inet_diag dump, only after the VM numbers and a lore.kernel.org search | F2 follow-up |
 | Add the scrubbed F0.5 Parquet rows as `FuzzRowFromProto` seeds once F0.5 is captured | FP-7 follow-up |
-| ~~Cap `dockermeta.getJSON`'s body~~ done in #312: per-endpoint caps (`/version` 64 KiB, `/containers/json` 32 MiB, inspect 1 MiB; over the cap the container is skipped or the re-list fails), and `drainClose` now discards at most 64 KiB: an `/events` line over the scanner's 1 MiB used to block the refresh goroutine draining the endless stream | — |
+| ~~Cap `dockermeta.getJSON`'s body~~ done in #312 as focused design C5, a walk rather than a cap: a whole-body cap let a tenant image pad its labels to hide its container (inspect) or freeze the host's index (list). `jsonwalk.go` keeps only the projected fields and skips the rest unbuffered, with encoding/json's accept/reject (`FuzzDockerProjection`, `FuzzDecodeIDs` are differential). Limits: 4 MiB per inspect and per list entry, no list total, 10 s per request, 64 KiB drain ([Docker API limits](../design-metadata-enrichment.md#docker-api-limits)). The drain fix: an `/events` line over 1 MiB used to block the refresh goroutine draining the endless stream | — |
 | Re-tune the three caps' defaults from the F0.6 baseline (≥ 10× p99) | F0.6 |
 | The F2 gate's 1 M-socket synthetic netns run | after FP-6 |
 

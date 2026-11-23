@@ -1,7 +1,6 @@
 package dockermeta
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -191,15 +190,15 @@ func TestDockerProjectionJSON(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: %v", tc.name, err)
 			}
-			var in inspect
-			if err := json.Unmarshal(data, &in); err != nil {
+			in, err := checkInspectParity(t, data)
+			if err != nil {
 				if !tc.expected.unmarshalErr {
-					t.Fatalf("%s: unmarshal: %v", tc.description, err)
+					t.Fatalf("%s: decode: %v", tc.description, err)
 				}
 				return
 			}
 			if tc.expected.unmarshalErr {
-				t.Fatalf("%s: unmarshal succeeded, expected an error", tc.description)
+				t.Fatalf("%s: decode succeeded, expected an error", tc.description)
 			}
 			c, ok := project(in, fakeStat)
 			got := projectionWant{ok: ok, name: c.Name, image: c.Image, pid: c.Pid}
@@ -213,10 +212,11 @@ func TestDockerProjectionJSON(t *testing.T) {
 	}
 }
 
-// FuzzDockerProjection feeds arbitrary inspect bodies through json.Unmarshal
+// FuzzDockerProjection feeds arbitrary inspect bodies through decodeInspect
 // and project. The Docker daemon is trusted, but the container name and image
 // are the tenant's choice, so whatever they hold must come out as bounded,
-// valid UTF-8 without control runes.
+// valid UTF-8 without control runes. decodeInspect must also accept and
+// project exactly what encoding/json would (checkInspectParity).
 //
 //	go test -run '^$' -fuzz '^FuzzDockerProjection$' -fuzztime=30s ./pkg/dockermeta/
 func FuzzDockerProjection(f *testing.F) {
@@ -229,8 +229,8 @@ func FuzzDockerProjection(f *testing.F) {
 		f.Add(data)
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
-		var in inspect
-		if err := json.Unmarshal(data, &in); err != nil {
+		in, err := checkInspectParity(t, data)
+		if err != nil {
 			return
 		}
 		c, ok := project(in, fuzzStat)
