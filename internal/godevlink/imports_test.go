@@ -23,16 +23,19 @@ var godevlinkPackages = []string{modulePath + "/cmd/godevlink", modulePath + "/i
 // each other, and why: the same hermetic rule internal/gordma's imports_test.go
 // explains, so `go test ./internal/godevlink/` runs without nix, root or a VM.
 var godevlinkMayImport = map[string]string{
-	"golang.org/x/sys/unix":        "the NLM_F_*/NLMSG_* constants and the errno names",
-	modulePath + "/pkg/xtcpnl":     "the subject under test: the request builders' framing, the pcap reader and ParseDevlink",
-	modulePath + "/internal/jsonw": "jsonw_puts, the string escaper shared with the other json_writer ports; stdlib only",
+	"golang.org/x/sys/unix":           "the NLM_F_*/NLMSG_* constants and the errno names",
+	modulePath + "/pkg/xtcpnl":        "the subject under test: the request builders' framing, the pcap reader and ParseDevlink",
+	modulePath + "/internal/jsonw":    "jsonw_puts, the string escaper shared with the other json_writer ports; stdlib only",
+	modulePath + "/internal/wsreplay": "the ws pcap replay core shared with the other read-only clones; xtcpnl only",
 }
 
 // godevlinkClosure is the first-party closure of godevlink's non-test files.
 var godevlinkClosure = []string{
 	modulePath + "/cmd/godevlink", modulePath + "/internal/godevlink",
-	modulePath + "/pkg/xtcpnl", modulePath + "/internal/jsonw",
+	modulePath + "/pkg/xtcpnl", modulePath + "/internal/jsonw", modulePath + "/internal/wsreplay",
 	modulePath + "/pkg/cint",
+	// Reached through xtcpnl's congestion-name decoder; stdlib only.
+	modulePath + "/pkg/strpolicy",
 	// Reached through xtcpnl's inet_diag decoders; see internal/gordma.
 	modulePath + "/gen/go/xtcp_flat_record",
 }
