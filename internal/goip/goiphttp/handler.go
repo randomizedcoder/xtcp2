@@ -382,8 +382,9 @@ var (
 // statusOf maps a show failure to its status. ErrNoSuchDevice is tested
 // before ErrNotImplemented because netconf's missing device carries both.
 // A refused write verb or option is the caller's request, so a 400, as is a
-// device name no kernel takes (ip's "not a valid ifname"); a read goip does
-// not serve is a 501.
+// device name no kernel takes (ip's "not a valid ifname"); a vrf show NAME
+// that names no VRF (ip's "Invalid VRF") is a 404, like a missing device; a
+// read goip does not serve is a 501.
 func statusOf(err error) int {
 	switch {
 	case errors.Is(err, errParam), errors.Is(err, goip.ErrWriteVerb), errors.Is(err, goip.ErrRefusedOption),
@@ -391,7 +392,7 @@ func statusOf(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, goip.ErrUnknownObject):
 		return http.StatusNotFound
-	case errors.Is(err, goip.ErrNoSuchDevice), errors.Is(err, unix.ENODEV):
+	case errors.Is(err, goip.ErrNoSuchDevice), errors.Is(err, unix.ENODEV), errors.Is(err, goip.ErrVrfInvalid):
 		return http.StatusNotFound
 	case errors.Is(err, goip.ErrNotImplemented):
 		return http.StatusNotImplemented

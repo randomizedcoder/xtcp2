@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+	"unsafe"
 )
 
 func TestClean(t *testing.T) {
@@ -70,9 +71,49 @@ func TestCleanNoAlloc(t *testing.T) {
 	}
 }
 
+// cleanPropertyCases drive both TestCleanProperties (exact expectations)
+// and FuzzClean (seeds).
+var cleanPropertyCases = []struct {
+	name        string
+	cat         string
+	description string
+	in          string
+	max         int
+	expected    string
+	identity    bool // the input string itself comes back (no copy)
+}{
+	{"ascii_identity", "P", "short printable ASCII takes the fast path", "web-1", MaxLen, "web-1", true},
+	{"ascii_at_max", "B", "16 ASCII bytes at max 16", "eth0-tenant-abcd", MaxIfname, "eth0-tenant-abcd", true},
+	{"ascii_over_max", "B", "17 ASCII bytes at max 16 are cut to 16", "eth0-tenant-abcde", MaxIfname, "eth0-tenant-abcd", false},
+	{"replaced_then_clean", "N", "ESC becomes U+FFFD, which a second Clean keeps", "a\x1bb", MaxLen, "a\uFFFDb", false},
+	{"truncate_rune_twice", "C", "a 3-byte rune straddling max is dropped, and stays dropped", "ab\u20ac", 4, "ab", false},
+	{"negative_max", "C", "a negative max gives the empty string", "abc", -1, "", false},
+	{"space_and_tilde", "B", "0x20 and 0x7e are the printable ASCII edges", " ~", MaxLen, " ~", true},
+}
+
+func TestCleanProperties(t *testing.T) {
+	for _, tc := range cleanPropertyCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Clean(tc.in, tc.max)
+			if got != tc.expected {
+				t.Fatalf("%s: Clean(%q, %d) = %q, expected %q", tc.description, tc.in, tc.max, got, tc.expected)
+			}
+			if again := Clean(got, tc.max); again != got {
+				t.Fatalf("%s: not idempotent: %q then %q", tc.description, got, again)
+			}
+			if tc.identity && unsafe.StringData(got) != unsafe.StringData(tc.in) {
+				t.Fatalf("%s: expected the input string back, got a copy", tc.description)
+			}
+		})
+	}
+}
+
 func FuzzClean(f *testing.F) {
 	f.Add("web-1", 256)
 	f.Add("a\xffb\x1b", 3)
+	for _, tc := range cleanPropertyCases {
+		f.Add(tc.in, tc.max)
+	}
 	f.Fuzz(func(t *testing.T, s string, maxBytes int) {
 		maxBytes %= 512
 		got := Clean(s, maxBytes)
@@ -86,6 +127,12 @@ func FuzzClean(f *testing.F) {
 			if isControl(r) {
 				t.Fatalf("Clean(%q, %d) = %q: control rune %U kept", s, maxBytes, got, r)
 			}
+		}
+		if again := Clean(got, maxBytes); again != got {
+			t.Fatalf("Clean not idempotent for (%q, %d): %q then %q", s, maxBytes, got, again)
+		}
+		if maxBytes > 0 && len(s) <= maxBytes && printableASCII(s) && got != s {
+			t.Fatalf("Clean(%q, %d) = %q: printable ASCII within max must come back unchanged", s, maxBytes, got)
 		}
 	})
 }

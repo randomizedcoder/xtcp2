@@ -221,7 +221,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | `BenchmarkS3Send` queue vs the old channel send | 52 ns vs 118 ns | faster ✓ |
 | `microvm-x86_64-lifecycle-s3parquet` Check 14c: Garage stopped for 160 s (4× wait scale), `-s3QueueDepth 2` | polls kept running (343), 22 envelopes dropped, RSS 50.8 → 55.8 MB, a new object after restart | pass ✓ |
 
-**Status:** open as #308.
+**Status:** merged (#308).
 
 **FP-6 follow-ups (in #308):**
 
@@ -230,8 +230,8 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 ### FP-7 — fuzzers (D4)
 
-- [ ] `FuzzDockerProjection` (`pkg/dockermeta`), `FuzzStrPolicy`, `FuzzRowFromProto`; corpora seeded from F0.5.
-- [ ] CI runs every fuzzer (existing netlink ones included) for a fixed time budget per PR and longer nightly.
+- [x] `FuzzDockerProjection` (`pkg/dockermeta`), `FuzzStrPolicy`, `FuzzRowFromProto`; corpora seeded from F0.5. *Done as:* `FuzzDockerProjection` drives a raw inspect body through `json.Unmarshal` and the new pure `project` (split out of `(*Index).inspect`); a projected name and image are always valid UTF-8, ≤ 256 bytes and control-free. `FuzzRowFromProto` (`dest_s3parquet`) takes arbitrary envelope bytes through the worker's row path (unmarshal, `rowFromProto`, event date, Parquet write) and reads the object back: every decoded row must round-trip unchanged. `FuzzStrPolicy` is `FuzzClean`, which now also checks idempotence and the fast path. Each fuzzer shares a table with a unit test (`TestDockerProjectionJSON` 12 rows, `TestRowFromProtoRoundTrip` 12, `TestCleanProperties` 7, plus `TestProject` 9), so every seed has a description and an expected result. F0.5 isn't captured yet, so the seeds are the fixtures and the real netlink dump; the F0.5 rows are a TODO below. Pinned on the way: invalid UTF-8 in a proto3 string fails the unmarshal, so the worker drops the whole envelope (the sources clean strings first, so it can't come from them).
+- [x] CI runs every fuzzer (existing netlink ones included) for a fixed time budget per PR and longer nightly. *Done as:* `nix/scripts/fuzz-all.bash` (`fuzz-all` in the dev shell) finds every target with `go test -list` under the flavor tags (50 today), fails below `FUZZ_MIN_TARGETS`, runs them all even after a failure, and lists the crasher files. `.github/workflows/fuzz.yml`: `fuzz-pr` at 10 s per target, `fuzz-nightly` daily at 2 min (and `workflow_dispatch`); crashers and logs uploaded on failure. Not a nix check: a cached derivation would never fuzz again. `-fuzzminimizetime` is 5 s: with Go's 60 s default, `FuzzRowFromProto` spent a 10 s budget minimizing (0 execs/s after the first 3 s). First full run (50 targets at 10 s, loaded host): 588 s, one crasher in the existing `FuzzIPHandler`: `/i/v/s/0` (vrf show for a name that is no VRF) returned 500; `goip.ErrVrfInvalid` now maps to 404, the input is committed as a seed and a `TestFuzzIPHandlerRows` row.
 
 ### Phase F2 TODOs
 
@@ -248,6 +248,8 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | ~~`microvm-x86_64-socket-scale`~~ done as FP-5.7 | — |
 | Fix `RegisterIOWQMaxWorkers` signature in the giouring fork | giouring PR |
 | Upstream RFC for an all-namespace inet_diag dump, only after the VM numbers and a lore.kernel.org search | F2 follow-up |
+| Add the scrubbed F0.5 Parquet rows as `FuzzRowFromProto` seeds once F0.5 is captured | FP-7 follow-up |
+| ~~Cap `dockermeta.getJSON`'s body~~ done in #312: per-endpoint caps (`/version` 64 KiB, `/containers/json` 32 MiB, inspect 1 MiB; over the cap the container is skipped or the re-list fails), and `drainClose` now discards at most 64 KiB: an `/events` line over the scanner's 1 MiB used to block the refresh goroutine draining the endless stream | — |
 | Re-tune the three caps' defaults from the F0.6 baseline (≥ 10× p99) | F0.6 |
 | The F2 gate's 1 M-socket synthetic netns run | after FP-6 |
 

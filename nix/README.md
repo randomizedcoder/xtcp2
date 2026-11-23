@@ -29,6 +29,7 @@ The flake currently exports `x86_64-linux` only. See
 - [Development and maintenance](#development-and-maintenance)
 - [Binaries, images, and artifacts](#binaries-images-and-artifacts)
 - [Unit, flavor, and quality checks](#unit-flavor-and-quality-checks)
+- [Fuzzing](#fuzzing)
 - [Nix integration testing](#nix-integration-testing)
 - [Netlink and RDMA fixture collection](#netlink-and-rdma-fixture-collection)
 - [Link-monitor verification](#link-monitor-verification)
@@ -220,6 +221,29 @@ Use the full path: `nix build path:.#checks.x86_64-linux.NAME -L`.
 | `test-go-race`, `test-go-flavor-*`, `test-linkmonitor` | Behavioral suites registered alongside static checks |
 | `test-ipmeta-bootstrap-artifact`, `test-oci-ipmeta-bootstrap-contents`, `test-ipmeta-bootstrap-snapshot`, `test-oci-ipmeta-bootstrap-snapshot-contents` | Fixture and real-snapshot bootstrap checks, also available as packages above |
 | `microvm-lifecycle-x86_64`, `vm-*`, `vm-all` | Actual guest checks described next; `vm-*` here refers to guest checks, not the host helpers above |
+
+## Fuzzing
+
+`fuzz-all` (in the dev shell; source `nix/scripts/fuzz-all.bash`) finds every `Fuzz*` target with `go test -list` and fuzzes each in turn, so a new fuzzer needs no list entry. It runs every target even after a failure, then names the failures and the crasher files Go wrote under `<pkg>/testdata/fuzz/<Target>/`.
+
+```bash
+nix develop -c fuzz-all                                   # every target, 10 s each
+FUZZ_FILTER=dockermeta FUZZTIME=5m nix develop -c fuzz-all  # one package, longer
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `FUZZTIME` | `10s` | Budget per target |
+| `FUZZ_PARALLEL` | `2` | Fuzz workers per target |
+| `FUZZ_MINIMIZE` | `5s` | `-fuzzminimizetime`. Go's 60 s default spends a short budget minimizing new inputs on slow targets |
+| `FUZZ_TAGS` | `dest_s3parquet enrich_asn enrich_locality` | Build tags, so tagged fuzzers such as `FuzzRowFromProto` are found |
+| `FUZZ_FILTER` | none | Extended regex on `pkg:target` |
+| `FUZZ_MIN_TARGETS` | `50` | Fail if discovery finds fewer, so a broken discovery can't pass |
+| `FUZZ_LOG_DIR` | a temporary directory | One log per target |
+
+CI (`.github/workflows/fuzz.yml`) runs it on every PR to main at 10 s per target (`fuzz-pr`), and daily at 2 min per target (`fuzz-nightly`, also `workflow_dispatch` with a chosen budget). It is not a nix check, because a cached derivation would never fuzz again. A failed run uploads the crashers and logs as an artifact. Fix the bug, then commit the crasher file and add the input as a row of the fuzzer's table, which its unit test and seed corpus share.
+
+`test-linkmonitor-fuzz` still fuzzes its own 10 targets for 30 s each under `nix build`.
 
 ## Nix integration testing
 
@@ -663,6 +687,7 @@ as many guests at once as `max-jobs` allows; add `-j1` for one at a time.
 | [../flake.nix](../flake.nix) | Inputs, supported system, public outputs, and overlay |
 | [default.nix](default.nix) | Export names, package/app/check wiring, `integration-all` membership |
 | [versions.nix](versions.nix), [packages.nix](packages.nix), [devshell.nix](devshell.nix) | Tool versions, developer tools, and shell helpers |
+| [scripts/fuzz-all.bash](scripts/fuzz-all.bash) | `fuzz-all`: discover and fuzz every Go fuzz target (dev shell and CI) |
 | [binaries.nix](binaries.nix), [containers/default.nix](containers/default.nix) | Binary and OCI flavor generation |
 | [lib/goSource.nix](lib/goSource.nix), [lib/goModules.nix](lib/goModules.nix) | Source filtering and vendored dependency preparation |
 | [checks/default.nix](checks/default.nix) | Static audits, lint tiers, and host harness checks |

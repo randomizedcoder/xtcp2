@@ -416,6 +416,8 @@ func TestFuzzIPHandlerRows(t *testing.T) {
 			method: "PROPFIND", path: "/i/a/s", expected: is(http.StatusMethodNotAllowed), noOpen: true},
 		{name: "method_lowercase", category: "corner", description: "methods are case-sensitive: get is not GET",
 			method: "get", path: "/ip/link", expected: is(http.StatusMethodNotAllowed), noOpen: true},
+		{name: "vrf_show_not_a_vrf", category: "negative", description: "/i/v/s/0: a name that is no VRF is ip's Invalid VRF, a 404 not a 500",
+			method: http.MethodGet, path: "/i/v/s/0", expected: is(http.StatusNotFound)},
 		{name: "write_verb", category: "negative", description: "/i/l/s is ip link set: a 400 before any open",
 			method: http.MethodGet, path: "/i/l/s", expected: is(http.StatusBadRequest), noOpen: true},
 	}
