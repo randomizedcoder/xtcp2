@@ -91,6 +91,10 @@ let
     # exercise pkg/xtcpnl's ParseVdpa and BuildGetVdpaRequest
     # (internal/govdpa). Listed for the same reason as godevlink.
     "govdpa"
+    # gotipc is the arc's tipc(8) clone: it replays tipc's ws pcap corpus to
+    # exercise pkg/xtcpnl's ParseTIPC and BuildTIPCRequest
+    # (internal/gotipc). Listed for the same reason as govdpa.
+    "gotipc"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"
