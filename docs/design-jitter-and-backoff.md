@@ -187,7 +187,19 @@ For a `24h` poll: `cap = 24h/10 → clamp → 1h`; 10 attempts of full-jittered 
 
 While the worker is in `uploadWithRetry`, it isn't draining its queue. `Send` never blocks: the queue holds at most `-s3QueueDepth` envelopes (default 16, max 4096) and `-s3MaxBufferedBytes` of them (default 64 MiB, `0` = no byte bound), and past either bound it drops the oldest, counted in `xtcp_s3_dropped_total{reason}` and `xtcp_s3_dropped_bytes_total{reason}`. The newest envelope is always kept. Polling keeps its cadence through an outage; the cost is the oldest data. (Before this bound, a full queue blocked `Send`, and with it `flushEnvelope` mid-poll, stalling collection.)
 
-Memory budget: ≈ `-s3MaxBufferedBytes` (queued envelopes) + the flush threshold (the object being built, ≈ 63 MiB by default) + one object during upload. With the defaults that is about 2–3× the threshold, ≈ 190 MiB; size `GOMEMLIMIT` and the container limit above it. `xtcp_s3_buffered_bytes{stage}` shows the first two. To keep an outage from stalling collection past one cycle, bound total retry time to roughly one `PollFrequency` — with `base=1s`, `cap=PollFrequency/10`, `attempts=10`, the worst-case sum of windows is ≈ `PollFrequency` (full jitter averages half that). Outages longer than that fall back to today's documented drop-and-continue. Persistent on-disk spooling is explicitly [future work](#open-questions--future-work).
+Memory budget: ≈ `-s3MaxBufferedBytes` (queued envelopes) + the flush threshold (the object being built, ≈ 63 MiB by default) + one object during upload. With the defaults that is about 2–3× the threshold, ≈ 190 MiB; size `GOMEMLIMIT` and the container limit above it. `xtcp_s3_buffered_bytes{stage}` shows the first two. To keep an outage from stalling collection past one cycle, bound total retry time to roughly one `PollFrequency` — with `base=1s`, `cap=PollFrequency/10`, `attempts=10`, the worst-case sum of windows is ≈ `PollFrequency` (full jitter averages half that). Outages longer than that fall back to the documented drop-and-continue, unless a spill directory is set.
+
+### Spill directory
+
+`-s3SpillDir` / `S3_SPILL_DIR` (empty by default: no spill) keeps objects that failed to upload on disk and uploads them later:
+
+- **The worker tries once.** With a spill dir, the worker makes one `PutObject` attempt per object and spills it on failure, instead of up to `-s3UploadMaxAttempts` tries with backoff. It returns to the queue straight away, so an outage costs disk rather than queue drops.
+- **Re-upload in the background,** oldest first, one object at a time. A successful worker upload starts a pass at once (S3 is back); otherwise the pass waits a full-jitter window that doubles up to `max(backoffCap, 30s)`, so a fleet doesn't probe a dead S3 every second.
+- **Bounded.** `-s3SpillMaxBytes` / `S3_SPILL_MAX_BYTES` (default 1 GiB, `0` = 1 GiB) caps the directory; past it the oldest spilled object is deleted (`xtcp_s3_spill_total{result="evicted"}`). An object larger than the bound alone is dropped as before.
+- **On disk.** Directory `0700`, files `0600`, each `<seq>.xsp`: a header (magic, the S3 key, the row count) and the Parquet object, written to `<seq>.tmp`, synced, then renamed. A crash leaves at most a `.tmp`, deleted at the next start. All access goes through an `os.Root`, so a name can't leave the directory. A file with a bad header is deleted and counted as an error. Objects still spilled at shutdown are uploaded after the next start. One daemon per directory.
+- **Startup-only.** `ConfigService.Set` keeps the running dir and bound, so the admin plane can't point the daemon's writes at another path.
+
+The object keeps the key it was built with, so a late upload lands in the partition of its build hour.
 
 ## New configuration surface
 
@@ -266,7 +278,7 @@ Decisions (settled with the operator):
 2. **Configurable, default `20%`.** Fixed default across intervals (no auto-scaling); operators adjust per environment.
 3. **Per-tick poll jitter is in scope** (not just startup), to avoid accidental re-synchronization with other periodic events — implemented in PR B alongside startup jitter.
 4. **Per-object byte-threshold jitter is in scope** (`s3_flush_threshold_jitter_pct`, Feature 2). Designed in now rather than deferred: it's the only thing that de-syncs the byte-cap path, and it hedges against the socket-count estimate being wrong (if hosts fill more uniformly than expected, the 63 MiB crossing would otherwise become the synchronization point).
-5. **Persistent spool is future work.** Riding out outages longer than one poll cycle without data loss (an on-disk WAL for un-uploaded Parquet objects) is a larger effort, deliberately out of scope here.
+5. **Persistent spool: done as the [spill directory](#spill-directory).** Finished Parquet objects are spilled rather than queued envelopes: they are compressed, and the worker keeps draining the queue once it no longer waits in retries.
 
 Remaining to confirm **after deployment**, once real socket/volume numbers land:
 

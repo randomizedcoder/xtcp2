@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 141 // + treatmentConfig (embedded agent) and treatmentAttribution (journal reader)
+	mainFlagsFieldCountCst = 143 // + treatmentConfig (embedded agent) and treatmentAttribution (journal reader)
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -192,6 +192,8 @@ func populatedMainFlags() *mainFlags {
 		s3UploadBackoffCap:        ms(119),
 		s3QueueDepth:              u(1191),
 		s3MaxBufferedBytes:        u64(1192),
+		s3SpillDir:                s("s3SpillDir-v"),
+		s3SpillMaxBytes:           u64(1193),
 
 		reconcileFrequency:  ms(120),
 		reconcileBeforePoll: b(false),

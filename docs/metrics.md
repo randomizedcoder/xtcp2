@@ -224,6 +224,8 @@ The s3parquet upload queue has its own series. Past either bound it drops the ol
 | `xtcp_s3_dropped_total` | `reason="queue_depth"\|"buffered_bytes"` | envelopes dropped past `-s3QueueDepth` or `-s3MaxBufferedBytes` |
 | `xtcp_s3_dropped_bytes_total` | `reason` | their marshaled bytes |
 | `xtcp_s3_buffered_bytes` | `stage="queue"\|"builder"` | bytes held: envelopes awaiting the worker, and approximate row bytes in the Parquet object being built |
+| `xtcp_s3_spill_total` | `result="written"\|"uploaded"\|"evicted"\|"too_large"\|"error"` | Parquet objects through `-s3SpillDir`: spilled after a failed upload, uploaded from the spill, deleted past `-s3SpillMaxBytes`, refused as larger than the bound, or a write failure or corrupt file |
+| `xtcp_s3_spill_objects`, `xtcp_s3_spill_bytes` | | objects and bytes waiting in the spill directory |
 
 ### Enrichment
 

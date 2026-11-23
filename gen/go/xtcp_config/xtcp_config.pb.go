@@ -1770,6 +1770,16 @@ type XtcpConfig struct {
 	// envelope is dropped (reason="buffered_bytes"); the newest is always
 	// kept. 0 = no byte bound (the depth bound alone). Flag default 64 MiB.
 	S3MaxBufferedBytes uint64 `protobuf:"varint,117,opt,name=s3_max_buffered_bytes,json=s3MaxBufferedBytes,proto3" json:"s3_max_buffered_bytes,omitempty"`
+	// Directory where Parquet objects that failed to upload are kept and
+	// retried in the background, oldest first, until S3 accepts them. Empty
+	// = no spill: a failed object is dropped after s3_upload_max_attempts.
+	// With a spill dir the worker tries each upload once and spills on
+	// failure, so it keeps draining the queue during an outage. One daemon
+	// per directory.
+	S3SpillDir string `protobuf:"bytes,118,opt,name=s3_spill_dir,json=s3SpillDir,proto3" json:"s3_spill_dir,omitempty"`
+	// Bytes the spill directory may hold. Past this the oldest spilled
+	// object is deleted (xtcp_s3_spill_total{result="evicted"}). 0 = 1 GiB.
+	S3SpillMaxBytes uint64 `protobuf:"varint,119,opt,name=s3_spill_max_bytes,json=s3SpillMaxBytes,proto3" json:"s3_spill_max_bytes,omitempty"`
 	// Hostname override. When empty the daemon uses os.Hostname(); set this to
 	// stamp an explicit hostname on records — required in containers, where
 	// os.Hostname() returns the container id, not the host. Set via -hostname
@@ -2363,6 +2373,20 @@ func (x *XtcpConfig) GetS3MaxBufferedBytes() uint64 {
 	return 0
 }
 
+func (x *XtcpConfig) GetS3SpillDir() string {
+	if x != nil {
+		return x.S3SpillDir
+	}
+	return ""
+}
+
+func (x *XtcpConfig) GetS3SpillMaxBytes() uint64 {
+	if x != nil {
+		return x.S3SpillMaxBytes
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetHostname() string {
 	if x != nil {
 		return x.Hostname
@@ -2767,7 +2791,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0e_error_classesB\x15\n" +
 	"\x13_metrics_categoriesB\x1a\n" +
 	"\x18_metrics_interface_pathsB\x13\n" +
-	"\x11_metrics_all_path\"\xc5+\n" +
+	"\x11_metrics_all_path\"\xab-\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2849,13 +2873,14 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x16s3_upload_max_attempts\x18r \x01(\rB\f\xbaH\t\xc8\x01\x00*\x04\x18d(\x01R\x13s3UploadMaxAttempts\x12Y\n" +
 	"\x15s3_upload_backoff_cap\x18s \x01(\v2\x19.google.protobuf.DurationB\v\xbaH\b\xc8\x01\x00\xaa\x01\x022\x00R\x12s3UploadBackoffCap\x121\n" +
 	"\x0es3_queue_depth\x18t \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\x80 R\fs3QueueDepth\x129\n" +
-	"\x15s3_max_buffered_bytes\x18u \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x12s3MaxBufferedBytes\x12(\n" +
-	"\bhostname\x18\x82\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\bhostname\x12(\n" +
-	"\blocation\x18\x83\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\blocation\x12!\n" +
-	"\x05label\x18\x84\x01 \x01(\tB\n" +
-	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x05label\x12\x1d\n" +
-	"\x03tag\x18\x85\x01 \x01(\tB\n" +
-	"\xbaH\a\xc8\x01\x00r\x02\x18(R\x03tag\x123\n" +
+	"\x15s3_max_buffered_bytes\x18u \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x12s3MaxBufferedBytes\x12G\n" +
+	"\fs3_spill_dir\x18v \x01(\tB%\xbaH\"\xc8\x01\x00r\x1d\x18\x80 2\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\n" +
+	"s3SpillDir\x123\n" +
+	"\x12s3_spill_max_bytes\x18w \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x0fs3SpillMaxBytes\x12B\n" +
+	"\bhostname\x18\x82\x01 \x01(\tB%\xbaH\"\xc8\x01\x00r\x1d\x18\xfd\x012\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\bhostname\x12B\n" +
+	"\blocation\x18\x83\x01 \x01(\tB%\xbaH\"\xc8\x01\x00r\x1d\x18\xfd\x012\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\blocation\x12;\n" +
+	"\x05label\x18\x84\x01 \x01(\tB$\xbaH!\xc8\x01\x00r\x1c\x18(2\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\x05label\x127\n" +
+	"\x03tag\x18\x85\x01 \x01(\tB$\xbaH!\xc8\x01\x00r\x1c\x18(2\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\x03tag\x123\n" +
 	"\x0edaemon_version\x18\x86\x01 \x01(\tB\v\xbaH\b\xc8\x01\x00r\x03\x18\xfd\x01R\rdaemonVersion\x12'\n" +
 	"\bipv4_ttl\x18\x96\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\aipv4Ttl\x122\n" +
 	"\x0eipv6_hop_limit\x18\x97\x01 \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\xff\x01R\fipv6HopLimit\x12J\n" +

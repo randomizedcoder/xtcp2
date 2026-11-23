@@ -2591,6 +2591,12 @@ let
     # overflows it within a few polls.
     "-s3QueueDepth"
     "2"
+    # Spill failed objects to disk (Check 14d), and flush every ~10s so the
+    # outage finalizes a few objects to spill.
+    "-s3SpillDir"
+    "/var/lib/xtcp2/s3spill"
+    "-s3FlushInterval"
+    "10s"
   ];
 
   # The three broker flavors (valkey/nats/nsq) share one arg shape: publish

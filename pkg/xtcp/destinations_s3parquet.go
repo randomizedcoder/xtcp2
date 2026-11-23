@@ -115,6 +115,15 @@ type s3ParquetDest struct {
 	queue   *envelopeQueue
 	metrics *s3QueueMetrics
 
+	// spill, when -s3SpillDir is set, keeps objects that failed to upload;
+	// the reupload goroutine retries them. spillKick wakes it for an
+	// immediate try (S3 just accepted an upload), spillNew arms its backoff
+	// timer (an object was spilled). spillDone closes when it exits.
+	spill     *s3Spill
+	spillKick chan struct{}
+	spillNew  chan struct{}
+	spillDone chan struct{}
+
 	// closedCh is closed by Close exactly once. Send checks it before
 	// each channel-send and bails with errSendOnClosed if closed.
 	closedCh chan struct{}
@@ -282,8 +291,27 @@ func newS3ParquetDest(ctx context.Context, x *XTCP) (Destination, error) {
 		closedCh:           make(chan struct{}),
 		workerDone:         make(chan struct{}),
 	}
+	if dir := x.config.S3SpillDir; dir != "" {
+		spill, err := openS3Spill(dir, resolveS3SpillMaxBytes(x.config), newS3SpillMetrics(x.registry))
+		if err != nil {
+			return nil, fmt.Errorf("newS3ParquetDest: %w", err)
+		}
+		if n, b := spill.stats(); n > 0 {
+			log.Printf("destS3Parquet spill dir %q holds %d objects (%d bytes) from an earlier run; uploading them", dir, n, b)
+		}
+		d.startSpill(ctx, spill)
+	}
 	go d.worker(ctx)
 	return d, nil
+}
+
+// resolveS3SpillMaxBytes returns the spill directory's byte bound:
+// s3_spill_max_bytes, or s3SpillMaxBytesDefaultCst when unset (0).
+func resolveS3SpillMaxBytes(c *xtcp_config.XtcpConfig) int64 {
+	if c.S3SpillMaxBytes == 0 {
+		return s3SpillMaxBytesDefaultCst
+	}
+	return int64(min(c.S3SpillMaxBytes, uint64(math.MaxInt64)))
 }
 
 // resolveS3QueueDepth returns the envelope depth bound: s3_queue_depth, or
@@ -403,10 +431,23 @@ func (d *s3ParquetDest) Close() error {
 	var err error
 	d.closeOnce.Do(func() {
 		close(d.closedCh)
+		timeout := time.After(s3ParquetWorkerDrainTimeout)
 		select {
 		case <-d.workerDone:
-		case <-time.After(s3ParquetWorkerDrainTimeout):
+		case <-timeout:
 			err = fmt.Errorf("s3parquet worker drain timeout after %s", s3ParquetWorkerDrainTimeout)
+			return
+		}
+		if d.spill == nil {
+			return
+		}
+		select {
+		case <-d.spillDone:
+			if cerr := d.spill.close(); cerr != nil {
+				err = fmt.Errorf("s3parquet spill dir close: %w", cerr)
+			}
+		case <-timeout:
+			err = fmt.Errorf("s3parquet spill re-upload stop timeout after %s", s3ParquetWorkerDrainTimeout)
 		}
 	})
 	return err
@@ -468,8 +509,7 @@ func (d *s3ParquetDest) worker(ctx context.Context) {
 		// deadline + any ctx values. Mirrors the poller's shutdown flush
 		// (poller.go's context.WithoutCancel).
 		uploadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 60*time.Second)
-		key := d.objectKey()
-		d.uploadWithRetry(uploadCtx, key, buf, fileRows)
+		d.uploadObject(uploadCtx, d.objectKey(), buf, fileRows)
 		cancel()
 		startBuilder()
 	}
@@ -591,19 +631,51 @@ func (d *s3ParquetDest) returnBuf(b *[]byte) {
 	d.x.destBytesPool.Put(b)
 }
 
-// uploadWithRetry does up to d.maxAttempts PutObject calls with full-jitter
+// uploadObject uploads one finalized object. Without a spill dir it makes
+// d.maxAttempts tries and drops the object on terminal failure, the
+// documented failure mode for prolonged S3 outages. With a spill dir it
+// tries once and spills on failure, so the worker returns to the queue at
+// once and the reupload goroutine retries the object later. See
+// docs/design-jitter-and-backoff.md.
+func (d *s3ParquetDest) uploadObject(ctx context.Context, key string, buf *bytes.Buffer, rows int) {
+	attempts := d.maxAttempts
+	if d.spill != nil {
+		attempts = 1
+	}
+	size := int64(buf.Len())
+	if d.uploadWithRetry(ctx, key, bytes.NewReader(buf.Bytes()), size, rows, attempts) {
+		d.signalSpill(d.spillKick)
+		return
+	}
+	if d.spill != nil {
+		err := d.spill.write(key, buf.Bytes(), rows)
+		if err == nil {
+			d.signalSpill(d.spillNew)
+			return
+		}
+		log.Printf("destS3Parquet spill %s: %v", key, err)
+	}
+	if d.x.pC != nil {
+		d.x.pC.WithLabelValues("destS3Parquet", "upload", "error").Inc()
+		// Quantify the data loss with fixed label values: upload/error counts
+		// the dropped OBJECT; these count the rows/bytes lost inside it, so a
+		// prolonged S3 outage's data loss is measurable, not just log-visible.
+		d.x.pC.WithLabelValues("destS3Parquet", "uploadRowsDropped", "error").Add(float64(rows))
+		d.x.pC.WithLabelValues("destS3Parquet", "uploadBytesDropped", "error").Add(float64(size))
+	}
+	log.Printf("destS3Parquet PUT %s/%s permanently failed after %d attempts; dropping %d rows",
+		d.bucket, key, attempts, rows)
+}
+
+// uploadWithRetry does up to attempts PutObject calls with full-jitter
 // exponential backoff between failures: the per-attempt window grows as
 // base<<(attempt-1) capped at d.backoffCap, and the actual sleep is a uniform
 // draw in [0, window] (AWS-style full jitter), which de-correlates a fleet's
 // retries when a shared dependency recovers. The backoff sleep is ctx-aware, so
-// shutdown (or the 60s upload-ctx deadline) aborts promptly. On terminal
-// failure it logs + bumps an error counter and drops the batch — the daemon
-// keeps running; data loss is the documented failure mode for prolonged s3
-// outages. See docs/design-jitter-and-backoff.md.
-func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, buf *bytes.Buffer, rows int) {
-	body := bytes.NewReader(buf.Bytes())
-	size := int64(buf.Len())
-	for attempt := 1; attempt <= d.maxAttempts; attempt++ {
+// shutdown (or the 60s upload-ctx deadline) aborts promptly. Reports whether
+// an attempt succeeded; the caller decides what a failure costs.
+func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, body io.ReadSeeker, size int64, rows, attempts int) bool {
+	for attempt := 1; attempt <= attempts; attempt++ {
 		if attempt > 1 {
 			// Rewind to re-read the buffer for the retry. bytes.Reader.Seek
 			// only errors on a negative offset, which SeekStart+0 never is;
@@ -629,14 +701,14 @@ func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, buf *by
 				log.Printf("destS3Parquet PUT %s/%s size=%d rows=%d attempt=%d dur=%s",
 					d.bucket, key, size, rows, attempt, dur)
 			}
-			return
+			return true
 		}
 		// errMsg is intentionally constructed to avoid embedding the
 		// secret key — minio-go's error already includes endpoint but
 		// not credentials. Defense in depth.
 		errMsg := err.Error()
 		log.Printf("destS3Parquet PUT %s/%s attempt %d/%d failed: %s",
-			d.bucket, key, attempt, d.maxAttempts, errMsg)
+			d.bucket, key, attempt, attempts, errMsg)
 		if d.x.pC != nil {
 			d.x.pC.WithLabelValues("destS3Parquet", "uploadRetry", "error").Inc()
 			// Same failed attempt, broken down by a BOUNDED error class (never
@@ -645,25 +717,16 @@ func (d *s3ParquetDest) uploadWithRetry(ctx context.Context, key string, buf *by
 			// connection. See classifyUploadErr for the closed set of classes.
 			d.x.pC.WithLabelValues("destS3Parquet", "uploadErrorClass", classifyUploadErr(err)).Inc()
 		}
-		if attempt == d.maxAttempts {
+		if attempt == attempts {
 			break
 		}
 		// Full-jitter exponential backoff; ctx-aware so shutdown aborts.
 		window := backoffWindow(s3UploadBackoffBaseCst, d.backoffCap, attempt)
 		if !d.sleep(ctx, d.jitterDur(window)) {
-			return
+			return false
 		}
 	}
-	if d.x.pC != nil {
-		d.x.pC.WithLabelValues("destS3Parquet", "upload", "error").Inc()
-		// Quantify the data loss with fixed label values: upload/error counts
-		// the dropped OBJECT; these count the rows/bytes lost inside it, so a
-		// prolonged S3 outage's data loss is measurable, not just log-visible.
-		d.x.pC.WithLabelValues("destS3Parquet", "uploadRowsDropped", "error").Add(float64(rows))
-		d.x.pC.WithLabelValues("destS3Parquet", "uploadBytesDropped", "error").Add(float64(size))
-	}
-	log.Printf("destS3Parquet PUT %s/%s permanently failed after %d attempts; dropping %d rows",
-		d.bucket, key, d.maxAttempts, rows)
+	return false
 }
 
 // s3 upload-error classes — a fixed, bounded set used as the `type` label of

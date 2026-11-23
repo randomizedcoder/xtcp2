@@ -124,6 +124,7 @@ const (
 	s3UploadBackoffCapCst               = 0 * time.Second
 	s3QueueDepthCst              uint   = 16
 	s3MaxBufferedBytesCst        uint64 = 64 * 1024 * 1024
+	s3SpillMaxBytesCst           uint64 = 1024 * 1024 * 1024
 
 	// Namespace-reconcile cadence defaults (Method B /proc-scan discovery).
 	// reconcileBeforePoll ties discovery to poll cadence (reconcile before each
@@ -313,6 +314,8 @@ type mainFlags struct {
 	s3UploadBackoffCap        *time.Duration
 	s3QueueDepth              *uint
 	s3MaxBufferedBytes        *uint64
+	s3SpillDir                *string
+	s3SpillMaxBytes           *uint64
 
 	reconcileFrequency  *time.Duration
 	reconcileBeforePoll *bool
@@ -556,6 +559,8 @@ func defineS3Flags(f *mainFlags) {
 	f.s3UploadBackoffCap = flag.Duration("s3UploadBackoffCap", s3UploadBackoffCapCst, "s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).")
 	f.s3QueueDepth = flag.Uint("s3QueueDepth", s3QueueDepthCst, "s3parquet: envelopes queued for the upload worker (max 4096). Past it the oldest is dropped and counted in xtcp_s3_dropped_total{reason=\"queue_depth\"}, so an S3 outage never blocks polling. 0 = 16. Falls back to S3_QUEUE_DEPTH env.")
 	f.s3MaxBufferedBytes = flag.Uint64("s3MaxBufferedBytes", s3MaxBufferedBytesCst, "s3parquet: marshaled envelope bytes the upload queue may hold. Past it the oldest envelope is dropped (reason=\"buffered_bytes\"); the newest is always kept. 0 = no byte bound. Falls back to S3_MAX_BUFFERED_BYTES env.")
+	f.s3SpillDir = flag.String("s3SpillDir", "", "s3parquet: directory for Parquet objects that failed to upload; they are retried in the background, oldest first. The worker then tries each upload once and spills on failure, so it keeps draining the queue during an S3 outage. Empty = no spill (drop after -s3UploadMaxAttempts). One daemon per directory. Falls back to S3_SPILL_DIR env.")
+	f.s3SpillMaxBytes = flag.Uint64("s3SpillMaxBytes", s3SpillMaxBytesCst, "s3parquet: bytes -s3SpillDir may hold; past it the oldest spilled object is deleted. 0 = 1 GiB. Falls back to S3_SPILL_MAX_BYTES env.")
 }
 
 // defineCapFlags registers the three caps on what a tenant can cost the
@@ -750,6 +755,8 @@ func printS3Flags(f *mainFlags) {
 	fmt.Println("*s3UploadBackoffCap:", *f.s3UploadBackoffCap)
 	fmt.Println("*s3QueueDepth:", *f.s3QueueDepth)
 	fmt.Println("*s3MaxBufferedBytes:", *f.s3MaxBufferedBytes)
+	fmt.Println("*s3SpillDir:", *f.s3SpillDir)
+	fmt.Println("*s3SpillMaxBytes:", *f.s3SpillMaxBytes)
 	fmt.Println("*reconcileFrequency:", *f.reconcileFrequency)
 	fmt.Println("*reconcileBeforePoll:", *f.reconcileBeforePoll)
 }
@@ -881,6 +888,8 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3UploadBackoffCap:           durationpb.New(*f.s3UploadBackoffCap),
 		S3QueueDepth:                 uint32(*f.s3QueueDepth),
 		S3MaxBufferedBytes:           *f.s3MaxBufferedBytes,
+		S3SpillDir:                   *f.s3SpillDir,
+		S3SpillMaxBytes:              *f.s3SpillMaxBytes,
 		ReconcileFrequency:           durationpb.New(*f.reconcileFrequency),
 		ReconcileBeforePoll:          *f.reconcileBeforePoll,
 		MaxDumpBytes:                 *f.maxDumpBytes,
@@ -2389,10 +2398,9 @@ func checkNoPositional(args []string) error {
 	return fmt.Errorf("unexpected argument %q: flags take -name value, and an empty value must be quoted (-name \"\" or -name=)", args[0])
 }
 
-// envOverrideCaps applies MAX_DUMP_BYTES, MAX_RECORDS_PER_NETNS and
-// MAX_NETNS; see defineCapFlags.
-// envOverrideS3Queue applies S3_QUEUE_DEPTH and S3_MAX_BUFFERED_BYTES, the
-// s3parquet upload queue's bounds.
+// envOverrideS3Queue applies S3_QUEUE_DEPTH, S3_MAX_BUFFERED_BYTES,
+// S3_SPILL_DIR and S3_SPILL_MAX_BYTES, the s3parquet upload queue's bounds
+// and its spill directory.
 func envOverrideS3Queue(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envUint32("S3_QUEUE_DEPTH"); ok {
 		c.S3QueueDepth = v
@@ -2402,8 +2410,18 @@ func envOverrideS3Queue(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.S3MaxBufferedBytes = v
 		logEnv("S3_MAX_BUFFERED_BYTES", fmt.Sprintf("c.S3MaxBufferedBytes:%d", v), debugLevel)
 	}
+	if v, ok := envString("S3_SPILL_DIR"); ok {
+		c.S3SpillDir = v
+		logEnv("S3_SPILL_DIR", "c.S3SpillDir:"+v, debugLevel)
+	}
+	if v, ok := envUint64("S3_SPILL_MAX_BYTES"); ok {
+		c.S3SpillMaxBytes = v
+		logEnv("S3_SPILL_MAX_BYTES", fmt.Sprintf("c.S3SpillMaxBytes:%d", v), debugLevel)
+	}
 }
 
+// envOverrideCaps applies MAX_DUMP_BYTES, MAX_RECORDS_PER_NETNS and
+// MAX_NETNS; see defineCapFlags.
 func envOverrideCaps(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envUint64("MAX_DUMP_BYTES"); ok {
 		c.MaxDumpBytes = v
@@ -2462,4 +2480,6 @@ func printConfigCaps(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.MaxNetnsAddsPerReconcile:", c.MaxNetnsAddsPerReconcile)
 	fmt.Println("c.S3QueueDepth:", c.S3QueueDepth)
 	fmt.Println("c.S3MaxBufferedBytes:", c.S3MaxBufferedBytes)
+	fmt.Println("c.S3SpillDir:", c.S3SpillDir)
+	fmt.Println("c.S3SpillMaxBytes:", c.S3SpillMaxBytes)
 }

@@ -127,6 +127,8 @@ s3QueueDepth	16	s3parquet: envelopes queued for the upload worker (max 4096). Pa
 s3Region		s3parquet: S3 region. Defaults to 'us-east-1' when empty; required by AWS, ignored by most MinIO setups.
 s3SecretKey		s3parquet: S3 secret key. Prefer S3_SECRET_KEY_FILE (path to a file, mode 0400, holding the key): a flag value shows in ps and docker inspect, warns, and is refused by production builds. Never logged.
 s3SkipBucketProbe	false	s3parquet: skip the startup BucketExists probe (a HeadBucket needing s3:ListBucket). Set true for a write-only, s3:PutObject-only credential. Falls back to S3_SKIP_BUCKET_PROBE env.
+s3SpillDir		s3parquet: directory for Parquet objects that failed to upload; they are retried in the background, oldest first. The worker then tries each upload once and spills on failure, so it keeps draining the queue during an S3 outage. Empty = no spill (drop after -s3UploadMaxAttempts). One daemon per directory. Falls back to S3_SPILL_DIR env.
+s3SpillMaxBytes	1073741824	s3parquet: bytes -s3SpillDir may hold; past it the oldest spilled object is deleted. 0 = 1 GiB. Falls back to S3_SPILL_MAX_BYTES env.
 s3UploadBackoffCap	0s	s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).
 s3UploadMaxAttempts	10	s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.
 tag		label applied to the protobuf

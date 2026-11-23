@@ -1204,7 +1204,27 @@ message XtcpConfig {
 		(buf.validate.field).required = false
 	];
 
+	// Directory where Parquet objects that failed to upload are kept and
+	// retried in the background, oldest first, until S3 accepts them. Empty
+	// = no spill: a failed object is dropped after s3_upload_max_attempts.
+	// With a spill dir the worker tries each upload once and spills on
+	// failure, so it keeps draining the queue during an outage. One daemon
+	// per directory.
+	string s3_spill_dir                                 = 118 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).string = {
+			max_len: 4096,
+			pattern: "^[^\\x00-\\x1f\\x7f-\\x9f]*$"
+	}];
+
+	// Bytes the spill directory may hold. Past this the oldest spilled
+	// object is deleted (xtcp_s3_spill_total{result="evicted"}). 0 = 1 GiB.
+	uint64 s3_spill_max_bytes                           = 119 [
+		(buf.validate.field).required = false
+	];
+
 	// ---- identity & labels stamped on every record (130-149) -----------------
+	// The operator strings below reject control characters (C0, DEL, C1).
 
 	// Hostname override. When empty the daemon uses os.Hostname(); set this to
 	// stamp an explicit hostname on records — required in containers, where
@@ -1215,6 +1235,7 @@ message XtcpConfig {
 		(buf.validate.field).required = false,
 		(buf.validate.field).string = {
 			max_len: 253,
+			pattern: "^[^\\x00-\\x1f\\x7f-\\x9f]*$",
 	}];
 
 	// Deployment grouping / facility this daemon runs in (data center, PoP,
@@ -1224,6 +1245,7 @@ message XtcpConfig {
 		(buf.validate.field).required = false,
 		(buf.validate.field).string = {
 			max_len: 253,
+			pattern: "^[^\\x00-\\x1f\\x7f-\\x9f]*$",
 	}];
 
 	// Label applied to the protobuf
@@ -1232,6 +1254,7 @@ message XtcpConfig {
 		(buf.validate.field).string = {
 			// min_len: 1,
 			max_len: 40,
+			pattern: "^[^\\x00-\\x1f\\x7f-\\x9f]*$",
 	}];
 
 	// Tag applied to the protobuf
@@ -1240,6 +1263,7 @@ message XtcpConfig {
 		(buf.validate.field).string = {
 			// min_len: 1,
 			max_len: 40,
+			pattern: "^[^\\x00-\\x1f\\x7f-\\x9f]*$",
 	}];
 
 	// Daemon build provenance stamped on every record's `daemon_version` field

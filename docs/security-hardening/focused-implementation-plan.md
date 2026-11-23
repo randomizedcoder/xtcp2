@@ -223,7 +223,10 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 **Status:** open as #308.
 
-**FP-6 TODOs:** `max_len` in protovalidate for the operator strings (`label`, `tag`, `location`, `hostname`), which are trusted and not cleaned; spill the S3 queue to disk during long outages (out of scope: memory bound only).
+**FP-6 follow-ups (in #308):**
+
+- [x] Operator strings (`label`, `tag`, `location`, `hostname`) bounded in protovalidate. *Done as:* their `max_len` was already there (40, 40, 253, 253); added a `pattern` rejecting C0, DEL and C1 controls, so a bad value fails validation (exit 64, or `ConfigService.Set` refused) rather than being cleaned. Validation rows for each.
+- [x] Spill to disk during long outages. *Done as:* `-s3SpillDir` / `S3_SPILL_DIR` (field 118, empty = off) and `-s3SpillMaxBytes` / `S3_SPILL_MAX_BYTES` (field 119, default 1 GiB), `pkg/xtcp/s3spill.go`. It spills finished Parquet objects, not queued envelopes: they are compressed, and with a spill dir the worker tries each upload once and spills on failure, so it no longer waits in retries and keeps draining the queue. A background re-upload sends them oldest first under their original keys: at once after a successful worker upload, otherwise after a full-jitter backoff up to `max(backoffCap, 30s)`. Oldest deleted past the bound; files `0600` in a `0700` dir via `os.Root`, written `.tmp` → sync → rename; recovered at startup. Kept across `ConfigService.Set` by `preserveCaps`. Metrics `xtcp_s3_spill_total{result}`, `xtcp_s3_spill_objects`, `xtcp_s3_spill_bytes`. Tests: `TestS3Spill` (12 rows), `TestS3Spill_contentAndModes`, `TestS3ParquetDest_spill` (3 rows), `TestS3ParquetDest_spillKeptOnClose`, plus flag, env, validation and `preserveCaps` rows. VM: the s3parquet flavor sets `-s3SpillDir` and `-s3FlushInterval 10s`; new Check 14d `S3PARQUET_SPILL`.
 
 ### FP-7 — fuzzers (D4)
 

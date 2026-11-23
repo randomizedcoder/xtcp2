@@ -30,6 +30,8 @@
 *s3UploadBackoffCap: 119ms
 *s3QueueDepth: 1191
 *s3MaxBufferedBytes: 1192
+*s3SpillDir: s3SpillDir-v
+*s3SpillMaxBytes: 1193
 *reconcileFrequency: 120ms
 *reconcileBeforePoll: false
 *maxDumpBytes: 1201
