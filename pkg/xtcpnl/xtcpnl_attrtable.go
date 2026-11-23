@@ -31,15 +31,24 @@ var ErrAttrTableMax = errors.New("xtcpnl: attribute table max out of range")
 // it.
 const attrTableMaxCst = 1024
 
-// ParseAttrTable parses a TLV stream into a table of types 0..maxType. A
+// ParseAttrTable parses a TLV stream into a table of types 0..maxType,
+// with NLA_F_NESTED and NLA_F_NET_BYTEORDER masked off each type. A
 // malformed stream (an attribute longer than what remains, or shorter than
 // its header) is an error.
 func ParseAttrTable(data []byte, maxType uint16) (AttrTable, error) {
+	return ParseAttrTableFlags(data, maxType, ^NlaTypeMaskCst)
+}
+
+// ParseAttrTableFlags is parse_rtattr_flags(tb, max, rta, len, flags)
+// exactly: each type is rta_type & ~flags, so flags 0 is parse_rtattr,
+// where a nest flagged NLA_F_NESTED has a type above max and is dropped.
+func ParseAttrTableFlags(data []byte, maxType, flags uint16) (AttrTable, error) {
 	if maxType > attrTableMaxCst {
 		return AttrTable{}, ErrAttrTableMax
 	}
 	t := AttrTable{vals: make([][]byte, int(maxType)+1)}
-	err := WalkRTAttrs(data, func(atype uint16, val []byte) {
+	err := WalkRawAttrs(data, func(raw uint16, val []byte) {
+		atype := raw &^ flags
 		if int(atype) < len(t.vals) && t.vals[atype] == nil {
 			// A zero-length attribute is present: keep a non-nil empty
 			// slice so Has sees it.
@@ -50,6 +59,41 @@ func ParseAttrTable(data []byte, maxType uint16) (AttrTable, error) {
 		return AttrTable{}, err
 	}
 	return t, nil
+}
+
+// WalkRawAttrs is the RTA_OK/RTA_NEXT loop: fn sees each attribute's raw
+// type, flags included, and its payload. A malformed attribute is an
+// error; a remainder shorter than a header ends the walk, as RTA_OK does.
+func WalkRawAttrs(data []byte, fn func(raw uint16, val []byte)) error {
+	for len(data) >= RTAttrSizeCst {
+		alen := int(binary.LittleEndian.Uint16(data[0:2]))
+		if alen < RTAttrSizeCst || alen > len(data) {
+			return ErrRTAttrSmall
+		}
+		fn(binary.LittleEndian.Uint16(data[2:4]), data[RTAttrSizeCst:alen])
+		adv := alen + FourByteAlignPadding(alen)
+		if adv >= len(data) {
+			break
+		}
+		data = data[adv:]
+	}
+	return nil
+}
+
+// FindRawAttr is parse_rtattr_one(type, rta, len): the payload of the first
+// attribute whose raw type, flags included, is raw.
+func FindRawAttr(data []byte, raw uint16) ([]byte, bool) {
+	var out []byte
+	found := false
+	err := WalkRawAttrs(data, func(t uint16, val []byte) {
+		if !found && t == raw {
+			out, found = val, true
+		}
+	})
+	if err != nil && !found {
+		return nil, false
+	}
+	return out, found
 }
 
 // Has is `tb[t] != NULL`.

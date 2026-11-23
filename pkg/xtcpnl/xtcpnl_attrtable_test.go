@@ -96,3 +96,58 @@ func TestAttrTable(t *testing.T) {
 		})
 	}
 }
+
+// TestAttrTableRaw pins the raw-type helpers against parse_rtattr,
+// parse_rtattr_flags and parse_rtattr_one.
+func TestAttrTableRaw(t *testing.T) {
+	t.Parallel()
+	nested := uint16(0x8000)
+	tests := []struct {
+		description string
+		run         func() string
+		expected    string
+	}{
+		{"positive: parse_rtattr (flags 0) drops a flagged nest", func() string {
+			a, err := ParseAttrTableFlags(rta(2|nested, 1), 4, 0)
+			return fmt.Sprint(a.Has(2), err)
+		}, "false <nil>"},
+		{"positive: parse_rtattr_flags NLA_F_NESTED keeps it", func() string {
+			a, err := ParseAttrTableFlags(rta(2|nested, 1), 4, nested)
+			return fmt.Sprint(a.Has(2), err)
+		}, "true <nil>"},
+		{"positive: FindRawAttr matches the raw type, flags included", func() string {
+			v, ok := FindRawAttr(joinAttrs(rta(6, 1), rta(6|nested, 2)), 6|nested)
+			return fmt.Sprintf("%d %t", v, ok)
+		}, "[2] true"},
+		{"negative: FindRawAttr finds no unflagged match for a flagged one", func() string {
+			_, ok := FindRawAttr(rta(6|nested, 2), 6)
+			return fmt.Sprint(ok)
+		}, "false"},
+		{"negative: WalkRawAttrs refuses an overlong attribute", func() string {
+			return fmt.Sprint(WalkRawAttrs([]byte{0x20, 0, 1, 0}, func(uint16, []byte) {}) != nil)
+		}, "true"},
+		{"boundary: FindRawAttr on empty data", func() string {
+			_, ok := FindRawAttr(nil, 1)
+			return fmt.Sprint(ok)
+		}, "false"},
+		{"corner: FindRawAttr returns a match before a malformed tail", func() string {
+			v, ok := FindRawAttr(append(rta(1, 9), 0x20, 0, 2, 0), 1)
+			return fmt.Sprintf("%d %t", v, ok)
+		}, "[9] true"},
+		{"corner: WalkRawAttrs keeps NET_BYTEORDER in the type", func() string {
+			var got uint16
+			if err := WalkRawAttrs(rta(3|0x4000, 1), func(r uint16, _ []byte) { got = r }); err != nil {
+				return err.Error()
+			}
+			return fmt.Sprintf("%#x", got)
+		}, "0x4003"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			if got := tc.run(); got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
