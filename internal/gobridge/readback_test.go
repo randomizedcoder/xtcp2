@@ -19,7 +19,7 @@ var readbackRows = map[string]int{"fdbbr": 99, "fdbvx": 100, "mdbbr": 90, "mdbvx
 
 // readbacksLive is false until 7R implements fdb and mdb show; until then
 // the rows are counted and their commands checked, not replayed.
-var readbacksLive = false
+var readbacksLive = true
 
 type readbackJSON struct {
 	Readback []struct {

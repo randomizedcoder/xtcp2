@@ -204,7 +204,9 @@ changed the fixtures: MST can only be enabled while no port has VLANs, so `brmst
     rc);
   - the `cmds[]` dispatch, with `help` for every object;
   - the writes (`link set`, `vlan add/del/set`, `vlan global set`, `vni add/del`,
-    `mst set`, `fdb`, `mdb`, `monitor`) → `notImplemented` (rc 255).
+    `mst set`, `fdb add/append/replace/del/flush`, `mdb add/replace/del/flush`) and
+    `monitor` → `notImplemented` (rc 255). `fdb` and `mdb` were refused whole until
+    increment 7 (7R) cloned their `show` and `get`.
 - **One file per object:** `link.go`, `vlan.go` (show/compressed/details/stats/tunnelshow/
   global), `vni.go` and `mst.go`. Each mirrors its `bridge/*.c` printer: column widths,
   the `-com` range printing, the headers printed before the dump, and the `-s` stats blocks.

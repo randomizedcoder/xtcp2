@@ -1,6 +1,7 @@
 // Package gobridge is a read-only Go clone of iproute2's bridge(8), the
-// version the flake pins (7.2.0), for its link, vlan, vni and mst shows,
-// built on pkg/xtcpnl's AF_BRIDGE link, vnifilter and vlan decoders.
+// version the flake pins (7.2.0), for its link, vlan, vni, mst, fdb and
+// mdb reads, built on pkg/xtcpnl's AF_BRIDGE link, vnifilter, vlan,
+// neighbor and mdb decoders.
 //
 // Like gotipc and govdpa, it exists to make xtcpnl's coverage something a
 // diff can check: replaying bridge's nlmon (ws) pcap corpus
@@ -12,13 +13,14 @@
 // headers are printed before the dump. The comments cite the bridge/*.c
 // function each piece follows.
 //
-// Scope is the read-only shows: link, vlan (show, -d, -s, -com,
-// tunnelshow, global show with -s router ports), vni and mst, alone or
-// in a -batch (file or stdin, -force), with -netns, -family, -4 and -6.
-// A batch keeps bridge's process state between lines, its leftover
-// filters included (B28-B32). Every write (link set, vlan add/del/set,
-// vlan global set, vni add/del, mst set), fdb, mdb and monitor are
-// refused. gobridge never writes.
+// Scope is the reads: link, vlan (show, -d, -s, -com, tunnelshow, global
+// show with -s router ports), vni, mst, fdb (show, get) and mdb (show,
+// get), alone or in a -batch (file or stdin, -force), with -netns,
+// -family, -4 and -6. A batch keeps bridge's process state between
+// lines, its leftover filters included (B28-B32, F2, M3). Every write
+// (link set, vlan add/del/set, vlan global set, vni add/del, mst set,
+// fdb add/append/replace/del/flush, mdb add/replace/del/flush) and
+// monitor are refused. gobridge never writes.
 package gobridge
 
 import (
@@ -47,8 +49,8 @@ type retCode int
 
 func (e retCode) Error() string { return "return " + strconv.Itoa(int(e)) }
 
-// errNotImplemented is a command gobridge does not clone (a write, fdb,
-// mdb, monitor).
+// errNotImplemented is a command gobridge does not clone (a write or
+// monitor).
 var errNotImplemented = errors.New("gobridge: not implemented")
 
 // runner is bridge's globals: the output, the option counters, the
@@ -74,6 +76,13 @@ type runner struct {
 	vlanVid    int32  // vlan.c filter_vlan
 	vniIndex   uint32 // vni.c filter_index
 	mstIndex   uint32 // mst.c filter_index
+	fdbIndex   uint32 // fdb.c filter_index
+	fdbMaster  uint32 // fdb.c filter_master
+	fdbState   uint32 // fdb.c filter_state: ORed across lines (F2)
+	fdbVlan    uint32 // fdb.c filter_vlan
+	fdbDynamic bool   // fdb.c filter_dynamic: set by show and get (F2)
+	mdbIndex   uint32 // mdb.c filter_index
+	mdbVlan    int32  // mdb.c filter_vlan
 	vlanCurIdx int64  // vlan.c vlan_rtm_cur_ifidx; -1 for none
 	llInited   bool   // ll_init_map's initialized: one link dump a process
 }
@@ -104,6 +113,10 @@ func run(cfg config, args []string, stdout, stderr io.Writer) int {
 	if errors.Is(err, errSegv) {
 		return 139 // bridge died: its buffered stdout never reached the pipe
 	}
+	if errors.Is(err, errAbort) {
+		r.errf("bridge: json_writer.c:122: jsonw_destroy: Assertion `self->depth == 0' failed.\n")
+		return 134 // SIGABRT, stdout lost as for SIGSEGV
+	}
 	if ferr := w.Flush(); ferr != nil && r.o.err == nil {
 		r.o.err = ferr
 	}
@@ -133,6 +146,14 @@ func run(cfg config, args []string, stdout, stderr io.Writer) int {
 
 // helpWord is the "help" every object and option takes.
 const helpWord = "help"
+
+// The words several objects' parsers and printers share.
+const (
+	wordDev       = "dev"
+	wordVni       = "vni"
+	wordSrcVni    = "src_vni"
+	wordPermanent = "permanent"
+)
 
 // matches is lib/utils.c matches(prefix, s) == 0: prefix is a non-empty
 // prefix of s.
@@ -291,11 +312,11 @@ func (r *runner) doCmd(obj string, args []string) error {
 		fn   func([]string) error
 	}{
 		{"link", r.doLink},
-		{"fdb", r.refuse("fdb")},
-		{"mdb", r.refuse("mdb")},
+		{"fdb", r.doFdb},
+		{"mdb", r.doMdb},
 		{"mst", r.doMst},
 		{"vlan", r.doVlan},
-		{"vni", r.doVni},
+		{wordVni, r.doVni},
 		{"monitor", r.refuse("monitor")},
 		{helpWord, func([]string) error { return r.usage() }},
 	} {
@@ -357,13 +378,13 @@ func (r *runner) duparg(key, arg string) error {
 func (r *runner) showArgs(args []string, vid *int32) (dev string, err error) {
 	for i := 0; i < len(args); i++ {
 		switch {
-		case args[i] == "dev":
+		case args[i] == wordDev:
 			if i+1 >= len(args) {
 				return "", r.incomplete()
 			}
 			i++
 			if dev != "" {
-				return "", r.duparg("dev", args[i])
+				return "", r.duparg(wordDev, args[i])
 			}
 			dev = args[i]
 		case vid != nil && args[i] == "vid":

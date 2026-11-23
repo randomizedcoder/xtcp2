@@ -34,13 +34,13 @@ func (r *runner) doLink(args []string) error {
 func (r *runner) linkShow(args []string) error {
 	var dev, master string
 	for i := 0; i < len(args); i++ {
-		if args[i] == "dev" {
+		if args[i] == wordDev {
 			if i+1 >= len(args) {
 				return r.incomplete()
 			}
 			i++
 			if dev != "" {
-				return r.duparg("dev", args[i])
+				return r.duparg(wordDev, args[i])
 			}
 			dev = args[i]
 		}

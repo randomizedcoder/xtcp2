@@ -947,7 +947,7 @@ func (r *runner) routerPortStats(val []byte) error {
 		if !ok {
 			return errOverread("MDBA_ROUTER_PATTR_TYPE", "B35")
 		}
-		s := "permanent"
+		s := wordPermanent
 		if p := (xtcpnl.MdbRouterPort{Type: v}); p.IsTemp() {
 			s = "temp"
 		}

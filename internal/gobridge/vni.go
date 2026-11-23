@@ -30,7 +30,7 @@ func (r *runner) doVni(args []string) error {
 	case w == helpWord:
 		return r.vniUsage()
 	}
-	return r.unknownCommand("vni", args[0])
+	return r.unknownCommand(wordVni, args[0])
 }
 
 // vniUsage is vni.c usage.
@@ -62,7 +62,7 @@ func (r *runner) vniShow(args []string) error {
 	}
 	req := xtcpnl.BuildDumpTunnelRequest(r.vniIndex, flags, r.nextSeq())
 	if !o.isJSON() {
-		o.printf(col("dev") + "  " + col17("vni") + "  group/remote\n")
+		o.printf(col(wordDev) + "  " + col17(wordVni) + "  group/remote\n")
 	}
 	var perr error
 	rc, err := r.dump(req, nil, func(m Msg) int {
@@ -159,7 +159,7 @@ func (r *runner) printVni(val []byte) error {
 		end, _ = t.U32(xtcpnl.VxlanVnifilterEntryEnd)
 	}
 	o.openObject("")
-	w := o.rangeOf("vni", start, end)
+	w := o.rangeOf(wordVni, start, end)
 	if !o.isJSON() {
 		o.printf(padLeft(vxlanIDLen - w))
 	}

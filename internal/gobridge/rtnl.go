@@ -24,6 +24,7 @@ const llMaskCst = xtcpnl.RTEXT_FILTER_VF | xtcpnl.RTEXT_FILTER_SKIP_STATS | xtcp
 type llEntry struct {
 	name  string
 	flags uint32
+	typ   uint16 // ifi_type, an ARPHRD_*: ll_index_to_type
 }
 
 // llCache is ll_map.c's cache: by index and by name.
@@ -32,14 +33,14 @@ type llCache struct {
 	byName  map[string]uint32
 }
 
-func (c *llCache) remember(index uint32, name string, flags uint32) {
+func (c *llCache) remember(index uint32, name string, flags uint32, typ uint16) {
 	if c.byIndex == nil {
 		c.byIndex, c.byName = map[uint32]llEntry{}, map[string]uint32{}
 	}
 	if old, ok := c.byIndex[index]; ok {
 		delete(c.byName, old.name)
 	}
-	c.byIndex[index] = llEntry{name: name, flags: flags}
+	c.byIndex[index] = llEntry{name: name, flags: flags, typ: typ}
 	c.byName[name] = index
 }
 
@@ -63,7 +64,7 @@ func (c *llCache) rememberMsg(m Msg) {
 		return
 	}
 	if name, ok := t.Str(unix.IFLA_IFNAME); ok {
-		c.remember(index, name, flags)
+		c.remember(index, name, flags, binary.LittleEndian.Uint16(m.Body[2:4]))
 	}
 }
 
@@ -292,3 +293,6 @@ func (r *runner) nodev(dev string) error {
 
 // nlmsgerrAttrMaxCst is NLMSGERR_ATTR_MAX (NLMSGERR_ATTR_MISS_NEST).
 const nlmsgerrAttrMaxCst = 6
+
+// nlmsgerrAttrMissTypeCst is NLMSGERR_ATTR_MISS_TYPE, which x/sys/unix lacks.
+const nlmsgerrAttrMissTypeCst = 5
