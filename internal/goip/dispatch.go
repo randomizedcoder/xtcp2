@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/internal/tnlsys"
 	"golang.org/x/sys/unix"
 )
 
@@ -246,6 +247,9 @@ func wideStatsObject(args []string) bool {
 type runCtx struct {
 	src   Source
 	lltab *LLTab
+	// sys answers what tunnel and tuntap ask outside netlink: the
+	// SIOCGETTUNNEL family of ioctls, sysfs and /proc. See openSys.
+	sys tnlsys.Sys
 	// in is stdin, which only the showdump and restore verbs read.
 	in     io.Reader
 	out    io.Writer
