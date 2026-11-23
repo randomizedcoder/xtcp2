@@ -8,7 +8,7 @@
 - **Reachability:**
   - B1, B2, B3, B5, B6, B10, B21, B22, B24, B25 and B26 are in the corpus (rows below; corpus at `pkg/xtcpnl/testdata/7_3_1/ws/bridge/`).
   - B4, B7, B8, B9, B11, B12, B13, B15, B16, B18, B19, B20, B23 and B27 are latent: they need a reply the current kernel does not send (a missing or short attribute, an unknown state or mode, a self-mode driver) or a failure path. Each has a unit row in `internal/gobridge/unit_test.go` or `pkg/xtcpnl/xtcpnl_bridge_link_test.go`.
-  - B28-B34 and B36 come from 6X ([gobridge.md](../gobridge.md#6x--the-rest-of-the-read-only-surface-v101v104-doc033)): batch mode, `-netns` and router ports, captured in `pkg/xtcpnl/testdata/7_3_1/ws/bridgex/` (rows named `bridgex/...`). B35 is latent, with a unit row in `internal/gobridge/batch_test.go`.
+  - B28-B34, B36 and B37 come from 6X ([gobridge.md](../gobridge.md#6x--the-rest-of-the-read-only-surface-v101v104-doc033)): batch mode, `-netns` and router ports, captured in `pkg/xtcpnl/testdata/7_3_1/ws/bridgex/` (rows named `bridgex/...`). B35 is latent, with a unit row in `internal/gobridge/batch_test.go`.
   - K1, K2 and K3 are in the kernel, not iproute2.
   - B14 was a lead and is dropped (see the end).
 
@@ -41,6 +41,7 @@
 - [B33. `-netns` with no name opens "(null)"](#b33--netns-with-no-name-opens-null)
 - [B34, B35. Router-port timer: padded JSON, unchecked reads](#b34-b35-router-port-timer-padded-json-unchecked-reads)
 - [B36. `-j -batch` prints a stream of arrays](#b36--j--batch-prints-a-stream-of-arrays)
+- [B37. `bridge -V` drops the "iproute2-" prefix](#b37-bridge--v-drops-the-iproute2--prefix)
 - [K1, K2, K3. Kernel notes](#k1-k2-k3-kernel-notes)
 - [Dropped: B14](#dropped-b14)
 - [Still present in the latest code](#still-present-in-the-latest-code)
@@ -84,6 +85,7 @@
 | B34 | C7 | `mdb.c:76-80` | `-j` router-port `"timer"` is `" 254.87"`, column padding included | bridgex pw-021/022/023 |
 | B35 | C3 | `mdb.c:77`, `:84` | router-port TIMER and TYPE read with no length check | unit |
 | B36 | C6 | `bridge.c` batch with `json_print.c` | `-j -batch` prints one array per command, not one document | bridgex pw-001..014 |
+| B37 | C10 | `bridge.c:123` | `bridge -V` prints `bridge utility, 7.2.0`; `ip` and `tc` print `utility, iproute2-7.2.0` | live (V104); gobridge unit row |
 | K1 | C15 kernel | `br_netlink.c` `br_fill_ifinfo` | the bridge's entry names itself as master | 6P unit row |
 | K2 | C15 | `br_netlink_tunnel.c` | `tunnel_info` for an absent VLAN: bare EINVAL | 6C setup |
 | K3 | C15 | `br_mdb.c` `br_rports_fill_info` | a per-VLAN router port's TYPE is the port-wide setting | bridgex ec-021, 6X-P decoder row |
@@ -343,6 +345,14 @@ arrays don't line up with the batch's lines either. A consumer has to parse a st
 can't tell which array belongs to which line (pw-001 to pw-014; the gobridge unit row "B36").
 This is how `ip -j -batch` behaves too; it is recorded as a sharp edge more than a bug.
 
+## B37. `bridge -V` drops the "iproute2-" prefix
+
+`bridge.c:123` prints `"bridge utility, %s\n"`, where `ip/ip.c:246` and `tc/tc.c:276`
+print `"... utility, iproute2-%s"`. So `bridge -V` says `bridge utility, 7.2.0` and
+`ip -V` says `ip utility, iproute2-7.2.0, libbpf 1.8.0`. A script that checks the
+iproute2 version by matching `iproute2-` gets nothing from bridge. Found by the 6X live
+run (V104), where gobridge had copied ip's form.
+
 ## K1, K2, K3. Kernel notes
 
 - **K1:** `br_fill_ifinfo` always adds `IFLA_MASTER`, and for the bridge's own entry it names the bridge itself. Seen in `bridge vlan show` replies; pinned by the 6P row "positive: K1".
@@ -356,7 +366,7 @@ The lead was that `filter_vlan_check` assumes ascending VIDs and that `-com vlan
 ## Still present in the latest code
 
 - The local checkout `87cb3f41` (`v7.3.0-47`, 2026-11-18) has `bridge/` identical to `v7.2.0`. `git log v7.2.0..HEAD -- bridge/ lib/bridge.c` is empty. The `lib/libnetlink.c` and `lib/json_print.c` changes in that range (sequence counter, socket connect, padding, unpadded last message, printf formats) touch none of the code above.
-- For B28-B36 and the files they live in (`bridge/bridge.c`, `bridge/mdb.c`, `lib/utils.c` `getcmdline`/`makeargs`/`do_batch`, `lib/namespace.c` `netns_switch`): `git log v7.2.0..87cb3f41` holds `fde561a2` and `e11870d5`, which free leaked buffers in `getcmdline` (B31's path; its exit status is unchanged), and `552d9842` (`resolve_address`), which is unrelated. On the GitHub mirror, `lib/namespace.c`'s newest commit, `d6a1612b` (a pid fallback in `netns_get_fd`, not `netns_switch`), is in `v7.2.0`, as are `bridge/bridge.c`'s and `bridge/mdb.c`'s newest. B28-B36 are present in the newest code.
+- For B28-B36 and the files they live in (`bridge/bridge.c`, `bridge/mdb.c`, `lib/utils.c` `getcmdline`/`makeargs`/`do_batch`, `lib/namespace.c` `netns_switch`): `git log v7.2.0..87cb3f41` holds `fde561a2` and `e11870d5`, which free leaked buffers in `getcmdline` (B31's path; its exit status is unchanged), and `552d9842` (`resolve_address`), which is unrelated. On the GitHub mirror, `lib/namespace.c`'s newest commit, `d6a1612b` (a pid fallback in `netns_get_fd`, not `netns_switch`), is in `v7.2.0`, as are `bridge/bridge.c`'s and `bridge/mdb.c`'s newest. B28-B36 are present in the newest code, and so is B37 (`bridge/bridge.c` unchanged since `v7.2.0`).
 - Upstream's `bridge/` history, read from the GitHub mirrors (`iproute2/iproute2`, `shemminger/iproute2`) because git.kernel.org refused the fetch: the newest commit is `66d16c41` "bridge: whitespace cleanup" (2026-06-28), which is already in `v7.2.0`. Every finding above is present in the newest code.
 
 ## How xtcp2 handles them

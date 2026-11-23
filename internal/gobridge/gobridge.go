@@ -207,7 +207,8 @@ func (r *runner) options(args []string, st *options) ([]string, error) {
 		case matches(opt, "-help"):
 			return nil, r.usage()
 		case matches(opt, "-Version"):
-			r.o.printf("bridge utility, iproute2-7.2.0\n")
+			// "bridge utility, %s": no "iproute2-", unlike ip and tc (B37).
+			r.o.printf("bridge utility, 7.2.0\n")
 			return nil, exitCode(0)
 		case matches(opt, "-stats"), matches(opt, "-statistics"):
 			r.stats = true

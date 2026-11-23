@@ -365,6 +365,7 @@ command leaves behind reaches the next line. That is a bug class of its own, not
 | B34 | `mdb.c:76-80` | C7 | `-j` router-port `"timer"` is `format_timer(timer, 1)`, the column-aligned text: `" 254.87"`, leading spaces in a JSON string | 6X-C `-j -s vlan global show` |
 | B35 | `mdb.c:77`, `:84` | C3 | router-port TIMER and TYPE read with no length check (found in 6X-R) | 6X-R unit rows |
 | B36 | `bridge.c` batch, `json_print.c` | C6 | `-j -batch` prints one array per command that gets as far as `new_json_obj`, not one document (found in 6X-R) | 6X-C `-j` batch rows; 6X-R unit row |
+| B37 | `bridge.c:123` | C10 | `bridge -V` prints `bridge utility, 7.2.0`, without the `iproute2-` that `ip -V` and `tc -V` print (found in 6X-L) | 6X-L live; unit row |
 | K3 | `br_mdb.c` `br_rports_fill_info` | kernel | a per-VLAN router port's `MDBA_ROUTER_PATTR_TYPE` is the port-wide `p->multicast_ctx.multicast_router`, not the VLAN's: per-VLAN permanent shows `temp`, per-VLAN temp shows `permanent` | 6X-C `brrtr -s` rows |
 
 **TestBridgexSpace** (`tools/nlcapgen/matrix_bridgex_test.go`): 25 rows. Positive: a

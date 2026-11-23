@@ -251,6 +251,8 @@ func TestGobridgeOptions(t *testing.T) {
 			want{stdout: link4, reqs: 2}},
 		{"positive: -4", "-4 link show", []Reply{cache(), rep(port(4, "d1"), done())}, want{stdout: link4, reqs: 2}},
 		{"positive: --6 is -6", "--6 link show", []Reply{cache(), rep(port(4, "d1"), done())}, want{stdout: link4, reqs: 2}},
+		{"positive: -V prints bridge's version line, no iproute2- (B37)", "-V", nil, want{stdout: "bridge utility, 7.2.0\n"}},
+		{"positive: -Version exits 0 before any request", "-Version link show", nil, want{stdout: "bridge utility, 7.2.0\n"}},
 		// Negative.
 		{"negative: an unknown family", "-family ipx link show", nil,
 			want{stderr: "Error: argument \"ipx\" is wrong: invalid protocol family\n", rc: 255}},
