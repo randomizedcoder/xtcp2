@@ -39,6 +39,7 @@
   vagrant,
   xtcp2client, # binaries.xtcp2client (static, CGO_ENABLED=0)
   xtcp2ctl, # binaries.xtcp2ctl     (static, CGO_ENABLED=0)
+  sockfill, # binaries.sockfill (static; holds N TCP pairs — rt-11-2/4/8)
   oci-xtcp2, # containers.oci-xtcp2: streamLayeredImage script
   oci-xtcp2-tcp-stress, # containers.oci-xtcp2-tcp-stress, same form
 }:
@@ -60,7 +61,11 @@ let
   # run. The build-time linkage assertion is the whole point: these unpack on
   # stock Ubuntu, where a dynamic ELF would die on a missing /nix/store loader.
   attackerToolsBinaries = {
-    inherit xtcp2client xtcp2ctl;
+    inherit
+      xtcp2client
+      xtcp2ctl
+      sockfill
+      ;
   };
   attackerTools =
     pkgs.runCommand "xtcp2-redteam-attacker-tools.tar"
@@ -179,6 +184,47 @@ in
   };
 
   apps = scenarioApps // {
+    # Phase sweep: every scenario at its default row, sequentially (one KVM
+    # slot), one TAP stream per scenario. The Phase 1 DoD line: the whole
+    # phase in one invocation.
+    redteam-matrix = {
+      type = "app";
+      program = "${
+        pkgs.writeShellApplication {
+          name = "redteam-matrix";
+          runtimeInputs = [
+            pkgs.coreutils
+            vagrant
+          ];
+          text = ''
+            if [ ! -f flake.nix ]; then
+              echo "redteam-matrix: must be run from the xtcp2 repo root" >&2
+              exit 2
+            fi
+            scenarios=(
+              redteam-rt-1-1
+              redteam-rt-1-2
+              redteam-rt-1-5
+              redteam-rt-1-6
+              redteam-rt-9-1
+              redteam-rt-11-1
+            )
+            failed=0
+            for s in "''${scenarios[@]}"; do
+              echo "== nix run .#$s"
+              if nix run ".#$s"; then
+                echo "== $s: PASS"
+              else
+                echo "== $s: FAIL"
+                failed=$((failed + 1))
+              fi
+            done
+            echo "redteam-matrix: ''${#scenarios[@]} scenarios, $failed failed"
+            [ "$failed" -eq 0 ]
+          '';
+        }
+      }/bin/redteam-matrix";
+    };
     redteam-destroy = {
       type = "app";
       program = "${

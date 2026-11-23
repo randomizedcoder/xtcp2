@@ -35,6 +35,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/evidence.sh"
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/ssh.sh"
 # shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/deploy.sh"
+# shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/invariant.sh"
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/assert.sh"
@@ -45,15 +47,9 @@ evidence_init
 
 echo "rt-1-1: evidence in $RT_EVIDENCE"
 
-# Boot the victim VM unprovisioned, deliver the image tarballs the Vagrantfile
-# cannot sync (the box ships no rsync), then provision the matrix row.
-vm_up --no-provision victim
-# The delivery dir exists only after common.sh; create it now so the scp that
-# precedes the first `vagrant provision` has somewhere to land.
-vm_exec victim 'mkdir -p xtcp2-redteam'
-vm_push victim "$XTCP2_OCI_TAR" xtcp2-redteam/xtcp2-oci.tar.gz
-vm_push victim "$XTCP2_TCP_STRESS_TAR" xtcp2-redteam/xtcp2-tcp-stress.tar.gz
-vm_provision victim
+# Boot the victim VM unprovisioned, deliver the image tarballs, provision the
+# matrix row (lib/deploy.sh).
+xtcp2_deploy victim
 
 # Baseline: the daemon answers locally and the catcher sees records before any
 # attack. AUTH=off binds 127.0.0.1 (200); auth rows bind :9088 and answer

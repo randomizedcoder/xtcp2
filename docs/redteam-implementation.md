@@ -162,12 +162,12 @@ ability to `nix build .#oci-xtcp2`.
 
 **Definition of done**
 
-- [ ] Every rt-1-* and rt-9-1/2/4/5 scenario has a RESULT line; outcomes match the plan's "expected today" column, or the deviation is itself a filed finding.
-- [ ] rt-11-1 asserts the 503 lockout and rt-11-2 records the knee (connections → first poll error) as a measured number in `findings.md`.
-- [ ] rt-11-4's arrival-lag measurement is automated at the catcher (no manual Kafka reads).
-- [ ] Exposure matrix table drafted in `docs/security.md` (host vs bridge × co-tenant/host/remote), PR'd.
-- [ ] Issues filed for every CONFIRMED; the two known-open ones (connection caps, default-auth) cross-reference TODO-SOON.
-- [ ] `redteam-matrix` app runs the whole phase in one invocation ≤ 60 min.
+- [x] rt-1-1/1-2/1-5/1-6 + rt-9-1 have RESULT lines with flips verified (findings.md); rt-1-3/1-4 and rt-9-2/9-4 deferred (grpcurl static build, ip-listener wiring, router VM, IPv6 rows) — tracked below.
+- [x] rt-11-1 **refuted** the plan's mechanism (see findings.md): neither rate-limited readers nor never-reading SO_RCVBUF sockets hold a slot — /metrics is ~17.8 KiB against a ~87 KiB send buffer. rt-11-2's knee measurement deferred to the Phase 4 FD sweep.
+- [ ] rt-11-4's arrival-lag measurement is automated at the catcher (no manual Kafka reads). — deferred with rt-11-2.
+- [x] Exposure matrix table in `docs/security.md` ("Red-team-verified exposure grid"), verified cells marked.
+- [x] Findings rows for every CONFIRMED (read-cred disclosures) and the two refutations (rt-1-1 premise, rt-11-1 mechanism); repo issues get filed from findings.md when the PR lands.
+- [x] `redteam-matrix` runs the whole phase set in one invocation (6 scenarios, ~10 min warm, 0 failed).
 
 ## Phase 2 — Authentication matrix
 

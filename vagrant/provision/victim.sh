@@ -67,10 +67,10 @@ docker load <"$HARNESS_DIR/xtcp2-tcp-stress.tar.gz"
 # from its container netns; host mode dials 127.0.0.1, bridge mode the docker0
 # gateway 172.17.0.1 — socat binds 0.0.0.0, so both reach it.
 mkdir -p /var/lib/xtcp2-catcher
-# socat's OPEN:...append does not O_CREAT — the file must exist before the unit
-# starts, or every connection's child exits with ENOENT and the daemon's
-# envelope writes land on a broken pipe.
-touch /var/lib/xtcp2-catcher/records.jsonl
+# The file must exist before the unit starts, and is truncated per provision to
+# bound the evidence dir (~60 rows per 2s poll otherwise: 3G/week — that filled
+# a 20G disk once already).
+: > /var/lib/xtcp2-catcher/records.jsonl
 cat >/etc/systemd/system/xtcp2-catcher.service <<'EOF'
 [Unit]
 Description=xtcp2 redteam catcher (TCP jsonl sink)
