@@ -33,6 +33,8 @@ var gotipcClosure = []string{
 	modulePath + "/cmd/gotipc", modulePath + "/internal/gotipc",
 	modulePath + "/pkg/xtcpnl", modulePath + "/internal/jsonw",
 	modulePath + "/pkg/cint",
+	// Reached through xtcpnl's congestion-name decoder; stdlib only.
+	modulePath + "/pkg/strpolicy",
 	// Reached through xtcpnl's inet_diag decoders; see internal/gordma.
 	modulePath + "/gen/go/xtcp_flat_record",
 }
