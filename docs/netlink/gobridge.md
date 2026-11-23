@@ -1,4 +1,4 @@
-# gobridge: `bridge` read-only clone (link, vlan, vni, mst) — captures first
+# gobridge: `bridge` read-only clone (link, vlan, vni, mst, fdb, mdb) — captures first
 
 **Status doc:** [gobridge-status.md](gobridge-status.md) tracks progress against this plan.
 
@@ -378,3 +378,282 @@ every batch row's last pre step writes `b.txt`, and two runs give the same bytes
 **TestBatchFile**: 10 rows run each generated pre step in `sh` and compare `b.txt`:
 quotes, `#`, a trailing backslash, printf escapes, and shell metacharacters all stay
 literal.
+
+## Increment 7 — fdb and mdb read paths (V105–V109, DOC034)
+
+`fdb [show]`, `fdb get`, `mdb [show]` and `mdb get`, with `-j -p -s -d -o -t` and the
+batch forms, byte for byte; the writes stay refused and `monitor` stays out. Planned
+2026-11-23, after 6X, on the same branch so one PR covers gobridge. Findings continue in
+[upstream/iproute2-bridge-print-paths.md](upstream/iproute2-bridge-print-paths.md) from
+B38 / K4. `bridge/fdb.c` and `bridge/mdb.c` are the same at `v7.2.0` (the corpus binary)
+and at `87cb3f41`; only the shared `lib/` files moved, so 7B checks those at both.
+
+### What the requests look like (from source; 7C confirms them live)
+
+| command | request (after `ll_init_map`'s link dump) | reply |
+|---|---|---|
+| `fdb show [br B] [brport\|dev D]` | RTM_GETNEIGH dump, `ndmsg{AF_BRIDGE, ifindex=D}`, `NDA_MASTER` u32 if `br`. Strict mode is on, and `send()` uses `sizeof(req)` (check the corpus datagram length). | NEWNEIGH: `NDA_LLADDR`, `MASTER`, `FLAGS_EXT`, `CACHEINFO`, `VLAN`, `FDB_EXT_ATTRS`; vxlan adds `DST/PORT/VNI/SRC_VNI/IFINDEX/NH_ID/LINK_NETNSID` |
+| `fdb get ADDR {br B\|dev D} [vlan V] [vni N] [self\|master] [dynamic]` | RTM_GETNEIGH, REQUEST only; `NDA_LLADDR`, `NDA_VLAN` u16, `NDA_VNI`, `NDA_MASTER` | one NEWNEIGH, or an error (rc 254) |
+| `mdb [show] [dev D] [vid V]` | **two** RTM_GETMDB dumps, `br_port_msg{PF_BRIDGE, 0}`; filtering is userspace-only (the kernel's strict check rejects an ifindex) | GETMDB (bridge, family 0) / NEWMDB (vxlan, AF_BRIDGE); `MDBA_MDB` plus `MDBA_ROUTER` |
+| `mdb get dev D grp G [src S] [vid V] [src_vni N]` | RTM_GETMDB, `MDBA_GET_ENTRY` (`br_mdb_entry`) + `MDBA_GET_ENTRY_ATTRS` | one NEWMDB without `MDBA_ROUTER`; a flat JSON array |
+
+**Reuse:**
+- **gobridge** (`internal/gobridge`): as a template, `mst.go` (dispatch → `showArgs` → `resolveFilter` → header →
+  `r.dump`). Also:
+  - `dumpOrExit`, `retCode`/`exitCode`, `errCrash`, `errOverread`;
+  - `vlan.go`'s `routerPortStats` and `formatTimer`;
+  - `vni.go`'s `formatHost`;
+  - `print.go`'s `out`;
+  - `rtnl.go`'s `dump`, `talk`, `indexToName` and `dumpDone`;
+  - the `runner` per-object statics pattern (B28).
+- **`pkg/xtcpnl`:**
+  - `xtcpnl_ndmsg.go`: `NdMsg`, `NdaCacheInfo`, the `Nda*`/`Nfea*` constants, `ParseNeigh`;
+  - `xtcpnl_mdb.go`: `MdbEntry`, `ParseMdbEntry`, `ParseMdbDump`, the `MdbEattr*` constants;
+  - `xtcpnl_mdb_router.go`: `ParseMdbRouterPorts`.
+  - gobridge still renders from raw attribute tables (`ParseAttrTableFlags`, `WalkRawAttrs`), per the 6P
+    decision.
+- **goip** `render/neigh.go` and `obj_neigh.go`: reference only, since the imports guard forbids importing
+  `internal/goip`. `fdb.c` has its own state and flag tables.
+- **nlcapgen:**
+  - `matrix_fdb.go`'s `fdbBrSetup`/`fdbVxSetup` and `matrix_mdb.go`'s `mdbBrSetup`/`mdbVxSetup` as fixture
+    bases;
+  - `matrix_bridge.go`'s `bc`/`brBad`/`bridgeSpace().Build`;
+  - `matrix_bridgex.go`'s `bb`/`batchFile`.
+- **Existing readbacks:**
+  - 376 rows in `7_3_0/ws/{fdbbr,fdbvx,mdbbr,mdbvx}`;
+  - each holds `bridge fdb|mdb show dev X` as `netlink_route_dump.pcap` plus `dump.out`;
+  - they give byte-for-byte stdout before any new capture.
+
+### Tasks
+
+Each task is committed once verified, with `gobridge-status.md` in the same commit.
+
+### 7S — readback replay first (V105)
+
+**What:**
+- Add `TestGobridgeReadbacks` (`internal/gobridge/readback_test.go`). It replays every 7_3_0 fdb/mdb row's
+  `readback` cmd against `netlink_route_dump.pcap` and compares stdout to `dump.out`. Those rows keep no stderr
+  or rc.
+- It starts red: fdb and mdb are refused. The test is skipped until 7R, and the counts are pinned now.
+- Add the builders to `xtcpnl_rtnetlink_requests.go`:
+  - `BuildFdbDumpRequest(ifindex, master, seq)`, which reproduces bridge's exact bytes including any `sizeof(req)`
+    padding;
+  - `BuildMdbDumpRequest(seq)`;
+  - `BuildFdbGetRequest(...)`;
+  - `BuildMdbGetRequest(...)`.
+
+**TestFdbMdbBuilders:**
+
+| description | input | expected |
+|---|---|---|
+| positive: fdb dump, no filter | ifindex 0, master 0 | bytes equal the corpus `fdbbr` readback with `dev`, minus ifindex (built) |
+| positive: fdb dump `dev d0` | corpus ifindex | byte-equal to the `fdbbr/bd-001` readback request |
+| positive: fdb dump `br br0` | master idx | `NDA_MASTER` u32 present, ifindex 0 |
+| positive: mdb dump | seq | byte-equal to the `mdbbr` readback request (both dumps) |
+| positive: fdb get with vlan and vni | mac, vlan 10, vni 5 | LLADDR(6), VLAN u16, VNI u32 in source order |
+| positive: mdb get with src | v4 grp, src | GET_ENTRY 28 bytes; ENTRY_ATTRS has NLA_F_NESTED and SOURCE u32 |
+| negative: mac shorter than 6 | 5 bytes | error |
+| boundary: vlan -1 (C "unset") | -1 | no `NDA_VLAN` |
+| boundary: mdb get v6 src | 16-byte src | SOURCE 16 bytes |
+| corner: send length vs `nlmsg_len` | strict fdb dump | datagram length as captured (256-byte buffer or nlmsg_len), pinned |
+
+### 7C — capture spaces `bridgefdb` and `bridgemdb` (V106)
+
+**Files and output:**
+- `tools/nlcapgen/matrix_bridgefdb.go` and `matrix_bridgemdb.go`, registered in `main.go`.
+- Corpus: `7_3_1/ws/bridgefdb/` and `7_3_1/ws/bridgemdb/`. Both match gobridge's existing `ws/bridge*` glob.
+
+**Rows:**
+- Each read command is captured plain and `-j`, plus the listed flags.
+- Batch rows use `bb`/`batchFile`.
+- Negatives take `expect` from the source; the capture then confirms it live.
+
+| fixture | pre | commands |
+|---|---|---|
+| `fdbF` | `fdbBrSetup` + d1/d2, vlan_filtering. Entries: d1 A `permanent` (local); d1 B `static vlan 10`; d2 C `dynamic` (REACHABLE, so state `""`); d2 D `sticky`; d1 E `extern_learn`; d1 F `activity_notify` (shown under `-d`); d1 G `self` | `fdb`, `-s fdb`, `-d fdb`, `fdb show br br0`, `brport d1`, `dev d2`, `vlan 10`, `state permanent` / `static` / `reachable` / `all` / `0` / `s` (prefix → static), `dynamic` (NOARP static still shown), `br br0 dev d1` |
+| `fdbVx` | `fdbVxSetup` + dst 10.0.0.1 `port 4790 vni 200 src_vni 300 via d1`; nexthop `ip nexthop add id 1 via 10.0.0.1 fdb` + `nhid 1` | `fdb show dev vx0`, `-d`, `-s` |
+| `fdbGet` | `fdbF` | `fdb get B br br0 vlan 10`; `get A dev d1`; `get G dev d1 self`; `g A br br0` (prefix); missing entry (rc 254, "Fdb entry not found"); `br br0 dev d1` (kernel: "mutually exclusive", K4 lead); `vlan 0` (kernel "invalid vlan id"); `vlan 65535` (short → -1, not sent); `vlan 70000` (wraps to 4464); a bad mac; no address; two addresses (duparg2); `vni 16777216` ("invalid VNI\n\n") |
+| `mdbM` | `mdbBrSetup` + snooping, igmp v3 and mld v2. Entries: d1 239.1.1.1 `permanent vid 10`; d2 ff0e::1 temp; *,G 239.2.2.2 `filter_mode include source_list 10.0.0.1,10.0.0.2`; S,G 232.1.1.1 src 10.0.0.1; L2 group 01:00:5e:… ; host join (port br0); d1 `mcast_router 2` | `mdb`, `-d mdb`, `-s mdb` (timers), `-d -s mdb`, `-o -d mdb` (`\`), `mdb show dev br0`, `vid 10`, `vid abc` (atoi), `mdb show bogus` and `mdb show help` (both ignored) |
+| `mdbVx` | `mdbVxSetup` + entries with dst / `dst_port` / vni / `src_vni` / via | `mdb`, `-d mdb`, `mdb show dev vx0` |
+| `mdbGet` | `mdbM` | `mdb get dev br0 grp 239.1.1.1 vid 10`; `src 10.0.0.1` S,G; v6 grp; missing (254, "MDB entry not found"); no grp (-1); bad grp; `mdb g …` (exact strcmp → unknown); `vid 5000` (kernel refuses) |
+| batch | `fdbF`/`mdbM` + `b.txt` | static carry-over: `fdb show dev d1` then `fdb show` (the dev column is hidden and stays filtered); `state permanent` then `state static` (ORs); `fdb show vlan 10` twice (duparg exit 255 kills the batch); `fdb get … dynamic` then `fdb show` (dynamic leaks); `mdb show vid 10` twice (duparg); `-force` variants |
+
+**Gate:**
+- Run `free -g`, the port check and a bracketed `pgrep` first, then prebuild.
+- Run two batches on a single boot. They must agree on rc and message types, and byte for byte except for a named
+  allow-list (the `-s` cacheinfo/timer rows, recorded in V106).
+- If the shared VM is free, two fresh-boot batches for both 6C and 7C.
+
+**TestBridgefdbSpace / TestBridgemdbSpace:**
+
+| description | input | expected |
+|---|---|---|
+| positive: every row is route + bridge/vxlan modules, written to `ws/bridge{fdb,mdb}` | all rows | proto route, modules set |
+| positive: every read cmd has a `-j` twin | read rows | paired |
+| positive: fixtures order setup before entries | `fdbVx` pre | `nexthop … fdb` precedes `nhid 1` |
+| negative: each refusal row's expect comes from the source table | ng rows | rc 255 / 254 / -1→255 as listed |
+| negative: writes are not in these spaces | all | no `add`/`del` as the captured cmd |
+| boundary: `vlan 65535`, `vlan 70000`, `vni 16777216`, `vid 5000` | rows | exist, with the expect noted |
+| boundary: row counts | per space | pinned |
+| corner: `fdb g` vs `mdb g` | both | fdb accepted, mdb unknown |
+| corner: batch rows write `b.txt` by `batchFile` | batch | `< b.txt` stdin rule |
+| corner: deterministic generation | two runs | identical JSONL |
+
+### 7P — parser additions + O3/O4 (V107)
+
+**Parser changes:**
+- Extend `ParseMdbDump` to return `MDBA_ROUTER` too, through `ParseMdbRouterPorts`.
+- Add `ParseMdbGetReply` for a NEWMDB carrying one `ENTRY`.
+- Add `ParseFdb(body)`, a raw-preserving view: widths kept, so the B48 cases are visible.
+  - It covers `LINK_NETNSID` as s32 and `FDB_EXT_ATTRS`.
+  - Where `ParseNeigh` already decodes a field, the two are cross-checked.
+
+**O3/O4 tests:**
+- `xtcpnl_ws_bridgefdb_test.go` and `_bridgemdb_test.go`.
+- O3 rebuilds every request with the 7S builders.
+- O4 checks each `-j` row's objects against the decoded replies.
+- Counts are pinned.
+
+**TestParseFdb / TestParseMdbGetReply / TestParseMdbDumpRouters:**
+
+| description | input | expected |
+|---|---|---|
+| positive: bridge entry with all attributes | captured `fdbF` B | mac, master, vlan 10, NOARP, cacheinfo, flags_ext 0 |
+| positive: vxlan entry | captured `fdbVx` | dst, port 4790, vni 200, src_vni 300, via, nhid |
+| positive: activity_notify nest | captured F | notify true (NESTED flag masked) |
+| positive: mdb dump with routers | captured `mdbM -d` | entries + router d1 |
+| positive: mdb get reply | captured | one entry, no router |
+| negative: body shorter than ndmsg / br_port_msg | 3 bytes | error |
+| negative: truncated attribute | 3-byte tail | error |
+| negative: `ENTRY_INFO` shorter than `br_mdb_entry` | 27 bytes | error (B59 pinned) |
+| boundary: `LINK_NETNSID` -1 | crafted | -1 (s32), raw 0xffffffff |
+| boundary: an empty `MDBA_MDB` nest | crafted | zero entries |
+| corner: wrong-width `NDA_VLAN` (4 bytes) | crafted | reported; kept raw for the render |
+| corner: one group split across two messages | crafted | both parts kept, in order |
+| corner: an unknown NDA type | MAX+2 | ignored, siblings intact |
+
+Also: `FuzzParseFdb` and `FuzzParseMdbGetReply`, seeded from the corpus; benchmarks; `TestNetlinkUniverse`
+coverage.
+
+### 7R — render: `fdb.go` and `mdb.go` in gobridge (V108)
+
+**Behaviour to mirror:**
+- **Dispatch** (`fdb.c:946`, `mdb.c:1080`): `fdb get` by prefix, `mdb get` exact; the writes stay
+  `notImplemented`.
+- **Statics on `runner`:** `fdbIndex`, `fdbMaster`, `fdbState` (OR-accumulating), `fdbVlan`, `fdbDynamic`,
+  `mdbIndex`, `mdbVlan`. They are never reset, as in C (C16).
+- **Exit paths:**
+  - fdb: a failed dump is `exit(1)` with `[` left open.
+  - mdb: a failed dump is `return -1`; under `-j` that is the `jsonw_destroy` assert abort, modelled with
+    `errCrash` (rc 134, B57).
+  - a failed get returns -2, so rc 254.
+- **`print_fdb`:**
+  - `-o` is ignored (a hard `\n`);
+  - the reachable state prints `""` and leaves a trailing space;
+  - `viaIfIndex` vs `viaIf`;
+  - `used %d/%d` with `get_user_hz`;
+  - the flags array is always present.
+- **`print_mdb_entry`:**
+  - the `index` key is JSON-only;
+  - the source list's timers are unaligned and the `-s` timer is aligned;
+  - the router ports are keyed by bridge name and only shown with `-d`;
+  - `-o` gives `\`.
+- **Live source:** `cmd/gobridge` works unchanged.
+- **Docs:** update the package doc, `errNotImplemented`'s comment and the `gobridge.md` refusal list.
+
+**Corpus:**
+- `TestGobridgeCorpus` counts gain `bridgefdb: N` and `bridgemdb: M`.
+- `TestGobridgeReadbacks` is enabled: all 376 must match.
+
+**TestGobridgeFdbMdbUnit** (fakeSource):
+
+| description | input | expected |
+|---|---|---|
+| positive: `fdb show` bridge entry | NEWNEIGH B | `B dev d1 vlan 10 master br0 static\n` |
+| positive: `-j fdb show` | 2 entries | `[{…},{…}]`, `flags:[]` present |
+| positive: `-s fdb` | cacheinfo 250/500 | `used 2/5 ` |
+| positive: `-d mdb` with a source list | entry | ` filter_mode include source_list 10.0.0.1/0.00,…` |
+| positive: `-d mdb` router ports | router nest | `router ports on br0: d1 ` |
+| positive: `mdb get` | reply | flat array, no `router` key |
+| negative: unknown fdb/mdb command | `fdb bogus` | `Command "bogus" is unknown, try "bridge fdb help".` rc 255 |
+| negative: `fdb show dev nosuch` | — | nodev, rc 255, no dump sent |
+| negative: `fdb show br nosuch` | — | `Cannot find bridge device "nosuch"`, rc 255 |
+| negative: fdb dump error | NLMSG_ERROR | `Dump terminated`, rc 1, `[` open under `-j` |
+| negative: mdb dump error under `-j` | error | assert abort modelled, rc 134 |
+| negative: fdb get, kernel ENOENT | error | `Error: Fdb entry not found.` rc 254 |
+| negative: writes refused | `fdb add …` | not implemented, rc 255, no request |
+| boundary: empty dumps | DONE only | fdb: nothing / `[]`; mdb: `[{"mdb":[],"router":{}}]` |
+| boundary: `state 0` | arg | no filter |
+| boundary: `LINK_NETNSID` -1 | reply | text `-1`, JSON 4294967295 (B46) |
+| corner: reachable state | NUD_REACHABLE | the line ends `"… \n"`, JSON `"state":""` |
+| corner: unknown state 0x40 | — | `state=0x40` / `"0x40"` |
+| corner: `filter_dynamic` | NOARP + PERMANENT | NOARP kept |
+| corner: batch dev carry-over | 2 lines | the 2nd line hides the dev column |
+| corner: L2 group `src` | AF_PACKET + SOURCE | `src (null)` text; a bare key in JSON (B58) |
+| corner: router type 0 | TYPE 0 | `permanent` (B61) |
+
+**Mutants:** 10, run under `systemd-run --user --scope -q -p MemoryMax=6G go test -timeout=180s`:
+- drop the reachable `""`;
+- `-o` honoured in fdb;
+- reset the statics per line;
+- `mdb get` accepted by prefix;
+- drop `NDA_MASTER`;
+- aligned source-list timers;
+- dynamic filter dropping NOARP;
+- the via key fixed;
+- the router ports printed without `-d`;
+- dump error → `exitCode(1)` for mdb.
+
+Each must be killed. Coverage must stay ≥ 82%.
+
+### 7B — bug hunt (DOC034): append to `upstream/iproute2-bridge-print-paths.md`
+
+**Sweep:** go through every class in `bug-classes.md` (C1–C16) over `fdb.c`, `mdb.c` and the helpers they call
+(`lib/utils.c`, `lib/libnetlink.c`, `lib/json_print.c`, `lib/json_writer.c`, `lib/ll_addr.c`, `lib/ll_map.c`).
+
+**Per finding:**
+- Check it at 7.2.0 and at HEAD (gh api on the GitHub mirror), recorded under "Still present".
+- Give file:line, how it is reached, the row that pins it, and how gobridge handles it.
+- The doc stays **"Not submitted to netdev"**.
+
+**Leads from the pre-scan** (unverified; numbered B38+ when confirmed):
+
+| lead | where | class | lead text | pinned by |
+|---|---|---|---|---|
+| F1 | fdb.c:360-365 | C9 | `dev`/`br` repeat silently override (no duparg); the vlan duparg tests the static | 7C rows |
+| F2 | fdb.c:33,368,371 | C16 | `filter_index/master/state/vlan/dynamic` never reset: `state` ORs across lines, a 2nd `vlan` line dies with duparg, `fdb get dynamic` leaks into `show` | batch rows |
+| F3 | fdb.c:229 | C14/C16 | the `dev` column is hidden whenever `filter_index` is set, stale included | batch row |
+| F4 | fdb.c:207 | C14 | `dynamic` hides only PERMANENT and still shows NOARP static entries | `fdb show dynamic` |
+| F5 | fdb.c:80-96 | C9 | `state s` matches `static`; `state 0` = no filter; `all` drops state-0 entries | rows |
+| F6 | fdb.c:278-284 | C7 | `viaIfIndex` (uint) vs `viaIf` (string) by `LINK_NETNSID` presence | unit |
+| F7 | fdb.c:57-78 | C7 | REACHABLE → `"state":""` and a trailing space; an unknown state is a hex string | `fdbF` dynamic row |
+| F8 | fdb.c:291-294 | C2 | the s32 `LINK_NETNSID` goes through `print_uint` with `%d`: -1 vs 4294967295 | unit |
+| F9 | fdb.c:127-144,300 | C2/C3 | `used %d/%d` of unsigned; the cacheinfo struct is cast with no length check | unit/fuzz |
+| F10 | fdb.c:199-294 | C3 | every u16/u32 read is length-unchecked; `ll_addr_n2a` with a 0-length payload | unit |
+| F11 | fdb.c:309, mdb.c:118 | C5 | a hard-coded `\n` ignores `-o` (fdb and mdb `-s` router lines) | `-o` rows |
+| F12 | fdb.c:414-417 | C6 | `Dump terminated` → exit(1) with the JSON array open | unit |
+| F13 | fdb.c:661-687 | C9/C10 | `fdb get`: "invalid VNI\n" double newline; vlan `atoi` into a short (65535 dropped, 70000 wraps); duparg2 before NEXT_ARG; a dead 2nd `dev` branch; unknown words become the address | 7C get rows |
+| F14 | fdb.c:739, :174 | C10 | "An error :-)"; "Not RTM_NEWNEIGH" also printed for a DELNEIGH | source |
+| M1 | mdb.c:448-461 | C9 | `mdb show` has no else: unknown words *and* `help` are ignored | rows |
+| M2 | mdb.c:1097 | C9 | `mdb get` and `help` need an exact match, unlike fdb | rows |
+| M3 | mdb.c:31,456 | C16 | `filter_index`/`filter_vlan` persist; a 2nd `vid` line dies with duparg | batch |
+| M4 | mdb.c:475-498 + json_writer.c:122 | C12/C6 | a dump error under `-j` → `delete_json_obj` at depth>0 → assert abort | unit (live only if forceable) |
+| M5 | mdb.c:202-214, 165 | C6 | `grp` NULL returns with the object open; an L2 entry's `src` → `inet_ntop` NULL → a bare JSON key / `(null)` | unit |
+| M6 | mdb.c:310,103,338 | C3 | the `br_mdb_entry` and router-port ifindex are cast with no length or type check | unit/fuzz |
+| M7 | mdb.c:98, 289-294 | C7 | router arrays keyed by bridge name; timers as padded strings (extends B34) | `-j -d -s` rows |
+| M8 | mdb.c:87 | C14 | router type 0 (disabled) prints "permanent" | unit |
+| M9 | mdb.c:883,671 | C9 | `mdb get vid` atoi into a short; `src_vni` has no 24-bit check | rows |
+| M10 | mdb.c show vs get | C7 | the two JSON shapes differ (`[{mdb,router}]` vs a flat array) | rows |
+| M11 | mdb.c:331 | C11 | `brifname` points into `ll_index_to_name`'s static buffer and may be clobbered within the loop | check, maybe drop |
+| K4 | rtnetlink.c `valid_fdb_get_strict` | C15 | `fdb get br B dev D` is refused ("mutually exclusive") though the usage shows both | 7C row |
+| K5 | br_mdb.c:382 vs vxlan_mdb.c:292 | C15 | the bridge mdb dump uses type GETMDB and family 0; vxlan uses NEWMDB with AF_BRIDGE | corpus |
+| K6 | rtnetlink.c `rtnl_mdb_valid_dump_req` | C15 | the strict dump rejects an ifindex, so `mdb show dev` filters in userspace | note |
+
+**Class update:** if a pattern repeats beyond C1–C16, add it to `bug-classes.md` (C17+). A candidate is "error
+path leaves JSON writer depth > 0 → assert", if it isn't already covered by C6/C12.
+
+### 7L — live diff (V109)
+
+Run gobridge next to `bridge` in a named netns in the guest, over the `fdbF`, `fdbVx`, `mdbM` and `mdbVx`
+fixtures: every 7C read command plus batch. The target is all identical, with exceptions named. A divergence is
+fixed with a unit row added.
