@@ -1,6 +1,6 @@
-# iproute2 `bridge` bugs: an unfilterable port name, a dump that stops at the first port, NULL reads, and inconsistent exits and JSON
+# iproute2 `bridge` bugs: an unfilterable port name, a dump that stops at the first port, NULL reads, filters that leak between batch lines, and inconsistent exits and JSON
 
-**Status (2026-11-22, B28-B36 and K3 added in 6X):**
+**Status (2026-11-23, B28-B37 and K3 added in 6X; B38-B57 and K4-K9 added in increment 7):**
 
 - **Not submitted to netdev.** These are drafts for the user's review, recorded here only, like the other write-ups in this directory. No patch, no PR, no sign-off.
 - **Source:** the local `~/Downloads/iproute2` checkout, `87cb3f41` (`v7.3.0-47-g87cb3f41`), and the Linux checkout (v7.4-rc4: `net/bridge/`, `drivers/net/vxlan/vxlan_vnifilter.c`). The corpus was captured against nixpkgs' `iproute2-7.2.0`; `bridge/` is identical in the two.
@@ -9,8 +9,9 @@
   - B1, B2, B3, B5, B6, B10, B21, B22, B24, B25 and B26 are in the corpus (rows below; corpus at `pkg/xtcpnl/testdata/7_3_1/ws/bridge/`).
   - B4, B7, B8, B9, B11, B12, B13, B15, B16, B18, B19, B20, B23 and B27 are latent: they need a reply the current kernel does not send (a missing or short attribute, an unknown state or mode, a self-mode driver) or a failure path. Each has a unit row in `internal/gobridge/unit_test.go` or `pkg/xtcpnl/xtcpnl_bridge_link_test.go`.
   - B28-B34, B36 and B37 come from 6X ([gobridge.md](../gobridge.md#6x--the-rest-of-the-read-only-surface-v101v104-doc033)): batch mode, `-netns` and router ports, captured in `pkg/xtcpnl/testdata/7_3_1/ws/bridgex/` (rows named `bridgex/...`). B35 is latent, with a unit row in `internal/gobridge/batch_test.go`.
-  - K1, K2 and K3 are in the kernel, not iproute2.
-  - B14 was a lead and is dropped (see the end).
+  - B38-B57 come from increment 7 (fdb and mdb, [below](#increment-7-fdb-and-mdb-b38-b57-k4-k9)). B38, B39, B40, B41, B43, B45, B47, B49, B50, B55, B56 and B57 are captured in `pkg/xtcpnl/testdata/7_3_1/ws/bridgefdb/` and `ws/bridgemdb/` (rows named `fdb ...`/`mdb ...` below). B42, B44, B46, B48, B51, B52, B53 and B54 are latent, with unit rows in `internal/gobridge/fdbmdb_test.go`.
+  - K1-K9 are in the kernel, not iproute2.
+  - B14 and the lead M11 are dropped (see the end).
 
 ## Contents
 
@@ -43,7 +44,29 @@
 - [B36. `-j -batch` prints a stream of arrays](#b36--j--batch-prints-a-stream-of-arrays)
 - [B37. `bridge -V` drops the "iproute2-" prefix](#b37-bridge--v-drops-the-iproute2--prefix)
 - [K1, K2, K3. Kernel notes](#k1-k2-k3-kernel-notes)
-- [Dropped: B14](#dropped-b14)
+- [Increment 7: fdb and mdb (B38-B57, K4-K9)](#increment-7-fdb-and-mdb-b38-b57-k4-k9)
+  - [B38. `fdb show`: a repeated `dev` or `br` silently replaces the first](#b38-fdb-show-a-repeated-dev-or-br-silently-replaces-the-first)
+  - [B39. fdb and mdb filters carry over between batch lines](#b39-fdb-and-mdb-filters-carry-over-between-batch-lines)
+  - [B40. `fdb show dynamic` still shows static entries](#b40-fdb-show-dynamic-still-shows-static-entries)
+  - [B41. `state` parsing: prefixes, `0` and `all`](#b41-state-parsing-prefixes-0-and-all)
+  - [B42. `fdb show`'s via key and link-netnsid format change with `NDA_LINK_NETNSID`](#b42-fdb-shows-via-key-and-link-netnsid-format-change-with-nda_link_netnsid)
+  - [B43. A reachable entry's state is empty; an unknown state is a hex string](#b43-a-reachable-entrys-state-is-empty-an-unknown-state-is-a-hex-string)
+  - [B44. fdb attributes read with no length check](#b44-fdb-attributes-read-with-no-length-check)
+  - [B45. `-o` is ignored by fdb, and by mdb's `-s` router lines](#b45--o-is-ignored-by-fdb-and-by-mdbs--s-router-lines)
+  - [B46. A failed fdb dump exits 1 with the JSON array open](#b46-a-failed-fdb-dump-exits-1-with-the-json-array-open)
+  - [B47. `fdb get` argument parsing](#b47-fdb-get-argument-parsing)
+  - [B48. "An error :-)" and "Not RTM_NEWNEIGH"](#b48-an-error---and-not-rtm_newneigh)
+  - [B49. `mdb show` and `fdb show` ignore unknown words](#b49-mdb-show-and-fdb-show-ignore-unknown-words)
+  - [B50. `mdb get` needs the full word; `fdb get` takes a prefix](#b50-mdb-get-needs-the-full-word-fdb-get-takes-a-prefix)
+  - [B51. A failed mdb dump under `-j` aborts on an assert](#b51-a-failed-mdb-dump-under--j-aborts-on-an-assert)
+  - [B52. An L2 group's `src` prints "(null)", or a bare JSON key](#b52-an-l2-groups-src-prints-null-or-a-bare-json-key)
+  - [B53. mdb attributes cast with no length check](#b53-mdb-attributes-cast-with-no-length-check)
+  - [B54. A router port of type 0 prints "permanent"](#b54-a-router-port-of-type-0-prints-permanent)
+  - [B55. `mdb get`: `vid` into a short, `src_vni` with no range check](#b55-mdb-get-vid-into-a-short-src_vni-with-no-range-check)
+  - [B56. mdb JSON: two shapes, and keys built from data](#b56-mdb-json-two-shapes-and-keys-built-from-data)
+  - [B57. `ll_addr_a2n` (lib/ll_addr.c) at 7.2.0: silent garbage, and a message naming one part](#b57-ll_addr_a2n-libll_addrc-at-720-silent-garbage-and-a-message-naming-one-part)
+  - [K4-K9. Kernel notes (fdb and mdb)](#k4-k9-kernel-notes-fdb-and-mdb)
+- [Dropped: B14, M11](#dropped-b14-m11)
 - [Still present in the latest code](#still-present-in-the-latest-code)
 - [How xtcp2 handles them](#how-xtcp2-handles-them)
 
@@ -89,6 +112,32 @@
 | K1 | C15 kernel | `br_netlink.c` `br_fill_ifinfo` | the bridge's entry names itself as master | 6P unit row |
 | K2 | C15 | `br_netlink_tunnel.c` | `tunnel_info` for an absent VLAN: bare EINVAL | 6C setup |
 | K3 | C15 | `br_mdb.c` `br_rports_fill_info` | a per-VLAN router port's TYPE is the port-wide setting | bridgex ec-021, 6X-P decoder row |
+| B38 | C9 | `fdb.c:360-365` | `fdb show dev d1 dev d2` shows d2, no duparg (mdb's `dev` has one) | fdb ec-018 |
+| B39 | C16 | `fdb.c:33`, `mdb.c:31` | fdb/mdb filters carry over between batch lines; a show's `vlan`/`vid` hides a later get's answer, rc 0 | fdb ec-033..037, ng-020; mdb ec-028/029, ng-016 |
+| B40 | C14 | `fdb.c:207` | `fdb show dynamic` still shows static (NOARP) entries | fdb ec-017 |
+| B41 | C9 | `fdb.c:80-96` | `state s` is static; `state 0` no filter; `state all` drops state 0 | fdb ec-014/015/016 |
+| B42 | C7/C2 | `fdb.c:274-294` | `viaIfIndex` or `viaIf` by netnsid presence; s32 netnsid printed `%d` / unsigned | unit |
+| B43 | C7 | `fdb.c:57-78`, `:309` | reachable state `""` with a trailing space; unknown state a hex string | fdb ec-017 (extern_learn, dynamic) |
+| B44 | C3/C2 | `fdb.c:127-144`, `:198-307` | every fdb attribute read unchecked; cacheinfo cast, `used %d/%d` | unit |
+| B45 | C5 | `fdb.c:309`, `mdb.c:114-118` | `-o` ignored by fdb and mdb's `-s` router lines | fdb ec-021, mdb ec-008 |
+| B46 | C6/C8 | `fdb.c:413-417` | a failed dump exits 1 with `[` open | unit |
+| B47 | C9/C10 | `fdb.c:651-689` | `fdb get`: "invalid VNI\n\n", `vlan` atoi into a short, duparg2 names the keyword, dead branch | fdb ng-012/013/017/018 |
+| B48 | C10 | `fdb.c:738`, `:174` | "An error :-)"; "Not RTM_NEWNEIGH" for any other type | source |
+| B49 | C9 | `mdb.c:448-461`, `:892-895`, `fdb.c:380-383` | unknown words ignored; `mdb show help` prints the table | mdb ec-013/014/021 |
+| B50 | C9 | `mdb.c:1097` vs `fdb.c:960` | `mdb g` unknown, `fdb g` is get | mdb ng-003, fdb ec-025 |
+| B51 | C6/C12 | `mdb.c:469-498`, `lib/json_writer.c:110` | a failed mdb dump under `-j` asserts: SIGABRT, exit 134 | unit |
+| B52 | C12/C6 | `mdb.c:194-214` | an L2 group's `src`: `(null)` in text, a bare JSON key | unit |
+| B53 | C3 | `mdb.c:310`, `:338-340` | `br_mdb_entry` and router ifindex cast unchecked | unit |
+| B54 | C14 | `mdb.c:46-49`, `:83-87` | router type 0 (disabled) prints "permanent" | unit |
+| B55 | C9 | `mdb.c:871-883`, `:664-677` | `mdb get vid` atoi into a short; `src_vni` no 24-bit check, truncated | mdb ng-009 |
+| B56 | C7 | `mdb.c:98`, `:336-360` | show `[{mdb,router}]` vs get flat; router keyed by bridge name | mdb pw-002/016/022 |
+| B57 | C9/C10 | `lib/ll_addr.c` `ll_addr_a2n` | 7.2.0: `bogus` and 7 parts silent; message names one part (fixed at HEAD `5faf18f6`) | mdb ng-011; unit |
+| K4 | C15 | `rtnetlink.c:5358` | `fdb get br B dev D` "mutually exclusive"; usage offers both | fdb ng-010 |
+| K5 | C15 | `br_mdb.c:391-397`, `vxlan_mdb.c:292` | bridge mdb dump GETMDB/family 0; vxlan NEWMDB/AF_BRIDGE | corpus |
+| K6 | C15 | `rtnetlink.c:6681` | strict mdb dump rejects an ifindex: userspace filtering | note |
+| K7 | C15 | `vxlan_mdb.c:599-601`, `:206`, `:1497` | `src_vni` kept in the key, never dumped, needed by get | mdb ng-014, ec-025 |
+| K8 | C15 | `br_mdb.c:1324` | host joins refuse flags (always temp) | fixture |
+| K9 | C15 | `br_mdb.c` get | an entry added without `vid` is on every VLAN; get without `vid` finds nothing | mdb ng-008 |
 
 ## B1. A port named `master` cannot be filtered
 
@@ -359,14 +408,230 @@ run (V104), where gobridge had copied ip's form.
 - **K2:** `bridge vlan add dev vx0 vid 100 tunnel_info id 1000` for a VLAN not yet on the port fails with a bare EINVAL and no extack ("RTNETLINK answers: Invalid argument"). The VLAN has to be added first. Found while building the `vxtun` fixture.
 - **K3:** `br_rports_fill_info` (`net/bridge/br_mdb.c`) lists a VLAN's router ports from the VLAN's port contexts, but fills `MDBA_ROUTER_PATTR_TYPE` from `p->multicast_ctx.multicast_router`, the port-wide setting, not `pmctx->multicast_router`. In the `brrtr` fixture, d1 is permanent on vid 10 (`bridge vlan set dev d1 vid 10 mcast_router 2`) with its port-wide setting left at temp-query, and reports `temp 0.00`. d2 is temp on vid 10 (`mcast_router 3`) with its port-wide setting permanent, and reports `permanent` while its timer runs (ec-021; decoded as TYPE 1 for d1 by the 6X-P row). For the bridge's own (non-VLAN) list, `pmctx` is `&p->multicast_ctx`, so there it is right.
 
-## Dropped: B14
+## Increment 7: fdb and mdb (B38-B57, K4-K9)
+
+Increment 7 ([gobridge.md](../gobridge.md)) cloned `bridge fdb show/get` and `bridge mdb show/get`. The plan's sweep went through the C1-C16 checklist over `bridge/fdb.c`, `bridge/mdb.c` and the helpers they call (`lib/utils.c`, `lib/libnetlink.c`, `lib/json_print.c`, `lib/json_writer.c`, `lib/ll_addr.c`, `lib/ll_map.c`). That gave 25 leads, named F1-F14 (fdb) and M1-M11 (mdb). The gobridge unit rows and overread refusals still carry the lead names. Below, each confirmed lead has a B number:
+
+| B | leads | B | leads |
+|---|---|---|---|
+| B38 | F1 | B48 | F14 |
+| B39 | F2, F3, M3 | B49 | M1 |
+| B40 | F4 | B50 | M2 |
+| B41 | F5 | B51 | M4 |
+| B42 | F6, F8 | B52 | M5 |
+| B43 | F7 | B53 | M6 |
+| B44 | F9, F10 | B54 | M8 |
+| B45 | F11 | B55 | M9 |
+| B46 | F12 | B56 | M7, M10 |
+| B47 | F13 | B57 | (found by corpus row ng-011) |
+
+M11 is dropped (see the end). Line numbers are `v7.2.0`'s. `bridge/` is unchanged from there to HEAD. Captured rows are under `pkg/xtcpnl/testdata/7_3_1/ws/bridgefdb/` (fdb) and `ws/bridgemdb/` (mdb).
+
+### The fixture the rows use
+
+`br0` is vlan-filtering, with ports `d1` and `d2` on VLAN 10. The fdb entries are:
+
+| MAC | port | how it was added |
+|---|---|---|
+| `0a:01` | d1 | `static vlan 10` |
+| `0a:02` | d1 | `permanent` |
+| `0a:03` | d2 | `dynamic` |
+| `0a:04` | d2 | `static sticky` |
+| `0a:05` | d1 | `extern_learn` |
+| `0a:06` | d1 | `static activity_notify` |
+| `0a:07` | d1 | `self permanent` |
+
+The MACs are shortened: `0a:01` is `02:00:00:00:0a:01`. An entry added without a VLAN is installed on every VLAN of the port, so most MACs print three times: on `vlan 10`, on `vlan 1`, and with no VLAN.
+
+The mdb fixture adds:
+- `239.1.1.1` on d1, `permanent vid 10`;
+- `ff0e::1` on d2, `temp`;
+- `239.2.2.2` on d1, `filter_mode include source_list 10.0.0.1,10.0.0.2`;
+- `232.1.1.1` with `src 10.0.0.1` on d2;
+- the L2 group `01:02:03:04:05:06` on d2;
+- the host join `239.3.3.3`;
+- d1 set to `mcast_router 2`.
+
+## B38. `fdb show`: a repeated `dev` or `br` silently replaces the first
+
+`fdb_show`'s loop (`fdb.c:359-385`) assigns `filter_dev = *argv` and `br = *argv` with no duplicate test. `bridge fdb show dev d1 dev d2` therefore shows d2's entries, rc 0 (ec-018). The command quietly answers a different question from the one asked.
+
+`mdb show` refuses the same thing: `if (filter_dev) duparg("dev", *argv)` (`mdb.c:450-452`). And in `fdb show` itself, `vlan` has a duplicate test (`fdb.c:367-370`), but it reads the static (B39).
+
+**Fix sketch:** `duparg` on a second `dev`/`brport`/`br`, as mdb does.
+
+## B39. fdb and mdb filters carry over between batch lines
+
+This is B28 for the two new objects. `fdb.c:33` declares `filter_index`, `filter_master`, `filter_state`, `filter_vlan` and `filter_dynamic` at file scope. `mdb.c:31` declares `filter_index` and `filter_vlan`. Nothing resets them between `-batch` lines.
+
+Each of these rows was captured with no errors and rc 0, except the two marked rc 255:
+
+| row | batch | effect |
+|---|---|---|
+| ec-033 | `fdb show dev d1`, then `fdb show` | The second line shows only d1, and drops the `dev` column. `print_fdb` hides the column whenever `filter_index` is set (`fdb.c:229`), so the second show's lines are `02:00:00:00:0a:06 vlan 10 master br0 static`, with no device named. |
+| ec-034 | `fdb show br br0`, then `fdb show` | `filter_master` carries over. |
+| ec-035 | `fdb show state permanent`, then `fdb show state static` | `filter_state \|= state` (`fdb.c:376`): the second line prints permanent **and** static entries (47 lines in all). |
+| ec-036 | `fdb get 0a:01 br br0 vlan 10 dynamic`, then `fdb show` | `fdb get`'s `dynamic` sets the show filter (`fdb.c:677`), so the later `fdb show` hides every permanent entry. |
+| ec-037 | `fdb show vlan 10`, then `fdb get 02:00:00:00:0a:02 dev d1` | `fdb_get` prints its answer through `print_fdb`, which applies the show filters. The kernel answers with `0a:02`'s VLAN-less entry, `print_fdb` drops it as `vid 0 != 10`, and the get prints nothing with rc 0. A script reading this output sees an empty answer from a get that succeeded. |
+| ng-020 | `fdb show vlan 10` twice, under `-force` | The second line is a duparg (`Error: duplicate "vlan": "10" is the second value.`), which exits 255 through `-force`. |
+| mdb ec-028 | `mdb show vid 1`, then `mdb get dev br0 grp ff0e::1 vid 10` | `mdb_get` prints through `print_mdbs` too: the vid 10 answer is hidden, and the get prints nothing with rc 0. |
+| mdb ec-029 | `mdb show dev d1`, then `mdb show` | `mdb show`'s `dev` is the bridge, not a port. A port name matches nothing, so the first line prints nothing. The second line carries the index over and prints nothing too, where alone it prints the 15-line table (ec-013 prints the same table). |
+| mdb ng-016 | `mdb show vid 10` twice, under `-force` | duparg, rc 255. |
+
+**Fix sketch:** as for B28, reset the filters at the top of each show, and keep the get's printing away from the show filters.
+
+## B40. `fdb show dynamic` still shows static entries
+
+`fdb.c:207`: `if (filter_dynamic && (r->ndm_state & NUD_PERMANENT)) return 0;`. `dynamic` hides permanent entries only. Entries added `static` are `NUD_NOARP`, and they still print as `static` (ec-017: `0a:06 ... static`, `0a:04 ... sticky master br0 static`). The man page says `dynamic` shows "only dynamic entries".
+
+**Fix sketch:** also test `NUD_NOARP`.
+
+## B41. `state` parsing: prefixes, `0` and `all`
+
+`state_a2n` (`fdb.c:80-96`):
+- **Prefixes:** it uses `matches()`, so `state s` is `static` (ec-016). `s` is also a prefix of `stale`, which is tested later and never reached.
+- **`state 0`:** it goes through `get_unsigned` to 0, and `filter_state |= 0` is no filter at all (ec-015 prints everything).
+- **`state all`:** it is `~0`, and `!(r->ndm_state & ~0)` drops entries whose state is 0 (ec-014). So "all" means "all but state 0".
+- **Unknown names:** these are an error (`invalid state`, ng-007). But any number is accepted as a raw mask with no check.
+
+## B42. `fdb show`'s via key and link-netnsid format change with `NDA_LINK_NETNSID`
+
+`fdb.c:274-294`:
+- **The via key:** with `NDA_LINK_NETNSID` present, `NDA_IFINDEX` prints as `"viaIfIndex"`, a number. Without it, `"viaIf"` prints the ifindex resolved to a name in *this* netns. The same field has two JSON keys and two types (C7).
+- **The netnsid's sign:** `NDA_LINK_NETNSID` is an `s32` in the kernel (`nla_put_s32`, `-1` for "none"), but it is read with `rta_getattr_u32` and printed with `print_uint` and the text format `"link-netnsid %d "`. -1 is `link-netnsid -1` in text and `4294967295` in JSON (C2).
+
+The vxlan fixture's entries don't carry a netnsid, so both are unit rows: "boundary: LINK_NETNSID -1, signed text (F8)" and "... unsigned JSON and viaIfIndex (F6, F8)".
+
+## B43. A reachable entry's state is empty; an unknown state is a hex string
+
+`state_n2a` (`fdb.c:57-78`) returns `""` for `NUD_REACHABLE`. `print_fdb` prints it with `"%s\n"` after `master %s `, so a learned entry's text line ends in a space (`0a:03 dev d2 vlan 10 master br0 \n`, every `dynamic` and `extern_learn` row, e.g. ec-017), and its JSON has `"state":""`.
+
+An unknown state prints as `state=0x40` in text and `"0x40"` in JSON. That is the same key with a string that is sometimes a name and sometimes a number.
+
+`state_n2a` also returns a pointer to one static buffer. That is harmless while it is used once per line.
+
+## B44. fdb attributes read with no length check
+
+`print_fdb` (`fdb.c:198-307`) reads each attribute without checking its length (C3):
+- `NDA_FLAGS_EXT`, `NDA_VLAN`, `NDA_PORT`, `NDA_VNI`, `NDA_SRC_VNI`, `NDA_IFINDEX`, `NDA_NH_ID` and `NDA_MASTER` go through `rta_getattr_u16`/`u32` with no `RTA_PAYLOAD` check.
+- `NDA_DST` goes to `inet_ntop` by family.
+- `fdb_print_stats` casts `NDA_CACHEINFO` to `struct nda_cacheinfo` (16 bytes) unchecked (`fdb.c:300`). It then prints the `__u32` fields with `"used %d/%d "` (`fdb.c:140`). An entry used more than 2^31 ticks ago would print negative in text and positive in JSON (C2).
+
+The kernel sends the right widths. A short attribute would read past it.
+
+gobridge refuses each of these as an overread, named F9 or F10.
+
+## B45. `-o` is ignored by fdb, and by mdb's `-s` router lines
+
+`-o` (oneline) replaces each line's `\n` with `\`, through `print_nl()`/`_SL_`. But:
+- `print_fdb` ends every entry with `print_string(PRINT_ANY, "state", "%s\n", ...)` (`fdb.c:309`). So `bridge -o fdb show` prints exactly what `bridge fdb show` does (ec-021).
+- `mdb.c:114-118`: the router-port lines under `-s` end in `fprintf(f, "\n")`, while the entries before them honor `-o`. `bridge -o -d -s mdb show` (ec-008) prints the entries joined by `\` and the router ports on lines of their own.
+
+## B46. A failed fdb dump exits 1 with the JSON array open
+
+`fdb.c:413-417`: `new_json_obj(json)` prints `[`. On a failed `rtnl_dump_filter`, it prints "Dump terminated" and calls `exit(1)` before `delete_json_obj`. Under `-j`, stdout holds a lone `[`, or an unterminated array of the entries so far (C6). It is also C8 for `-force` batches (B30).
+
+## B47. `fdb get` argument parsing
+
+`fdb_get`'s loop (`fdb.c:651-689`):
+- **The `vni` message:** `invarg("invalid VNI\n", *argv)` (`fdb.c:666`; the add/del path has the same string at `:512`). `invarg` adds its own newline, so the message ends in a blank line: `Error: argument "16777216" is wrong: invalid VNI` and then `\n\n` (ng-018).
+- **`vlan` is a `short` (`short vlan = -1`), parsed with `atoi`:**
+  - `vlan 65535` is -1, "unset". No `NDA_VLAN` is sent, the kernel looks up VLAN 0, and the answer is `Fdb entry not found` (ng-012).
+  - `vlan 70000` wraps to 4464, and the kernel says `invalid vlan id` (ng-013), a VLAN the user never typed.
+  - `vlan abc` is 0, also `invalid vlan id`.
+- **`vlan`'s duplicate test:** `if (vlan >= 0) duparg2("vlan", *argv)` (`fdb.c:672-674`) runs **before** `NEXT_ARG()`, so `*argv` is the keyword. `fdb get M br br0 vlan 10 vlan 20` says `Error: either "vlan" is duplicate, or "vlan" is a garbage.` The value is never named. And `vlan -1 vlan 5` is no duplicate at all.
+- **Dead code:** the second `dev` branch (`fdb.c:658-660`) is dead: the first branch already matched `dev`.
+- **Leftover words:** any unknown word becomes the address (the final `else`). A second unknown word is `duparg2("to", ...)`: `Error: either "to" is duplicate, or "02:00:00:00:0a:02" is garbage.` (ng-017). That names a keyword the user didn't type.
+- **Prefixes:** `self` is tested with `strcmp`, while `master`, `vlan` and `dynamic` are tested with `matches()`. So `m`, `v` and `d` are keywords, and a mistyped word that happens to be a prefix of one of them is taken as that keyword instead of being refused. A MAC is never such a prefix.
+
+## B48. "An error :-)" and "Not RTM_NEWNEIGH"
+
+- `fdb.c:738`: if `print_fdb` fails on `fdb get`'s answer, the user sees `An error :-)`.
+- `fdb.c:174`: the type check accepts `RTM_NEWNEIGH` and `RTM_DELNEIGH`, but its message says `Not RTM_NEWNEIGH` for anything else, and the dump goes on with rc 0 (like B16).
+
+## B49. `mdb show` and `fdb show` ignore unknown words
+
+`mdb_show`'s loop (`mdb.c:448-461`) has no `else` at all. An unknown word, and even `help`, are skipped. `bridge mdb show bogus` (ec-013) and `bridge mdb show help` (ec-014) both print the full table with rc 0.
+
+`fdb_show`'s `else` (`fdb.c:380-383`) calls `usage()` for a prefix of `help` and ignores anything else. `fdb_get` has no such gap: its final `else` takes the word as the address (B47). `mdb_get`'s `else` (`mdb.c:892-895`) calls `usage()` for exactly `help` and ignores the rest: `mdb get dev br0 grp 239.1.1.1 vid 10 bogus` prints the entry, rc 0 (ec-021).
+
+## B50. `mdb get` needs the full word; `fdb get` takes a prefix
+
+`do_mdb` (`mdb.c:1097`) dispatches `get` with `strcmp`, so `bridge mdb g ...` is `Command "g" is unknown` (ng-003). `do_fdb` uses `matches()`, so `bridge fdb g ...` works (fdb ec-025). `show` is a prefix in both. This is the same inconsistency as B21.
+
+## B51. A failed mdb dump under `-j` aborts on an assert
+
+`mdb_show` (`mdb.c:469-498`) opens the JSON array, an object and the `"mdb"` array before dumping. On a failed `rtnl_dump_filter`, it calls `delete_json_obj()` with the two inner levels still open. `delete_json_obj` → `jsonw_destroy`, which asserts `self->depth == 0` (`lib/json_writer.c:110` at `v7.2.0`, `:122` at HEAD). So `bridge -j mdb show` on a dump error dies with SIGABRT (exit 134) and a partial document on stdout, instead of printing "Dump terminated" and returning -1. In a build with `NDEBUG`, it returns -1 and leaves the document unclosed.
+
+This is C6 and C12 together. gobridge models it as exit 134 (unit row "negative: an mdb dump error under -j is the assert abort (M4)"). In text mode, the same path prints "Dump terminated" and returns -1, so a `-force` batch goes past it, unlike fdb's `exit(1)` (B46).
+
+## B52. An L2 group's `src` prints "(null)", or a bare JSON key
+
+`print_mdb_entry` (`mdb.c:203-214`) prints the group with `rt_addr_n2a_r(af, ETH_ALEN, ...)`, which handles `AF_PACKET`, the family of an L2 group such as `01:02:03:04:05:06`. It then prints `MDBA_MDB_EATTR_SOURCE` with `inet_ntop(af, ...)`. For `AF_PACKET`, `inet_ntop` returns NULL (EAFNOSUPPORT):
+- In text, glibc prints it as `src (null)`.
+- In JSON, `print_color_string` with a NULL value writes the key with no value. The document is invalid.
+
+The kernel refuses a source on an L2 group today, so the case needs a crafted reply. It has unit rows "corner: an L2 group's src is (null) in text (M5)" and "... a bare key in JSON (M5)".
+
+The `if (!addr) return;` just above (`mdb.c:203-204`) returns with the JSON object opened at `mdb.c:194` still open (C6).
+
+## B53. mdb attributes cast with no length check
+
+- `br_print_mdb_entry` (`mdb.c:310`) casts each `MDBA_MDB_ENTRY_INFO` to `struct br_mdb_entry` (28 bytes). It parses the nest after it as `RTA_PAYLOAD(i) - RTA_ALIGN(sizeof(*e))`, which goes negative for a short attribute.
+- The vxlan branch of `print_router_entries` (`mdb.c:338-340`) reads the router nest's first attribute as a `uint32_t` ifindex. It checks neither `RTA_OK` nor the length.
+- `MDBA_MDB_EATTR_TIMER`, `RTPROT`, `GROUP_MODE`, `DST_PORT`, `VNI`, `SRC_VNI` and `IFINDEX`, and the source list's `ADDRESS` and `TIMER`, are all read unchecked.
+
+gobridge refuses each of these as an overread, named M6.
+
+## B54. A router port of type 0 prints "permanent"
+
+`br_print_router_port_stats` (`mdb.c:83-87`) prints `is_temp_mcast_rtr(type) ? "temp" : "permanent"`, and `is_temp_mcast_rtr` (`mdb.c:46-49`) is true for `TEMP_QUERY` (1) and `TEMP` (3). Everything else prints "permanent": `PERM` (2), which is right, and also `DISABLED` (0) and any future type. The kernel lists only active router ports, so 0 needs a crafted reply. It has a unit row "corner: a router port of type 0 prints permanent (M8)". K3 adds to the confusion: the type reported is the port-wide one.
+
+## B55. `mdb get`: `vid` into a short, `src_vni` with no range check
+
+- **`vid`:** `mdb_get` holds it in a `short vid = 0` (`mdb.c:871`) and parses it with `atoi` (`:883`), as `mdb add` and `del` do (`:728`, `:977`). So `vid abc` is 0, `vid 70000` wraps to 4464, and `vid 65535` is -1, which `entry.vid = vid` turns back into 65535. Nothing checks the range: `vid 5000` reaches the kernel, which refuses it (`Error: Invalid entry VLAN id.`, ng-009). The user sees the kernel's answer for a value they didn't type.
+- **`src_vni`:** `mdb_parse_vni` (`mdb.c:664-677`, shared with add/del/flush) refuses junk and `ULONG_MAX`, but has no 24-bit check, and `addattr32` truncates the `unsigned long`. A 25-bit `src_vni` is sent for the kernel to refuse, and 2^32+1 is sent as 1. `fdb get` checks the same thing (B47, `vni >> 24`).
+
+## B56. mdb JSON: two shapes, and keys built from data
+
+- **Show and get differ:** `mdb show -j` is `[{"mdb":[...],"router":{...}}]`, always both keys, even with no entries (pw-002: `[{"mdb":[],"router":{}}]`). `mdb get -j` is a flat array of entries with no wrapper (pw-016). The same entry is at a different depth in each.
+- **Router ports keyed by name:** `"router"` is an object keyed by the **bridge's name** (`open_json_array(PRINT_JSON, brifname)`, `mdb.c:98`), so the schema depends on the data (C7). The vxlan form goes through a different code path (`mdb.c:336-360`), which reads only the nest's first attribute, so a vxlan device's key holds at most one port. pw-022 is the vxlan fixture's `-j mdb show`.
+- **Timers:** they are padded strings (B34).
+
+## B57. `ll_addr_a2n` (lib/ll_addr.c) at 7.2.0: silent garbage, and a message naming one part
+
+`mdb get`/`add`'s `grp` falls back to `ll_addr_a2n` when `get_addr` fails (an L2 group). At `v7.2.0` it splits on `:` and `sscanf`s each part with `%x`:
+- **`grp bogus`:** `%x` reads `b` and stops, so it is one byte with no message. `mdb_get` then refuses the 1-byte address itself: `Invalid address "bogus"` (ng-011).
+- **Seven parts:** these are silently cut to six.
+- **A bad part:** its message names only that part (`"zz" is invalid lladdr`), not the argument.
+- **A dotted form:** this goes through `get_addr_1(AF_INET)`, so `1.2.3` is accepted as a 4-byte address. A colon in a dotted form fails `get_addr_1`, with a message naming the whole argument.
+
+**Fixed at HEAD:** `5faf18f6` (after `v7.2.0`) rewrote `ll_addr_a2n`. Its messages name the whole argument, and `bogus` and seven parts now fail with a message. B57 is recorded for the 7.2.0 behavior the corpus pins. gobridge follows 7.2.0 (`llAddrA2N`, seven unit rows).
+
+## K4-K9. Kernel notes (fdb and mdb)
+
+- **K4:** `fdb get M br br0 dev d1` is refused with `Error: Master and device are mutually exclusive.` (`valid_fdb_get_strict`, `net/core/rtnetlink.c:5358`, ng-010). `bridge fdb help` shows `bridge fdb get [ to ] LLADDR [ br BRDEV ] { brport | dev } DEV` (`fdb.c:47`), which offers the two together. The usage line and the kernel disagree.
+- **K5:** the bridge's mdb dump messages are `RTM_GETMDB` with `family 0` (`br_mdb.c:391-397`), while vxlan's are `RTM_NEWMDB` with `AF_BRIDGE` (`vxlan_mdb.c:292`, `:299`). `mdb.c`'s `print_router_entries` branches on the type, so the router-port output differs by device kind (B56).
+- **K6:** the strict mdb dump request rejects a non-zero `ifindex` (`rtnl_mdb_valid_dump_req`, `rtnetlink.c:6681`). So `mdb show dev` filters in userspace, after dumping every bridge in the namespace.
+- **K7:** on a vxlan device without `external`, `vxlan_mdb_add` stores `src_vni` in the entry's key (`vxlan_mdb.c:599-601`). But the dump never prints it (`vxlan_mdb.c:206`), and the data path never matches on it (`:1645`). `mdb get` needs it to find the entry (`vxlan_mdb.c:1497`, `:1518`):
+  - `mdb get dev vx0 grp 239.1.1.2` is `Error: vxlan: MDB entry not found.` (ng-014);
+  - the same with `src_vni 300` finds it (ec-025).
+
+  The dump gives no way to learn the value a get needs.
+- **K8:** a host join (`port br0`) refuses flags: `bridge mdb add dev br0 port br0 grp G permanent` is `Flags are not allowed for host groups` (`br_mdb.c:1324`). Host joins are therefore always `temp`. Found while building the mdb fixture.
+- **K9:** on a vlan-filtering bridge, an entry added without `vid` is installed on every VLAN of the port. `mdb get` without `vid` looks up VLAN 0 and finds nothing: `mdb get dev br0 grp 239.2.2.2` is `Error: bridge: MDB entry not found.` (ng-008), though `mdb show` lists the group. Every get has to name a VLAN.
+
+## Dropped: B14, M11
 
 The lead was that `filter_vlan_check` assumes ascending VIDs and that `-com vlan show vid 22` printing `20-25` is wrong. It prints the range that contains 22, which is a reasonable answer (ec-018), so it is not recorded as a bug.
+
+M11 (increment 7) was that `print_router_entries` keeps `brifname`, a pointer into `ll_index_to_name`'s static buffer, while the loop calls `ll_index_to_name` again for each port. That clobbers it only when both names miss the cache and fall back to `if%u`. `ll_init_map` has dumped every link before the show, so it needs two unknown indexes in one message. It is not reachable in practice and is dropped.
 
 ## Still present in the latest code
 
 - The local checkout `87cb3f41` (`v7.3.0-47`, 2026-11-18) has `bridge/` identical to `v7.2.0`. `git log v7.2.0..HEAD -- bridge/ lib/bridge.c` is empty. The `lib/libnetlink.c` and `lib/json_print.c` changes in that range (sequence counter, socket connect, padding, unpadded last message, printf formats) touch none of the code above.
 - For B28-B36 and the files they live in (`bridge/bridge.c`, `bridge/mdb.c`, `lib/utils.c` `getcmdline`/`makeargs`/`do_batch`, `lib/namespace.c` `netns_switch`): `git log v7.2.0..87cb3f41` holds `fde561a2` and `e11870d5`, which free leaked buffers in `getcmdline` (B31's path; its exit status is unchanged), and `552d9842` (`resolve_address`), which is unrelated. On the GitHub mirror, `lib/namespace.c`'s newest commit, `d6a1612b` (a pid fallback in `netns_get_fd`, not `netns_switch`), is in `v7.2.0`, as are `bridge/bridge.c`'s and `bridge/mdb.c`'s newest. B28-B36 are present in the newest code, and so is B37 (`bridge/bridge.c` unchanged since `v7.2.0`).
+- For B38-B57 (increment 7): `git log v7.2.0..87cb3f41 -- bridge/` is still empty. On the GitHub mirror, the newest commit touching `bridge/fdb.c` or `bridge/mdb.c` is `b468824a`, which is in `v7.2.0`. B38-B56 are present in the newest code. In the helpers: `lib/json_writer.c` changed after `v7.2.0` (`c4c9a7fa`, pretty arrays and separators), but `jsonw_destroy`'s `assert(self->depth == 0)` is still there (line 122), so B51 stands. The `lib/libnetlink.c` commits after `v7.2.0` change neither the extack nor the error printing. **B57 is fixed at HEAD** by `5faf18f6`, which rewrote `ll_addr_a2n`; it is recorded for 7.2.0, the version the corpus pins.
 - Upstream's `bridge/` history, read from the GitHub mirrors (`iproute2/iproute2`, `shemminger/iproute2`) because git.kernel.org refused the fetch: the newest commit is `66d16c41` "bridge: whitespace cleanup" (2026-06-28), which is already in `v7.2.0`. Every finding above is present in the newest code.
 
 ## How xtcp2 handles them
@@ -374,4 +639,5 @@ The lead was that `filter_vlan_check` assumes ascending VIDs and that `-com vlan
 - **Capture (6C):** each reachable finding is pinned by its row's expected outcome in `tools/nlcapgen/matrix_bridge.go`, checked by `TestWsCorpusRows`.
 - **Decoders (6P):** `ParseBridgeLink`, `ParseTunnelMsg` and `ParseBrVlanTables` keep attributes as tables, so a missing attribute is visible and a short `IFLA_BRIDGE_VLAN_INFO` is an error (B27).
 - **Clone (6R):** `gobridge` reproduces bridge's output for every reachable finding, so it can be diffed against bridge. A NULL read (B18-B20) is exit 139. An overread (B8, B9, B23, B27) is refused with the lead's name. Each latent finding has a unit row.
+- **Increment 7:** the `bridgefdb` and `bridgemdb` rows (`tools/nlcapgen/matrix_bridgefdb.go`, `matrix_bridgemdb.go`, 7C) pin the reachable findings. Every one of them, and all 376 older fdb/mdb readbacks, replays byte for byte through `gobridge` (7R). `gobridge` keeps fdb's and mdb's statics on the runner, never reset (B39). It keeps fdb's `exit(1)` (B46), and it models the mdb assert as exit 134 (B51). It refuses each unchecked read (B44, B53) as an overread named by its lead, F9/F10 or M6. And it follows `ll_addr_a2n` as of 7.2.0 (B57). `ParseMdbDumpRouters` and `ParseMdbEntry` (7P) are strict where `mdb.c` is not.
 - **6X:** the `bridgex` rows pin B28-B34 and B36 (`tools/nlcapgen/matrix_bridgex.go`). `gobridge` keeps bridge's per-object statics and its exit-or-return split, so it reproduces each batch finding byte for byte (V103). B35 is refused like the other overreads. `ParseMdbRouterPorts` decodes the router ports strictly (6X-P), which is where K3 shows at the decoder.
