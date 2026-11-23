@@ -184,6 +184,30 @@ func TestConfigService_SetPollFrequency_debugLog(t *testing.T) {
 	<-ch
 }
 
+// SetPollFrequency enforces the poll-frequency floor (1 s, the fastest
+// honored cadence — aligned with TriggerPollBurst.interval's floor): a
+// sub-second request fails validation before the config is touched.
+func TestConfigService_SetPollFrequency_floor(t *testing.T) {
+	c, ch := newConfigServiceFixture(t)
+	for _, bad := range []*xtcp_config.SetPollFrequencyRequest{
+		{PollFrequency: durationpb.New(0), PollTimeout: durationpb.New(0)},
+		{PollFrequency: durationpb.New(500 * time.Millisecond), PollTimeout: durationpb.New(100 * time.Millisecond)},
+	} {
+		if _, err := c.SetPollFrequency(context.Background(), bad); err == nil {
+			t.Fatalf("poll frequency %s accepted: want the 1 s floor to reject it", bad.GetPollFrequency().AsDuration())
+		}
+	}
+	// The floor itself is legal: 1 s / 500 ms validates and signals the
+	// channel like any other change.
+	if _, err := c.SetPollFrequency(context.Background(), &xtcp_config.SetPollFrequencyRequest{
+		PollFrequency: durationpb.New(1 * time.Second),
+		PollTimeout:   durationpb.New(500 * time.Millisecond),
+	}); err != nil {
+		t.Fatalf("1 s floor rejected: err: %v", err)
+	}
+	<-ch
+}
+
 // Get + Set + SetPollFrequency debug-log entry counters: hit the
 // "start" counter and (where reachable) the debug-level log branch.
 func TestConfigService_Get_debugLog(t *testing.T) {

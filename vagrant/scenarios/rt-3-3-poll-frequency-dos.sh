@@ -3,9 +3,16 @@
 # DoS (docs/redteam-plan.md RT-3, plan row rt-3-3; rt-4-8's admin shape).
 #
 # The chain: an admin credential holder sets the poll frequency to its
-# minimum (1 s; timeout < frequency) and drives poll bursts on demand — the
-# daemon re-polls every namespace at the attacker's cadence, CPU/bytes on
-# the monitored host (S3).
+# minimum (the 1 s floor) and drives poll bursts on demand — the daemon
+# re-polls every namespace at the attacker's cadence, CPU/bytes on the
+# monitored host (S3).
+#
+# MITIGATION LANDED 2026-11-23 (this scenario's finding): poll_frequency
+# is floored at 1 s in the proto (both XtcpConfig and
+# SetPollFrequencyRequest — the fastest honored cadence, aligned with
+# TriggerPollBurst.interval), enforced at all three entry points (startup
+# flag, reconfigure, SetPollFrequency). The scenario pins the floor (the
+# 500 ms rejection) AND the amplification at the floor.
 #
 # Asserts:
 #   - the Set is accepted (the churn-rate unbounded residual from rt-3-6);
@@ -65,11 +72,22 @@ base_rate="$(rate 10)"
 base_cpu="$(vm_exec victim 'sudo docker stats rt-xtcp2 --no-stream --format "{{.CPUPerc}} {{.MemUsage}}"' | tail -1)"
 echo "rt-3-3: baseline — ${base_rate} records/s, cpu/mem: $base_cpu"
 
-# --- the attack: 1 s frequency + a poll burst -------------------------------
+# --- the attack: 1 s frequency (the FLOOR) + a poll burst ----------------------
+# The 1 s floor (the fastest honored cadence — aligned with the burst
+# interval's floor; proto/xtcp_config: poll_frequency gte 1s on both the
+# XtcpConfig and SetPollFrequencyRequest) is the bound: anything faster is
+# rejected at ALL three entry points (startup flag, reconfigure, this RPC).
+sub_floor="$(vm_exec attacker "$CTL set-poll-frequency $CTL_ARGS '$admin_token' -frequency 500ms -timeout 100ms" 2>&1 || true)"
+echo "rt-3-3: sub-floor SetPollFrequency (500ms): $sub_floor" | tail -1
+if echo "$sub_floor" | grep -q "must be greater than or equal to 1s"; then
+  ok "the 1 s poll-frequency floor rejects a 500 ms cadence (the amplification bound)"
+else
+  not_ok "a sub-second cadence was accepted — see evidence"
+fi
 vm_exec attacker "$CTL set-poll-frequency $CTL_ARGS '$admin_token' -frequency 1s -timeout 500ms" \
   >"$RT_EVIDENCE/set-frequency.log" 2>&1
 if grep -q "ok:" "$RT_EVIDENCE/set-frequency.log"; then
-  ok "SetPollFrequency to 1s/500ms accepted"
+  ok "SetPollFrequency to the 1 s floor accepted"
 else
   not_ok "SetPollFrequency rejected — see evidence"
 fi
