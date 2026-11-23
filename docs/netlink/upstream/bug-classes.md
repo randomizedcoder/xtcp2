@@ -48,6 +48,7 @@ The last six are in the working tree, not committed yet.
 | C13 | **Output before the operation succeeds**: a header printed before the dump, or partial output left on failure | (new in increment 6) | Look for a `printf` of column headers before `rtnl_dump_filter`. On a failed dump the header stays on stdout. |
 | C14 | **Filter logic**: a filter that passes what it should reject (a missing attribute treated as a match), or one that assumes ordering | rt R2 (a lookup loads the file only on a miss) | For each `filter_*` test, ask what happens when the attribute is absent and when the reply order differs from the assumption. |
 | C15 | **Kernel-side quirks** seen from the decoder: duplicate attributes, fields outside the policy, or replies different from the docs | tipc #16 (PRIO twice in PROP); vdpa #6 (`min_vq_size` sent, not in the policy) | These come out of the strict parser and the corpus (`xtcpnl`'s duplicate and width errors). Record them as kernel notes. |
+| C16 | **Process state carried between batch lines**: a static set by one command and read by the next, a cache filled once, `exit()` where a batch needs a return | bridge B28/B29 (filter statics; a second `vid` is a duparg), B30 (`exit(1)` ends a `-force` batch), B31 (missing continuation, exit 0) | Run the tool with `-batch`: list every file-scope static each command sets (`grep -n "^static" */*.c`) and find where it is reset, if anywhere; for each `exit()` in a command path, ask whether `-force` should go past it; feed two lines that set and then omit each filter. |
 
 ## How to apply it
 

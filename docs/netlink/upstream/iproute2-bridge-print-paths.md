@@ -1,6 +1,6 @@
 # iproute2 `bridge` bugs: an unfilterable port name, a dump that stops at the first port, NULL reads, and inconsistent exits and JSON
 
-**Status (2026-11-22):**
+**Status (2026-11-22, B28-B36 and K3 added in 6X):**
 
 - **Not submitted to netdev.** These are drafts for the user's review, recorded here only, like the other write-ups in this directory. No patch, no PR, no sign-off.
 - **Source:** the local `~/Downloads/iproute2` checkout, `87cb3f41` (`v7.3.0-47-g87cb3f41`), and the Linux checkout (v7.4-rc4: `net/bridge/`, `drivers/net/vxlan/vxlan_vnifilter.c`). The corpus was captured against nixpkgs' `iproute2-7.2.0`; `bridge/` is identical in the two.
@@ -8,7 +8,8 @@
 - **Reachability:**
   - B1, B2, B3, B5, B6, B10, B21, B22, B24, B25 and B26 are in the corpus (rows below; corpus at `pkg/xtcpnl/testdata/7_3_1/ws/bridge/`).
   - B4, B7, B8, B9, B11, B12, B13, B15, B16, B18, B19, B20, B23 and B27 are latent: they need a reply the current kernel does not send (a missing or short attribute, an unknown state or mode, a self-mode driver) or a failure path. Each has a unit row in `internal/gobridge/unit_test.go` or `pkg/xtcpnl/xtcpnl_bridge_link_test.go`.
-  - K1 and K2 are in the kernel, not iproute2.
+  - B28-B34 and B36 come from 6X ([gobridge.md](../gobridge.md#6x--the-rest-of-the-read-only-surface-v101v104-doc033)): batch mode, `-netns` and router ports, captured in `pkg/xtcpnl/testdata/7_3_1/ws/bridgex/` (rows named `bridgex/...`). B35 is latent, with a unit row in `internal/gobridge/batch_test.go`.
+  - K1, K2 and K3 are in the kernel, not iproute2.
   - B14 was a lead and is dropped (see the end).
 
 ## Contents
@@ -33,7 +34,14 @@
 - [B22. `-s vlan tunnelshow` prints VLAN statistics](#b22--s-vlan-tunnelshow-prints-vlan-statistics)
 - [B24. `dev if999` is taken as ifindex 999](#b24-dev-if999-is-taken-as-ifindex-999)
 - [B25, B26. JSON keys and arrays that vary by path](#b25-b26-json-keys-and-arrays-that-vary-by-path)
-- [K1, K2. Kernel notes](#k1-k2-kernel-notes)
+- [B28, B29. Batch lines inherit the previous line's filters](#b28-b29-batch-lines-inherit-the-previous-lines-filters)
+- [B30. A failed dump ends a `-force` batch](#b30-a-failed-dump-ends-a--force-batch)
+- [B31. A missing continuation line ends the batch with exit 0](#b31-a-missing-continuation-line-ends-the-batch-with-exit-0)
+- [B32. Words after `-batch FILE` are ignored](#b32-words-after--batch-file-are-ignored)
+- [B33. `-netns` with no name opens "(null)"](#b33--netns-with-no-name-opens-null)
+- [B34, B35. Router-port timer: padded JSON, unchecked reads](#b34-b35-router-port-timer-padded-json-unchecked-reads)
+- [B36. `-j -batch` prints a stream of arrays](#b36--j--batch-prints-a-stream-of-arrays)
+- [K1, K2, K3. Kernel notes](#k1-k2-k3-kernel-notes)
 - [Dropped: B14](#dropped-b14)
 - [Still present in the latest code](#still-present-in-the-latest-code)
 - [How xtcp2 handles them](#how-xtcp2-handles-them)
@@ -67,8 +75,18 @@
 | B25 | C7 | `lib/bridge.c:41` vs `vlan.c:1314` | `"vid"` under `-s`, `"vlan"` elsewhere | pw-020 |
 | B26 | C7 | `lib/bridge.c:8-20` | `"flags": []` on compressed ranges | pw-018, pw-039 |
 | B27 | C3 | `vlan.c:1295` | `IFLA_BRIDGE_VLAN_INFO` cast unchecked | unit (6P) |
+| B28 | C16 batch state | `link.c:20-21`, `vlan.c:21`, `vni.c:25`, `mst.c:23` | a batch line inherits the previous line's `dev`/`vid`/`master` filter | bridgex ec-007/008/009/010/011 |
+| B29 | C16/C8 | `vlan.c:1123`, `:1240` | so a second `vid` line is a duparg, `exit(-1)` through `-force` | bridgex ng-006 |
+| B30 | C8 | `vlan.c`, `link.c`, `vni.c` `exit(1)`s; `lib/ll_map.c:399-407` | a failed dump ends a `-force` batch | bridgex ng-007 |
+| B31 | C8 | `lib/utils.c` `getcmdline`, `do_batch` | missing continuation: the rest is dropped, exit 0 | bridgex ec-012 |
+| B32 | C9 | `bridge.c:164-184` | `bridge -batch FILE link show` ignores `link show` | bridgex ec-013 |
+| B33 | C9 | `bridge.c:151-155` (and `ip/ip.c:282`) | `-netns` with no name opens `/var/run/netns/(null)` | bridgex ng-014 |
+| B34 | C7 | `mdb.c:76-80` | `-j` router-port `"timer"` is `" 254.87"`, column padding included | bridgex pw-021/022/023 |
+| B35 | C3 | `mdb.c:77`, `:84` | router-port TIMER and TYPE read with no length check | unit |
+| B36 | C6 | `bridge.c` batch with `json_print.c` | `-j -batch` prints one array per command, not one document | bridgex pw-001..014 |
 | K1 | C15 kernel | `br_netlink.c` `br_fill_ifinfo` | the bridge's entry names itself as master | 6P unit row |
 | K2 | C15 | `br_netlink_tunnel.c` | `tunnel_info` for an absent VLAN: bare EINVAL | 6C setup |
+| K3 | C15 | `br_mdb.c` `br_rports_fill_info` | a per-VLAN router port's TYPE is the port-wide setting | bridgex ec-021, 6X-P decoder row |
 
 ## B1. A port named `master` cannot be filtered
 
@@ -225,10 +243,111 @@ The kernel always sends these today, so all three are latent. `gobridge` exits 1
 - **B25:** `bridge -j -s vlan show` keys each VLAN `"vid"` (`bridge_print_vlan_stats`, `lib/bridge.c:41`), while `-j vlan show` and `-j -d vlan show` key it `"vlan"` (`print_range("vlan", ...)`). A consumer needs two schemas for the same object (pw-020 against pw-014).
 - **B26:** `bridge_print_vlan_flags` (`lib/bridge.c:8-20`) returns early for flags 0, and otherwise opens a `"flags"` array that holds only PVID and Egress Untagged. A compressed range's flags are RANGE_BEGIN/RANGE_END, so it prints `"flags": []`, while a single VLAN with no flags has no key (pw-018, pw-039).
 
-## K1, K2. Kernel notes
+## B28, B29. Batch lines inherit the previous line's filters
+
+`bridge -batch` runs every line through `do_cmd` in one process. Each object keeps its
+filters in file-scope statics: `filter_dev_index` and `filter_master_index` in
+`link.c:20-21`, `filter_index` and `filter_vlan` in `vlan.c:21`, `filter_index` in
+`vni.c:25` and `mst.c:23`. A show sets one when its word is given and nothing ever
+clears it, so the next line of the same object is filtered by the previous line's word.
+
+```
+$ printf 'vlan show dev d1\nvlan show\n' | bridge -batch -
+port              vlan-id
+d1                1 Egress Untagged
+                  10 PVID Egress Untagged
+                  ...
+port              vlan-id
+d1                1 Egress Untagged          <- br0 and d2 are missing
+```
+
+The same holds for `vlan show dev d1` then `vlan global show` (vlan.c's static covers
+both; the global table is filtered to d1, so only the header prints), `link show dev d1`
+then `link show`, `vlan show vid 10` then `vlan show`, and `mst show dev d1` then
+`mst show` (rows ec-007 to ec-011).
+
+**B29.** The `vid` duplicate test reads the static itself (`if (filter_vlan)
+duparg("vid", *argv)`, `vlan.c:1123` and `:1240`). So the second batch line that names a
+`vid` is refused as a duplicate, and `duparg` calls `exit(-1)`, which `-force` doesn't
+catch (ng-006: `Error: duplicate "vid": "20" is the second value.`, rc 255).
+
+A `dev` that fails to resolve sets the static to 0 before `nodev` returns
+(`filter_index = ll_name_to_index(filter_dev); if (!filter_index) return nodev(...)`),
+so an error happens to clear it; nothing else does.
+
+**Fix sketch:** reset the filters at the top of each `*_show`, and test duplicates with a
+local flag, as `filter_dev` already is.
+
+## B30. A failed dump ends a `-force` batch
+
+`-force` is meant to keep a batch going past a failed command: `do_batch` breaks on a
+non-zero return only without it. But every show except `mst` handles a failed dump with
+`exit(1)` (`vlan.c:1145-1218`, `link.c:675-681`, `vni.c:368-379`, and `ll_init_map` in
+`lib/ll_map.c:399-407`), so the process ends there whatever `-force` says. With
+`vni show dev d1` (a dummy, EINVAL) as line 1 and `link show` as line 2, the link line
+never runs and no "Command failed" is printed (ng-007). `mst show` returns -1 (B4), so a
+`-force` batch does go past it (ng-005). Usage, `duparg` and `incomplete_command` exit
+too (ng-008: `link help`).
+
+## B31. A missing continuation line ends the batch with exit 0
+
+When the last line ends in `\`, `getcmdline` prints "Missing continuation line" and
+returns -1, which `do_batch` takes as the end of input. The continued line is dropped,
+and the batch's result is whatever came before it: with no earlier failure, exit 0
+(ec-012). A truncated batch file looks like success to a script. The upstream fixes
+after 7.2.0 (`fde561a2`, `e11870d5`) free the buffers on this path; the exit status is
+unchanged.
+
+## B32. Words after `-batch FILE` are ignored
+
+`main` sets `batch_file` and, after the option loop, `return batch(batch_file)`
+(`bridge.c:183-184`) without looking at what is left of `argv`. `bridge -batch b.txt
+link show` runs the file and silently drops `link show` (ec-013). The usage line is
+`bridge [ -force ] -batch filename`, so an error would be the expected answer.
+
+## B33. `-netns` with no name opens "(null)"
+
+`main`'s `argc` still counts `argv[0]`, so `NEXT_ARG()` (`--argc <= 0`) never fires for
+the last option: `bridge -netns` passes `argv[2]`, the terminating NULL, to
+`netns_switch`, whose `snprintf("%s/%s", NETNS_RUN_DIR, name)` prints it as `(null)` in
+glibc:
+
+```
+$ bridge -netns
+Cannot open network namespace "(null)": No such file or directory
+```
+
+(ng-014, rc 255). Passing NULL to `%s` is undefined behaviour; another libc may crash.
+`ip/ip.c:282` has the same code, so `ip -netns` does the same. `-family` and `-batch`
+test `argc <= 1` themselves and print the usage.
+
+## B34, B35. Router-port timer: padded JSON, unchecked reads
+
+`br_print_router_port_stats` (`mdb.c:69-89`), under `-s`:
+
+- **B34:** the timer is `print_string(PRINT_ANY, "timer", " %s", format_timer(timer, 1))`,
+  and `format_timer(..., 1)` is `"%4lu.%.2lu"`, the text column's alignment. The JSON
+  value gets it too: `"timer":" 254.87"`, and `"   0.00"` for zero (pw-021). The text
+  column and the JSON value should be formatted apart (`format_timer(timer, 0)` for JSON).
+- **B35:** `rta_getattr_u32(tb[MDBA_ROUTER_PATTR_TIMER])` and
+  `rta_getattr_u8(tb[MDBA_ROUTER_PATTR_TYPE])` are read with no `RTA_PAYLOAD` check, like
+  B9 one level up. The kernel always sends the right widths; a short attribute reads
+  past it (unit rows in `TestRouterPortStats`).
+
+## B36. `-j -batch` prints a stream of arrays
+
+Each command opens and closes its own JSON array (`new_json_obj`/`delete_json_obj`), so a
+`-j` batch writes one array per command, one per line: not one JSON document. A command
+that fails before `new_json_obj` (an unknown object, `nodev`) prints nothing, so the
+arrays don't line up with the batch's lines either. A consumer has to parse a stream and
+can't tell which array belongs to which line (pw-001 to pw-014; the gobridge unit row "B36").
+This is how `ip -j -batch` behaves too; it is recorded as a sharp edge more than a bug.
+
+## K1, K2, K3. Kernel notes
 
 - **K1:** `br_fill_ifinfo` always adds `IFLA_MASTER`, and for the bridge's own entry it names the bridge itself. Seen in `bridge vlan show` replies; pinned by the 6P row "positive: K1".
 - **K2:** `bridge vlan add dev vx0 vid 100 tunnel_info id 1000` for a VLAN not yet on the port fails with a bare EINVAL and no extack ("RTNETLINK answers: Invalid argument"). The VLAN has to be added first. Found while building the `vxtun` fixture.
+- **K3:** `br_rports_fill_info` (`net/bridge/br_mdb.c`) lists a VLAN's router ports from the VLAN's port contexts, but fills `MDBA_ROUTER_PATTR_TYPE` from `p->multicast_ctx.multicast_router`, the port-wide setting, not `pmctx->multicast_router`. In the `brrtr` fixture, d1 is permanent on vid 10 (`bridge vlan set dev d1 vid 10 mcast_router 2`) with its port-wide setting left at temp-query, and reports `temp 0.00`. d2 is temp on vid 10 (`mcast_router 3`) with its port-wide setting permanent, and reports `permanent` while its timer runs (ec-021; decoded as TYPE 1 for d1 by the 6X-P row). For the bridge's own (non-VLAN) list, `pmctx` is `&p->multicast_ctx`, so there it is right.
 
 ## Dropped: B14
 
@@ -237,6 +356,7 @@ The lead was that `filter_vlan_check` assumes ascending VIDs and that `-com vlan
 ## Still present in the latest code
 
 - The local checkout `87cb3f41` (`v7.3.0-47`, 2026-11-18) has `bridge/` identical to `v7.2.0`. `git log v7.2.0..HEAD -- bridge/ lib/bridge.c` is empty. The `lib/libnetlink.c` and `lib/json_print.c` changes in that range (sequence counter, socket connect, padding, unpadded last message, printf formats) touch none of the code above.
+- For B28-B36 and the files they live in (`bridge/bridge.c`, `bridge/mdb.c`, `lib/utils.c` `getcmdline`/`makeargs`/`do_batch`, `lib/namespace.c` `netns_switch`): `git log v7.2.0..87cb3f41` holds `fde561a2` and `e11870d5`, which free leaked buffers in `getcmdline` (B31's path; its exit status is unchanged), and `552d9842` (`resolve_address`), which is unrelated. On the GitHub mirror, `lib/namespace.c`'s newest commit, `d6a1612b` (a pid fallback in `netns_get_fd`, not `netns_switch`), is in `v7.2.0`, as are `bridge/bridge.c`'s and `bridge/mdb.c`'s newest. B28-B36 are present in the newest code.
 - Upstream's `bridge/` history, read from the GitHub mirrors (`iproute2/iproute2`, `shemminger/iproute2`) because git.kernel.org refused the fetch: the newest commit is `66d16c41` "bridge: whitespace cleanup" (2026-06-28), which is already in `v7.2.0`. Every finding above is present in the newest code.
 
 ## How xtcp2 handles them
@@ -244,3 +364,4 @@ The lead was that `filter_vlan_check` assumes ascending VIDs and that `-com vlan
 - **Capture (6C):** each reachable finding is pinned by its row's expected outcome in `tools/nlcapgen/matrix_bridge.go`, checked by `TestWsCorpusRows`.
 - **Decoders (6P):** `ParseBridgeLink`, `ParseTunnelMsg` and `ParseBrVlanTables` keep attributes as tables, so a missing attribute is visible and a short `IFLA_BRIDGE_VLAN_INFO` is an error (B27).
 - **Clone (6R):** `gobridge` reproduces bridge's output for every reachable finding, so it can be diffed against bridge. A NULL read (B18-B20) is exit 139. An overread (B8, B9, B23, B27) is refused with the lead's name. Each latent finding has a unit row.
+- **6X:** the `bridgex` rows pin B28-B34 and B36 (`tools/nlcapgen/matrix_bridgex.go`). `gobridge` keeps bridge's per-object statics and its exit-or-return split, so it reproduces each batch finding byte for byte (V103). B35 is refused like the other overreads. `ParseMdbRouterPorts` decodes the router ports strictly (6X-P), which is where K3 shows at the decoder.
