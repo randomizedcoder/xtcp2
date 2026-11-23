@@ -227,7 +227,7 @@ preconditions, and quantify detection.
 - [x] Every chain has a "detection gap" note in findings.md (rt-3-1: the Set audit line is the ONLY detector — the victim's catcher blindness has no alarm of its own; rt-3-6: the churn rate is unbounded, the audit line is the only trace).
 - [x] No scenario leaves the daemon reconfigured (rt-3-1/rt-3-6 trap-restore verified by a final Get; rt-3-5's extra container is trap-removed).
 - [x] rt-3-3 CONFIRMED (findings.md): 3x record amplification (50/s -> 180/s) under 1 s polls + bursts; CPU 124->130%, no wedge; restored + final Get.
-- [x] rt-3-4 CONFIRMED (findings.md): SetEnvelopeFlush accepts the uint32 max (no upper-bound validation); growth linear in records (+1 MiB/40 s at this shape), no instant OOM; restored + final Get.
+- [x] rt-3-4 BLOCKED (findings.md): the plan row's expected outcome holds — the envelope flushes on the poll cycle, so even at the uint32 max the caps are a flush ceiling, not a growth driver (RSS within noise; the growth pin stays so a flush regression flips it).
 - [x] rt-7-4 already covered upstream: checks.govulncheck (hermetic, green) + govulncheck-fresh (live DB: 0 reachable findings) — no scenario needed; plan row amended.
 - [ ] Deferred rows (part 3): rt-3-2 (S3 exfil — needs the Garage fixture), rt-7-1/7-2/7-3 (artifact bombs — Garage).
 

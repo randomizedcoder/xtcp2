@@ -4,22 +4,18 @@
 #
 # The chain: SetEnvelopeFlush has no upper bound on its caps (uint32, 0 =
 # default 768 KiB / 10000 rows) — an admin credential holder can set both
-# to 4294967295 (4 GiB / 4294967295 rows), so the in-flight envelope grows
-# until the byte/row cap — with the record rate the only brake. The
-# pass criteria: no INSTANT wedge; the growth is linear in records (the
-# cgroup limit is the ceiling — the documented S3 residual: an admin can
-# drive the monitoring host into an OOM kill by patience, not by a jump).
-#
-# Asserts: the Set is accepted; the daemon's RSS grows measurably under the
-# extreme during the window; no instant OOM (the daemon answers); the
-# restore returns the defaults (786432 bytes / 10000 rows); the catcher
-# keeps reporting (availability holds — the blindness angle is the OOM the
-# cgroup would eventually land).
+# to 4294967295 (4 GiB / 4294967295 rows). AMENDED 2026-11-23 (verified on
+# the VM): the caps are a flush CEILING, not a growth driver — the envelope
+# flushes on the poll cycle, so even at the uint32 max the daemon's RSS
+# stays within noise of the baseline (no unbounded growth: the plan row's
+# expected outcome HOLDS). The residual: the Set itself is unvalidated at
+# the top end (a shape question, not a behavior question — the pin keeps
+# the growth assert so a flush regression flips it).
 set -euo pipefail
 
 : "${XTCP2_AUTH:=raw}"
 : "${XTCP2_ATTACKER:=admin}" # SetEnvelopeFlush is an admin method
-XTCP2_EXPECT="${XTCP2_EXPECT:-CONFIRMED}"
+XTCP2_EXPECT="${XTCP2_EXPECT:-BLOCKED}"
 
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/matrix.sh"
@@ -81,12 +77,15 @@ sleep 20
 rss1="$(rss_mib)"
 sleep 20
 rss2="$(rss_mib)"
+# The plan row's expected outcome: NO unbounded growth under the extremes —
+# the envelope flushes on the poll cycle (the caps are a ceiling that triggers
+# a flush when crossed, not a growth driver); RSS must stay within noise of
+# the baseline. The noise band is generous (+4 MiB) — RSS jitters ~1 MiB.
 echo "rt-3-4: RSS under the extremes: ${rss1}MiB -> ${rss2}MiB (baseline ${rss0}MiB)"
-growth="$(awk -v a="$rss0" -v b="$rss2" 'BEGIN{printf "%d", b - a}')"
-if [ "$growth" -gt 0 ]; then
-  ok "envelope memory GROWS under the caps (+${growth}MiB over 40 s — linear in records; the cap is the ceiling, the record rate is the brake)"
+if awk -v a="$rss0" -v b="$rss2" 'BEGIN{exit !(b - a < 4)}'; then
+  ok "no unbounded growth: RSS +$(awk -v a="$rss0" -v b="$rss2" 'BEGIN{printf "%.2f", b - a}')MiB (the envelope flushes on the poll cycle — the caps are a flush ceiling, not a growth driver)"
 else
-  not_ok "no measurable growth (+${growth}MiB) — the premise needs revisiting (see evidence)"
+  not_ok "RSS grew +$(awk -v a="$rss0" -v b="$rss2" 'BEGIN{printf "%.2f", b - a}')MiB — unbounded growth under the extremes (see evidence)"
 fi
 
 # no instant wedge: the daemon still answers
@@ -122,4 +121,4 @@ else
   not_ok "final Get failed — the daemon is not healthy"
 fi
 
-finish rt-3-4 CONFIRMED
+finish rt-3-4 BLOCKED
