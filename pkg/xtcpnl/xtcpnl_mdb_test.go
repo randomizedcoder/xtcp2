@@ -198,11 +198,11 @@ func TestParseMdbDump(t *testing.T) {
 			body: concat(brPortMsg(9), rtattr(MdbaMdb, rtattr(MdbaMdbEntry, info(mdbEntryBytes(9, 1, 0, 0, MdbProtoIP, mdbG4),
 				rtattr(MdbEattrSource, mdbS4), rtattr(MdbEattrDst, mdbS4b), rtattr(MdbEattrDstPort, le16(4790)),
 				rtattr(MdbEattrVni, le32(200)), rtattr(MdbEattrIfindex, le32(3)), rtattr(MdbEattrSrcVni, le32(300)),
-				rtattr(MdbEattrSrcList, rtattr(MdbSrcListEntry, concat(rtattr(MdbSrcAttrAddress, mdbS4), rtattr(2, le32(0))))),
+				rtattr(MdbEattrSrcList, rtattr(MdbSrcListEntry, concat(rtattr(MdbSrcAttrAddress, mdbS4), rtattr(MdbSrcAttrTimer, le32(260))))),
 			)))),
 			expected: []MdbDumpEntry{{Bridge: 9, Entry: MdbEntry{Ifindex: 9, State: 1, Proto: MdbProtoIP, Group: mdbG4},
 				Attrs: MdbAttrs{Source: mdbS4, Dst: mdbS4b, DstPort: 4790, HasDstPort: true, Vni: 200, HasVni: true,
-					Ifindex: 3, HasIfindex: true, SrcVni: 300, HasSrcVni: true, SrcList: [][]byte{mdbS4}, HasSrcList: true}}},
+					Ifindex: 3, HasIfindex: true, SrcVni: 300, HasSrcVni: true, SrcList: [][]byte{mdbS4}, SrcTimers: []uint32{260}, HasSrcList: true}}},
 		},
 		{
 			description: "negative: an entry info shorter than br_mdb_entry",

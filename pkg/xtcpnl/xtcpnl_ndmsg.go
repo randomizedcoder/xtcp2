@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
@@ -78,6 +79,10 @@ const (
 	NfeaActivityNotify uint16 = 1
 	NfeaDontRefresh    uint16 = 2
 )
+
+// NtfSticky is NTF_STICKY (1 << 6), an ndm_flags bit x/sys/unix lacks: a
+// bridge FDB entry that may not move to another port.
+const NtfSticky uint8 = 1 << 6
 
 // NTF_EXT_* are the NDA_FLAGS_EXT bits. They share no numbering with the
 // ndm_flags NTF_* constants — both sets start at bit 0 — so the two must never
@@ -236,6 +241,13 @@ type NeighInfo struct {
 	// attribute exists, and ip sends it only when `protocol` is given.
 	Protocol    uint8 // NDA_PROTOCOL
 	HasProtocol bool  // NDA_PROTOCOL present
+
+	// LinkNetnsid is NDA_LINK_NETNSID, the netns id of a VXLAN remote's
+	// lower device (vxlan_fdb_info), an s32 where -1 is NETNSA_NSID_NOT_ASSIGNED.
+	// bridge prints it through print_uint (fdb.c), so -1 reads 4294967295
+	// in JSON (F8); the raw value is kept signed here.
+	LinkNetnsid    int32 // NDA_LINK_NETNSID
+	HasLinkNetnsid bool  // NDA_LINK_NETNSID present
 }
 
 // nudStateNames maps each single NUD_* bit to its kernel name. ndm_state is a
@@ -356,6 +368,10 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 			ni.Via, ni.HasVia = neighU32(val)
 		case NdaNhID:
 			ni.NhID, ni.HasNhID = neighU32(val)
+		case uint16(unix.NDA_LINK_NETNSID):
+			if v, ok := neighU32(val); ok {
+				ni.LinkNetnsid, ni.HasLinkNetnsid = cint.Int(v), true
+			}
 		case NdaFdbExtAttrs:
 			parseFdbExtAttrs(val, &ni)
 		case NdaProtocol:
