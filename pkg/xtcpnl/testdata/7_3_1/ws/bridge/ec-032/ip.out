@@ -1,0 +1,7 @@
+port              msti     
+d1                0
+                    state forwarding 
+                  3
+                    state learning 
+d2                0
+                    state forwarding 

@@ -1,0 +1,22 @@
+dev               vni                group/remote
+vx1               100                
+                    RX: bytes 0 pkts 0 drops 0 errors 0 
+                    TX: bytes 0 pkts 0 drops 0 errors 0 
+                  101                
+                    RX: bytes 0 pkts 0 drops 0 errors 0 
+                    TX: bytes 0 pkts 0 drops 0 errors 0 
+                  102                
+                    RX: bytes 0 pkts 0 drops 0 errors 0 
+                    TX: bytes 0 pkts 0 drops 0 errors 0 
+                  200                239.1.1.1
+                    RX: bytes 0 pkts 0 drops 0 errors 0 
+                    TX: bytes 0 pkts 0 drops 0 errors 0 
+                  300                2001:db8::1
+                    RX: bytes 0 pkts 0 drops 0 errors 0 
+                    TX: bytes 0 pkts 0 drops 0 errors 0 
+                  16777214           
+                    RX: bytes 0 pkts 0 drops 0 errors 0 
+                    TX: bytes 0 pkts 0 drops 0 errors 0 
+                  16777215           
+                    RX: bytes 0 pkts 0 drops 0 errors 0 
+                    TX: bytes 0 pkts 0 drops 0 errors 0 

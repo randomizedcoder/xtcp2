@@ -1,0 +1,1 @@
+[{"ifname":"br0","vlans":[{"vlan":1,"flags":["PVID","Egress Untagged"]},{"vlan":10}]},{"ifname":"d1","vlans":[{"vlan":1,"flags":["Egress Untagged"]},{"vlan":10,"flags":["PVID","Egress Untagged"]},{"vlan":20,"vlanEnd":25,"flags":[]}]},{"ifname":"d2","vlans":[{"vlan":1,"flags":["PVID","Egress Untagged"]},{"vlan":30}]}]

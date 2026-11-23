@@ -24,7 +24,7 @@ and is out of scope.
 | command | request(s) after `ll_init_map`'s AF_UNSPEC link dump | `-j` |
 |---|---|---|
 | `bridge link [show] [dev D] [master M]` | RTM_GETLINK dump, `PF_BRIDGE` (no ext mask) | yes |
-| `bridge vlan [show] [dev D] [vid V]`, `-c` | RTM_GETLINK dump `PF_BRIDGE` + `RTEXT_FILTER_BRVLAN[_COMPRESSED]` | yes |
+| `bridge vlan [show] [dev D] [vid V]`, `-com` | RTM_GETLINK dump `PF_BRIDGE` + `RTEXT_FILTER_BRVLAN[_COMPRESSED]` | yes |
 | `bridge -d vlan show` | RTM_GETVLAN dump (`rtnl_brvlandump_req`) | yes |
 | `bridge -s vlan show` | RTM_GETSTATS dump (bridge vlan xstats) | yes |
 | `bridge vlan tunnelshow` | link dump + BRVLAN filter, tunnel-info subject | yes |
@@ -32,7 +32,9 @@ and is out of scope.
 | `bridge vni [show] [dev D]`, `-s` | RTM_GETTUNNEL dump (`rtnl_tunneldump_req`, `TUNNEL_MSG_FLAG_STATS`) | yes |
 | `bridge mst [show] [dev D]` | RTM_GETLINK dump `PF_BRIDGE` + `RTEXT_FILTER_MST` | yes |
 
-The options in scope are `-j -p -s -d -c -o -t`. The kernel is stock NixOS:
+The options in scope are `-j -p -s -d -c -com -o -t`. Options match by prefix, and
+`-color` is tested before `-compressvlans`, so `-c` is colour and compression is `-com`
+(as `bridge.8` says; the pre-scan had them the other way round). The kernel is stock NixOS:
 `CONFIG_BRIDGE=m`, `BRIDGE_VLAN_FILTERING=y`, `VXLAN=m`, so it needs no patch.
 
 **Reuse (do not rebuild):**
@@ -97,11 +99,11 @@ fresh `wsN` per row.
 | fixture | pre | commands captured (each plain and `-j`; plus the flags listed) |
 |---|---|---|
 | `bare` | none | `link`, `vlan`, `vlan global show`, `vni`, `mst`, `-d vlan show`, `-s vlan show` |
-| `br` | `br0` with `vlan_filtering 1`; ports `d1`, `d2` (dummy); `d1` vid 10 pvid untagged, vids 20-25; `d2` vid 30; `br0 self` vid 1; `d2` learning off, cost 7, priority 5, hairpin on | `link`, `link show dev d1`, `link show master br0`, `-d link`, `vlan`, `-c vlan`, `vlan show dev d1`, `vlan show vid 22`, `-c vlan show vid 22` (B14), `-d vlan show`, `-s vlan show`, `-s -d vlan show`, `mst` with mst disabled (B10) |
+| `br` | `br0` with `vlan_filtering 1`; ports `d1`, `d2` (dummy); `d1` vid 10 pvid untagged, vids 20-25; `d2` vid 30; `br0 self` vid 1; `d2` learning off, cost 7, priority 5, hairpin on | `link`, `link show dev d1`, `link show master br0`, `-d link`, `vlan`, `-com vlan`, `vlan show dev d1`, `vlan show vid 22`, `-com vlan show vid 22` (B14), `-d vlan show`, `-s vlan show`, `-s -d vlan show`, `mst` with mst disabled (B10) |
 | `brglob` | `br` + `bridge vlan global set dev br0 vid 10 mcast_snooping 0 mcast_igmp_version 3` | `vlan global show`, `vlan global show dev br0 vid 10`, `-d vlan global show` |
 | `brmst` | `br` + `ip link set br0 type bridge mst_enabled 1`; `bridge vlan global set dev br0 vid 10 msti 3`; `bridge mst set dev d1 msti 3 state 2` | `mst`, `mst show dev d1` |
 | `vxtun` | `br` + `vx0` vxlan `external` `dstport 4789` as a br0 port, `vlan_tunnel on`, `bridge vlan add dev vx0 vid 100 tunnel_info id 1000` | `vlan tunnelshow`, `vlan tunnelshow dev vx0` |
-| `brwide` | `br` + port `d3` with vids `2-4094` | `-c vlan show`, `-c vlan show dev d3` (`VLAN_ID_LEN` boundary; no uncompressed row, which would be 4093 lines) |
+| `brwide` | `br` + port `d3` with vids `2-4094` | `-com vlan show`, `-com vlan show dev d3` (`VLAN_ID_LEN` boundary; no uncompressed row, which would be 4093 lines) |
 | `vnif` | `vx1` vxlan `external vnifilter` `dstport 4790`; `bridge vni add dev vx1 vni 100-102`; `vni 200 group 239.1.1.1` | `vni`, `vni show dev vx1`, `-s vni show` (`-j -s` covers B17); also `vni 16777214-16777215` (column-width boundary) |
 
 **Negatives:** each `expect` comes from the source, and 6C confirms it live.
@@ -116,7 +118,14 @@ fresh `wsN` per row.
 - `bridge -z link` (unknown option)
 - `bridge vlan show vid abc` and `bridge vlan show vid 70000` (atoi: no validation, B5)
 - `bridge link show bogus` and `bridge vni show bogus` (unknown words ignored, B2)
-- `bridge link show dev master` on a fixture whose bridge is named `master` (bug lead B1)
+- `bridge link show dev master` on a fixture with a port named `master` (bug lead B1)
+
+**As captured (V097).** `matrix_bridge.go` is the final list: 44 commands over nine
+fixtures (the seven above plus `brmstnov`, MST on with a VLAN-less port, and `brmaster`, a
+port named `master`), each plain and `-j`, and 25 negatives: 113 rows. Two setup facts
+changed the fixtures: MST can only be enabled while no port has VLANs, so `brmst` sets
+`mst_enabled 1` when `br0` is created; and a VLAN must be on a port before its
+`tunnel_info`, or the kernel answers a bare EINVAL.
 
 **Gate:**
 - Run `free -g`, the VM port check and a bracketed `pgrep` first.
@@ -132,7 +141,7 @@ fresh `wsN` per row.
 |---|---|---|
 | positive: every row is route with bridge+vxlan modules | all rows | `proto=="route"`, modules set, no `initns` |
 | positive: bare link show, plain | bare/0 | cmd `bridge link show`, 0 pre, rc 0 |
-| positive: `-c vlan` uses the compressed filter fixture | br, `-c vlan` | cmd `bridge -c vlan show`, pre has range 20-25 |
+| positive: `-com vlan` uses the compressed filter fixture | br, `-com vlan` | cmd `bridge -com vlan show`, pre has range 20-25 |
 | positive: mst fixture enables mst before setting state | brmst pre | `mst_enabled 1` precedes `mst set` |
 | positive: vnif fixture adds vnis after vnifilter | vnif pre | `vnifilter` precedes `bridge vni add` |
 | negative: unknown object | `bridge badobj` | rc and iproute2 refusal from the source |
@@ -165,7 +174,7 @@ fresh `wsN` per row.
   |---|---|---|
   | positive: port with protinfo | captured br `d2` | cost 7, priority 5, learning off, hairpin on |
   | positive: vlan list with pvid/untagged | captured `d1` BRVLAN | vid 10 flags PVID\|UNTAGGED; vids 20..25 |
-  | positive: compressed range | captured `-c` reply | one RANGE_BEGIN 20 / RANGE_END 25 pair |
+  | positive: compressed range | captured `-com` reply | one RANGE_BEGIN 20 / RANGE_END 25 pair |
   | positive: tunnel info | captured vxtun `vx0` | vid 100 → tunnel id 1000 |
   | positive: mst entries | captured brmst `d1` | msti 3, state 2 |
   | positive: vnifilter entries | captured vnif | 100-102; 200 group 239.1.1.1 |
@@ -191,14 +200,14 @@ fresh `wsN` per row.
 
 `cmd/gobridge/main.go` (thin) + `internal/gobridge/`, with a `nix/binaries.nix` entry.
 - **`gobridge.go`** mirrors `bridge.c`:
-  - `matches()` option parsing (`-s/-d/-c/-j/-p/-o/-t`, unknown option → bridge's text and
+  - `matches()` option parsing (`-s/-d/-c/-com/-j/-p/-o/-t`, unknown option → bridge's text and
     rc);
   - the `cmds[]` dispatch, with `help` for every object;
   - the writes (`link set`, `vlan add/del/set`, `vlan global set`, `vni add/del`,
     `mst set`, `fdb`, `mdb`, `monitor`) → `notImplemented` (rc 255).
 - **One file per object:** `link.go`, `vlan.go` (show/compressed/details/stats/tunnelshow/
   global), `vni.go` and `mst.go`. Each mirrors its `bridge/*.c` printer: column widths,
-  the `-c` range printing, the headers printed before the dump, and the `-s` stats blocks.
+  the `-com` range printing, the headers printed before the dump, and the `-s` stats blocks.
 - **Supporting files:** `print.go` (json_writer, reusing `internal/jsonw` where it fits),
   `mnl.go`-style rtnl dump/ack handling, and `source.go` (a `wsreplay` wrapper; a live
   `NETLINK_ROUTE` source for `cmd/gobridge`).
@@ -208,7 +217,7 @@ fresh `wsN` per row.
 
   | description | input | expected |
   |---|---|---|
-  | positive: `-c vlan show` prints `20-25` | range reply | `d1 … 20-25` line |
+  | positive: `-com vlan show` prints `20-25` | range reply | `d1 … 20-25` line |
   | positive: `-j link show` objects | 2 ports | `[{…},{…}]\n` |
   | positive: `-s vlan show` stats block | 1 vlan with counters | RX/TX lines as bridge prints them |
   | negative: unknown object | `badobj` | bridge's text, rc 255 |
@@ -219,7 +228,7 @@ fresh `wsN` per row.
   | boundary: empty dumps | DONE only | headers only for `vni`/`mst`; empty for `link`/`vlan`; `[]` under `-j` |
   | boundary: vid 4094 | reply | printed exactly |
   | corner: `vni sh` (strcmp) vs `vlan sh` (matches) | both | `vni` refused, `vlan` accepted |
-  | corner: `link show dev master` | bridge named `master` | reproduces B1 exactly |
+  | corner: `link show dev master` | port named `master` | reproduces B1 exactly |
   | corner: `vid abc` | args | filter vid 0, as atoi does |
 
 - **Imports and mutants:** an `imports_test.go` hygiene guard, then mutants under
@@ -293,6 +302,32 @@ the latest code" section the ethtool doc uses.
 | B15 | `vlan.c:630-650` | presence | tunnel info without `TUNNEL_ID` prints tunid 0 | unit: entry without ID |
 | B16 | `vlan.c:688-692`, `vni.c:289` | stderr | a non-NEWLINK/TUNNEL message prints "Not RTM_NEWLINK: …" and continues (rc 0) | unit |
 | B17 | `vni.c` `-s` / `lib/bridge.c` stats | JSON | check the `-j -s` paths for text mixed into JSON or an open object left on error | 6C `-j -s vni show`, `-j -s vlan show` |
+
+| B18 | `vlan.c:881-882` | presence (copy-paste) | `mcast_last_member_count` is guarded by `tb[MCAST_MLD_VERSION]`: a reply without LAST_MEMBER_CNT reads NULL, and one without MLD_VERSION never prints the count | unit: crafted global options |
+| B19 | `vlan.c:836` | presence | `BRIDGE_VLANDB_GOPTS_ID` read with no presence check | unit: global entry without ID |
+| B20 | `vlan.c:955` | presence/length | `vinfo = RTA_DATA(vtb[ENTRY_INFO])` with no presence or length check | unit: entry without INFO |
+| B21 | `vlan.c:1325-1330` | arg parse | `vlan global` dispatches with `strcmp` where `vlan` uses `matches()`: `vlan global sh` prints the usage, rc 255 | 6C `vlan global sh` |
+| B22 | `vlan.c:1167`, `:1190` | logic | `-s vlan tunnelshow` takes the stats path and prints VLAN stats, not tunnels | 6C `-s vlan tunnelshow` |
+| B23 | `vni.c:258` | length | `GROUP6` is `memcpy`'d 16 bytes with no length check | unit: short GROUP6 |
+| B24 | `lib/ll_map.c` `ll_name_to_index` | arg parse | `dev if999` falls through to `ll_idx_a2n` and is taken as ifindex 999: rc 0, the kernel's ENODEV ignored, header only | 6C `vlan show dev if999` |
+| B25 | `lib/bridge.c:41` vs `vlan.c:1314` | JSON key varies | `-j -s vlan show` keys a VLAN `"vid"`; `-j vlan show` and `-j -d` key it `"vlan"` | 6C `-j -s vlan show` |
+| B26 | `lib/bridge.c:10-19` | JSON | a compressed range's flags hold only RANGE_BEGIN/END, so `"flags": []` is printed, while a VLAN with no flags has no key | 6C `-j -com vlan show` |
+| K1 | `br_netlink.c` `br_fill_ifinfo` | kernel | the bridge's own PF_BRIDGE entry carries `IFLA_MASTER` naming itself | 6P unit row |
+| K2 | `br_netlink_tunnel.c` | kernel | `tunnel_info` for a VLAN not yet on the port is a bare EINVAL, no extack | setup only (6C fixture order) |
+
+**Status after 6C (live, V097).**
+- **Confirmed:** B1 (broader than written: in `dev master master br0` the dev value is
+  re-read as the keyword, so the third word becomes the master filter and `br0` is
+  dropped; the output is empty, rc 0. `master br0 dev master` is "Command line is not
+  complete", so no form filters on a port named `master`), B2, B3 (`vni show dev d1`
+  prints "Dump ternminated"), B5 (`vid abc` = no filter, `vid 70000` empty, `vid 0 vid 5`
+  escapes duparg), B6 (vni and mst headers stay on stdout before the error), B10 (MST off,
+  rc 255 with only the header; with `dev d1`, d1's entry prints and then the dump aborts on
+  d2), B21, B22, B24, B25, B26.
+- **Dropped:** B14. `-com vlan show vid 22` prints `20-25`, the range holding 22, which is
+  a fair answer.
+- **Unit only** (no stock-kernel reply shows them): B4, B7, B8, B9, B11, B12, B13, B15,
+  B16, B18, B19, B20, B23. B17 is clean: every `-j -s` output parses.
 
 **Boundaries the columns must survive.** `VXLAN_ID_LEN` is 17, exactly the width of
 `16777214-16777215`, and `VLAN_ID_LEN` is 9. The capture pins vni range `16777214-16777215`

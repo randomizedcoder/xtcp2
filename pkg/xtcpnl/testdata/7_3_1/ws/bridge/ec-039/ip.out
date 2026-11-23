@@ -1,0 +1,3 @@
+port              vlan-id  
+d3                1 PVID Egress Untagged
+                  2-4094

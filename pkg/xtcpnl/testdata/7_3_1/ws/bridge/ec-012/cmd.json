@@ -1,0 +1,58 @@
+{
+ "axes": {
+  "fix": "br",
+  "json": "0",
+  "words": "link show master br0"
+ },
+ "cmd": "bridge link show master br0",
+ "desc": "positive: opt=plain cmd=br:link_show_master_br0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "bridge/ec-012",
+ "modules": [
+  "bridge",
+  "vxlan"
+ ],
+ "pre": [
+  "ip link add br0 address 02:00:00:00:01:00 type bridge vlan_filtering 1 && ip link set br0 addrgenmode none",
+  "ip link add d1 address 02:00:00:00:01:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link set d1 up && ip link add d2 address 02:00:00:00:01:02 type dummy && ip link set d2 addrgenmode none && ip link set d2 master br0 && ip link set d2 up && ip link set br0 up",
+  "bridge vlan add dev d1 vid 10 pvid untagged && bridge vlan add dev d1 vid 20-25 && bridge vlan add dev d2 vid 30 && bridge vlan add dev br0 vid 10 self",
+  "bridge link set dev d2 learning off cost 7 priority 5 hairpin on"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 address 02:00:00:00:01:00 type bridge vlan_filtering 1 && ip link set br0 addrgenmode none",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add d1 address 02:00:00:00:01:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link set d1 up && ip link add d2 address 02:00:00:00:01:02 type dummy && ip link set d2 addrgenmode none && ip link set d2 master br0 && ip link set d2 up && ip link set br0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge vlan add dev d1 vid 10 pvid untagged && bridge vlan add dev d1 vid 20-25 && bridge vlan add dev d2 vid 30 && bridge vlan add dev br0 vid 10 self",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge link set dev d2 learning off cost 7 priority 5 hairpin on",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,13 @@
+port              vlan-id  
+[1;36mbr0               [0m1 PVID Egress Untagged
+                  10
+[1;36md1                [0m1 Egress Untagged
+                  10 PVID Egress Untagged
+                  20
+                  21
+                  22
+                  23
+                  24
+                  25
+[1;36md2                [0m1 PVID Egress Untagged
+                  30

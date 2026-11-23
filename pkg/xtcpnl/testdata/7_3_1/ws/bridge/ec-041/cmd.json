@@ -1,0 +1,68 @@
+{
+ "axes": {
+  "fix": "vnif",
+  "json": "0",
+  "words": "vni show dev vx1"
+ },
+ "cmd": "bridge vni show dev vx1",
+ "desc": "positive: opt=plain cmd=vnif:vni_show_dev_vx1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "bridge/ec-041",
+ "modules": [
+  "bridge",
+  "vxlan"
+ ],
+ "pre": [
+  "ip link add d9 address 02:00:00:00:01:09 type dummy && ip link set d9 addrgenmode none && ip link set d9 up",
+  "ip link add vx1 address 02:00:00:00:01:11 type vxlan external vnifilter dstport 4790 dev d9 && ip link set vx1 addrgenmode none",
+  "bridge vni add dev vx1 vni 100-102",
+  "bridge vni add dev vx1 vni 200 group 239.1.1.1",
+  "bridge vni add dev vx1 vni 300 remote 2001:db8::1",
+  "bridge vni add dev vx1 vni 16777214-16777215"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d9 address 02:00:00:00:01:09 type dummy && ip link set d9 addrgenmode none && ip link set d9 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add vx1 address 02:00:00:00:01:11 type vxlan external vnifilter dstport 4790 dev d9 && ip link set vx1 addrgenmode none",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge vni add dev vx1 vni 100-102",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge vni add dev vx1 vni 200 group 239.1.1.1",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge vni add dev vx1 vni 300 remote 2001:db8::1",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge vni add dev vx1 vni 16777214-16777215",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

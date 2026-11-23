@@ -1,0 +1,2 @@
+4: d1: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 master br0 state forwarding priority 32 cost 100 
+5: d2: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 master br0 state forwarding priority 5 cost 7 

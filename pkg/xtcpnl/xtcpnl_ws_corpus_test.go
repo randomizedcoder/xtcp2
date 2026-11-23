@@ -14,6 +14,7 @@ package xtcpnl
 // them should need a hand-written test before it can fail.
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
 
@@ -181,6 +183,13 @@ func wsObserve(t *testing.T, msgs []capturedNlMsg, rc int) wsObserved {
 	}
 	_, obs.errno = rowRequestTypes(t, msgs)
 	for _, m := range msgs {
+		if m.h.Type == unix.NLMSG_DONE {
+			if msg, ok := wsDoneExtack(m.h.Flags, m.body); ok {
+				obs.extack = msg
+				break
+			}
+			continue
+		}
 		if m.h.Type != unix.NLMSG_ERROR {
 			continue
 		}
@@ -194,6 +203,27 @@ func wsObserve(t *testing.T, msgs []capturedNlMsg, rc int) wsObserved {
 		}
 	}
 	return obs
+}
+
+// wsDoneExtack is the extack message of a dump that failed: the kernel's
+// netlink_dump_done puts the int error in NLMSG_DONE's body and, with
+// NLM_F_ACK_TLVS, the NLMSGERR_ATTR_* TLVs straight after it (no echoed
+// request, unlike NLMSG_ERROR). ok is false for a clean DONE or one with
+// no message.
+func wsDoneExtack(flags uint16, body []byte) (string, bool) {
+	if len(body) < 4 || cint.Int(binary.LittleEndian.Uint32(body)) >= 0 || flags&unix.NLM_F_ACK_TLVS == 0 {
+		return "", false
+	}
+	var msg string
+	var found bool
+	if err := WalkRTAttrs(body[4:], func(atype uint16, val []byte) {
+		if atype == unix.NLMSGERR_ATTR_MSG {
+			msg, found = strings.TrimRight(string(val), "\x00"), true
+		}
+	}); err != nil {
+		return "", false
+	}
+	return msg, found
 }
 
 // wsRoots are the workbench corpora: testdata/<kernel>/ws, captured with
@@ -453,5 +483,59 @@ func TestWsSelftestTableMax(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestWsDoneExtack pins how a failed dump's NLMSG_DONE gives up its extack
+// message (bridge vni show dev d1: "The device is not a vxlan device").
+func TestWsDoneExtack(t *testing.T) {
+	t.Parallel()
+	tlv := func(typ uint16, val string) []byte {
+		v := append([]byte(val), 0)
+		b := make([]byte, 4, 4+len(v)+3)
+		l, ok := cint.U16(4 + len(v))
+		if !ok {
+			t.Fatal("TLV too long")
+		}
+		binary.LittleEndian.PutUint16(b[0:2], l)
+		binary.LittleEndian.PutUint16(b[2:4], typ)
+		b = append(b, v...)
+		return append(b, make([]byte, (4-len(b)%4)%4)...)
+	}
+	errInt := func(n int32) []byte {
+		b := make([]byte, 4)
+		binary.LittleEndian.PutUint32(b, cint.Bits(n))
+		return b
+	}
+	einval := errInt(-22) // -EINVAL
+	tests := []struct {
+		description string
+		flags       uint16
+		body        []byte
+		expected    string // the message, or "-" for none
+	}{
+		{"positive: failed dump with a message", unix.NLM_F_MULTI | unix.NLM_F_ACK_TLVS,
+			append(einval, tlv(unix.NLMSGERR_ATTR_MSG, "The device is not a vxlan device")...), "The device is not a vxlan device"},
+		{"positive: the message after an offset TLV", unix.NLM_F_ACK_TLVS,
+			append(append(einval, tlv(unix.NLMSGERR_ATTR_OFFS, "abc")...), tlv(unix.NLMSGERR_ATTR_MSG, "m")...), "m"},
+		{"negative: a clean DONE", unix.NLM_F_MULTI, errInt(0), "-"},
+		{"negative: an error without ACK_TLVS", unix.NLM_F_MULTI, append(einval, tlv(unix.NLMSGERR_ATTR_MSG, "m")...), "-"},
+		{"boundary: a body shorter than the int", unix.NLM_F_ACK_TLVS, []byte{0xea, 0xff}, "-"},
+		{"boundary: an error with no TLVs", unix.NLM_F_ACK_TLVS, einval, "-"},
+		{"corner: a truncated TLV", unix.NLM_F_ACK_TLVS, append(einval, 0x20, 0, 1, 0), "-"},
+		{"corner: a positive int is no error", unix.NLM_F_ACK_TLVS, append(errInt(5), tlv(unix.NLMSGERR_ATTR_MSG, "m")...), "-"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			msg, ok := wsDoneExtack(tc.flags, tc.body)
+			got := "-"
+			if ok {
+				got = msg
+			}
+			if got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
 	}
 }

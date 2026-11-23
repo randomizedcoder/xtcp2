@@ -1,0 +1,35 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "0",
+  "words": "mst show dev nosuch"
+ },
+ "cmd": "bridge mst show dev nosuch",
+ "desc": "negative: opt=plain cmd=ng:bare:mst_show_dev_nosuch: no such device",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "errno": "ENODEV",
+  "rc": 255,
+  "refused_by": "kernel"
+ },
+ "id": "bridge/ng-014",
+ "modules": [
+  "bridge",
+  "vxlan"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 255,
+  "status": "OK"
+ }
+}
