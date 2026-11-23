@@ -20,8 +20,10 @@ package dockermeta
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -51,6 +53,25 @@ const relistInterval = 30 * time.Second
 // eventsRetryDelay is the pause before reopening the /events stream (or falling
 // back to a re-list) after it errors or closes.
 const eventsRetryDelay = time.Second
+
+// Response body caps. The daemon is trusted, but container names, images and
+// labels in its bodies are the tenant's choice, so each read is bounded.
+const (
+	// maxVersionBody caps GET /version, a few hundred bytes in practice.
+	maxVersionBody = 64 << 10
+	// maxListBody caps GET /containers/json: one summary per running
+	// container, labels included (a few KB each), so it scales with the host.
+	maxListBody = 32 << 20
+	// maxInspectBody caps GET /containers/{id}/json for one container.
+	maxInspectBody = 1 << 20
+	// maxDrain caps how much of an unread body drainClose discards for
+	// connection reuse; past it the connection is closed instead. /events
+	// never ends, so an unbounded drain there would block forever.
+	maxDrain = 64 << 10
+)
+
+// errBodyTooLarge is a response body over its cap.
+var errBodyTooLarge = errors.New("response body over its cap")
 
 // Container is the resolved identity of a container that owns a netns.
 type Container struct {
@@ -158,7 +179,7 @@ type versionInfo struct {
 // "use unversioned paths") when /version can't be read.
 func negotiateVersion(ctx context.Context, client *http.Client, base string) (string, error) {
 	var vi versionInfo
-	if err := getJSON(ctx, client, base+"/version", &vi); err != nil {
+	if err := getJSON(ctx, client, base+"/version", maxVersionBody, &vi); err != nil {
 		return "", err
 	}
 	if vi.APIVersion == "" {
@@ -246,7 +267,7 @@ type inspect struct {
 // the whole index.
 func (ix *Index) build(ctx context.Context) (map[uint64]Container, error) {
 	var refs []containerRef
-	if err := getJSON(ctx, ix.client, ix.baseURL+"/containers/json", &refs); err != nil {
+	if err := getJSON(ctx, ix.client, ix.baseURL+"/containers/json", maxListBody, &refs); err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 	m := make(map[uint64]Container, len(refs))
@@ -266,7 +287,7 @@ func (ix *Index) build(ctx context.Context) (map[uint64]Container, error) {
 // (host network), or an unresolvable inode.
 func (ix *Index) inspect(ctx context.Context, id string) (Container, bool) {
 	var in inspect
-	if err := getJSON(ctx, ix.client, ix.baseURL+"/containers/"+id+"/json", &in); err != nil {
+	if err := getJSON(ctx, ix.client, ix.baseURL+"/containers/"+id+"/json", maxInspectBody, &in); err != nil {
 		return Container{}, false
 	}
 	return project(in, ix.stat)
@@ -404,9 +425,10 @@ func (ix *Index) rebuild(ctx context.Context) {
 	ix.snapshot.Store(&m)
 }
 
-// getJSON does a GET and decodes the JSON body into v. A non-2xx status or a
-// decode error is returned so callers can skip/fall back.
-func getJSON(ctx context.Context, client *http.Client, url string, v any) error {
+// getJSON does a GET and decodes the JSON body into v. A non-2xx status, a
+// body over limit bytes (errBodyTooLarge) or a decode error is returned so
+// callers can skip/fall back.
+func getJSON(ctx context.Context, client *http.Client, url string, limit int64, v any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -419,13 +441,21 @@ func getJSON(ctx context.Context, client *http.Client, url string, v any) error 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("GET %s: status %d", url, resp.StatusCode)
 	}
-	return json.NewDecoder(resp.Body).Decode(v)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return err
+	}
+	if int64(len(body)) > limit {
+		return fmt.Errorf("GET %s: %w (%d bytes)", url, errBodyTooLarge, limit)
+	}
+	return json.NewDecoder(bytes.NewReader(body)).Decode(v)
 }
 
-// drainClose drains and closes a response body so the underlying connection can
-// be reused, then closes it.
+// drainClose discards up to maxDrain bytes of a response body so the
+// connection can be reused, then closes it. A longer body (or the endless
+// /events stream) is cut off by Close, which costs only the connection.
 func drainClose(rc io.ReadCloser) {
-	if _, err := io.Copy(io.Discard, rc); err != nil {
+	if _, err := io.CopyN(io.Discard, rc, maxDrain); err != nil && !errors.Is(err, io.EOF) {
 		// A drain failure only forfeits connection reuse; Close still frees it.
 		log.Printf("dockermeta: drain response body: %v", err)
 	}

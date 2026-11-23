@@ -249,7 +249,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | Fix `RegisterIOWQMaxWorkers` signature in the giouring fork | giouring PR |
 | Upstream RFC for an all-namespace inet_diag dump, only after the VM numbers and a lore.kernel.org search | F2 follow-up |
 | Add the scrubbed F0.5 Parquet rows as `FuzzRowFromProto` seeds once F0.5 is captured | FP-7 follow-up |
-| Cap `dockermeta.getJSON`'s body with `io.LimitReader` (e.g. 1 MiB): the daemon is trusted, but the name and labels in it are the tenant's | FP-7 follow-up |
+| ~~Cap `dockermeta.getJSON`'s body~~ done in #312: per-endpoint caps (`/version` 64 KiB, `/containers/json` 32 MiB, inspect 1 MiB; over the cap the container is skipped or the re-list fails), and `drainClose` now discards at most 64 KiB: an `/events` line over the scanner's 1 MiB used to block the refresh goroutine draining the endless stream | — |
 | Re-tune the three caps' defaults from the F0.6 baseline (≥ 10× p99) | F0.6 |
 | The F2 gate's 1 M-socket synthetic netns run | after FP-6 |
 
