@@ -972,8 +972,8 @@ recollection.
 ## Table of contents
 
 - [Netlink message types: decoded, rendered, compared](#netlink-message-types-decoded-rendered-compared)
-  - [rtnetlink: nine body layouts, and they are the nine goip needs](#rtnetlink-nine-body-layouts-and-they-are-the-nine-goip-needs)
-  - [rtnetlink: the six body layouts with no decoder](#rtnetlink-the-six-body-layouts-with-no-decoder)
+  - [rtnetlink: ten body layouts, and they are the ten goip needs](#rtnetlink-ten-body-layouts-and-they-are-the-ten-goip-needs)
+  - [rtnetlink: the five body layouts with no decoder](#rtnetlink-the-five-body-layouts-with-no-decoder)
   - [Attributes inside the five: no unknown-attribute holes](#attributes-inside-the-five-no-unknown-attribute-holes)
   - [The event layer: decoded, never rendered](#the-event-layer-decoded-never-rendered)
   - [sock_diag / inet_diag, which is a different surface and is complete](#sock_diag--inet_diag-which-is-a-different-surface-and-is-complete)

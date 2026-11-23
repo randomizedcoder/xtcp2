@@ -46,6 +46,11 @@ in
   go-vet = import ./go-vet.nix { inherit pkgs vendoredSource; };
   gofmt = import ./gofmt.nix { inherit pkgs src; };
   nix-fmt = import ./nix-fmt.nix { inherit pkgs src; };
+  # Documentation gates over docs/netlink (goip-parity-events.md Tier
+  # UB0-T02): links resolve, and the iproute2-findings record is indexed
+  # and linked, so a referenced note that was never written fails the build
+  # instead of rotting as a dead link.
+  test-goip-docs = import ./goip-docs.nix { inherit pkgs src; };
   # Nix static analysis, gating since 2026-09-23. nix-fmt only checks layout;
   # these two check content — deadnix for unused bindings/arguments, statix for
   # antipatterns. Lint scope for statix lives in the repo-root statix.toml.

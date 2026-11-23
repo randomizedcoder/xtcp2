@@ -31,8 +31,9 @@ give the rows either side of it different fallback devices and ifindexes.
 
 --ip-bin DIR runs every row with DIR's `ip` instead of the guest's: DIR is
 put first on PATH for the pre steps and readbacks, and exported as
-NLCAP_IP_BIN, which xtcp2-nlcap puts first on its own PATH (its
-writeShellApplication PATH would otherwise win). The guest sees the host's
+NLCAP_IP_BIN, which xtcp2-nlcap and the monitor helpers put first on
+their own PATH (their writeShellApplication PATH would otherwise win).
+The guest sees the host's
 /nix/store, so a store path's bin works with no reboot. That is how one
 guest captures the same rows at two iproute2 versions
 (docs/netlink/goip-parity-next.md, NC0-T01).

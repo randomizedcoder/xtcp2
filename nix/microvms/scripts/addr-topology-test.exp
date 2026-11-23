@@ -944,6 +944,70 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# NLCAP_IP_BIN (EC0-T01, docs/netlink/goip-parity-events.md). The monitor
+# helpers put the directory first on their own PATH, as xtcp2-nlcap does,
+# so one guest can run a row's trigger and its monitor at two iproute2
+# versions. A stand-in `ip` proves it hermetically: every invocation is
+# logged, a monitor-shaped one follows a state file as the fake bridge's
+# does, and ipmon's canary (`ip addr add ... autojoin`) appends the mcast
+# line. The log is the proof that the helper's own `ip`, not the
+# runtimeInputs one, ran; unset, nothing writes it and the existing xfrmmon
+# rows above show the pinned iproute2's own output instead. brmon's row
+# copies the fake bridge in as the directory's `bridge`, which nothing
+# else on PATH can print, so rc 0 proves the resolution. ioam's and mptcp's
+# sends need guest capabilities the sandbox has not, so theirs are the
+# argument errors: the check runs before any socket, as xtcp2-nlcap's does.
+set fakeip_dir [file normalize fake_ip_bin]
+file mkdir $fakeip_dir
+set fakeip_log [file normalize fake_ip_log]
+set f [open $fakeip_dir/ip w]
+puts $f "#![lindex [auto_execok bash] 0]"
+puts $f {echo "ip $*" >>"$FAKE_IP_LOG"
+case "$1" in
+  monitor|xfrm|mptcp|ioam)
+    touch "$FAKE_IP_STATE"
+    exec tail -n +1 -f "$FAKE_IP_STATE" ;;
+  addr)
+    printf 'mcast 224.0.0.250 \n' >>"$FAKE_IP_STATE"
+    exit 0 ;;
+esac
+exit 0}
+close $f
+file attributes $fakeip_dir/ip -permissions 0755
+file copy -force $fakebr $fakeip_dir/bridge
+# An ip-only directory, for brmon's no-bridge refusal: an iproute2 bin
+# always holds both, but the error is checked anyway.
+set fakeip_only [file normalize fake_ip_only]
+file mkdir $fakeip_only
+file copy -force $fakeip_dir/ip $fakeip_only/ip
+proc ipbin_env {n} {
+    return "NLCAP_IP_BIN=$::fakeip_dir FAKE_IP_LOG=$::fakeip_log FAKE_IP_STATE=[file normalize fake_ip_state_$n]"
+}
+foreach {description cmd want_rc want_re} [list \
+    "positive: ipmon's monitor and canary both run the directory's ip" \
+        "[ipbin_env 1] xtcp2-nl-ipmon c0 \"monitor link maddress\" \"grep -qx 'ip addr add 224.0.0.250/32 dev c0 autojoin' $fakeip_log\" \"mcast 224.0.0.250 \"" 0 {^mcast 224\.0\.0\.250 $} \
+    "boundary: ipmon unset, a canary join on a device the guest does not have ends at ip's own exit, not after the ten tries" \
+        "xtcp2-nl-ipmon c0 \"monitor link maddress\" true x" 1 {Cannot find device "c0"} \
+    "negative: a directory with no ip is a usage error, and no monitor starts" \
+        "NLCAP_IP_BIN=/nonexistent xtcp2-nl-ipmon c0 \"monitor link maddress\" true x" 2 {^xtcp2-nl-ipmon: NLCAP_IP_BIN: no ip in /nonexistent$} \
+    "positive: xfrmmon's monitor runs the directory's ip, and the trigger's own ip is logged with it" \
+        "NLCAP_PROC_NETLINK=$pn_sub NLCAP_IP_BIN=$fakeip_dir FAKE_IP_LOG=$fakeip_log FAKE_IP_STATE=[file normalize fake_ip_state_2] xtcp2-nl-xfrmmon \"xfrm monitor bogus\" \"grep -qx 'ip xfrm monitor bogus' $fakeip_log && ip link show && printf 'Shim ran\\n' >>[file normalize fake_ip_state_2]\" \"Shim ran\"" 0 {^Shim ran$} \
+    "negative: xfrmmon, a directory with no ip" \
+        "NLCAP_PROC_NETLINK=$pn_sub NLCAP_IP_BIN=/nonexistent xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true x" 2 {^xtcp2-nl-xfrmmon: NLCAP_IP_BIN: no ip in /nonexistent$} \
+    "positive: brmon resolves bridge from the directory when NLCAP_BRIDGE names nothing" \
+        "NLCAP_IP_BIN=$fakeip_dir FAKE_BR_STATE=[file normalize fake_ip_state_3] xtcp2-nl-brmon v0 \"monitor vlan\" true \"^v0 +4000\"" 0 {(?n)^v0 4000$} \
+    "negative: brmon, a directory with no bridge and no NLCAP_BRIDGE" \
+        "NLCAP_IP_BIN=$fakeip_only FAKE_IP_LOG=$fakeip_log xtcp2-nl-brmon v0 \"monitor vlan\" true x" 2 {^xtcp2-nl-brmon: NLCAP_IP_BIN: no bridge in } \
+    "corner: NLCAP_BRIDGE still wins over the directory's bridge" \
+        "NLCAP_IP_BIN=$fakeip_dir NLCAP_BRIDGE=$fakebr FAKE_BR_STATE=[file normalize fake_ip_state_5] xtcp2-nl-brmon v0 \"monitor vlan\" true \"^v0 +4000\"" 0 {(?n)^v0 4000$} \
+    "negative: ioam, a directory with no ip, before any socket" \
+        "NLCAP_IP_BIN=/nonexistent xtcp2-nl-ioam ::1 123" 2 {^xtcp2-nl-ioam: NLCAP_IP_BIN: no ip in /nonexistent$} \
+    "negative: mptcp, a directory with no ip, before any socket" \
+        "NLCAP_IP_BIN=/nonexistent xtcp2-nl-mptcp monitor true x" 2 {^xtcp2-nl-mptcp: NLCAP_IP_BIN: no ip in /nonexistent$} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # xtcp2-nl-espinudp (C3-T02). Its send needs the guest's addresses and
 # ESPINUDP, so the sandbox checks the packet through `-`, which prints it,
 # and the argument errors; a send from an address the sandbox does not have

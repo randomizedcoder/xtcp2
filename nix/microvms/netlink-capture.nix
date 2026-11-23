@@ -279,6 +279,18 @@ let
         echo "usage: xtcp2-nl-ipmon <canary-dev> <ip-args> <trigger> <until-ERE>..." >&2
         exit 2
       }
+      # NLCAP_IP_BIN: a directory whose `ip` runs instead of the iproute2
+      # in runtimeInputs, which writeShellApplication put first on PATH
+      # (EC0-T01, docs/netlink/goip-parity-events.md). The workbench's
+      # `batch --ip` sets it, so a row's monitor, its canary join and its
+      # trigger can run at two iproute2 versions in one guest.
+      if [ -n "''${NLCAP_IP_BIN:-}" ]; then
+        [ -x "$NLCAP_IP_BIN/ip" ] || {
+          echo "xtcp2-nl-ipmon: NLCAP_IP_BIN: no ip in $NLCAP_IP_BIN" >&2
+          exit 2
+        }
+        PATH="$NLCAP_IP_BIN:$PATH"
+      fi
       canary_dev=$1
       read -ra ip_args <<<"$2"
       trigger=$3
@@ -364,6 +376,16 @@ let
         echo "usage: xtcp2-nl-xfrmmon <ip-args> <trigger> <until-ERE>..." >&2
         exit 2
       }
+      # NLCAP_IP_BIN: as xtcp2-nl-ipmon's (EC0-T01,
+      # docs/netlink/goip-parity-events.md) — the monitor and the
+      # trigger's own `ip` both resolve from it.
+      if [ -n "''${NLCAP_IP_BIN:-}" ]; then
+        [ -x "$NLCAP_IP_BIN/ip" ] || {
+          echo "xtcp2-nl-xfrmmon: NLCAP_IP_BIN: no ip in $NLCAP_IP_BIN" >&2
+          exit 2
+        }
+        PATH="$NLCAP_IP_BIN:$PATH"
+      fi
       read -ra ip_args <<<"$1"
       trigger=$2
       shift 2
@@ -457,6 +479,22 @@ let
           exit 2
           ;;
       esac
+      # NLCAP_IP_BIN: as xtcp2-nl-ipmon's (EC0-T01,
+      # docs/netlink/goip-parity-events.md). The monitor is `bridge`, so
+      # the directory must hold one when NLCAP_BRIDGE names no stand-in;
+      # an iproute2 bin always does. NLCAP_BRIDGE still wins for the
+      # monitor itself, as it did.
+      if [ -n "''${NLCAP_IP_BIN:-}" ]; then
+        [ -x "$NLCAP_IP_BIN/ip" ] || {
+          echo "xtcp2-nl-brmon: NLCAP_IP_BIN: no ip in $NLCAP_IP_BIN" >&2
+          exit 2
+        }
+        if [ -z "''${NLCAP_BRIDGE:-}" ] && [ ! -x "$NLCAP_IP_BIN/bridge" ]; then
+          echo "xtcp2-nl-brmon: NLCAP_IP_BIN: no bridge in $NLCAP_IP_BIN" >&2
+          exit 2
+        fi
+        PATH="$NLCAP_IP_BIN:$PATH"
+      fi
       read -ra br_args <<<"$2"
       trigger=$3
       shift 3
@@ -782,6 +820,7 @@ let
   # exits 2; a refused socket option or send, or no event, 1.
   ioam = pkgs.writers.writePython3Bin "xtcp2-nl-ioam" { } ''
     import ipaddress
+    import os
     import select
     import socket
     import struct
@@ -812,6 +851,15 @@ let
 
 
     def main():
+        # NLCAP_IP_BIN: a directory whose `ip` runs the monitor instead of
+        # the iproute2 on PATH (EC0-T01, docs/netlink/goip-parity-events.md;
+        # see xtcp2-nlcap). Checked first, as xtcp2-nlcap does.
+        ip_bin = os.environ.get("NLCAP_IP_BIN", "")
+        if ip_bin:
+            if not os.access(os.path.join(ip_bin, "ip"), os.X_OK):
+                fail(2, "NLCAP_IP_BIN: no ip in " + ip_bin)
+            os.environ["PATH"] = (ip_bin + os.pathsep
+                                  + os.environ.get("PATH", ""))
         if len(sys.argv) not in (3, 4):
             fail(2, "usage: xtcp2-nl-ioam <dst|-> <ioam-namespace> [tries]")
         try:
@@ -1020,6 +1068,16 @@ let
 
 
     def main():
+        # NLCAP_IP_BIN: a directory whose `ip` runs the monitor instead of
+        # the iproute2 on PATH (EC0-T01, docs/netlink/goip-parity-events.md;
+        # see xtcp2-nlcap). Checked first, for every mode, as xtcp2-nlcap
+        # does.
+        ip_bin = os.environ.get("NLCAP_IP_BIN", "")
+        if ip_bin:
+            if not os.access(os.path.join(ip_bin, "ip"), os.X_OK):
+                fail(2, "NLCAP_IP_BIN: no ip in " + ip_bin)
+            os.environ["PATH"] = (ip_bin + os.pathsep
+                                  + os.environ.get("PATH", ""))
         if len(sys.argv) < 3:
             usage()
         if sys.argv[1] == "conn" and len(sys.argv) in (3, 4):
@@ -1042,11 +1100,13 @@ let
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
-  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-brmon's,
-  # xtcp2-nl-xfrmmon's, xtcp2-nl-espinudp's, xtcp2-nl-ra's, xtcp2-nl-tcp's,
-  # xtcp2-nl-ioam's and xtcp2-nl-mptcp's hermetic rows.
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ipmon's,
+  # xtcp2-nl-brmon's, xtcp2-nl-xfrmmon's, xtcp2-nl-espinudp's,
+  # xtcp2-nl-ra's, xtcp2-nl-tcp's, xtcp2-nl-ioam's and xtcp2-nl-mptcp's
+  # hermetic rows.
   passthru = {
     inherit
+      ipmon
       brmon
       xfrmmon
       espinudp
@@ -1141,8 +1201,9 @@ pkgs.writeShellApplication {
     # iproute2 in runtimeInputs, which writeShellApplication put first on
     # PATH. The workbench's `batch --ip` sets it to a store path's bin, so
     # one guest captures the same rows at two iproute2 versions
-    # (docs/netlink/goip-parity-next.md, NC0-T01). The monitor helpers
-    # (ipmon and the rest) keep their own PATH and their own ip.
+    # (docs/netlink/goip-parity-next.md, NC0-T01). The monitor helpers put
+    # it first on their own PATH the same way (EC0-T01,
+    # docs/netlink/goip-parity-events.md).
     if [ -n "''${NLCAP_IP_BIN:-}" ]; then
       [ -x "$NLCAP_IP_BIN/ip" ] || die "NLCAP_IP_BIN: no ip in $NLCAP_IP_BIN"
       PATH="$NLCAP_IP_BIN:$PATH"

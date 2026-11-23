@@ -1,6 +1,6 @@
 # iproute2 bug: bond slave partner port state read as u8, sent as u16
 
-**Status:** Found while designing the [link write path](../link-write-path.md#decode-side).
+**Status:** Found while designing the [link write path](../link-write-path.md#what-the-kernel-reports-back-the-decode-side).
 Reproduced, fixed and tested in a scratch clone of upstream iproute2
 (`e11870d5`, 2026-10-01). The test fails before the fix and passes after it on
 x86_64 and on big-endian s390x (`qemu-s390x`, replaying a generated message).

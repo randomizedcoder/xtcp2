@@ -21,12 +21,20 @@ type row struct {
 	Modules  []string   `json:"modules,omitempty"`
 	// Proto is the netlink protocol the command is captured on; "" is
 	// NETLINK_ROUTE.
-	Proto  string `json:"proto,omitempty"`
-	Serial bool   `json:"serial,omitempty"`
+	Proto string `json:"proto,omitempty"`
+	// Serial is true when the row must run with no other row active
+	// (nlcap_batch.py: a sysctl outside the namespace, or a module load,
+	// is kernel-wide).
+	Serial bool `json:"serial,omitempty"`
 	// InitNS runs the row in init_net (the helper's ns-init) rather than a
 	// fresh namespace, for a genl family registered with netnsok false
 	// (vdpa). init_net is one namespace, so it implies Serial.
-	InitNS bool   `json:"initns,omitempty"`
+	InitNS bool `json:"initns,omitempty"`
+	// Floor is the capture's minimum datagram count: the attempt is
+	// discarded below it (NLCAP_CAP_SHORT). The event rows are the first to
+	// set one (goip-parity-events.md EC0-T02); a read's dump always answers,
+	// so the generated families leave it unset and take the default, 0.
+	Floor  int    `json:"floor,omitempty"`
 	Expect expect `json:"expect"`
 	// Axes is what a generated row's values mean (matrix.go's facts), for
 	// the corpus test's model of the request to read.

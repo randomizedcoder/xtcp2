@@ -2,21 +2,22 @@
 
 ## Capture implementation follow-up
 
-The modular capture implementation is now under
-[`nix/netlink-capture/`](../../nix/netlink-capture/README.md). It adds the
+The modular capture implementation lived under `nix/netlink-capture/` (its
 `microvm-x86_64-netlink-capture`, `capture-netlink-hardware` and
-`validate-netlink-fixtures` apps, plus the offline `netlink-fixtures` check.
-The README gives commands, profiles, evidence formats and promotion criteria.
+`validate-netlink-fixtures` apps, plus the offline `netlink-fixtures` check,
+with commands, profiles, evidence formats and promotion criteria in its
+README). That tree has since been folded into
+[nix/microvms/netlink-capture.nix](../../nix/microvms/netlink-capture.nix),
+whose header describes the driven flavors it now serves; see
+[nix/README.md](../../nix/README.md) for the current app and fixture table.
 
-Kernel selection is now a declarative matrix in
-[`nix/netlink-capture/kernels.nix`](../../nix/netlink-capture/kernels.nix):
-`6_8` pins upstream 6.8.12 and `7_1_4` pins 7.1.4. Each entry generates its
-own capture app; `microvm-x86_64-netlink-capture-all-kernels` runs all targets
-sequentially with identical userspace. New captures verify and record the
-actual kernel release against the selected target. Adding a future release
-such as 7.3 means extending this table and providing a pinned package, not
-copying VM or runner definitions. See the README's kernel-matrix section.
-The 6.8 baseline is not a substitute for Ubuntu/vendor-kernel fleet captures.
+Kernel selection was a declarative matrix in `nix/netlink-capture/kernels.nix`:
+`6_8` pinned upstream 6.8.12 and `7_1_4` pinned 7.1.4. Each entry generated its
+own capture app; `microvm-x86_64-netlink-capture-all-kernels` ran all targets
+sequentially with identical userspace. New captures verified and recorded the
+actual kernel release against the selected target. The per-kernel idea lives
+on as the corpus split by kernel under `pkg/xtcpnl/testdata/` and the rdma
+capture's per-kernel flavor suffixes. The 6.8 baseline is not a substitute for Ubuntu/vendor-kernel fleet captures.
 Both matrix targets subsequently passed three consecutive full-profile runs
 on 2026-10-05 (20 scenarios per kernel, zero reported drops). The final pair
 is preserved under `testdata/{6_8_12,7_1_4}/link-state/matrix-vm-all-20261005/`.
