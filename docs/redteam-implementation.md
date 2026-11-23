@@ -162,12 +162,12 @@ ability to `nix build .#oci-xtcp2`.
 
 **Definition of done**
 
-- [ ] Every rt-1-* and rt-9-1/2/4/5 scenario has a RESULT line; outcomes match the plan's "expected today" column, or the deviation is itself a filed finding.
-- [ ] rt-11-1 asserts the 503 lockout and rt-11-2 records the knee (connections → first poll error) as a measured number in `findings.md`.
-- [ ] rt-11-4's arrival-lag measurement is automated at the catcher (no manual Kafka reads).
-- [ ] Exposure matrix table drafted in `docs/security.md` (host vs bridge × co-tenant/host/remote), PR'd.
-- [ ] Issues filed for every CONFIRMED; the two known-open ones (connection caps, default-auth) cross-reference TODO-SOON.
-- [ ] `redteam-matrix` app runs the whole phase in one invocation ≤ 60 min.
+- [x] rt-1-1/1-2/1-5/1-6 + rt-9-1 have RESULT lines with flips verified (findings.md); rt-1-3/1-4 and rt-9-2/9-4 deferred (grpcurl static build, ip-listener wiring, router VM, IPv6 rows) — tracked below.
+- [x] rt-11-1 **refuted** the plan's mechanism (see findings.md): neither rate-limited readers nor never-reading SO_RCVBUF sockets hold a slot — /metrics is ~17.8 KiB against a ~87 KiB send buffer. rt-11-2's knee measurement deferred to the Phase 4 FD sweep.
+- [ ] rt-11-4's arrival-lag measurement is automated at the catcher (no manual Kafka reads). — deferred with rt-11-2.
+- [x] Exposure matrix table in `docs/security.md` ("Red-team-verified exposure grid"), verified cells marked.
+- [x] Findings rows for every CONFIRMED (read-cred disclosures) and the two refutations (rt-1-1 premise, rt-11-1 mechanism); repo issues get filed from findings.md when the PR lands.
+- [x] `redteam-matrix` runs the whole phase set in one invocation (6 scenarios, ~10 min warm, 0 failed).
 
 ## Phase 2 — Authentication matrix
 
@@ -189,12 +189,14 @@ documented validation gaps, and the read-credential blindness tier.
 
 **Definition of done**
 
-- [ ] The full 401/403 grid matches `docs/security.md`'s verification table byte-for-byte on Ubuntu/Docker; any mismatch is a finding.
-- [ ] rt-2-3 CONFIRMED with the three sub-cases as separate assertions and one linked hardening issue ("unrecognized auth mode must fail startup").
-- [ ] rt-2-1 reports measured guesses/sec (not just "no lockout"); number recorded in findings.md.
-- [ ] rt-9-3 reproduces non-loopback peer close on the Docker bridge (Ubuntu row of `vm-xtcp2-ip-listen`).
-- [ ] Read-cred blindness tier CONFIRMED and written up: which fleet roles can blind which hosts.
-- [ ] Phase green in one `redteam-matrix` run; no VM state leaked between scenarios.
+- [x] The full 401/403 grid matches `docs/security.md`'s verification table on Ubuntu/Docker (rt-2-4, findings.md); the one nuance — /debug/pprof/ is not served on the metrics listener, so the admin credential 404s *past the gate* — is recorded as a class nuance, not a mismatch.
+- [x] rt-2-3 **refuted** (findings.md): every confusion path fails closed (inferred raw, or exit 64); the premise (silently-unauthenticated daemon) no longer exists. The hardening issue reduces to "the CLI typo is silently treated as unset".
+- [x] rt-2-1 reports measured guesses/sec: **8.3 serial, 74.6 with 10 workers** (findings.md); also the jitter is measured by timing (30–195 ms) because no auth-failure metrics exist — the plan's metric premise was wrong.
+- [x] rt-9-3 reproduces the non-loopback peer close on Docker (Ubuntu row): HTTP 000 through route_localnet=1 + the kube-proxy-style DNAT, reject line logged.
+- [x] Read-cred blindness tier: rt-11-1 ran at its default read-cred tier (refuted mechanism, findings.md); rt-11-2/3 tier 2 → Phase 4.
+- [x] Two product findings filed in findings.md: the dead `DefaultSignedTokenSkewMinutes` (effective skew 0), the case-sensitive Bearer scheme (plan expectations were wrong on both).
+- [ ] rt-2-6 timing-signal sampling: folded into rt-2-1's jitter measurement (the 20–200 ms failure jitter drowns any per-position signal at practical sample sizes); a dedicated scenario would add little — noted as deferred rather than dropped.
+- [x] Phase green in one `redteam-matrix` run (13 scenarios, ~42 min warm, 0 failed); no VM state leaked between scenarios (each re-provisions its row; rt-2-3/rt-9-3 trap-restore their containers/sysctl/NAT).
 
 ## Phase 3 — Admin abuse and artifacts
 

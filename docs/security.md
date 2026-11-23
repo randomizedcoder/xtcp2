@@ -163,6 +163,24 @@ that supports the intended topology. Changing only IPv4 leaves IPv6 independent.
 For precise exposure control, give each TCP listener a specific `address`, and
 apply host/network firewall rules.
 
+### Red-team-verified exposure grid (2026-11-23)
+
+Measured in the Vagrant harness ([redteam-plan.md](redteam-plan.md) rt-9-1, rt-1-1),
+Docker on Ubuntu 24.04 — which vantage can *reach* a TCP listener (the
+credential gate is a separate question):
+
+| Deployment row | VM host loopback | co-tenant container (docker0 gw) | remote host (private net) |
+|---|---|---|---|
+| `--network host`, `:9088` (the §29 prod shape) | 401 | 401 reachable | 401 reachable |
+| `-p 9088:9088` (bridge, published) | 401 reachable | 401 reachable | 401 reachable |
+| `--network host`, `127.0.0.1:9088`, `auth=disabled` | 200 | unreachable | unreachable |
+
+Readings: every reachable cell is a 401 without a credential and a 200 with
+the read token — reachability is gated by address choice, the credential gates
+the content, and the low TTL bounds where replies can go. The loopback row is
+the only shape an unauthenticated listener may take, and no other netns
+reaches it.
+
 ## Optional loopback inspection listener
 
 With the embedded monitor and `-linkMonitorIPPaths` enabled, a listener of its
