@@ -1,0 +1,21 @@
+{
+  "flavor": "xtcp2-s3parquet-asn-locality",
+  "daemon_version": "xtcpcommit:nixdate(UTC):1970-01-01-00:00version:0.2.1",
+  "kernel": "7.3.1",
+  "capabilities": [
+    "cap_net_admin",
+    "cap_net_raw",
+    "cap_sys_ptrace",
+    "cap_sys_admin",
+    "cap_sys_resource"
+  ],
+  "workload": {
+    "containers": 3,
+    "sockets_per_container": 4,
+    "named_netns": [
+      "golden-ns"
+    ]
+  },
+  "rows": 23,
+  "captured": "2026-11-23"
+}

@@ -56,7 +56,7 @@ No code. Each item ends as a recorded decision in the focused doc's [open questi
 - [x] **F0.2 — Production flavor** (OQ2, blocks FP-15): **decided Parquet-only** (2026-11-11). The production image is `xtcp2:s3parquet-<enrich>`; the fat image is development only.
 - [x] **F0.3 — Host sockets** (OQ3, blocks FP-15): **decided all sockets** (2026-11-11). The collector reports the default namespace and every container, so `network_mode: host` stays in the reference spec.
 - [x] **F0.4 — S3 credential scope** (OQ4, blocks FP-16): **decided `PutObject`-only** (2026-11-11), the recommended configuration, with `S3_SKIP_BUCKET_PROBE` set. Still to do before FP-16: one upload with such a key against each S3 implementation in use (`s3_putonly_key`).
-- [ ] **F0.5 — Golden records**: capture one poll's Parquet output on a representative host with the current image and capability set. FP-9's zero-`NET_ADMIN` proof and FP-12's enrichment-parity check diff against it. Store it as a CI fixture, scrubbed of addresses.
+- [x] **F0.5 — Golden records**: capture one poll's Parquet output on a representative host with the current image and capability set. FP-9's zero-`NET_ADMIN` proof and FP-12's enrichment-parity check diff against it. Store it as a CI fixture, scrubbed of addresses. *Done as:* a microVM stands in for the host, so anyone can recapture it: `nix run .#capture-golden-records` runs the production `xtcp2-s3parquet-enrich` once over 3 containers, a named netns and the host. It writes `pkg/xtcp/testdata/golden/<kernel>/` (scrubbed `records.parquet`, normalized `records.jsonl`, `manifest.json`), kept honest by `checks.golden-records`. `pkg/goldenrec` classifies all 181 columns, and `xtcp2-golden diff` compares two captures past run-to-run noise. FP-9 recaptures with `services.xtcp2.capabilities` set via `mkOneS3ParquetGoldenWith`; FP-12 diffs with `-columns '^container_'`. The fixture has 23 rows: 4 per container (the client ends; the `AF_INET6` TODO below), 3 in `golden-ns` and 8 on the host. Two independent captures normalize byte-identical. TODOs below: a fleet-host recapture, ASN and locality columns, and two collector gaps the capture found (`AF_INET6`, `nsid` 0).
 - [ ] **F0.6 — Resource baseline**: collector CPU, RSS, poll p99, S3 object rate on the same host over 24 h. F2's caps and F4's broker are judged against it.
 - [ ] **F0.7 — Client inventory**: every consumer of `:8889` and `:9088` today (scrape agents, `xtcp2ctl`/`xtcp2client` users, dashboards, health probes). Each needs a row in FP-16's migration table.
 
@@ -248,7 +248,11 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 | ~~`microvm-x86_64-socket-scale`~~ done as FP-5.7 | — |
 | Fix `RegisterIOWQMaxWorkers` signature in the giouring fork | giouring PR |
 | Upstream RFC for an all-namespace inet_diag dump, only after the VM numbers and a lore.kernel.org search | F2 follow-up |
-| Add the scrubbed F0.5 Parquet rows as `FuzzRowFromProto` seeds once F0.5 is captured | FP-7 follow-up |
+| ~~Add the scrubbed F0.5 Parquet rows as `FuzzRowFromProto` seeds~~ done with F0.5 (`goldenSeed`; `TestProtoFromRowRoundTrip` checks the reverse mapping) | — |
+| Recapture the golden records on a fleet host and diff against the microVM fixture, to show the stand-in is representative | F0.5 follow-up |
+| A golden variant with the ipmeta bootstrap, if a gate needs the ASN and locality columns | F0.5 follow-up |
+| `nsid` 0 is both "no nsid" and the kernel's first id (`enrich.go`, `r.Nsid = uint32(id)`), so the golden diff can't compare it and treats it as volatile. Store id+1 or add a presence column, then make it ordinal again in `pkg/goldenrec/classes.go` | collector, F0.5 follow-up |
+| xtcp2 dumps `AF_INET` only (`pkg/xtcp/init.go`, `SDiagFamily: 2`), so `AF_INET6` sockets go unrecorded, including every Go dual-stack listener on `0.0.0.0` and the connections it accepts. Found by the golden capture: 4 of 12 sockets per stress container recorded | collector gap, not security |
 | ~~Cap `dockermeta.getJSON`'s body~~ done in #312 as focused design C5, a walk rather than a cap: a whole-body cap let a tenant image pad its labels to hide its container (inspect) or freeze the host's index (list). `jsonwalk.go` keeps only the projected fields and skips the rest unbuffered, with encoding/json's accept/reject (`FuzzDockerProjection`, `FuzzDecodeIDs` are differential). Limits: 4 MiB per inspect and per list entry, no list total, 10 s per request, 64 KiB drain ([Docker API limits](../design-metadata-enrichment.md#docker-api-limits)). The drain fix: an `/events` line over 1 MiB used to block the refresh goroutine draining the endless stream | — |
 | Re-tune the three caps' defaults from the F0.6 baseline (≥ 10× p99) | F0.6 |
 | The F2 gate's 1 M-socket synthetic netns run | after FP-6 |
@@ -284,7 +288,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 | name | category | description | expected |
 |---|---|---|---|
-| sys_admin_only_parity | P | caps = `SYS_ADMIN`; F0.5 workload | Parquet rows equal the golden records |
+| sys_admin_only_parity | P | caps = `SYS_ADMIN`; F0.5 workload | `xtcp2-golden diff` against the golden records is empty |
 | sys_admin_only_linkmonitor | P | same, link monitor on | all collectors report; none degraded for capability reasons |
 | no_caps | N | caps = none | fatal naming `CAP_SYS_ADMIN` only |
 | net_admin_absent_warns | B | caps = `SYS_ADMIN` | one warning line, no exit |
@@ -335,7 +339,7 @@ Non-blocking shortfalls found while implementing F1; none blocks R1.
 
 | name | category | description | expected |
 |---|---|---|---|
-| broker_parity | P | F0.5 workload, direct vs broker | identical `container_*` columns |
+| broker_parity | P | F0.5 workload, direct vs broker | `xtcp2-golden diff -columns '^container_'` is empty |
 | broker_restart | B | kill the broker mid-watch | collector re-lists; no record loss; gauge returns to 0 |
 | broker_absent_at_start | N | no broker socket | collector starts, degraded gauge 1, no container columns |
 | watch_gap | C | broker ages out the collector's generation | `FAILED_PRECONDITION` → re-list; index correct |

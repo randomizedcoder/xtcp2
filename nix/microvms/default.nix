@@ -39,6 +39,11 @@
   # (nix/tests/rdma-capture-manifest.nix). The RDMA capture runner promotes
   # the guest's native stage with it; without it, that stage is dropped.
   rdmaCaptureManifest ? null,
+  # Optional: the golden capture's xtcp2 (the production s3parquet-enrich
+  # build) and the xtcp2-golden tool its runner scrubs with. Both non-null
+  # expose the s3parquet-golden flavor and its runner.
+  goldenXtcp2Package ? null,
+  goldenTool ? null,
 }:
 
 let
@@ -466,6 +471,28 @@ let
       sink = "s3parquet-lowfreq";
     };
 
+  # Golden-record capture: one poll of the production binary over a fixed
+  # container + named-netns workload. extraModules lets a gate recapture it
+  # differently, e.g. FP-9 with services.xtcp2.capabilities changed.
+  hasGolden = tcpStressImage != null && goldenXtcp2Package != null && goldenTool != null;
+  mkOneS3ParquetGoldenWith =
+    extraModules: arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        tcpStressImage
+        extraModules
+        ;
+      xtcp2Package = goldenXtcp2Package;
+      sink = "s3parquet-golden";
+    };
+
   # Deliberately misconfigured: drops CAP_SYS_ADMIN from xtcp2's
   # capability set so the startup capability check refuses to start
   # the daemon. Used to validate the fail-early diagnostic.
@@ -710,6 +737,10 @@ let
     lib.mapAttrs (
       _name: variant: lib.genAttrs constants.supportedArchs (arch: mkOneS3ParquetStressWith arch variant)
     ) s3ParquetStressVariantArgs
+  );
+
+  vmsS3ParquetGolden = lib.optionalAttrs hasGolden (
+    lib.genAttrs constants.supportedArchs (mkOneS3ParquetGoldenWith [ ])
   );
 
   vmsS3ParquetLowfreq = lib.optionalAttrs (tcpStressImage != null) (
@@ -1028,6 +1059,18 @@ let
     };
   });
 
+  # Golden-record runner: boots the s3parquet-golden VM, scrubs the one
+  # object it emits and writes pkg/xtcp/testdata/golden/<guest kernel>/. A
+  # runner, not a check — see mkGoldenCaptureRunner's comment.
+  goldenCapture = lib.optionalAttrs hasGolden (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkGoldenCaptureRunner {
+        inherit arch goldenTool;
+        vm = vmsS3ParquetGolden.${arch};
+      };
+    })
+  );
+
   # rtnetlink DUMP-capture runner: boots the netlink-dump-capture VM and then
   # drives it over the serial console with scripts/capture-netlink-dumps.exp,
   # rather than waiting on a baked-in oneshot. Same reasons as above for being
@@ -1291,6 +1334,8 @@ in
     vmsS3ParquetStress
     vmsS3ParquetStressVariants
     vmsS3ParquetLowfreq
+    vmsS3ParquetGolden
+    mkOneS3ParquetGoldenWith
     vmsCapCheckFail
     vmsDiscoveryBench
     vmsSocketScale
@@ -1307,6 +1352,7 @@ in
     discoveryBench
     socketScale
     nlmonCapture
+    goldenCapture
     netlinkDumpCapture
     goipParity
     linkWriteCapture
