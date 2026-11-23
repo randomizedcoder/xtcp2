@@ -220,12 +220,13 @@ preconditions, and quantify detection.
 
 **Definition of done**
 
-- [ ] rt-3-1 shows victim records at the catcher with timestamps, and the audit log lines quoted in findings.md.
-- [ ] rt-3-5 extracts at least one real secret from a heap profile (or proves it cannot); either way, finding filed with exact commands.
-- [ ] rt-7-1 measures the daemon's memory knee under the bomb and states whether the default cgroup limit contains it.
+- [x] rt-3-1 shows victim records at the catcher with timestamps, and the audit log lines quoted in findings.md (122 record lines to the attacker's catcher; both Set audit lines; the RT-11 tier-4 blind pinned in the same run).
+- [x] rt-3-5 **refuted** (findings.md): a Go heap profile is stack/size metadata, not a memory image — no 32-hex substring exists in the decompressed profile; /debug/pprof/cmdline is http.NotFound by construction; pprof is admin-gated 401/403/200. The protected-page finding remains valid for core dumps only.
+- [ ] rt-7-1 measures the daemon's memory knee under the bomb and states whether the default cgroup limit contains it. — deferred (needs the Garage fixture).
 - [ ] govulncheck runs in `nix flake check` (or as a separately registered check) with zero reachable S1/S2 findings at pinned versions, or findings filed per advisory.
-- [ ] Every chain has a "detection gap" note in findings.md: what would have alerted, what must change.
-- [ ] No scenario leaves the daemon reconfigured (trap-restore verified by a final Get).
+- [x] Every chain has a "detection gap" note in findings.md (rt-3-1: the Set audit line is the ONLY detector — the victim's catcher blindness has no alarm of its own; rt-3-6: the churn rate is unbounded, the audit line is the only trace).
+- [x] No scenario leaves the daemon reconfigured (rt-3-1/rt-3-6 trap-restore verified by a final Get; rt-3-5's extra container is trap-removed).
+- [ ] Deferred rows (next session): rt-3-2 (S3 exfil — needs the Garage fixture), rt-3-3/rt-3-4 (poll/envelope abuse), rt-7-1/7-2/7-3 (artifact bombs — Garage), rt-7-4 (govulncheck wiring).
 
 ## Phase 4 — Denial of service and monitoring-blindness
 
