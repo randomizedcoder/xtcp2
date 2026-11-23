@@ -3,6 +3,8 @@ package gobridge
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,8 +12,12 @@ import (
 	"testing"
 )
 
-// corpusGlob finds every kernel's bridge ws corpus from this package.
-const corpusGlob = "../../pkg/xtcpnl/testdata/*/ws/bridge"
+// corpusGlob finds every kernel's bridge ws corpora from this package: 6C's
+// bridge and 6X-C's bridgex.
+const corpusGlob = "../../pkg/xtcpnl/testdata/*/ws/bridge*"
+
+// corpusRows is how many rows each corpus holds (V097, V101).
+var corpusRows = map[string]int{"bridge": 113, "bridgex": 63}
 
 type cmdJSON struct {
 	Cmd    string            `json:"cmd"`
@@ -50,13 +56,40 @@ type result struct {
 
 func replay(t *testing.T, dir string, args ...string) result {
 	t.Helper()
+	return replayIn(t, dir, nil, args...)
+}
+
+// replayIn is replay with stdin, for `-batch -`.
+func replayIn(t *testing.T, dir string, stdin io.Reader, args ...string) result {
+	t.Helper()
 	src, err := NewReplaySource(filepath.Join(dir, "ip.pcap"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var out, errb bytes.Buffer
-	rc := run(config{src: src}, args, &out, &errb)
+	rc := run(config{src: src, stdin: stdin}, args, &out, &errb)
 	return result{stdout: out.String(), stderr: errb.String(), rc: rc, pending: src.Pending()}
+}
+
+// jsonStream checks s is one or more JSON documents and nothing else.
+func jsonStream(s string) error {
+	dec := json.NewDecoder(strings.NewReader(s))
+	n := 0
+	for {
+		var v any
+		err := dec.Decode(&v)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		n++
+	}
+	if n == 0 {
+		return errors.New("no document")
+	}
+	return nil
 }
 
 // TestGobridgeCorpus replays every bridge ws row through gobridge with the
@@ -73,10 +106,15 @@ func TestGobridgeCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(bases) == 0 {
-		t.Fatal("no bridge ws corpus under testdata/*/ws/bridge")
+		t.Fatal("no bridge ws corpus under testdata/*/ws/bridge*")
 	}
 	rows, jsonRows := 0, 0
+	perBase := map[string]int{}
 	for _, base := range bases {
+		base, err := filepath.Abs(base) // a batch row runs in its own directory
+		if err != nil {
+			t.Fatal(err)
+		}
 		kernel := filepath.Base(filepath.Dir(filepath.Dir(base)))
 		entries, err := os.ReadDir(base)
 		if err != nil {
@@ -89,7 +127,8 @@ func TestGobridgeCorpus(t *testing.T) {
 			dir := filepath.Join(base, e.Name())
 			c := readCmdJSON(t, dir)
 			rows++
-			t.Run(kernel+"/"+e.Name(), func(t *testing.T) {
+			perBase[filepath.Base(base)]++
+			t.Run(kernel+"/"+filepath.Base(base)+"/"+e.Name(), func(t *testing.T) {
 				if c.Result.Status != "OK" {
 					t.Fatalf("row status %s", c.Result.Status)
 				}
@@ -98,7 +137,23 @@ func TestGobridgeCorpus(t *testing.T) {
 					t.Fatalf("cmd %q is not a bridge command", c.Cmd)
 				}
 				args = args[1:]
-				got := replay(t, dir, args...)
+				// A batch row reads b.txt, written beside its capture: from
+				// the row's directory, or with `< b.txt` on stdin.
+				var stdin io.Reader
+				if n := len(args); n >= 2 && args[n-2] == "<" {
+					f, err := os.Open(filepath.Join(dir, args[n-1]))
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer func() {
+						if err := f.Close(); err != nil {
+							t.Error(err)
+						}
+					}()
+					stdin, args = f, args[:n-2]
+				}
+				t.Chdir(dir)
+				got := replayIn(t, dir, stdin, args...)
 				wantRC, err := strconv.Atoi(strings.TrimSpace(readFile(t, filepath.Join(dir, "ip.rc"))))
 				if err != nil {
 					t.Fatal(err)
@@ -112,8 +167,10 @@ func TestGobridgeCorpus(t *testing.T) {
 					t.Fatalf("bridge %s\n got  %#v\n want %#v", strings.Join(args, " "), got, want)
 				}
 				if strings.Contains(" "+c.Cmd+" ", " -j ") && strings.HasPrefix(got.stdout, "[") {
-					if !json.Valid([]byte(got.stdout)) {
-						t.Fatalf("-j stdout is not JSON: %q", got.stdout)
+					// A batch prints one array per command that got as far
+					// as new_json_obj: a stream of documents (B36).
+					if err := jsonStream(got.stdout); err != nil {
+						t.Fatalf("-j stdout is not a JSON stream (%v): %q", err, got.stdout)
 					}
 					jsonRows++
 				}
@@ -121,7 +178,9 @@ func TestGobridgeCorpus(t *testing.T) {
 		}
 	}
 	t.Logf("replayed %d bridge rows, %d printing JSON", rows, jsonRows)
-	if rows != 113 {
-		t.Errorf("%d rows, want the 113 of 6C", rows)
+	for name, want := range corpusRows {
+		if perBase[name] != want {
+			t.Errorf("%s: %d rows, want %d", name, perBase[name], want)
+		}
 	}
 }

@@ -185,6 +185,9 @@ func strerror(errno unix.Errno) string {
 // initMap is ll_init_map: the AF_UNSPEC link dump that fills the cache.
 // Its failures exit 1.
 func (r *runner) initMap() error {
+	if r.llInited {
+		return nil // static int initialized: a batch dumps the links once
+	}
 	req, berr := xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, llMaskCst, r.nextSeq())
 	rc, err := r.dump(req, berr, func(m Msg) int {
 		r.cache.rememberMsg(m)
@@ -197,6 +200,7 @@ func (r *runner) initMap() error {
 		r.errf("Dump terminated\n")
 		return exitCode(1)
 	}
+	r.llInited = true
 	return nil
 }
 
@@ -283,7 +287,7 @@ func (r *runner) indexToName(index uint32) (string, error) {
 // nodev is lib/utils.c nodev: the message, and -1 to the caller.
 func (r *runner) nodev(dev string) error {
 	r.errf("Cannot find device \"%s\"\n", dev)
-	return exitCode(255)
+	return retCode(-1)
 }
 
 // nlmsgerrAttrMaxCst is NLMSGERR_ATTR_MAX (NLMSGERR_ATTR_MISS_NEST).

@@ -21,7 +21,7 @@ func (r *runner) doLink(args []string) error {
 			return r.refuse("link set")(nil)
 		case showWords(args[0], false):
 			return r.linkShow(args[1:])
-		case matches(args[0], "help"):
+		case matches(args[0], helpWord):
 			return r.linkUsage()
 		}
 		return r.unknownCommand("link", args[0])
@@ -55,18 +55,11 @@ func (r *runner) linkShow(args []string) error {
 			master = args[i]
 		}
 	}
-	if err := r.resolveFilter(dev); err != nil {
+	if err := r.resolveFilter(dev, &r.linkDev); err != nil {
 		return err
 	}
-	if master != "" {
-		i, err := r.nameToIndex(master)
-		if err != nil {
-			return err
-		}
-		if i == 0 {
-			return r.nodev(master)
-		}
-		r.filterMaster = i
+	if err := r.resolveFilter(master, &r.linkMaster); err != nil {
+		return err
 	}
 	req, berr := xtcpnl.BuildDumpLinkRequestExt(unix.AF_BRIDGE, 0, r.nextSeq())
 	r.o.newJSONObj()
@@ -149,10 +142,10 @@ func (r *runner) printLinkinfo(m Msg) (int, error) {
 		return 0, nil
 	}
 	index := cint.Bits(l.Index) // the unsigned filter compares ifi_index so
-	if r.filterIndex != 0 && r.filterIndex != index {
+	if r.linkDev != 0 && r.linkDev != index {
 		return 0, nil
 	}
-	if mst, ok := l.Attrs.U32(unix.IFLA_MASTER); r.filterMaster != 0 && ok && r.filterMaster != mst {
+	if mst, ok := l.Attrs.U32(unix.IFLA_MASTER); r.linkMaster != 0 && ok && r.linkMaster != mst {
 		return 0, nil // a link with no IFLA_MASTER passes (B7)
 	}
 	name, ok := l.Attrs.Str(unix.IFLA_IFNAME)

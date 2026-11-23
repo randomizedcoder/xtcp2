@@ -27,7 +27,7 @@ func (r *runner) doVni(args []string) error {
 		return r.refuse("vni " + w)(nil)
 	case showWords(w, true):
 		return r.vniShow(args[1:])
-	case w == "help":
+	case w == helpWord:
 		return r.vniUsage()
 	}
 	return r.unknownCommand("vni", args[0])
@@ -47,11 +47,11 @@ func (r *runner) vniUsage() error {
 // vniShow is vni_show: the header before the dump (B6), and its failure
 // message's typo (B3).
 func (r *runner) vniShow(args []string) error {
-	dev, err := r.showArgs(args, false)
+	dev, err := r.showArgs(args, nil)
 	if err != nil {
 		return err
 	}
-	if err := r.resolveFilter(dev); err != nil {
+	if err := r.resolveFilter(dev, &r.vniIndex); err != nil {
 		return err
 	}
 	o := r.o
@@ -60,7 +60,7 @@ func (r *runner) vniShow(args []string) error {
 	if r.stats {
 		flags = xtcpnl.TunnelMsgFlagStats
 	}
-	req := xtcpnl.BuildDumpTunnelRequest(r.filterIndex, flags, r.nextSeq())
+	req := xtcpnl.BuildDumpTunnelRequest(r.vniIndex, flags, r.nextSeq())
 	if !o.isJSON() {
 		o.printf(col("dev") + "  " + col17("vni") + "  group/remote\n")
 	}
@@ -108,7 +108,7 @@ func (r *runner) printVnifilterRtm(m Msg) (int, error) {
 		return 0, nil
 	}
 	index := binary.LittleEndian.Uint32(m.Body[4:8])
-	if r.filterIndex != 0 && r.filterIndex != index {
+	if r.vniIndex != 0 && r.vniIndex != index {
 		return 0, nil
 	}
 	o := r.o

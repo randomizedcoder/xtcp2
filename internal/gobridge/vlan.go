@@ -84,7 +84,7 @@ func (r *runner) doVlan(args []string) error {
 		return r.refuse("vlan set")(nil)
 	case w == "global":
 		return r.vlanGlobal(args[1:])
-	case matches(w, "help"):
+	case matches(w, helpWord):
 		return r.vlanUsage()
 	}
 	return r.unknownCommand("vlan", args[0])
@@ -172,11 +172,11 @@ func (r *runner) dumpOrExit(req []byte, berr error, filter func(Msg) (int, error
 
 // vlanShow is vlan_show.
 func (r *runner) vlanShow(args []string, subject vlanSubject) error {
-	dev, err := r.showArgs(args, true)
+	dev, err := r.showArgs(args, &r.vlanVid)
 	if err != nil {
 		return err
 	}
-	if err := r.resolveFilter(dev); err != nil {
+	if err := r.resolveFilter(dev, &r.vlanIndex); err != nil {
 		return err
 	}
 	o := r.o
@@ -226,11 +226,11 @@ func (r *runner) vlanShow(args []string, subject vlanSubject) error {
 
 // vlanGlobalShow is vlan_global_show.
 func (r *runner) vlanGlobalShow(args []string) error {
-	dev, err := r.showArgs(args, true)
+	dev, err := r.showArgs(args, &r.vlanVid)
 	if err != nil {
 		return err
 	}
-	if err := r.resolveFilter(dev); err != nil {
+	if err := r.resolveFilter(dev, &r.vlanIndex); err != nil {
 		return err
 	}
 	r.o.newJSONObj()
@@ -249,7 +249,7 @@ func (r *runner) vlanGlobalShow(args []string) error {
 // filterVlanCheck is filter_vlan_check: -1 stop (past the filter), 0
 // skip, 1 print. filter_vlan is an int compared with the u16 vid.
 func (r *runner) filterVlanCheck(vid, flags uint16) int {
-	f := int64(r.filterVlan)
+	f := int64(r.vlanVid)
 	if f != 0 && int64(vid) > f && flags&xtcpnl.BridgeVlanInfoRangeEnd == 0 {
 		return -1
 	}
@@ -312,7 +312,7 @@ func (r *runner) printVlan(m Msg, subject vlanSubject) (int, error) {
 		return 0, nil
 	}
 	index := binary.LittleEndian.Uint32(m.Body[4:8])
-	if r.filterIndex != 0 && r.filterIndex != index {
+	if r.vlanIndex != 0 && r.vlanIndex != index {
 		return 0, nil
 	}
 	// parse_rtattr: no mask, so only an unflagged IFLA_AF_SPEC counts.
@@ -452,7 +452,7 @@ func (r *runner) printVlanRtm(m Msg, globalOnly bool) (int, error) {
 		return 0, nil
 	}
 	index := binary.LittleEndian.Uint32(m.Body[4:8])
-	if r.filterIndex != 0 && r.filterIndex != index {
+	if r.vlanIndex != 0 && r.vlanIndex != index {
 		return 0, nil
 	}
 	if m.Type == unix.RTM_DELVLAN {
@@ -517,7 +517,7 @@ func (r *runner) printVlanOpts(val []byte, index uint32) error {
 	if vtb.Has(xtcpnl.BridgeVlandbEntryRange) {
 		vrange, _ = vtb.U16(xtcpnl.BridgeVlandbEntryRange)
 	}
-	if f := int64(r.filterVlan); f != 0 && (f < int64(vid) || f > int64(vrange)) {
+	if f := int64(r.vlanVid); f != 0 && (f < int64(vid) || f > int64(vrange)) {
 		return nil
 	}
 	state, _ := vtb.U8(xtcpnl.BridgeVlandbEntryState)
@@ -620,7 +620,7 @@ func (r *runner) printVlanGlobalOpts(val []byte, index uint32) error {
 	if vtb.Has(xtcpnl.BridgeVlandbGoptsRange) {
 		vrange, _ = vtb.U16(xtcpnl.BridgeVlandbGoptsRange)
 	}
-	if f := int64(r.filterVlan); f != 0 && (f < int64(vid) || f > int64(vrange)) {
+	if f := int64(r.vlanVid); f != 0 && (f < int64(vid) || f > int64(vrange)) {
 		return nil
 	}
 	if err := r.startVlanEntry(index); err != nil {
@@ -744,7 +744,7 @@ func (r *runner) printVlanStats(m Msg) (int, error) {
 		return -1, nil
 	}
 	index := binary.LittleEndian.Uint32(m.Body[4:8])
-	if r.filterIndex != 0 && r.filterIndex != index {
+	if r.vlanIndex != 0 && r.vlanIndex != index {
 		return 0, nil
 	}
 	tb, err := xtcpnl.ParseAttrTableFlags(m.Body[ifStatsMsgSize:], iflaStatsMax, 0)
@@ -786,7 +786,7 @@ func (r *runner) printVlanStatsAttr(attr []byte, index uint32) error {
 			perr = e
 			return
 		}
-		if r.filterVlan != 0 && int64(r.filterVlan) != int64(v.Vid) {
+		if r.vlanVid != 0 && int64(r.vlanVid) != int64(v.Vid) {
 			return
 		}
 		// Pure port entries are the slave dump's.
@@ -923,7 +923,41 @@ func sprintTime64(t int64) string {
 }
 
 // routerPortStats is br_print_router_port_stats (bridge/mdb.c), under -s:
-// not cloned yet.
-func (r *runner) routerPortStats([]byte) error {
-	return fmt.Errorf("%w: router port stats (bridge -s vlan global show with router ports)", errNotImplemented)
+// parse_rtattr over the MDBA_ROUTER_PORT payload past its ifindex (the
+// caller has checked the ifindex is there, B9), then the timer and the
+// type. Both are read at their width with no length check (B35). The
+// JSON "timer" is the same aligned text as the column (B34), and the type
+// is the kernel's port-wide one (K3).
+func (r *runner) routerPortStats(val []byte) error {
+	t, err := xtcpnl.ParseAttrTableFlags(val[4:], xtcpnl.MdbaRouterPattrMax, 0)
+	if err != nil {
+		return err
+	}
+	o := r.o
+	if t.Has(xtcpnl.MdbaRouterPattrTimer) {
+		v, ok := t.U32(xtcpnl.MdbaRouterPattrTimer)
+		if !ok {
+			return errOverread("MDBA_ROUTER_PATTR_TIMER", "B35")
+		}
+		s := formatTimer(v)
+		o.str(printAny, colorNone, "timer", " "+s, s)
+	}
+	if t.Has(xtcpnl.MdbaRouterPattrType) {
+		v, ok := t.U8(xtcpnl.MdbaRouterPattrType)
+		if !ok {
+			return errOverread("MDBA_ROUTER_PATTR_TYPE", "B35")
+		}
+		s := "permanent"
+		if p := (xtcpnl.MdbRouterPort{Type: v}); p.IsTemp() {
+			s = "temp"
+		}
+		o.str(printAny, colorNone, "type", " "+s, s)
+	}
+	return nil
+}
+
+// formatTimer is mdb.c format_timer(ticks, 1): __jiffies_to_tv's 10 ms
+// ticks as "%4lu.%.2lu", seconds and hundredths.
+func formatTimer(ticks uint32) string {
+	return fmt.Sprintf("%4d.%02d", ticks/100, ticks%100)
 }

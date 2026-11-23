@@ -26,7 +26,7 @@ func (r *runner) doMst(args []string) error {
 		return r.refuse("mst set")(nil)
 	case showWords(w, false):
 		return r.mstShow(args[1:])
-	case matches(w, "help"):
+	case matches(w, helpWord):
 		return r.mstUsage()
 	}
 	return r.unknownCommand("mst", args[0])
@@ -40,13 +40,14 @@ func (r *runner) mstUsage() error {
 }
 
 // mstShow is mst_show: a failed dump returns -1 (exit 255) where the other
-// objects exit 1 (B4), after closing the JSON.
+// objects exit 1 (B4), after closing the JSON. Being a return, it is the
+// one failed dump a -force batch goes past.
 func (r *runner) mstShow(args []string) error {
-	dev, err := r.showArgs(args, false)
+	dev, err := r.showArgs(args, nil)
 	if err != nil {
 		return err
 	}
-	if err := r.resolveFilter(dev); err != nil {
+	if err := r.resolveFilter(dev, &r.mstIndex); err != nil {
 		return err
 	}
 	req, berr := xtcpnl.BuildDumpLinkRequestExt(unix.AF_BRIDGE, xtcpnl.RtextFilterMst, r.nextSeq())
@@ -72,7 +73,7 @@ func (r *runner) mstShow(args []string) error {
 	case rc < 0:
 		r.errf("Dump terminated\n")
 		o.deleteJSONObj()
-		return exitCode(255)
+		return retCode(-1)
 	}
 	o.deleteJSONObj()
 	return nil
@@ -90,7 +91,7 @@ func (r *runner) printMsts(m Msg) (int, error) {
 		return -1, nil
 	}
 	index := binary.LittleEndian.Uint32(m.Body[4:8])
-	if r.filterIndex != 0 && r.filterIndex != index {
+	if r.mstIndex != 0 && r.mstIndex != index {
 		return 0, nil
 	}
 	mst, ok := xtcpnl.FindRawAttr(spec, unix.NLA_F_NESTED|xtcpnl.IflaBridgeMst)
