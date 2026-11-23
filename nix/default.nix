@@ -263,6 +263,13 @@ let
   # Dev shell
   devshell = import ./devshell.nix { inherit pkgs; };
 
+  # Every Go fuzz target: the `fuzz-all` app for long runs from a checkout,
+  # and a short sandboxed check (nix/fuzz-all.nix).
+  fuzzAll = import ./fuzz-all.nix {
+    inherit pkgs;
+    inherit (goSource) vendoredSource;
+  };
+
   # Proto plumbing
   protos = import ./protos { inherit pkgs src; };
 
@@ -1234,6 +1241,10 @@ in
       # case, so per-package would be duplicate work.
       test-go-race = tests.go-race;
 
+      # Every Fuzz* target, 10 s each in the sandbox (about 10-16 min). Runs
+      # again whenever the source changes; `nix run .#fuzz-all` for longer.
+      test-fuzz-all = fuzzAll.check;
+
       # The ASN bootstrap wiring (one-prefix fixture) and the real checked-in
       # snapshot, loaded and looked up, and found byte-identical in the image
       # the fleet runs. A refresh by update-ipmeta-bootstrap-lock that drops a
@@ -1260,6 +1271,12 @@ in
     };
 
   apps = {
+    # Fuzz every Fuzz* target from the current checkout, so crashers land in
+    # its testdata/fuzz/. FUZZTIME, FUZZ_FILTER etc.: nix/scripts/fuzz-all.bash.
+    fuzz-all = {
+      type = "app";
+      program = "${fuzzAll.script}/bin/fuzz-all";
+    };
     test-tcp-controller-vm = {
       type = "app";
       program = "${vmTests.tcp-controller}/bin/test-tcp-controller-vm";

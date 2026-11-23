@@ -224,11 +224,13 @@ Use the full path: `nix build path:.#checks.x86_64-linux.NAME -L`.
 
 ## Fuzzing
 
-`fuzz-all` (in the dev shell; source `nix/scripts/fuzz-all.bash`) finds every `Fuzz*` target with `go test -list` and fuzzes each in turn, so a new fuzzer needs no list entry. It runs every target even after a failure, then names the failures and the crasher files Go wrote under `<pkg>/testdata/fuzz/<Target>/`.
+`fuzz-all` (in the dev shell and as `nix run .#fuzz-all`; source `nix/scripts/fuzz-all.bash`, wired in `nix/fuzz-all.nix`) finds every `Fuzz*` target with `go test -list` and fuzzes each in turn, so a new fuzzer needs no list entry. It runs every target even after a failure, then names the failures and the crasher files Go wrote under `<pkg>/testdata/fuzz/<Target>/`.
 
 ```bash
 nix develop -c fuzz-all                                   # every target, 10 s each
 FUZZ_FILTER=dockermeta FUZZTIME=5m nix develop -c fuzz-all  # one package, longer
+FUZZTIME=2m nix run .#fuzz-all                            # long run, from the checkout root
+nix build .#checks.x86_64-linux.test-fuzz-all -L          # sandboxed, 10 s each
 ```
 
 | Variable | Default | Meaning |
@@ -241,7 +243,7 @@ FUZZ_FILTER=dockermeta FUZZTIME=5m nix develop -c fuzz-all  # one package, longe
 | `FUZZ_MIN_TARGETS` | `50` | Fail if discovery finds fewer, so a broken discovery can't pass |
 | `FUZZ_LOG_DIR` | a temporary directory | One log per target |
 
-CI (`.github/workflows/fuzz.yml`) runs it on every PR to main at 10 s per target (`fuzz-pr`), and daily at 2 min per target (`fuzz-nightly`, also `workflow_dispatch` with a chosen budget). It is not a nix check, because a cached derivation would never fuzz again. A failed run uploads the crashers and logs as an artifact. Fix the bug, then commit the crasher file and add the input as a row of the fuzzer's table, which its unit test and seed corpus share.
+`checks.test-fuzz-all` runs it in the sandbox at 10 s per target (about 10-16 min), so `nix flake check` fuzzes every target again whenever the source changes; its logs are kept in `result/logs/`. Being a cached derivation, it does not fuzz again for unchanged source: use the app with a longer `FUZZTIME` for a campaign. Crashers from the app land in the checkout; from the check, in the failing log. Fix the bug, then commit the crasher file and add the input as a row of the fuzzer's table, which its unit test and seed corpus share.
 
 `test-linkmonitor-fuzz` still fuzzes its own 10 targets for 30 s each under `nix build`.
 

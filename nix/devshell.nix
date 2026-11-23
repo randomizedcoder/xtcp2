@@ -29,18 +29,9 @@ let
   # The five golangci-lint tiers, shared verbatim with nix/default.nix's
   # `packages` so the shell and the flake cannot drift.
   lintTiers = import ./lint-tiers.nix { inherit pkgs; };
-  # Every Go fuzz target, found by `go test -list` (FP-7). The script stays a
-  # plain file so CI and contributors run the same thing; the shebang is
-  # dropped because writeShellApplication adds its own.
-  fuzzAll = pkgs.writeShellApplication {
-    name = "fuzz-all";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.gawk
-    ];
-    text = pkgs.lib.removePrefix "#!/usr/bin/env bash\n" (builtins.readFile ./scripts/fuzz-all.bash);
-  };
+  # Every Go fuzz target, found by `go test -list` (FP-7). Shared with
+  # `nix run .#fuzz-all` and checks.test-fuzz-all (nix/fuzz-all.nix).
+  fuzzAll = (import ./fuzz-all.nix { inherit pkgs; }).script;
 
   # Shell-entry banner. A writeShellApplication rather than a shellHook
   # function so its (admittedly trivial) bash is shellcheck'd like everything
@@ -113,7 +104,10 @@ let
       Fuzzing:
         fuzz-all                                Fuzz every Fuzz* target in turn
                                                 (FUZZTIME=10s per target; set
-                                                FUZZ_FILTER=<regex> to pick some)
+                                                FUZZ_FILTER=<regex> to pick some;
+                                                also nix run .#fuzz-all)
+        nix build .#checks.x86_64-linux.test-fuzz-all
+                                                The same, sandboxed, 10 s each
 
       Nix:
         nix flake check                         Tier 0+1 lint + all custom audits
