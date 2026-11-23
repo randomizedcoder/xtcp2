@@ -466,7 +466,11 @@ denial-of-service defense:
   `ConfigService.Set`/reconfigure path, and `SetPollFrequency`. Sub-second
   requests fail validation, so the poll loop's output rate (records/s track
   the cadence) is bounded; the wall-clock backpressure is the poller's own
-  serialized loop.
+  serialized loop. The timer math also enforces the floor in Go code
+  (`xtcp.MinPollFrequency`, pkg/xtcp/poller.go): `computePollInterval` clamps
+  every tick interval — including the 0/negative durations that used to
+  panic `ticker.Reset`, and a 100% jitter draw — so the daemon cannot tick
+  faster than 1 s even if a caller skips validation.
 
 The protobuf fields `max_connections`, `accept_rate_per_second`, and
 `accept_burst` are **not wired into the current listener implementation**.

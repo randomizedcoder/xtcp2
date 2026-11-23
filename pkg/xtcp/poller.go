@@ -20,6 +20,21 @@ type pollBurst struct {
 	interval time.Duration
 }
 
+// MinPollFrequency is the fastest poll cadence the poller honors: the ticker
+// interval is never set below it, whatever the configured frequency, jitter
+// draw, or change-channel value.
+//
+// It is the Go belt to the proto rule (poll_frequency gte 1s on both
+// XtcpConfig and SetPollFrequencyRequest — enforced by protovalidate at every
+// entry point: the startup -frequency flag, the Set/reconfigure path, and
+// SetPollFrequency). The belt exists because the timer math would otherwise
+// trust the channel blindly: ticker.Reset panics on d <= 0, a sub-second
+// duration would pass through silently, and a 100%% jitter draw halves the
+// interval — computePollInterval clamps all of it, so the daemon can never
+// tick faster than this, even if the proto rule regresses or a future caller
+// skips validation.
+const MinPollFrequency = 1 * time.Second
+
 func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -242,8 +257,19 @@ func (x *XTCP) pollBurstRunner(ctx context.Context, wg *sync.WaitGroup) {
 
 // handleChangePollFrequency reacts to the gRPC-driven poll-frequency
 // change: resets the ticker to the new duration (jittered like any other
-// interval) and counts the reset.
+// interval) and counts the reset. A sub-floor duration (or the <=0 values
+// that used to panic ticker.Reset) is floored to MinPollFrequency and
+// counted — the belt beside the proto rule: this code never trusts the
+// channel's value.
 func (x *XTCP) handleChangePollFrequency(d time.Duration, ticker *time.Ticker, pollingLoops uint64, count int) {
+	if d < MinPollFrequency {
+		x.pC.WithLabelValues("Poller", "ticker.Floored", "count").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("Poller pollingLoops:%d count:%d poll frequency %s below the %s floor: floored",
+				pollingLoops, count, d.Round(time.Millisecond), MinPollFrequency)
+		}
+		d = MinPollFrequency
+	}
 	interval := computePollInterval(d, x.config.PollJitterPct, misc.JitterDuration)
 	ticker.Reset(interval)
 	x.pC.WithLabelValues("Poller", "ticker.Reset", "count").Inc()
@@ -264,12 +290,23 @@ func computeStartupDelay(freq time.Duration, pct uint32, jitter func(time.Durati
 // offset in [-max/2, +max/2) where max = freq*pct/100, so the mean stays freq
 // and the spread is ±max/2. pct==0 (or freq<=0) yields exactly freq. The result
 // is always > 0 for a valid freq since pct<=100 ⇒ max/2 <= freq/2.
+// The MinPollFrequency clamp is the last line of defense: even a 100%% jitter
+// draw (which halves the interval) or a zero/negative freq cannot tick faster
+// than the floor, and the ticker.Reset panic case (d <= 0) becomes a slow tick
+// instead of a crash.
 func computePollInterval(freq time.Duration, pct uint32, jitter func(time.Duration) time.Duration) time.Duration {
 	limit := misc.ScalePct(freq, pct)
 	if limit <= 0 {
+		if freq < MinPollFrequency {
+			return MinPollFrequency
+		}
 		return freq
 	}
-	return freq - limit/2 + jitter(limit)
+	interval := freq - limit/2 + jitter(limit)
+	if interval < MinPollFrequency {
+		return MinPollFrequency
+	}
+	return interval
 }
 
 // handleNetlinkerDone reacts to a per-fd "I'm done draining" signal
