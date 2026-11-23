@@ -1,0 +1,2 @@
+link show dev "d1"
+vlan show dev 'd2'

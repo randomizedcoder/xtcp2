@@ -1,0 +1,5 @@
+# the ports
+
+link \
+show dev d1 # one port
+vlan show dev d2

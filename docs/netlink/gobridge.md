@@ -334,3 +334,44 @@ the latest code" section the ethtool doc uses.
 `16777214-16777215`, and `VLAN_ID_LEN` is 9. The capture pins vni range `16777214-16777215`
 and vlan range `2-4094`; 6R mirrors the `%-*s` padding, including a negative width if one
 appears.
+
+## 6X — the rest of the read-only surface (V101–V104, DOC033)
+
+After 6R, gobridge refused six things bridge does without writing: `-batch`, `-force`,
+`-netns`, `-family`/`-4`/`-6`, and `-s` router-port stats. 6X clones them, captures
+first. Its rows go to `ws/bridgex/`, a separate family, so 6C's row ids stay as
+captured.
+
+| task | work | evidence |
+|---|---|---|
+| 6X-C | `matrix_bridgex.go`: 63 rows (23 commands × plain/`-j`, 17 negatives); fixture `brrtr` (multicast VLAN snooping, per-VLAN router ports) | V101 |
+| 6X-P | `ParseMdbRouterPorts` (`MDBA_ROUTER` → `MDBA_ROUTER_PORT` + `MDBA_ROUTER_PATTR_*`), table tests, fuzz | V102 |
+| 6X-R | gobridge: batch (`do_batch`, `getcmdline`, `makeargs`), `-force`, `-netns` (setns), `-family`/`-4`/`-6`, `br_print_router_port_stats`; `exit()` vs return kept apart | V103 |
+| 6X-B | B28–B34 and K3 added to `upstream/iproute2-bridge-print-paths.md` | DOC033 |
+| 6X-L | live diff beside `bridge`, `-netns` included (the one path a capture can't see) | V104 |
+
+**Why these bugs, why here.** `-batch` runs every line in one process, so any state a
+command leaves behind reaches the next line. That is a bug class of its own, not in
+`bug-classes.md` yet: **C16, process state carried between batch lines**.
+
+| # | where | class | lead | pinned by |
+|---|---|---|---|---|
+| B28 | `vlan.c:21`, `link.c:20-21`, `mst.c:23`, `vni.c:25` | C16 | each object's filters (`filter_index`, `filter_vlan`, `filter_dev_index`, `filter_master_index`) are file statics, set by a `dev`/`vid`/`master` word and never cleared: a later batch line inherits them | 6X-C `sticky-*` rows |
+| B29 | `vlan.c:1123`, `:1240` | C16 + C8 | the `vid` duplicate test reads the static: a second batch line with `vid` is a duparg, `exit(-1)`, through `-force` | 6X-C `sticky-vid-duparg` |
+| B30 | `vlan.c`, `link.c`, `vni.c`, `lib/ll_map.c` | C8 | every failed dump calls `exit(1)`, so `-force` doesn't carry a batch past it; only `mst` returns (B4) | 6X-C `dump-exit-force` |
+| B31 | `lib/utils.c` `getcmdline` | C8 | a last line ending in `\` prints "Missing continuation line", ends the batch, and exits 0 | 6X-C `no-continuation` |
+| B32 | `bridge.c:183` | C9 | words after `-batch FILE` are ignored silently | 6X-C `extra-words` |
+| B33 | `bridge.c:152` | C9 | main's `NEXT_ARG` counts `argv[0]`, so `bridge -netns` passes `argv[argc]` (NULL) to `netns_switch`, which opens `/var/run/netns/(null)` | 6X-C `-netns` |
+| B34 | `mdb.c:76-80` | C7 | `-j` router-port `"timer"` is `format_timer(timer, 1)`, the column-aligned text: `" 254.87"`, leading spaces in a JSON string | 6X-C `-j -s vlan global show` |
+| K3 | `br_mdb.c` `br_rports_fill_info` | kernel | a per-VLAN router port's `MDBA_ROUTER_PATTR_TYPE` is the port-wide `p->multicast_ctx.multicast_router`, not the VLAN's: per-VLAN permanent shows `temp`, per-VLAN temp shows `permanent` | 6X-C `brrtr -s` rows |
+
+**TestBridgexSpace** (`tools/nlcapgen/matrix_bridgex_test.go`): 25 rows. Positive: a
+two-line batch, stdin, `-force` with nothing failing, `-family inet`, `-s` router ports.
+Negative: a failed line stops the batch; `-force` goes on with rc 1; nodev then the next
+line; B29; B30; no file; `-batch` with no file; no such netns; B33; an unknown family; an
+unterminated quote. Boundary: 511 words fit; the 512th exits. Corner: B28 (vlan, global,
+mst), B31, B32, `-4`, `-o` router ports. Also: every positive command has a `-j` row,
+every batch row's last pre step writes `b.txt`, and two runs give the same bytes.
+**TestBatchFile**: 10 rows run each generated pre step in `sh` and compare `b.txt`:
+quotes, `#`, a trailing backslash, printf escapes, and shell metacharacters all stay
+literal.
