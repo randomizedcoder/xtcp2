@@ -312,6 +312,7 @@ the latest code" section the ethtool doc uses.
 | B24 | `lib/ll_map.c` `ll_name_to_index` | arg parse | `dev if999` falls through to `ll_idx_a2n` and is taken as ifindex 999: rc 0, the kernel's ENODEV ignored, header only | 6C `vlan show dev if999` |
 | B25 | `lib/bridge.c:41` vs `vlan.c:1314` | JSON key varies | `-j -s vlan show` keys a VLAN `"vid"`; `-j vlan show` and `-j -d` key it `"vlan"` | 6C `-j -s vlan show` |
 | B26 | `lib/bridge.c:10-19` | JSON | a compressed range's flags hold only RANGE_BEGIN/END, so `"flags": []` is printed, while a VLAN with no flags has no key | 6C `-j -com vlan show` |
+| B27 | `vlan.c:1295` | length | `print_vlan_info` casts each `IFLA_BRIDGE_VLAN_INFO` to `struct bridge_vlan_info` with no `RTA_PAYLOAD` check; `ParseBridgeLink` refuses a short one | 6P unit row (2-byte VLAN_INFO) |
 | K1 | `br_netlink.c` `br_fill_ifinfo` | kernel | the bridge's own PF_BRIDGE entry carries `IFLA_MASTER` naming itself | 6P unit row |
 | K2 | `br_netlink_tunnel.c` | kernel | `tunnel_info` for a VLAN not yet on the port is a bare EINVAL, no extack | setup only (6C fixture order) |
 
@@ -327,7 +328,7 @@ the latest code" section the ethtool doc uses.
 - **Dropped:** B14. `-com vlan show vid 22` prints `20-25`, the range holding 22, which is
   a fair answer.
 - **Unit only** (no stock-kernel reply shows them): B4, B7, B8, B9, B11, B12, B13, B15,
-  B16, B18, B19, B20, B23. B17 is clean: every `-j -s` output parses.
+  B16, B18, B19, B20, B23, B27 (found in 6P). B17 is clean: every `-j -s` output parses.
 
 **Boundaries the columns must survive.** `VXLAN_ID_LEN` is 17, exactly the width of
 `16777214-16777215`, and `VLAN_ID_LEN` is 9. The capture pins vni range `16777214-16777215`
