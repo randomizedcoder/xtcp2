@@ -84,38 +84,78 @@ func TestGetJSONLimit(t *testing.T) {
 	}
 }
 
-// inspectJSON is a usable inspect body for aaaa, padded with a label to at
-// least size bytes.
-func inspectJSON(size int) string {
-	const head = `{"Id":"aaaa","Name":"/web","Config":{"Image":"nginx","Labels":{"pad":"`
-	const tail = `"}},"State":{"Pid":1},"NetworkSettings":{"SandboxKey":"/var/run/docker/netns/aaaahash"}}`
-	return head + strings.Repeat("x", max(0, size-len(head)-len(tail))) + tail
+// inspectJSON is a usable inspect body for aaaa with label bytes of padding
+// and the given Id and SandboxKey.
+func inspectJSON(labels int, id, sandbox string) string {
+	return `{"Id":"` + id + `","Name":"/web","Config":{"Image":"nginx","Labels":{"pad":"` +
+		strings.Repeat("x", labels) + `"}},"State":{"Pid":1},"NetworkSettings":{"SandboxKey":"` + sandbox + `"}}`
 }
 
-func TestInspectBodyCap(t *testing.T) {
+// listJSON is a /containers/json body for aaaa and bbbb, aaaa's entry padded
+// with label bytes and carrying the given Id.
+func listJSON(labels int, aaaaID string) string {
+	return `[{"Id":"` + aaaaID + `","Labels":{"pad":"` + strings.Repeat("x", labels) + `"}},` +
+		`{"Id":"bbbb222222222222222222222222222222222222222222222222222222222222"}]`
+}
+
+// TestTenantBodySize: label padding, the part of a body a tenant image
+// controls, drops at most its own container, never another's, and never
+// fails the list.
+func TestTenantBodySize(t *testing.T) {
+	const aaaaID = "aaaa111111111111111111111111111111111111111111111111111111111111"
+	const key = "/var/run/docker/netns/aaaahash"
+	long := strings.Repeat("a", maxIDRaw+1)
+	// Label padding that makes the inspect body, or aaaa's list entry, exactly
+	// its limit.
+	inspectPad := maxInspectBody - len(inspectJSON(0, aaaaID, key))
+	entryPad := maxListEntry - (len(listJSON(0, aaaaID)) - len(listJSON(0, "")) + len(`{"Id":"","Labels":{"pad":""}}`))
+	// Seventeen padded entries: past the 64 MiB a list total would have had.
+	many := "[" + strings.Repeat(`{"Id":"p","Labels":{"pad":"`+strings.Repeat("x", 4<<20-64)+`"}},`, 17) + listJSON(0, aaaaID)[1:]
 	cases := []struct {
 		name        string
 		cat         string
 		description string
-		size        int
-		expected    bool // aaaa indexed
+		list        string
+		inspect     string
+		expected    bool // aaaa indexed; bbbb must be indexed in every row
 	}{
-		{"small", "P", "an ordinary inspect body", 0, true},
-		{"big_labels", "B", "900 KiB of labels, under the 1 MiB cap", 900 << 10, true},
-		{"at_cap", "B", "exactly maxInspectBody bytes", maxInspectBody, true},
-		{"over_cap", "N", "maxInspectBody+1 bytes: aaaa skipped, the rest indexed", maxInspectBody + 1, false},
-		{"far_over_cap", "N", "8 MiB of labels: aaaa skipped", 8 << 20, false},
+		{"small", "P", "an ordinary list and inspect",
+			listJSON(0, aaaaID), inspectJSON(0, aaaaID, key), true},
+		{"inspect_labels_3MiB", "P", "3 MiB of labels in inspect, under maxInspectBody",
+			listJSON(0, aaaaID), inspectJSON(3<<20, aaaaID, key), true},
+		{"inspect_at_limit", "B", "an inspect body of exactly maxInspectBody",
+			listJSON(0, aaaaID), inspectJSON(inspectPad, aaaaID, key), true},
+		{"inspect_over_limit", "B", "maxInspectBody+1: aaaa skipped (and logged)",
+			listJSON(0, aaaaID), inspectJSON(inspectPad+1, aaaaID, key), false},
+		{"entry_at_limit", "B", "aaaa's list entry of exactly maxListEntry",
+			listJSON(entryPad, aaaaID), inspectJSON(0, aaaaID, key), true},
+		{"entry_over_limit", "B", "maxListEntry+1: aaaa's entry dropped, the list still builds",
+			listJSON(entryPad+1, aaaaID), inspectJSON(0, aaaaID, key), false},
+		{"many_padded_entries", "C", "17 entries of ~4 MiB (68 MiB) do not fail the list",
+			many, inspectJSON(0, aaaaID, key), true},
+		{"inspect_id_at_cap", "B", "an inspect Id of exactly maxIDRaw bytes is kept",
+			listJSON(0, aaaaID), inspectJSON(0, strings.Repeat("a", maxIDRaw), key), true},
+		{"inspect_id_over_cap", "N", "a daemon-set Id over maxIDRaw: aaaa skipped",
+			listJSON(0, aaaaID), inspectJSON(0, long, key), false},
+		{"sandbox_over_cap", "N", "a SandboxKey over maxIDRaw: aaaa skipped",
+			listJSON(0, aaaaID), inspectJSON(0, aaaaID, "/"+long), false},
+		{"list_id_over_cap", "C", "an over-long Id in one list entry drops that entry only",
+			listJSON(0, long), inspectJSON(0, aaaaID, key), false},
+		{"malformed_label", "N", "a raw control byte in a skipped label is still a syntax error: aaaa skipped",
+			listJSON(0, aaaaID), strings.Replace(inspectJSON(4, aaaaID, key), "xxxx", "x\x01x", 1), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fs, srv := newFixtureServer(t)
 			fs.mu.Lock()
-			fs.inspects["aaaa111111111111111111111111111111111111111111111111111111111111"] = inspectJSON(tc.size)
+			fs.containers = tc.list
+			fs.inspects[aaaaID] = tc.inspect
+			fs.inspects[long] = tc.inspect
 			fs.mu.Unlock()
 
 			ix, err := newIndexFromClient(context.Background(), srv.Client(), srv.URL, fakeStat)
 			if err != nil {
-				t.Fatalf("newIndexFromClient: %v", err)
+				t.Fatalf("%s: newIndexFromClient: %v", tc.description, err)
 			}
 			defer ix.Close()
 			if _, got := ix.Lookup(4026531001); got != tc.expected {
@@ -215,5 +255,33 @@ func TestEventsOversizedLineReturns(t *testing.T) {
 	}
 	if d := time.Since(start); d > 10*time.Second {
 		t.Fatalf("streamEvents took %v: the drain did not stop", d)
+	}
+}
+
+// TestRequestTimeout: a list body that stalls after its first byte fails the
+// request at requestTimeout instead of holding the refresh goroutine.
+func TestRequestTimeout(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/version" {
+			_, _ = io.WriteString(w, `{"ApiVersion":"1.44","MinAPIVersion":"1.24"}`)
+			return
+		}
+		_, _ = io.WriteString(w, "[")
+		if fl, ok := w.(http.Flusher); ok {
+			fl.Flush()
+		}
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+
+	start := time.Now()
+	_, err := newIndexFromClient(context.Background(), srv.Client(), srv.URL, fakeStat)
+	d := time.Since(start)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("newIndexFromClient: %v, expected a deadline error", err)
+	}
+	if d < requestTimeout || d > requestTimeout+5*time.Second {
+		t.Fatalf("took %v, expected about requestTimeout (%v)", d, requestTimeout)
 	}
 }
