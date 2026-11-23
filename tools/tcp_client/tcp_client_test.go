@@ -228,7 +228,7 @@ func TestClient_dialFailure(t *testing.T) {
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		client(&wg, &failures, net.Dialer{}, "127.0.0.1", port, time.Hour, time.Second, time.Second, 2, 4)
+		client(&wg, &failures, net.Dialer{}, "tcp", "127.0.0.1", port, time.Hour, time.Second, time.Second, 2, 4)
 		close(done)
 	}()
 	wg.Wait()
@@ -266,7 +266,7 @@ func TestClient_serverCloses(t *testing.T) {
 	wg.Add(1)
 	done := make(chan struct{})
 	go func() {
-		client(&wg, &failures, net.Dialer{}, "127.0.0.1", port, time.Hour, time.Second, time.Second, 5, 4)
+		client(&wg, &failures, net.Dialer{}, "tcp", "127.0.0.1", port, time.Hour, time.Second, time.Second, 5, 4)
 		close(done)
 	}()
 	wg.Wait()

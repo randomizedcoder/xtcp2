@@ -22,7 +22,7 @@ func TestRunServer_echoAndShutdown(t *testing.T) {
 
 	srvDone := make(chan error, 1)
 	go func() {
-		srvDone <- runServer(ctx, "127.0.0.1", port)
+		srvDone <- runServer(ctx, "tcp", "127.0.0.1", port)
 	}()
 
 	// Retry-dial until the listener is ready (race vs goroutine start).
@@ -68,7 +68,7 @@ func TestRunServer_echoAndShutdown(t *testing.T) {
 }
 
 func TestRunServer_bindError(t *testing.T) {
-	if err := runServer(t.Context(), "bad-host-:-:bind", 4000); err == nil {
+	if err := runServer(t.Context(), "tcp", "bad-host-:-:bind", 4000); err == nil {
 		t.Error("malformed bind should error")
 	}
 }

@@ -114,6 +114,8 @@ let
       #   TCP_PADS     bytes of zero-pad per message   (default 2048)
       #   TCP_CONNECT  host the clients dial           (default 127.0.0.1)
       #   TCP_BIND     iface the server listens on     (default 0.0.0.0)
+      #   TCP_NETWORK  tcp | tcp4 | tcp6               (default tcp: the family
+      #                follows the address; 0.0.0.0 listens dual-stack)
       #   TCP_SRCADDR  bind clients' source IP         (default: kernel picks)
       #   TCP_IFACE    bind clients to this interface  (default: kernel picks)
       #                (SO_BINDTODEVICE — drives xtcp2 interface-name enrichment)
@@ -123,6 +125,7 @@ let
       PADS="''${TCP_PADS:-2048}"
       CONNECT="''${TCP_CONNECT:-127.0.0.1}"
       BIND="''${TCP_BIND:-0.0.0.0}"
+      NETWORK="''${TCP_NETWORK:-tcp}"
       SRCADDR="''${TCP_SRCADDR:-}"
       IFACE="''${TCP_IFACE:-}"
 
@@ -132,23 +135,23 @@ let
       if [ -n "$SRCADDR" ]; then CLIENT_EXTRA+=(-srcaddr "$SRCADDR"); fi
       if [ -n "$IFACE" ]; then CLIENT_EXTRA+=(-iface "$IFACE"); fi
 
-      echo "tcp-stress: mode=$MODE count=$COUNT sleep=$SLEEP pads=$PADS connect=$CONNECT bind=$BIND srcaddr=''${SRCADDR:-<default>} iface=''${IFACE:-<default>}"
+      echo "tcp-stress: mode=$MODE count=$COUNT sleep=$SLEEP pads=$PADS network=$NETWORK connect=$CONNECT bind=$BIND srcaddr=''${SRCADDR:-<default>} iface=''${IFACE:-<default>}"
 
       case "$MODE" in
         server)
-          exec /bin/tcp_server -count "$COUNT" -bind "$BIND"
+          exec /bin/tcp_server -network "$NETWORK" -count "$COUNT" -bind "$BIND"
           ;;
         client)
-          exec /bin/tcp_client -count "$COUNT" -connect "$CONNECT" \
+          exec /bin/tcp_client -network "$NETWORK" -count "$COUNT" -connect "$CONNECT" \
             -sleep "$SLEEP" -pads "$PADS" "''${CLIENT_EXTRA[@]}"
           ;;
         both)
           # In single-container mode we run both halves: server in
           # background, client in foreground. The 2s sleep gives the
           # server's Accept loop time to come up before clients dial.
-          /bin/tcp_server -count "$COUNT" -bind "$BIND" &
+          /bin/tcp_server -network "$NETWORK" -count "$COUNT" -bind "$BIND" &
           sleep 2
-          exec /bin/tcp_client -count "$COUNT" -connect "$CONNECT" \
+          exec /bin/tcp_client -network "$NETWORK" -count "$COUNT" -connect "$CONNECT" \
             -sleep "$SLEEP" -pads "$PADS" "''${CLIENT_EXTRA[@]}"
           ;;
         *)
