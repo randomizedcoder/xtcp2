@@ -181,7 +181,7 @@ let
   redteam = import ./redteam.nix {
     inherit pkgs lib src;
     vagrant = redteamVagrant;
-    inherit (binaries) xtcp2client xtcp2ctl;
+    inherit (binaries) xtcp2client xtcp2ctl sockfill;
     inherit (containers) oci-xtcp2 oci-xtcp2-tcp-stress;
   };
 
