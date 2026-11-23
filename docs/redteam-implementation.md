@@ -226,7 +226,10 @@ preconditions, and quantify detection.
 - [ ] govulncheck runs in `nix flake check` (or as a separately registered check) with zero reachable S1/S2 findings at pinned versions, or findings filed per advisory.
 - [x] Every chain has a "detection gap" note in findings.md (rt-3-1: the Set audit line is the ONLY detector — the victim's catcher blindness has no alarm of its own; rt-3-6: the churn rate is unbounded, the audit line is the only trace).
 - [x] No scenario leaves the daemon reconfigured (rt-3-1/rt-3-6 trap-restore verified by a final Get; rt-3-5's extra container is trap-removed).
-- [ ] Deferred rows (next session): rt-3-2 (S3 exfil — needs the Garage fixture), rt-3-3/rt-3-4 (poll/envelope abuse), rt-7-1/7-2/7-3 (artifact bombs — Garage), rt-7-4 (govulncheck wiring).
+- [x] rt-3-3 CONFIRMED (findings.md): 3x record amplification (50/s -> 180/s) under 1 s polls + bursts; CPU 124->130%, no wedge; restored + final Get.
+- [x] rt-3-4 CONFIRMED (findings.md): SetEnvelopeFlush accepts the uint32 max (no upper-bound validation); growth linear in records (+1 MiB/40 s at this shape), no instant OOM; restored + final Get.
+- [x] rt-7-4 already covered upstream: checks.govulncheck (hermetic, green) + govulncheck-fresh (live DB: 0 reachable findings) — no scenario needed; plan row amended.
+- [ ] Deferred rows (part 3): rt-3-2 (S3 exfil — needs the Garage fixture), rt-7-1/7-2/7-3 (artifact bombs — Garage).
 
 ## Phase 4 — Denial of service and monitoring-blindness
 
