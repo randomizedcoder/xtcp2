@@ -21,6 +21,7 @@ The flake currently exports `x86_64-linux` only. See
 | Capture netlink dump fixtures in a guest | `nix run path:.#microvm-x86_64-netlink-dump-capture -- --out /tmp/xtcp2-dumps` |
 | Run all registered flake checks | `nix flake check path:. -L -j1` |
 | Measure monitor performance freshly | `nix run path:.#bench-linkmonitor -- --output /tmp/xtcp2-bench` |
+| Run a red-team scenario on the harness host | `nix run path:.#redteam-rt-1-1` (KVM + libvirtd; see [docs/redteam-harness.md](../docs/redteam-harness.md)) |
 
 ### Contents
 
