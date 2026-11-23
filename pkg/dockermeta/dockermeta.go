@@ -269,10 +269,18 @@ func (ix *Index) inspect(ctx context.Context, id string) (Container, bool) {
 	if err := getJSON(ctx, ix.client, ix.baseURL+"/containers/"+id+"/json", &in); err != nil {
 		return Container{}, false
 	}
+	return project(in, ix.stat)
+}
+
+// project turns a decoded inspect body into a Container. It is pure apart from
+// stat, so FuzzDockerProjection can drive it with arbitrary JSON. It returns
+// ok=false for a host-network container (empty SandboxKey) or an unresolvable
+// inode.
+func project(in inspect, stat statFn) (Container, bool) {
 	if in.NetworkSettings.SandboxKey == "" {
 		return Container{}, false // host-net container: nothing to key on
 	}
-	ino, err := ix.stat(in.NetworkSettings.SandboxKey)
+	ino, err := stat(in.NetworkSettings.SandboxKey)
 	if err != nil || ino == 0 {
 		return Container{}, false
 	}
