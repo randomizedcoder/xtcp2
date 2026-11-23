@@ -328,6 +328,22 @@ let
     extraTags = [ "capture" ];
   };
 
+  # Golden-record tool (pkg/goldenrec): scrub, normalize, diff and check
+  # Parquet captures. Built with the s3parquet destination for ParquetRow; not
+  # in xtcp2-all, since no image or guest runs it.
+  xtcp2-golden = mkGoBinary {
+    name = "xtcp2-golden";
+    inherit
+      src
+      commit
+      date
+      version
+      ;
+    variant = "default";
+    destinations = [ "s3parquet" ];
+    enrichments = [ ];
+  };
+
   xtcp2-cover = mkGoBinary {
     name = "xtcp2";
     inherit
@@ -357,6 +373,8 @@ defaultBinaries
 
   # Development build with the netlink capture writer compiled in.
   inherit xtcp2-capture;
+
+  inherit xtcp2-golden;
 
   # Joined builds.
   xtcp2-all = joins.default;

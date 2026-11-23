@@ -292,6 +292,10 @@ func FuzzRowFromProto(f *testing.F) {
 	for _, tc := range rowRoundTripCases() {
 		f.Add(tc.envelope(f))
 	}
+	// The golden capture: rows from a real poll with containers.
+	if b := goldenSeed(f); b != nil {
+		f.Add(b)
+	}
 	// A bare record, not delimited: the fuzzer can learn the framing from it.
 	if b, err := proto.Marshal(&xtcp_flat_record.Envelope{}); err == nil {
 		f.Add(b)
