@@ -1,0 +1,2 @@
+fdb show state permanent
+fdb show state static

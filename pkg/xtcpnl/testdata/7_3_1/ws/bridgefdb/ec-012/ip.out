@@ -1,0 +1,7 @@
+02:00:00:00:0a:06 dev d1 vlan 10 master br0 static
+02:00:00:00:0a:06 dev d1 vlan 1 master br0 static
+02:00:00:00:0a:06 dev d1 master br0 static
+02:00:00:00:0a:01 dev d1 vlan 10 master br0 static
+02:00:00:00:0a:04 dev d2 vlan 10 sticky master br0 static
+02:00:00:00:0a:04 dev d2 vlan 1 sticky master br0 static
+02:00:00:00:0a:04 dev d2 sticky master br0 static

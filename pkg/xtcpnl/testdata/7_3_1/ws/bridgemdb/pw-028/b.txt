@@ -1,0 +1,2 @@
+mdb show vid 1
+mdb get dev br0 grp ff0e::1 vid 10

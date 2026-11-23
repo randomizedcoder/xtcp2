@@ -1,0 +1,1 @@
+[{"mac":"02:00:00:00:0b:02","nhid":10,"flags":["self"],"state":"permanent"},{"mac":"02:00:00:00:0b:01","dst":"192.0.2.3","flags":["self"],"state":"permanent"},{"mac":"00:00:00:00:00:00","dst":"192.0.2.1","flags":["self"],"state":"permanent"},{"mac":"00:00:00:00:00:00","dst":"192.0.2.2","port":4790,"vni":200,"viaIf":"d5","flags":["self"],"state":"permanent"}]

@@ -1,0 +1,2 @@
+mdb show vid 10
+mdb show

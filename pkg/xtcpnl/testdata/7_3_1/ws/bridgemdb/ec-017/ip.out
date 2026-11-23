@@ -1,0 +1,1 @@
+dev br0 port d1 grp 239.2.2.2 permanent filter_mode include source_list 10.0.0.2/0.00,10.0.0.1/0.00 proto static vid 10

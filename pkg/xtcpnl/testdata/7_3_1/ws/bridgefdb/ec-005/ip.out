@@ -1,0 +1,33 @@
+33:33:00:00:00:01 dev br0 self permanent
+01:00:5e:00:00:6a dev br0 self permanent
+33:33:00:00:00:6a dev br0 self permanent
+01:00:5e:00:00:01 dev br0 self permanent
+02:00:00:00:01:00 dev br0 vlan 1 master br0 permanent
+02:00:00:00:01:00 dev br0 master br0 permanent
+02:00:00:00:0a:06 dev d1 vlan 10 activity_notify master br0 static
+02:00:00:00:0a:06 dev d1 vlan 1 activity_notify master br0 static
+02:00:00:00:0a:06 dev d1 activity_notify master br0 static
+02:00:00:00:0a:05 dev d1 vlan 10 extern_learn master br0 
+02:00:00:00:0a:05 dev d1 vlan 1 extern_learn master br0 
+02:00:00:00:0a:05 dev d1 extern_learn master br0 
+02:00:00:00:0a:02 dev d1 vlan 10 master br0 permanent
+02:00:00:00:0a:02 dev d1 vlan 1 master br0 permanent
+02:00:00:00:0a:02 dev d1 master br0 permanent
+02:00:00:00:0a:01 dev d1 vlan 10 master br0 static
+02:00:00:00:01:01 dev d1 vlan 10 master br0 permanent
+02:00:00:00:01:01 dev d1 vlan 1 master br0 permanent
+02:00:00:00:01:01 dev d1 master br0 permanent
+02:00:00:00:0a:07 dev d1 self permanent
+33:33:00:00:00:01 dev d1 self permanent
+01:00:5e:00:00:01 dev d1 self permanent
+02:00:00:00:0a:04 dev d2 vlan 10 sticky master br0 static
+02:00:00:00:0a:04 dev d2 vlan 1 sticky master br0 static
+02:00:00:00:0a:04 dev d2 sticky master br0 static
+02:00:00:00:0a:03 dev d2 vlan 10 master br0 
+02:00:00:00:0a:03 dev d2 vlan 1 master br0 
+02:00:00:00:0a:03 dev d2 master br0 
+02:00:00:00:01:02 dev d2 vlan 10 master br0 permanent
+02:00:00:00:01:02 dev d2 vlan 1 master br0 permanent
+02:00:00:00:01:02 dev d2 master br0 permanent
+33:33:00:00:00:01 dev d2 self permanent
+01:00:5e:00:00:01 dev d2 self permanent

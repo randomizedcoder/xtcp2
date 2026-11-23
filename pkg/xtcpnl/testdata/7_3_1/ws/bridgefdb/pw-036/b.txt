@@ -1,0 +1,2 @@
+fdb get 02:00:00:00:0a:01 br br0 vlan 10 dynamic
+fdb show

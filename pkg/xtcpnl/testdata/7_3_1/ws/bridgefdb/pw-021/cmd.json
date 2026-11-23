@@ -1,0 +1,88 @@
+{
+ "axes": {
+  "fix": "fdb",
+  "json": "1",
+  "words": "-o fdb show"
+ },
+ "cmd": "bridge -j -o fdb show",
+ "desc": "corner: opt=json cmd=fdb:-o_fdb_show",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "bridgefdb/pw-021",
+ "modules": [
+  "bridge",
+  "vxlan"
+ ],
+ "pre": [
+  "ip link add br0 address 02:00:00:00:01:00 type bridge vlan_filtering 1 && ip link set br0 addrgenmode none",
+  "ip link add d1 address 02:00:00:00:01:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link set d1 up && ip link add d2 address 02:00:00:00:01:02 type dummy && ip link set d2 addrgenmode none && ip link set d2 master br0 && ip link set d2 up && ip link set br0 up",
+  "bridge vlan add dev d1 vid 10 && bridge vlan add dev d2 vid 10",
+  "bridge fdb add 02:00:00:00:0a:01 dev d1 master static vlan 10",
+  "bridge fdb add 02:00:00:00:0a:02 dev d1 master permanent",
+  "bridge fdb add 02:00:00:00:0a:03 dev d2 master dynamic",
+  "bridge fdb add 02:00:00:00:0a:04 dev d2 master static sticky",
+  "bridge fdb add 02:00:00:00:0a:05 dev d1 master extern_learn",
+  "bridge fdb add 02:00:00:00:0a:06 dev d1 master static activity_notify",
+  "bridge fdb add 02:00:00:00:0a:07 dev d1 self permanent"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 address 02:00:00:00:01:00 type bridge vlan_filtering 1 && ip link set br0 addrgenmode none",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add d1 address 02:00:00:00:01:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link set d1 up && ip link add d2 address 02:00:00:00:01:02 type dummy && ip link set d2 addrgenmode none && ip link set d2 master br0 && ip link set d2 up && ip link set br0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge vlan add dev d1 vid 10 && bridge vlan add dev d2 vid 10",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 02:00:00:00:0a:01 dev d1 master static vlan 10",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 02:00:00:00:0a:02 dev d1 master permanent",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 02:00:00:00:0a:03 dev d2 master dynamic",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 02:00:00:00:0a:04 dev d2 master static sticky",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 02:00:00:00:0a:05 dev d1 master extern_learn",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 02:00:00:00:0a:06 dev d1 master static activity_notify",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge fdb add 02:00:00:00:0a:07 dev d1 self permanent",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

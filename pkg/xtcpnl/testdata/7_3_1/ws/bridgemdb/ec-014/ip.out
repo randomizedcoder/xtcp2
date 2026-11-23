@@ -1,0 +1,15 @@
+dev br0 port br0 grp 239.3.3.3 temp vid 10
+dev br0 port br0 grp 239.3.3.3 temp vid 1
+dev br0 port d2 grp 01:02:03:04:05:06 permanent vid 10
+dev br0 port d2 grp 01:02:03:04:05:06 permanent vid 1
+dev br0 port d2 grp 232.1.1.1 src 10.0.0.1 permanent vid 10
+dev br0 port d2 grp 232.1.1.1 src 10.0.0.1 permanent vid 1
+dev br0 port d1 grp 239.2.2.2 src 10.0.0.2 permanent vid 10
+dev br0 port d1 grp 239.2.2.2 src 10.0.0.1 permanent vid 10
+dev br0 port d1 grp 239.2.2.2 permanent vid 10
+dev br0 port d1 grp 239.2.2.2 src 10.0.0.2 permanent vid 1
+dev br0 port d1 grp 239.2.2.2 src 10.0.0.1 permanent vid 1
+dev br0 port d1 grp 239.2.2.2 permanent vid 1
+dev br0 port d2 grp ff0e::1 temp vid 10
+dev br0 port d2 grp ff0e::1 temp vid 1
+dev br0 port d1 grp 239.1.1.1 permanent vid 10

@@ -13,11 +13,11 @@ import (
 )
 
 // corpusGlob finds every kernel's bridge ws corpora from this package: 6C's
-// bridge and 6X-C's bridgex.
+// bridge, 6X-C's bridgex and 7C's bridgefdb and bridgemdb.
 const corpusGlob = "../../pkg/xtcpnl/testdata/*/ws/bridge*"
 
-// corpusRows is how many rows each corpus holds (V097, V101).
-var corpusRows = map[string]int{"bridge": 113, "bridgex": 63}
+// corpusRows is how many rows each corpus holds (V097, V101, V108).
+var corpusRows = map[string]int{"bridge": 113, "bridgex": 63, "bridgefdb": 94, "bridgemdb": 74}
 
 type cmdJSON struct {
 	Cmd    string            `json:"cmd"`

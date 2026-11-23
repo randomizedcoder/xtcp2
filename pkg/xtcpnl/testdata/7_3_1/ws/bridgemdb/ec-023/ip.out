@@ -1,0 +1,3 @@
+dev vx0 port vx0 grp ff0e::1 permanent filter_mode exclude proto static dst 192.0.2.3
+dev vx0 port vx0 grp 239.1.1.2 permanent filter_mode exclude proto static dst 192.0.2.2 dst_port 4790 vni 200 via d5
+dev vx0 port vx0 grp 239.1.1.1 permanent filter_mode exclude proto static dst 192.0.2.1

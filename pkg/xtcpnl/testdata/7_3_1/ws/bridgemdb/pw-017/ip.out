@@ -1,0 +1,1 @@
+[{"index":3,"dev":"br0","port":"d1","grp":"239.2.2.2","state":"permanent","filter_mode":"include","source_list":[{"address":"10.0.0.2","timer":"0.00"},{"address":"10.0.0.1","timer":"0.00"}],"protocol":"static","flags":[],"vid":10}]
