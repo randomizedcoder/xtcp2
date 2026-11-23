@@ -20,7 +20,8 @@
 #   FUZZ_MIN_TARGETS  fail if discovery finds fewer (default 50)
 #   FUZZ_LOG_DIR      per-target logs (default: a new temporary directory)
 #
-# Run from the repository root: nix develop -c fuzz-all
+# Run from the repository root: nix develop -c fuzz-all, or nix run .#fuzz-all.
+# checks.test-fuzz-all runs it in the sandbox (nix/fuzz-all.nix).
 set -euo pipefail
 
 fuzztime=${FUZZTIME:-10s}
