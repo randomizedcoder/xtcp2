@@ -1,0 +1,35 @@
+{
+ "cmd": "xtcp2-nl-ipmon c0 \"monitor all\" \"ip link set d0 down; ip link set d0 up; ip addr add 192.0.2.1/24 dev d0; ip route add 198.51.100.0/24 dev d0; ip neigh replace 192.0.2.254 lladdr 02:00:00:00:00:01 dev d0; echo 1 > /proc/sys/net/ipv4/conf/d0/forwarding\" \"d0: <\" \"192.0.2.1/24\" \"198.51.100.0/24 dev d0\" \"192.0.2.254 dev d0 lladdr\" \"inet d0 forwarding on\"",
+ "desc": "positive: one ip monitor all over a link, an address, a route, a neigh and a netconf, the mixed time sequence",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "floor": 46,
+ "id": "ev/evseq-mixed",
+ "pre": [
+  "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true
+}

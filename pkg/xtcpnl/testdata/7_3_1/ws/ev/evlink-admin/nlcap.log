@@ -1,0 +1,2 @@
+NLCAP_NS_OK ws2
+NLCAP_WRITE_OK ev/evlink-admin/ip datagrams=50 floor=1 rc=1

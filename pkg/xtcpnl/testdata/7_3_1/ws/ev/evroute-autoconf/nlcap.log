@@ -1,0 +1,2 @@
+NLCAP_NS_OK ws4
+NLCAP_WRITE_OK ev/evroute-autoconf/ip datagrams=34 floor=1 rc=1

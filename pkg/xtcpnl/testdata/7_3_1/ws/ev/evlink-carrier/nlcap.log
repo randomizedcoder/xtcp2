@@ -1,0 +1,2 @@
+NLCAP_NS_OK ws3
+NLCAP_WRITE_OK ev/evlink-carrier/ip datagrams=41 floor=1 rc=1

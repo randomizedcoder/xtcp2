@@ -16,22 +16,23 @@
   "rc": 0,
   "refused_by": "none"
  },
- "floor": 54,
+ "floor": 48,
  "id": "ev/monitor-all",
  "modules": [
   "veth"
  ],
  "pre": [
-  "sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add r0 type veth peer name r0p && ip link set r0 addrgenmode none && ip link set r0p addrgenmode none && sysctl -wq net.ipv6.conf.r0.accept_ra=2 && sysctl -wq net.ipv6.conf.r0.accept_ra_from_local=1 && ip link set r0p up && ip link set r0 up && ip -6 addr add fe80::2/64 dev r0p nodad"
+  "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add r0 type veth peer name r0p && ip link set r0 addrgenmode none && ip link set r0p addrgenmode none && sysctl -wq net.ipv6.conf.r0.accept_ra=2 && sysctl -wq net.ipv6.conf.r0.accept_ra_from_local=1 && ip link set r0p up && ip link set r0 up && ip -6 addr add fe80::2/64 dev r0p nodad"
  ],
  "result": {
   "pre": [
    {
-    "cmd": "sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add r0 type veth peer name r0p && ip link set r0 addrgenmode none && ip link set r0p addrgenmode none && sysctl -wq net.ipv6.conf.r0.accept_ra=2 && sysctl -wq net.ipv6.conf.r0.accept_ra_from_local=1 && ip link set r0p up && ip link set r0 up && ip -6 addr add fe80::2/64 dev r0p nodad",
+    "cmd": "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none && ip link add r0 type veth peer name r0p && ip link set r0 addrgenmode none && ip link set r0p addrgenmode none && sysctl -wq net.ipv6.conf.r0.accept_ra=2 && sysctl -wq net.ipv6.conf.r0.accept_ra_from_local=1 && ip link set r0p up && ip link set r0 up && ip -6 addr add fe80::2/64 dev r0p nodad",
     "rc": 0
    }
   ],
   "rc": 0,
   "status": "OK"
- }
+ },
+ "serial": true
 }

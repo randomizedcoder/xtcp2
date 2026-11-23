@@ -23,11 +23,17 @@ func TestEvFamily(t *testing.T) {
 		if r.Proto != "" {
 			t.Errorf("%s: proto %q set; an event row captures on route", r.ID, r.Proto)
 		}
+		if !r.Serial {
+			t.Errorf("%s: not serial; a concurrent row's netns churn answers the monitor's init probe EINVAL at random (V380)", r.ID)
+		}
 		if r.Floor < 1 {
 			t.Errorf("%s: floor %d; an event row's pcap holds at least the canary", r.ID, r.Floor)
 		}
-		if r.Expect.RC == nil || *r.Expect.RC != 0 {
-			t.Errorf("%s: expect rc %v; a monitor that never subscribes is the helper's rc 1, a row to discard", r.ID, r.Expect.RC)
+		if r.Expect.RC == nil {
+			t.Errorf("%s: no expected rc", r.ID)
+		} else if got := *r.Expect.RC; got != 0 &&
+			!(strings.HasPrefix(r.Desc, "negative:") && got == 1) {
+			t.Errorf("%s: expect rc %d; a monitor that never subscribes is the helper's rc 1, a row to discard, and only a negative row's deliberate failure may expect 1", r.ID, got)
 		}
 		m := ipmon.FindStringSubmatch(r.Cmd)
 		if m == nil {
@@ -68,7 +74,7 @@ func TestEvSeedsAreTheCorpusRows(t *testing.T) {
 		{"ev/nsid-del", `xtcp2-nl-ipmon c0 "monitor nsid maddress" "ip netns add c1del && ip netns set c1del 7 && ip netns del c1del" "^nsid 7 " "^Deleted nsid 7 "`, "16"},
 		{"ev/anycast-del", `xtcp2-nl-ipmon c0 "monitor acaddress maddress" "ip link set d0 up; ip -6 addr add 2001:db8:1::1/64 dev d0 nodad; ip -6 addr del 2001:db8:1::1/64 dev d0" "any 2001:db8:1:: " "Deleted .*any 2001:db8:1:: "`, "25"},
 		{"ev/prefix", `xtcp2-nl-ipmon c0 "monitor prefix maddress" "` + evRASend + `" "prefix 2001:db8:5::/64"`, "11"},
-		{"ev/monitor-all", allCmd, "54"},
+		{"ev/monitor-all", allCmd, "48"},
 	}
 	byID := map[string]row{}
 	for _, r := range evFamily() {

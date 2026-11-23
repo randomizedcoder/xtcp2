@@ -1,0 +1,10 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+3: c0    inet 224.0.0.250/32 scope global autojoin c0
+       valid_lft forever preferred_lft forever
+5: r0    inet6 2001:db8:1::1/64 scope global tentative 
+       valid_lft forever preferred_lft forever
+5: r0    inet6 mcast ff02::1:ff00:1 scope global 
+       valid_lft forever preferred_lft forever
+5: r0    inet6 2001:db8:1::1/64 scope global dadfailed tentative 
+       valid_lft forever preferred_lft forever

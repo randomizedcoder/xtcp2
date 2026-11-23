@@ -19,16 +19,17 @@
  "floor": 25,
  "id": "ev/anycast-del",
  "pre": [
-  "sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none"
+  "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none"
  ],
  "result": {
   "pre": [
    {
-    "cmd": "sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none",
+    "cmd": "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && sysctl -wq net.ipv6.conf.default.forwarding=1 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 addrgenmode none",
     "rc": 0
    }
   ],
   "rc": 0,
   "status": "OK"
- }
+ },
+ "serial": true
 }

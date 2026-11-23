@@ -19,16 +19,17 @@
  "floor": 16,
  "id": "ev/nsid-del",
  "pre": [
-  "ip link add c0 type dummy && ip link set c0 up"
+  "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up"
  ],
  "result": {
   "pre": [
    {
-    "cmd": "ip link add c0 type dummy && ip link set c0 up",
+    "cmd": "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up",
     "rc": 0
    }
   ],
   "rc": 0,
   "status": "OK"
- }
+ },
+ "serial": true
 }

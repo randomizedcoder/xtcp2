@@ -1,0 +1,20 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+4: r0p@r0: <BROADCAST,MULTICAST> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether aa:5b:48:b9:8d:f5 brd ff:ff:ff:ff:ff:ff
+Deleted 4: r0p    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Deleted 4: r0p    inet6 mcast ff02::1:ffb9:8df5 scope global 
+       valid_lft forever preferred_lft forever
+5: r0@r0p: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether 2e:e7:cd:ac:a8:d9 brd ff:ff:ff:ff:ff:ff
+4: r0p@r0: <NO-CARRIER,BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether aa:5b:48:b9:8d:f5 brd ff:ff:ff:ff:ff:ff
+4: r0p    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+4: r0p@r0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether aa:5b:48:b9:8d:f5 brd ff:ff:ff:ff:ff:ff
+5: r0@r0p: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 2e:e7:cd:ac:a8:d9 brd ff:ff:ff:ff:ff:ff
+4: r0p    inet6 mcast ff02::1:ffb9:8df5 scope global 
+       valid_lft forever preferred_lft forever

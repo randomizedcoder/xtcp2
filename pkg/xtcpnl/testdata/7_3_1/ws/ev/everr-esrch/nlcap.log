@@ -1,0 +1,3 @@
+NLCAP_NS_OK ws0
+NLCAP_CAP_SHORT ev/everr-esrch/ip datagrams=14 floor=23
+NLCAP_CAP_RETRY ip attempt=1 datagrams=14 floor=23
