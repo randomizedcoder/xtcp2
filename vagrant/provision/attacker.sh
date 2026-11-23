@@ -12,6 +12,14 @@ export DEBIAN_FRONTEND=noninteractive
 # Application-layer DoS simulator (universe) + the HTTP/2 storm driver
 # (nghttp2-client ships h2load). slowhttptest is attack-only: it stays off the
 # victim so the victim's base-OS remains the monitored prod shape.
+# Wait out any in-flight dpkg/apt from a previous (interrupted) provision —
+# re-provisioning mid-install fails on the frontend lock otherwise.
+for _ in $(seq 1 60); do
+  if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
 apt-get install -y -qq slowhttptest
 
 mkdir -p /opt/xtcp2-redteam

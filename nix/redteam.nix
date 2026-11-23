@@ -208,6 +208,13 @@ in
               redteam-rt-1-6
               redteam-rt-9-1
               redteam-rt-11-1
+              redteam-rt-2-1
+              redteam-rt-2-2
+              redteam-rt-2-3
+              redteam-rt-2-4
+              redteam-rt-2-5
+              redteam-rt-2-8
+              redteam-rt-9-3
             )
             failed=0
             for s in "''${scenarios[@]}"; do
