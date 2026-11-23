@@ -177,6 +177,7 @@ Author and publish this as the reference `docker-compose`/OCI config (none exist
 | C2 | **(code)** Cap the number of tracked namespaces (`-maxNetns`), oldest-idle eviction, counter. | Bounded goroutines, sockets and memory. |
 | C3 | **(code)** Explicit, metered S3 queue depth and total buffered bytes; when full, drop oldest with a counter rather than grow. | Memory bound under S3 outage. |
 | C4 | **(code)** String policy in `rowFromProto` and the JSON/line marshallers for every tenant- or host-influenced string column (`container_name`, `container_image`, `label`, `*_lldp_chassis_name`, congestion-control name): max length (e.g. 256), valid UTF-8, control characters replaced. Same policy in log lines. | Keeps Parquet objects and logs predictable; stops log injection. |
+| C5 | **(code)** Docker API bodies streamed, not buffered: list and inspect keep only the projected fields and skip the rest (labels) unbuffered; per-container limits (`maxInspectBody`, `maxListEntry`, 4 MiB), a 10 s `requestTimeout`, a bounded drain. Values and rationale: [Docker API limits](../design-metadata-enrichment.md#docker-api-limits). | A tenant's image labels can cost at most its own container's attribution, never another's, and never collector memory. |
 
 ### D. Build and supply chain
 

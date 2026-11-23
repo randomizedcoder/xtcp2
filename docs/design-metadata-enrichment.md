@@ -83,6 +83,33 @@ usable routes count (up, not reject, not on `lo`: every host has the kernel's
 bridge) is replaced by the physical NICs under its `lower_*` sysfs links, since
 those carry the NIC attributes and the LLDP neighbours.
 
+### Docker API limits
+
+Docker's list and inspect bodies carry tenant-chosen data (image labels, the
+container name), so `pkg/dockermeta` streams them (`jsonwalk.go`): it keeps only
+Id, Name, Image, `State.Pid` and `NetworkSettings.SandboxKey`, and validates and
+discards everything else, labels included, without buffering it. Memory is about
+37 KiB per body whatever its size. The limits bound CPU and are constants:
+
+| Constant | Value | Applies to | Over the limit |
+|---|---|---|---|
+| `maxInspectBody` | 4 MiB | one `GET /containers/{id}/json` | that container is skipped (logged) |
+| `maxListEntry` | 4 MiB | one container's entry in `GET /containers/json` | that entry is dropped (logged); the list still builds |
+| `maxIDRaw` | 4 KiB | `Id`, `SandboxKey` (set by the daemon) | that container is skipped (logged) |
+| `maxTextRaw` | 4 KiB | `Name`, `Image` | cut; `strpolicy.Clean` then cuts to 256 bytes |
+| `maxVersionBody` | 64 KiB | `GET /version` | version negotiation falls back to unversioned paths |
+| `requestTimeout` | 10 s | every list, inspect and version request | the request fails: a skipped container, or a failed re-list that keeps the previous index |
+| `maxDrain` | 64 KiB | the unread rest of any body | the connection is closed instead of reused |
+
+Measured on a host with 31 containers: inspect bodies are 6.8–13.7 KB (labels at
+most 638 B) and the list is about 2.5 KB per container, so 4 MiB is about 300×
+the largest. The list has no total limit on purpose: a total would let a few
+padded containers fail every re-list for the whole host. A tenant can make
+its own container unattributed by padding its image labels past 4 MiB, and
+nothing more; each walk costs about 27 ms at that size. `/events` is a stream
+and has no timeout; a line over 1 MiB ends it and the index falls back to
+re-listing.
+
 ## 3. Config: flags / env / config protobuf
 
 Precedence: **defaults < flags < env < `XTCP_CONFIG_JSON`** (`cmd/xtcp2/xtcp2.go`).
