@@ -65,6 +65,11 @@ func (r *runner) sndrcv(req []byte, cb dataCB) error {
 		return err
 	}
 	r.errf("kernel answers: %s\n", strerror(ce.errno))
+	if ce.errno == 0 {
+		// mnlu_gen_socket_sndrcv returns -errno: a callback's MNL_CB_ERROR
+		// with errno 0 is reported, then succeeds (exit 0).
+		return nil
+	}
 	return errFail
 }
 
