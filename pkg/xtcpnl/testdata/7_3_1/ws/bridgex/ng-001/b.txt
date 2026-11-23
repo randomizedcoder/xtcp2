@@ -1,0 +1,2 @@
+badobj
+link show

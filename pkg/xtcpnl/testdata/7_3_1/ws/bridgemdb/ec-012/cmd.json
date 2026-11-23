@@ -1,0 +1,88 @@
+{
+ "axes": {
+  "fix": "mdb",
+  "json": "0",
+  "words": "mdb show vid abc"
+ },
+ "cmd": "bridge mdb show vid abc",
+ "desc": "corner: opt=plain cmd=mdb:mdb_show_vid_abc",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "bridgemdb/ec-012",
+ "modules": [
+  "bridge",
+  "vxlan"
+ ],
+ "pre": [
+  "ip link add br0 address 02:00:00:00:01:00 type bridge vlan_filtering 1 && ip link set br0 addrgenmode none && ip link set br0 type bridge mcast_igmp_version 3 mcast_mld_version 2 && echo 1 > /proc/sys/net/ipv6/conf/br0/disable_ipv6",
+  "ip link add d1 address 02:00:00:00:01:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link set d1 up && ip link add d2 address 02:00:00:00:01:02 type dummy && ip link set d2 addrgenmode none && ip link set d2 master br0 && ip link set d2 up && ip link set br0 up",
+  "bridge vlan add dev d1 vid 10 && bridge vlan add dev d2 vid 10 && bridge vlan add dev br0 vid 10 self",
+  "bridge mdb add dev br0 port d1 grp 239.1.1.1 permanent vid 10",
+  "bridge mdb add dev br0 port d2 grp ff0e::1 temp",
+  "bridge mdb add dev br0 port d1 grp 239.2.2.2 permanent filter_mode include source_list 10.0.0.1,10.0.0.2 proto static",
+  "bridge mdb add dev br0 port d2 grp 232.1.1.1 src 10.0.0.1 permanent",
+  "bridge mdb add dev br0 port d2 grp 01:02:03:04:05:06 permanent",
+  "bridge mdb add dev br0 port br0 grp 239.3.3.3 temp",
+  "bridge link set dev d1 mcast_router 2"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add br0 address 02:00:00:00:01:00 type bridge vlan_filtering 1 && ip link set br0 addrgenmode none && ip link set br0 type bridge mcast_igmp_version 3 mcast_mld_version 2 && echo 1 > /proc/sys/net/ipv6/conf/br0/disable_ipv6",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add d1 address 02:00:00:00:01:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 master br0 && ip link set d1 up && ip link add d2 address 02:00:00:00:01:02 type dummy && ip link set d2 addrgenmode none && ip link set d2 master br0 && ip link set d2 up && ip link set br0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge vlan add dev d1 vid 10 && bridge vlan add dev d2 vid 10 && bridge vlan add dev br0 vid 10 self",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge mdb add dev br0 port d1 grp 239.1.1.1 permanent vid 10",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge mdb add dev br0 port d2 grp ff0e::1 temp",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge mdb add dev br0 port d1 grp 239.2.2.2 permanent filter_mode include source_list 10.0.0.1,10.0.0.2 proto static",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge mdb add dev br0 port d2 grp 232.1.1.1 src 10.0.0.1 permanent",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge mdb add dev br0 port d2 grp 01:02:03:04:05:06 permanent",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge mdb add dev br0 port br0 grp 239.3.3.3 temp",
+    "rc": 0
+   },
+   {
+    "cmd": "bridge link set dev d1 mcast_router 2",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

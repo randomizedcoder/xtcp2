@@ -1,0 +1,15 @@
+4: d1: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 master br0 state forwarding priority 32 cost 100 
+5: d2: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 master br0 state forwarding priority 5 cost 7 
+port              vlan-id  
+br0               1 PVID Egress Untagged
+                  10
+d1                1 Egress Untagged
+                  10 PVID Egress Untagged
+                  20
+                  21
+                  22
+                  23
+                  24
+                  25
+d2                1 PVID Egress Untagged
+                  30

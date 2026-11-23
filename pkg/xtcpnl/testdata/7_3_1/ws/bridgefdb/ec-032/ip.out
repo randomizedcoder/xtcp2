@@ -1,0 +1,6 @@
+33:33:00:00:00:01 dev d5 self permanent
+01:00:5e:00:00:01 dev d5 self permanent
+02:00:00:00:0b:02 dev vx0 nhid 10 self permanent
+02:00:00:00:0b:01 dev vx0 dst 192.0.2.3 self permanent
+00:00:00:00:00:00 dev vx0 dst 192.0.2.1 self permanent
+00:00:00:00:00:00 dev vx0 dst 192.0.2.2 port 4790 vni 200 via d5 self permanent

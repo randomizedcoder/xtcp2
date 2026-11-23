@@ -95,6 +95,11 @@ let
     # exercise pkg/xtcpnl's ParseTIPC and BuildTIPCRequest
     # (internal/gotipc). Listed for the same reason as govdpa.
     "gotipc"
+    # gobridge is the bridge(8) clone (increment 6): it replays bridge's ws
+    # pcap corpus to exercise pkg/xtcpnl's ParseBridgeLink, ParseTunnelMsg
+    # and ParseBrVlanTables (internal/gobridge), and without a capture asks
+    # the kernel, so a live run can diff it against the pinned bridge.
+    "gobridge"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"

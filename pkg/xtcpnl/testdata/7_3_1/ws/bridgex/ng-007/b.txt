@@ -1,0 +1,2 @@
+vni show dev d1
+link show

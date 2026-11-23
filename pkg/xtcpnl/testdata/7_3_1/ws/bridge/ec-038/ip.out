@@ -1,0 +1,10 @@
+port              vlan-id  
+br0               1 PVID Egress Untagged
+                  10
+d1                1 Egress Untagged
+                  10 PVID Egress Untagged
+                  20-25
+d2                1 PVID Egress Untagged
+                  30
+d3                1 PVID Egress Untagged
+                  2-4094

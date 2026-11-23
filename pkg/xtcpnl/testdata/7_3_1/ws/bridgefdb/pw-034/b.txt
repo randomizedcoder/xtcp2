@@ -1,0 +1,2 @@
+fdb show br br0
+fdb show

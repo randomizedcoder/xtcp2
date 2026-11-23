@@ -1,0 +1,34 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "0",
+  "words": "link show"
+ },
+ "cmd": "bridge link show",
+ "desc": "boundary: opt=plain cmd=bare:link_show",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "bridge/ec-001",
+ "modules": [
+  "bridge",
+  "vxlan"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,2 @@
+fdb show dev d1
+fdb show

@@ -41,6 +41,7 @@ const (
 	MdbaMdbEntryInfo  uint16 = 1 // MDBA_MDB_ENTRY_INFO
 	MdbSrcListEntry   uint16 = 1 // MDBE_SRC_LIST_ENTRY and MDBA_MDB_SRCLIST_ENTRY
 	MdbSrcAttrAddress uint16 = 1 // MDBE_SRCATTR_ADDRESS and MDBA_MDB_SRCATTR_ADDRESS
+	MdbSrcAttrTimer   uint16 = 2 // MDBA_MDB_SRCATTR_TIMER (dump only)
 
 	MdbeAttrSource    uint16 = 1 // MDBE_ATTR_SOURCE
 	MdbeAttrSrcList   uint16 = 2 // MDBE_ATTR_SRC_LIST
@@ -88,8 +89,12 @@ type MdbEntry struct {
 // MdbAttrs are an entry's attributes, from a request's MDBE_ATTR_* or a
 // dump's MDBA_MDB_EATTR_*. A short fixed-width attribute is skipped.
 type MdbAttrs struct {
-	Source       []byte
-	SrcList      [][]byte // each MDB*_SRCATTR_ADDRESS, in order
+	Source  []byte
+	SrcList [][]byte // each MDB*_SRCATTR_ADDRESS, in order
+	// SrcTimers is each source's MDBA_MDB_SRCATTR_TIMER, in USER_HZ,
+	// parallel to SrcList: dump only (nil for a request), 0 for a
+	// source that has none.
+	SrcTimers    []uint32
 	HasSrcList   bool
 	GroupMode    uint8
 	HasGroupMode bool
@@ -248,7 +253,7 @@ func parseMdbAttrs(nest []byte, ids mdbAttrIDs, a *MdbAttrs) error {
 			a.Source = CopyBytes(val)
 		case ids.srcList:
 			a.HasSrcList = true
-			perr = errors.Join(perr, parseMdbSrcList(val, a))
+			perr = errors.Join(perr, parseMdbSrcList(val, ids.timer != 0, a))
 		case ids.groupMode:
 			if len(val) >= 1 {
 				a.GroupMode, a.HasGroupMode = val[0], true
@@ -278,18 +283,32 @@ func parseMdbAttrs(nest []byte, ids mdbAttrIDs, a *MdbAttrs) error {
 	return errors.Join(err, perr)
 }
 
-// parseMdbSrcList decodes a source list: each entry's address, in order.
-func parseMdbSrcList(nest []byte, a *MdbAttrs) error {
+// parseMdbSrcList decodes a source list: each entry's address, in order,
+// and, for a dump, its timer.
+func parseMdbSrcList(nest []byte, dump bool, a *MdbAttrs) error {
 	var perr error
 	err := WalkRTAttrsNested(nest, func(atype uint16, ent []byte) {
 		if atype != MdbSrcListEntry {
 			return
 		}
+		var timer uint32
+		var hasAddr bool
 		perr = errors.Join(perr, WalkRTAttrsNested(ent, func(atype uint16, val []byte) {
-			if atype == MdbSrcAttrAddress {
+			switch {
+			case atype == MdbSrcAttrAddress && !hasAddr:
+				// The first address wins, as in parse_rtattr.
 				a.SrcList = append(a.SrcList, CopyBytes(val))
+				hasAddr = true
+			case dump && atype == MdbSrcAttrTimer:
+				if v, ok := neighU32(val); ok {
+					timer = v
+				}
 			}
 		}))
+		// One timer per address keeps SrcTimers parallel to SrcList.
+		if dump && hasAddr {
+			a.SrcTimers = append(a.SrcTimers, timer)
+		}
 	})
 	return errors.Join(err, perr)
 }

@@ -1,0 +1,37 @@
+port              vlan-id
+br0               1 PVID Egress Untagged
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  10
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+d1                1 Egress Untagged
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  10 PVID Egress Untagged
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  20
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  21
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  22
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  23
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  24
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  25
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+d2                1 PVID Egress Untagged
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+                  30
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets

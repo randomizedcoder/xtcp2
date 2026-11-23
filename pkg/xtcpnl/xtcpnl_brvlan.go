@@ -203,3 +203,81 @@ func parseBrVlanGlobal(val []byte) (BrVlanGlobal, error) {
 	}
 	return g, nil
 }
+
+// BRIDGE_VLANDB_ENTRY_MAX and BRIDGE_VLANDB_GOPTS_MAX as of the pinned
+// headers; BRIDGE_VLANDB_STATS_* are the entry STATS nest's u64 counters.
+const (
+	BridgeVlandbEntryMaxCst   = 10
+	BridgeVlandbGoptsMaxCst   = 18
+	BridgeVlandbEntryStats    = 5
+	BridgeVlandbStatsRxBytes  = 1
+	BridgeVlandbStatsRxPkts   = 2
+	BridgeVlandbStatsTxBytes  = 3
+	BridgeVlandbStatsTxPkts   = 4
+	bridgeVlandbStatsMaxCst   = 5
+	BridgeVlandbEntryTunnel   = 4 // BRIDGE_VLANDB_ENTRY_TUNNEL_INFO
+	BridgeVlandbGoptsMsti     = 18
+	BridgeVlandbGoptsRtrPorts = 16 // BRIDGE_VLANDB_GOPTS_MCAST_ROUTER_PORTS
+)
+
+// BrVlanTables is an RTM_NEWVLAN body with each nest kept as the table
+// bridge/vlan.c reads it through (print_vlan_opts, print_vlan_global_opts):
+// every BRIDGE_VLANDB_ENTRY and BRIDGE_VLANDB_GLOBAL_OPTIONS in wire order,
+// and an entry's STATS nest parsed beside it. ParseBrVlan is the typed
+// view of the same message.
+type BrVlanTables struct {
+	Family  uint8
+	Ifindex uint32
+	// Kinds says, per nest in wire order, whether it was an entry (1) or
+	// global options (2); Tables holds its attributes, Stats an entry's
+	// STATS nest (the zero table when absent).
+	Kinds  []uint16
+	Tables []AttrTable
+	Stats  []AttrTable
+}
+
+// ParseBrVlanTables decodes an RTM_NEWVLAN body into tables. A malformed
+// stream at any level is an error.
+func ParseBrVlanTables(body []byte) (BrVlanTables, error) {
+	if len(body) < BrVlanMsgSizeCst {
+		return BrVlanTables{}, ErrBrVlanMsgSmall
+	}
+	v := BrVlanTables{
+		Family:  body[0],
+		Ifindex: binary.LittleEndian.Uint32(body[4:8]),
+	}
+	var inner error
+	err := WalkRTAttrs(body[BrVlanMsgSizeCst:], func(atype uint16, val []byte) {
+		if inner != nil {
+			return
+		}
+		var t, st AttrTable
+		switch atype {
+		case BridgeVlandbEntry:
+			if t, inner = ParseAttrTable(val, BridgeVlandbEntryMaxCst); inner != nil {
+				return
+			}
+			if s := t.Bytes(BridgeVlandbEntryStats); s != nil {
+				if st, inner = ParseAttrTable(s, bridgeVlandbStatsMaxCst); inner != nil {
+					return
+				}
+			}
+		case BridgeVlandbGlobalOptions:
+			if t, inner = ParseAttrTable(val, BridgeVlandbGoptsMaxCst); inner != nil {
+				return
+			}
+		default:
+			return
+		}
+		v.Kinds = append(v.Kinds, atype)
+		v.Tables = append(v.Tables, t)
+		v.Stats = append(v.Stats, st)
+	})
+	if err != nil {
+		return BrVlanTables{}, err
+	}
+	if inner != nil {
+		return BrVlanTables{}, inner
+	}
+	return v, nil
+}

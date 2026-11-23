@@ -1,0 +1,2 @@
+vlan show vid 10
+vlan show vid 20

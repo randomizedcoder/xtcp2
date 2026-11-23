@@ -1,0 +1,1 @@
+[{"ifname":"vx0","tunnels":[{"vlan":100,"tunid":1000},{"vlan":200,"vlanEnd":202,"tunid":2000,"tunidEnd":2002}]}]

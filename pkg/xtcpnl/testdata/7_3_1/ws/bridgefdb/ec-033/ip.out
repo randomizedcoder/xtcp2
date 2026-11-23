@@ -1,0 +1,32 @@
+02:00:00:00:0a:06 vlan 10 master br0 static
+02:00:00:00:0a:06 vlan 1 master br0 static
+02:00:00:00:0a:06 master br0 static
+02:00:00:00:0a:05 vlan 10 extern_learn master br0 
+02:00:00:00:0a:05 vlan 1 extern_learn master br0 
+02:00:00:00:0a:05 extern_learn master br0 
+02:00:00:00:0a:02 vlan 10 master br0 permanent
+02:00:00:00:0a:02 vlan 1 master br0 permanent
+02:00:00:00:0a:02 master br0 permanent
+02:00:00:00:0a:01 vlan 10 master br0 static
+02:00:00:00:01:01 vlan 10 master br0 permanent
+02:00:00:00:01:01 vlan 1 master br0 permanent
+02:00:00:00:01:01 master br0 permanent
+02:00:00:00:0a:07 self permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent
+02:00:00:00:0a:06 vlan 10 master br0 static
+02:00:00:00:0a:06 vlan 1 master br0 static
+02:00:00:00:0a:06 master br0 static
+02:00:00:00:0a:05 vlan 10 extern_learn master br0 
+02:00:00:00:0a:05 vlan 1 extern_learn master br0 
+02:00:00:00:0a:05 extern_learn master br0 
+02:00:00:00:0a:02 vlan 10 master br0 permanent
+02:00:00:00:0a:02 vlan 1 master br0 permanent
+02:00:00:00:0a:02 master br0 permanent
+02:00:00:00:0a:01 vlan 10 master br0 static
+02:00:00:00:01:01 vlan 10 master br0 permanent
+02:00:00:00:01:01 vlan 1 master br0 permanent
+02:00:00:00:01:01 master br0 permanent
+02:00:00:00:0a:07 self permanent
+33:33:00:00:00:01 self permanent
+01:00:5e:00:00:01 self permanent

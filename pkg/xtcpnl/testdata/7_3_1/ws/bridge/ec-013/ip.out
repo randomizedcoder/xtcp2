@@ -1,0 +1,4 @@
+4: d1: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 master br0 state forwarding priority 32 cost 100 
+    hairpin off guard off root_block off fastleave off learning on flood on mcast_flood on bcast_flood on mcast_router 1 mcast_to_unicast off neigh_suppress off neigh_vlan_suppress off neigh_forward_grat off vlan_tunnel off isolated off locked off mab off mcast_n_groups 0 mcast_max_groups 0 
+5: d2: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 master br0 state forwarding priority 5 cost 7 
+    hairpin on guard off root_block off fastleave off learning off flood on mcast_flood on bcast_flood on mcast_router 1 mcast_to_unicast off neigh_suppress off neigh_vlan_suppress off neigh_forward_grat off vlan_tunnel off isolated off locked off mab off mcast_n_groups 0 mcast_max_groups 0 

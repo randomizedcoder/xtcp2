@@ -1,0 +1,2 @@
+fdb show vlan 10
+fdb show vlan 10

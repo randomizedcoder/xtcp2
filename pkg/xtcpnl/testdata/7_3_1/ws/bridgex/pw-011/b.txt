@@ -1,0 +1,2 @@
+mst show dev d1
+mst show

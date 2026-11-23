@@ -312,17 +312,42 @@ func TestParseNeigh(t *testing.T) {
 			// NDA_PROBES used to be in this row as a second unknown type. It
 			// is decoded now, so keeping it here would have asserted the
 			// opposite of the rows further down. NDA_VLAN was here too until
-			// the FDB fields; NDA_PORT is still unread.
+			// the FDB fields, and NDA_LINK_NETNSID until gobridge 7P; type 40
+			// is past NDA_MAX.
 			description: "corner: unknown NDA attribute types are skipped, known ones still extracted",
 			body: concat(
 				ndmsgHdr(unix.AF_INET, 2, unix.NUD_REACHABLE, 0, 0),
-				rtattr(unix.NDA_LINK_NETNSID, le32(1)),
+				rtattr(40, le32(1)),
 				rtattr(unix.NDA_DST, v4b(10, 0, 0, 2)),
 			),
 			want: NeighInfo{
 				Family: unix.AF_INET, Ifindex: 2, State: unix.NUD_REACHABLE,
 				Dst: v4b(10, 0, 0, 2),
 			},
+		},
+		{
+			description: "positive: NDA_LINK_NETNSID 1 lands in LinkNetnsid",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 7, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_LINK_NETNSID, le32(1)),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 7, State: unix.NUD_NOARP, LinkNetnsid: 1, HasLinkNetnsid: true},
+		},
+		{
+			description: "boundary: NDA_LINK_NETNSID 0xffffffff is -1, NETNSA_NSID_NOT_ASSIGNED (F8)",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 7, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_LINK_NETNSID, le32(0xffffffff)),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 7, State: unix.NUD_NOARP, LinkNetnsid: -1, HasLinkNetnsid: true},
+		},
+		{
+			description: "negative: a 3-byte NDA_LINK_NETNSID leaves its presence bit false",
+			body: concat(
+				ndmsgHdr(unix.AF_BRIDGE, 7, unix.NUD_NOARP, 0, 0),
+				rtattr(unix.NDA_LINK_NETNSID, []byte{1, 0, 0}),
+			),
+			want: NeighInfo{Family: unix.AF_BRIDGE, Ifindex: 7, State: unix.NUD_NOARP},
 		},
 		{
 			description: "positive: NDA_PROTOCOL lands in Protocol with its presence bit",
