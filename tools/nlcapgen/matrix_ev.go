@@ -11,13 +11,19 @@ package main
 //
 // The seed rows are the rtnl-write corpus's four proven event rows
 // (scripts/rtnl-write-corpus.exp), restated as workbench rows: the same
-// pre steps, triggers and until-EREs, and the floors the corpus measured
-// (14, 20, 11 and 36 datagrams). EC1 and EC2 add the rest from their probe
-// batches, from which every new row's floor and EREs are written, not
-// guessed (the plan's EC0-T02 rule). The canary rule stays: a monitor is
-// subscribed only when it has proved it, so every ipmon row's groups name
-// maddress and the canary join's events stay in the pcap and the output,
-// counted in the floor.
+// pre steps, triggers and until-EREs. The floors are the workbench's own
+// measurements (EC1's probe): 16, 25, 11 and 54 datagrams, the minimum each
+// row's window was observed to hold in EITHER context the row can run in —
+// alone (`xtcp2-nlcap-ws run`) or with the batch's default -j 8, four
+// monitors racing one guest. The parallel batch is the racer: ev/nsid-del
+// alone joins its canary ahead of the monitor's init dump (22 and 31
+// datagrams captured), the helper's join retry adding a delete/re-add pair
+// and two extra GETNSID roundtrips, and the others pick up load-dependent
+// datagrams the same way (prefix 17-26, anycast 31-40, monitor-all 54-60).
+// The retry is the helper working, and those captures are valid corpus,
+// just above the floor. The canary rule stays: a monitor is subscribed only
+// when it has proved it, so every ipmon row's groups name maddress and the
+// canary join's events stay in the pcap and the output, counted in the floor.
 //
 // c0 is the up dummy the canary joins; d0 the anycast row's; r0/r0p the
 // veth the router advertisement crosses. The pre sysctls are the
@@ -97,14 +103,14 @@ func evFamily() []row {
 			"nsid",
 			"ip netns add c1del && ip netns set c1del 7 && ip netns del c1del",
 			[]string{"^nsid 7 ", "^Deleted nsid 7 "},
-			14, evCanary, nil),
+			16, evCanary, nil),
 		evRow("anycast-del",
 			"positive: the subnet-router anycast joins with d0's first v6 address and leaves with its delete",
 			"acaddress",
 			"ip link set d0 up; ip -6 addr add 2001:db8:1::1/64 dev d0 nodad;"+
 				" ip -6 addr del 2001:db8:1::1/64 dev d0",
 			[]string{"any 2001:db8:1:: ", "Deleted .*any 2001:db8:1:: "},
-			20, evAnycast, nil),
+			25, evAnycast, nil),
 		evRow("prefix",
 			"positive: one router advertisement's on-link prefix, through a monitor",
 			"prefix",
@@ -116,6 +122,6 @@ func evFamily() []row {
 			"all",
 			evTriggerAll,
 			evUntilAll,
-			36, evAnycast+" && "+evRA, []string{"veth"}),
+			54, evAnycast+" && "+evRA, []string{"veth"}),
 	}
 }

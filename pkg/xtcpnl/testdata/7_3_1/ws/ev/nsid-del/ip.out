@@ -1,5 +1,3 @@
-Deleted 3: c0    inet mcast 224.0.0.250 scope global 
-       valid_lft forever preferred_lft forever
 3: c0    inet mcast 224.0.0.250 scope global 
        valid_lft forever preferred_lft forever
 nsid 7 (iproute2 netns name: c1del)

@@ -55,8 +55,8 @@ func TestEvFamily(t *testing.T) {
 }
 
 // TestEvSeedsAreTheCorpusRows pins the ports: each seed row's command and
-// floor equal the rtnl-write corpus row it came from, so a change here is a
-// decision, not a drift.
+// floor equal the measured row it came from (the .exp corpus's row, and
+// EC1's probe floors), so a change here is a decision, not a drift.
 func TestEvSeedsAreTheCorpusRows(t *testing.T) {
 	allCmd := `xtcp2-nl-ipmon c0 "monitor all" "` + evTriggerAll + `"`
 	for _, re := range evUntilAll {
@@ -65,10 +65,10 @@ func TestEvSeedsAreTheCorpusRows(t *testing.T) {
 	cases := []struct {
 		id, cmd, floor string
 	}{
-		{"ev/nsid-del", `xtcp2-nl-ipmon c0 "monitor nsid maddress" "ip netns add c1del && ip netns set c1del 7 && ip netns del c1del" "^nsid 7 " "^Deleted nsid 7 "`, "14"},
-		{"ev/anycast-del", `xtcp2-nl-ipmon c0 "monitor acaddress maddress" "ip link set d0 up; ip -6 addr add 2001:db8:1::1/64 dev d0 nodad; ip -6 addr del 2001:db8:1::1/64 dev d0" "any 2001:db8:1:: " "Deleted .*any 2001:db8:1:: "`, "20"},
+		{"ev/nsid-del", `xtcp2-nl-ipmon c0 "monitor nsid maddress" "ip netns add c1del && ip netns set c1del 7 && ip netns del c1del" "^nsid 7 " "^Deleted nsid 7 "`, "16"},
+		{"ev/anycast-del", `xtcp2-nl-ipmon c0 "monitor acaddress maddress" "ip link set d0 up; ip -6 addr add 2001:db8:1::1/64 dev d0 nodad; ip -6 addr del 2001:db8:1::1/64 dev d0" "any 2001:db8:1:: " "Deleted .*any 2001:db8:1:: "`, "25"},
 		{"ev/prefix", `xtcp2-nl-ipmon c0 "monitor prefix maddress" "` + evRASend + `" "prefix 2001:db8:5::/64"`, "11"},
-		{"ev/monitor-all", allCmd, "36"},
+		{"ev/monitor-all", allCmd, "54"},
 	}
 	byID := map[string]row{}
 	for _, r := range evFamily() {
