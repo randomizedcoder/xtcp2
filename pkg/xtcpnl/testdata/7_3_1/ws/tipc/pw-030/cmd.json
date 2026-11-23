@@ -1,0 +1,57 @@
+{
+ "axes": {
+  "fix": "udp",
+  "json": "1",
+  "words": "bearer get priority media udp name u0"
+ },
+ "cmd": "tipc -j bearer get priority media udp name u0",
+ "desc": "positive: opt=json cmd=udp:bearer-get-priority-media-udp-name-u0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tipc/pw-030",
+ "modules": [
+  "tipc"
+ ],
+ "pre": [
+  "tipc node set identity 1001",
+  "ip link add d1 type dummy && ip addr add 10.9.0.1/24 dev d1 && ip link set d1 up",
+  "tipc bearer enable media udp name u0 localip 10.9.0.1",
+  "for i in $(seq 50); do [ \"$(tipc node get address)\" != 00000000 ] && exit 0; sleep 0.1; done; exit 1"
+ ],
+ "proto": "generic",
+ "result": {
+  "pre": [
+   {
+    "cmd": "tipc node set identity 1001",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add d1 type dummy && ip addr add 10.9.0.1/24 dev d1 && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tipc bearer enable media udp name u0 localip 10.9.0.1",
+    "rc": 0
+   },
+   {
+    "cmd": "for i in $(seq 50); do [ \"$(tipc node get address)\" != 00000000 ] && exit 0; sleep 0.1; done; exit 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

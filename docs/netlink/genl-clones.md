@@ -1,4 +1,4 @@
-# genl clones: devlink, vdpa, fou, mptcp — captures first
+# genl clones: devlink, vdpa, fou, mptcp, tipc — captures first
 
 **Status doc:** [genl-clones-status.md](genl-clones-status.md) tracks progress against this plan.
 
@@ -171,11 +171,44 @@ holds goip to the new ws corpus instead:
   ip printed nothing.
 - **4B:** audit `ip/ipmptcp.c`, record only.
 
+## Increment 5 — tipc (genl `TIPCv2`, `tipc` CLI, tipc module)
+
+`tipc` is a standalone iproute2 binary (`tipc/`), not an `ip` sub-command. goip has no
+clone of it, and the repo had no TIPC decode, so this is a full increment, ending in a
+read-only clone, `gotipc`. The family is `netnsok = true`
+(`net/tipc/netlink.c:309`), and the stock kernel builds `tipc` as a module with UDP
+media. tipc resolves the family before it dispatches (`tipc/tipc.c:114`), so every
+refusal after the options is an ack-then-fail, and `main` exits 255. Only `link` and
+`nametable` print JSON.
+
+### 5C: capture (NC-TI)
+
+- `matrix_tipc.go`: 40 read-only commands over six namespace fixtures, each plain and
+  `-j`, plus 13 negatives (93 rows).
+  - The fixtures: `bare`, `ident` (identity 1001), `eth` (a dummy bearer, address
+    waited for), `udp`, `peer` (a second node behind a veth pair) and `sock` (held
+    bound and connected sockets).
+  - The peer is an unnamed `unshare -n` namespace named by its pid. Each pre step's
+    `ip netns exec` has a private mount namespace, which hides an `ip netns add`
+    from the next step.
+- Determinism: fixed identities and MACs. Socket ports are random, so name-table and
+  socket rows vary, as do the peer link's counters. The two-boot rule allows those
+  rows to differ in their replies (and the socket rows in their per-socket PUBL_GET
+  requests).
+
+### 5P/5R/5B
+
+- **5P:** `xtcpnl_tipc.go` (`ParseTIPC`), table and fuzz tests, and an O3/O4 corpus
+  test.
+- **5R:** `cmd/gotipc` + `internal/gotipc/` on the godevlink template, replaying the
+  ws pcap byte for byte.
+- **5B:** audit `tipc/*.c`, record only.
+
 ## Verification
 
 **Per task (hermetic):** `go test ./tools/nlcapgen/`; `go test ./pkg/xtcpnl/`;
-`go test ./internal/{godevlink,govdpa}/` (and `./internal/goip/` for fou and mptcp); `CGO_ENABLED=0 go build ./...`;
-`nix build --no-link .#{godevlink,govdpa}`; lint-baseline, netlink-audit,
+`go test ./internal/{godevlink,govdpa,gotipc}/` (and `./internal/goip/` for fou and mptcp); `CGO_ENABLED=0 go build ./...`;
+`nix build --no-link .#{godevlink,govdpa,gotipc}`; lint-baseline, netlink-audit,
 kernel-citation-audit, statix, deadnix, nix-fmt, gofmt (fix findings in code — no
 `nolint`/`#nosec`); mutants on new decode/render logic under
 `systemd-run --user --scope -q -p MemoryMax=6G go test -timeout=180s`.

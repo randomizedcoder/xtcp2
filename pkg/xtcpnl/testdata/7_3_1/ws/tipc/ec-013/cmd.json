@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "fix": "ident",
+  "json": "0",
+  "words": "node get address"
+ },
+ "cmd": "tipc node get address",
+ "desc": "positive: opt=plain cmd=ident:node-get-address",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tipc/ec-013",
+ "modules": [
+  "tipc"
+ ],
+ "pre": [
+  "tipc node set identity 1001"
+ ],
+ "proto": "generic",
+ "result": {
+  "pre": [
+   {
+    "cmd": "tipc node set identity 1001",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,4 @@
+Type       Lower      Upper      Scope    Port       Node                             
+1          1          1          node     1035429181 1001
+2000       1          1          cluster  2747357677 1001
+1000       1          1          node     3867926066 1001

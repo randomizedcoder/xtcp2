@@ -1,0 +1,1 @@
+[{"link":"broadcast-link","window":50,"rx packets":{"rx packets":0,"fragments":0,"fragmented":0,"bundles":0,"bundled":0},"tx packets":{"tx packets":0,"fragments":0,"fragmented":0,"bundles":0,"bundled":0},"rx naks":{"rx naks":0,"defs":0,"dups":0},"tx naks":{"tx naks":0,"acks":0,"retrans":0},"congestion link":0,"send queue max":0,"avg":0}]

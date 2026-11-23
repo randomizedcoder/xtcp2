@@ -1,0 +1,57 @@
+{
+ "axes": {
+  "fix": "eth",
+  "json": "1",
+  "words": "link monitor summary"
+ },
+ "cmd": "tipc -j link monitor summary",
+ "desc": "positive: opt=json cmd=eth:link-monitor-summary",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tipc/pw-024",
+ "modules": [
+  "tipc"
+ ],
+ "pre": [
+  "tipc node set identity 1001",
+  "ip link add d0 address 02:00:00:00:00:01 type dummy && ip link set d0 up",
+  "tipc bearer enable media eth device d0",
+  "for i in $(seq 50); do [ \"$(tipc node get address)\" != 00000000 ] && exit 0; sleep 0.1; done; exit 1"
+ ],
+ "proto": "generic",
+ "result": {
+  "pre": [
+   {
+    "cmd": "tipc node set identity 1001",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:00:01 type dummy && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tipc bearer enable media eth device d0",
+    "rc": 0
+   },
+   {
+    "cmd": "for i in $(seq 50); do [ \"$(tipc node get address)\" != 00000000 ] && exit 0; sleep 0.1; done; exit 1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

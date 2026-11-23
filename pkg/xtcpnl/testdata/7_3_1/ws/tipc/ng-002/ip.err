@@ -1,0 +1,16 @@
+Transparent Inter-Process Communication Protocol
+Usage: tipc [OPTIONS] COMMAND [ARGS] ...
+
+Options:
+ -h, --help 		Print help for last given command
+ -j, --json 		Json format printouts
+ -p, --pretty 		pretty print
+
+Commands:
+ bearer                - Show or modify bearers
+ link                  - Show or modify links
+ media                 - Show or modify media
+ nametable             - Show nametable
+ node                  - Show or modify node related parameters
+ peer                  - Peer related operations
+ socket                - Show sockets

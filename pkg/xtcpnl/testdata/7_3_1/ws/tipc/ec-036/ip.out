@@ -1,0 +1,10 @@
+Link <1001:v0-1002:v1>
+  ACTIVE  MTU:1500  Priority:10  Tolerance:1500 ms  Window:50 packets
+  RX packets:2 fragments:0/0 bundles:0/0
+  TX packets:2 fragments:0/0 bundles:0/0
+  TX profile sample:0 packets average:0 octets
+  0-64:0% -256:0% -1024:0% -4096:0% -16384:0% -32768:0% -66000:0%
+  RX states:1 probes:0 naks:0 defs:0 dups:0
+  TX states:1 probes:0 naks:0 acks:1 retrans:0
+  Congestion link:0  Send queue max:0 avg:0
+
