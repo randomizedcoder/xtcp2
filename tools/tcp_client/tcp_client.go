@@ -171,6 +171,12 @@ func client(wg *sync.WaitGroup,
 	}
 }
 
+// dialTarget returns the network and address a client dials for -network,
+// -connect, -srcaddr and one port.
+func dialTarget(_, host, _ string, port int) (network, addr string, err error) {
+	return "tcp", fmt.Sprintf("%s:%d", host, port), nil
+}
+
 // ErrTimeout is the sentinel returned by clientOnce when the underlying
 // Read/Write deadline fires, signaling "retry next iteration".
 var ErrTimeout = errors.New("net deadline")
@@ -200,7 +206,10 @@ func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (
 // source-address / interface binds from newDialer are applied). It overrides only
 // the per-attempt Timeout, leaving LocalAddr/Control intact across retries.
 func dialWithRetryDialer(base net.Dialer, bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
-	addr := fmt.Sprintf("%s:%d", bind, port)
+	network, addr, err := dialTarget("tcp", bind, "", port)
+	if err != nil {
+		return nil, err
+	}
 	if attempts <= 0 {
 		return nil, fmt.Errorf("dial %s: attempts must be > 0, got %d", addr, attempts)
 	}
@@ -210,7 +219,7 @@ func dialWithRetryDialer(base net.Dialer, bind string, port, attempts int, baseT
 		dialer := base
 		dialer.Timeout = timeout
 		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
-		conn, err := dialer.DialContext(dialCtx, "tcp", addr)
+		conn, err := dialer.DialContext(dialCtx, network, addr)
 		cancel()
 		if err == nil {
 			return conn, nil

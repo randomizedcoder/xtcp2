@@ -199,3 +199,65 @@ func TestNormalizeOrderIndependent(t *testing.T) {
 		})
 	}
 }
+
+// TestNormalizeV4Mapped pins how a dual-stack socket's v4-mapped address
+// (::ffff:a.b.c.d, family AF_INET6) normalizes: into the same documentation
+// number as the plain IPv4 address, kept in its mapped form, so an IPv4
+// peer reads the same whichever family's socket reached it. Before,
+// v4_mapped_doc and v4_mapped_zero failed: the mapped form was scrubbed
+// into 2001:db8::/32 like any IPv6 address.
+func TestNormalizeV4Mapped(t *testing.T) {
+	base := rec{Family: afInet, State: 1, Mss: 1448, Rtt: 10, Src: v4("127.0.0.1"), Dst: v4("127.0.0.1")}
+	with := func(f func(*rec)) rec { r := base; f(&r); return r }
+	mapped := func(r *rec, s string) { r.Family = afInet6; r.Src = v6(s) }
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		input       []rec
+		expected    []string // inet_diag_msg_socket_source per sorted row
+	}{
+		{
+			name: "v4_mapped_doc", category: "positive",
+			description: "::ffff:10.1.2.3 and 10.1.2.3 share one documentation number",
+			input: []rec{
+				with(func(r *rec) { r.Src = v4("10.1.2.3") }),
+				with(func(r *rec) { mapped(r, "::ffff:10.1.2.3") }),
+			},
+			expected: []string{"::ffff:192.0.2.1", "192.0.2.1"},
+		},
+		{
+			name: "v4_mapped_short", category: "negative",
+			description: "a 15-byte address is malformed, not mapped",
+			input:       []rec{with(func(r *rec) { r.Family = afInet6; r.Src = v6("::ffff:10.1.2.3")[:15] })},
+			expected:    []string{"invalid:15"},
+		},
+		{
+			name: "v4_mapped_zero", category: "boundary",
+			description: "::ffff:0.0.0.0 is the unspecified IPv4 address, kept",
+			input:       []rec{with(func(r *rec) { mapped(r, "::ffff:0.0.0.0") })},
+			expected:    []string{"::ffff:0.0.0.0"},
+		},
+		{
+			name: "v4_mapped_loopback", category: "corner",
+			description: "::ffff:127.0.0.1 is loopback, kept",
+			input:       []rec{with(func(r *rec) { mapped(r, "::ffff:127.0.0.1") })},
+			expected:    []string{"::ffff:127.0.0.1"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Normalize(tc.input, Columns)
+			if err != nil {
+				t.Fatalf("%s (%s): %s: %v", tc.name, tc.category, tc.description, err)
+			}
+			vals := make([]string, 0, len(got))
+			for _, r := range got {
+				vals = append(vals, r["inet_diag_msg_socket_source"])
+			}
+			if !reflect.DeepEqual(vals, tc.expected) {
+				t.Errorf("%s (%s): %s\n got      %q\n expected %q", tc.name, tc.category, tc.description, vals, tc.expected)
+			}
+		})
+	}
+}

@@ -54,10 +54,14 @@ func runMain(ctx context.Context, args []string, stderr io.Writer) int {
 // error. Extracted from main() / server() so tests can drive it with a
 // 0-port bind and ctx.Cancel() instead of a panic loop.
 func runServer(ctx context.Context, bind string, port int) error {
-	lc := net.ListenConfig{}
-	ln, err := lc.Listen(ctx, "tcp", fmt.Sprintf("%s:%d", bind, port))
+	network, addr, err := listenTarget("tcp", bind, port)
 	if err != nil {
-		return fmt.Errorf("listen %s:%d: %w", bind, port, err)
+		return err
+	}
+	lc := net.ListenConfig{}
+	ln, err := lc.Listen(ctx, network, addr)
+	if err != nil {
+		return fmt.Errorf("listen %s %s: %w", network, addr, err)
 	}
 	defer func() {
 		if cerr := ln.Close(); cerr != nil {
@@ -93,6 +97,12 @@ func runServer(ctx context.Context, bind string, port int) error {
 		}
 		go handleConn(conn)
 	}
+}
+
+// listenTarget returns the network and address runServer listens on for
+// -network, -bind and one port.
+func listenTarget(_, bind string, port int) (network, addr string, err error) {
+	return "tcp", fmt.Sprintf("%s:%d", bind, port), nil
 }
 
 // handleConn echoes bytes back to the connection until EOF or error.
