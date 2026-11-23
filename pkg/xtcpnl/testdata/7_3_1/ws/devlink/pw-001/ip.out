@@ -1,0 +1,1 @@
+netdevsim/netdevsim0/0: type eth netdev eth0 flavour physical port 1 splittable false

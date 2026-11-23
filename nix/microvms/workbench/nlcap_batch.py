@@ -21,6 +21,10 @@ messages, and `-j N` runs N of them at once. A row marked serial runs with no
 other row active: a sysctl outside the namespace, or a module load, is
 kernel-wide.
 
+A row marked initns runs in init_net instead, through the helper's ns-init:
+a genl family registered with netnsok false (vdpa) answers nowhere else.
+init_net is one namespace, so an initns row must also be serial.
+
 Every module any row names is loaded once, before the first row, so every
 row of a batch sees one kernel state. A module loaded half way through would
 give the rows either side of it different fallback devices and ifindexes.
@@ -64,9 +68,9 @@ import sys
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.+-]*(/[a-z0-9][a-z0-9_.+-]*)*$")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 PREFIXES = ("positive:", "negative:", "boundary:", "corner:")
-PROTOS = ("route", "generic", "xfrm", "sock_diag")
+PROTOS = ("route", "generic", "generic+route", "xfrm", "sock_diag")
 KNOWN = {"id", "desc", "cmd", "pre", "readback", "proto", "floor",
-         "modules", "serial", "expect", "axes", "source"}
+         "modules", "serial", "initns", "expect", "axes", "source"}
 
 
 class RowError(Exception):
@@ -143,6 +147,10 @@ def check_row(lineno, row):
         raise RowError(where + ": modules must be a list of names")
     if not isinstance(row.get("serial", False), bool):
         raise RowError(where + ": serial must be true or false")
+    if not isinstance(row.get("initns", False), bool):
+        raise RowError(where + ": initns must be true or false")
+    if row.get("initns", False) and not row.get("serial", False):
+        raise RowError(where + ": an initns row must be serial")
     check_readback(where, row.get("readback", []))
     return check_pre(where, row.get("pre", []))
 
@@ -210,13 +218,17 @@ class Runner:
         return p.returncode, p.stdout + p.stderr
 
     def run_row(self, slot, row, pre):
-        ns = f"ws{slot}"
+        # An initns row is serial, so it never shares wsinit with another.
+        if row.get("initns", False):
+            ns, add = "wsinit", "ns-init"
+        else:
+            ns, add = f"ws{slot}", "ns-add"
         rid = row["id"]
         rdir = os.path.join(self.outdir, rid)
         os.makedirs(rdir, exist_ok=True)
         log = []
         result = {"status": "OK"}
-        rc, out = self.call([self.nlcap, "ns-add", ns])
+        rc, out = self.call([self.nlcap, add, ns])
         log.append(out)
         if rc != 0:
             result["status"] = "NS_FAIL"

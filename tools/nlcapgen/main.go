@@ -139,6 +139,11 @@ var families = map[string]func() []*space{
 	"ethtool": func() []*space {
 		return []*space{ethRingSpace(), ethChanSpace(), ethPauseSpace(), ethFecSpace(), ethCoalSpace(), ethShowSpace()}
 	},
+	"devlink": func() []*space { return []*space{devlinkSpace()} },
+	"vdpa":    func() []*space { return []*space{vdpaSpace()} },
+	"fou":     func() []*space { return []*space{fouSpace()} },
+	"mptcp":   func() []*space { return []*space{mptcpSpace()} },
+	"tipc":    func() []*space { return []*space{tipcSpace()} },
 }
 
 // namedFamilies are families of named rows, written out as they are
@@ -152,7 +157,7 @@ var namedFamilies = map[string]func() []row{
 func runMatrix(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats")
+	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, devlink, vdpa, fou, mptcp, tipc, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats")
 	seed := fs.Uint64("seed", 1, "the random rows' seed, recorded in their ids")
 	random := fs.Int("random", 0, "random rows per space")
 	out := fs.String("out", "", "rows file to write")

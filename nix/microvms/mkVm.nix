@@ -2999,16 +2999,44 @@ in
         # parity guest so its rpl and ioam6 rows install (NX9-T01). One
         # patch, so both build the same kernel. Same version, so the corpus
         # directory does not move; every other flavor keeps the stock kernel.
-        boot.kernelPatches = lib.optionals (isNlcapWorkbench || isGoipParity) [
-          {
-            name = "nlcap-lwtunnels";
-            patch = null;
-            structuredExtraConfig = with lib.kernel; {
-              IPV6_RPL_LWTUNNEL = yes;
-              IPV6_IOAM6_LWTUNNEL = yes;
-            };
-          }
-        ];
+        boot.kernelPatches =
+          lib.optionals (isNlcapWorkbench || isGoipParity) [
+            {
+              name = "nlcap-lwtunnels";
+              patch = null;
+              structuredExtraConfig = with lib.kernel; {
+                IPV6_RPL_LWTUNNEL = yes;
+                IPV6_IOAM6_LWTUNNEL = yes;
+              };
+            }
+          ]
+          # The genl-clones arc captures the vdpa genl family hardware-free.
+          # The base kernel has VDPA=m but not the software simulator, so the
+          # workbench adds vdpa_sim_net: a mgmtdev registered at module_init
+          # (drivers/vdpa/vdpa_sim/vdpa_sim_net.c) off which `vdpa dev add`
+          # creates a software device, with nothing to simulate. VDPA_SIM_NET
+          # selects VDPA_SIM; VDPA (the genl core) is already a module.
+          # VDPA_SIM depends on RUNTIME_TESTING_MENU (off in the base config),
+          # so that menu must be turned on or both options are dropped as
+          # unmet-dependency ("unused") symbols.
+          ++ lib.optionals isNlcapWorkbench [
+            {
+              name = "nlcap-vdpa-sim";
+              patch = null;
+              structuredExtraConfig = with lib.kernel; {
+                # nixpkgs' common-config pins this off; force it on so the
+                # VDPA_SIM symbols below are reachable.
+                RUNTIME_TESTING_MENU = lib.mkForce yes;
+                # Turning the test menu on lets nixpkgs' autoModules answer "m"
+                # to every test symbol it unhides. TEST_KALLSYMS's build-time
+                # GEN step runs gen_test_kallsyms.sh, whose /usr/bin/env shebang
+                # is absent in the sandbox (exit 126), so pin it off explicitly.
+                TEST_KALLSYMS = no;
+                VDPA_SIM = module;
+                VDPA_SIM_NET = module;
+              };
+            }
+          ];
         boot.kernelParams = [
           "console=ttyS0,115200"
           "console=hvc0"

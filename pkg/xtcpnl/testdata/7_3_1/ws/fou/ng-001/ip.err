@@ -1,0 +1,11 @@
+Usage: ip fou add port PORT { ipproto PROTO  | gue }
+		   [ local IFADDR ] [ peer IFADDR ]
+		   [ peer_port PORT ] [ dev IFNAME ]
+       ip fou del port PORT [ local IFADDR ]
+		   [ peer IFADDR ] [ peer_port PORT ]
+		   [ dev IFNAME ]
+       ip fou show
+
+Where: PROTO { ipproto-name | 1..255 }
+       PORT { 1..65535 }
+       IFADDR { addr }

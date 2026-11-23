@@ -1,0 +1,4 @@
+192.0.2.1 id 1 subflow 
+2001:db8::1 id 2 signal dev d0 
+192.0.2.2 port 10000 id 3 signal backup 
+192.0.2.3 id 4 subflow fullmesh 

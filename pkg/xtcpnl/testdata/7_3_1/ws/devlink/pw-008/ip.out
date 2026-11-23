@@ -1,0 +1,1 @@
+{"health":{"netdevsim/netdevsim0":[{"reporter":"empty","state":"healthy","error":0,"recover":0,"auto_dump":true},{"reporter":"dummy","state":"healthy","error":0,"recover":0,"grace_period":0,"burst_period":0,"auto_recover":true,"auto_dump":true}]}}

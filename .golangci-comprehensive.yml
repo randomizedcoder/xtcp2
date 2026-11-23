@@ -384,6 +384,19 @@ linters:
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"
+      # `flavour` is the devlink UAPI spelling: DEVLINK_ATTR_PORT_FLAVOUR and
+      # the DEVLINK_PORT_FLAVOUR_* enum (include/uapi/linux/devlink.h), and the
+      # literal token devlink(8) prints ("flavour physical" / "<unknown
+      # flavour>"), which internal/godevlink reproduces byte for byte over the
+      # ws corpus. Respelling it would both break the kernel-citation
+      # correspondence in pkg/xtcpnl's devlink decoder and make the clone's
+      # output diverge from the captured devlink stdout. Like `neighbour`
+      # above, scoped to the devlink files; British prose elsewhere still fails.
+      # Kept in step with the Tier 1 (.golangci.yml) rule per the note above.
+      - path: "(internal/godevlink/[^/]+|pkg/xtcpnl/xtcpnl_devlink(_test)?)\\.go"
+        linters:
+          - misspell
+        text: "`[Ff]lavour` is a misspelling of `[Ff]lavor`"
       # The ten files below cite kernel paths that contain the word.
       # net/core/neighbour.c and include/uapi/linux/neighbour.h are the real
       # file names, so "correcting" them produces paths that do not exist and

@@ -1,0 +1,42 @@
+{
+ "axes": {
+  "fix": "gue",
+  "json": "1",
+  "words": "show"
+ },
+ "cmd": "ip -j fou show",
+ "desc": "positive: opt=json fix=gue",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "fou/pw-003",
+ "modules": [
+  "fou"
+ ],
+ "pre": [
+  "ip fou add port 5556 gue"
+ ],
+ "proto": "generic",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip fou add port 5556 gue",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

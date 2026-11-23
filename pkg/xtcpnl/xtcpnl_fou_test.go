@@ -218,8 +218,8 @@ func TestParseFOUCorpus(t *testing.T) {
 	}{
 		{description: "positive: ip's ADD requests decode, nine with a port", got: tally(FOUCmdAdd, true), expected: "11 decoded, 0 errors, 9 port, 3 local, 2 peer, 2 ifindex"},
 		{description: "positive: ip's DEL requests decode, one bound to both ends", got: tally(FOUCmdDel, true), expected: "5 decoded, 0 errors, 5 port, 1 local, 1 peer, 0 ifindex"},
-		{description: "positive: ip's GET requests decode, every one a dump of the genl header alone", got: tally(FOUCmdGet, true), expected: "11 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex"},
-		{description: "positive: every port the kernel answered decodes with both addresses and an ifindex", got: tally(FOUCmdGet, false), expected: "10 decoded, 0 errors, 10 port, 10 local, 10 peer, 10 ifindex"},
+		{description: "positive: ip's GET requests decode, every one a dump of the genl header alone", got: tally(FOUCmdGet, true), expected: "21 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex"},
+		{description: "positive: every port the kernel answered decodes with both addresses and an ifindex", got: tally(FOUCmdGet, false), expected: "22 decoded, 0 errors, 22 port, 22 local, 22 peer, 22 ifindex"},
 		{description: "negative: the kernel answers no ADD or DEL", got: tally(FOUCmdAdd, false) + "|" + tally(FOUCmdDel, false), expected: "0 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex|0 decoded, 0 errors, 0 port, 0 local, 0 peer, 0 ifindex"},
 	}
 	for _, tt := range tests {
@@ -229,4 +229,38 @@ func TestParseFOUCorpus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzParseFOU drives ParseFOU with arbitrary bodies: it must never panic,
+// and a body it accepts must leave the addresses valid-or-absent and no
+// scalar past its width. Seeds are a kernel GET answer, a bare header and a
+// couple of built bodies.
+//
+// go test ./pkg/xtcpnl/ -run '^$' -fuzz FuzzParseFOU
+func FuzzParseFOU(f *testing.F) {
+	add := []byte{FOUCmdAdd, 1, 0, 0}
+	get := []byte{FOUCmdGet, 1, 0, 0}
+	f.Add(cat(get,
+		rtattr(FOUAttrAF, []byte{2}),
+		rtattr(FOUAttrPort, []byte{0x15, 0xb3}),
+		rtattr(FOUAttrIPProto, []byte{4}),
+		rtattr(FOUAttrType, []byte{1}),
+		rtattr(FOUAttrPeerPort, []byte{0, 0}),
+		rtattr(FOUAttrLocalV4, []byte{0, 0, 0, 0}),
+		rtattr(FOUAttrPeerV4, []byte{0, 0, 0, 0})))
+	f.Add(get)
+	f.Add(cat(add, rtattr(FOUAttrPort, []byte{0x15, 0xb3}), rtattr(FOUAttrAF, []byte{2}), rtattr(FOUAttrType, []byte{1})))
+	f.Add(cat(get, rtattr(FOUAttrLocalV4, []byte{192, 0, 2, 1}), rtattr(FOUAttrPeerV4, []byte{192, 0, 2, 2})))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		m, err := ParseFOU(body)
+		if err != nil {
+			return
+		}
+		if m.Local.IsValid() && !m.Local.Is4() && !m.Local.Is6() {
+			t.Fatalf("local %v is neither v4 nor v6", m.Local)
+		}
+		if m.Peer.IsValid() && !m.Peer.Is4() && !m.Peer.Is6() {
+			t.Fatalf("peer %v is neither v4 nor v6", m.Peer)
+		}
+	})
 }

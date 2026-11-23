@@ -1,0 +1,4 @@
+vdpasim_net: 
+  supported_classes net
+  max_supported_vqs 3
+  dev_features MTU MAC STATUS CTRL_VQ CTRL_MAC_ADDR ANY_LAYOUT VERSION_1 ACCESS_PLATFORM

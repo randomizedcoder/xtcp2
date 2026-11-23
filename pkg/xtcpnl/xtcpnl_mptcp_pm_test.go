@@ -441,12 +441,12 @@ func TestParseMPTCPPMCorpus(t *testing.T) {
 	}{
 		{description: "positive: ip's ADD_ADDR requests decode, each with an address", got: tally(MPTCPPMCmdAddAddr, request), expected: "7 decoded, 0 errors, 7 endpoint, 0 subflows, 0 token, 0 saddr"},
 		{description: "positive: ip's DEL_ADDR requests decode, the id-0 delete with an address", got: tally(MPTCPPMCmdDelAddr, request), expected: "4 decoded, 0 errors, 1 endpoint, 0 subflows, 0 token, 0 saddr"},
-		{description: "positive: ip's GET_ADDR requests decode, its 12 dumps and 2 gets by id, none with an address", got: tally(MPTCPPMCmdGetAddr, request), expected: "14 decoded, 0 errors, 0 endpoint, 0 subflows, 0 token, 0 saddr"},
-		{description: "positive: every endpoint the kernel answered decodes with an address", got: tally(MPTCPPMCmdGetAddr, answer), expected: "12 decoded, 0 errors, 12 endpoint, 0 subflows, 0 token, 0 saddr"},
+		{description: "positive: ip's GET_ADDR requests decode, its 20 dumps and 5 gets by id, none with an address", got: tally(MPTCPPMCmdGetAddr, request), expected: "25 decoded, 0 errors, 0 endpoint, 0 subflows, 0 token, 0 saddr"},
+		{description: "positive: every endpoint the kernel answered decodes with an address", got: tally(MPTCPPMCmdGetAddr, answer), expected: "32 decoded, 0 errors, 32 endpoint, 0 subflows, 0 token, 0 saddr"},
 		{description: "positive: ip's FLUSH_ADDRS request decodes", got: tally(MPTCPPMCmdFlushAddrs, request), expected: "1 decoded, 0 errors, 0 endpoint, 0 subflows, 0 token, 0 saddr"},
 		{description: "positive: ip's SET_LIMITS requests decode, 3 with a subflows limit", got: tally(MPTCPPMCmdSetLimits, request), expected: "5 decoded, 0 errors, 0 endpoint, 3 subflows, 0 token, 0 saddr"},
-		{description: "positive: ip's GET_LIMITS requests decode", got: tally(MPTCPPMCmdGetLimits, request), expected: "5 decoded, 0 errors, 0 endpoint, 0 subflows, 0 token, 0 saddr"},
-		{description: "positive: every GET_LIMITS answer decodes with both limits", got: tally(MPTCPPMCmdGetLimits, answer), expected: "5 decoded, 0 errors, 0 endpoint, 5 subflows, 0 token, 0 saddr"},
+		{description: "positive: ip's GET_LIMITS requests decode, 2 carrying a subflows limit (`limits show subflows 3`, which the kernel ignores)", got: tally(MPTCPPMCmdGetLimits, request), expected: "13 decoded, 0 errors, 0 endpoint, 2 subflows, 0 token, 0 saddr"},
+		{description: "positive: every GET_LIMITS answer decodes with both limits", got: tally(MPTCPPMCmdGetLimits, answer), expected: "13 decoded, 0 errors, 0 endpoint, 13 subflows, 0 token, 0 saddr"},
 		{description: "positive: ip's SET_FLAGS requests decode, one with an address", got: tally(MPTCPPMCmdSetFlags, request), expected: "4 decoded, 0 errors, 1 endpoint, 0 subflows, 0 token, 0 saddr"},
 		{description: "positive: the CREATED events decode with a token and a source", got: tally(MPTCPEventCreated, event), expected: "2 decoded, 0 errors, 0 endpoint, 0 subflows, 2 token, 2 saddr"},
 		{description: "positive: the ESTABLISHED events decode", got: tally(MPTCPEventEstablished, event), expected: "2 decoded, 0 errors, 0 endpoint, 0 subflows, 2 token, 2 saddr"},
@@ -464,4 +464,54 @@ func TestParseMPTCPPMCorpus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzParseMPTCPPM drives ParseMPTCPPM with arbitrary bodies: it must
+// never panic, and a body it accepts must leave each endpoint's address
+// valid-or-absent and, when valid, v4 or v6. Seeds are the kernel's
+// answers the ws rows hold (a v4 subflow, a v6 signal on a device, a
+// signal with a port, the limits), ip's get by id, and a bare header.
+//
+// go test ./pkg/xtcpnl/ -run '^$' -fuzz FuzzParseMPTCPPM
+func FuzzParseMPTCPPM(f *testing.F) {
+	getAddr := []byte{MPTCPPMCmdGetAddr, MPTCPPMGenlVersion, 0, 0}
+	getLimits := []byte{MPTCPPMCmdGetLimits, MPTCPPMGenlVersion, 0, 0}
+	nest := func(parts ...[]byte) []byte {
+		return rtattr(MPTCPPMAttrAddr|unix.NLA_F_NESTED, cat(parts...))
+	}
+	u16 := func(v uint16) []byte { return []byte{byte(v), byte(v >> 8)} }
+	u32 := func(v uint32) []byte { return []byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24)} }
+	f.Add(cat(getAddr, nest(
+		rtattr(MPTCPAddrAttrFamily, u16(unix.AF_INET)),
+		rtattr(MPTCPAddrAttrPort, u16(0)),
+		rtattr(MPTCPAddrAttrID, []byte{1}),
+		rtattr(MPTCPAddrAttrFlags, u32(MPTCPAddrFlagSubflow)),
+		rtattr(MPTCPAddrAttrAddr4, []byte{192, 0, 2, 1}))))
+	f.Add(cat(getAddr, nest(
+		rtattr(MPTCPAddrAttrFamily, u16(unix.AF_INET6)),
+		rtattr(MPTCPAddrAttrPort, u16(0)),
+		rtattr(MPTCPAddrAttrID, []byte{2}),
+		rtattr(MPTCPAddrAttrFlags, u32(MPTCPAddrFlagSignal)),
+		rtattr(MPTCPAddrAttrIfIdx, u32(3)),
+		rtattr(MPTCPAddrAttrAddr6, []byte{0x20, 0x01, 0x0d, 0xb8, 15: 1}))))
+	f.Add(cat(getAddr, nest(
+		rtattr(MPTCPAddrAttrFamily, u16(unix.AF_INET)),
+		rtattr(MPTCPAddrAttrPort, u16(10000)),
+		rtattr(MPTCPAddrAttrID, []byte{3}),
+		rtattr(MPTCPAddrAttrFlags, u32(MPTCPAddrFlagSignal|MPTCPAddrFlagBackup)),
+		rtattr(MPTCPAddrAttrAddr4, []byte{192, 0, 2, 2}))))
+	f.Add(cat(getAddr, nest(rtattr(MPTCPAddrAttrID, []byte{2}))))
+	f.Add(cat(getLimits, rtattr(MPTCPPMAttrRcvAddAddrs, u32(3)), rtattr(MPTCPPMAttrSubflows, u32(4))))
+	f.Add(getLimits)
+	f.Fuzz(func(t *testing.T, body []byte) {
+		m, err := ParseMPTCPPM(body)
+		if err != nil {
+			return
+		}
+		for _, a := range []*MPTCPAddr{m.Addr, m.AddrRemote} {
+			if a != nil && a.Addr.IsValid() && !a.Addr.Is4() && !a.Addr.Is6() {
+				t.Fatalf("address %v is neither v4 nor v6", a.Addr)
+			}
+		}
+	})
 }

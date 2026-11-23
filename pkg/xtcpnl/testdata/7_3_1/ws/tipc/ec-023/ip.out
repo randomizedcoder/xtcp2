@@ -1,0 +1,8 @@
+Link <broadcast-link>
+  Window:50 packets
+  RX packets:0 fragments:0/0 bundles:0/0
+  TX packets:0 fragments:0/0 bundles:0/0
+  RX naks:0 defs:0 dups:0
+  TX naks:0 acks:0 retrans:0
+  Congestion link:0  Send queue max:0 avg:0
+

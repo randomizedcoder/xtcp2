@@ -1,0 +1,7 @@
+netdevsim/netdevsim0:
+  driver netdevsim
+  versions:
+      running:
+        fw.mgmt 10.20.30
+      stored:
+        fw.mgmt 10.20.30

@@ -1,0 +1,84 @@
+{
+ "axes": {
+  "fix": "ep-id",
+  "json": "0",
+  "words": "endpoint show id 2"
+ },
+ "cmd": "ip mptcp endpoint show id 2",
+ "desc": "positive: opt=plain fix=ep-id",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "mptcp/ec-004",
+ "pre": [
+  "ip link add d0 type dummy",
+  "ip link set d0 up",
+  "ip addr add 192.0.2.1/24 dev d0",
+  "ip addr add 192.0.2.2/24 dev d0",
+  "ip addr add 192.0.2.3/24 dev d0",
+  "ip -6 addr add 2001:db8::1/64 dev d0 nodad",
+  "ip mptcp endpoint add 192.0.2.1 id 1 subflow",
+  "ip mptcp endpoint add 2001:db8::1 id 2 dev d0 signal",
+  "ip mptcp endpoint add 192.0.2.2 id 3 port 10000 signal backup",
+  "ip mptcp endpoint add 192.0.2.3 id 4 subflow fullmesh"
+ ],
+ "proto": "generic+route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 type dummy",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 192.0.2.1/24 dev d0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 192.0.2.2/24 dev d0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip addr add 192.0.2.3/24 dev d0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip -6 addr add 2001:db8::1/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip mptcp endpoint add 192.0.2.1 id 1 subflow",
+    "rc": 0
+   },
+   {
+    "cmd": "ip mptcp endpoint add 2001:db8::1 id 2 dev d0 signal",
+    "rc": 0
+   },
+   {
+    "cmd": "ip mptcp endpoint add 192.0.2.2 id 3 port 10000 signal backup",
+    "rc": 0
+   },
+   {
+    "cmd": "ip mptcp endpoint add 192.0.2.3 id 4 subflow fullmesh",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

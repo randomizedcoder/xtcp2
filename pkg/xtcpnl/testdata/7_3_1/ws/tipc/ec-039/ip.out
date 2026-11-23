@@ -1,0 +1,10 @@
+socket 3099929392
+  connected to 0:1963345100 via {2000,1}
+socket 2759512751
+  bound to {1,1,1}
+socket 341749034
+  bound to {2000,1,1}
+socket 2306938033
+  bound to {1000,1,1}
+socket 1963345100
+  connected to 0:3099929392 via {2000,1}

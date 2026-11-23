@@ -1,0 +1,2 @@
+NLCAP_NS_OK ws4
+NLCAP_WRITE_OK devlink/ng-001/ip datagrams=3 floor=0 rc=1

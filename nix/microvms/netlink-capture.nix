@@ -1120,7 +1120,14 @@ pkgs.writeShellApplication {
     # sock_diag row closes its window on `ip link show dev lo` instead: one
     # NETLINK_ROUTE dump, tapped and countable alike, which the row's filter
     # drops. Either way the sentinel never shares the row's protocol.
-    PROTO=0
+    #
+    # generic+route keeps NETLINK_GENERIC and NETLINK_ROUTE together, for a
+    # genl command that also talks rtnetlink: `ip mptcp endpoint show` names
+    # an endpoint's dev through ll_init_map's RTM_GETLINK dump, on ip's
+    # rtnetlink socket, and a replay of its output needs that dump too. The
+    # row's namespace is quiet, so the route records kept are the command's
+    # own; the ss -x sentinel is still dropped.
+    PROTO_FILTER='ether[14:2]==0'
     PROTO_NAME=route
 
     mkdir -p "$OUT"
@@ -1141,26 +1148,27 @@ pkgs.writeShellApplication {
       PATH="$NLCAP_IP_BIN:$PATH"
     fi
 
-    # set_proto <name> - set PROTO and PROTO_NAME, or die on a name that is
-    # not one of the three.
+    # set_proto <name> - set PROTO_FILTER and PROTO_NAME, or die on a name
+    # that is not one of the PROTOCOLS.
     set_proto() {
       case "$1" in
-        route) PROTO=0 ;;
-        xfrm) PROTO=6 ;;
-        generic) PROTO=16 ;;
+        route) PROTO_FILTER='ether[14:2]==0' ;;
+        xfrm) PROTO_FILTER='ether[14:2]==6' ;;
+        generic) PROTO_FILTER='ether[14:2]==16' ;;
+        generic+route) PROTO_FILTER='ether[14:2]==16 or ether[14:2]==0' ;;
         sock_diag)
-          PROTO=4
+          PROTO_FILTER='ether[14:2]==4'
           SENTINEL_CMD='ip link show dev lo'
           SENTINEL_FILTER='ether[14:2]==0'
           ;;
-        *) die "unknown netlink protocol '$1'; want route, generic, xfrm or sock_diag" ;;
+        *) die "unknown netlink protocol '$1'; want route, generic, generic+route, xfrm or sock_diag" ;;
       esac
       PROTO_NAME=$1
     }
 
-    # nl_filter <in> <out> - keep only the records of protocol PROTO.
+    # nl_filter <in> <out> - keep only the records of the row's protocol(s).
     nl_filter() {
-      tcpdump -r "$1" -w "$2" "ether[14:2]==$PROTO" >/dev/null 2>&1 || true
+      tcpdump -r "$1" -w "$2" "$PROTO_FILTER" >/dev/null 2>&1 || true
     }
 
     # Poll a file until it contains a pattern, or the holder process dies, or
@@ -1263,10 +1271,42 @@ pkgs.writeShellApplication {
       fi
     }
 
+    # ns-init <ns>
+    #
+    # ns-add's twin for a genl family the kernel registers with netnsok
+    # false - vdpa (drivers/vdpa/vdpa.c, vdpa_nl_family) - whose commands
+    # answer only in init_net: from any other namespace genl_family_rcv_msg()
+    # refuses them and the tool reports it cannot reach the family. <ns> is
+    # bound to pid 1's namespace (`ip netns attach`), so every later
+    # `ip netns exec <ns>` - the row's pre steps, write and capio - runs in
+    # init_net, and nlmon0 is created there.
+    #
+    # The isolation argument above no longer holds: the guest's own daemons
+    # share this tap. What keeps the capture clean is the protocol filter
+    # (nl_filter), which drops every family but the row's, and a quiet
+    # guest's generic-netlink traffic being nil. Two fresh-boot batches
+    # agreeing is the check. A row that uses this must run serial: init_net
+    # is one namespace, whatever <ns> is called.
+    cmd_ns_init() {
+      local ns=$1
+      modprobe nlmon 2>/dev/null || true
+      ip netns del "$ns" 2>/dev/null || true
+      ip netns attach "$ns" 1 || die "cannot bind init_net as $ns"
+      ip -n "$ns" link del "$IFACE" 2>/dev/null || true
+      ip -n "$ns" link add "$IFACE" type nlmon || die "cannot create $IFACE in $ns"
+      ip -n "$ns" link set dev "$IFACE" up || die "cannot bring up $IFACE in $ns"
+      echo "NLCAP_NS_OK $ns init"
+    }
+
     # ns-del <ns>
+    #
+    # nlmon0 goes first: for an ns-init namespace, deleting the name only
+    # unmounts the bind, and the tap would otherwise outlive the row in
+    # init_net. For an ns-add namespace it is gone with the namespace anyway.
     cmd_ns_del() {
       local ns=$1
       stop_held_mroute "$ns"
+      ip -n "$ns" link del "$IFACE" 2>/dev/null || true
       ip netns del "$ns" 2>/dev/null || true
       echo "NLCAP_NS_DELETED $ns"
     }
@@ -2456,7 +2496,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm|sock_diag] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-init|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm|sock_diag] ..."
     fi
 
     sub=$1
@@ -2475,6 +2515,7 @@ pkgs.writeShellApplication {
     fi
     case "$sub" in
       ns-add)    cmd_ns_add "$@" ;;
+      ns-init)   cmd_ns_init "$@" ;;
       ns-del)    cmd_ns_del "$@" ;;
       topo)      cmd_topo "$@" ;;
       cap)       cmd_cap "$@" ;;

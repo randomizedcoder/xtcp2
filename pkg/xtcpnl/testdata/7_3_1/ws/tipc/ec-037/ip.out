@@ -1,0 +1,5 @@
+
+bearer eth:v0
+node          status monitored generation applied_node_status [non_applied_node:status]
+49.771.49     up     direct    1          U []
+49.771.50     up     direct    0          

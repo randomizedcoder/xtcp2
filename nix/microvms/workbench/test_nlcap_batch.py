@@ -130,6 +130,10 @@ class TestRowsFile(unittest.TestCase):
          "unknown field bogus"),
         ("negative: a bad proto", [row(proto="rdma")], None, "proto"),
         ("negative: a negative floor", [row(floor=-1)], None, "floor"),
+        ("negative: initns not a bool", [row(initns=1, serial=True)], None,
+         "initns must be true or false"),
+        ("negative: initns without serial", [row(initns=True)], None,
+         "an initns row must be serial"),
         ("negative: a readback named ip", [row(readback=[
             {"name": "ip", "cmd": "x"}])], None, "reused"),
         ("negative: not JSON", [], "{nope\n", "line 1"),
@@ -175,6 +179,11 @@ class TestRun(unittest.TestCase):
          ["ns-add", "write", "ns-del"], "OK"),
         ("negative: the capture came in short", [row(cmd="x SHORT")], 1,
          ["ns-add", "write", "ns-del"], "SHORT"),
+        ("positive: an initns row binds init_net, not a fresh ns",
+         [row(initns=True, serial=True, pre=["true"])], 0,
+         ["ns-init", "ip", "write", "ns-del"], "OK"),
+        ("boundary: initns false is an ordinary row",
+         [row(initns=False)], 0, ["ns-add", "write", "ns-del"], "OK"),
     ]
 
     def test_cases(self):
@@ -209,6 +218,9 @@ class TestRun(unittest.TestCase):
              row(proto="sock_diag", readback=[
                  {"name": "dump", "cmd": "ss -t", "proto": "sock_diag"}]),
              ["write --proto sock_diag", "capio --proto sock_diag"]),
+            ("positive: a generic+route row passes both to the helper",
+             row(proto="generic+route"),
+             ["write --proto generic+route"]),
             ("boundary: no proto is route", row(readback=[
                 {"name": "link", "cmd": "ip -j link"}]),
              ["write --proto route", "capio --proto route"]),
@@ -222,6 +234,23 @@ class TestRun(unittest.TestCase):
                     got = [" ".join(ln.split()[:3]) for ln in f.read().splitlines()
                            if ln.split()[0] in ("write", "capio")]
                 self.assertEqual(got, want)
+
+    def test_initns_namespace(self):
+        cases = [
+            ("positive: initns rows all use wsinit",
+             row(initns=True, serial=True), "wsinit"),
+            ("boundary: an ordinary row uses its slot", row(), "ws0"),
+        ]
+        for desc, r, want in cases:
+            with self.subTest(desc):
+                e = Env(self, [r])
+                rc, out = e.run("-j", "1")
+                self.assertEqual(rc, 0, out)
+                with open(e.log) as f:
+                    got = {ln.split()[0]: ln.split()[1]
+                           for ln in f.read().splitlines()
+                           if ln.split()[0] in ("ns-add", "ns-init", "ns-del")}
+                self.assertEqual(set(got.values()), {want}, got)
 
     def test_only(self):
         e = Env(self, [row(id="t/a"), row(id="t/b")])

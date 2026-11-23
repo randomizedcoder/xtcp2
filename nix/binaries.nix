@@ -82,6 +82,19 @@ let
     # (internal/gordma). Listed for the same reason as goip, so a later live
     # parity run can find it in the guest beside the pinned rdma.
     "gordma"
+    # godevlink is the genl-clones arc's sibling for devlink(8): a read-only
+    # clone that replays devlink's nlmon (ws) pcap corpus to exercise
+    # pkg/xtcpnl's ParseDevlink (internal/godevlink). Listed for the same
+    # reason as gordma, so a later live parity run can find it in the guest.
+    "godevlink"
+    # govdpa is the arc's vdpa(8) clone: it replays vdpa's ws pcap corpus to
+    # exercise pkg/xtcpnl's ParseVdpa and BuildGetVdpaRequest
+    # (internal/govdpa). Listed for the same reason as godevlink.
+    "govdpa"
+    # gotipc is the arc's tipc(8) clone: it replays tipc's ws pcap corpus to
+    # exercise pkg/xtcpnl's ParseTIPC and BuildTIPCRequest
+    # (internal/gotipc). Listed for the same reason as govdpa.
+    "gotipc"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"
