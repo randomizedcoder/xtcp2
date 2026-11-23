@@ -2587,6 +2587,16 @@ let
     "xtcp2testsecretkey"
     "-s3ParquetFlushBytes"
     "1048576"
+    # A shallow upload queue, so the self-test's S3 outage (Check 14c)
+    # overflows it within a few polls.
+    "-s3QueueDepth"
+    "2"
+    # Spill failed objects to disk (Check 14d), and flush every ~10s so the
+    # outage finalizes a few objects to spill.
+    "-s3SpillDir"
+    "/var/lib/xtcp2/s3spill"
+    "-s3FlushInterval"
+    "10s"
   ];
 
   # The three broker flavors (valkey/nats/nsq) share one arg shape: publish

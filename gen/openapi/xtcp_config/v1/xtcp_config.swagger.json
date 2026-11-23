@@ -911,6 +911,25 @@
           "type": "string",
           "description": "Cap on a single upload retry's backoff window (full jitter draws in\n[0, window], window grows exponentially up to this cap). 0 = derive as\nclamp(poll_frequency/10, 1s, 1h)."
         },
+        "s3QueueDepth": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Envelopes queued between the poller and the S3 worker. Past this depth\nthe oldest is dropped (xtcp_s3_dropped_total{reason=\"queue_depth\"}), so\nan S3 outage never blocks polling. 0 = 16."
+        },
+        "s3MaxBufferedBytes": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Marshaled envelope bytes the S3 queue may hold. Past this the oldest\nenvelope is dropped (reason=\"buffered_bytes\"); the newest is always\nkept. 0 = no byte bound (the depth bound alone). Flag default 64 MiB."
+        },
+        "s3SpillDir": {
+          "type": "string",
+          "description": "Directory where Parquet objects that failed to upload are kept and\nretried in the background, oldest first, until S3 accepts them. Empty\n= no spill: a failed object is dropped after s3_upload_max_attempts.\nWith a spill dir the worker tries each upload once and spills on\nfailure, so it keeps draining the queue during an outage. One daemon\nper directory."
+        },
+        "s3SpillMaxBytes": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Bytes the spill directory may hold. Past this the oldest spilled\nobject is deleted (xtcp_s3_spill_total{result=\"evicted\"}). 0 = 1 GiB."
+        },
         "hostname": {
           "type": "string",
           "description": "Hostname override. When empty the daemon uses os.Hostname(); set this to\nstamp an explicit hostname on records — required in containers, where\nos.Hostname() returns the container id, not the host. Set via -hostname\nflag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the\ncontainer id)."

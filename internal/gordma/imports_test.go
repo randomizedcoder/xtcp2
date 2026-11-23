@@ -36,6 +36,8 @@ var gordmaClosure = []string{
 	modulePath + "/cmd/gordma", modulePath + "/internal/gordma",
 	modulePath + "/pkg/xtcpnl", modulePath + "/pkg/nlstrace", modulePath + "/pkg/cint",
 	modulePath + "/internal/jsonw",
+	// Reached through xtcpnl's congestion-name decoder; stdlib only.
+	modulePath + "/pkg/strpolicy",
 	// Reached through xtcpnl's inet_diag decoders; see internal/goip.
 	modulePath + "/gen/go/xtcp_flat_record",
 }

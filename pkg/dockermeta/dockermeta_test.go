@@ -509,3 +509,46 @@ func TestURLQueryEscape(t *testing.T) {
 		}
 	}
 }
+
+// TestInspectCleansTenantStrings: a container's name and image are the
+// tenant's choice; inspect bounds and cleans them once.
+func TestInspectCleansTenantStrings(t *testing.T) {
+	const id = "aaaa111111111111111111111111111111111111111111111111111111111111"
+	tests := []struct {
+		name          string
+		category      string
+		description   string
+		cName         string // JSON string body
+		cImage        string // JSON string body
+		expectedName  string
+		expectedImage string
+	}{
+		{name: "plain", category: "P", description: "ordinary name and image pass unchanged",
+			cName: "/web", cImage: "nginx:1.27", expectedName: "web", expectedImage: "nginx:1.27"},
+		{name: "long_container_name", category: "N", description: "a 10 kB name is cut to 256 bytes",
+			cName: "/" + strings.Repeat("a", 10000), cImage: "nginx", expectedName: strings.Repeat("a", 256), expectedImage: "nginx"},
+		{name: "escape_image", category: "N", description: "a terminal escape in the image is replaced",
+			cName: "/web", cImage: `nginx\u001b[2J`, expectedName: "web", expectedImage: "nginx�[2J"},
+		{name: "exact_max_name", category: "B", description: "a 256-byte name is kept whole",
+			cName: "/" + strings.Repeat("b", 256), cImage: "x", expectedName: strings.Repeat("b", 256), expectedImage: "x"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fs, srv := newFixtureServer(t)
+			fs.inspects[id] = fmt.Sprintf(`{"Id":%q,"Name":"%s","Config":{"Image":"%s"},"State":{"Pid":1},`+
+				`"NetworkSettings":{"SandboxKey":"/var/run/docker/netns/aaaahash"}}`, id, tc.cName, tc.cImage)
+			ix, err := newIndexFromClient(context.Background(), srv.Client(), srv.URL, fakeStat)
+			if err != nil {
+				t.Fatalf("newIndexFromClient: %v", err)
+			}
+			defer ix.Close()
+			c, ok := ix.Lookup(4026531001)
+			if !ok {
+				t.Fatalf("%s: container not indexed", tc.description)
+			}
+			if c.Name != tc.expectedName || c.Image != tc.expectedImage {
+				t.Errorf("%s: got name %q image %q, expected %q %q", tc.description, c.Name, c.Image, tc.expectedName, tc.expectedImage)
+			}
+		})
+	}
+}

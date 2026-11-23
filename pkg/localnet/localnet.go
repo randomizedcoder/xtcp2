@@ -20,6 +20,7 @@ import (
 	"github.com/gaissmai/bart"
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/pkg/strpolicy"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -201,7 +202,9 @@ func BuildSnapshot(addrs []xtcpnl.AddrInfo, routes []xtcpnl.RouteInfo, links map
 
 	ifnames := make(map[uint32]string, len(links))
 	for idx, name := range links {
-		ifnames[idx] = name
+		// A tenant names the interfaces in its own netns, and the kernel
+		// allows control bytes and invalid UTF-8 up to IFNAMSIZ.
+		ifnames[idx] = strpolicy.Clean(name, strpolicy.MaxIfname)
 	}
 
 	nonLoopbackSelf := false

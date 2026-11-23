@@ -31,6 +31,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/randomizedcoder/xtcp2/pkg/strpolicy"
 )
 
 // DefaultSocketPath is the standard Docker Engine API unix socket.
@@ -282,10 +284,12 @@ func (ix *Index) inspect(ctx context.Context, id string) (Container, bool) {
 	if len(name) > 0 && name[0] == '/' {
 		name = name[1:]
 	}
+	// The name and image are the tenant's choice: clean them once here,
+	// before they reach records and logs.
 	return Container{
 		ID:         in.ID,
-		Name:       name,
-		Image:      image,
+		Name:       strpolicy.Clean(name, strpolicy.MaxLen),
+		Image:      strpolicy.Clean(image, strpolicy.MaxLen),
 		Pid:        in.State.Pid,
 		SandboxKey: in.NetworkSettings.SandboxKey,
 		NetnsInode: ino,

@@ -1175,3 +1175,36 @@ func TestWriteRowsZstdCloseJoins_table(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadCleansOwner: the network owner is feed data; the load bounds and
+// cleans it once per row.
+func TestLoadCleansOwner(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		owner       string
+		expected    string
+	}{
+		{name: "plain", category: "P", description: "an ordinary owner is unchanged", owner: "cloudflare", expected: "cloudflare"},
+		{name: "asn_owner_long", category: "N", description: "a 1 kB owner is cut to 256 bytes",
+			owner: strings.Repeat("o", 1024), expected: strings.Repeat("o", 256)},
+		{name: "escape", category: "N", description: "an escape sequence is replaced", owner: "evil\x1b]0;x\x07", expected: "evil�]0;x�"},
+		{name: "empty", category: "B", description: "an empty owner stays empty", owner: "", expected: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ix, err := New(writeArtifact(t, []row{{Prefix: "1.1.1.0/24", ASN: 13335, NetworkOwner: tc.owner}}))
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			a, ok := ix.Lookup(netip.MustParseAddr("1.1.1.1"))
+			if !ok {
+				t.Fatalf("%s: no match", tc.description)
+			}
+			if a.NetworkOwner != tc.expected {
+				t.Errorf("%s: owner %q, expected %q", tc.description, a.NetworkOwner, tc.expected)
+			}
+		})
+	}
+}

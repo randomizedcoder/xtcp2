@@ -32,6 +32,8 @@ import (
 	"github.com/gaissmai/bart"
 	"github.com/klauspost/compress/zstd"
 	"github.com/parquet-go/parquet-go"
+
+	"github.com/randomizedcoder/xtcp2/pkg/strpolicy"
 )
 
 // ErrNoPrefixes is returned when an artifact opens and reads cleanly but yields
@@ -307,11 +309,12 @@ func buildFromReaderAt(name string, r io.ReaderAt, size int64) (*bart.Table[Attr
 			if perr != nil {
 				continue // artifact is collector-canonicalized; skip any stray row
 			}
-			t.Insert(pfx.Masked(), Attr{ASN: buf[i].ASN, NetworkOwner: buf[i].NetworkOwner})
+			owner := strpolicy.Clean(buf[i].NetworkOwner, strpolicy.MaxLen) // feed data, not ours
+			t.Insert(pfx.Masked(), Attr{ASN: buf[i].ASN, NetworkOwner: owner})
 			rows = append(rows, row{
 				Prefix:       pfx.Masked().String(),
 				ASN:          buf[i].ASN,
-				NetworkOwner: buf[i].NetworkOwner,
+				NetworkOwner: owner,
 			})
 		}
 		if err != nil {

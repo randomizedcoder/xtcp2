@@ -36,6 +36,10 @@ func TestDeserializeCongInfoXTCPName(t *testing.T) {
 		{"bbr\x00", "bbr", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1},
 		{"bbr2\x00", "bbr2", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2},
 		{"bbr3\x00", "bbr3", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3},
+		// String policy: a control byte is replaced and the name stays
+		// within TCP_CA_NAME_MAX.
+		{"ab\x01cdefghijklmn\x00", "ab\uFFFDcdefghijklm", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED},
+		{"0123456789abcdefXYZ", "0123456789abcdef", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := []byte(tc.wire)
@@ -201,4 +205,17 @@ func DeserializeCongInfoBoth(b *testing.B, fn func(data []byte, ci *CongInfo) (n
 	// if resultMI.Fmem != test.mi.Fmem {
 	// 	b.Errorf("Test %s resultMI.Fmem:%d != test.mi.Fmem:%d", test.description, resultMI.Fmem, test.mi.Fmem)
 	// }
+}
+
+// BenchmarkDeserializeCongInfoXTCP is the per-socket congestion decode the
+// poller runs, including the string policy's ASCII fast path.
+func BenchmarkDeserializeCongInfoXTCP(b *testing.B) {
+	data := []byte("cubic\x00\x00\x00")
+	record := new(xtcp_flat_record.XtcpFlatRecord)
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := DeserializeCongInfoXTCP(data, record); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

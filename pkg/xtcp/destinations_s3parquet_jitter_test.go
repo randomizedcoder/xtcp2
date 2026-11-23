@@ -163,7 +163,11 @@ func TestS3ParquetDest_timeFlush(t *testing.T) {
 	}
 
 	flushCh <- time.Now() // fire the staleness ceiling
-	time.Sleep(30 * time.Millisecond)
+	// Poll: finalizing a Parquet object under -race takes well over a
+	// fixed short sleep.
+	for deadline := time.Now().Add(10 * time.Second); len(upl.Calls()) == 0 && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
 	if got := len(upl.Calls()); got != 1 {
 		t.Fatalf("upload after timer fire = %d, want 1", got)
 	}

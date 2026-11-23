@@ -2,6 +2,7 @@ package localnet
 
 import (
 	"net/netip"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -894,6 +895,32 @@ func TestHasNonLoopbackSelf(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			if got := tc.snap.HasNonLoopbackSelf(); got != tc.want {
 				t.Errorf("HasNonLoopbackSelf() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestIfNameStrPolicy: a tenant names the interfaces in its own netns, so
+// the snapshot cleans each name once.
+func TestIfNameStrPolicy(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		in          string
+		expected    string
+	}{
+		{name: "plain", category: "P", description: "an ordinary name is unchanged", in: "eth0", expected: "eth0"},
+		{name: "tenant_ifname", category: "N", description: "ESC in the name is replaced", in: "e\x1bth", expected: "e�th"},
+		{name: "ifnamsiz", category: "B", description: "a 15-byte name (IFNAMSIZ-1) is kept", in: "abcdefghijklmno", expected: "abcdefghijklmno"},
+		{name: "invalid_utf8_full", category: "C", description: "15 invalid bytes fit five U+FFFD in 16 bytes",
+			in: strings.Repeat("\xff", 15), expected: strings.Repeat("�", 5)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			snap := BuildSnapshot(nil, nil, map[uint32]string{7: tc.in})
+			if got := snap.IfName(7); got != tc.expected {
+				t.Errorf("%s: IfName = %q, expected %q", tc.description, got, tc.expected)
 			}
 		})
 	}

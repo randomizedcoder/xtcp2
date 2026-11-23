@@ -84,6 +84,15 @@
 #   XTCP2_SELF_TEST_S3PARQUET_ROWS_{PASS,FAIL}        (s3parquet only)
 #                                              duckdb decodes the file and
 #                                              returns ≥1 row
+#   XTCP2_SELF_TEST_S3PARQUET_OUTAGE_{PASS,FAIL}      (s3parquet only)
+#                                              Garage stopped: polls continue,
+#                                              the outage is absorbed (queue
+#                                              drops or spilled objects), RSS
+#                                              bounded, uploads resume
+#   XTCP2_SELF_TEST_S3PARQUET_SPILL_{PASS,FAIL}       (s3parquet only)
+#                                              objects that failed during the
+#                                              outage were spilled to disk and
+#                                              uploaded after Garage restarted
 #   XTCP2_SELF_TEST_VALKEY_CONSUME_{PASS,FAIL}        (valkey only)
 #                                              ≥1 record published to a real
 #                                              in-VM Valkey server AND consumed
@@ -1667,6 +1676,78 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (no parquet file to test)"
       fi
       if [ "$check14b" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── Check 14c: S3 outage — polling continues, outage absorbed ────
+      # Stop Garage for a while. Send never blocks the poller: polls keep
+      # their cadence and RSS stays bounded. This flavor sets -s3SpillDir,
+      # so the worker tries each object once and spills it; anything the
+      # bounded queue (-s3QueueDepth 2) evicts meanwhile is counted in
+      # xtcp_s3_dropped_total. After Garage restarts, a new object lands.
+      #
+      # ─── Check 14d: spilled objects are uploaded after the outage ─────
+      # The outage spilled at least one object (-s3FlushInterval 10s), and
+      # once Garage is back the spill directory empties: every spilled
+      # object was uploaded.
+      echo "--- check 14c/14d: s3parquet — S3 outage never stalls polling; spill uploads after ---"
+      check14c=1
+      xtcp2_rss_kb() {
+        awk '/^VmRSS:/ {print $2}' "/proc/$(systemctl show -p MainPID --value xtcp2)/status" 2>/dev/null || echo 0
+      }
+      objects_before=$(rclone lsf -R --files-only --include '*.parquet' s3:${s3Bucket} 2>/dev/null | wc -l)
+      polls_before=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollingLoops"')
+      drops_before=$(metric_value "xtcp_s3_dropped_total" "" "")
+      spilled_before=$(metric_value "xtcp_s3_spill_total" 'result="written"' "")
+      spill_up_before=$(metric_value "xtcp_s3_spill_total" 'result="uploaded"' "")
+      rss_before=$(xtcp2_rss_kb)
+      outage_s=$(scaled 40)
+      systemctl stop garage
+      sleep "$outage_s"
+      polls_during=$(( $(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollingLoops"') - polls_before ))
+      drops_during=$(( $(metric_value "xtcp_s3_dropped_total" "" "") - drops_before ))
+      spilled_during=$(( $(metric_value "xtcp_s3_spill_total" 'result="written"' "") - spilled_before ))
+      spill_files_during=$(find /var/lib/xtcp2/s3spill -name '*.xsp' 2>/dev/null | wc -l)
+      rss_after=$(xtcp2_rss_kb)
+      systemctl start garage
+      # -frequency 2s: expect at least half the polls the outage had room for.
+      min_polls=$(( outage_s / 4 ))
+      objects_after=$objects_before
+      for _ in $(seq 1 "$(scaled 90)"); do
+        objects_after=$(rclone lsf -R --files-only --include '*.parquet' s3:${s3Bucket} 2>/dev/null | wc -l)
+        if [ "$objects_after" -gt "$objects_before" ]; then
+          break
+        fi
+        sleep 1
+      done
+      # The spill empties once the re-upload catches up.
+      spill_left=1
+      for _ in $(seq 1 "$(scaled 90)"); do
+        spill_left=$(metric_value "xtcp_s3_spill_objects" "" "")
+        if [ "''${spill_left:-1}" = "0" ]; then
+          break
+        fi
+        sleep 1
+      done
+      spill_uploaded=$(( $(metric_value "xtcp_s3_spill_total" 'result="uploaded"' "") - spill_up_before ))
+      rss_growth_kb=$(( rss_after - rss_before ))
+      detail="polls=$polls_during (min $min_polls), dropped=$drops_during, spilled=$spilled_during, rss_kb=$rss_before->$rss_after, objects=$objects_before->$objects_after"
+      if [ "$polls_during" -ge "$min_polls" ] && [ $(( drops_during + spilled_during )) -gt 0 ] \
+        && [ "$rss_growth_kb" -lt 131072 ] && [ "$objects_after" -gt "$objects_before" ]; then
+        echo "XTCP2_SELF_TEST_S3PARQUET_OUTAGE_PASS  ($detail)"
+        check14c=0
+      else
+        echo "XTCP2_SELF_TEST_S3PARQUET_OUTAGE_FAIL  ($detail)"
+      fi
+      if [ "$check14c" -ne 0 ]; then overall_ok=0; fi
+      check14d=1
+      detail="spilled=$spilled_during, files_during_outage=$spill_files_during, uploaded=$spill_uploaded, left=$spill_left"
+      if [ "$spilled_during" -gt 0 ] && [ "$spill_files_during" -gt 0 ] \
+        && [ "$spill_uploaded" -ge "$spilled_during" ] && [ "''${spill_left:-1}" = "0" ]; then
+        echo "XTCP2_SELF_TEST_S3PARQUET_SPILL_PASS  ($detail)"
+        check14d=0
+      else
+        echo "XTCP2_SELF_TEST_S3PARQUET_SPILL_FAIL  ($detail)"
+      fi
+      if [ "$check14d" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runValkeyCheck ''

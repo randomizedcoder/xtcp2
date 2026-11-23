@@ -1577,6 +1577,36 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x92
 	}
+	if m.S3SpillMaxBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3SpillMaxBytes))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0xb8
+	}
+	if len(m.S3SpillDir) > 0 {
+		i -= len(m.S3SpillDir)
+		copy(dAtA[i:], m.S3SpillDir)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.S3SpillDir)))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0xb2
+	}
+	if m.S3MaxBufferedBytes != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3MaxBufferedBytes))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0xa8
+	}
+	if m.S3QueueDepth != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.S3QueueDepth))
+		i--
+		dAtA[i] = 0x7
+		i--
+		dAtA[i] = 0xa0
+	}
 	if m.S3UploadBackoffCap != nil {
 		size, err := (*durationpb.Duration)(m.S3UploadBackoffCap).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -2729,6 +2759,19 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.S3UploadBackoffCap != nil {
 		l = (*durationpb.Duration)(m.S3UploadBackoffCap).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.S3QueueDepth != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3QueueDepth))
+	}
+	if m.S3MaxBufferedBytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3MaxBufferedBytes))
+	}
+	l = len(m.S3SpillDir)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.S3SpillMaxBytes != 0 {
+		n += 2 + protohelpers.SizeOfVarint(uint64(m.S3SpillMaxBytes))
 	}
 	l = len(m.Hostname)
 	if l > 0 {
@@ -7198,6 +7241,95 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 116:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3QueueDepth", wireType)
+			}
+			m.S3QueueDepth = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3QueueDepth |= uint32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 117:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3MaxBufferedBytes", wireType)
+			}
+			m.S3MaxBufferedBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3MaxBufferedBytes |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 118:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3SpillDir", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.S3SpillDir = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 119:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field S3SpillMaxBytes", wireType)
+			}
+			m.S3SpillMaxBytes = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.S3SpillMaxBytes |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		case 130:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Hostname", wireType)

@@ -566,11 +566,14 @@ func (c *xtcpConfigService) SetEnvelopeFlush(
 
 // preserveCaps keeps the running daemon's tenant caps (-maxDumpBytes,
 // -maxRecordsPerNetns, -maxNetns, -maxRecordsPerPoll, -maxNetnsPerOwner,
-// -maxNetnsAddsPerReconcile, -reconcileTimeout and the sockstat ring sizing)
-// across a Set. They bound what a workload can cost the collector, so they
-// are startup-only: a Set that omitted them would otherwise turn them off (0),
-// and one that raised them would undo the bound from the admin plane. Change
-// them with flags or env and a restart.
+// -maxNetnsAddsPerReconcile, -reconcileTimeout, the sockstat ring sizing and
+// the S3 queue bounds -s3QueueDepth and -s3MaxBufferedBytes, and the spill
+// -s3SpillDir and -s3SpillMaxBytes) across a Set. They bound what a workload
+// can cost the collector, so they are startup-only: a Set that omitted them
+// would otherwise turn them off (0), and one that raised them would undo the
+// bound from the admin plane. The spill dir also keeps the admin plane from
+// pointing the daemon's file writes at another path. Change them with flags
+// or env and a restart.
 func preserveCaps(in, running *xtcp_config.XtcpConfig) {
 	in.MaxDumpBytes = running.GetMaxDumpBytes()
 	in.MaxRecordsPerNetns = running.GetMaxRecordsPerNetns()
@@ -580,6 +583,10 @@ func preserveCaps(in, running *xtcp_config.XtcpConfig) {
 	in.IoUringSockstatWorkers = running.GetIoUringSockstatWorkers()
 	in.MaxNetnsPerOwner = running.GetMaxNetnsPerOwner()
 	in.MaxNetnsAddsPerReconcile = running.GetMaxNetnsAddsPerReconcile()
+	in.S3QueueDepth = running.GetS3QueueDepth()
+	in.S3MaxBufferedBytes = running.GetS3MaxBufferedBytes()
+	in.S3SpillDir = running.GetS3SpillDir()
+	in.S3SpillMaxBytes = running.GetS3SpillMaxBytes()
 	in.ReconcileTimeout = nil
 	if rt := running.GetReconcileTimeout(); rt != nil {
 		in.ReconcileTimeout = durationpb.New(rt.AsDuration())

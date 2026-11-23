@@ -14,6 +14,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/lldp"
 	"github.com/randomizedcoder/xtcp2/pkg/nicinfo"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
+	"github.com/randomizedcoder/xtcp2/pkg/strpolicy"
 )
 
 // enrichDialTimeout bounds the one-shot startup connections to the docker and
@@ -209,22 +210,24 @@ func buildUplinkStamp(ifnames []string, nics []nicinfo.NIC, neigh map[string]lld
 	for i := 0; i < len(ifnames) && i < maxUplinks; i++ {
 		name := ifnames[i]
 		col := &s.slots[i]
-		col.ifname = name
+		col.ifname = strpolicy.Clean(name, strpolicy.MaxIfname)
+		// NIC strings come from the driver and firmware, LLDP ones from the
+		// link peer: clean each once per refresh, not per row.
 		if n, ok := nicByName[name]; ok {
-			col.nicDriver = n.Driver
-			col.nicModel = n.Model
-			col.nicBusInfo = n.BusInfo
-			col.nicFwVersion = n.FwVersion
+			col.nicDriver = strpolicy.Clean(n.Driver, strpolicy.MaxLen)
+			col.nicModel = strpolicy.Clean(n.Model, strpolicy.MaxLen)
+			col.nicBusInfo = strpolicy.Clean(n.BusInfo, strpolicy.MaxLen)
+			col.nicFwVersion = strpolicy.Clean(n.FwVersion, strpolicy.MaxLen)
 			col.nicPCIVendor = n.PCIVendor
 			col.nicPCIDevice = n.PCIDevice
 			col.nicSpeedMbps = n.SpeedMbps
 		}
 		if nb, ok := neigh[name]; ok {
-			col.lldpChassisName = nb.ChassisName
-			col.lldpChassisID = nb.ChassisID
-			col.lldpMgmtIP = nb.MgmtIP
-			col.lldpPortID = nb.PortID
-			col.lldpPortDescr = nb.PortDescr
+			col.lldpChassisName = strpolicy.Clean(nb.ChassisName, strpolicy.MaxLen)
+			col.lldpChassisID = strpolicy.Clean(nb.ChassisID, strpolicy.MaxLen)
+			col.lldpMgmtIP = strpolicy.Clean(nb.MgmtIP, strpolicy.MaxLen)
+			col.lldpPortID = strpolicy.Clean(nb.PortID, strpolicy.MaxLen)
+			col.lldpPortDescr = strpolicy.Clean(nb.PortDescr, strpolicy.MaxLen)
 		}
 		s.enabled = true
 	}

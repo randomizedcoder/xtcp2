@@ -171,6 +171,7 @@ func TestGoipImportSetIsHermetic(t *testing.T) {
 			modulePath + "/pkg/xtcpnl":             "the subject under test",
 			modulePath + "/pkg/nlparity":           "the tolerant walker, for ReplaySource",
 			modulePath + "/pkg/cint":               "the C int conversions; stdlib only",
+			modulePath + "/pkg/strpolicy":          "reached through pkg/xtcpnl's congestion-name decoder; stdlib only",
 			modulePath + "/internal/jsonw":         "jsonw_puts, shared with gordma; stdlib only",
 			modulePath + "/gen/go/xtcp_flat_record": "reached through pkg/xtcpnl's inet_diag decoders, which " +
 				"write into the generated proto. This is where grpc and protobuf enter the closure.",

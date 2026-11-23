@@ -316,7 +316,12 @@ func TestEnvOverrideMarshalAndDest(t *testing.T) {
 	t.Setenv("S3_FLUSH_THRESHOLD_JITTER_PCT", "15")
 	t.Setenv("S3_UPLOAD_MAX_ATTEMPTS", "7")
 	t.Setenv("S3_UPLOAD_BACKOFF_CAP", "90s")
+	t.Setenv("S3_QUEUE_DEPTH", "64")
+	t.Setenv("S3_MAX_BUFFERED_BYTES", "1048576")
+	t.Setenv("S3_SPILL_DIR", "/var/lib/xtcp2/s3spill")
+	t.Setenv("S3_SPILL_MAX_BYTES", "2097152")
 	envOverrideMarshalAndDest(c, 0)
+	envOverrideS3Queue(c, 0)
 	if c.MarshalTo != "protoJson" ||
 		c.Dest != "null" || c.DestWriteFiles != 3 {
 		t.Errorf("envOverrideMarshalAndDest mismatch: %+v", c)
@@ -332,6 +337,12 @@ func TestEnvOverrideMarshalAndDest(t *testing.T) {
 	}
 	if c.S3UploadBackoffCap.AsDuration() != 90*time.Second {
 		t.Errorf("S3UploadBackoffCap = %v, want 90s", c.S3UploadBackoffCap.AsDuration())
+	}
+	if c.S3QueueDepth != 64 || c.S3MaxBufferedBytes != 1048576 {
+		t.Errorf("S3QueueDepth/S3MaxBufferedBytes = %d/%d, want 64/1048576", c.S3QueueDepth, c.S3MaxBufferedBytes)
+	}
+	if c.S3SpillDir != "/var/lib/xtcp2/s3spill" || c.S3SpillMaxBytes != 2097152 {
+		t.Errorf("S3SpillDir/S3SpillMaxBytes = %q/%d, want /var/lib/xtcp2/s3spill/2097152", c.S3SpillDir, c.S3SpillMaxBytes)
 	}
 }
 
@@ -1048,6 +1059,10 @@ func TestPrintFlags(t *testing.T) {
 	f.s3FlushThresholdJitterPct = &n
 	f.s3UploadMaxAttempts = &n
 	f.s3UploadBackoffCap = &d
+	f.s3QueueDepth = &n
+	f.s3MaxBufferedBytes = &n64
+	f.s3SpillDir = &s
+	f.s3SpillMaxBytes = &n64
 	f.reconcileFrequency = &d
 	f.reconcileBeforePoll = &b
 	f.maxDumpBytes = &n64
@@ -1235,6 +1250,8 @@ func TestBuildConfig(t *testing.T) {
 	sftj := uint(15)
 	suma := uint(7)
 	subc := 90 * time.Second
+	ssd := "/var/lib/xtcp2/s3spill"
+	ssmb := uint64(2 << 30)
 	rf := 3 * time.Minute
 	rbp := false
 	uplinkCount := uint(2)
@@ -1278,6 +1295,10 @@ func TestBuildConfig(t *testing.T) {
 		s3FlushThresholdJitterPct: &sftj,
 		s3UploadMaxAttempts:       &suma,
 		s3UploadBackoffCap:        &subc,
+		s3QueueDepth:              &wf,
+		s3MaxBufferedBytes:        &nl,
+		s3SpillDir:                &ssd,
+		s3SpillMaxBytes:           &ssmb,
 		reconcileFrequency:        &rf,
 		reconcileBeforePoll:       &rbp,
 		maxDumpBytes:              &nl,
@@ -1367,6 +1388,10 @@ func TestBuildConfig(t *testing.T) {
 		{"S3FlushThresholdJitterPct", c.S3FlushThresholdJitterPct, uint32(15)},
 		{"S3UploadMaxAttempts", c.S3UploadMaxAttempts, uint32(7)},
 		{"S3UploadBackoffCap", c.S3UploadBackoffCap.AsDuration(), 90 * time.Second},
+		{"S3QueueDepth", c.S3QueueDepth, uint32(11)},
+		{"S3MaxBufferedBytes", c.S3MaxBufferedBytes, uint64(150)},
+		{"S3SpillDir", c.S3SpillDir, "/var/lib/xtcp2/s3spill"},
+		{"S3SpillMaxBytes", c.S3SpillMaxBytes, uint64(2 << 30)},
 		{"ReconcileFrequency", c.ReconcileFrequency.AsDuration(), 3 * time.Minute},
 		{"ReconcileBeforePoll", c.ReconcileBeforePoll, false},
 		{"IpmetaBootstrapPath", c.IpmetaBootstrapPath, ipmetaBootstrap},
@@ -1496,6 +1521,29 @@ func TestConfigValidation_bounds(t *testing.T) {
 		{"boundary s3_upload_max_attempts=100", func(c *xtcp_config.XtcpConfig) { c.S3UploadMaxAttempts = 100 }, false},
 		{"negative s3_upload_max_attempts=0", func(c *xtcp_config.XtcpConfig) { c.S3UploadMaxAttempts = 0 }, true},
 		{"negative s3_upload_max_attempts=101", func(c *xtcp_config.XtcpConfig) { c.S3UploadMaxAttempts = 101 }, true},
+		// s3_queue_depth: lte 4096, 0 = default
+		{"boundary s3_queue_depth=0", func(c *xtcp_config.XtcpConfig) { c.S3QueueDepth = 0 }, false},
+		{"boundary s3_queue_depth=4096", func(c *xtcp_config.XtcpConfig) { c.S3QueueDepth = 4096 }, false},
+		{"negative s3_queue_depth=4097", func(c *xtcp_config.XtcpConfig) { c.S3QueueDepth = 4097 }, true},
+		// s3_max_buffered_bytes: any value, 0 = no byte bound
+		{"positive s3_max_buffered_bytes=64MiB", func(c *xtcp_config.XtcpConfig) { c.S3MaxBufferedBytes = 64 << 20 }, false},
+		// s3_spill_dir: max_len 4096, no control characters
+		{"positive s3_spill_dir path", func(c *xtcp_config.XtcpConfig) { c.S3SpillDir = "/var/lib/xtcp2/s3spill" }, false},
+		{"boundary s3_spill_dir 4096 chars", func(c *xtcp_config.XtcpConfig) { c.S3SpillDir = "/" + strings.Repeat("d", 4095) }, false},
+		{"negative s3_spill_dir 4097 chars", func(c *xtcp_config.XtcpConfig) { c.S3SpillDir = "/" + strings.Repeat("d", 4096) }, true},
+		{"negative s3_spill_dir newline", func(c *xtcp_config.XtcpConfig) { c.S3SpillDir = "/var/lib/x\ny" }, true},
+		// operator strings: existing max_len, plus no control characters
+		{"positive hostname utf8", func(c *xtcp_config.XtcpConfig) { c.Hostname = "café-01.example" }, false},
+		{"boundary hostname 253 chars", func(c *xtcp_config.XtcpConfig) { c.Hostname = strings.Repeat("h", 253) }, false},
+		{"negative hostname 254 chars", func(c *xtcp_config.XtcpConfig) { c.Hostname = strings.Repeat("h", 254) }, true},
+		{"negative hostname ESC", func(c *xtcp_config.XtcpConfig) { c.Hostname = "h\x1b[2Jx" }, true},
+		{"negative location newline", func(c *xtcp_config.XtcpConfig) { c.Location = "syd\n" }, true},
+		{"negative location DEL", func(c *xtcp_config.XtcpConfig) { c.Location = "syd\x7f" }, true},
+		{"positive label with spaces", func(c *xtcp_config.XtcpConfig) { c.Label = "edge pop 1" }, false},
+		{"boundary label 40 chars", func(c *xtcp_config.XtcpConfig) { c.Label = strings.Repeat("l", 40) }, false},
+		{"negative label NUL", func(c *xtcp_config.XtcpConfig) { c.Label = "a\x00b" }, true},
+		{"negative tag C1 U+0085", func(c *xtcp_config.XtcpConfig) { c.Tag = "a\u0085b" }, true},
+		{"corner tag U+00A0 (first non-C1)", func(c *xtcp_config.XtcpConfig) { c.Tag = "a\u00a0b" }, false},
 		// durations: gte 0, with 0 = derive (valid)
 		{"positive s3_flush_interval=45m", func(c *xtcp_config.XtcpConfig) { c.S3FlushInterval = durationpb.New(45 * time.Minute) }, false},
 		{"corner s3_flush_interval=0 (derive)", func(c *xtcp_config.XtcpConfig) { c.S3FlushInterval = durationpb.New(0) }, false},
