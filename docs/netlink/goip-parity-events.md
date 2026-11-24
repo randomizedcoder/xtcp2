@@ -76,6 +76,7 @@ Four things, in dependency order:
 - **Mutation checks** in a scratch worktree, each mutant under `systemd-run --user --scope -p MemoryMax=6G` with `-timeout=180s`.
 - **Nix checks, one per call:** lint-baseline and netlink-audit on the task's diff. The workbench tasks add vm-lib-exp, nix-fmt, statix, deadnix and codespell. Lint findings are fixed in code, never with nolint.
 - **O5/O9/O10** (Tier EP and EG): regenerated in the task's commit. `differs` and `sends` stay 0, and no row moves away from `same`.
+- **Findings** (every tier, and EP2's crafted blobs above all): a difference that is `ip`'s print path or request bytes — both 7.2.0 boots agreeing on it, or a 7.3.0-only line shape — obligates a note in [upstream/](upstream/) in the same task, before goip is changed to match, exactly as [upstream/README.md](upstream/README.md)'s "When a note is owed" says. A goip-side gap the same probe finds is not a note: it is the task's own work, and the ledger entry says which is which. EP1-T01's baseline measured zero of the first kind (all 66 rows agree), and EP2's planning probes measured three of the second (the `state UNKNOWN` word, the `congctl cubic p` padding, the nested-flagged `RTA_METRICS`) — recorded in V386 with the iproute2-side facts (the bond series' landing, the truncated attribute's `63` at both versions) already in the bond note.
 - **VMs** (Tier EG): two clean `--section` runs before a row is gated. Before any push, a clean full run and the whole-repo `test-go-race`.
 
 ## Tier EC: captures
