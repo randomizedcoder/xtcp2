@@ -51,7 +51,7 @@ func TestParseSockstat(t *testing.T) {
 		{name: "empty", category: "N", description: "empty read", in: ""},
 		{name: "extra_whitespace", category: "C", description: "doubled spaces and tabs", in: "TCP:  inuse  7\torphan 0  tw  2 alloc 0 mem 0\n", expectedInuse: 7, expectedTW: 2, expectedOK: true},
 		{name: "tw_minus_one", category: "C", description: "tw -1 during namespace teardown", in: sockstatFile("3", "-1"), expectedInuse: 3, expectedOK: true},
-		{name: "tcp6_not_tcp", category: "C", description: "a TCP6: line (sockstat6) is not TCP:", in: "TCP6: inuse 9\n"},
+		{name: "tcp6_line", category: "C", description: "a sockstat6 TCP6: line has inuse and no tw", in: "TCP6: inuse 9\n", expectedInuse: 9, expectedOK: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

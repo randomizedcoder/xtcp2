@@ -8,8 +8,10 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -32,6 +34,10 @@ const (
 	// enrichment testing.
 	srcaddrCst = ""
 	ifaceCst   = ""
+
+	// networkCst "tcp" lets Go pick the family from -connect. tcp4 and tcp6
+	// pin it.
+	networkCst = "tcp"
 
 	writeTimeoutCst = 100 * time.Millisecond
 	readTimeoutCst  = 100 * time.Millisecond
@@ -68,7 +74,12 @@ func runMain(args []string, stderr io.Writer) int {
 	pads := fs.Int("pads", padSizeCst, "pad size")
 	srcaddr := fs.String("srcaddr", srcaddrCst, "bind each connection's source IP (net.Dialer.LocalAddr); empty = kernel default")
 	iface := fs.String("iface", ifaceCst, "bind each connection to this interface via SO_BINDTODEVICE; empty = kernel default")
+	network := fs.String("network", networkCst, "tcp (family from -connect), tcp4 or tcp6")
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if _, _, err := dialTarget(*network, *connect, *srcaddr, startPort+*count-1); err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
@@ -88,7 +99,7 @@ func runMain(args []string, stderr io.Writer) int {
 	var wg sync.WaitGroup
 	for i := 0; i < *count; i++ {
 		wg.Add(1)
-		go client(&wg, &dialFailures, d, *connect, startPort+i, *sleep, *wto, *rto, *dialr, *pads)
+		go client(&wg, &dialFailures, d, *network, *connect, startPort+i, *sleep, *wto, *rto, *dialr, *pads)
 		time.Sleep(*startsleep)
 	}
 	wg.Wait()
@@ -131,6 +142,7 @@ func newDialer(srcaddr, iface string) (net.Dialer, error) {
 func client(wg *sync.WaitGroup,
 	dialFailures *atomic.Int32,
 	d net.Dialer,
+	network string,
 	bind string,
 	port int,
 	sleep time.Duration,
@@ -145,7 +157,7 @@ func client(wg *sync.WaitGroup,
 	buf := buildMessage(port, pads)
 	reply := make([]byte, readBufferSizeCst)
 
-	conn, err := dialWithRetryDialer(d, bind, port, dialr, dialTimeoutCst)
+	conn, err := dialWithRetryDialer(d, network, bind, port, dialr, dialTimeoutCst)
 	if err != nil {
 		log.Printf("dialWithRetry: %v", err)
 		dialFailures.Add(1)
@@ -171,6 +183,45 @@ func client(wg *sync.WaitGroup,
 	}
 }
 
+// dialTarget returns the network and address a client dials for -network,
+// -connect, -srcaddr and one port.
+func dialTarget(network, host, srcaddr string, port int) (string, string, error) {
+	if err := checkFamily(network, "-connect", host); err != nil {
+		return "", "", err
+	}
+	if srcaddr != "" {
+		if err := checkFamily(network, "-srcaddr", srcaddr); err != nil {
+			return "", "", err
+		}
+	}
+	if port < 1 || port > 65535 {
+		return "", "", fmt.Errorf("port %d is outside 1-65535", port)
+	}
+	return network, net.JoinHostPort(host, strconv.Itoa(port)), nil
+}
+
+// checkFamily rejects a network other than tcp, tcp4 and tcp6, and an
+// address literal of the other family for tcp4 or tcp6 (a host name is
+// left to the resolver).
+func checkFamily(network, flag, host string) error {
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return fmt.Errorf("-network: %q is not tcp, tcp4 or tcp6", network)
+	}
+	a, err := netip.ParseAddr(host)
+	if err != nil || network == "tcp" {
+		return nil
+	}
+	if network == "tcp4" && !a.Is4() {
+		return fmt.Errorf("%s %s is not an IPv4 address, as -network tcp4 needs", flag, host)
+	}
+	if network == "tcp6" && a.Is4() {
+		return fmt.Errorf("%s %s is not an IPv6 address, as -network tcp6 needs", flag, host)
+	}
+	return nil
+}
+
 // ErrTimeout is the sentinel returned by clientOnce when the underlying
 // Read/Write deadline fires, signaling "retry next iteration".
 var ErrTimeout = errors.New("net deadline")
@@ -193,14 +244,17 @@ func buildMessage(port, pads int) []byte {
 // matches the comment, and if attempts <= 0 we report it instead of
 // pretending we ran a loop.
 func dialWithRetry(bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
-	return dialWithRetryDialer(net.Dialer{}, bind, port, attempts, baseTimeout)
+	return dialWithRetryDialer(net.Dialer{}, networkCst, bind, port, attempts, baseTimeout)
 }
 
 // dialWithRetryDialer is dialWithRetry with a caller-supplied base Dialer (so the
 // source-address / interface binds from newDialer are applied). It overrides only
 // the per-attempt Timeout, leaving LocalAddr/Control intact across retries.
-func dialWithRetryDialer(base net.Dialer, bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
-	addr := fmt.Sprintf("%s:%d", bind, port)
+func dialWithRetryDialer(base net.Dialer, network, bind string, port, attempts int, baseTimeout time.Duration) (net.Conn, error) {
+	network, addr, err := dialTarget(network, bind, "", port)
+	if err != nil {
+		return nil, err
+	}
 	if attempts <= 0 {
 		return nil, fmt.Errorf("dial %s: attempts must be > 0, got %d", addr, attempts)
 	}
@@ -210,7 +264,7 @@ func dialWithRetryDialer(base net.Dialer, bind string, port, attempts int, baseT
 		dialer := base
 		dialer.Timeout = timeout
 		dialCtx, cancel := context.WithTimeout(context.Background(), timeout)
-		conn, err := dialer.DialContext(dialCtx, "tcp", addr)
+		conn, err := dialer.DialContext(dialCtx, network, addr)
 		cancel()
 		if err == nil {
 			return conn, nil

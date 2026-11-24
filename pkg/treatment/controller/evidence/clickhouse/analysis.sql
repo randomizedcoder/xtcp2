@@ -3,7 +3,11 @@
 -- A socket is bound when its (agent_id, host_boot_id, collection_id) is a
 -- session the agent reported at check-in; only bound sockets are measured,
 -- and unbound ones are counted so a reviewer sees spoofed or stale records.
-WITH sockets AS (
+-- peer_hex reads a dual-stack socket's ::ffff:a.b.c.d destination as the
+-- IPv4 address, as discovery.sql does, so both socket families are measured.
+WITH inet_diag_msg_family=10 AND substring(inet_diag_msg_socket_destination,1,12)=unhex('00000000000000000000FFFF') AS mapped,
+hex(if(mapped,concat(substring(inet_diag_msg_socket_destination,13,4),unhex('000000000000000000000000')),inet_diag_msg_socket_destination)) AS peer_hex,
+sockets AS (
  SELECT agent_id, host_boot_id, collection_id, netns_inode, inet_diag_msg_socket_cookie,
    min(timestamp_ns) AS first_at, max(timestamp_ns) AS last_at,
    countDistinct(timestamp_ns) AS samples,
@@ -21,7 +25,7 @@ WITH sockets AS (
    AND timestamp_ns < fromUnixTimestamp64Nano({end:Int64})
    AND location={location:String} AND agent_id IN {agents:Array(String)}
    AND inet_diag_msg_state=1
-   AND hex(inet_diag_msg_socket_destination)={destination_hex:String}
+   AND peer_hex={destination_hex:String}
  GROUP BY agent_id,host_boot_id,collection_id,netns_inode,inet_diag_msg_socket_cookie
 ), classified AS (
  SELECT *, has({sessions:Array(Tuple(String,String,String))}, (agent_id, host_boot_id, collection_id)) AS bound

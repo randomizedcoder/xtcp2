@@ -1189,6 +1189,312 @@ rec {
       '';
     };
 
+  # mkGoldenCaptureRunner — host runner for the s3parquet-golden flavor.
+  #
+  # mkNlmonCaptureRunner's shape: boot, tail both consoles, wait for
+  # GOLDEN_DONE (or GOLDEN_ERR, or --timeout), scrape the base64 block between
+  # XTCP2_GOLDEN_DUMP_START/_END. The block holds the raw Parquet object, with
+  # the guest's real addresses, so it is unpacked only into a mktemp directory
+  # (removed on exit); what reaches the tree is xtcp2-golden's scrubbed copy,
+  # its normalized JSONL and the manifest, checked with `xtcp2-golden check`.
+  # A runner and not a check, for mkNlmonCaptureRunner's reasons.
+  mkGoldenCaptureRunner =
+    {
+      arch,
+      vm,
+      goldenTool,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-golden-capture-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gawk
+        gnugrep
+        gnused
+        gnutar
+        gzip
+        netcat-gnu
+        procps
+        goldenTool
+      ];
+      text = ''
+        set -u
+
+        TIMEOUT_SEC=600
+        OUT_DIR=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)       OUT_DIR="$2"; shift 2 ;;
+            --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "  Boots the s3parquet-golden microvm, captures one poll of"
+              echo "  xtcp2's Parquet records over a fixed workload, scrubs it"
+              echo "  and writes records.parquet, records.jsonl and"
+              echo "  manifest.json."
+              echo ""
+              echo "  --out defaults to pkg/xtcp/testdata/golden/<guest kernel>,"
+              echo "  e.g. pkg/xtcp/testdata/golden/7_1_8, and must be run from"
+              echo "  the xtcp2 repo root."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        if [ ! -f flake.nix ] || [ ! -d pkg/xtcp ]; then
+          echo "capture-golden-records: run from the xtcp2 repo root" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-golden-capture-XXXX.log)
+        STAGE=$(mktemp -d -t xtcp2-golden-XXXX)
+
+        echo "================================================"
+        echo " xtcp2 microvm golden capture — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          rm -rf "$STAGE"
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        elapsed=0
+        done_seen=0
+        while [ "$elapsed" -lt "$TIMEOUT_SEC" ]; do
+          if ! kill -0 "$vm_pid" 2>/dev/null; then
+            echo "FATAL: qemu died at t=$elapsed s; tail of transcript:"
+            tail -n 40 "$LOG"
+            exit 2
+          fi
+          if grep -q 'GOLDEN_DONE' "$LOG" 2>/dev/null; then
+            done_seen=1
+            break
+          fi
+          if grep -q 'GOLDEN_ERR' "$LOG" 2>/dev/null; then
+            echo "FATAL: the guest reported:"
+            grep -E 'GOLDEN_ERR' "$LOG" || true
+            exit 2
+          fi
+          sleep 5
+          elapsed=$((elapsed + 5))
+        done
+        if [ "$done_seen" -ne 1 ]; then
+          echo "FATAL: GOLDEN_DONE not seen within $TIMEOUT_SEC s"
+          tail -n 40 "$LOG" 2>/dev/null || true
+          exit 2
+        fi
+        grep -E 'GOLDEN_WORKLOAD_READY|GOLDEN_ROWS' "$LOG" | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' || true
+
+        # Strip journal+console's `[TIME] ident[PID]: ` prefix before
+        # decoding, as mkNlmonCaptureRunner does.
+        awk '/XTCP2_GOLDEN_DUMP_START/{flag=1;next} /XTCP2_GOLDEN_DUMP_END/{flag=0} flag' "$LOG" \
+          | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' \
+          | tr -d '\r\n ' \
+          | base64 -d 2>/dev/null \
+          | gzip -dc 2>/dev/null \
+          | tar x -C "$STAGE" 2>/dev/null || true
+        for f in raw.parquet manifest.json uname; do
+          if [ ! -s "$STAGE/$f" ]; then
+            echo "FATAL: the guest's block has no $f"
+            exit 2
+          fi
+        done
+
+        if [ -z "$OUT_DIR" ]; then
+          VER=$(cut -d- -f1 "$STAGE/uname" | tr . _)
+          OUT_DIR="pkg/xtcp/testdata/golden/$VER"
+        fi
+        mkdir -p "$OUT_DIR"
+        xtcp2-golden scrub "$STAGE/raw.parquet" "$OUT_DIR/records.parquet"
+        xtcp2-golden normalize "$OUT_DIR/records.parquet" > "$OUT_DIR/records.jsonl"
+        cp -f "$STAGE/manifest.json" "$OUT_DIR/manifest.json"
+        if ! xtcp2-golden check "$OUT_DIR"; then
+          echo "FATAL: $OUT_DIR fails xtcp2-golden check"
+          exit 2
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " wrote $OUT_DIR"
+        echo "================================================"
+        ls -la "$OUT_DIR"
+        echo "Full transcript kept at: $LOG"
+        echo "PASS: golden capture complete"
+        exit 0
+      '';
+    };
+
+  # mkFamiliesRunner — host runner for the s3parquet-families flavor: boot,
+  # tail both consoles, wait for FAMILIES_DONE (or FAMILIES_ERR, or
+  # --timeout), print the guest's ROW lines and fail on any ROW ... FAIL.
+  # A runner and not a check, for mkNlmonCaptureRunner's reasons (no
+  # /dev/kvm in the sandbox).
+  mkFamiliesRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-tcp-families-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        gnugrep
+        gnused
+        netcat-gnu
+        procps
+      ];
+      text = ''
+        set -u
+
+        TIMEOUT_SEC=600
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>]"
+              echo "  Boots the s3parquet-families microvm: IPv4-only, IPv6-only"
+              echo "  and dual-stack containers plus an IPv6 named netns, and"
+              echo "  checks xtcp2's rows per address family against ss."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-tcp-families-XXXX.log)
+
+        echo "================================================"
+        echo " xtcp2 microvm tcp-families — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_serial_pid=""
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$SERIAL_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$SERIAL_PORT" >> "$LOG" 2>&1 &
+            nc_serial_pid=$!
+            break
+          fi
+          sleep 1
+        done
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
+            sleep 10
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
+            kill "$nc_serial_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        strip() { sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' | tr -d '\r'; }
+        elapsed=0
+        done_seen=0
+        while [ "$elapsed" -lt "$TIMEOUT_SEC" ]; do
+          if ! kill -0 "$vm_pid" 2>/dev/null; then
+            echo "FATAL: qemu died at t=$elapsed s; tail of transcript:"
+            tail -n 40 "$LOG"
+            exit 2
+          fi
+          if grep -q 'FAMILIES_DONE' "$LOG" 2>/dev/null; then
+            done_seen=1
+            break
+          fi
+          if grep -q 'FAMILIES_ERR' "$LOG" 2>/dev/null; then
+            echo "FATAL: the guest reported:"
+            grep -E 'FAMILIES_ERR' "$LOG" | strip || true
+            exit 2
+          fi
+          sleep 5
+          elapsed=$((elapsed + 5))
+        done
+        if [ "$done_seen" -ne 1 ]; then
+          echo "FATAL: FAMILIES_DONE not seen within $TIMEOUT_SEC s"
+          tail -n 40 "$LOG" 2>/dev/null || true
+          exit 2
+        fi
+
+        grep -E 'FAMILIES_WORKLOAD_READY|ROW |FAMILIES_RESULT' "$LOG" | strip | sort -u -k2,2 || true
+        echo "Full transcript kept at: $LOG"
+        if grep -E 'ROW [a-z0-9_]+ [a-z]+ FAIL' "$LOG" >/dev/null; then
+          echo "FAIL: tcp-families"
+          exit 1
+        fi
+        echo "PASS: tcp-families"
+        exit 0
+      '';
+    };
+
   # mkNetlinkDumpCaptureRunner — host runner for the netlink-dump-capture
   # flavor, and the one runner in this file that does not scrape a transcript.
   #

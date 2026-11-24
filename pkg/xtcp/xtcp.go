@@ -102,6 +102,13 @@ type XTCP struct {
 	setS3FlushCh chan s3FlushControl
 
 	nlRequest *[]byte
+	// nlRequest6 is the AF_INET6 dump request; nil dumps AF_INET only.
+	nlRequest6 *[]byte
+	// nextDump holds, per socket, the dump to send when the running one's
+	// NLMSG_DONE arrives: a poll dumps AF_INET, then AF_INET6, one at a
+	// time, because a send while a dump runs gets EBUSY. Poller goroutine
+	// only.
+	nextDump map[int]queuedDump
 
 	netlinkerDoneCh chan netlinkerDone
 	pollTime        sync.Map
@@ -295,6 +302,13 @@ type netNSitem struct {
 	// owner is the namespace's owner for -maxNetnsPerOwner (see
 	// nsIdentity.owner).
 	owner string
+}
+
+// queuedDump is a dump request waiting for its socket's running dump to
+// end, with the poll's sequence number to stamp on it.
+type queuedDump struct {
+	req *[]byte
+	seq uint32
 }
 
 type netlinkerDone struct {

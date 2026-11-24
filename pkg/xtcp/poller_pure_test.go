@@ -334,10 +334,12 @@ func TestReconcileThenPoll_skipsReconcileWhenDisabled(t *testing.T) {
 func TestSendNetlinkDumpRequest_errorPath(t *testing.T) {
 	x := newPollerFixture(t)
 	x.debugLevel = 11 // hit the log branch on error
-	// Bad fd → unix.Sendto returns an error; function logs + counts but
-	// does not return the error.
+	// Bad fd → unix.Sendto returns an error; the function logs, counts
+	// and returns it.
 	pkt := []byte("netlink")
-	x.sendNetlinkDumpRequest(-1, &pkt)
+	if err := x.sendNetlinkDumpRequest(-1, &pkt); err == nil {
+		t.Error("sendNetlinkDumpRequest(-1): nil error, expected the sendto failure")
+	}
 }
 
 // poll: calls sendNetlinkDumpRequest. With an invalid fd, sendNetlinkDumpRequest

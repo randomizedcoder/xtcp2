@@ -19,8 +19,8 @@ import (
 )
 
 // TestDumpTracker_byteCap pins assign's byte accounting: which packets of a
-// dump are past -maxDumpBytes, which one is the first, and that NLMSG_DONE
-// starts the next dump from zero.
+// dump are past -maxDumpBytes, which one is the first, and that the next
+// poll's dump (a new sequence number) starts from zero.
 func TestDumpTracker_byteCap(t *testing.T) {
 	done := doneMessage() // 20 bytes
 	data := func(n int) []byte { return make([]byte, n) }
@@ -75,11 +75,11 @@ func TestDumpTracker_byteCap(t *testing.T) {
 		},
 		{
 			name: "reset_next_dump", category: "C",
-			description: "NLMSG_DONE in a dropped packet still ends the dump; the next one starts at 0 bytes",
+			description: "NLMSG_DONE in a dropped packet still ends the dump; the next poll's dump starts at 0 bytes",
 			maxBytes:    150,
 			packets: []pkt{
 				{b: data(100)}, {b: data(100), drop: true, first: true}, {b: done, drop: true},
-				{b: data(100)}, {b: done}, // 120 bytes: under the cap
+				{b: withSeq(data(100), 1)}, {b: withSeq(done, 1)}, // 120 bytes: under the cap
 			},
 		},
 	}
@@ -130,6 +130,7 @@ func TestDumpTracker_recordCap(t *testing.T) {
 	type pkt struct {
 		k, keep, dropped int
 		done, drop, cut  bool
+		seq              uint32 // the poll the packet belongs to
 	}
 	tests := []struct {
 		name        string
@@ -149,8 +150,8 @@ func TestDumpTracker_recordCap(t *testing.T) {
 			maxRecords: 100, packets: []pkt{{k: 60}, {k: 60, keep: 40, dropped: 20, cut: true}, {k: 60, dropped: 60, drop: true}, {k: 0, done: true, drop: true}}},
 		{name: "exact_then_more", category: "B", description: "a dump exactly at the cap drains the next record packet whole",
 			maxRecords: 60, packets: []pkt{{k: 60}, {k: 1, dropped: 1, drop: true, cut: true}, {k: 0, done: true, drop: true}}},
-		{name: "cap_reset_next_dump", category: "C", description: "NLMSG_DONE resets the budget",
-			maxRecords: 50, packets: []pkt{{k: 60, keep: 50, dropped: 10, cut: true, done: true}, {k: 50, done: true}}},
+		{name: "cap_reset_next_dump", category: "C", description: "the next poll's dump (a new sequence number) has a fresh budget",
+			maxRecords: 50, packets: []pkt{{k: 60, keep: 50, dropped: 10, cut: true, done: true}, {k: 50, done: true, seq: 1}}},
 		{name: "bytes_cap_first", category: "C", description: "a packet past the byte cap is drained and not counted against the record cap",
 			maxRecords: 50, maxBytes: 16 * 40,
 			packets: []pkt{{k: 40}, {k: 40, drop: true}, {k: 0, done: true, drop: true}}},
@@ -159,7 +160,7 @@ func TestDumpTracker_recordCap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tr := newDumpTracker(tc.maxBytes, tc.maxRecords)
 			for i, p := range tc.packets {
-				a := tr.assign(diagPacket(p.k, p.done))
+				a := tr.assign(withSeq(diagPacket(p.k, p.done), p.seq))
 				if a.keep != p.keep || a.recordsDropped != p.dropped || a.drop != p.drop || a.recordsCut != p.cut {
 					t.Errorf("%s: packet %d: keep=%d dropped=%d drop=%v cut=%v, expected keep=%d dropped=%d drop=%v cut=%v",
 						tc.description, i, a.keep, a.recordsDropped, a.drop, a.recordsCut, p.keep, p.dropped, p.drop, p.cut)
@@ -214,7 +215,7 @@ func TestNetlinkerDump_caps(t *testing.T) {
 			netlinkers: 2, dumps: 1, maxRecords: uint64(all - 1), expectedRows: all - 1, expectedRecs: 1},
 		{name: "records_cap_parallel", category: "C", description: "four decoders share the cap exactly",
 			netlinkers: 4, dumps: 1, maxRecords: 100, expectedRows: 100, expectedRecs: 1},
-		{name: "cap_reset_next_dump", category: "C", description: "each dump is capped afresh",
+		{name: "cap_reset_next_dump", category: "C", description: "each poll's dump (its own sequence number) is capped afresh",
 			netlinkers: 2, dumps: 3, maxBytes: pktBytes, maxRecords: 30, expectedRows: 30, expectedBytes: 3, expectedRecs: 3},
 	}
 	for _, variant := range dumpVariants {
@@ -228,7 +229,11 @@ func TestNetlinkerDump_caps(t *testing.T) {
 
 				for i := range tc.dumps {
 					h.startDump()
-					h.send(t, pkts...)
+					poll := make([][]byte, 0, len(pkts))
+					for _, p := range pkts {
+						poll = append(poll, withSeq(p, uint32(i)))
+					}
+					h.send(t, poll...)
 					if !h.waitDone(dumpDoneTimeout) {
 						t.Fatalf("%s: dump %d: no done signal", tc.description, i)
 					}

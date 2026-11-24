@@ -117,6 +117,9 @@ let
     ipmetaBootstrapTool = binaries.ipmeta-bootstrap;
     xtcp2CoverPackage = binaries.xtcp2-cover;
     tcpStressImage = containers.oci-xtcp2-tcp-stress;
+    # The production flavor, so the golden capture records what the fleet runs.
+    goldenXtcp2Package = binaries.xtcp2-s3parquet-enrich;
+    goldenTool = binaries.xtcp2-golden;
     inherit rdmaCaptureManifest;
   };
 
@@ -1076,6 +1079,7 @@ in
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
+      microvm-x86_64-tcp-families = microvms.vmsS3ParquetFamilies.x86_64;
       microvm-x86_64-interface-naming = microvms.vmsInterfaceNaming.x86_64;
       microvm-x86_64-ipmeta-bootstrap = microvms.vmsIpmetaBootstrap.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
@@ -1245,6 +1249,30 @@ in
       # again whenever the source changes; `nix run .#fuzz-all` for longer.
       test-fuzz-all = fuzzAll.check;
 
+      # The committed golden capture (pkg/xtcp/testdata/golden/<kernel>/):
+      # records.jsonl is records.parquet normalized, the Parquet file is
+      # scrubbed and has ParquetRow's columns, and the manifest counts its
+      # rows. Recapture with `nix run .#capture-golden-records`.
+      golden-records =
+        pkgs.runCommand "xtcp2-golden-records-check"
+          {
+            nativeBuildInputs = [ binaries.xtcp2-golden ];
+            fixtures = ../pkg/xtcp/testdata/golden;
+          }
+          ''
+            n=0
+            for dir in "$fixtures"/*/; do
+              echo "checking $dir"
+              xtcp2-golden check "$dir"
+              n=$((n + 1))
+            done
+            if [ "$n" -eq 0 ]; then
+              echo "no golden fixture under pkg/xtcp/testdata/golden" >&2
+              exit 1
+            fi
+            echo "$n fixture(s) ok" > "$out"
+          '';
+
       # The ASN bootstrap wiring (one-prefix fixture) and the real checked-in
       # snapshot, loaded and looked up, and found byte-identical in the image
       # the fleet runs. A refresh by update-ipmeta-bootstrap-lock that drops a
@@ -1288,6 +1316,20 @@ in
     regen-protos = {
       type = "app";
       program = "${protos.regenerate}/bin/regen-protos";
+    };
+    # One poll of the production binary over a fixed workload in a microVM,
+    # scrubbed into pkg/xtcp/testdata/golden/<guest kernel>/. Run from the
+    # repo root; needs /dev/kvm. See nix/README.md, "Golden records".
+    capture-golden-records = {
+      type = "app";
+      program = "${microvms.goldenCapture.x86_64.runner}/bin/xtcp2-golden-capture-x86_64";
+    };
+    # Sockets of each address family (IPv4-only, IPv6-only, dual-stack
+    # containers and an IPv6 named netns) in a microVM: xtcp2's rows per
+    # family must match ss -4 / ss -6. Needs /dev/kvm.
+    microvm-x86_64-tcp-families = {
+      type = "app";
+      program = "${microvms.tcpFamilies.x86_64.runner}/bin/xtcp2-tcp-families-x86_64";
     };
     capture-netlink-fixtures = {
       type = "app";

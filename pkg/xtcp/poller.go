@@ -187,7 +187,7 @@ func (x *XTCP) flushEnvelope(ctx context.Context, reason string) {
 	}
 
 	for _, r := range e.Row {
-		r.Reset()
+		recycleRecord(r)
 		x.xtcpRecordPool.Put(r)
 	}
 	x.EnvelopeZero(e)
@@ -312,8 +312,21 @@ func computePollInterval(freq time.Duration, pct uint32, jitter func(time.Durati
 // handleNetlinkerDone reacts to a per-fd "I'm done draining" signal
 // from a Netlinker. Bumps the histogram via observeNetlinkerDone and
 // returns count-1; caller assigns into its own count variable.
+//
+// A socket with a dump queued (the AF_INET6 dump after the AF_INET one) is
+// sent it here and stays counted: count is the namespaces still dumping, so
+// poll_end waits for each namespace's last dump. If that send fails the
+// namespace is done.
 func (x *XTCP) handleNetlinkerDone(d netlinkerDone, count int) int {
 	x.observeNetlinkerDone(d, count)
+	if next, ok := x.nextDump[d.fd]; ok {
+		delete(x.nextDump, d.fd)
+		binary.LittleEndian.PutUint32((*next.req)[8:12], next.seq)
+		x.pC.WithLabelValues("Poller", "dumpInet6", "count").Inc()
+		if x.sendNetlinkDumpRequest(d.fd, next.req) == nil {
+			return count
+		}
+	}
 	count--
 	if x.debugLevel > 1000 {
 		log.Printf("Poller <-x.netlinkerDoneCh, count:%d", count)
@@ -326,6 +339,7 @@ func (x *XTCP) handleNetlinkerDone(d netlinkerDone, count int) int {
 // whether netlinkers reported done.
 func (x *XTCP) handlePollTimeout() int {
 	x.pC.WithLabelValues("Poller", "PollTimeout", "count").Inc()
+	clear(x.nextDump)
 	if x.debugLevel > 10 {
 		log.Println("Poller <-time.After(*x.config.PollTimeout)")
 	}
@@ -431,11 +445,19 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 	x.pollStartTime = startTime
 	x.envelopeMu.Unlock()
 
+	// A poll that timed out may have left dumps queued.
+	if x.nextDump == nil {
+		x.nextDump = make(map[int]queuedDump)
+	}
+	clear(x.nextDump)
+	seq := x.config.NlmsgSeq + uint32(pollingLoops)
+
 	if x.gateEnabled() {
 		polled := 0
 		for _, s := range x.planGatedPoll() {
 			x.setRequestSeq(s.req, pollingLoops)
 			x.pollWith(s.fd, s.req)
+			x.queueDump(s.fd, s.req6, seq)
 			polled++
 		}
 		x.pollTimeoutTimer.Reset(x.config.PollTimeout.AsDuration())
@@ -455,6 +477,7 @@ func (x *XTCP) pollAllNetlinkSockets(pollingLoops uint64) (count int) {
 			continue
 		}
 		x.poll(socketFD)
+		x.queueDump(socketFD, x.nlRequest6, seq)
 		polled++
 		if x.debugLevel > 10 {
 			log.Printf("pollAllNetlinkSockets Poll i:%d fd:%d", i, socketFD)
@@ -474,6 +497,16 @@ func (x *XTCP) updateNetlinkRequestSequenceNumber(pollingLoops uint64) {
 	binary.LittleEndian.PutUint32((*x.nlRequest)[8:12], x.config.NlmsgSeq+uint32(pollingLoops))
 }
 
+// queueDump queues req (nil: nothing) to be sent on fd once its running
+// dump ends; handleNetlinkerDone sends it. Both of a poll's dumps carry its
+// sequence number, which is how the receiver knows the second one is the
+// same poll (see dumpTracker).
+func (x *XTCP) queueDump(fd int, req *[]byte, seq uint32) {
+	if req != nil {
+		x.nextDump[fd] = queuedDump{req: req, seq: seq}
+	}
+}
+
 func (x *XTCP) poll(fd int) {
 	x.pollWith(fd, x.nlRequest)
 }
@@ -485,7 +518,11 @@ func (x *XTCP) pollWith(fd int, req *[]byte) {
 
 	x.pollTime.Store(fd, startTime)
 
-	x.sendNetlinkDumpRequest(fd, req)
+	// A failed send is counted inside; the poll timeout ends a namespace
+	// that never answers.
+	if err := x.sendNetlinkDumpRequest(fd, req); err != nil && x.debugLevel > 10 {
+		log.Printf("pollWith fd:%d send err:%v", fd, err)
+	}
 	// x.SendNetlinkDumpRequestPtr(x.socketFD, x.socketAddress, x.nlRequest)
 	// x.SendNetlinkDumpRequestPtrIOUring(x.socketFD, x.nlRequest)
 
@@ -501,7 +538,7 @@ var sendDumpRequest = func(fd int, b []byte) error {
 	return unix.Sendto(fd, b, 0, &unix.SockaddrNetlink{Family: syscall.AF_NETLINK})
 }
 
-func (x *XTCP) sendNetlinkDumpRequest(fd int, packetBytes *[]byte) {
+func (x *XTCP) sendNetlinkDumpRequest(fd int, packetBytes *[]byte) error {
 	// Send the netlink dump request
 	// https://godoc.org/golang.org/x/sys/unix#Sendto
 	err := sendDumpRequest(fd, *packetBytes)
@@ -511,6 +548,7 @@ func (x *XTCP) sendNetlinkDumpRequest(fd int, packetBytes *[]byte) {
 			log.Printf("unix.Sendto:%s", err)
 		}
 	}
+	return err
 }
 
 // func (x *XTCP) SendNetlinkDumpRequestPtrIOUring(

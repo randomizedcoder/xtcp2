@@ -374,10 +374,10 @@ func TestCheckFDLimit(t *testing.T) {
 		expectedNeed uint64 // 0: no warning
 	}{
 		{name: "enough", category: "P", description: "1M fds cover 4096 namespaces with the gate", maxNetns: 4096, gate: true, soft: 1 << 20},
-		{name: "low_gate", category: "N", description: "1024 fds, 4096 namespaces x 4 (socket, origNs, sockstat, port range) + 256", maxNetns: 4096, gate: true, soft: 1024, expectedNeed: 16640},
+		{name: "low_gate", category: "N", description: "1024 fds, 4096 namespaces x 5 (socket, origNs, sockstat, sockstat6, port range) + 256", maxNetns: 4096, gate: true, soft: 1024, expectedNeed: 20736},
 		{name: "low_no_gate", category: "N", description: "gate off: socket and origNs per namespace", maxNetns: 4096, soft: 1024, expectedNeed: 8448},
-		{name: "exact", category: "B", description: "soft limit exactly the need", maxNetns: 100, gate: true, soft: 656},
-		{name: "one_short", category: "B", description: "one below the need", maxNetns: 100, gate: true, soft: 655, expectedNeed: 656},
+		{name: "exact", category: "B", description: "soft limit exactly the need", maxNetns: 100, gate: true, soft: 756},
+		{name: "one_short", category: "B", description: "one below the need", maxNetns: 100, gate: true, soft: 755, expectedNeed: 756},
 		{name: "netns_cap_off", category: "C", description: "-maxNetns 0: unbounded, nothing to check", soft: 16},
 	}
 	for _, tc := range tests {

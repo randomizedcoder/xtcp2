@@ -191,9 +191,11 @@ type dumpPacket struct {
 
 // dumpTracker is a receiver's position in the current dump. Only the
 // receiver goroutine uses it, so the caps cost no atomics. maxBytes and
-// maxRecords are -maxDumpBytes and -maxRecordsPerNetns, 0 for no cap. One
-// socket per namespace and one dump per poll make a dump the namespace's
-// share of a poll.
+// maxRecords are -maxDumpBytes and -maxRecordsPerNetns, 0 for no cap, and
+// they are the namespace's share of a poll: one socket per namespace, and a
+// poll's dumps (AF_INET, then AF_INET6) carry the poll's sequence number,
+// which the kernel copies into every reply. So bytes and records restart
+// when a dump starts with a new sequence number, not at every NLMSG_DONE.
 type dumpTracker struct {
 	dump       *dumpState
 	packets    uint64
@@ -201,6 +203,8 @@ type dumpTracker struct {
 	records    uint64
 	maxBytes   uint64
 	maxRecords uint64
+	seq        uint32 // the sequence number bytes and records count for
+	seqSet     bool
 }
 
 func newDumpTracker(maxBytes, maxRecords uint64) *dumpTracker {
@@ -235,6 +239,11 @@ type assignment struct {
 // and a drained packet is still numbered, so NLMSG_DONE still ends the dump
 // and the done signal is unaffected.
 func (t *dumpTracker) assign(b []byte) assignment {
+	if t.packets == 0 && len(b) >= xtcpnl.NlMsgHdrSizeCst {
+		if seq := binary.LittleEndian.Uint32(b[8:12]); !t.seqSet || seq != t.seq {
+			t.seq, t.seqSet, t.bytes, t.records = seq, true, 0, 0
+		}
+	}
 	t.packets++
 	done, recs := packetScan(b)
 	a := assignment{dump: t.dump}
@@ -264,7 +273,7 @@ func (t *dumpTracker) assign(b []byte) assignment {
 	}
 	if done {
 		a.dump.total.Store(t.packets)
-		t.dump, t.packets, t.bytes, t.records = new(dumpState), 0, 0, 0
+		t.dump, t.packets = new(dumpState), 0
 	}
 	return a
 }

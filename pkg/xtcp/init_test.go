@@ -1,12 +1,17 @@
 package xtcp
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"syscall"
 	"testing"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -519,5 +524,119 @@ func TestInitDests_factoryErr(t *testing.T) {
 	wg.Wait()
 	if !fatalfHit {
 		t.Error("InitDests should have called fatalf for factory error")
+	}
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// createNetLinkRequests — one dump request per address family.
+// ───────────────────────────────────────────────────────────────────────
+
+// dumpRequestFields is what TestCreateNetLinkRequests reads back from one
+// serialized request: nlmsghdr seq, then inet_diag_req_v2's family,
+// protocol, ext and states (offsets 16, 17, 18 and 20).
+type dumpRequestFields struct {
+	seq      uint32
+	family   uint8
+	protocol uint8
+	ext      uint8
+	states   uint32
+}
+
+// wireStatesAll is idiag_states as the kernel reads it (little endian):
+// every TCP state, bits 0-13. SerializeNetlinkDiagRequest writes
+// idiagStatesAll big endian, which lands as 0x3fff.
+const wireStatesAll = 0x3fff
+
+func readDumpRequest(b []byte) dumpRequestFields {
+	return dumpRequestFields{
+		seq:      binary.LittleEndian.Uint32(b[8:12]),
+		family:   b[16],
+		protocol: b[17],
+		ext:      b[18],
+		states:   binary.LittleEndian.Uint32(b[20:24]),
+	}
+}
+
+// TestCreateNetLinkRequests pins the requests a poll sends each namespace:
+// one AF_INET and one AF_INET6, identical apart from the family byte.
+// Before the AF_INET6 dump existed, inet6_request and families_exact
+// failed: there was one request.
+func TestCreateNetLinkRequests(t *testing.T) {
+	defaultExt := IDiagExtFromEnabled(enabledFromKeys(GetDefaultDeserializers()...))
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		seq         uint32
+		enabled     map[string]bool
+		family      uint8 // compare only this family's requests; 0 for all
+		expected    []dumpRequestFields
+	}{
+		{
+			name: "inet_request", category: "positive",
+			description: "the AF_INET request is well formed",
+			seq:         1, enabled: enabledFromKeys(GetDefaultDeserializers()...), family: unix.AF_INET,
+			expected: []dumpRequestFields{
+				{seq: 1, family: unix.AF_INET, protocol: unix.IPPROTO_TCP, ext: defaultExt, states: wireStatesAll},
+			},
+		},
+		{
+			name: "inet6_request", category: "positive",
+			description: "the AF_INET6 request is well formed: every byte but the family equals the AF_INET request",
+			seq:         7, enabled: enabledFromKeys(GetAllDeserializers()...), family: unix.AF_INET6,
+			expected: []dumpRequestFields{
+				{seq: 7, family: unix.AF_INET6, protocol: unix.IPPROTO_TCP, ext: 255, states: wireStatesAll},
+			},
+		},
+		{
+			name: "families_exact", category: "negative",
+			description: "no AF_UNSPEC or stray family: exactly AF_INET then AF_INET6",
+			seq:         1, enabled: enabledFromKeys(GetDefaultDeserializers()...),
+			expected: []dumpRequestFields{
+				{seq: 1, family: unix.AF_INET, protocol: unix.IPPROTO_TCP, ext: defaultExt, states: wireStatesAll},
+				{seq: 1, family: unix.AF_INET6, protocol: unix.IPPROTO_TCP, ext: defaultExt, states: wireStatesAll},
+			},
+		},
+		{
+			name: "seq_max", category: "boundary",
+			description: "the sequence number at its top is carried by both requests",
+			seq:         0xffffffff, enabled: enabledFromKeys(GetDefaultDeserializers()...),
+			expected: []dumpRequestFields{
+				{seq: 0xffffffff, family: unix.AF_INET, protocol: unix.IPPROTO_TCP, ext: defaultExt, states: wireStatesAll},
+				{seq: 0xffffffff, family: unix.AF_INET6, protocol: unix.IPPROTO_TCP, ext: defaultExt, states: wireStatesAll},
+			},
+		},
+		{
+			name: "ext_zero", category: "corner",
+			description: "no optional attributes requested: ext 0, both requests still built",
+			seq:         1, enabled: map[string]bool{},
+			expected: []dumpRequestFields{
+				{seq: 1, family: unix.AF_INET, protocol: unix.IPPROTO_TCP, ext: 0, states: wireStatesAll},
+				{seq: 1, family: unix.AF_INET6, protocol: unix.IPPROTO_TCP, ext: 0, states: wireStatesAll},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			x := newTestRequestXTCP(tc.enabled)
+			x.config.NlmsgSeq = tc.seq
+			reqs := x.createNetLinkRequests()
+			got := make([]dumpRequestFields, 0, len(reqs))
+			for _, r := range reqs {
+				if f := readDumpRequest(*r); tc.family == 0 || f.family == tc.family {
+					got = append(got, f)
+				}
+			}
+			if !slices.Equal(got, tc.expected) {
+				t.Fatalf("%s (%s): %s\n got      %+v\n expected %+v", tc.name, tc.category, tc.description, got, tc.expected)
+			}
+			for i := 1; i < len(reqs); i++ {
+				a, b := slices.Clone(*reqs[0]), *reqs[i]
+				a[16] = b[16]
+				if !bytes.Equal(a, b) {
+					t.Errorf("%s (%s): request %d differs from request 0 beyond the family byte", tc.name, tc.category, i)
+				}
+			}
+		})
 	}
 }

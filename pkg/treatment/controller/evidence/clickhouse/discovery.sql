@@ -3,10 +3,17 @@
 -- the pooled retransmission ratio, best traffic first. A row is a hypothesis
 -- input; the controller still filters by template scope and the operator
 -- still reviews every proposal.
-WITH sockets AS (
+--
+-- A dual-stack (AF_INET6) socket reports an IPv4 peer as ::ffff:a.b.c.d;
+-- such a row is read as AF_INET with the IPv4 address in the first four
+-- bytes (peer_hex), so the peer is one destination whichever socket family
+-- saw it. analysis.sql matches the candidate on the same peer_hex.
+WITH inet_diag_msg_family=10 AND substring(inet_diag_msg_socket_destination,1,12)=unhex('00000000000000000000FFFF') AS mapped,
+hex(if(mapped,concat(substring(inet_diag_msg_socket_destination,13,4),unhex('000000000000000000000000')),inet_diag_msg_socket_destination)) AS peer_hex,
+sockets AS (
  SELECT agent_id,host_boot_id,netns_inode,inet_diag_msg_socket_cookie,
- any(hex(inet_diag_msg_socket_destination)) AS destination_hex,
- any(inet_diag_msg_family) AS family,
+ any(peer_hex) AS destination_hex,
+ any(if(mapped,2,inet_diag_msg_family)) AS family,
  argMax(enrich_socket_dest_asn,timestamp_ns) AS asn,
  min(tcp_info_min_rtt)/1000 AS min_rtt_ms,
  max(tcp_info_bytes_sent)-min(tcp_info_bytes_sent) AS sent,

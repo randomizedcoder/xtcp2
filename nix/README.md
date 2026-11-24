@@ -32,6 +32,7 @@ The flake currently exports `x86_64-linux` only. See
 - [Fuzzing](#fuzzing)
 - [Nix integration testing](#nix-integration-testing)
 - [Netlink and RDMA fixture collection](#netlink-and-rdma-fixture-collection)
+- [Golden records](#golden-records)
 - [Link-monitor verification](#link-monitor-verification)
 - [Monitor performance measurements](#monitor-performance-measurements)
 - [Guest tests as checks](#guest-tests-as-checks)
@@ -312,6 +313,24 @@ check preserves `summary.txt`, `serial.log`, and `qemu.log`. Coverage runners
 extract into `XTCP2_COVERDIR` (default `/tmp/xtcp2cov`); choose separate directories
 for separate runs before using `coverage-merge`.
 
+### Socket families
+
+`nix run .#microvm-x86_64-tcp-families` checks that xtcp2 records both IPv4 and IPv6 sockets. It runs the `s3parquet` flavor over this workload:
+
+- `fam-v4`: a `tcp4` pair on `127.0.0.1`.
+- `fam-v6`: a `tcp6` pair on `::1`.
+- `fam-dual`: a dual-stack `0.0.0.0` listener with IPv4 clients, so the accepted sockets are `AF_INET6` with `::ffff:127.0.0.1` peers.
+- A named netns `fam-ns`, holding a `tcp6` pair.
+
+After xtcp2's second poll, the guest compares each namespace's rows per family against `ss -4` / `ss -6`. It prints one `ROW <name> <category> PASS|FAIL <detail>` line per check:
+
+- the per-family counts;
+- a family that doesn't match the address;
+- exactly two `poll_end` flushes and no `poll_timeout`;
+- the host namespace.
+
+The runner fails if any row fails.
+
 ### Monitor and goip guests
 
 Each pair below offers a fresh runnable package and a cached check. See
@@ -421,6 +440,30 @@ Add `--promote` only when ready to copy fixtures into the checkout. See
 [goip coverage](../docs/netlink/coverage-status.md), and
 [RDMA implementation status](../cmd/go-link-monitor/GO-NATIVE-RDMA-STATUS.md)
 for evidence requirements and coverage limits.
+
+## Golden records
+
+A golden capture is one poll of the production binary
+(`xtcp2-s3parquet-enrich`) as Parquet, scrubbed so it can be committed. Later
+changes diff against it: FP-9 (no `CAP_NET_ADMIN`) and FP-12 (broker versus
+direct `container_*` columns).
+
+- `nix run .#capture-golden-records` boots the `s3parquet-golden` microVM.
+  - The workload: containers `golden-1` to `golden-3` (4 loopback connections each), a named netns `golden-ns`, and the host.
+  - The runner keeps xtcp2's second poll, uploaded as its own object. The first poll is immediate and can miss a namespace whose netlink socket is still opening.
+  - Each container's rows must match `ss -Htan` (both families). Its Go listeners on `0.0.0.0` are dual-stack (`AF_INET6`), as are the connections they accept, whose IPv4 peers read `::ffff:a.b.c.d`.
+  - The runner scrubs it into `pkg/xtcp/testdata/golden/<guest kernel>/`: `records.parquet`, `records.jsonl` (normalized, for review) and `manifest.json`.
+  - The raw object stays in a temporary directory. Run from the repo root; `--out DIR`, `--timeout SECONDS`.
+- `checks.golden-records` checks each fixture: the JSONL matches the Parquet file, every address is documentation, loopback or unspecified, the hostname is a placeholder, and the manifest's row count is right.
+- `nix build .#xtcp2-golden` builds the tool:
+  - `xtcp2-golden diff [-columns RE] GOLDEN CANDIDATE` exits 0 when equal, 1 on differences (at most 50 printed), and 2 on error.
+  - `scrub`, `normalize` and `check` are the runner's steps.
+- Run-to-run noise doesn't count as a difference:
+  - timestamps, cookies, inodes and ephemeral ports;
+  - RTTs and counters, which compare only as zero or nonzero;
+  - addresses, which compare only by kind (a v4-mapped `::ffff:a.b.c.d` takes its IPv4 address's documentation number, written `::ffff:192.0.2.N`);
+  - namespace names that change per run: `netns:[inode]` and Docker's 12-hex sandbox names compare only by kind.
+- Column classes are in `pkg/goldenrec/classes.go`. Recapture after a schema change: a new `ParquetRow` column fails `TestGoldenClassesComplete` until it is classified, and `check` rejects the old fixture as schema drift.
 
 ## Link-monitor verification
 

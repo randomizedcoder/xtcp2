@@ -244,7 +244,7 @@ func (h *dumpHarness) takeEnvelope() *xtcp_flat_record.Envelope {
 // recycle returns an envelope's rows to the record pool.
 func (h *dumpHarness) recycle(e *xtcp_flat_record.Envelope) {
 	for _, r := range e.Row {
-		r.Reset()
+		recycleRecord(r)
 		h.x.xtcpRecordPool.Put(r)
 	}
 }

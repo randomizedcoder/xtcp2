@@ -218,22 +218,31 @@ func (c *Client) Candidates(ctx context.Context, q evidence.CandidateQuery) ([]e
 		if e != nil {
 			return nil, e
 		}
-		raw, e := hex.DecodeString(row.DestinationHex)
+		c, e := decodeCandidate(row)
 		if e != nil {
-			return nil, fmt.Errorf("candidate destination %q: %w", row.DestinationHex, e)
+			return nil, e
 		}
-		if row.Family == 2 && len(raw) >= 4 {
-			raw = raw[:4]
-		}
-		ip, ok := netip.AddrFromSlice(raw)
-		if !ok {
-			return nil, fmt.Errorf("candidate destination %q: not an address for family %d", row.DestinationHex, row.Family)
-		}
-		for _, id := range row.Agents {
-			if !treatment.ValidID(id) {
-				return nil, fmt.Errorf("candidate %s: invalid agent id %q", ip, id)
-			}
-		}
-		out = append(out, evidence.Candidate{Destination: netip.PrefixFrom(ip, ip.BitLen()), ASN: row.ASN, Agents: row.Agents, RTTMs: row.RTT, RetransmissionRatio: row.Retransmission})
+		out = append(out, c)
 	}
+}
+
+// decodeCandidate turns one discovery row into a candidate.
+func decodeCandidate(row candidateRow) (evidence.Candidate, error) {
+	raw, e := hex.DecodeString(row.DestinationHex)
+	if e != nil {
+		return evidence.Candidate{}, fmt.Errorf("candidate destination %q: %w", row.DestinationHex, e)
+	}
+	if row.Family == 2 && len(raw) >= 4 {
+		raw = raw[:4]
+	}
+	ip, ok := netip.AddrFromSlice(raw)
+	if !ok {
+		return evidence.Candidate{}, fmt.Errorf("candidate destination %q: not an address for family %d", row.DestinationHex, row.Family)
+	}
+	for _, id := range row.Agents {
+		if !treatment.ValidID(id) {
+			return evidence.Candidate{}, fmt.Errorf("candidate %s: invalid agent id %q", ip, id)
+		}
+	}
+	return evidence.Candidate{Destination: netip.PrefixFrom(ip, ip.BitLen()), ASN: row.ASN, Agents: row.Agents, RTTMs: row.RTT, RetransmissionRatio: row.Retransmission}, nil
 }

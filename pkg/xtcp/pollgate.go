@@ -14,10 +14,11 @@ type pollGate struct {
 	reader  sockstatReader
 	planner pollPlanner
 	reqs    *pollRequests
+	reqs6   *pollRequests // nil: AF_INET only
 
 	pairs   []nsPollFDs
 	ready   []nsPollFDs
-	statFDs []int
+	statFDs []int // each ready namespace's sockstat, then its sockstat6
 	counts  []sockstatCount
 	sendTo  []nsSend
 
@@ -30,10 +31,12 @@ type pollGate struct {
 	polls uint64
 }
 
-// nsSend is one namespace's socket and the request planned for it.
+// nsSend is one namespace's socket and the requests planned for it: req,
+// and req6, its AF_INET6 twin (nil: AF_INET only), sent after req's dump.
 type nsSend struct {
-	fd  int
-	req *[]byte
+	fd   int
+	req  *[]byte
+	req6 *[]byte
 }
 
 // newSockstatRingReader is the seam tests swap to make ring setup fail.
@@ -43,11 +46,11 @@ var newSockstatRingReader = func(batch, workers uint32) (sockstatReader, error) 
 
 // fdsPerNetns is what one tracked namespace holds open for its life: its
 // netlink socket and the origNs snapshot its goroutine restores on exit
-// (netNamespaceInstance), plus its sockstat and ip_local_port_range fds
-// with the gate on.
+// (netNamespaceInstance), plus its sockstat, sockstat6 and
+// ip_local_port_range fds with the gate on.
 func fdsPerNetns(gate bool) uint64 {
 	if gate {
-		return 4
+		return 5
 	}
 	return 2
 }
@@ -95,6 +98,9 @@ func (x *XTCP) gateEnabled() bool {
 // set up (counted).
 func (x *XTCP) newPollGate() *pollGate {
 	g := &pollGate{reqs: newPollRequests(x.nlRequest), rangeBuf: make([]byte, portRangeBufSize)}
+	if x.nlRequest6 != nil {
+		g.reqs6 = newPollRequests(x.nlRequest6)
+	}
 	if x.config.GetIoUring() {
 		r, err := newSockstatRingReader(x.config.GetIoUringSockstatBatchSize(), x.config.GetIoUringSockstatWorkers())
 		if err == nil {
@@ -134,6 +140,11 @@ func (x *XTCP) planGatedPoll() []nsSend {
 		g.ready = append(g.ready, p)
 		g.statFDs = append(g.statFDs, p.stat.acquire())
 	}
+	// The sockstat6 fds follow, read in the same batch; held under the
+	// same read locks.
+	for _, p := range g.ready {
+		g.statFDs = append(g.statFDs, p.stat.sockstat6FD())
+	}
 	// Hold every handle's read lock until planning is done (sockstat and,
 	// for sampled namespaces, port-range reads), so a
 	// namespace torn down meanwhile can't close (and the kernel reuse) an
@@ -143,10 +154,10 @@ func (x *XTCP) planGatedPoll() []nsSend {
 			p.stat.release()
 		}
 	}()
-	if cap(g.counts) < len(g.ready) {
-		g.counts = make([]sockstatCount, len(g.ready))
+	if cap(g.counts) < len(g.statFDs) {
+		g.counts = make([]sockstatCount, len(g.statFDs))
 	}
-	g.counts = g.counts[:len(g.ready)]
+	g.counts = g.counts[:len(g.statFDs)]
 
 	failed, err := g.reader.read(g.statFDs, g.counts)
 	if err != nil {
@@ -162,6 +173,8 @@ func (x *XTCP) planGatedPoll() []nsSend {
 	if failed > 0 {
 		x.pC.WithLabelValues("poller", "sockstat", "error").Add(float64(failed))
 	}
+
+	g.counts = addSockstat6(g.counts, g.statFDs[len(g.ready):])
 
 	plans := g.planner.plan(g.counts, x.config.GetMaxRecordsPerPoll(), x.config.GetMaxRecordsPerNetns(), g.polls)
 	g.polls++
@@ -198,10 +211,44 @@ func (x *XTCP) planGatedPoll() []nsSend {
 		case pollSample:
 			sample++
 		}
-		g.sendTo = append(g.sendTo, nsSend{fd: g.ready[i].socketFD, req: req})
+		g.sendTo = append(g.sendTo, nsSend{fd: g.ready[i].socketFD, req: req, req6: g.request6(pl, pr)})
 	}
 	x.recordGate(total, unknown, states, sample)
 	return g.sendTo
+}
+
+// addSockstat6 folds counts' second half, each namespace's sockstat6, into
+// its first half and returns the first half. fds6 are the sockstat6 fds: one
+// never opened (no IPv6) adds nothing; one that couldn't be read leaves the
+// namespace's count unknown, as a failed sockstat read does.
+func addSockstat6(counts []sockstatCount, fds6 []int) []sockstatCount {
+	n := len(fds6)
+	for i, fd := range fds6 {
+		c6 := counts[n+i]
+		switch {
+		case fd <= 0:
+		case c6.known:
+			counts[i].inuse += c6.inuse
+		default:
+			counts[i].known = false
+		}
+	}
+	return counts[:n]
+}
+
+// request6 is the AF_INET6 request at pl's level, nil when there is no
+// AF_INET6 dump. Its shard request is built like the AF_INET one (the
+// bytecode matches ports only), so it can't fail where that one didn't;
+// if it does, the full request is sent, bounded by the receiver caps.
+func (g *pollGate) request6(pl nsPlan, pr portRange) *[]byte {
+	if g.reqs6 == nil {
+		return nil
+	}
+	req, err := g.reqs6.get(pl, pr)
+	if err != nil {
+		return g.reqs6.full
+	}
+	return req
 }
 
 // recordGate publishes one gated poll's counts and logs a poll that

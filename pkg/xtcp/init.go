@@ -86,8 +86,7 @@ func (x *XTCP) Init(ctx context.Context) {
 	// x.InitIOURing()
 
 	// x.socketFD = xtcpnl.OpenNetlinkSocketWithTimeout(*x.config.NLTimeout)
-	wg.Add(1)
-	x.nlRequest = x.CreateNetLinkRequest(wg)
+	x.initNetlinkRequests()
 
 	x.initHostname()
 	x.initContainerResolver()
@@ -240,38 +239,60 @@ func (x *XTCP) initNsDiscovery(nameDirs []string) {
 	x.nsScanner.SkipPid(os.Getpid())
 }
 
-// CreateNetLinkRequest builds the netlink request
-// TODO this currently only creates IPv4 version
+// dumpFamilies are the address families each poll dumps, in the order
+// they are sent to a namespace's socket.
+var dumpFamilies = []uint8{unix.AF_INET, unix.AF_INET6}
+
+// createNetLinkRequests builds one SOCK_DIAG_BY_FAMILY dump request per
+// family in dumpFamilies, in that order. The kernel answers a request only
+// with sockets of its family (tcp_diag.c skips sk_family != sdiag_family),
+// and sock_diag dispatches on the family, so there is no one request for
+// both.
+func (x *XTCP) createNetLinkRequests() []*[]byte {
+	reqs := make([]*[]byte, 0, len(dumpFamilies))
+	for _, f := range dumpFamilies {
+		reqs = append(reqs, x.buildDumpRequest(f))
+	}
+	return reqs
+}
+
+// initNetlinkRequests builds the requests every poll sends.
+func (x *XTCP) initNetlinkRequests() {
+	reqs := x.createNetLinkRequests()
+	x.nlRequest, x.nlRequest6 = reqs[0], reqs[1]
+}
+
+// CreateNetLinkRequest builds the AF_INET dump request.
 func (x *XTCP) CreateNetLinkRequest(wg *sync.WaitGroup) (nlRequest *[]byte) {
-
 	defer wg.Done()
+	return x.buildDumpRequest(unix.AF_INET)
+}
 
+// buildDumpRequest builds the dump request for one address family.
+func (x *XTCP) buildDumpRequest(family uint8) *[]byte {
 	nlh := xtcpnl.NlMsgHdr{
 		Len:   xtcpnl.InetDiagRequestSizeCst,
 		Type:  xtcpnl.SocketDiagByFamilyCst,
 		Flags: uint16(syscall.NLM_F_DUMP | syscall.NLM_F_REQUEST | syscall.NLM_F_REPLACE | syscall.NLM_F_EXCL),
 		Seq:   x.config.NlmsgSeq,
-		//Pid: 0,
 	}
 
-	//https://github.com/torvalds/linux/blob/481ed297d900af0ce395f6ca8975903b76a5a59e/include/linux/socket.h#L165
-	//#define AF_INET		2	/* Internet IP Protocol 	*/
-	//#define AF_INET6	10	/* IP version 6			*/
 	req := xtcpnl.InetDiagReqV2{
-		SDiagFamily:   2, // #define AF_INET      2
-		SDiagProtocol: 6, // IPPROTO_TCP = 6
+		SDiagFamily:   family,
+		SDiagProtocol: unix.IPPROTO_TCP,
 		// idiag_ext is derived from the enabled deserializers so we request
 		// exactly the optional attributes we will parse (was a hardcoded 127).
 		// meminfo is off by default — redundant with sk_mem_info — so bit 0 is
 		// normally clear; see IDiagExtFromEnabled. GetEnabled() is nil-safe.
 		IDiagExt:    IDiagExtFromEnabled(x.config.EnabledDeserializers.GetEnabled()),
-		IDiagStates: 4282318848, // This value is just copied from "ss" requests.  Previous xtcp just lit it up with 0xFF
+		IDiagStates: idiagStatesAll,
 	}
 
 	requestBytes := make([]byte, xtcpnl.InetDiagRequestSizeCst)
-	nlRequest = &requestBytes
-
-	xtcpnl.SerializeNetlinkDiagRequest(nlh, req, nlRequest)
-
-	return nlRequest
+	xtcpnl.SerializeNetlinkDiagRequest(nlh, req, &requestBytes)
+	return &requestBytes
 }
+
+// idiagStatesAll is the state mask ss sends (previous xtcp lit every bit
+// with 0xFF).
+const idiagStatesAll = 4282318848

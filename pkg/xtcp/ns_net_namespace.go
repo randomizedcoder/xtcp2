@@ -195,11 +195,12 @@ var openGateFile = func(path string) (int, error) {
 	return unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
 }
 
-// openGateHandle opens the calling thread's namespace's sockstat and
-// ip_local_port_range when the socket-count gate is on
+// openGateHandle opens the calling thread's namespace's sockstat,
+// sockstat6 and ip_local_port_range when the socket-count gate is on
 // (-maxRecordsPerPoll > 0). nil when the gate is off or sockstat can't be
 // opened (that namespace's count is then unknown); without the port range,
-// a sampled namespace's shards split the default range.
+// a sampled namespace's shards split the default range; without sockstat6
+// (no IPv6), its AF_INET6 sockets are not counted.
 func (x *XTCP) openGateHandle() *statHandle {
 	if x.config.GetMaxRecordsPerPoll() == 0 {
 		return nil
@@ -208,7 +209,9 @@ func (x *XTCP) openGateHandle() *statHandle {
 	if fd < 0 {
 		return nil
 	}
-	return newStatHandle(fd, x.openGateFD(portRangePath, "openPortRange"))
+	h := newStatHandle(fd, x.openGateFD(portRangePath, "openPortRange"))
+	h.fd6 = x.openGateFD(sockstat6Path, "openSockstat6")
+	return h
 }
 
 // openGateFD opens path, counting a failure under variable; -1 on error.
