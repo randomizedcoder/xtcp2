@@ -90,7 +90,7 @@ func FuzzDeserializeCongInfoXTCP(f *testing.F) {
 		congCubic: {"cubic"},
 		congDctcp: {"dctcp"},
 		congVegas: {"vegas"},
-		congBbr1:  {"bbr"},
+		congBbr1:  {"bbr", "bbr1"},
 		xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2: {"bbr2"},
 		congBbr3: {"bbr3"},
 		xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_PRAGUE: {"prague"},
