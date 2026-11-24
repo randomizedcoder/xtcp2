@@ -1,0 +1,30 @@
+{
+ "ioctls": [
+  {
+   "family": 2,
+   "req": "SIOCGETTUNNEL",
+   "name": "gre0",
+   "in": "00000000000000000000000000000000000000002000200000000005000000054500000000004000002f0000c0000201c6336402",
+   "out": "6772653100000000000000000000000000000000b000b00000000005000000054500000000004000202f0000c0000201c6336402"
+  }
+ ],
+ "run": {
+  "argv": [
+   "ip",
+   "-j",
+   "tunnel",
+   "show",
+   "mode",
+   "gre",
+   "remote",
+   "198.51.100.2",
+   "local",
+   "192.0.2.1",
+   "key",
+   "5"
+  ],
+  "rc": 0,
+  "stdout": "gre1: gre/ip remote 198.51.100.2 local 192.0.2.1 ttl 32 key 5\n  Drop packets out of sequence.\n  Checksum in received packet is required.\n  Sequence packets on output.\n  Checksum output packets.\n",
+  "stderr": ""
+ }
+}

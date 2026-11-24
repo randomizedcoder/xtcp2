@@ -46,6 +46,8 @@ var goipMayImport = map[string]string{
 		"pkg/nlparity as the answer. The plan's import set listed only xtcpnl; this is the one addition, and it " +
 		"satisfies the same §16 property.",
 	modulePath + "/internal/jsonw": "jsonw_puts, the one string escaper json_writer.c's ports share with gordma; stdlib only",
+	modulePath + "/internal/tnlsys": "the tunnel and tuntap sidecar (8S): the SIOCGET* ioctls, the tun sysfs props and " +
+		"the /dev/net/tun /proc walk, live or from a tnlsnap snapshot. It imports only pkg/cint and x/sys/unix.",
 	"github.com/cilium/ebpf": "`encap bpf` and seg6local `endpoint` load an object's program as ip's libbpf does " +
 		"(bpf_load.go): the ELF and BTF parse, relocations and BPF_PROG_LOAD. Pure Go, so `go build ./cmd/goip` " +
 		"still links outside nix.",
@@ -173,6 +175,7 @@ func TestGoipImportSetIsHermetic(t *testing.T) {
 			modulePath + "/pkg/cint":               "the C int conversions; stdlib only",
 			modulePath + "/pkg/strpolicy":          "reached through pkg/xtcpnl's congestion-name decoder; stdlib only",
 			modulePath + "/internal/jsonw":         "jsonw_puts, shared with gordma; stdlib only",
+			modulePath + "/internal/tnlsys":        "the tunnel and tuntap sidecar; pkg/cint and x/sys/unix only",
 			modulePath + "/gen/go/xtcp_flat_record": "reached through pkg/xtcpnl's inet_diag decoders, which " +
 				"write into the generated proto. This is where grpc and protobuf enter the closure.",
 		}

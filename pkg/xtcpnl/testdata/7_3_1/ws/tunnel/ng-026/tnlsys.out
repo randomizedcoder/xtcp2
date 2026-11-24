@@ -1,0 +1,13 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "-6",
+   "tunnel",
+   "bogus"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Command \"bogus\" is unknown, try \"ip -f inet6 tunnel help\".\n"
+ }
+}

@@ -1,0 +1,14 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "remote",
+   "bogus"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "Error: an IP address is expected rather than \"bogus\"\n"
+ }
+}

@@ -105,6 +105,13 @@ func (p *Printer) FPf(format string, a ...any) {
 	}
 }
 
+// Raw is a bare printf or fputc to stdout: written as it is in both
+// modes, so under -j it lands between the document's tokens, as ip's own
+// does (ip/tunnel.c's stats block and per-tunnel newline).
+func (p *Printer) Raw(s string) {
+	p.b.WriteString(s)
+}
+
 // U64 is print_u64 and its unsigned siblings.
 func (p *Printer) U64(kind PrintKind, key, format string, v uint64) {
 	p.value(kind, key, format, strconv.FormatUint(v, 10), v)

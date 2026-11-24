@@ -1,0 +1,5 @@
+gre1: gre/ip remote 198.51.100.2 local 192.0.2.1 ttl 32 key 5
+  Drop packets out of sequence.
+  Checksum in received packet is required.
+  Sequence packets on output.
+  Checksum output packets.

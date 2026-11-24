@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/randomizedcoder/xtcp2/internal/tnlsys"
 )
 
 // Exit codes, matching `ip`: 1 for a usage or argument error, 2 for a runtime
@@ -127,6 +129,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}()
 
 	c.src = src
+	if c.sys, err = openSys(); err != nil {
+		fmt.Fprintf(stderr, "goip: %v\n", err)
+		return ExitFailure
+	}
 
 	if err := obj.run(c, args[1:]); err != nil {
 		fmt.Fprintf(stderr, "goip: %v\n", err)
@@ -164,6 +170,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // dump it cannot finish, and 2 for a kernel refusal. vrf exits 255 for
 // what ipvrf.c ends with usage's exit(-1) — `vrf help`, two or more names
 // — and 1 for an Invalid VRF, ipvrf_show's NAME branch with a zero table.
+// tunnel and tuntap exit 255 for what iptunnel.c, ip6tunnel.c and
+// iptuntap.c end with exit(-1), and 1 for a show that returns -1.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
@@ -172,7 +180,8 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
 		errors.Is(err, ErrFouDumpTerminated), errors.Is(err, ErrIlaUsage), errors.Is(err, ErrIlaDumpTerminated),
 		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage),
-		errors.Is(err, ErrVrfUsage), errors.Is(err, ErrMaddrUsage), errors.Is(err, ErrStatsUsage):
+		errors.Is(err, ErrVrfUsage), errors.Is(err, ErrMaddrUsage), errors.Is(err, ErrStatsUsage),
+		errors.Is(err, ErrTunnelUsage):
 		return ExitMinusOne
 	case errors.Is(err, ErrStatsInval):
 		return ExitEINVAL
@@ -197,7 +206,7 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrMptcpReply), errors.Is(err, ErrFouRefused), errors.Is(err, ErrIlaShowArgs),
 		errors.Is(err, ErrL2tpDumpTerminated), errors.Is(err, ErrMacsecRefused),
 		errors.Is(err, ErrMacsecDumpTerminated), errors.Is(err, ErrXfrmRefused),
-		errors.Is(err, ErrXfrmDumpTerminated), errors.Is(err, ErrVrfInvalid):
+		errors.Is(err, ErrXfrmDumpTerminated), errors.Is(err, ErrVrfInvalid), errors.Is(err, ErrTunnelRefused):
 		return ExitUsage
 	}
 	return ExitFailure
@@ -225,6 +234,22 @@ func openSource() (Source, func() error, error) {
 		return nil, noop, err
 	}
 	return s, s.Close, nil
+}
+
+// openSys picks what tunnel and tuntap ask outside netlink: the snapshot
+// GOIP_TNLSYS names (a tnlsnap sidecar, internal/tnlsys), an empty one
+// under GOIP_REPLAY, so a replay never asks the host's kernel and a
+// question its capture did not record fails as a replay error, or the
+// live kernel. Like GOIP_REPLAY it is an environment variable so goip's
+// argv stays ip's.
+func openSys() (tnlsys.Sys, error) {
+	if p := os.Getenv("GOIP_TNLSYS"); p != "" {
+		return tnlsys.Load(p)
+	}
+	if _, ok := replayPathFromEnv(); ok {
+		return &tnlsys.Snapshot{}, nil
+	}
+	return tnlsys.Live{}, nil
 }
 
 // missLoopCount is utils.c's missarg for `-loops` with no count, which exits

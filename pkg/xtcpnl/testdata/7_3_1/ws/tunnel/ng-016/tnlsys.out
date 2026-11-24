@@ -1,0 +1,13 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "-0",
+   "tunnel",
+   "show"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Unsupported protocol family: 17\n"
+ }
+}

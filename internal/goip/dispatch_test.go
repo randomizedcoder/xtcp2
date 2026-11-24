@@ -135,12 +135,15 @@ func TestLookupObject(t *testing.T) {
 			arg:         "l", wantName: "link",
 		},
 		{
-			// **Recognized but unimplemented, which must be distinguishable
-			// from a typo.** The harness drives both tools with the same argv,
-			// so it has to tell "goip has not got there yet" from "that is not
-			// a command".
-			description: "boundary: \"tuntap\" is recognized and reports ErrNotImplemented",
-			arg:         "tuntap", wantName: "tuntap", wantErr: ErrNotImplemented,
+			// increment 8 gave the last run-less rows theirs: tuntap reads
+			// sysfs through tnlsys.
+			description: "boundary: \"tunt\" is tuntap, the last object to be implemented",
+			arg:         "tunt", wantName: "tuntap",
+		},
+		{
+			// ip.c's cmds has tunl after tunnel (v7.2.0); there is no tunl6.
+			description: "corner: \"tunl\" is the tunnel alias, and \"tunl6\" is unknown",
+			arg:         "tunl6", wantErr: ErrUnknownObject,
 		},
 		{
 			// G7-T01 gave xfrm its run; its policy and monitor are still

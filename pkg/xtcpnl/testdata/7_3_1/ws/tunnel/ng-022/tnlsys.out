@@ -1,0 +1,15 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "-6",
+   "tunnel",
+   "show",
+   "mode",
+   "gre"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Unknown tunnel mode \"gre\"\n"
+ }
+}

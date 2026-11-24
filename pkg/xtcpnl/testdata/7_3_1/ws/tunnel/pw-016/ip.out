@@ -1,0 +1,2 @@
+[{"ifname":"ipip1","mode":"any/ip","remote":"198.51.100.1","local":"192.0.2.1","dev":"d0","ttl":64,"tos":"0x10"}
+]

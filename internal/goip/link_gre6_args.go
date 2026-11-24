@@ -25,7 +25,6 @@ import (
 //     multicast check.
 
 const (
-	kindIP6GreCst    = "ip6gre"
 	kindIP6GretapCst = "ip6gretap"
 	kindIP6ErspanCst = "ip6erspan"
 )
@@ -35,8 +34,6 @@ const (
 var gre6Kinds = []string{kindIP6GreCst, kindIP6GretapCst, kindIP6ErspanCst}
 
 const (
-	gre6Flowlabel   = "flowlabel"
-	gre6Dscp        = "dscp"
 	gre6AllowLR     = "allow-localremote"
 	gre6NoAllowLR   = "noallow-localremote"
 	gre6Encaplimit  = "encaplimit"

@@ -1,0 +1,22 @@
+{
+ "ioctls": [
+  {
+   "family": 2,
+   "req": "SIOCGETTUNNEL",
+   "name": "gre9",
+   "in": "67726539000000000000000000000000000000000000000000000000000000004500000000004000002f00000000000000000000",
+   "errno": 19
+  }
+ ],
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "gre9"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "get tunnel \"gre9\" failed: No such device\n"
+ }
+}

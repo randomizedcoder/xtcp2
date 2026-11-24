@@ -1,0 +1,5 @@
+gre0: gre/ip remote any local any ttl inherit nopmtudisc
+ip_vti0: ip/ip remote any local any ttl inherit nopmtudisc key 0
+ipipx: any/ip remote any local any ttl inherit
+sit0: ipv6/ip remote any local any ttl 64 nopmtudisc
+ipipx: any/ip remote any local any ttl inherit

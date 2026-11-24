@@ -1,0 +1,1 @@
+vti1: ip/ip remote 198.51.100.5 local 192.0.2.1 ttl inherit nopmtudisc ikey 7 okey 8

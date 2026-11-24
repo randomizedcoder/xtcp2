@@ -1,0 +1,17 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "add",
+   "mode",
+   "gre",
+   "ttl",
+   "64",
+   "nopmtudisc"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "ttl != 0 and nopmtudisc are incompatible\n"
+ }
+}

@@ -1,0 +1,13 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "-6",
+   "tunnel",
+   "help"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Usage: ip -f inet6 tunnel { add | change | del | show } [ NAME ]\n          [ mode { ip6ip6 | ipip6 | ip6gre | vti6 | any } ]\n          [ remote ADDR local ADDR ] [ dev PHYS_DEV ]\n          [ encaplimit ELIM ]\n          [ hoplimit TTL ] [ tclass TCLASS ] [ flowlabel FLOWLABEL ]\n          [ dscp inherit ]\n          [ [no]allow-localremote ]\n          [ [i|o]seq ] [ [i|o]key KEY ] [ [i|o]csum ]\n\nWhere: NAME      := STRING\n       ADDR      := IPV6_ADDRESS\n       ELIM      := { none | 0..255 }(default=4)\n       TTL       := 0..255 (default=64)\n       TCLASS    := { 0x0..0xff | inherit }\n       FLOWLABEL := { 0x0..0xfffff | inherit }\n       KEY       := { DOTTED_QUAD | NUMBER }\n"
+ }
+}

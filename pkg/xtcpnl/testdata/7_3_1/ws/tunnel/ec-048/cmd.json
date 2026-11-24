@@ -1,0 +1,79 @@
+{
+ "axes": {
+  "fix": "tnl6",
+  "json": "0",
+  "words": "-6 tunnel show mode ip6gre"
+ },
+ "cmd": "ip -6 tunnel show mode ip6gre",
+ "desc": "positive: opt=plain cmd=tnl6:-6_tunnel_show_mode_ip6gre",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tunnel/ec-048",
+ "modules": [
+  "ipip",
+  "ip_gre",
+  "sit",
+  "ip_vti",
+  "ip6_tunnel",
+  "ip6_gre",
+  "ip6_vti"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:01:01 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.1/24 dev d0 && ip addr add 2001:db8::1/64 dev d0 nodad",
+  "ip link add ip6t1 type ip6tnl mode ip6ip6 remote 2001:db8::2 local 2001:db8::1 encaplimit none hoplimit 1 tclass inherit flowlabel 0x12345 allow-localremote dev d0",
+  "ip link add ip6t2 type ip6tnl mode ipip6 remote 2001:db8::3 local 2001:db8::1 encaplimit 2 hoplimit 64 tclass 0x20 flowlabel inherit dscp inherit",
+  "ip link add ip6g1 type ip6gre remote 2001:db8::4 local 2001:db8::1 key 9 seq csum",
+  "ip link add vti61 type vti6 remote 2001:db8::5 local 2001:db8::1 ikey 3 okey 4",
+  "ip link add gre6x type ip6gre remote 2001:db8::6 local 2001:db8::1"
+ ],
+ "proto": "route",
+ "readback": [
+  {
+   "cmd": "tnlsnap -- -6 tunnel show mode ip6gre",
+   "name": "tnlsys"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:01:01 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip addr add 192.0.2.1/24 dev d0 && ip addr add 2001:db8::1/64 dev d0 nodad",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add ip6t1 type ip6tnl mode ip6ip6 remote 2001:db8::2 local 2001:db8::1 encaplimit none hoplimit 1 tclass inherit flowlabel 0x12345 allow-localremote dev d0",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add ip6t2 type ip6tnl mode ipip6 remote 2001:db8::3 local 2001:db8::1 encaplimit 2 hoplimit 64 tclass 0x20 flowlabel inherit dscp inherit",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add ip6g1 type ip6gre remote 2001:db8::4 local 2001:db8::1 key 9 seq csum",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add vti61 type vti6 remote 2001:db8::5 local 2001:db8::1 ikey 3 okey 4",
+    "rc": 0
+   },
+   {
+    "cmd": "ip link add gre6x type ip6gre remote 2001:db8::6 local 2001:db8::1",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

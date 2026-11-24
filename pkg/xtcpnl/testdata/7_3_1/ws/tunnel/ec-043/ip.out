@@ -1,0 +1,8 @@
+ip6tnl0: ipv6/ipv6 remote :: local :: encaplimit 0 hoplimit inherit tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)
+ip6gre0: gre/ipv6 remote :: local :: encaplimit 0 hoplimit inherit tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)
+ip6_vti0: ipv6/ipv6 remote :: local :: encaplimit 0 hoplimit inherit tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)
+ip6t1: ipv6/ipv6 remote 2001:db8::2 local 2001:db8::1 dev d0 encaplimit none hoplimit 1 tclass inherit flowlabel 0x12345 (flowinfo 0x00012345) allow-localremote
+ip6t2: ip/ipv6 remote 2001:db8::3 local 2001:db8::1 encaplimit 2 hoplimit 64 tclass 0x20 flowlabel inherit (flowinfo 0x02000000) dscp inherit
+ip6g1: gre/ipv6 remote 2001:db8::4 local 2001:db8::1 encaplimit 4 hoplimit 64 tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000) key 9\  Drop packets out of sequence.\  Checksum in received packet is required.\  Sequence packets on output.\  Checksum output packets.
+vti61: ipv6/ipv6 remote 2001:db8::5 local 2001:db8::1 encaplimit 0 hoplimit inherit tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000) ikey 3 okey 4
+gre6x: gre/ipv6 remote 2001:db8::6 local 2001:db8::1 encaplimit 4 hoplimit 64 tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)

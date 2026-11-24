@@ -1,0 +1,1 @@
+tunl0: any/ip remote any local any ttl inherit nopmtudisc

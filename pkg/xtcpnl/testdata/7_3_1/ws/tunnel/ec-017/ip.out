@@ -1,0 +1,1 @@
+isa1: ipv6/ip remote any local 192.0.2.1 pr 192.0.2.11 pdr 192.0.2.10 ttl inherit

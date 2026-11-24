@@ -1,0 +1,1 @@
+[{"ifname":"tap0","flags":["tap","one_queue","persist"],"user":1000,"group":100,"processes":[]},{"ifname":"tun1","flags":["tun","multi_queue","vnet_hdr","persist"],"processes":[]},{"ifname":"tap2","flags":["tap","pi","persist","filter"],"processes":[]}]

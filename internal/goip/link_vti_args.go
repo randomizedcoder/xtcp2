@@ -20,8 +20,7 @@ import (
 //     family, and there is no after-loop check.
 
 const (
-	kindVtiCst  = "vti"
-	kindVti6Cst = "vti6"
+	kindVtiCst = "vti"
 )
 
 // vtiKinds are the kinds the vti prefetch reads.

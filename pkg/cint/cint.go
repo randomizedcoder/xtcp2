@@ -48,6 +48,24 @@ func Int64(v uint64) (int64, bool) {
 	return int64(v), true
 }
 
+// LongLong is (long long)v: a u64's bits read as a C long long, so
+// MaxUint64 is -1, as printf's %lld prints a __u64 counter.
+func LongLong(v uint64) int64 {
+	if v <= math.MaxInt64 {
+		return int64(v)
+	}
+	return -int64(math.MaxUint64-v) - 1
+}
+
+// U64Bits is (unsigned long long)l: a long's two's-complement bits, so -1
+// is MaxUint64. It is LongLong's inverse.
+func U64Bits(l int64) uint64 {
+	if l >= 0 {
+		return uint64(l)
+	}
+	return math.MaxUint64 - uint64(-(l + 1))
+}
+
 // NegInt64 is -mag as an int64; false past 1<<63, MinInt64's magnitude.
 func NegInt64(mag uint64) (int64, bool) {
 	if mag == 1<<63 {

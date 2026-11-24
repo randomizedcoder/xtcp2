@@ -1,0 +1,16 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "mode",
+   "gre",
+   "mode",
+   "ipip"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "You managed to ask for more than one tunnel mode.\n"
+ }
+}

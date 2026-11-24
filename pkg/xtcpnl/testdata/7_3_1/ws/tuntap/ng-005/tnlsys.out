@@ -1,0 +1,16 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tuntap",
+   "add",
+   "mode",
+   "tap",
+   "user",
+   "nosuchuser"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "invalid user \"nosuchuser\"\n"
+ }
+}

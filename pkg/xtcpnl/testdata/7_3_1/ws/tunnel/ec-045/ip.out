@@ -1,0 +1,5 @@
+ip6t1: ipv6/ipv6 remote 2001:db8::2 local 2001:db8::1 dev d0 encaplimit none hoplimit 1 tclass inherit flowlabel 0x12345 (flowinfo 0x00012345) allow-localremote
+RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
+    0          0            0      0        0        0       
+TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
+    0          0            0      0        0        0     

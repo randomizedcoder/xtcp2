@@ -1,0 +1,1 @@
+sit1: any/ip remote 198.51.100.4 local 192.0.2.1 ttl 64

@@ -1,0 +1,45 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "0",
+  "words": "tunnel show mode gre mode ipip"
+ },
+ "cmd": "ip tunnel show mode gre mode ipip",
+ "desc": "negative: opt=plain cmd=ng:bare:tunnel_show_mode_gre_mode_ipip: more than one tunnel mode, exit(-1)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 255,
+  "refused_by": "iproute2"
+ },
+ "id": "tunnel/ng-004",
+ "modules": [
+  "ipip",
+  "ip_gre",
+  "sit",
+  "ip_vti",
+  "ip6_tunnel",
+  "ip6_gre",
+  "ip6_vti"
+ ],
+ "proto": "route",
+ "readback": [
+  {
+   "cmd": "tnlsnap -- tunnel show mode gre mode ipip",
+   "name": "tnlsys"
+  }
+ ],
+ "result": {
+  "rc": 255,
+  "status": "OK"
+ }
+}

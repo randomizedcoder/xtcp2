@@ -1,0 +1,13 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "mode"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Command line is not complete. Try option \"help\"\n"
+ }
+}

@@ -1,0 +1,2 @@
+[{"ifname":"gre1","mode":"gre/ip","remote":"198.51.100.2","local":"192.0.2.1","ttl":32,"key":5,"flags":["rx_drop_ooseq","rx_csum","tx_seq","tx_csum"]}
+]

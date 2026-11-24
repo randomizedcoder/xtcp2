@@ -65,6 +65,10 @@ var iproute2Verbs = map[string][]string{
 	"ioam": {"help=", "namespace=", "schema=", "monitor="},
 	// ip/ipmonitor.c's do_ipmonitor reads object words, not verbs.
 	"monitor": {},
+	// ip/iptunnel.c:570-588 (v7.2.0)
+	"tunnel": {"add", "change", "delete", "show", "lst", "list", "prl", "6rd", "help"},
+	// ip/iptuntap.c:453-466 (v7.2.0)
+	"tuntap": {"add", "delete", "show", "lst", "list", "help"},
 	// ip/ipxfrm.c:1554-1574
 	"xfrm": {"state", "sa", "policy", "monitor", "help"},
 }

@@ -1,0 +1,13 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "nosuch"
+  ],
+  "rc": 0,
+  "stdout": "",
+  "stderr": ""
+ }
+}

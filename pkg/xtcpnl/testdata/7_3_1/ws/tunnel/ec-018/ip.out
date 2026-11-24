@@ -1,0 +1,1 @@
+isan: any/ip remote any local 192.0.2.2 ttl inherit

@@ -1,0 +1,16 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "name",
+   "a",
+   "name",
+   "b"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Error: either \"name\" is duplicate, or \"b\" is garbage.\n"
+ }
+}

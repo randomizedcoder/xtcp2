@@ -100,6 +100,12 @@ let
     # and ParseBrVlanTables (internal/gobridge), and without a capture asks
     # the kernel, so a live run can diff it against the pinned bridge.
     "gobridge"
+    # tnlsnap records what `ip tunnel` and `ip tuntap` ask outside netlink
+    # (internal/tnlsys): it runs `ip` under ptrace and prints the tunnel
+    # ioctls, tun sysfs properties and /dev/net/tun holders as the JSON
+    # sidecar goip's GOIP_TNLSYS replays. A capture row runs it as a
+    # readback, so it has to be in the guest.
+    "tnlsnap"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"

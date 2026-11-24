@@ -1,0 +1,12 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tuntap",
+   "bogus"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "Command \"bogus\" is unknown, try \"ip tuntap help\".\n"
+ }
+}

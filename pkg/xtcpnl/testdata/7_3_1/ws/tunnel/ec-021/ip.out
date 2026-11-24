@@ -1,0 +1,1 @@
+ipip2: any/ip remote 198.51.100.9 local any ttl inherit tos inherit nopmtudisc

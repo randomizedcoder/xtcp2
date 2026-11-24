@@ -1,0 +1,25 @@
+{
+ "ioctls": [
+  {
+   "family": 10,
+   "req": "SIOCGETTUNNEL",
+   "name": "ip6t1",
+   "in": "697036743100000000000000000000000d0000002900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "out": "697036743100000000000000000000000c00000029040100000123454300030020010db800000000000000000000000120010db8000000000000000000000002000000000000000000000000"
+  }
+ ],
+ "run": {
+  "argv": [
+   "ip",
+   "-j",
+   "-s",
+   "-6",
+   "tunnel",
+   "show",
+   "ip6t1"
+  ],
+  "rc": 0,
+  "stdout": "[{\"ifname\":\"ip6t1\",\"mode\":\"ipv6/ipv6\",\"remote\":\"2001:db8::2\",\"local\":\"2001:db8::1\",\"link\":\"d0\",\"ip6_tnl_f_ign_encap_limit\":null,\"hoplimit\":1,\"ip6_tnl_f_use_orig_tclass\":null,\"flowlabel\":\"0x12345\",\"flowinfo\":\"0x00012345\",\"ip6_tnl_f_allow_local_remote\":null}\nRX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts\n    0          0            0      0        0        0       \nTX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs\n    0          0            0      0        0        0     \n]\n",
+  "stderr": ""
+ }
+}

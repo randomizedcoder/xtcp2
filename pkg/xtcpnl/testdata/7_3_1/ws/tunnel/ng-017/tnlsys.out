@@ -1,0 +1,12 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "add"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "cannot determine tunnel mode (ipip, gre, vti or sit)\n"
+ }
+}

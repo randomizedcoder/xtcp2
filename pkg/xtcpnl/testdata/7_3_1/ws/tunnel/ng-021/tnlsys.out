@@ -1,0 +1,23 @@
+{
+ "ioctls": [
+  {
+   "family": 10,
+   "req": "SIOCGETTUNNEL",
+   "name": "nosuch",
+   "in": "6e6f7375636800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "errno": 19
+  }
+ ],
+ "run": {
+  "argv": [
+   "ip",
+   "-6",
+   "tunnel",
+   "show",
+   "nosuch"
+  ],
+  "rc": 1,
+  "stdout": "",
+  "stderr": "get tunnel \"nosuch\" failed: No such device\n"
+ }
+}

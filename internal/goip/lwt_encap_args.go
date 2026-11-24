@@ -35,7 +35,6 @@ const (
 	lwtKeyVxlan  = "vxlan_opts"
 	lwtKeyErspan = "erspan_opts"
 	lwtKeyOpts   = "opts" // duparg2's name for a second option word
-	lwtKeyCsum   = "csum"
 )
 
 // lwtTunnelFlagWords are parse_encap_ip's flag words and their TUNNEL_* bits.

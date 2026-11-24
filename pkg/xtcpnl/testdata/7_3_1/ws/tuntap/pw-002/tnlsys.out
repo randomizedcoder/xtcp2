@@ -1,0 +1,13 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "-j",
+   "tuntap",
+   "show"
+  ],
+  "rc": 0,
+  "stdout": "[]\n",
+  "stderr": ""
+ }
+}

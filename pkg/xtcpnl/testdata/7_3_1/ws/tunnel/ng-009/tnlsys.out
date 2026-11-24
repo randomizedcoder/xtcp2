@@ -1,0 +1,14 @@
+{
+ "run": {
+  "argv": [
+   "ip",
+   "tunnel",
+   "show",
+   "key",
+   "bogus"
+  ],
+  "rc": 255,
+  "stdout": "",
+  "stderr": "invalid value for \"key\": \"bogus\"; it should be an unsigned integer\n"
+ }
+}
