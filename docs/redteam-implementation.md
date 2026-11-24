@@ -237,6 +237,14 @@ preconditions, and quantify detection.
 **Goal:** quantify DoS knees and prove/refute the collection-path crossover,
 completing the RT-4 suite and RT-11 tiers 1–2.
 
+**Premortem audit (2026-11-24, before any scenario):**
+
+- **NOFILE:** the daemon container's limit in the §29 shape is **524287/524288** (docker's default on Ubuntu 24.04 — not the classic 1024). Full exhaustion needs ~500K connections — beyond the attacker VM, and conntrack (rt-11-6) likely knees first. The rt-4-1/rt-11-2 ladder therefore pins a walkable knee via a new `XTCP2_NOFILE` deploy axis (`--ulimit nofile=4096:4096`); the findings table documents the prod-default arithmetic.
+- **Timeouts + caps (verified):** HTTP read-header 5 s / read 10 s / write 15 s / idle 30 s (cmd/xtcp2/http_server.go:26-31); gRPC streams 20, recv msg 4 MB, 64 KB buffers, keepalive 299 s / idle 15 min (pkg/xtcp/grpc_server.go:29-45). The rt-4-2/rt-4-3 rows' premises hold.
+- **Dest outage behavior:** tcp drops on error — the envelope is recycled, records are lost permanently (no reconnect: the pinned tcpDest finding), counters `destTCP/Write/error` + `Poller/envelopeFlush/error` light up. s3 is bounded by construction — queue 16 deep / 64 MiB, full-jitter backoff (10 attempts, cap clamp(PollFrequency/10, 1 s, 1 h)), 1 GiB spill, then counted drops (`s3_dropped_total{reason}`, `destS3Parquet/uploadRowsDropped/error`); minio dials per request so it **recovers when the endpoint returns**. rt-4-7 therefore expects a split verdict: CONFIRMED (tcp half — the permanent blind) / BLOCKED (s3 half — bounded + recovery).
+- **Poll-cycle duration observable EXISTS:** `xtcp_histograms{function="Poller",type="pollToDoneDuration",variable="count"}` (SummaryVec, 0.5/0.99 quantiles, 5 min MaxAge) + the `Poller/PollTimeout` counter — rt-11-4's primary observable. Per-namespace lag is NOT labeled (aggregate only); coverage lag is measured as victim-record arrival lag at the catcher.
+- **rt-4-8 refocused (not folded):** the mechanism — full-dump per poll — is measured (rt-3-3: 3× at 1 s); a 100-container population adds arithmetic, not mechanism. What rt-3-3 did not test is the row's second clause: cgroup protection. rt-4-8 becomes the cgroup-cap variant via a new `XTCP2_CPUS` deploy axis (default unlimited; rt-4-8 pins 2), asserting amplification is bounded by the quota, metrics stays 200, no OOM-kill.
+
 **Tasks**
 
 | # | Task | Scenario |
