@@ -2389,6 +2389,9 @@ let
   # xtcp2 to record.
   goldenPromSocket = "/run/xtcp2/golden-metrics.sock";
   goldenSockets = 4;
+  # The algorithms the golden workload also runs a 4 MiB echo with, over
+  # netem loss, one per info struct (cubic has none).
+  goldenBulkCc = "cubic bbr dctcp vegas";
   xtcp2S3ParquetGoldenArgs = [
     "-dest"
     "s3parquet:http://127.0.0.1:9000"
@@ -2420,7 +2423,11 @@ let
     runtimeInputs = with pkgs; [
       coreutils
       docker
+      gawk
+      gnugrep
       iproute2
+      kmod
+      procps
       systemd
       util-linux
     ];
@@ -2430,6 +2437,7 @@ let
       SOCKETS=${toString goldenSockets}
       TCP_SERVER=${xtcp2AllPackage}/bin/tcp_server
       TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
+      BULK_CC="${goldenBulkCc}"
     ''
     + builtins.readFile ./scripts/golden-workload.sh;
   };
@@ -2458,6 +2466,8 @@ let
       CONTAINERS=${toString goldenContainers}
       SOCKETS=${toString goldenSockets}
       FLAVOR=${xtcp2Package.pname or xtcp2Package.name}
+      TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
+      BULK_CC="${goldenBulkCc}"
       ERR_TAG=GOLDEN_ERR
     ''
     + builtins.readFile ./scripts/golden-common.sh
