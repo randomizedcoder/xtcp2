@@ -481,7 +481,11 @@ func (x *XTCP) pollWith(fd int, req *[]byte) {
 
 	x.pollTime.Store(fd, startTime)
 
-	_ = x.sendNetlinkDumpRequest(fd, req) // counted; the poll timeout ends a namespace that never answers
+	// A failed send is counted inside; the poll timeout ends a namespace
+	// that never answers.
+	if err := x.sendNetlinkDumpRequest(fd, req); err != nil && x.debugLevel > 10 {
+		log.Printf("pollWith fd:%d send err:%v", fd, err)
+	}
 	// x.SendNetlinkDumpRequestPtr(x.socketFD, x.socketAddress, x.nlRequest)
 	// x.SendNetlinkDumpRequestPtrIOUring(x.socketFD, x.nlRequest)
 

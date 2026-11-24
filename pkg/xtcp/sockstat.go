@@ -187,10 +187,7 @@ var (
 func parseSockstat(b []byte) (inuse, tw uint64, ok bool) {
 	line := b
 	prefix := sockstatTCPPrefix
-	for {
-		if bytes.HasPrefix(line, sockstatTCPPrefix) {
-			break
-		}
+	for !bytes.HasPrefix(line, sockstatTCPPrefix) {
 		if bytes.HasPrefix(line, sockstatTCP6Prefix) {
 			prefix = sockstatTCP6Prefix
 			break
