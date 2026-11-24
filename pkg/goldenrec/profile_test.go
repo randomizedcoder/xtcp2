@@ -260,3 +260,51 @@ func TestProfileClassesComplete(t *testing.T) {
 		t.Errorf("profile has %d columns, rec has %d", len(p.Columns), n)
 	}
 }
+
+// go test ./pkg/goldenrec/ -run TestProfileNsidAssigned
+func TestProfileNsidAssigned(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		input       []nsrec
+		expected    map[string]ColumnProfile // nsid, nsid_assigned
+	}{
+		{"both_states", "positive", "a capture with assigned and unassigned namespaces lists both",
+			[]nsrec{{afInet, 1, "c1", 0, true}, {afInet, 1, "", 0, false}},
+			map[string]ColumnProfile{
+				"nsid":          {Class: "ordinal", Distinct: "1"},
+				"nsid_assigned": {Class: "assigned", Nonzero: 1, Distinct: "2", Values: []string{"false", "true"}},
+			}},
+		{"ids_counted", "negative", "the ids themselves are counted, never listed",
+			[]nsrec{{afInet, 1, "c1", 3, true}, {afInet, 1, "c2", 4, true}},
+			map[string]ColumnProfile{
+				"nsid":          {Class: "ordinal", Nonzero: 2, Distinct: "2"},
+				"nsid_assigned": {Class: "assigned", Nonzero: 2, Distinct: "1", Values: []string{"true"}},
+			}},
+		{"none_assigned", "boundary", "a host where no namespace has an id",
+			[]nsrec{{afInet, 1, "", 0, false}},
+			map[string]ColumnProfile{
+				"nsid":          {Class: "ordinal", Distinct: "1"},
+				"nsid_assigned": {Class: "assigned", Distinct: "1", Values: []string{"false"}},
+			}},
+		{"no_rows", "corner", "an empty capture lists nothing",
+			nil,
+			map[string]ColumnProfile{
+				"nsid":          {Class: "ordinal", Distinct: "0"},
+				"nsid_assigned": {Class: "assigned", Distinct: "0"},
+			}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p, err := ProfileOf(tc.input, Columns)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]ColumnProfile{"nsid": p.Columns["nsid"], "nsid_assigned": p.Columns["nsid_assigned"]}
+			if !reflect.DeepEqual(got, tc.expected) {
+				t.Errorf("%s (%s): %s\ninput %+v\nexpected %+v\nactual   %+v", tc.name, tc.category, tc.description, tc.input, tc.expected, got)
+			}
+		})
+	}
+}
