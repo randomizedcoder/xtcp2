@@ -222,14 +222,15 @@ preconditions, and quantify detection.
 
 - [x] rt-3-1 shows victim records at the catcher with timestamps, and the audit log lines quoted in findings.md (122 record lines to the attacker's catcher; both Set audit lines; the RT-11 tier-4 blind pinned in the same run).
 - [x] rt-3-5 **refuted** (findings.md): a Go heap profile is stack/size metadata, not a memory image — no 32-hex substring exists in the decompressed profile; /debug/pprof/cmdline is http.NotFound by construction; pprof is admin-gated 401/403/200. The protected-page finding remains valid for core dumps only.
-- [ ] rt-7-1 measures the daemon's memory knee under the bomb and states whether the default cgroup limit contains it. — deferred (needs the Garage fixture).
+- [x] rt-7-1 **BLOCKED** (findings.md): the 256 MiB cap refuses a 9361x bomb at the cap (log line names it), the table in service survives every refusal, the daemon stays healthy, RSS bounded (~1.1 GiB peak incl. the 256 MiB read buffer); the under-cap 240 MiB bomb refused at the parquet open with the same keep-table guarantee; every refusal counted (refreshAsn error).
 - [ ] govulncheck runs in `nix flake check` (or as a separately registered check) with zero reachable S1/S2 findings at pinned versions, or findings filed per advisory.
 - [x] Every chain has a "detection gap" note in findings.md (rt-3-1: the Set audit line is the ONLY detector — the victim's catcher blindness has no alarm of its own; rt-3-6: the churn rate is unbounded, the audit line is the only trace).
 - [x] No scenario leaves the daemon reconfigured (rt-3-1/rt-3-6 trap-restore verified by a final Get; rt-3-5's extra container is trap-removed).
 - [x] rt-3-3 CONFIRMED (findings.md): 3x record amplification (50/s -> 180/s) under 1 s polls + bursts; CPU 124->130%, no wedge; restored + final Get.
 - [x] rt-3-4 BLOCKED (findings.md): the plan row's expected outcome holds — the envelope flushes on the poll cycle, so even at the uint32 max the caps are a flush ceiling, not a growth driver (RSS within noise; the growth pin stays so a flush regression flips it).
 - [x] rt-7-4 already covered upstream: checks.govulncheck (hermetic, green) + govulncheck-fresh (live DB: 0 reachable findings) — no scenario needed; plan row amended.
-- [ ] Deferred rows (part 3): rt-3-2 (S3 exfil — needs the Garage fixture), rt-7-1/7-2/7-3 (artifact bombs — Garage).
+- [x] Phase 3 part 3 complete: rt-3-2 **CONFIRMED** (15/15 — the empty-field inherit, the fake-S3 exfil, the access-key disclosure in the SigV4 headers, the tier-4 garage freeze, the audited restore); rt-7-2 **CONFIRMED** (16/16 — the same-name swap loads without complaint, networkOwner=ATTACKER-NET in 22,784 record lines, the Nix-lock contrast documented, the bootstrap-gauge observability finding pinned, restore verified); rt-7-3 **BLOCKED** (9/9 — 100k dup-/32 rows load in ~60 ms, no panic, ladder clean).
+- [x] The Garage fixture (DEST=s3) + the artifact-dir fixture (ENRICH=asn) are deploy-shape axes in the harness matrix (vagrant/lib/matrix.sh, provision/victim.sh); `tools/ipfeed-fixture` (static, rides the attacker tools tar) crafts collector-shaped artifacts and bombs.
 
 ## Phase 4 — Denial of service and monitoring-blindness
 

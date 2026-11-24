@@ -29,10 +29,12 @@ xtcp2_matrix_defaults() {
   : "${XTCP2_CAPS:=priv}"
   : "${XTCP2_ATTACKER:=plain}"
   : "${XTCP2_EXPECT:=CONFIRMED}"
+  : "${XTCP2_DEST:=tcp}"
+  : "${XTCP2_ENRICH:=none}"
   # The Vagrantfile reads these from ITS environment (a child of this shell),
   # so they must be exported — a scenario-level default (`: "${XTCP2_AUTH:=raw}"`)
   # without export reaches the provisioner as the off row.
-  export XTCP2_MODE XTCP2_AUTH XTCP2_CAPS XTCP2_ATTACKER
+  export XTCP2_MODE XTCP2_AUTH XTCP2_CAPS XTCP2_ATTACKER XTCP2_DEST XTCP2_ENRICH
 
   case "$XTCP2_MODE" in
     host | bridge) ;;
@@ -50,12 +52,20 @@ xtcp2_matrix_defaults() {
     plain | read-cred | privileged | admin) ;;
     *) xtcp2_die "XTCP2_ATTACKER='$XTCP2_ATTACKER' (want plain|read-cred|privileged|admin)" ;;
   esac
+  case "$XTCP2_DEST" in
+    tcp | s3) ;;
+    *) xtcp2_die "XTCP2_DEST='$XTCP2_DEST' (want tcp|s3)" ;;
+  esac
+  case "$XTCP2_ENRICH" in
+    none | asn) ;;
+    *) xtcp2_die "XTCP2_ENRICH='$XTCP2_ENRICH' (want none|asn)" ;;
+  esac
   case "$XTCP2_EXPECT" in
     BLOCKED | MITIGATED | CONFIRMED | NA) ;;
     *) xtcp2_die "XTCP2_EXPECT='$XTCP2_EXPECT' (want BLOCKED|MITIGATED|CONFIRMED|NA)" ;;
   esac
 
-  echo "rt: matrix MODE=$XTCP2_MODE AUTH=$XTCP2_AUTH CAPS=$XTCP2_CAPS ATTACKER=$XTCP2_ATTACKER EXPECT=$XTCP2_EXPECT"
+  echo "rt: matrix MODE=$XTCP2_MODE AUTH=$XTCP2_AUTH CAPS=$XTCP2_CAPS ATTACKER=$XTCP2_ATTACKER DEST=$XTCP2_DEST ENRICH=$XTCP2_ENRICH EXPECT=$XTCP2_EXPECT"
 }
 
 # The co-tenant vantage: the docker0 gateway in the victim VM's host netns.
