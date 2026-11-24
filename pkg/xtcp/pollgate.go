@@ -18,7 +18,7 @@ type pollGate struct {
 
 	pairs   []nsPollFDs
 	ready   []nsPollFDs
-	statFDs []int
+	statFDs []int // each ready namespace's sockstat, then its sockstat6
 	counts  []sockstatCount
 	sendTo  []nsSend
 
@@ -46,11 +46,11 @@ var newSockstatRingReader = func(batch, workers uint32) (sockstatReader, error) 
 
 // fdsPerNetns is what one tracked namespace holds open for its life: its
 // netlink socket and the origNs snapshot its goroutine restores on exit
-// (netNamespaceInstance), plus its sockstat and ip_local_port_range fds
-// with the gate on.
+// (netNamespaceInstance), plus its sockstat, sockstat6 and
+// ip_local_port_range fds with the gate on.
 func fdsPerNetns(gate bool) uint64 {
 	if gate {
-		return 4
+		return 5
 	}
 	return 2
 }
@@ -140,6 +140,11 @@ func (x *XTCP) planGatedPoll() []nsSend {
 		g.ready = append(g.ready, p)
 		g.statFDs = append(g.statFDs, p.stat.acquire())
 	}
+	// The sockstat6 fds follow, read in the same batch; held under the
+	// same read locks.
+	for _, p := range g.ready {
+		g.statFDs = append(g.statFDs, p.stat.sockstat6FD())
+	}
 	// Hold every handle's read lock until planning is done (sockstat and,
 	// for sampled namespaces, port-range reads), so a
 	// namespace torn down meanwhile can't close (and the kernel reuse) an
@@ -149,10 +154,10 @@ func (x *XTCP) planGatedPoll() []nsSend {
 			p.stat.release()
 		}
 	}()
-	if cap(g.counts) < len(g.ready) {
-		g.counts = make([]sockstatCount, len(g.ready))
+	if cap(g.counts) < len(g.statFDs) {
+		g.counts = make([]sockstatCount, len(g.statFDs))
 	}
-	g.counts = g.counts[:len(g.ready)]
+	g.counts = g.counts[:len(g.statFDs)]
 
 	failed, err := g.reader.read(g.statFDs, g.counts)
 	if err != nil {
@@ -168,6 +173,8 @@ func (x *XTCP) planGatedPoll() []nsSend {
 	if failed > 0 {
 		x.pC.WithLabelValues("poller", "sockstat", "error").Add(float64(failed))
 	}
+
+	g.counts = addSockstat6(g.counts, g.statFDs[len(g.ready):])
 
 	plans := g.planner.plan(g.counts, x.config.GetMaxRecordsPerPoll(), x.config.GetMaxRecordsPerNetns(), g.polls)
 	g.polls++
@@ -208,6 +215,25 @@ func (x *XTCP) planGatedPoll() []nsSend {
 	}
 	x.recordGate(total, unknown, states, sample)
 	return g.sendTo
+}
+
+// addSockstat6 folds counts' second half, each namespace's sockstat6, into
+// its first half and returns the first half. fds6 are the sockstat6 fds: one
+// never opened (no IPv6) adds nothing; one that couldn't be read leaves the
+// namespace's count unknown, as a failed sockstat read does.
+func addSockstat6(counts []sockstatCount, fds6 []int) []sockstatCount {
+	n := len(fds6)
+	for i, fd := range fds6 {
+		c6 := counts[n+i]
+		switch {
+		case fd <= 0:
+		case c6.known:
+			counts[i].inuse += c6.inuse
+		default:
+			counts[i].known = false
+		}
+	}
+	return counts[:n]
 }
 
 // request6 is the AF_INET6 request at pl's level, nil when there is no

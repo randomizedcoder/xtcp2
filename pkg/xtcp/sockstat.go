@@ -36,6 +36,13 @@ const sockstatBufSize = 1024
 // namespace. /proc/self/net would follow the thread-group leader instead.
 const sockstatPath = "/proc/thread-self/net/sockstat"
 
+// sockstat6Path is the per-thread sockstat6: TCP6 inuse is the
+// namespace's hashed AF_INET6 TCP sockets (sock_prot_inuse_get(net,
+// &tcpv6_prot), net/ipv6/proc.c), which sockstat's TCP inuse leaves out.
+// TIME_WAIT is not per family: sockstat's tw (tcp_death_row) covers both.
+// Absent when the kernel has no IPv6.
+const sockstat6Path = "/proc/thread-self/net/sockstat6"
+
 // portRangePath is the calling thread's namespace's
 // net.ipv4.ip_local_port_range. A /proc/sys/net file resolves to the
 // opener's namespace (net_ctl_header_lookup, net/sysctl_net.c) and the open
@@ -56,6 +63,7 @@ type statHandle struct {
 	mu      sync.RWMutex
 	fd      int
 	rangeFD int // -1: not open; shards then split the default range
+	fd6     int // sockstat6; <= 0: not open, AF_INET6 sockets not counted
 }
 
 // newStatHandle wraps the sockstat fd and the port-range fd; nil when the
@@ -124,6 +132,15 @@ func (h *statHandle) acquire() int {
 	return h.fd
 }
 
+// sockstat6FD returns the sockstat6 fd, -1 when not open. The caller
+// holds the read lock (acquire). nil-safe.
+func (h *statHandle) sockstat6FD() int {
+	if h == nil || h.fd6 <= 0 {
+		return -1
+	}
+	return h.fd6
+}
+
 func (h *statHandle) release() {
 	if h != nil {
 		h.mu.RUnlock()
@@ -136,14 +153,13 @@ func (h *statHandle) close(closeFD func(int)) {
 		return
 	}
 	h.mu.Lock()
-	fd, rangeFD := h.fd, h.rangeFD
-	h.fd, h.rangeFD = -1, -1
+	fd, rangeFD, fd6 := h.fd, h.rangeFD, h.fd6
+	h.fd, h.rangeFD, h.fd6 = -1, -1, -1
 	h.mu.Unlock()
-	if fd > 0 {
-		closeFD(fd)
-	}
-	if rangeFD > 0 {
-		closeFD(rangeFD)
+	for _, f := range []int{fd, rangeFD, fd6} {
+		if f > 0 {
+			closeFD(f)
+		}
 	}
 }
 
@@ -158,15 +174,27 @@ type sockstatCount struct {
 // (request sockets aren't counted).
 func (c sockstatCount) total() uint64 { return c.inuse + c.tw }
 
-var sockstatTCPPrefix = []byte("TCP:")
+var (
+	sockstatTCPPrefix  = []byte("TCP:")
+	sockstatTCP6Prefix = []byte("TCP6:")
+)
 
-// parseSockstat returns the TCP inuse and tw counts from a sockstat file.
-// It allocates nothing. ok is false when the TCP line, or either field, is
-// missing or malformed. A negative tw (tw_refcount - 1 = -1 while a
-// namespace is being torn down) reads as 0.
+// parseSockstat returns the TCP inuse and tw counts from a sockstat file,
+// or the TCP6 inuse count (tw 0) from a sockstat6 file, whichever line it
+// finds first. It allocates nothing. ok is false when the line, or a field
+// it needs (inuse, and tw for TCP), is missing or malformed. A negative tw
+// (tw_refcount - 1 = -1 while a namespace is being torn down) reads as 0.
 func parseSockstat(b []byte) (inuse, tw uint64, ok bool) {
 	line := b
-	for !bytes.HasPrefix(line, sockstatTCPPrefix) {
+	prefix := sockstatTCPPrefix
+	for {
+		if bytes.HasPrefix(line, sockstatTCPPrefix) {
+			break
+		}
+		if bytes.HasPrefix(line, sockstatTCP6Prefix) {
+			prefix = sockstatTCP6Prefix
+			break
+		}
 		i := bytes.IndexByte(line, '\n')
 		if i < 0 {
 			return 0, 0, false
@@ -180,7 +208,7 @@ func parseSockstat(b []byte) (inuse, tw uint64, ok bool) {
 		return 0, 0, false
 	}
 	line = line[:i]
-	fields := line[len(sockstatTCPPrefix):]
+	fields := line[len(prefix):]
 	var haveInuse, haveTW bool
 	for len(fields) > 0 {
 		var key, val []byte
@@ -210,7 +238,7 @@ func parseSockstat(b []byte) (inuse, tw uint64, ok bool) {
 			tw, haveTW = n, true
 		}
 	}
-	return inuse, tw, haveInuse && haveTW
+	return inuse, tw, haveInuse && (haveTW || len(prefix) == len(sockstatTCP6Prefix))
 }
 
 // nextField returns the next space-separated token and the rest.
