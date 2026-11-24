@@ -387,6 +387,9 @@ type SetPollFrequencyRequest struct {
 	// Poll frequency
 	// This is how often xtcp sends the netlink dump request
 	// Recommend not too frequently, so maybe 30s or 60s
+	// The 1 s floor is the fastest cadence xtcp2 honors: the poll loop's
+	// amplification (records/s track the cadence) is bounded by it, and it
+	// matches TriggerPollBurst.interval's floor.
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
 	PollFrequency *durationpb.Duration `protobuf:"bytes,20,opt,name=poll_frequency,json=pollFrequency,proto3" json:"poll_frequency,omitempty"`
 	// Poll timeout per name space
@@ -1495,6 +1498,9 @@ type XtcpConfig struct {
 	// Poll frequency
 	// This is how often xtcp sends the netlink dump request
 	// Recommend not too frequently, so maybe 30s or 60s
+	// The 1 s floor is the fastest cadence xtcp2 honors (the poll loop's
+	// amplification is bounded by it); it matches SetPollFrequencyRequest's
+	// and TriggerPollBurst.interval's floors.
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
 	PollFrequency *durationpb.Duration `protobuf:"bytes,11,opt,name=poll_frequency,json=pollFrequency,proto3" json:"poll_frequency,omitempty"`
 	// Poll timeout per name space
@@ -2696,9 +2702,10 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"SetRequest\x122\n" +
 	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"A\n" +
 	"\vSetResponse\x122\n" +
-	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xb4\x02\n" +
-	"\x17SetPollFrequencyRequest\x12S\n" +
-	"\x0epoll_frequency\x18\x14 \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\rpollFrequency\x12O\n" +
+	"\x06config\x18\x01 \x01(\v2\x1a.xtcp_config.v1.XtcpConfigR\x06config\"\xb6\x02\n" +
+	"\x17SetPollFrequencyRequest\x12U\n" +
+	"\x0epoll_frequency\x18\x14 \x01(\v2\x19.google.protobuf.DurationB\x13\xbaH\x10\xc8\x01\x01\xaa\x01\n" +
+	"\"\x04\b\x80\xf5$2\x02\b\x01R\rpollFrequency\x12O\n" +
 	"\fpoll_timeout\x18\x1e \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$2\x00R\vpollTimeout:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_timeout < this.poll_frequency\"N\n" +
 	"\x18SetPollFrequencyResponse\x122\n" +
@@ -2791,12 +2798,13 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0e_error_classesB\x15\n" +
 	"\x13_metrics_categoriesB\x1a\n" +
 	"\x18_metrics_interface_pathsB\x13\n" +
-	"\x11_metrics_all_path\"\xab-\n" +
+	"\x11_metrics_all_path\"\xad-\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
-	" \x01(\x04B\x0e\xbaH\v\xc8\x01\x012\x06\x18\xa0\x8d\x06(\x00R\x15nlTimeoutMilliseconds\x12S\n" +
-	"\x0epoll_frequency\x18\v \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$*\x00R\rpollFrequency\x12O\n" +
+	" \x01(\x04B\x0e\xbaH\v\xc8\x01\x012\x06\x18\xa0\x8d\x06(\x00R\x15nlTimeoutMilliseconds\x12U\n" +
+	"\x0epoll_frequency\x18\v \x01(\v2\x19.google.protobuf.DurationB\x13\xbaH\x10\xc8\x01\x01\xaa\x01\n" +
+	"\"\x04\b\x80\xf5$2\x02\b\x01R\rpollFrequency\x12O\n" +
 	"\fpoll_timeout\x18\f \x01(\v2\x19.google.protobuf.DurationB\x11\xbaH\x0e\xc8\x01\x01\xaa\x01\b\"\x04\b\x80\xf5$*\x00R\vpollTimeout\x122\n" +
 	"\x0fpoll_jitter_pct\x18\r \x01(\rB\n" +
 	"\xbaH\a\xc8\x01\x00*\x02\x18dR\rpollJitterPct\x12+\n" +

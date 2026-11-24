@@ -20,7 +20,7 @@ class Record extends $pb.GeneratedMessage {
   factory Record({
     $core.int? myUint32,
   }) {
-    final result = create();
+    final result = Record._();
     if (myUint32 != null) result.myUint32 = myUint32;
     return result;
   }
@@ -29,16 +29,16 @@ class Record extends $pb.GeneratedMessage {
 
   factory Record.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      Record()..mergeFromBuffer(data, registry);
   factory Record.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      Record()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Record',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'clickhouse_protolist.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: Record.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'myUint32', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
@@ -52,12 +52,14 @@ class Record extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Record() / Record.new instead')
   static Record create() => Record._();
+  static $pb.GeneratedMessage $_createMessage() => Record._();
   @$core.override
-  Record createEmptyInstance() => create();
+  Record createEmptyInstance() => Record._();
   @$core.pragma('dart2js:noInline')
-  static Record getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Record>(create);
+  static Record getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Record>(Record.$_createMessage);
   static Record? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -74,7 +76,7 @@ class Envelope_Record extends $pb.GeneratedMessage {
   factory Envelope_Record({
     $core.int? myUint32,
   }) {
-    final result = create();
+    final result = Envelope_Record._();
     if (myUint32 != null) result.myUint32 = myUint32;
     return result;
   }
@@ -83,16 +85,16 @@ class Envelope_Record extends $pb.GeneratedMessage {
 
   factory Envelope_Record.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      Envelope_Record()..mergeFromBuffer(data, registry);
   factory Envelope_Record.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      Envelope_Record()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Envelope.Record',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'clickhouse_protolist.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: Envelope_Record.$_createMessage)
     ..aI(1, _omitFieldNames ? '' : 'myUint32', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
@@ -107,12 +109,15 @@ class Envelope_Record extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Envelope_Record() / Envelope_Record.new instead')
   static Envelope_Record create() => Envelope_Record._();
+  static $pb.GeneratedMessage $_createMessage() => Envelope_Record._();
   @$core.override
-  Envelope_Record createEmptyInstance() => create();
+  Envelope_Record createEmptyInstance() => Envelope_Record._();
   @$core.pragma('dart2js:noInline')
-  static Envelope_Record getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<Envelope_Record>(create);
+  static Envelope_Record getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Envelope_Record>(
+          Envelope_Record.$_createMessage);
   static Envelope_Record? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -130,7 +135,7 @@ class Envelope extends $pb.GeneratedMessage {
   factory Envelope({
     $core.Iterable<Envelope_Record>? rows,
   }) {
-    final result = create();
+    final result = Envelope._();
     if (rows != null) result.rows.addAll(rows);
     return result;
   }
@@ -139,18 +144,18 @@ class Envelope extends $pb.GeneratedMessage {
 
   factory Envelope.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      Envelope()..mergeFromBuffer(data, registry);
   factory Envelope.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      Envelope()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Envelope',
       package: const $pb.PackageName(
           _omitMessageNames ? '' : 'clickhouse_protolist.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: Envelope.$_createMessage)
     ..pPM<Envelope_Record>(1, _omitFieldNames ? '' : 'rows',
-        subBuilder: Envelope_Record.create)
+        subBuilder: Envelope_Record.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -163,12 +168,14 @@ class Envelope extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Envelope() / Envelope.new instead')
   static Envelope create() => Envelope._();
+  static $pb.GeneratedMessage $_createMessage() => Envelope._();
   @$core.override
-  Envelope createEmptyInstance() => create();
+  Envelope createEmptyInstance() => Envelope._();
   @$core.pragma('dart2js:noInline')
-  static Envelope getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Envelope>(create);
+  static Envelope getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Envelope>(Envelope.$_createMessage);
   static Envelope? _defaultInstance;
 
   @$pb.TagNumber(1)

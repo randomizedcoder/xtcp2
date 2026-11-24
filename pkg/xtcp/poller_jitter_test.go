@@ -53,7 +53,10 @@ func TestComputePollInterval(t *testing.T) {
 		{"positive 20% identity (high end)", time.Minute, 20, identityJitter, 66 * time.Second}, // 60 - 6 + 12
 		{"positive 20% zero-draw (low end)", time.Minute, 20, zeroJitter, 54 * time.Second},     // 60 - 6 + 0
 		{"corner pct==0 → exact freq", time.Minute, 0, identityJitter, time.Minute},
-		{"corner freq==0 → exact freq", 0, 20, identityJitter, 0},
+		// The MinPollFrequency clamp: freq==0 (the old ticker.Reset panic
+		// case) yields the floor, not 0.
+		{"corner freq==0 → the floor", 0, 20, identityJitter, MinPollFrequency},
+		{"belt 100%% jitter halves 1s → the floor", time.Second, 100, zeroJitter, MinPollFrequency}, // 1 - 0.5 + 0 = 0.5s → floored
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -147,4 +150,15 @@ func TestPoller_startupJitterWiring(t *testing.T) {
 			t.Fatalf("pollerSleep called %d times with pct==0, want 0", len(calls))
 		}
 	})
+}
+
+// TestComputePollInterval_floorRealJitter: with a 100%% jitter draw on a
+// floor-value frequency (1 s), the pre-clamp interval ranges down to 500 ms —
+// the clamp must keep every draw at or above MinPollFrequency.
+func TestComputePollInterval_floorRealJitter(t *testing.T) {
+	for range 2000 {
+		if got := computePollInterval(MinPollFrequency, 100, misc.JitterDuration); got < MinPollFrequency {
+			t.Fatalf("computePollInterval(1s, 100) = %v, below the %v floor", got, MinPollFrequency)
+		}
+	}
 }
