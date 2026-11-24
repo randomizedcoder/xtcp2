@@ -100,6 +100,11 @@ let
     # and ParseBrVlanTables (internal/gobridge), and without a capture asks
     # the kernel, so a live run can diff it against the pinned bridge.
     "gobridge"
+    # gotc is the tc(8) clone (increment 9): it replays tc's ws pcap corpus
+    # to exercise pkg/xtcpnl's tcmsg decoders (internal/gotc), and without
+    # a capture asks the kernel, so a live run can diff it against the
+    # pinned tc.
+    "gotc"
     # tnlsnap records what `ip tunnel` and `ip tuntap` ask outside netlink
     # (internal/tnlsys): it runs `ip` under ptrace and prints the tunnel
     # ioctls, tun sysfs properties and /dev/net/tun holders as the JSON
