@@ -46,6 +46,10 @@ type object struct {
 	showVerb string
 	// noShow marks an object with no read that ends: monitor prints until
 	// it is killed, so Show, and the HTTP paths over it, leave it out.
+	// Objects whose listing goip leaves to the command line are marked too:
+	// the genl ones, and tunnel and tuntap, which read the kernel outside
+	// netlink (runCtx.sys, which Show's context does not open) and, for
+	// tuntap, ignore every selector (T13).
 	noShow bool
 }
 
@@ -54,6 +58,7 @@ const (
 	objRouteCst   = "route"
 	objLinkCst    = "link"
 	objNexthopCst = "nexthop"
+	objTunnelCst  = "tunnel"
 )
 
 // objects is the object table in iproute2's order, which is load-bearing.
@@ -90,13 +95,13 @@ var objects = []object{
 	{name: "fou", run: runFou, verbs: fouVerbs, noShow: true},
 	{name: "ila", run: runIla, verbs: ilaVerbs, noShow: true},
 	{name: "macsec", run: runMacsec, verbs: macsecVerbs, noShow: true},
-	{name: "tunnel"},
-	{name: "tunl6"},
+	{name: objTunnelCst, run: runTunnel, verbs: tunnelVerbs, outputModes: true, wideStats: true, noShow: true},
+	{name: "tunl", run: runTunnel, verbs: tunnelVerbs, outputModes: true, wideStats: true, aliasOf: objTunnelCst, noShow: true},
 	{name: "tcp_metrics", run: runTCPMetrics, verbs: tcpMetricsVerbs},
 	{name: "tcpmetrics", run: runTCPMetrics, verbs: tcpMetricsVerbs, aliasOf: "tcp_metrics"},
 	{name: "token", run: runToken, verbs: tokenVerbs},
-	{name: "tuntap"},
-	{name: "tap", aliasOf: "tuntap"},
+	{name: "tuntap", run: runTuntap, verbs: tuntapVerbs, outputModes: true, wideStats: true, noShow: true},
+	{name: "tap", run: runTuntap, verbs: tuntapVerbs, outputModes: true, wideStats: true, aliasOf: "tuntap", noShow: true},
 	{name: "mroute", run: runMroute, verbs: mrouteVerbs},
 	{name: "mrule", run: runMrule, verbs: ruleVerbs},
 	{name: "netns", run: runNetns, verbs: netnsVerbs, showVerb: netnsListIDVerbCst},

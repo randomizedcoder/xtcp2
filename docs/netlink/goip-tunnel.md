@@ -15,9 +15,10 @@ Findings will go in `upstream/iproute2-tunnel-tuntap.md` (8B; not submitted to n
 ## Scope
 
 **In:**
-- `ip [-4|-6] tunnel [show|list|lst] [filters]` and the `tunl6` object.
+- `ip [-4|-6] tunnel [show|list|lst] [filters]` and its `tunl` alias. (The plan said `tunl6`, after goip's old
+  object table. iproute2 7.2.0's `ip.c` has `tunl` and no `tunl6`, so 8R replaced the row.)
 - `ip tuntap|tap [show|list|lst]`.
-- The options `-j -p -s -d -o`.
+- The options `-j -s -d -o`. `-p` (pretty JSON) is out: goip implements it for no object.
 
 goip must reproduce iproute2 7.2.0's stdout, stderr and exit status byte for byte.
 

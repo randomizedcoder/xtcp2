@@ -8,8 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // This file transcribes the libc and lib/utils.c number and address readers
@@ -331,4 +333,27 @@ func mplsPton(s string) (data []byte, tooMany, ok bool) {
 		s = rest[1:]
 	}
 	return nil, true, false
+}
+
+// rtnlDsfieldA2N is rtnl_dsfield_a2n: a name from the rt_dsfield file
+// iproute2 ships, then strtoul base 16 over the whole argument, at most 255.
+func rtnlDsfieldA2N(arg string) (uint8, bool) {
+	if v, ok := render.DsfieldByName(arg); ok {
+		return v, true
+	}
+	r := cStrtoul(arg, 16)
+	if r.end == 0 || r.end != len(arg) || r.val > math.MaxUint8 {
+		return 0, false
+	}
+	return uint8(r.val), true
+}
+
+// cStrerror is glibc's strerror for the errnos the loader reports: Go's
+// texts are glibc's with the first letter lowered.
+func cStrerror(e unix.Errno) string {
+	s := e.Error()
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }

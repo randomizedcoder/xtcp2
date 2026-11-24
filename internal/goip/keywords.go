@@ -29,3 +29,25 @@ const (
 	kindVxcanCst  = "vxcan"
 	kindNetkitCst = "netkit"
 )
+
+// Keywords the tunnel read path (obj_tunnel.go, obj_tunnel6.go) shares
+// with the link kinds' write parsers.
+const (
+	kindKeyTTL      = "ttl"
+	kindKeyHoplimit = "hoplimit"
+	tnlKeyKey       = "key"
+	tnlKeyIkey      = "ikey"
+	tnlKeyOkey      = "okey"
+	tnlKeyHlim      = "hlim"
+	kindKeyRemote   = "remote"
+	gre6Flowlabel   = "flowlabel"
+	gre6Dscp        = "dscp"
+	kindVti6Cst     = "vti6"
+	kindIP6GreCst   = "ip6gre"
+	lwtKeyCsum      = "csum"
+)
+
+// groupKeywordCst is the `group` keyword, which vxlan and nexthop share
+// with `ip stats show`'s first level (ipstatsLevels) and ip tuntap's
+// group property.
+const groupKeywordCst = "group"

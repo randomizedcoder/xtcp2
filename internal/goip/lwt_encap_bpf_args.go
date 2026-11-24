@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"strings"
 
 	"github.com/cilium/ebpf"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -66,16 +65,6 @@ var bpfLoad = bpfLoadProg
 // program", after the loader's own lines (each with its newline).
 func bpfFailed(lines string, errno unix.Errno) error {
 	return linkUsage(fmt.Errorf("%w: %s%s%s", ErrBpfLoad, lines, bpfFailedPrefixCst, cStrerror(errno)))
-}
-
-// cStrerror is glibc's strerror for the errnos the loader reports: Go's
-// texts are glibc's with the first letter lowered.
-func cStrerror(e unix.Errno) string {
-	s := e.Error()
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // bpfProgArgs is bpf_do_parse from the mode word at args[i] for an lwt

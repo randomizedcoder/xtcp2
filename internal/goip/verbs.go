@@ -236,6 +236,13 @@ var (
 	monitorVerb = verb{name: monitorVerbCst, kind: verbOther}
 	// l2tpVerbs is do_ipl2tp (ip/ipl2tp.c:824-844).
 	l2tpVerbs = chain([]verb{helpVerb, addVerb, deleteVerb}, showLstList)
+	// tunnelVerbs is do_iptunnel (ip/iptunnel.c:570-588 at v7.2.0); the
+	// writes are ioctls goip does not make. do_ip6tunnel's chain is this
+	// one without prl and 6rd.
+	tunnelVerbs = chain([]verb{addVerb, changeVerb, deleteVerb}, showLstList,
+		[]verb{{name: "prl", kind: verbWrite}, {name: "6rd", kind: verbWrite}, helpVerb})
+	// tuntapVerbs is do_iptuntap (ip/iptuntap.c:453-466).
+	tuntapVerbs = chain([]verb{addVerb, deleteVerb}, showLstList, []verb{helpVerb})
 	// fouVerbs is do_ipfou (ip/ipfou.c:329-350): show alone lists.
 	fouVerbs = []verb{helpVerb, addVerb, deleteVerb, {name: showVerbCst, kind: verbShow}}
 	// ilaVerbs is do_ipila (ip/ipila.c:288-311).

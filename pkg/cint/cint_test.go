@@ -127,6 +127,34 @@ func TestInt64(t *testing.T) {
 	}
 }
 
+// TestLongLong is LongLong, a u64's two's-complement bits as an int64,
+// and U64Bits, its inverse.
+//
+// go test ./pkg/cint/ -run TestLongLong
+func TestLongLong(t *testing.T) {
+	tests := []struct {
+		description string
+		v           uint64
+		expected    int64
+	}{
+		{"positive: a small counter", 42, 42},
+		{"negative: MaxUint64 is -1", math.MaxUint64, -1},
+		{"boundary: MaxInt64 stays", math.MaxInt64, math.MaxInt64},
+		{"boundary: 1<<63 is MinInt64", 1 << 63, math.MinInt64},
+		{"corner: zero", 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			if got := LongLong(tt.v); got != tt.expected {
+				t.Fatalf("LongLong(%d) = %d, expected %d", tt.v, got, tt.expected)
+			}
+			if back := U64Bits(tt.expected); back != tt.v {
+				t.Fatalf("U64Bits(%d) = %d, expected %d", tt.expected, back, tt.v)
+			}
+		})
+	}
+}
+
 // TestNarrowInt is U8, U16 and U32 of an int: in range, or false.
 //
 // go test ./pkg/cint/ -run TestNarrowInt

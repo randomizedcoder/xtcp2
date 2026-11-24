@@ -3,13 +3,11 @@
 package goip
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net/netip"
 	"slices"
-	"strings"
 
 	"golang.org/x/sys/unix"
 
@@ -51,14 +49,10 @@ type kindEnv struct {
 
 // The tunnel words several parsers spell the same way.
 const (
-	tnlKeyKey      = "key"
-	tnlKeyIkey     = "ikey"
-	tnlKeyOkey     = "okey"
 	tnlKeyEncap    = "encap"
 	tnlKeyFwmark   = "fwmark"
 	tnlKeyIgnoreDF = "ignore-df"
 	tnlKeyLocal    = addrLocalKeywordCst
-	tnlKeyHlim     = "hlim"
 	tnlKeyTClass   = "tclass"
 )
 
@@ -140,27 +134,6 @@ func tunnelBool(b bool) uint64 {
 // first line.
 func tunnelUsageErr(line string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidArgument, line)
-}
-
-// tnlParseKey is tnl_parse_key (ip/tunnel.c:164-178): a value with a '.' is
-// get_addr32's address, read big-endian, whose failure is exit(1);
-// anything else is get_unsigned base 0, whose failure is exit(-1) naming
-// the keyword.
-func tnlParseKey(name, v string) (uint64, error) {
-	if strings.IndexByte(v, '.') >= 0 {
-		a, ok := getAddrIPv4Parts(v)
-		if !ok {
-			return 0, fmt.Errorf("%w: Error: an IP address is expected rather than %q", ErrInvalidArgument, v)
-		}
-		b := a.As4()
-		return uint64(binary.BigEndian.Uint32(b[:])), nil
-	}
-	n, ok := getU32(v, 0)
-	if !ok {
-		return 0, linkUsage(fmt.Errorf("%w: invalid value for %q: %q; it should be an unsigned integer",
-			ErrInvalidArgument, name, v))
-	}
-	return uint64(n), nil
 }
 
 // tunnelU8 is get_u8 base 0, whose failure is invarg with text.

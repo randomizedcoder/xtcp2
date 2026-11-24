@@ -131,6 +131,13 @@ func (e *linkNotFoundError) Error() string {
 	return fmt.Sprintf("goip: link %s not found", e.selector)
 }
 
+// IsLinkNotFound is whether err is the dump fallback's miss, which stands in
+// for the kernel's ENODEV to a single-get.
+func IsLinkNotFound(err error) bool {
+	var miss *linkNotFoundError
+	return errors.As(err, &miss)
+}
+
 // linkFromGet is the body every single-get link accessor shares: send the
 // caller's request over Talk when the source can do single-gets, otherwise fall
 // back to one dump plus exact filtering, and hold both answers to the same

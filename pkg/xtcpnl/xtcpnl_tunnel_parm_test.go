@@ -524,3 +524,115 @@ func BenchmarkParseSysfsLong(b *testing.B) {
 		}
 	}
 }
+
+// TestTunnelParmMarshal builds the ioctl inputs goip passes: every input
+// `ip` passed in the corpus rebuilds from its parse, and hand-made structs
+// land at the C offsets.
+//
+// go test ./pkg/xtcpnl/ -run TestTunnelParmMarshal
+func TestTunnelParmMarshal(t *testing.T) {
+	inputs := map[string][][]byte{}
+	for _, dir := range tnlCorpusDirs(t) {
+		for _, r := range tnlSidecar(t, dir) {
+			k := fmt.Sprintf("%s/%d", r.Req, r.Family)
+			inputs[k] = append(inputs[k], tnlHex(t, r.In))
+		}
+	}
+	roundTrip := func(k string, parse func([]byte) ([]byte, error)) (string, error) {
+		n := 0
+		for _, in := range inputs[k] {
+			out, err := parse(in)
+			if err != nil {
+				return "", err
+			}
+			if !slices.Equal(out, in) {
+				return "", fmt.Errorf("%x rebuilt as %x", in, out)
+			}
+			n++
+		}
+		return fmt.Sprintf("%t", n > 0), nil
+	}
+	tests := []struct {
+		description string
+		got         func() (string, error)
+		expected    string
+	}{
+		{"positive: every v4 SIOCGETTUNNEL input in the corpus rebuilds", func() (string, error) {
+			return roundTrip("SIOCGETTUNNEL/2", func(b []byte) ([]byte, error) {
+				p, err := ParseIPTunnelParm(b)
+				return p.Marshal(), err
+			})
+		}, "true"},
+		{"positive: every v6 SIOCGETTUNNEL input in the corpus rebuilds", func() (string, error) {
+			return roundTrip("SIOCGETTUNNEL/10", func(b []byte) ([]byte, error) {
+				p, err := ParseIP6TnlParm2(b)
+				return p.Marshal(), err
+			})
+		}, "true"},
+		{"positive: every SIOCGETPRL input is the 16-entry request", func() (string, error) {
+			return roundTrip("SIOCGETPRL/2", func([]byte) ([]byte, error) { return TunnelPRLRequest(16), nil })
+		}, "true"},
+		{"positive: v4 fields at the C offsets", func() (string, error) {
+			p := IPTunnelParm{TunnelName: TunnelName{Name: "gre1"}, Link: 3, IFlags: GreFlagKey, OFlags: GreFlagSeq,
+				IKey: 5, OKey: 6, VersionIHL: 0x45, TOS: 0x10, FragOff: 0x4000, TTL: 64, Protocol: 47,
+				Saddr: netip.MustParseAddr("192.0.2.1"), Daddr: netip.MustParseAddr("198.51.100.2")}
+			b := p.Marshal()
+			return fmt.Sprintf("%d %x %x %x %x %x", len(b), b[:4], b[20:32], b[32:34], b[38:42], b[44:52]), nil
+		}, "52 67726531 200010000000000500000006 4510 4000402f c0000201c6336402"},
+		{"negative: a v4 address in an ip6 struct is left zero", func() (string, error) {
+			p := IP6TnlParm2{Laddr: netip.MustParseAddr("192.0.2.1")}
+			return fmt.Sprintf("%x", p.Marshal()[32:48]), nil
+		}, "00000000000000000000000000000000"},
+		{"boundary: the zero struct is all zero bytes", func() (string, error) {
+			var p IPTunnelParm
+			var q IP6TnlParm2
+			return fmt.Sprintf("%t %t", slices.Equal(p.Marshal(), make([]byte, IPTunnelParmSize)),
+				slices.Equal(q.Marshal(), make([]byte, IP6TnlParm2Size))), nil
+		}, "true true"},
+		{"boundary: a PRL request of one entry has datalen 0; none is nil", func() (string, error) {
+			return fmt.Sprintf("%x %t", TunnelPRLRequest(1), TunnelPRLRequest(0) == nil), nil
+		}, "00000000000000000000000000000000 true"},
+		{"corner: a 16-byte name fills name[] with no NUL, as strncpy does", func() (string, error) {
+			p := IP6TnlParm2{TunnelName: TunnelName{Name: "abcdefghijklmnopq"}, Link: -1}
+			b := p.Marshal()
+			return fmt.Sprintf("%s %x", b[:16], b[16:20]), nil
+		}, "abcdefghijklmnop ffffffff"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := tc.got()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestSysfsPropLine is the buf read_prop quotes in its messages.
+//
+// go test ./pkg/xtcpnl/ -run TestSysfsPropLine
+func TestSysfsPropLine(t *testing.T) {
+	tests := []struct {
+		description string
+		in          string
+		expected    string // line|ok
+	}{
+		{"positive: a value and its newline", "0x1002\n", "0x1002|true"},
+		{"negative: an empty file is fgets' NULL", "", "|false"},
+		{"boundary: 79 bytes kept", strings.Repeat("7", 90), strings.Repeat("7", 79) + "|true"},
+		{"boundary: a bare newline is an empty line", "\n", "|true"},
+		{"corner: only the first line", "1\n2\n", "1|true"},
+		{"corner: a NUL ends the string", "1\x002\n", "1|true"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			line, ok := SysfsPropLine(tc.in)
+			if got := fmt.Sprintf("%s|%t", line, ok); got != tc.expected {
+				t.Errorf("SysfsPropLine(%q) = %q, want %q", tc.in, got, tc.expected)
+			}
+		})
+	}
+}

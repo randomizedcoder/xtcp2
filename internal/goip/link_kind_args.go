@@ -18,9 +18,6 @@ import (
 // The keywords, and the names check_duparg gives them.
 const (
 	kindKeyID         = "id"
-	kindKeyRemote     = "remote"
-	kindKeyTTL        = "ttl"
-	kindKeyHoplimit   = "hoplimit"
 	kindKeyDsfield    = "dsfield"
 	kindKeyDF         = "df"
 	kindKeyLabel      = "label"

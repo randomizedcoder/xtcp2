@@ -8,7 +8,6 @@ import (
 	"math"
 	"strings"
 
-	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -497,19 +496,6 @@ func (w *ruleWrite) ruleType(args []string, i int) (int, error) {
 	}
 	w.tableOK = true
 	return i, nil
-}
-
-// rtnlDsfieldA2N is rtnl_dsfield_a2n: a name from the rt_dsfield file
-// iproute2 ships, then strtoul base 16 over the whole argument, at most 255.
-func rtnlDsfieldA2N(arg string) (uint8, bool) {
-	if v, ok := render.DsfieldByName(arg); ok {
-		return v, true
-	}
-	r := cStrtoul(arg, 16)
-	if r.end == 0 || r.end != len(arg) || r.val > math.MaxUint8 {
-		return 0, false
-	}
-	return uint8(r.val), true
 }
 
 // rtnlDscpA2N is rtnl_dscp_a2n: get_u32 base 0, or a DS field name or hex

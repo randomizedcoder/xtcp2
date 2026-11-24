@@ -65,6 +65,9 @@ type TunnelName struct {
 }
 
 func parseTunnelName(b []byte) TunnelName {
+	if len(b) < tnlNameSizeCst {
+		return TunnelName{}
+	}
 	n := b[:tnlNameSizeCst]
 	if i := strings.IndexByte(string(n), 0); i >= 0 {
 		return TunnelName{Name: string(n[:i]), Terminated: true}
@@ -158,6 +161,83 @@ func ParseIP6TnlParm2(b []byte) (IP6TnlParm2, error) {
 	}, nil
 }
 
+// appendTunnelName appends a struct's name[IFNAMSIZ] as strncpy writes it:
+// at most 16 bytes, the rest zero.
+func appendTunnelName(b []byte, name string) []byte {
+	n := []byte(name)
+	if len(n) > tnlNameSizeCst {
+		n = n[:tnlNameSizeCst]
+	}
+	b = append(b, n...)
+	return append(b, make([]byte, tnlNameSizeCst-len(n))...)
+}
+
+// appendAddr appends an address of size bytes: a's bytes when it is that
+// family, else zeros.
+func appendAddr(b []byte, a netip.Addr, size int) []byte {
+	if a.IsValid() && a.BitLen() == size*8 {
+		return append(b, a.AsSlice()...)
+	}
+	return append(b, make([]byte, size)...)
+}
+
+// Marshal is the struct ip_tunnel_parm ip passes a SIOCGETTUNNEL: exactly
+// IPTunnelParmSize bytes, ParseIPTunnelParm's inverse for a terminated
+// name of at most 15 bytes (a longer one is cut at 16, as strncpy cuts it).
+func (p *IPTunnelParm) Marshal() []byte {
+	be := binary.BigEndian
+	b := make([]byte, 0, IPTunnelParmSize)
+	b = appendTunnelName(b, p.Name)
+	b = binary.NativeEndian.AppendUint32(b, cint.Bits(p.Link))
+	b = be.AppendUint16(b, p.IFlags)
+	b = be.AppendUint16(b, p.OFlags)
+	b = be.AppendUint32(b, p.IKey)
+	b = be.AppendUint32(b, p.OKey)
+	b = append(b, p.VersionIHL, p.TOS)
+	b = be.AppendUint16(b, p.TotLen)
+	b = be.AppendUint16(b, p.ID)
+	b = be.AppendUint16(b, p.FragOff)
+	b = append(b, p.TTL, p.Protocol)
+	b = be.AppendUint16(b, p.Check)
+	b = appendAddr(b, p.Saddr, 4)
+	return appendAddr(b, p.Daddr, 4)
+}
+
+// Marshal is the struct ip6_tnl_parm2 ip passes a SIOCGETTUNNEL: exactly
+// IP6TnlParm2Size bytes with the padding byte zero, ParseIP6TnlParm2's
+// inverse for a terminated name of at most 15 bytes.
+func (p *IP6TnlParm2) Marshal() []byte {
+	be, ne := binary.BigEndian, binary.NativeEndian
+	b := make([]byte, 0, IP6TnlParm2Size)
+	b = appendTunnelName(b, p.Name)
+	b = ne.AppendUint32(b, cint.Bits(p.Link))
+	b = append(b, p.Proto, p.EncapLimit, p.HopLimit, 0)
+	b = be.AppendUint32(b, p.FlowInfo)
+	b = ne.AppendUint32(b, p.Flags)
+	b = appendAddr(b, p.Laddr, 16)
+	b = appendAddr(b, p.Raddr, 16)
+	b = be.AppendUint16(b, p.IFlags)
+	b = be.AppendUint16(b, p.OFlags)
+	b = be.AppendUint32(b, p.IKey)
+	return be.AppendUint32(b, p.OKey)
+}
+
+// TunnelPRLRequest is the buffer ip passes a SIOCGETPRL (iptunnel.c
+// print_tunnel): n zeroed entries, the first a request header whose datalen
+// (at offset 8) is the size of the other n-1.
+func TunnelPRLRequest(n int) []byte {
+	if n < 1 {
+		return nil
+	}
+	v, ok := cint.U32((n - 1) * TunnelPRLSize)
+	if !ok {
+		return nil
+	}
+	b := make([]byte, 8, n*TunnelPRLSize)
+	b = binary.NativeEndian.AppendUint32(b, v)
+	return append(b, make([]byte, n*TunnelPRLSize-12)...)
+}
+
 // TunnelPRL is one struct ip_tunnel_prl: a potential router of an isatap
 // tunnel. The reserved members are not kept.
 type TunnelPRL struct {
@@ -237,14 +317,15 @@ var (
 	ErrSysfsRange     = errors.New("xtcpnl: sysfs value out of range")
 )
 
-// ParseSysfsLong is lib/utils.c read_prop's parse of a sysfs file's
-// content, as ip tuntap reads tun_flags, owner and group: fgets's first
-// line (at most 79 bytes; C stops at a NUL too), its newline cut, then
-// strtol base 0 over the whole of it. strtol skips leading space, takes a
-// sign, and reads 0x as hex and a leading 0 as octal. A value past a C
-// long is ErrSysfsRange (read_prop checks errno, which strtol sets).
-func ParseSysfsLong(content string) (int64, error) {
-	line := content
+// SysfsPropLine is the buf read_prop parses and quotes in its messages:
+// fgets's first line of content (at most 79 bytes, and C's string stops at
+// a NUL), its newline cut. ok is false for an empty file, where fgets
+// returns NULL ("is currently unknown").
+func SysfsPropLine(content string) (line string, ok bool) {
+	if content == "" {
+		return "", false
+	}
+	line = content
 	if i := strings.IndexByte(line, '\n'); i >= 0 {
 		line = line[:i+1]
 	}
@@ -254,10 +335,20 @@ func ParseSysfsLong(content string) (int64, error) {
 	if i := strings.IndexByte(line, 0); i >= 0 {
 		line = line[:i]
 	}
-	if line == "" {
+	return strings.TrimSuffix(line, "\n"), true
+}
+
+// ParseSysfsLong is lib/utils.c read_prop's parse of a sysfs file's
+// content, as ip tuntap reads tun_flags, owner and group: fgets's first
+// line (at most 79 bytes; C stops at a NUL too), its newline cut, then
+// strtol base 0 over the whole of it. strtol skips leading space, takes a
+// sign, and reads 0x as hex and a leading 0 as octal. A value past a C
+// long is ErrSysfsRange (read_prop checks errno, which strtol sets).
+func ParseSysfsLong(content string) (int64, error) {
+	line, ok := SysfsPropLine(content)
+	if !ok || line == "" {
 		return 0, fmt.Errorf("%w: empty", ErrSysfsNotNumber)
 	}
-	line = strings.TrimSuffix(line, "\n")
 	v, rest, ok, overflow := strtolBase0(line)
 	if !ok || rest != "" {
 		return 0, fmt.Errorf("%w: %q", ErrSysfsNotNumber, line)
