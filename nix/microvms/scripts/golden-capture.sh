@@ -23,13 +23,12 @@ mkdir -p "$OUT"
 echo "GOLDEN_START"
 wait_second_poll "$FLUSH_SEC"
 
-# The AF_INET sockets each container holds now, for the row-count check
-# below. xtcp2 dumps AF_INET only, so the Go servers' dual-stack listeners
-# (0.0.0.0 opens an AF_INET6 socket) and the connections they accept are
-# not recorded; ss -4 leaves them out too.
+# The TCP sockets each container holds now, both families, for the
+# row-count check below. The Go servers' 0.0.0.0 listeners are dual-stack
+# (AF_INET6), as are the connections they accept.
 for i in $(seq 1 "$CONTAINERS"); do
   pid=$(docker inspect --format '{{.State.Pid}}' "golden-$i")
-  nsenter -t "$pid" -n ss -4 -Htan >"$OUT/ss-golden-$i"
+  nsenter -t "$pid" -n ss -Htan >"$OUT/ss-golden-$i"
 done
 caps=$(systemctl show xtcp2 -p CapabilityBoundingSet --value)
 
@@ -46,7 +45,7 @@ for i in $(seq 1 "$CONTAINERS"); do
   bad=$(q "SELECT count(*) FROM $P WHERE container_name = '$c' AND (container_runtime <> 'docker' OR NOT regexp_full_match(container_id, '[0-9a-f]{64}'))")
   [ "$bad" -eq 0 ] || fail "$c: $bad rows without docker runtime and a 64-hex id"
   want=$(grep -c . "$OUT/ss-golden-$i" || true)
-  [ "$n" -eq "$want" ] || fail "$c: $n rows, ss -4 lists $want sockets"
+  [ "$n" -eq "$want" ] || fail "$c: $n rows, ss lists $want sockets"
 done
 ns=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-ns'")
 [ "$ns" -ge 1 ] || fail "golden-ns: no rows"
