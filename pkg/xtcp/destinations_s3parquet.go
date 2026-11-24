@@ -924,9 +924,10 @@ func rowFromProto(r *xtcp_flat_record.XtcpFlatRecord) ParquetRow {
 		TreatmentAppliedTimestampNs: r.TreatmentAppliedTimestampNs,
 		TreatmentAlgorithmExposed:   r.TreatmentAlgorithmExposed,
 
-		Netns:      r.Netns,
-		NetnsInode: r.NetnsInode,
-		Nsid:       r.Nsid,
+		Netns:        r.Netns,
+		NetnsInode:   r.NetnsInode,
+		Nsid:         r.Nsid,
+		NsidAssigned: r.NsidAssigned,
 
 		ContainerId:      r.ContainerId,
 		ContainerRuntime: r.ContainerRuntime,

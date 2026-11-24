@@ -287,11 +287,14 @@ type XtcpFlatRecord struct {
 	// namespace (its own self-inode). 0 only when the inode could not be
 	// determined. This is the canonical namespace key (prefer it over nsid).
 	NetnsInode uint64 `protobuf:"varint,31,opt,name=netns_inode,json=netnsInode,proto3" json:"netns_inode,omitempty"`
-	// Kernel NETNSA_NSID for the namespace (best-effort, via RTM_GETNSID). Usually
-	// 0/unset for Docker/containerd namespaces unless assigned (e.g. ip netns
-	// set-id). Populated only when -populateNsid is enabled; netns_inode is the
-	// real stable key.
+	// Kernel NETNSA_NSID for the namespace (best-effort, via RTM_GETNSID), as
+	// seen from the collector's namespace. Populated only when -populateNsid is
+	// enabled; netns_inode is the real stable key. 0 is a valid id (the
+	// kernel's first), so read it only when nsid_assigned is true.
 	Nsid uint32 `protobuf:"varint,32,opt,name=nsid,proto3" json:"nsid,omitempty"`
+	// True when nsid holds an id the kernel assigned. False when the namespace
+	// has none, or -populateNsid is off; nsid is then 0.
+	NsidAssigned bool `protobuf:"varint,33,opt,name=nsid_assigned,json=nsidAssigned,proto3" json:"nsid_assigned,omitempty"`
 	// ---- metadata: container identity (40s) ----------------------------------
 	// Container that owns the socket. Resolved by joining the socket's owning
 	// netns inode against the Docker Engine API index (best-effort, over
@@ -692,6 +695,13 @@ func (x *XtcpFlatRecord) GetNsid() uint32 {
 		return x.Nsid
 	}
 	return 0
+}
+
+func (x *XtcpFlatRecord) GetNsidAssigned() bool {
+	if x != nil {
+		return x.NsidAssigned
+	}
+	return false
 }
 
 func (x *XtcpFlatRecord) GetContainerId() string {
@@ -2009,7 +2019,7 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"*xtcp_flat_record/v1/xtcp_flat_record.proto\x12\x13xtcp_flat_record.v1\"A\n" +
 	"\bEnvelope\x125\n" +
 	"\x03row\x18\n" +
-	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xc6L\n" +
+	" \x03(\v2#.xtcp_flat_record.v1.XtcpFlatRecordR\x03row\"\xebL\n" +
 	"\x0eXtcpFlatRecord\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12%\n" +
 	"\x0edaemon_version\x18\x02 \x01(\tR\rdaemonVersion\x12!\n" +
@@ -2029,7 +2039,8 @@ const file_xtcp_flat_record_v1_xtcp_flat_record_proto_rawDesc = "" +
 	"\x05netns\x18\x1e \x01(\tR\x05netns\x12\x1f\n" +
 	"\vnetns_inode\x18\x1f \x01(\x04R\n" +
 	"netnsInode\x12\x12\n" +
-	"\x04nsid\x18  \x01(\rR\x04nsid\x12!\n" +
+	"\x04nsid\x18  \x01(\rR\x04nsid\x12#\n" +
+	"\rnsid_assigned\x18! \x01(\bR\fnsidAssigned\x12!\n" +
 	"\fcontainer_id\x18( \x01(\tR\vcontainerId\x12+\n" +
 	"\x11container_runtime\x18) \x01(\tR\x10containerRuntime\x12%\n" +
 	"\x0econtainer_name\x18* \x01(\tR\rcontainerName\x12'\n" +

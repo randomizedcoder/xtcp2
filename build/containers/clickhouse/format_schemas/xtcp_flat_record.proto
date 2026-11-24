@@ -148,11 +148,15 @@ message XtcpFlatRecord {
 	// determined. This is the canonical namespace key (prefer it over nsid).
 	uint64 netns_inode                              = 31;
 
-	// Kernel NETNSA_NSID for the namespace (best-effort, via RTM_GETNSID). Usually
-	// 0/unset for Docker/containerd namespaces unless assigned (e.g. ip netns
-	// set-id). Populated only when -populateNsid is enabled; netns_inode is the
-	// real stable key.
+	// Kernel NETNSA_NSID for the namespace (best-effort, via RTM_GETNSID), as
+	// seen from the collector's namespace. Populated only when -populateNsid is
+	// enabled; netns_inode is the real stable key. 0 is a valid id (the
+	// kernel's first), so read it only when nsid_assigned is true.
 	uint32 nsid                                     = 32;
+
+	// True when nsid holds an id the kernel assigned. False when the namespace
+	// has none, or -populateNsid is off; nsid is then 0.
+	bool nsid_assigned                              = 33;
 
 	// ---- metadata: container identity (40s) ----------------------------------
 	// Container that owns the socket. Resolved by joining the socket's owning

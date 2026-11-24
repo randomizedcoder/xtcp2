@@ -42,11 +42,19 @@ const (
 	// Netns is a namespace name: a container or named netns is kept, an
 	// anonymous "netns:[<inode>]" becomes an ordinal.
 	Netns
+	// Assigned is a bool column named <ordinal>_assigned that says whether
+	// that Ordinal column holds an id, for ids where 0 is a real value. It
+	// is kept, and the ordinal is numbered whenever it is true, 0 included,
+	// and reads "-" when it is false.
+	Assigned
 )
+
+// assignedSuffix names an Assigned column after its ordinal.
+const assignedSuffix = "_assigned"
 
 var classNames = map[Class]string{
 	Strict: "strict", Presence: "presence", Ordinal: "ordinal", Address: "address",
-	Port: "port", Volatile: "volatile", Host: "host", Netns: "netns",
+	Port: "port", Volatile: "volatile", Host: "host", Netns: "netns", Assigned: "assigned",
 }
 
 func (c Class) String() string {
@@ -107,28 +115,54 @@ func columnsOf(t reflect.Type) []column {
 }
 
 // Check reports every way t's columns and the table disagree: a column in no
-// class, a column in two, and a table entry naming no column.
+// class, a column in two, a table entry naming no column, and an Assigned
+// column that is not a bool flag on an Ordinal column.
 func Check(t reflect.Type, table Table) error {
 	if t.Kind() != reflect.Struct {
 		return fmt.Errorf("goldenrec: %s is not a struct", t)
 	}
 	idx, err := table.index()
 	errs := []error{err}
-	have := make(map[string]bool)
-	for _, c := range columnsOf(t) {
-		have[c.name] = true
+	have := make(map[string]reflect.Type)
+	cols := columnsOf(t)
+	for _, c := range cols {
+		have[c.name] = t.Field(c.field).Type
 		if _, ok := idx[c.name]; !ok {
 			errs = append(errs, fmt.Errorf("unclassified column %s", c.name))
 		}
 	}
 	for _, l := range table {
 		for _, c := range l.Columns {
-			if !have[c] {
+			if _, ok := have[c]; !ok {
 				errs = append(errs, fmt.Errorf("class entry %s has no column", c))
 			}
 		}
 	}
+	for _, c := range cols {
+		if idx[c.name] == Assigned {
+			errs = append(errs, checkAssigned(c.name, have, idx))
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// checkAssigned checks one Assigned column: a bool named after an Ordinal
+// column.
+func checkAssigned(name string, have map[string]reflect.Type, idx map[string]Class) error {
+	ord, ok := strings.CutSuffix(name, assignedSuffix)
+	if !ok {
+		return fmt.Errorf("assigned column %s: name does not end in %s", name, assignedSuffix)
+	}
+	if k := have[name].Kind(); k != reflect.Bool {
+		return fmt.Errorf("assigned column %s is %s, not bool", name, k)
+	}
+	if _, ok := have[ord]; !ok {
+		return fmt.Errorf("assigned column %s: no column %s", name, ord)
+	}
+	if cl := idx[ord]; cl != Ordinal {
+		return fmt.Errorf("assigned column %s: %s is %s, not ordinal", name, ord, cl)
+	}
+	return nil
 }
 
 // Columns is the class table for pkg/xtcp's ParquetRow.
@@ -180,7 +214,7 @@ var Columns = Table{
 		"bbr_info_bw_lo", "bbr_info_bw_hi", "bbr_info_min_rtt", "bbr_info_pacing_gain", "bbr_info_cwnd_gain",
 	}},
 	{Ordinal, []string{
-		"netns_inode", "container_id", "socket_fd",
+		"netns_inode", "nsid", "container_id", "socket_fd",
 		"inet_diag_msg_socket_cookie", "inet_diag_msg_inode", "inet_diag_cgroup_id",
 	}},
 	{Address, []string{
@@ -190,16 +224,17 @@ var Columns = Table{
 	{Port, []string{
 		"inet_diag_msg_socket_source_port", "inet_diag_msg_socket_destination_port",
 	}},
+	// nsid_assigned says whether nsid holds an id: the kernel's first is 0,
+	// and which namespace gets it changes from run to run.
+	{Assigned, []string{"nsid_assigned"}},
 	// Volatile, though not timestamps, because 0 is a real value that moves
 	// between rows from run to run:
-	//   - nsid: "no nsid" and the kernel's first one both read 0, and which
-	//     container gets 0 changes per run;
 	//   - netlinker_id: the decoder that took the packet, 0 or 1 by chance;
 	//   - inet_diag_msg_expires: a timer countdown, 0 as it fires
 	//     (inet_diag_msg_timer says whether one is set).
 	{Volatile, []string{
 		"daemon_version", "timestamp_ns", "event_date", "agent_id", "host_boot_id", "collection_id",
-		"treatment_applied_timestamp_ns", "record_counter", "nsid", "netlinker_id", "inet_diag_msg_expires",
+		"treatment_applied_timestamp_ns", "record_counter", "netlinker_id", "inet_diag_msg_expires",
 	}},
 	{Host, []string{
 		"hostname",
