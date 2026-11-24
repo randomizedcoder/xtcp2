@@ -294,7 +294,7 @@ const coverageFile = "coverage.json"
 // "@manifest.<key>" values taken from manifest (the fixture's
 // manifest.json). No coverage.json, no problems.
 func coverageProblems(dir string, rows []xtcp.ParquetRow, manifest []byte) ([]string, error) {
-	b, err := os.ReadFile(filepath.Join(filepath.Dir(filepath.Clean(dir)), coverageFile))
+	b, err := readFile(filepath.Dir(filepath.Clean(dir)), coverageFile)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
