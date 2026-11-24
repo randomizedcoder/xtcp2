@@ -1,0 +1,1 @@
+[{"ingress":true,"protocol":"ip","pref":1,"kind":"u32","chain":0,"options":{"fh":"800::800","order":2048,"key_ht":"800","bkt":"0","link":"2:","not_in_hw":true,"match":{"value":"60000","mask":"ff0000","offmask":"","off":8},"offset_mask":"f00","offset_shift":6,"offset_off":0," eat "}}]

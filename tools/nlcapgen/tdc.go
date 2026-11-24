@@ -97,7 +97,8 @@ func init() {
 	for _, m := range strings.Fields(`act_bpf act_connmark act_csum act_ctinfo act_ct act_gact
 		act_gate act_ife act_mirred act_mpls act_nat act_pedit act_police act_sample act_simple
 		act_skbedit act_skbmod act_tunnel_key act_vlan cls_basic cls_bpf cls_cgroup cls_flower
-		cls_flow cls_fw cls_matchall cls_route cls_u32 sch_cake sch_cbs sch_choke sch_codel
+		cls_flow cls_fw cls_matchall cls_route cls_u32 em_canid em_cmp em_ipset em_meta
+		em_nbyte em_text em_u32 sch_cake sch_cbs sch_choke sch_codel
 		sch_drr sch_dualpi2 sch_etf sch_ets sch_fq_codel sch_fq sch_fq_pie sch_gred sch_hfsc
 		sch_hhf sch_htb sch_ingress sch_mqprio sch_multiq sch_netem sch_pie sch_plug sch_prio
 		sch_qfq sch_red sch_sfb sch_sfq sch_skbprio sch_taprio sch_tbf sch_teql`) {

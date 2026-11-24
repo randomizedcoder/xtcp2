@@ -1,0 +1,1 @@
+[{"parent":"1:","protocol":"ip","pref":30,"kind":"flow","chain":0,"options":{"handle":"0x1","mode":"hash","keys":["src","dst"],"divisor":1024,"baseclass":"1:1"}}]

@@ -1,0 +1,6 @@
+filter ingress protocol ip pref 1 u32 chain 0 fh 800::1 order 1 key ht 800 bkt 0 terminal flowid not_in_hw 
+  match 0a000000/ff000000 at 12
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

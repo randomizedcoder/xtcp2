@@ -1,0 +1,2 @@
+filter get dev d0 egress protocol all pref 3 handle 1 matchall
+filter show dev d0 egress
