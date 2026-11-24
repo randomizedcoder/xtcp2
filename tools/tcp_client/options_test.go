@@ -13,10 +13,11 @@ import (
 
 // parsed is the part of clientConfig the new flags set.
 type parsed struct {
-	opts sockopt.Options
-	bulk sockopt.Size
-	mode closeMode
-	err  string
+	opts        sockopt.Options
+	bulk        sockopt.Size
+	mode        closeMode
+	dialTimeout time.Duration
+	err         string
 }
 
 // go test ./tools/tcp_client/ -run TestParseClientFlags
@@ -28,24 +29,26 @@ func TestParseClientFlags(t *testing.T) {
 		input       []string
 		expected    parsed
 	}{
-		{"defaults", "positive", "no new flags is today's behavior", nil, parsed{}},
+		{"defaults", "positive", "no new flags is today's behavior", nil, parsed{dialTimeout: dialTimeoutCst}},
 		{"all_opts", "positive", "every flag parses",
-			[]string{"-cong", "bbr", "-tos", "0x08", "-priority", "6", "-rcvbuf", "64KiB", "-freebind", "-bindNoPort", "-bulk", "4MiB", "-close"},
-			parsed{opts: sockopt.Options{Cong: "bbr", TOS: 8, Priority: 6, RcvBuf: 65536, Freebind: true, BindNoPort: true}, bulk: 4 << 20, mode: closeAfter}},
+			[]string{"-cong", "bbr", "-tos", "0x08", "-priority", "6", "-rcvbuf", "64KiB", "-freebind", "-bindNoPort", "-bulk", "4MiB", "-close", "-dialTimeout", "3m"},
+			parsed{opts: sockopt.Options{Cong: "bbr", TOS: 8, Priority: 6, RcvBuf: 65536, Freebind: true, BindNoPort: true}, bulk: 4 << 20, mode: closeAfter, dialTimeout: 3 * time.Minute}},
 		{"tos_range", "negative", "TOS is one byte", []string{"-tos", "256"}, parsed{err: "tos 256 out of range 0-255"}},
 		{"cong_too_long", "negative", "longer than TCP_CA_NAME_MAX", []string{"-cong", strings.Repeat("c", 16)}, parsed{err: "cong name longer than 15"}},
 		{"conflicting", "negative", "contradictory close modes", []string{"-close", "-halfclose"}, parsed{err: "-close and -halfclose are exclusive"}},
 		{"bad_bulk", "negative", "a size that isn't one", []string{"-bulk", "lots"}, parsed{err: `size "lots"`}},
-		{"tos_zero", "boundary", "0 means not set", []string{"-tos", "0"}, parsed{}},
-		{"rcvbuf_min", "boundary", "the smallest buffer; the kernel raises it", []string{"-rcvbuf", "1"}, parsed{opts: sockopt.Options{RcvBuf: 1}}},
-		{"bulk_zero", "boundary", "0 is one message, as today", []string{"-bulk", "0"}, parsed{}},
-		{"halfclose", "corner", "half-close alone", []string{"-halfclose"}, parsed{mode: halfClose}},
-		{"last_wins", "corner", "a repeated flag takes the last value, so appended args override", []string{"-tos", "8", "-tos", "0xb8"}, parsed{opts: sockopt.Options{TOS: 0xb8}}},
+		{"dial_timeout_zero", "negative", "a dial needs time", []string{"-dialTimeout", "0s"}, parsed{err: "-dialTimeout 0s must be positive"}},
+		{"tos_zero", "boundary", "0 means not set", []string{"-tos", "0"}, parsed{dialTimeout: dialTimeoutCst}},
+		{"rcvbuf_min", "boundary", "the smallest buffer; the kernel raises it", []string{"-rcvbuf", "1"}, parsed{opts: sockopt.Options{RcvBuf: 1}, dialTimeout: dialTimeoutCst}},
+		{"bulk_zero", "boundary", "0 is one message, as today", []string{"-bulk", "0"}, parsed{dialTimeout: dialTimeoutCst}},
+		{"halfclose", "corner", "half-close alone", []string{"-halfclose"}, parsed{mode: halfClose, dialTimeout: dialTimeoutCst}},
+		{"dial_timeout_long", "boundary", "longer than the kernel's SYN retries, for SYN_SENT sockets", []string{"-dialTimeout", "10m"}, parsed{dialTimeout: 10 * time.Minute}},
+		{"last_wins", "corner", "a repeated flag takes the last value, so appended args override", []string{"-tos", "8", "-tos", "0xb8"}, parsed{opts: sockopt.Options{TOS: 0xb8}, dialTimeout: dialTimeoutCst}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c, err := parseFlags(tc.input, io.Discard)
-			got := parsed{opts: c.opts, bulk: c.bulk, mode: c.mode}
+			got := parsed{opts: c.opts, bulk: c.bulk, mode: c.mode, dialTimeout: c.dialTimeout}
 			ok := errMatches(err, tc.expected.err)
 			if err == nil {
 				want := tc.expected
