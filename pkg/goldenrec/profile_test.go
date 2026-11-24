@@ -274,7 +274,7 @@ func TestProfileNsidAssigned(t *testing.T) {
 			[]nsrec{{afInet, 1, "c1", 0, true}, {afInet, 1, "", 0, false}},
 			map[string]ColumnProfile{
 				"nsid":          {Class: "ordinal", Distinct: "1"},
-				"nsid_assigned": {Class: "assigned", Nonzero: 1, Distinct: "2", Values: []string{"false", "true"}},
+				"nsid_assigned": {Class: "assigned", Nonzero: 1, Distinct: "2", Values: []string{"true", "false"}}, // shortlex, as for numbers,
 			}},
 		{"ids_counted", "negative", "the ids themselves are counted, never listed",
 			[]nsrec{{afInet, 1, "c1", 3, true}, {afInet, 1, "c2", 4, true}},

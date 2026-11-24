@@ -68,6 +68,7 @@ var profileListed = map[string]bool{
 	"inet_diag_tclass":              true,
 	"inet_diag_shutdown":            true,
 	"inet_diag_sockopt":             true,
+	"nsid_assigned":                 true,
 
 	"location":                         false,
 	"label":                            false,
@@ -115,7 +116,7 @@ type Profile struct {
 // valued says whether a class's values are worth listing: the ones a diff
 // compares as they are.
 func valued(cl Class) bool {
-	return cl == Strict
+	return cl == Strict || cl == Assigned
 }
 
 // ProfileOf profiles rows, a slice of structs classified by table.
