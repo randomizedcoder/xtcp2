@@ -171,13 +171,15 @@ Each is verified to exist in the kernel tree; each gets its rows from a probe ba
 #### EC4-T01
 
 - Recount every new family's rows, rcs and message types.
-  - `TestNetlinkUniverse` needs no new names (every type in the families is already counted); the exclusion list gains nothing (addrlabel and neightbl events do not exist — recorded in [Out of scope](#out-of-scope), which is the universe gate's own "excluded with a reason" discipline applied to events).
+  - `TestNetlinkUniverse` needs no new names (every type in the families is already counted; the recount below was run with it green over the enlarged corpus — 15693 pcaps); the exclusion list gains nothing (addrlabel and neightbl events do not exist — recorded in [Out of scope](#out-of-scope), which is the universe gate's own "excluded with a reason" discipline applied to events).
   - Write Tier EP's and Tier EG's task tables into this plan from the rows, with each row's expected value.
 
 | corpus | rows | rc 0 | notes |
 |---|---|---|---|
-| `7_3_1/ws/ev*` | from EC4-T01 | — | 7.2.0 |
-| `7_3_1/ws-ip730/ev*` | the same ids | — | 7.3.0 |
+| `7_3_1/ws/ev*` | 33 | 31 | 7.2.0; the two rc 1 are the refusals: `everr-esrch` (ESRCH) and `evnsid-eexist` (EEXIST) |
+| `7_3_1/ws-ip730/ev*` | the same 33 ids | 31 | 7.3.0; verdiff clean (V382) |
+
+The notification types both roots hold, over all 66 rows (each type's message count): `RTM_NEWLINK` 498, `RTM_DELLINK` 8, `RTM_NEWADDR` 124, `RTM_DELADDR` 27, `RTM_NEWROUTE` 67, `RTM_DELROUTE` 7, `RTM_NEWNEIGH` 24, `RTM_DELNEIGH` 9, `RTM_NEWRULE` 12, `RTM_DELRULE` 8, `RTM_NEWPREFIX` 8, `RTM_NEWMULTICAST` 87, `RTM_DELMULTICAST` 34, `RTM_NEWANYCAST` 4, `RTM_DELANYCAST` 2, `RTM_NEWNETCONF` 4, `RTM_DELNETCONF` 8, `RTM_NEWNSID` 86, `RTM_DELNSID` 4, `RTM_NEWSTATS` 6, `RTM_NEWNEXTHOP` 12, `RTM_NEWLINKPROP` 2, `RTM_NEWNEXTHOPBUCKET` 2 (both with `NLM_F_REPLACE`). `RTM_DELNEXTHOPBUCKET` is absent by design — the kernel never sends it (V381's dead-letter finding).
 
 ## Tier EP: replay and parsers
 
@@ -190,8 +192,9 @@ Each task gets a table test from the captures, a benchmark over the corpus picks
 
 | description | input | expected |
 |---|---|---|
-| positive: a family row | `evlink/ec-001` | goip's monitor output is the `.out` |
-| corner: the canary block | every `ipmon` row | printed, paired |
+| positive: a row per family | `ev/evlink-carrier`, `ev/evaddr-dad`, `ev/evroute-autoconf`, `ev/evneigh-v4`, `ev/evnhb-bucket`, `ev/evconf-del`, `ev/evrule-v4`, `ev/evstats-l3`, `ev/evnsid-live`, `evprefix-route`, `ev/anycast-del`, `ev/evseq-mixed` | goip's monitor output is each row's `.out`, canary blocks and all |
+| positive: the refusal rows | `ev/everr-esrch`, `ev/evnsid-eexist` | the canary blocks, no render of the refused request, rc as recorded |
+| corner: the canary block | every `ipmon` row | printed, paired, both ways |
 | negative: a render goip lacks | a finding | `lacks "…"` in the golden |
 | boundary: the empty monitor | a row whose trigger refuses | no lines, rc as recorded |
 
@@ -212,10 +215,27 @@ Each task gets a table test from the captures, a benchmark over the corpus picks
 
 ## Tier EG: goip and the matrix
 
-Outline; its tables are written at EC4-T01, from the rows.
+Outline; its tables, written at EC4-T01 from the rows.
 
 - **EG1 — the monitor section.** A new row kind in the parity harness: the row starts `ip monitor <objects>` and `goip monitor <objects>` in the row's namespace, runs the trigger, stops both on the `until` EREs, and the comparator diffs the two monitors' stdout with the D_control discipline (an `ip`-only control run around the goip one, as `ip_a → goip → ip_b` does for dumps). The hygiene rule inverts for these rows only: a notification is the point, not pollution. Timestamps are excluded (`-t` is never used in a compared row; the `monitor_all_timestamp` row stays a capture, not a comparison).
+
+| description | input | expected |
+|---|---|---|
+| positive: one row per family, both monitors | the EP1 twelve (`evlink-carrier`, `evaddr-dad`, `evroute-autoconf`, `evneigh-v4`, `evnhb-bucket`, `evconf-del`, `evrule-v4`, `evstats-l3`, `evnsid-live`, `evprefix-route`, `anycast-del`, `evseq-mixed`) | goip's stdout equals ip's, canary blocks and all, on both boots' `ip` controls |
+| positive: the refusals | `everr-esrch`, `evnsid-eexist` | the canary blocks, and goip exits the trigger's rc like `ip` does |
+| corner: the @peer print | `evlink-carrier`, `evlink-admin` | goip prints `r0@r0p: ` (the @peer notation, V380) |
+| corner: the carrier transient | `evlink-carrier` | whichever carrier-settle shape the window caught, as the D_control run around it did |
+| negative: a render goip prints differently | a finding | the line, both tools, the version knob |
+
 - **EG2 — the offline section.** The EP2 blobs join the matrix as rows: `ip monitor file` against `goip monitor file` on the same blob, so the crafted inputs are gated, not just checked.
+
+| description | input | expected |
+|---|---|---|
+| positive: the bond partner states | `0x3f`, `0x3d`, 0, `0xff`, `0x3f01`, `0x0100`, absent, truncated, the actor-stays-u8 pair | each version's print, as EP2's goldens |
+| positive: P14's reason u32 | `0x9`, `0x100`, `0x80000001` | the 7.2.0 knob's behavior, both tools |
+| positive: the metrics padding | the `cubic\0p\0` route | the padded byte, both tools (UB0-T01) |
+| corner: a captured pcap, as a file | the `evnhb-bucket` pcap, via `nlcapgen monfile` | the same lines as the `.out` |
+| negative: not a netlink file | a text file | both tools' refusal, rc as each exits |
 
 ## Tier UB: the iproute2 findings record
 
