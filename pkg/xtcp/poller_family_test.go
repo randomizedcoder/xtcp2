@@ -360,14 +360,6 @@ func TestDumpTrackerSharedBudget(t *testing.T) {
 			expected: expectation{kept: 8, dropped: 0, dumps: 2},
 		},
 	}
-	stamp := func(p []byte, seq uint32) []byte {
-		p = slices.Clone(p)
-		for off := 0; off+xtcpnl.NlMsgHdrSizeCst <= len(p); {
-			binary.LittleEndian.PutUint32(p[off+8:off+12], seq)
-			off += nlmsgAlign(int(binary.LittleEndian.Uint32(p[off : off+4])))
-		}
-		return p
-	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tr := newDumpTracker(0, tc.maxRecords)
@@ -375,9 +367,9 @@ func TestDumpTrackerSharedBudget(t *testing.T) {
 			for _, d := range tc.dumps {
 				var pkts [][]byte
 				if d.records > 0 {
-					pkts = append(pkts, stamp(c.dataPacket(d.records), d.seq))
+					pkts = append(pkts, withSeq(c.dataPacket(d.records), d.seq))
 				}
-				pkts = append(pkts, stamp(c.done, d.seq))
+				pkts = append(pkts, withSeq(c.done, d.seq))
 				for _, p := range pkts {
 					first := tr.dump
 					a := tr.assign(p)
@@ -400,4 +392,21 @@ func TestDumpTrackerSharedBudget(t *testing.T) {
 			}
 		})
 	}
+}
+
+// withSeq returns a copy of netlink packet p with every message header's
+// sequence number set to seq: the poll the kernel's replies belong to. A
+// header shorter than a header (a zero-filled test packet) stops the walk
+// after its seq is set.
+func withSeq(p []byte, seq uint32) []byte {
+	p = slices.Clone(p)
+	for off := 0; off+xtcpnl.NlMsgHdrSizeCst <= len(p); {
+		binary.LittleEndian.PutUint32(p[off+8:off+12], seq)
+		l := int(binary.LittleEndian.Uint32(p[off : off+4]))
+		if l < xtcpnl.NlMsgHdrSizeCst {
+			break
+		}
+		off += nlmsgAlign(l)
+	}
+	return p
 }

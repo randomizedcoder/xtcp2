@@ -86,8 +86,7 @@ func (x *XTCP) Init(ctx context.Context) {
 	// x.InitIOURing()
 
 	// x.socketFD = xtcpnl.OpenNetlinkSocketWithTimeout(*x.config.NLTimeout)
-	wg.Add(1)
-	x.nlRequest = x.CreateNetLinkRequest(wg)
+	x.initNetlinkRequests()
 
 	x.initHostname()
 	x.initContainerResolver()
@@ -242,7 +241,7 @@ func (x *XTCP) initNsDiscovery(nameDirs []string) {
 
 // dumpFamilies are the address families each poll dumps, in the order
 // they are sent to a namespace's socket.
-var dumpFamilies = []uint8{unix.AF_INET}
+var dumpFamilies = []uint8{unix.AF_INET, unix.AF_INET6}
 
 // createNetLinkRequests builds one SOCK_DIAG_BY_FAMILY dump request per
 // family in dumpFamilies, in that order. The kernel answers a request only
@@ -259,7 +258,8 @@ func (x *XTCP) createNetLinkRequests() []*[]byte {
 
 // initNetlinkRequests builds the requests every poll sends.
 func (x *XTCP) initNetlinkRequests() {
-	x.nlRequest = x.createNetLinkRequests()[0]
+	reqs := x.createNetLinkRequests()
+	x.nlRequest, x.nlRequest6 = reqs[0], reqs[1]
 }
 
 // CreateNetLinkRequest builds the AF_INET dump request.

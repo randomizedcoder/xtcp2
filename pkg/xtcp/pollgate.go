@@ -14,6 +14,7 @@ type pollGate struct {
 	reader  sockstatReader
 	planner pollPlanner
 	reqs    *pollRequests
+	reqs6   *pollRequests // nil: AF_INET only
 
 	pairs   []nsPollFDs
 	ready   []nsPollFDs
@@ -30,10 +31,12 @@ type pollGate struct {
 	polls uint64
 }
 
-// nsSend is one namespace's socket and the request planned for it.
+// nsSend is one namespace's socket and the requests planned for it: req,
+// and req6, its AF_INET6 twin (nil: AF_INET only), sent after req's dump.
 type nsSend struct {
-	fd  int
-	req *[]byte
+	fd   int
+	req  *[]byte
+	req6 *[]byte
 }
 
 // newSockstatRingReader is the seam tests swap to make ring setup fail.
@@ -95,6 +98,9 @@ func (x *XTCP) gateEnabled() bool {
 // set up (counted).
 func (x *XTCP) newPollGate() *pollGate {
 	g := &pollGate{reqs: newPollRequests(x.nlRequest), rangeBuf: make([]byte, portRangeBufSize)}
+	if x.nlRequest6 != nil {
+		g.reqs6 = newPollRequests(x.nlRequest6)
+	}
 	if x.config.GetIoUring() {
 		r, err := newSockstatRingReader(x.config.GetIoUringSockstatBatchSize(), x.config.GetIoUringSockstatWorkers())
 		if err == nil {
@@ -198,10 +204,25 @@ func (x *XTCP) planGatedPoll() []nsSend {
 		case pollSample:
 			sample++
 		}
-		g.sendTo = append(g.sendTo, nsSend{fd: g.ready[i].socketFD, req: req})
+		g.sendTo = append(g.sendTo, nsSend{fd: g.ready[i].socketFD, req: req, req6: g.request6(pl, pr)})
 	}
 	x.recordGate(total, unknown, states, sample)
 	return g.sendTo
+}
+
+// request6 is the AF_INET6 request at pl's level, nil when there is no
+// AF_INET6 dump. Its shard request is built like the AF_INET one (the
+// bytecode matches ports only), so it can't fail where that one didn't;
+// if it does, the full request is sent, bounded by the receiver caps.
+func (g *pollGate) request6(pl nsPlan, pr portRange) *[]byte {
+	if g.reqs6 == nil {
+		return nil
+	}
+	req, err := g.reqs6.get(pl, pr)
+	if err != nil {
+		return g.reqs6.full
+	}
+	return req
 }
 
 // recordGate publishes one gated poll's counts and logs a poll that
