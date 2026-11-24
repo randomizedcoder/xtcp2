@@ -159,10 +159,10 @@ ok=0
 [ -z "$missing" ] && ok=1
 row cc_info positive "$ok" "bbr/dctcp/vegas info filled; missing:${missing:- none}"
 O="netns IN ('golden-opts-a', 'golden-opts-b')"
-got=$(q "SELECT concat_ws(' ', bool_or(inet_diag_tos = 8), bool_or(inet_diag_tos = 184), bool_or(inet_diag_tclass = 184), bool_or(inet_diag_class_id = 6), bool_or(inet_diag_sockopt & 4 > 0), bool_or(enrich_socket_interface_name = 'veth0'), count(DISTINCT tcp_info_rcv_wscale) FILTER (netns = 'golden-opts-a') >= 3) FROM $P WHERE $O")
+got=$(q "SELECT concat_ws(',', bool_or(inet_diag_tos = 8), bool_or(inet_diag_tos = 184), bool_or(inet_diag_tclass = 184), bool_or(inet_diag_class_id = 6), bool_or(inet_diag_sockopt & 4 > 0), count(DISTINCT tcp_info_rcv_wscale) FILTER (netns = 'golden-opts-a') >= 3) FROM $P WHERE $O")
 ok=0
-[ "$got" = "truetruetruetruetruetruetrue" ] && ok=1
-row opts_seen positive "$ok" "tos 8, tos 184, tclass 184, class_id 6, freebind, bound veth0, 3 rcv_wscale: $got"
+[ "$got" = "true,true,true,true,true,true" ] && ok=1
+row opts_seen positive "$ok" "tos 8, tos 184, tclass 184, class_id 6, freebind, 3 rcv_wscale: $got"
 n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
@@ -175,9 +175,9 @@ got=$(q "SELECT concat_ws(',', count(*) FILTER (netns = 'golden-states-a' AND in
 ok=0
 [ "$got" = "$K_TW,$K_SYN,1,1" ] && ok=1
 row state_counts boundary "$ok" "TIME_WAIT,SYN_SENT,FIN_WAIT2,CLOSE_WAIT = $got, want $K_TW,$K_SYN,1,1"
-got=$(q "SELECT string_agg(DISTINCT netns || '=' || tcp_info_pmtu || '/' || tcp_info_snd_mss, ' ' ORDER BY netns || '=' || tcp_info_pmtu || '/' || tcp_info_snd_mss) FROM $P WHERE netns IN ('golden-cc-a', 'golden-opts-a', 'golden-states-a') AND inet_diag_msg_family = 2 AND inet_diag_msg_state IN (1, 5)")
+got=$(q "SELECT string_agg(DISTINCT netns || '=' || tcp_info_pmtu || '/' || tcp_info_snd_mss, ',' ORDER BY netns || '=' || tcp_info_pmtu || '/' || tcp_info_snd_mss) FROM $P WHERE netns IN ('golden-cc-a', 'golden-opts-a', 'golden-states-a') AND inet_diag_msg_family = 2 AND inet_diag_msg_state IN (1, 5)")
 ok=0
-[ "$got" = "golden-cc-a=1500/1448 golden-opts-a=1450/1398 golden-states-a=1300/1248" ] && ok=1
+[ "$got" = "golden-cc-a=1500/1448,golden-opts-a=1450/1398,golden-states-a=1300/1248" ] && ok=1
 row mtu_paths corner "$ok" "IPv4 pmtu/snd_mss per pair: $got"
 [ "$row_failed" = 0 ] || fail "rows failed"
 

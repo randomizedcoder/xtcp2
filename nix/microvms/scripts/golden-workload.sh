@@ -110,23 +110,42 @@ read -r -a cas </proc/sys/net/ipv4/tcp_available_congestion_control
 # The largest -rcvbuf below; SO_RCVBUF is capped at rmem_max.
 sysctl -qw net.core.rmem_max=33554432
 
+# servers NAME N: on golden-NAME-b, a default-algorithm listener on .2/::2
+# and a dctcp one on .3/::3. A SYN that dctcp sends ECT gets ECN back only
+# from a listener whose algorithm needs ECN (tcp_ecn_create_request,
+# net/ipv4/tcp_input.c); without it dctcp_init falls back to dctcp-reno
+# (net/ipv4/tcp_dctcp.c). Specific addresses, since a wildcard listener
+# would hold the port for every address.
+servers() {
+  local b="golden-$1-b" n=$2
+  ip -n "$b" addr add "10.$n.0.3/24" dev veth0
+  ip -n "$b" addr add "fd00:$n::3/64" dev veth0 nodad
+  spawn "$1-server-4" "$b" "$TCP_SERVER" -count 1 -bind "10.$n.0.2"
+  spawn "$1-server-6" "$b" "$TCP_SERVER" -count 1 -bind "fd00:$n::2"
+  spawn "$1-server-dctcp-4" "$b" "$TCP_SERVER" -count 1 -bind "10.$n.0.3" -cong dctcp
+  spawn "$1-server-dctcp-6" "$b" "$TCP_SERVER" -count 1 -bind "fd00:$n::3" -cong dctcp
+  wait_listen "$b" 4000 4
+}
+
+# host CA: the server address suffix for algorithm CA (servers above).
+host() { if [ "$1" = dctcp ]; then echo 3; else echo 2; fi; }
+
 pair cc 1 1500
-spawn cc-server golden-cc-b "$TCP_SERVER" -count 1 -bind ::
-wait_listen golden-cc-b 4000
+servers cc 1
 for ca in "${cas[@]}"; do
-  spawn "cc-$ca-4" golden-cc-a "$TCP_CLIENT" -count 1 -connect 10.1.0.2 -network tcp4 -cong "$ca" -sleep 1h -pads 0
-  spawn "cc-$ca-6" golden-cc-a "$TCP_CLIENT" -count 1 -connect fd00:1::2 -network tcp6 -cong "$ca" -sleep 1h -pads 0
+  h=$(host "$ca")
+  spawn "cc-$ca-4" golden-cc-a "$TCP_CLIENT" -count 1 -connect "10.1.0.$h" -network tcp4 -cong "$ca" -sleep 1h -pads 0
+  spawn "cc-$ca-6" golden-cc-a "$TCP_CLIENT" -count 1 -connect "fd00:1::$h" -network tcp6 -cong "$ca" -sleep 1h -pads 0
 done
 
 pair bulk 4 1500
 for ns in golden-bulk-a golden-bulk-b; do
   tc -n "$ns" qdisc add dev veth0 root netem delay 5ms loss 2% reorder 1%
 done
-spawn bulk-server golden-bulk-b "$TCP_SERVER" -count 1 -bind ::
-wait_listen golden-bulk-b 4000
+servers bulk 4
 read -r -a bulk_algos <<<"$BULK_CC"
 for ca in "${bulk_algos[@]}"; do
-  spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect 10.4.0.2 -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0
+  spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect "10.4.0.$(host "$ca")" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0
 done
 
 pair opts 2 1450

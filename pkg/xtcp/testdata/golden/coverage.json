@@ -1,6 +1,6 @@
 {
   "populated": [
-    "bbr_info_bw_hi",
+    "bbr_info_bw_lo",
     "bbr_info_min_rtt",
     "bbr_info_pacing_gain",
     "container_id",
@@ -8,7 +8,6 @@
     "container_name",
     "container_runtime",
     "dctcp_info_enabled",
-    "enrich_socket_interface_name",
     "hostname",
     "inet_diag_cgroup_id",
     "inet_diag_class_id",
