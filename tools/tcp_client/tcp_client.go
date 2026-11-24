@@ -89,9 +89,12 @@ type clientConfig struct {
 	srcaddr    string
 	iface      string
 	network    string
-	bulk       sockopt.Size
-	mode       closeMode
-	opts       sockopt.Options
+	// dialTimeout is the first dial attempt's timeout; each retry after a
+	// timeout waits one more of it.
+	dialTimeout time.Duration
+	bulk        sockopt.Size
+	mode        closeMode
+	opts        sockopt.Options
 }
 
 // parseFlags reads the command line into a clientConfig. Every error is
@@ -111,6 +114,7 @@ func parseFlags(args []string, stderr io.Writer) (clientConfig, error) {
 	fs.StringVar(&c.srcaddr, "srcaddr", srcaddrCst, "bind each connection's source IP (net.Dialer.LocalAddr); empty = kernel default")
 	fs.StringVar(&c.iface, "iface", ifaceCst, "bind each connection to this interface via SO_BINDTODEVICE; empty = kernel default")
 	fs.StringVar(&c.network, "network", networkCst, "tcp (family from -connect), tcp4 or tcp6")
+	fs.DurationVar(&c.dialTimeout, "dialTimeout", dialTimeoutCst, "first dial attempt's timeout; longer than the kernel's SYN retries (about 2m) holds a SYN_SENT socket to an unanswering peer")
 	fs.Var(&c.bulk, "bulk", "send this many bytes (e.g. 4MiB) and read the echo back before the first message; 0 = none")
 	closeFlag := fs.Bool("close", false, "close after one exchange (the socket goes to TIME_WAIT)")
 	halfFlag := fs.Bool("halfclose", false, "shutdown(SHUT_WR) after one exchange and hold the socket until the peer closes (FIN_WAIT2)")
@@ -119,6 +123,9 @@ func parseFlags(args []string, stderr io.Writer) (clientConfig, error) {
 		return clientConfig{}, err
 	}
 	err := c.opts.Validate()
+	if c.dialTimeout <= 0 {
+		err = errors.Join(err, fmt.Errorf("-dialTimeout %s must be positive", c.dialTimeout))
+	}
 	switch {
 	case *closeFlag && *halfFlag:
 		err = errors.Join(err, errors.New("-close and -halfclose are exclusive"))
@@ -212,7 +219,7 @@ func newDialer(srcaddr, iface string, opts sockopt.Options) (net.Dialer, error) 
 func client(wg *sync.WaitGroup, dialFailures *atomic.Int32, d net.Dialer, c clientConfig, port int) {
 	defer wg.Done()
 
-	conn, err := dialWithRetryDialer(d, c.network, c.connect, port, c.dialr, dialTimeoutCst)
+	conn, err := dialWithRetryDialer(d, c.network, c.connect, port, c.dialr, c.dialTimeout)
 	if err != nil {
 		log.Printf("dialWithRetry: %v", err)
 		dialFailures.Add(1)
