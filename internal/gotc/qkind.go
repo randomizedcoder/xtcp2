@@ -28,7 +28,7 @@ var tcBuiltinKinds = map[string]bool{
 	"cake": true, "cake_mq": true, "cbs": true, "choke": true, "clsact": true, "codel": true,
 	"drr": true, "dualpi2": true, "etf": true, "ets": true, "bfifo": true, "pfifo": true,
 	"pfifo_head_drop": true, "pfifo_fast": true, "fq": true, "fq_codel": true, "fq_pie": true,
-	"gred": true, "hfsc": true, "hhf": true, "htb": true, "ingress": true, "mqprio": true,
+	"gred": true, "hfsc": true, "hhf": true, "htb": true, wordIngress: true, "mqprio": true,
 	"multiq": true, "netem": true, "pie": true, "plug": true, "prio": true, "qfq": true,
 	"red": true, "sfb": true, "sfq": true, "skbprio": true, "taprio": true, "tbf": true,
 }

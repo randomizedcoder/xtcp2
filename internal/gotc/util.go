@@ -12,10 +12,12 @@ import (
 
 // The command words more than one parser tests.
 const (
-	wordDev   = "dev"
-	wordRoot  = "root"
-	wordNone  = "none"
-	wordQdisc = "qdisc"
+	wordDev     = "dev"
+	wordRoot    = "root"
+	wordNone    = "none"
+	wordQdisc   = "qdisc"
+	wordIngress = "ingress"
+	wordParent  = "parent"
 )
 
 // The tc handle values (pkt_sched.h).
