@@ -1079,6 +1079,7 @@ in
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;
       microvm-x86_64-soak = microvms.vmsSoak.x86_64;
       microvm-x86_64-tcp-stress = microvms.vmsTcpStress.x86_64;
+      microvm-x86_64-tcp-families = microvms.vmsS3ParquetFamilies.x86_64;
       microvm-x86_64-interface-naming = microvms.vmsInterfaceNaming.x86_64;
       microvm-x86_64-ipmeta-bootstrap = microvms.vmsIpmetaBootstrap.x86_64;
       microvm-x86_64-clickhouse-pipeline = microvms.vmsClickPipe.x86_64;
@@ -1322,6 +1323,13 @@ in
     capture-golden-records = {
       type = "app";
       program = "${microvms.goldenCapture.x86_64.runner}/bin/xtcp2-golden-capture-x86_64";
+    };
+    # Sockets of each address family (IPv4-only, IPv6-only, dual-stack
+    # containers and an IPv6 named netns) in a microVM: xtcp2's rows per
+    # family must match ss -4 / ss -6. Needs /dev/kvm.
+    microvm-x86_64-tcp-families = {
+      type = "app";
+      program = "${microvms.tcpFamilies.x86_64.runner}/bin/xtcp2-tcp-families-x86_64";
     };
     capture-netlink-fixtures = {
       type = "app";

@@ -248,6 +248,14 @@ let
   # .#capture-golden-records` scrubs it into pkg/xtcp/testdata/golden/. FP-9
   # recaptures it with services.xtcp2.capabilities changed via extraModules.
   isS3ParquetGolden = sink == "s3parquet-golden";
+  # s3parquet-families = the golden harness (second poll, unix metrics,
+  # Parquet read back with duckdb) over sockets of each address family
+  # (tcp4, tcp6, dual-stack containers and a tcp6 named netns), checking
+  # rows per family against ss -4 / ss -6: `nix run
+  # .#microvm-x86_64-tcp-families`.
+  isS3ParquetFamilies = sink == "s3parquet-families";
+  # Flavors built on the golden harness.
+  isGoldenHarness = isS3ParquetGolden || isS3ParquetFamilies;
   # clickhouse-pipeline-rate = the runtime-control behavioral test: the
   # clickhouse-pipeline stack (redpanda + clickhouse + kafka + xtcp2) PLUS a
   # steady 100-connection tcp_server/tcp_client load (a stable rate
@@ -493,7 +501,7 @@ let
     || isClickPipeParquet
     || isS3ParquetStress
     || isS3ParquetLowfreq
-    || isS3ParquetGolden;
+    || isGoldenHarness;
   # All flavors that bring up the redpanda + clickhouse docker stack.
   isAnyClickPipe =
     isClickPipe || isClickPipeParquet || isClickPipeStress || isClickPipeRate || isClickHttp;
@@ -503,7 +511,7 @@ let
   # need it too, so the s3parquet stress/lowfreq flavors pull docker in even
   # though their sink is Garage).
   needsDocker =
-    isTcpStress || isAnyClickPipe || isS3ParquetStress || isS3ParquetLowfreq || isS3ParquetGolden;
+    isTcpStress || isAnyClickPipe || isS3ParquetStress || isS3ParquetLowfreq || isGoldenHarness;
   effectiveMem =
     if isClickPipeParquet then
       # Mixed flavor needs more — clickhouse + redpanda + 2× xtcp2 +
@@ -2450,8 +2458,54 @@ let
       CONTAINERS=${toString goldenContainers}
       SOCKETS=${toString goldenSockets}
       FLAVOR=${xtcp2Package.pname or xtcp2Package.name}
+      ERR_TAG=GOLDEN_ERR
     ''
+    + builtins.readFile ./scripts/golden-common.sh
     + builtins.readFile ./scripts/golden-capture.sh;
+  };
+
+  # s3parquet-families: the golden harness over sockets of each family.
+  familiesSockets = 4;
+  familiesWorkloadScript = pkgs.writeShellApplication {
+    name = "xtcp2-families-workload";
+    runtimeInputs = with pkgs; [
+      coreutils
+      docker
+      iproute2
+      systemd
+      util-linux
+    ];
+    text = ''
+      IMAGE=xtcp2-tcp-stress:latest
+      SOCKETS=${toString familiesSockets}
+      TCP_SERVER=${xtcp2AllPackage}/bin/tcp_server
+      TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
+    ''
+    + builtins.readFile ./scripts/tcp-families-workload.sh;
+  };
+  familiesCheckScript = pkgs.writeShellApplication {
+    name = "xtcp2-families-check";
+    runtimeInputs = with pkgs; [
+      coreutils
+      curl
+      docker
+      duckdb
+      gawk
+      gnugrep
+      iproute2
+      rclone
+      systemd
+      util-linux
+    ];
+    text = ''
+      PROM_SOCKET=${goldenPromSocket}
+      TOKEN_FILE=${vmListenerTokenFile}
+      BUCKET=xtcp2-records
+      SOCKETS=${toString familiesSockets}
+      ERR_TAG=FAMILIES_ERR
+    ''
+    + builtins.readFile ./scripts/golden-common.sh
+    + builtins.readFile ./scripts/tcp-families-check.sh;
   };
 
   # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
@@ -3203,7 +3257,7 @@ in
             wants = [ "lldpd.service" ];
           })
           # s3parquet-golden: the one poll must see the whole workload.
-          (lib.mkIf isS3ParquetGolden {
+          (lib.mkIf isGoldenHarness {
             environment = {
               S3_ACCESS_KEY_FILE = "/etc/xtcp2/s3-access-key";
               S3_SECRET_KEY_FILE = "/etc/xtcp2/s3-secret-key";
@@ -3248,11 +3302,11 @@ in
           text = vmListenerToken;
           mode = "0600";
         };
-        environment.etc."xtcp2/s3-access-key" = lib.mkIf isS3ParquetGolden {
+        environment.etc."xtcp2/s3-access-key" = lib.mkIf isGoldenHarness {
           text = "xtcp2test";
           mode = "0400";
         };
-        environment.etc."xtcp2/s3-secret-key" = lib.mkIf isS3ParquetGolden {
+        environment.etc."xtcp2/s3-secret-key" = lib.mkIf isGoldenHarness {
           text = "xtcp2testsecretkey";
           mode = "0400";
         };
@@ -3320,7 +3374,7 @@ in
                 # s3parquet-stress flavor: production parquet config under the
                 # tcp-stress load containers. Pairs with mkS3ParquetStressRunner.
                 xtcp2S3ParquetStressArgs
-              else if isS3ParquetGolden then
+              else if isGoldenHarness then
                 xtcp2S3ParquetGoldenArgs
               else if isS3ParquetLowfreq then
                 # s3parquet-lowfreq: 1h poll + 2 sockets/container — timer-only
@@ -3398,9 +3452,7 @@ in
                 xtcp2BasicArgs
             )
             # golden: its own unix metrics listener only (see goldenPromSocket).
-            ++ lib.optionals (!isUdsSecurity && !isS3ParquetGolden) (
-              mkTcpListenerArgs cfg.promPort cfg.grpcPort
-            );
+            ++ lib.optionals (!isUdsSecurity && !isGoldenHarness) (mkTcpListenerArgs cfg.promPort cfg.grpcPort);
           # capcheck-fail intentionally drops CAP_SYS_ADMIN. Anything
           # else gets the default full set.
           capabilities = lib.mkIf isCapCheckFail [
@@ -3470,7 +3522,7 @@ in
               && !isSocketScale
               # The golden capture stops xtcp2 itself, and the self-test's
               # scrapes would add sockets to the one poll it records.
-              && !isS3ParquetGolden
+              && !isGoldenHarness
             )
             {
               description = "xtcp2 microvm self-test";
@@ -4166,7 +4218,7 @@ in
               };
             };
 
-        systemd.services.xtcp2-tcp-stress-load = lib.mkIf (isAnyTcpStressLoad || isS3ParquetGolden) {
+        systemd.services.xtcp2-tcp-stress-load = lib.mkIf (isAnyTcpStressLoad || isGoldenHarness) {
           description = "xtcp2 tcp-stress — load OCI image into docker";
           after = [ "docker.service" ];
           requires = [ "docker.service" ];
@@ -4182,7 +4234,7 @@ in
 
         # s3parquet-golden: the workload is up before xtcp2 starts, so its one
         # poll sees every socket; the capture unit then stops xtcp2.
-        systemd.services.xtcp2-golden-workload = lib.mkIf isS3ParquetGolden {
+        systemd.services.xtcp2-golden-workload = lib.mkIf isGoldenHarness {
           description = "xtcp2 golden capture — fixed socket workload";
           after = [ "xtcp2-tcp-stress-load.service" ];
           requires = [ "xtcp2-tcp-stress-load.service" ];
@@ -4190,12 +4242,16 @@ in
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
-            ExecStart = "${goldenWorkloadScript}/bin/xtcp2-golden-workload";
+            ExecStart =
+              if isS3ParquetFamilies then
+                "${familiesWorkloadScript}/bin/xtcp2-families-workload"
+              else
+                "${goldenWorkloadScript}/bin/xtcp2-golden-workload";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
         };
-        systemd.services.xtcp2-golden-capture = lib.mkIf isS3ParquetGolden {
+        systemd.services.xtcp2-golden-capture = lib.mkIf isGoldenHarness {
           description = "xtcp2 golden capture — one poll to the console";
           # No After=xtcp2: this unit stops xtcp2 while it is itself still
           # starting, and with the ordering that stop job waits on this
@@ -4205,7 +4261,11 @@ in
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
-            ExecStart = "${goldenCaptureScript}/bin/xtcp2-golden-capture";
+            ExecStart =
+              if isS3ParquetFamilies then
+                "${familiesCheckScript}/bin/xtcp2-families-check"
+              else
+                "${goldenCaptureScript}/bin/xtcp2-golden-capture";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };

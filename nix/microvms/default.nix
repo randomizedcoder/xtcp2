@@ -493,6 +493,25 @@ let
       sink = "s3parquet-golden";
     };
 
+  # tcp-families: the golden harness over sockets of each address family,
+  # on the same production binary.
+  mkOneS3ParquetFamilies =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        tcpStressImage
+        ;
+      xtcp2Package = goldenXtcp2Package;
+      sink = "s3parquet-families";
+    };
+
   # Deliberately misconfigured: drops CAP_SYS_ADMIN from xtcp2's
   # capability set so the startup capability check refuses to start
   # the daemon. Used to validate the fail-early diagnostic.
@@ -741,6 +760,9 @@ let
 
   vmsS3ParquetGolden = lib.optionalAttrs hasGolden (
     lib.genAttrs constants.supportedArchs (mkOneS3ParquetGoldenWith [ ])
+  );
+  vmsS3ParquetFamilies = lib.optionalAttrs hasGolden (
+    lib.genAttrs constants.supportedArchs mkOneS3ParquetFamilies
   );
 
   vmsS3ParquetLowfreq = lib.optionalAttrs (tcpStressImage != null) (
@@ -1071,6 +1093,17 @@ let
     })
   );
 
+  # tcp-families runner: boots the s3parquet-families VM and fails on any
+  # address-family row the guest reports failed.
+  tcpFamilies = lib.optionalAttrs hasGolden (
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkFamiliesRunner {
+        inherit arch;
+        vm = vmsS3ParquetFamilies.${arch};
+      };
+    })
+  );
+
   # rtnetlink DUMP-capture runner: boots the netlink-dump-capture VM and then
   # drives it over the serial console with scripts/capture-netlink-dumps.exp,
   # rather than waiting on a baked-in oneshot. Same reasons as above for being
@@ -1335,6 +1368,7 @@ in
     vmsS3ParquetStressVariants
     vmsS3ParquetLowfreq
     vmsS3ParquetGolden
+    vmsS3ParquetFamilies
     mkOneS3ParquetGoldenWith
     vmsCapCheckFail
     vmsDiscoveryBench
@@ -1353,6 +1387,7 @@ in
     socketScale
     nlmonCapture
     goldenCapture
+    tcpFamilies
     netlinkDumpCapture
     goipParity
     linkWriteCapture
