@@ -164,9 +164,9 @@ func TestParsePrefixCorpus(t *testing.T) {
 		expected    string
 	}{
 		{
-			description: "positive: the kernel's three NEWPREFIX notifications decode, one per monitoring row",
+			description: "positive: the kernel's eleven NEWPREFIX notifications decode: the three monitoring rows and the eight event rows (prefix, deprecated, route and monitor-all, both roots)",
 			got:         tally(false),
-			expected:    "3 decoded, 0 errors, [6:2001:db8:5::/64:300/600 6:2001:db8:5::/64:300/600 5:2001:db8:5::/64:300/600]",
+			expected:    "11 decoded, 0 errors, [6:2001:db8:5::/64:300/600 6:2001:db8:5::/64:300/600 5:2001:db8:5::/64:300/600 5:2001:db8:5::/64:0/600 5:2001:db8:5::/64:300/600 6:2001:db8:5::/64:300/600 5:2001:db8:5::/64:300/600 5:2001:db8:5::/64:0/600 5:2001:db8:5::/64:300/600 6:2001:db8:5::/64:300/600 5:2001:db8:5::/64:300/600]",
 		},
 		{
 			description: "negative: ip sends no NEWPREFIX",

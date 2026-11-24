@@ -163,22 +163,22 @@ func TestParseNsidCorpus(t *testing.T) {
 		{
 			description: "positive: every NEWNSID the kernel sent decodes with an nsid",
 			got:         tally(unix.RTM_NEWNSID, false),
-			expected:    "206 decoded, 0 errors, 206 with an nsid, 0 with an fd",
+			expected:    "284 decoded, 0 errors, 284 with an nsid, 0 with an fd",
 		},
 		{
 			description: "positive: every DELNSID event decodes with an nsid",
 			got:         tally(unix.RTM_DELNSID, false),
-			expected:    "3 decoded, 0 errors, 3 with an nsid, 0 with an fd",
+			expected:    "7 decoded, 0 errors, 7 with an nsid, 0 with an fd",
 		},
 		{
 			description: "positive: every NEWNSID request ip sent names an fd and an nsid",
 			got:         tally(unix.RTM_NEWNSID, true),
-			expected:    "4 decoded, 0 errors, 4 with an nsid, 4 with an fd",
+			expected:    "12 decoded, 0 errors, 12 with an nsid, 12 with an fd",
 		},
 		{
 			description: "corner: ip's GETNSID asks by fd, except its two header-only dumps",
 			got:         tally(unix.RTM_GETNSID, true),
-			expected:    "202 decoded, 0 errors, 0 with an nsid, 200 with an fd",
+			expected:    "274 decoded, 0 errors, 0 with an nsid, 272 with an fd",
 		},
 		{
 			description: "negative: the kernel never sends a GETNSID",

@@ -158,9 +158,9 @@ document becomes:
 ```
 [{"ifname":"gre0",...,"flags":[]}
 RX: Packets    Bytes        Errors CsumErrs OutOfSeq Mcasts
-    0          0            0      0        0        0       
+    0          0            0      0        0        0
 TX: Packets    Bytes        Errors DeadLoop NoRoute  NoBufs
-    0          0            0      0        0        0     
+    0          0            0      0        0        0
 ,{"ifname":"ip_vti0",...}
 ```
 

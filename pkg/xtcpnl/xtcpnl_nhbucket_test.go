@@ -183,7 +183,7 @@ func TestParseNexthopBucketCorpus(t *testing.T) {
 		{
 			description: "positive: every bucket the kernel sent decodes complete, and the 1024-bucket dump names each index once",
 			got:         tally(unix.RTM_NEWNEXTHOPBUCKET, false),
-			expected:    "1025 decoded, 0 errors, 1025 complete, 1024 distinct indexes",
+			expected:    "1027 decoded, 0 errors, 1027 complete, 1024 distinct indexes",
 		},
 		{
 			description: "corner: ip's nine requests decode, the four gets naming index 0 or 999 and the five dumps no bucket",

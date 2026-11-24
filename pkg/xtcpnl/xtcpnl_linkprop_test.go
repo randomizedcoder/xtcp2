@@ -158,10 +158,10 @@ func TestParseLinkPropCorpus(t *testing.T) {
 		expected    string
 	}{
 		{
-			description: "positive: ip's NEWLINKPROP requests decode, d0alt, the refused lo and the linkprop rows' names, all on ifindex 3",
+			description: "positive: ip's NEWLINKPROP requests decode, d0alt, the refused lo, the linkprop rows' names and the two altname event rows' a0, all on ifindex 3",
 			got:         tally(unix.RTM_NEWLINKPROP, true),
-			expected: "10 decoded, 0 errors, names [3:d0alt 3:lo 3:alt0 3:alt0 3:alt1,alt2 3:a/b 3:br0 3:alternate-name-0 3:" +
-				b127 + " 3:alt1,alt2]",
+			expected: "12 decoded, 0 errors, names [3:d0alt 3:lo 3:alt0 3:alt0 3:alt1,alt2 3:a/b 3:br0 3:alternate-name-0 3:" +
+				b127 + " 3:alt1,alt2 3:a0 3:a0]",
 		},
 		{
 			description: "positive: ip's DELLINKPROP requests decode",
