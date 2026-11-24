@@ -179,7 +179,7 @@ var Columns = Table{
 		"uplink2_nic_driver", "uplink2_nic_model", "uplink2_nic_pci_vendor", "uplink2_nic_pci_device", "uplink2_nic_speed_mbps",
 		"enrich_socket_interface_name", "enrich_socket_dest_locality", "enrich_socket_dest_egress_ifname",
 		"enrich_socket_dest_asn", "enrich_socket_dest_next_hop_asn", "enrich_socket_dest_network_owner",
-		"inet_diag_msg_family", "inet_diag_msg_state", "inet_diag_msg_uid",
+		familyColumn, stateColumn, "inet_diag_msg_uid",
 		"tcp_info_state", "tcp_info_ca_state", "tcp_info_options", "tcp_info_snd_wscale", "tcp_info_rcv_wscale",
 		"tcp_info_fastopen_client_fail", "tcp_info_snd_mss", "tcp_info_pmtu", "tcp_info_advmss", "tcp_info_reordering",
 		"tcp_info_ecn_mode", "tcp_info_accecn_fail_mode", "tcp_info_options2",

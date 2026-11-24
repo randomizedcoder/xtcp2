@@ -13,7 +13,7 @@ import (
 // namespace is left out on purpose, so a container renamed between two
 // captures pairs with itself and shows as one container_name difference.
 var DefaultKeyColumns = []string{
-	"inet_diag_msg_family", "inet_diag_msg_state",
+	familyColumn, stateColumn,
 	"inet_diag_msg_socket_source_port", "inet_diag_msg_socket_destination_port",
 }
 

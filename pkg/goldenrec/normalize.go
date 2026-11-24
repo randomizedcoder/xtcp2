@@ -28,8 +28,10 @@ const (
 	// familyColumn names the column whose value says how to read the
 	// 16-byte address columns (2 = AF_INET, 10 = AF_INET6).
 	familyColumn = "inet_diag_msg_family"
-	afInet       = 2
-	afInet6      = 10
+	// stateColumn is the TCP state column.
+	stateColumn = "inet_diag_msg_state"
+	afInet      = 2
+	afInet6     = 10
 )
 
 // errTooManyAddresses is returned when a capture has more distinct addresses
