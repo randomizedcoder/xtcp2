@@ -1,0 +1,4 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+100:	from 192.0.2.0/24 to 198.51.100.0/24 tos 0x04 fwmark 0x64/0xff iif c0 oif c0 lookup 100
+Deleted 100:	from 192.0.2.0/24 to 198.51.100.0/24 tos 0x04 fwmark 0x64/0xff iif c0 oif c0 lookup 100

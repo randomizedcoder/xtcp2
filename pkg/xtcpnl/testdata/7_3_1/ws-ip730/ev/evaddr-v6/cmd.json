@@ -1,0 +1,35 @@
+{
+ "cmd": "xtcp2-nl-ipmon c0 \"monitor address maddress\" \"ip -6 addr add 2001:db8:2::1/64 dev c0 nodad; ip -6 addr del 2001:db8:2::1/64 dev c0\" \"2001:db8:2::1/64\" \"Deleted .*2001:db8:2::1/64\"",
+ "desc": "positive: a v6 address's add and delete, nodad so one print each",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.3.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "floor": 21,
+ "id": "ev/evaddr-v6",
+ "pre": [
+  "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true
+}

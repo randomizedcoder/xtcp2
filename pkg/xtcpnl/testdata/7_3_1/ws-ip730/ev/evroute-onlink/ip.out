@@ -1,0 +1,4 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+local 224.0.0.250 dev c0 table local proto kernel scope host src 224.0.0.250 
+192.0.2.0/24 dev c0 scope link 

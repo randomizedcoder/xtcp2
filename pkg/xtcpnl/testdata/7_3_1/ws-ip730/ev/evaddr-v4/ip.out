@@ -1,0 +1,8 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+3: c0    inet 224.0.0.250/32 scope global autojoin c0
+       valid_lft forever preferred_lft forever
+3: c0    inet 192.0.2.1/24 scope global c0
+       valid_lft forever preferred_lft forever
+Deleted 3: c0    inet 192.0.2.1/24 scope global c0
+       valid_lft forever preferred_lft forever

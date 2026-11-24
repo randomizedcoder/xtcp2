@@ -1,0 +1,35 @@
+{
+ "cmd": "xtcp2-nl-ipmon c0 \"monitor nsid maddress\" \"ip netns add c1del && ip netns set c1del 7 && ip netns del c1del\" \"^nsid 7 \" \"^Deleted nsid 7 \"",
+ "desc": "positive: an nsid's whole life, added, assigned 7 and deleted, under a monitor",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.3.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "floor": 16,
+ "id": "ev/nsid-del",
+ "pre": [
+  "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true
+}

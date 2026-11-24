@@ -1,0 +1,6 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+2001:db8:1::2 dev c0 lladdr 02:00:00:00:00:01 PERMANENT 
+2001:db8:1::2 dev c0 lladdr 02:00:00:00:00:01 STALE 
+2001:db8:1::2 dev c0 FAILED 
+Deleted 2001:db8:1::2 dev c0 FAILED 

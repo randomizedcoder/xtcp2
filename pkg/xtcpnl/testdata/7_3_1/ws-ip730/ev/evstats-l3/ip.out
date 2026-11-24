@@ -1,0 +1,8 @@
+Deleted 3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+3: c0:
+    l3_stats off used off
+3: c0:
+    l3_stats on used off

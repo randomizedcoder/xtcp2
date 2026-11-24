@@ -1,0 +1,7 @@
+Deleted 3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+3: c0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default 
+    link/ether de:65:4b:ed:ef:f9 brd ff:ff:ff:ff:ff:ff
+    altname a0
