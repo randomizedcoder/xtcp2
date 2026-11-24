@@ -460,6 +460,17 @@ denial-of-service defense:
   keepalive/idle controls. These are not global connection or request quotas.
 - Auth-failure jitter happens in the policy wrapper; concurrent failures still
   consume resources and can occur before handler-specific limits.
+- Poll cadence: `poll_frequency` has a 1-second floor (the fastest cadence
+  honored, aligned with `TriggerPollBurst`'s interval floor), enforced by
+  proto validation at every entry point — the startup `-frequency` flag, the
+  `ConfigService.Set`/reconfigure path, and `SetPollFrequency`. Sub-second
+  requests fail validation, so the poll loop's output rate (records/s track
+  the cadence) is bounded; the wall-clock backpressure is the poller's own
+  serialized loop. The timer math also enforces the floor in Go code
+  (`xtcp.MinPollFrequency`, pkg/xtcp/poller.go): `computePollInterval` clamps
+  every tick interval — including the 0/negative durations that used to
+  panic `ticker.Reset`, and a 100% jitter draw — so the daemon cannot tick
+  faster than 1 s even if a caller skips validation.
 
 The protobuf fields `max_connections`, `accept_rate_per_second`, and
 `accept_burst` are **not wired into the current listener implementation**.

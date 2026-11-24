@@ -76,11 +76,16 @@ func TestHandleChangePollFrequency_table(t *testing.T) {
 		wantCnt  float64
 	}{
 		{"positive_one_second", "positive", 1 * time.Second, 1},
-		{"positive_short_ms", "positive", 5 * time.Millisecond, 1},
-		{"negative_zero_duration_panics", "negative", 0, 0}, // ticker.Reset panics on 0
-		{"boundary_min_nanosecond", "boundary", 1 * time.Nanosecond, 1},
+		// A sub-floor duration is floored to MinPollFrequency, not passed
+		// through: the counter fires like any other change (and the belt is
+		// asserted by TestHandleChangePollFrequency_floor below).
+		{"positive_short_ms_floored", "positive", 5 * time.Millisecond, 1},
+		// The values that used to panic ticker.Reset are floored too — a
+		// slow tick instead of a daemon crash.
+		{"negative_zero_duration_floored", "negative", 0, 1},
+		{"boundary_min_nanosecond_floored", "boundary", 1 * time.Nanosecond, 1},
 		{"corner_huge_duration", "corner", 24 * time.Hour, 1},
-		{"adversarial_negative_duration_panics", "adversarial", -1 * time.Second, 0},
+		{"adversarial_negative_duration_floored", "adversarial", -1 * time.Second, 1},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -89,17 +94,15 @@ func TestHandleChangePollFrequency_table(t *testing.T) {
 			ticker := time.NewTicker(1 * time.Hour)
 			defer ticker.Stop()
 
-			// ticker.Reset panics on d <= 0. Wrap so panics convert to
-			// test-pass + counter-skip; the production poller doesn't
-			// validate the duration either, so this codifies the
-			// behavior.
-			func() {
-				// Non-positive durations cause ticker.Reset to panic; the
-				// production poller doesn't validate so this codifies the
-				// behavior. recover() swallows it intentionally.
-				defer func() { _ = recover() }()
-				x.handleChangePollFrequency(tc.newD, ticker, 1, 0)
+			// The Go belt floors before the Reset (MinPollFrequency), so no
+			// input can panic the ticker — the recover() stays as a tripwire
+			// for regressions that reintroduce raw d <= 0.
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("handleChangePollFrequency panicked on %v: %v", tc.newD, r)
+				}
 			}()
+			x.handleChangePollFrequency(tc.newD, ticker, 1, 0)
 
 			gotCnt := testutil.ToFloat64(
 				x.pC.WithLabelValues("Poller", "ticker.Reset", "count"))
@@ -107,6 +110,29 @@ func TestHandleChangePollFrequency_table(t *testing.T) {
 				t.Errorf("ticker.Reset counter = %v, want %v", gotCnt, tc.wantCnt)
 			}
 		})
+	}
+}
+
+// TestHandleChangePollFrequency_floor pins the Go belt: a sub-floor
+// duration (5 ms) still resets the ticker, the reset counter fires, AND the
+// floor counter records the clamp — the timer math never sees the raw value.
+func TestHandleChangePollFrequency_floor(t *testing.T) {
+	x := newPollerHelperFixture(t)
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	x.handleChangePollFrequency(5*time.Millisecond, ticker, 1, 0)
+
+	if got := testutil.ToFloat64(x.pC.WithLabelValues("Poller", "ticker.Floored", "count")); got != 1 {
+		t.Errorf("ticker.Floored counter = %v, want 1", got)
+	}
+	if got := testutil.ToFloat64(x.pC.WithLabelValues("Poller", "ticker.Reset", "count")); got != 1 {
+		t.Errorf("ticker.Reset counter = %v, want 1", got)
+	}
+	// The floor itself is not a sub-floor: no Floored counter.
+	x.handleChangePollFrequency(MinPollFrequency, ticker, 2, 0)
+	if got := testutil.ToFloat64(x.pC.WithLabelValues("Poller", "ticker.Floored", "count")); got != 1 {
+		t.Errorf("ticker.Floored counter = %v after a floor-value change, want 1 (the floor is legal)", got)
 	}
 }
 

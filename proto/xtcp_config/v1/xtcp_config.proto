@@ -132,12 +132,15 @@ message SetPollFrequencyRequest {
 	// Poll frequency
 	// This is how often xtcp sends the netlink dump request
 	// Recommend not too frequently, so maybe 30s or 60s
+	// The 1 s floor is the fastest cadence xtcp2 honors: the poll loop's
+	// amplification (records/s track the cadence) is bounded by it, and it
+	// matches TriggerPollBurst.interval's floor.
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
 	google.protobuf.Duration poll_frequency          = 20 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).duration = {
 			gte: {
-				seconds: 0
+				seconds: 1 // 1s = the fastest honored cadence
 			}
 			lte: {
 				seconds: 604800 // 604800s = 7 days
@@ -639,12 +642,15 @@ message XtcpConfig {
 	// Poll frequency
 	// This is how often xtcp sends the netlink dump request
 	// Recommend not too frequently, so maybe 30s or 60s
+	// The 1 s floor is the fastest cadence xtcp2 honors (the poll loop's
+	// amplification is bounded by it); it matches SetPollFrequencyRequest's
+	// and TriggerPollBurst.interval's floors.
 	// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
 	google.protobuf.Duration poll_frequency          = 11 [
 		(buf.validate.field).required = true,
 		(buf.validate.field).duration = {
-			gt: {
-				seconds: 0
+			gte: {
+				seconds: 1 // 1s = the fastest honored cadence
 			}
 			lte: {
 				seconds: 604800 // 604800s = 7 days

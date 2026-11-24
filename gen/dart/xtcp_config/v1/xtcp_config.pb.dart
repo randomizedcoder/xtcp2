@@ -297,6 +297,9 @@ class SetPollFrequencyRequest extends $pb.GeneratedMessage {
   /// Poll frequency
   /// This is how often xtcp sends the netlink dump request
   /// Recommend not too frequently, so maybe 30s or 60s
+  /// The 1 s floor is the fastest cadence xtcp2 honors: the poll loop's
+  /// amplification (records/s track the cadence) is bounded by it, and it
+  /// matches TriggerPollBurst.interval's floor.
   /// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
   @$pb.TagNumber(20)
   $1.Duration get pollFrequency => $_getN(0);
@@ -2237,6 +2240,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Poll frequency
   /// This is how often xtcp sends the netlink dump request
   /// Recommend not too frequently, so maybe 30s or 60s
+  /// The 1 s floor is the fastest cadence xtcp2 honors (the poll loop's
+  /// amplification is bounded by it); it matches SetPollFrequencyRequest's
+  /// and TriggerPollBurst.interval's floors.
   /// https://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb
   @$pb.TagNumber(11)
   $1.Duration get pollFrequency => $_getN(1);

@@ -216,6 +216,8 @@ in
               redteam-rt-2-8
               redteam-rt-9-3
               redteam-rt-3-1
+              redteam-rt-3-3
+              redteam-rt-3-4
               redteam-rt-3-5
               redteam-rt-3-6
             )

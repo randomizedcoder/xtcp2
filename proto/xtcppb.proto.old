@@ -1,0 +1,242 @@
+//
+// xTCP - eXport TCP Inet Diagnostic messages
+//
+// These are all the structs relating to the TCP diagnotic module in the kernel
+//
+// Please note that protobufs smallest size is 32 bits, so we actually expand uint8/16 to uint32s.
+// In the protos below, I've commented which ones are uint8/16
+//
+// There are links to the kernel source showing where the struct came from.
+//
+
+// Little reminder on compiling
+// https://developers.google.com/protocol-buffers/docs/gotutorial
+// go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+// protoc --go_out=paths=source_relative:. xtcppb.proto
+
+syntax = "proto3";  // the only thing below that is not proto3 is "optional". e.g. to convert to proto3 delete the word optional
+// sadly the travis server hasn't been upgrade yet, so we can't do proto3
+
+package xtcppb;
+
+// https://developers.google.com/protocol-buffers/docs/reference/go-generated
+// option go_package = "github.com/randomizedcoder/xtcp2/pkg/xtcppb";
+// option go_package = "github.com/randomizedcoder/xtcp";
+option go_package = "./pkg/xtcppb";
+
+// xtcp_record is the record type exported by xtcp with ALL the inet_diag information
+message xtcp_record {
+    timespec64_t epoch_time              = 1;
+    string hostname                      = 2;
+    string tag                           = 3;
+    inet_diag_msg inet_diag_msg          = 100;
+    // might want to put more here
+    // https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L133
+    mem_info mem_info                    = 101; // INET_DIAG_MEMINFO 1
+    tcp_info tcp_info                    = 102; // INET_DIAG_INFO 2
+                                                      //INET_DIAG_VEGASINFO 3
+    // Please note it's recommended to use the enum for efficency, but keeping the string
+    // just in case we need to quickly put a different algorithm in without updating the enum.
+    // Obviously it's optional, so it low cost.
+    string congestion_algorithm_string   = 103; //INET_DIAG_CONG 4
+    enum congestion_algorithm {
+        CONGESTION_ALGORITHM_UNSPECIFIED = 0;
+        CONGESTION_ALGORITHM_CUBIC       = 1;
+        CONGESTION_ALGORITHM_BBR1        = 2;
+        CONGESTION_ALGORITHM_BBR2        = 3;
+        CONGESTION_ALGORITHM_DCTCP       = 4;
+    }
+    congestion_algorithm congestion_algorithm_enum = 104; // INET_DIAG_CONG 4
+    uint32 type_of_service               = 105; // INET_DIAG_TOS 5 uint8
+    uint32 traffic_class                 = 106; // INET_DIAG_TCLASS 6 uint8
+    sk_mem_info sk_mem_info              = 107; // INET_DIAG_SKMEMINFO 7
+    uint32 shutdown_state                = 108; // UNIX_DIAG_SHUTDOWN 8uint8
+    vegas_info vegas_info                = 114; // INET_DIAG_VEGASINFO
+    dctcp_info dctcp_info                = 115; // INET_DIAG_DCTCPINFO
+    bbr_info bbr_info                    = 116; // INET_DIAG_BBRINFO 16
+    uint32 class_id                      = 117; // INET_DIAG_CLASS_ID 17 uint32
+	uint32 sock_opt                      = 118; // INET_DIAG_SOCKOPT
+	uint64 c_group                       = 119; // INET_DIAG_BC_CGROUP_COND
+}
+
+
+// The kernel timespec64 is signed
+// https://github.com/torvalds/linux/blob/458ef2a25e0cbdc216012aa2b9cf549d64133b08/include/linux/time64.h#L13
+// https://github.com/torvalds/linux/blob/2ccbdf43d5e758f8493a95252073cf9078a5fea5/include/linux/time64.h#L13
+// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/include/linux/time64.h
+// Originally implemented this wrongly using timeval, which is wrong.  Use timespec!!
+// https://golang.org/pkg/syscall/#Timespec
+// https://golang.org/pkg/syscall/#Gettimeofday  <-- Not using
+// https://golang.org/pkg/syscall/#Timeval       <-- Not using
+message timespec64_t {
+    int64 sec                         = 1;
+    int64 nsec                        = 2;//nanoseconds
+}
+
+// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L13
+// https://github.com/torvalds/linux/blob/2ccbdf43d5e758f8493a95252073cf9078a5fea5/include/uapi/linux/inet_diag.h#L14
+// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/include/uapi/linux/inet_diag.h
+message socket_i_d {
+    uint32 source_port                = 1; //__be16
+    uint32 destination_port           = 2; //__be16
+    bytes source                      = 3;
+    bytes destination                 = 4;
+    uint32 interface                  = 5;
+    uint64 cookie                     = 6; //[2]uint32
+    uint64 dest_asn                   = 7;
+    uint64 next_hop_asn               = 8;
+}
+
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L180
+// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L174
+message mem_info {
+    uint32 rmem                       = 1;
+    uint32 wmem                       = 2;
+    uint32 fmem                       = 3;
+    uint32 tmem                       = 4;
+}
+
+// http://man7.org/linux/man-pages/man7/sock_diag.7.html
+// https://github.com/torvalds/linux/blob/a811c1fa0a02c062555b54651065899437bacdbe/net/core/sock.c#L3226
+// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/net/core/sock.c
+message sk_mem_info {
+    uint32 rmem_alloc                 = 1;
+    uint32 rcv_buf                    = 2;
+    uint32 wmem_alloc                 = 3;
+    uint32 snd_buf                    = 4;
+    uint32 fwd_alloc                  = 5;
+    uint32 wmem_queued                = 6;
+    uint32 optmem                     = 7;
+    uint32 backlog                    = 8;
+    uint32 drops                      = 9;
+}
+
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L215
+// https://github.com/torvalds/linux/blob/5f583a3162ffd9f7999af76b8ab634ce2dac9f90/include/uapi/linux/inet_diag.h#L215
+message dctcp_info {
+    uint32 enabled                    = 1;
+    uint32 ce_state                   = 2;
+    uint32 alpha                      = 3;
+    uint32 ab_ecn                     = 4;
+    uint32 ab_tot                     = 5;
+}
+
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L225
+// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L204
+message bbr_info {
+    uint32 bw_lo                      = 1;
+    uint32 bw_hi                      = 2;
+    uint32 min_rtt                    = 3;
+    uint32 pacing_gain                = 4;
+    uint32 cwnd_gain                  = 5;
+}
+
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L206
+message vegas_info {
+    uint32 enabled                    = 1;
+    uint32 rtt_cnt                    = 2;
+    uint32 rtt                        = 3;
+    uint32 min_rtt                    = 4;
+}
+
+// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/tcp.h#L214
+// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/plain/include/uapi/linux/tcp.h
+message tcp_info {
+    uint32 state                      = 1; //uint8
+    uint32 ca_state                   = 2; //uint8
+    uint32 retransmits                = 3; //uint8
+    uint32 probes                     = 4; //uint8
+    uint32 backoff                    = 5; //uint8
+    uint32 options                    = 6; //uint8
+// 	__u8	_snd_wscale : 4, _rcv_wscale : 4;
+// 	__u8	_delivery_rate_app_limited:1, _fastopen_client_fail:2;
+    uint32 send_scale                 = 7; //uint4
+    uint32 rcv_scale                  = 8; //uint4
+    uint32 delivery_rate_app_limited  = 9; //uint8
+    uint32 fast_open_client_failed    = 10; //uint8
+
+    uint32 rto                        = 15;
+    uint32 ato                        = 16;
+    uint32 snd_mss                    = 17;
+    uint32 rcv_mss                    = 18;
+
+    uint32 unacked                    = 19;
+    uint32 sacked                     = 20;
+    uint32 lost                       = 21;
+    uint32 retrans                    = 22;
+    uint32 fackets                    = 23;
+
+    // 	Times
+    uint32 last_data_sent             = 24;
+    uint32 last_ack_sent              = 25;
+    uint32 last_data_recv             = 26;
+    uint32 last_ack_recv              = 27;
+
+    // 	Metrics
+    uint32 pmtu                       = 28;
+    uint32 rcv_ssthresh               = 29;
+    uint32 rtt                        = 30;
+    uint32 rtt_var                    = 31;
+    uint32 snd_ssthresh               = 32;
+    uint32 snd_cwnd                   = 33;
+    uint32 adv_mss                    = 34;
+    uint32 reordering                 = 35;
+
+    uint32 rcv_rtt                    = 36;
+    uint32 rcv_space                  = 37;
+
+    uint32 total_retrans              = 38;
+
+    uint64 pacing_rate                = 39;
+    uint64 max_pacing_rate            = 40;
+    uint64 bytes_acked                = 41; // RFC4898 tcpEStatsAppHCThruOctetsAcked
+    uint64 bytes_received             = 42; // RFC4898 tcpEStatsAppHCThruOctetsReceived
+    uint32 segs_out                   = 43; // RFC4898 tcpEStatsPerfSegsOut
+    uint32 segs_in                    = 44; // RFC4898 tcpEStatsPerfSegsIn
+
+    uint32 not_sent_bytes             = 45;
+    uint32 min_rtt                    = 46;
+    uint32 data_segs_in               = 47; // RFC4898 tcpEStatsDataSegsIn
+    uint32 data_segs_out              = 48; // RFC4898 tcpEStatsDataSegsOut
+
+    uint64 delivery_rate              = 49;
+
+    uint64 busy_time                  = 50; // Time (usec) busy sending data
+    uint64 rwnd_limited               = 51; // Time (usec) limited by receive window
+    uint64 sndbuf_limited             = 52; // Time (usec) limited by send buffer
+
+    //4.15 kernel tcp_info ends here, 5+ below
+
+    uint32 delivered                  = 53;
+    uint32 delivered_ce               = 54;
+
+    // https://tools.ietf.org/html/rfc4898 TCP Extended Statistics MIB
+    uint64 bytes_sent                 = 55; // RFC4898 tcpEStatsPerfHCDataOctetsOut
+    uint64 bytes_retrans              = 56; // RFC4898 tcpEStatsPerfOctetsRetrans
+    uint32 dsack_dups                 = 57; // RFC4898 tcpEStatsStackDSACKDups
+    uint32 reord_seen                 = 58; // reordering events seen
+
+    uint32 rcv_ooopack                = 59; // Out-of-order packets received
+
+    uint32 snd_wnd                    = 60; // peer's advertised receive window after scaling (bytes)
+    uint32 rcv_wnd                    = 61; // local advertised receive window after scaling (bytes)
+    uint32 rehash                     = 62; // PLB or timeout triggered rehash attempts
+    uint32 total_rto                  = 63; // Total number of RTO timeouts, including SYN/SYN-ACK and recurring timeouts
+    uint32 total_rto_recoveries       = 64; // Total number of RTO recoveries, including any unfinished recovery
+    uint32 total_rto_time             = 65; // Total time spent in RTO recoveries in milliseconds, including any unfinished recovery
+}
+
+// https://github.com/torvalds/linux/blob/master/include/uapi/linux/inet_diag.h#L117
+// https://github.com/torvalds/linux/blob/29d9f30d4ce6c7a38745a54a8cddface10013490/include/uapi/linux/inet_diag.h#L115
+message inet_diag_msg {
+    uint32 family                 = 1; //uint8
+    uint32 state                  = 2; //uint8
+    uint32 timer                  = 3; //uint8
+    uint32 retrans                = 4; //uint8
+    socket_i_d socket_i_d         = 5;
+    uint32 expires                = 6;
+    uint32 rqueue                 = 7;
+    uint32 wqueue                 = 8;
+    uint32 u_i_d                  = 9;
+    uint32 inode                  = 10;
+}

@@ -567,7 +567,7 @@
       "properties": {
         "pollFrequency": {
           "type": "string",
-          "title": "Poll frequency\nThis is how often xtcp sends the netlink dump request\nRecommend not too frequently, so maybe 30s or 60s\nhttps://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb"
+          "title": "Poll frequency\nThis is how often xtcp sends the netlink dump request\nRecommend not too frequently, so maybe 30s or 60s\nThe 1 s floor is the fastest cadence xtcp2 honors: the poll loop's\namplification (records/s track the cadence) is bounded by it, and it\nmatches TriggerPollBurst.interval's floor.\nhttps://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb"
         },
         "pollTimeout": {
           "type": "string",
@@ -666,7 +666,7 @@
         },
         "pollFrequency": {
           "type": "string",
-          "title": "Poll frequency\nThis is how often xtcp sends the netlink dump request\nRecommend not too frequently, so maybe 30s or 60s\nhttps://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb"
+          "title": "Poll frequency\nThis is how often xtcp sends the netlink dump request\nRecommend not too frequently, so maybe 30s or 60s\nThe 1 s floor is the fastest cadence xtcp2 honors (the poll loop's\namplification is bounded by it); it matches SetPollFrequencyRequest's\nand TriggerPollBurst.interval's floors.\nhttps://pkg.go.dev/google.golang.org/protobuf/types/known/durationpb"
         },
         "pollTimeout": {
           "type": "string",

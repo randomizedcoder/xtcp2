@@ -220,7 +220,7 @@ and measure blast radius if the daemon process itself is compromised.
 | rt-7-1 | ASN parquet/zstd decompression bomb | craft 1 GB→200 GB ratio zst parquet; place as live-refresh artifact in the in-VM Garage/S3; trigger refresh | loader decompresses in process | daemon refuses or bounds artifact size/decompression (cap bytes read); failure ⇒ OOM on the monitoring host | S2 |
 | rt-7-2 | Bootstrap artifact swap | replace `nix/ipmeta-bootstrap` lookup file with same-name different content; restart | pinned by lock at build time in Nix deploys; file-based deploys trust the mount | lockfile-integrity behavior documented for non-Nix deploys; consider embedded hash check at load | S3 |
 | rt-7-3 | Poisoned artifact semantics | crafted parquet with adversarial prefix tables (bart trie stress: 100k prefixes) | longest-prefix lookup built at load | load time/CPU bounded; no panic; timeout on refresh path | S3 |
-| rt-7-4 | Dependency CVE sweep | `govulncheck ./...` against the lock; check grpc/x/net/franz-go advisories (HTTP/2 rapid reset class) | go-sec lint exists; no govulncheck gate today | add govulncheck to the flake checks; zero reachable S1/S2 vulns at pinned versions | S3 gate |
+| rt-7-4 | Dependency CVE sweep | `govulncheck ./...` against the lock; check grpc/x/net/franz-go advisories (HTTP/2 rapid reset class) | **ALREADY COVERED UPSTREAM (verified 2026-11-23)**: checks.govulncheck (hermetic, pinned vuln DB, green) + the govulncheck-fresh live-database app (0 reachable findings; 1 required-module vulnerability not called) — the plan's 'no gate today' premise was stale | the gate is the upstream check; no scenario needed | S3 gate |
 
 ### RT-8 Parser and protocol attacks
 

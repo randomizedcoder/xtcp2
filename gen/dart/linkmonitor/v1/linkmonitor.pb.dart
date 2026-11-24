@@ -33,7 +33,7 @@ class Health extends $pb.GeneratedMessage {
     $core.bool? collectionHealthy,
     $core.bool? baselineReady,
   }) {
-    final result = create();
+    final result = Health._();
     if (running != null) result.running = running;
     if (ready != null) result.ready = ready;
     if (collectionHealthy != null) result.collectionHealthy = collectionHealthy;
@@ -45,15 +45,15 @@ class Health extends $pb.GeneratedMessage {
 
   factory Health.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      Health()..mergeFromBuffer(data, registry);
   factory Health.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      Health()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Health',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: Health.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'running')
     ..aOB(2, _omitFieldNames ? '' : 'ready')
     ..aOB(3, _omitFieldNames ? '' : 'collectionHealthy')
@@ -70,12 +70,14 @@ class Health extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Health() / Health.new instead')
   static Health create() => Health._();
+  static $pb.GeneratedMessage $_createMessage() => Health._();
   @$core.override
-  Health createEmptyInstance() => create();
+  Health createEmptyInstance() => Health._();
   @$core.pragma('dart2js:noInline')
-  static Health getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Health>(create);
+  static Health getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Health>(Health.$_createMessage);
   static Health? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -122,7 +124,7 @@ class LinkCounts extends $pb.GeneratedMessage {
     $fixnum.Int64? expected,
     $fixnum.Int64? delta,
   }) {
-    final result = create();
+    final result = LinkCounts._();
     if (current != null) result.current = current;
     if (expected != null) result.expected = expected;
     if (delta != null) result.delta = delta;
@@ -133,15 +135,15 @@ class LinkCounts extends $pb.GeneratedMessage {
 
   factory LinkCounts.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LinkCounts()..mergeFromBuffer(data, registry);
   factory LinkCounts.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LinkCounts()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LinkCounts',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LinkCounts.$_createMessage)
     ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'current', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..a<$fixnum.Int64>(
@@ -161,12 +163,14 @@ class LinkCounts extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use LinkCounts() / LinkCounts.new instead')
   static LinkCounts create() => LinkCounts._();
+  static $pb.GeneratedMessage $_createMessage() => LinkCounts._();
   @$core.override
-  LinkCounts createEmptyInstance() => create();
+  LinkCounts createEmptyInstance() => LinkCounts._();
   @$core.pragma('dart2js:noInline')
   static LinkCounts getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LinkCounts>(create);
+      $pb.GeneratedMessage.$_defaultFor<LinkCounts>(LinkCounts.$_createMessage);
   static LinkCounts? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -204,7 +208,7 @@ class ControlProgress extends $pb.GeneratedMessage {
     $fixnum.Int64? requested,
     $fixnum.Int64? completed,
   }) {
-    final result = create();
+    final result = ControlProgress._();
     if (requested != null) result.requested = requested;
     if (completed != null) result.completed = completed;
     return result;
@@ -214,15 +218,15 @@ class ControlProgress extends $pb.GeneratedMessage {
 
   factory ControlProgress.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ControlProgress()..mergeFromBuffer(data, registry);
   factory ControlProgress.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ControlProgress()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ControlProgress',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ControlProgress.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'requested', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -242,12 +246,15 @@ class ControlProgress extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ControlProgress() / ControlProgress.new instead')
   static ControlProgress create() => ControlProgress._();
+  static $pb.GeneratedMessage $_createMessage() => ControlProgress._();
   @$core.override
-  ControlProgress createEmptyInstance() => create();
+  ControlProgress createEmptyInstance() => ControlProgress._();
   @$core.pragma('dart2js:noInline')
-  static ControlProgress getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ControlProgress>(create);
+  static ControlProgress getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ControlProgress>(
+          ControlProgress.$_createMessage);
   static ControlProgress? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -270,21 +277,21 @@ class ControlProgress extends $pb.GeneratedMessage {
 }
 
 class GetStatusRequest extends $pb.GeneratedMessage {
-  factory GetStatusRequest() => create();
+  factory GetStatusRequest() => GetStatusRequest._();
 
   GetStatusRequest._();
 
   factory GetStatusRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      GetStatusRequest()..mergeFromBuffer(data, registry);
   factory GetStatusRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      GetStatusRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'GetStatusRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: GetStatusRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -298,12 +305,15 @@ class GetStatusRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use GetStatusRequest() / GetStatusRequest.new instead')
   static GetStatusRequest create() => GetStatusRequest._();
+  static $pb.GeneratedMessage $_createMessage() => GetStatusRequest._();
   @$core.override
-  GetStatusRequest createEmptyInstance() => create();
+  GetStatusRequest createEmptyInstance() => GetStatusRequest._();
   @$core.pragma('dart2js:noInline')
-  static GetStatusRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetStatusRequest>(create);
+  static GetStatusRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetStatusRequest>(
+          GetStatusRequest.$_createMessage);
   static GetStatusRequest? _defaultInstance;
 }
 
@@ -318,7 +328,7 @@ class GetStatusResponse extends $pb.GeneratedMessage {
     ControlProgress? resync,
     ControlProgress? rebaseline,
   }) {
-    final result = create();
+    final result = GetStatusResponse._();
     if (snapshotVersion != null) result.snapshotVersion = snapshotVersion;
     if (health != null) result.health = health;
     if (counts != null) result.counts = counts;
@@ -337,32 +347,33 @@ class GetStatusResponse extends $pb.GeneratedMessage {
 
   factory GetStatusResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      GetStatusResponse()..mergeFromBuffer(data, registry);
   factory GetStatusResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      GetStatusResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'GetStatusResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: GetStatusResponse.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'snapshotVersion', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
-    ..aOM<Health>(2, _omitFieldNames ? '' : 'health', subBuilder: Health.create)
+    ..aOM<Health>(2, _omitFieldNames ? '' : 'health',
+        subBuilder: Health.$_createMessage)
     ..aOM<LinkCounts>(3, _omitFieldNames ? '' : 'counts',
-        subBuilder: LinkCounts.create)
+        subBuilder: LinkCounts.$_createMessage)
     ..aOM<$1.Timestamp>(4, _omitFieldNames ? '' : 'baselineRecordedAt',
-        subBuilder: $1.Timestamp.create)
+        subBuilder: $1.Timestamp.$_createMessage)
     ..a<$fixnum.Int64>(
         5, _omitFieldNames ? '' : 'baselineWriteErrors', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$1.Timestamp>(6, _omitFieldNames ? '' : 'lastSuccessfulResync',
-        subBuilder: $1.Timestamp.create)
+        subBuilder: $1.Timestamp.$_createMessage)
     ..aOM<ControlProgress>(7, _omitFieldNames ? '' : 'resync',
-        subBuilder: ControlProgress.create)
+        subBuilder: ControlProgress.$_createMessage)
     ..aOM<ControlProgress>(8, _omitFieldNames ? '' : 'rebaseline',
-        subBuilder: ControlProgress.create)
+        subBuilder: ControlProgress.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -376,12 +387,15 @@ class GetStatusResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use GetStatusResponse() / GetStatusResponse.new instead')
   static GetStatusResponse create() => GetStatusResponse._();
+  static $pb.GeneratedMessage $_createMessage() => GetStatusResponse._();
   @$core.override
-  GetStatusResponse createEmptyInstance() => create();
+  GetStatusResponse createEmptyInstance() => GetStatusResponse._();
   @$core.pragma('dart2js:noInline')
-  static GetStatusResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetStatusResponse>(create);
+  static GetStatusResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetStatusResponse>(
+          GetStatusResponse.$_createMessage);
   static GetStatusResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -485,7 +499,7 @@ class Interface extends $pb.GeneratedMessage {
     $fixnum.Int64? upTransitions,
     $fixnum.Int64? downTransitions,
   }) {
-    final result = create();
+    final result = Interface._();
     if (name != null) result.name = name;
     if (identity != null) result.identity = identity;
     if (generation != null) result.generation = generation;
@@ -506,15 +520,15 @@ class Interface extends $pb.GeneratedMessage {
 
   factory Interface.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      Interface()..mergeFromBuffer(data, registry);
   factory Interface.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      Interface()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Interface',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: Interface.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'name')
     ..aOS(2, _omitFieldNames ? '' : 'identity')
     ..a<$fixnum.Int64>(
@@ -550,12 +564,14 @@ class Interface extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Interface() / Interface.new instead')
   static Interface create() => Interface._();
+  static $pb.GeneratedMessage $_createMessage() => Interface._();
   @$core.override
-  Interface createEmptyInstance() => create();
+  Interface createEmptyInstance() => Interface._();
   @$core.pragma('dart2js:noInline')
-  static Interface getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Interface>(create);
+  static Interface getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Interface>(Interface.$_createMessage);
   static Interface? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -676,7 +692,7 @@ class ListInterfacesRequest extends $pb.GeneratedMessage {
     $core.Iterable<$core.String>? names,
     $core.bool? eligibleOnly,
   }) {
-    final result = create();
+    final result = ListInterfacesRequest._();
     if (names != null) result.names.addAll(names);
     if (eligibleOnly != null) result.eligibleOnly = eligibleOnly;
     return result;
@@ -686,15 +702,15 @@ class ListInterfacesRequest extends $pb.GeneratedMessage {
 
   factory ListInterfacesRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListInterfacesRequest()..mergeFromBuffer(data, registry);
   factory ListInterfacesRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListInterfacesRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListInterfacesRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListInterfacesRequest.$_createMessage)
     ..pPS(1, _omitFieldNames ? '' : 'names')
     ..aOB(2, _omitFieldNames ? '' : 'eligibleOnly')
     ..hasRequiredFields = false;
@@ -711,12 +727,16 @@ class ListInterfacesRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ListInterfacesRequest() / ListInterfacesRequest.new instead')
   static ListInterfacesRequest create() => ListInterfacesRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ListInterfacesRequest._();
   @$core.override
-  ListInterfacesRequest createEmptyInstance() => create();
+  ListInterfacesRequest createEmptyInstance() => ListInterfacesRequest._();
   @$core.pragma('dart2js:noInline')
   static ListInterfacesRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListInterfacesRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<ListInterfacesRequest>(
+          ListInterfacesRequest.$_createMessage);
   static ListInterfacesRequest? _defaultInstance;
 
   /// Exact interface names; empty lists every interface.
@@ -739,7 +759,7 @@ class ListInterfacesResponse extends $pb.GeneratedMessage {
     $fixnum.Int64? snapshotVersion,
     $core.Iterable<Interface>? interfaces,
   }) {
-    final result = create();
+    final result = ListInterfacesResponse._();
     if (snapshotVersion != null) result.snapshotVersion = snapshotVersion;
     if (interfaces != null) result.interfaces.addAll(interfaces);
     return result;
@@ -749,20 +769,20 @@ class ListInterfacesResponse extends $pb.GeneratedMessage {
 
   factory ListInterfacesResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListInterfacesResponse()..mergeFromBuffer(data, registry);
   factory ListInterfacesResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListInterfacesResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListInterfacesResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListInterfacesResponse.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'snapshotVersion', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..pPM<Interface>(2, _omitFieldNames ? '' : 'interfaces',
-        subBuilder: Interface.create)
+        subBuilder: Interface.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -777,12 +797,16 @@ class ListInterfacesResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ListInterfacesResponse() / ListInterfacesResponse.new instead')
   static ListInterfacesResponse create() => ListInterfacesResponse._();
+  static $pb.GeneratedMessage $_createMessage() => ListInterfacesResponse._();
   @$core.override
-  ListInterfacesResponse createEmptyInstance() => create();
+  ListInterfacesResponse createEmptyInstance() => ListInterfacesResponse._();
   @$core.pragma('dart2js:noInline')
   static ListInterfacesResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListInterfacesResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<ListInterfacesResponse>(
+          ListInterfacesResponse.$_createMessage);
   static ListInterfacesResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -812,7 +836,7 @@ class Collector extends $pb.GeneratedMessage {
     $core.Iterable<$core.MapEntry<$core.String, $fixnum.Int64>>? omissions,
     $fixnum.Int64? discontinuities,
   }) {
-    final result = create();
+    final result = Collector._();
     if (interface != null) result.interface = interface;
     if (name != null) result.name = name;
     if (support != null) result.support = support;
@@ -831,15 +855,15 @@ class Collector extends $pb.GeneratedMessage {
 
   factory Collector.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      Collector()..mergeFromBuffer(data, registry);
   factory Collector.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      Collector()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Collector',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: Collector.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'interface')
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..aE<Support>(3, _omitFieldNames ? '' : 'support',
@@ -847,9 +871,9 @@ class Collector extends $pb.GeneratedMessage {
     ..aOB(4, _omitFieldNames ? '' : 'success')
     ..aOB(5, _omitFieldNames ? '' : 'fresh')
     ..aOM<$1.Timestamp>(6, _omitFieldNames ? '' : 'lastSuccess',
-        subBuilder: $1.Timestamp.create)
+        subBuilder: $1.Timestamp.$_createMessage)
     ..aOM<$2.Duration>(7, _omitFieldNames ? '' : 'duration',
-        subBuilder: $2.Duration.create)
+        subBuilder: $2.Duration.$_createMessage)
     ..aOS(8, _omitFieldNames ? '' : 'errorReason')
     ..m<$core.String, $fixnum.Int64>(9, _omitFieldNames ? '' : 'errors',
         entryClassName: 'Collector.ErrorsEntry',
@@ -876,12 +900,14 @@ class Collector extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Collector() / Collector.new instead')
   static Collector create() => Collector._();
+  static $pb.GeneratedMessage $_createMessage() => Collector._();
   @$core.override
-  Collector createEmptyInstance() => create();
+  Collector createEmptyInstance() => Collector._();
   @$core.pragma('dart2js:noInline')
-  static Collector getDefault() =>
-      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Collector>(create);
+  static Collector getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Collector>(Collector.$_createMessage);
   static Collector? _defaultInstance;
 
   /// Interface name; empty for the namespace-wide host collector.
@@ -982,7 +1008,7 @@ class ListCollectorsRequest extends $pb.GeneratedMessage {
   factory ListCollectorsRequest({
     $core.Iterable<$core.String>? names,
   }) {
-    final result = create();
+    final result = ListCollectorsRequest._();
     if (names != null) result.names.addAll(names);
     return result;
   }
@@ -991,15 +1017,15 @@ class ListCollectorsRequest extends $pb.GeneratedMessage {
 
   factory ListCollectorsRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListCollectorsRequest()..mergeFromBuffer(data, registry);
   factory ListCollectorsRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListCollectorsRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListCollectorsRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListCollectorsRequest.$_createMessage)
     ..pPS(1, _omitFieldNames ? '' : 'names')
     ..hasRequiredFields = false;
 
@@ -1015,12 +1041,16 @@ class ListCollectorsRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ListCollectorsRequest() / ListCollectorsRequest.new instead')
   static ListCollectorsRequest create() => ListCollectorsRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ListCollectorsRequest._();
   @$core.override
-  ListCollectorsRequest createEmptyInstance() => create();
+  ListCollectorsRequest createEmptyInstance() => ListCollectorsRequest._();
   @$core.pragma('dart2js:noInline')
   static ListCollectorsRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListCollectorsRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<ListCollectorsRequest>(
+          ListCollectorsRequest.$_createMessage);
   static ListCollectorsRequest? _defaultInstance;
 
   /// Exact interface names; empty lists every interface and the host collector.
@@ -1033,7 +1063,7 @@ class ListCollectorsResponse extends $pb.GeneratedMessage {
     $fixnum.Int64? snapshotVersion,
     $core.Iterable<Collector>? collectors,
   }) {
-    final result = create();
+    final result = ListCollectorsResponse._();
     if (snapshotVersion != null) result.snapshotVersion = snapshotVersion;
     if (collectors != null) result.collectors.addAll(collectors);
     return result;
@@ -1043,20 +1073,20 @@ class ListCollectorsResponse extends $pb.GeneratedMessage {
 
   factory ListCollectorsResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListCollectorsResponse()..mergeFromBuffer(data, registry);
   factory ListCollectorsResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListCollectorsResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListCollectorsResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListCollectorsResponse.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'snapshotVersion', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..pPM<Collector>(2, _omitFieldNames ? '' : 'collectors',
-        subBuilder: Collector.create)
+        subBuilder: Collector.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1071,12 +1101,16 @@ class ListCollectorsResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ListCollectorsResponse() / ListCollectorsResponse.new instead')
   static ListCollectorsResponse create() => ListCollectorsResponse._();
+  static $pb.GeneratedMessage $_createMessage() => ListCollectorsResponse._();
   @$core.override
-  ListCollectorsResponse createEmptyInstance() => create();
+  ListCollectorsResponse createEmptyInstance() => ListCollectorsResponse._();
   @$core.pragma('dart2js:noInline')
   static ListCollectorsResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListCollectorsResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<ListCollectorsResponse>(
+          ListCollectorsResponse.$_createMessage);
   static ListCollectorsResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1097,7 +1131,7 @@ class RebaselineRequest extends $pb.GeneratedMessage {
     $core.String? reason,
     $2.Duration? wait,
   }) {
-    final result = create();
+    final result = RebaselineRequest._();
     if (reason != null) result.reason = reason;
     if (wait != null) result.wait = wait;
     return result;
@@ -1107,18 +1141,18 @@ class RebaselineRequest extends $pb.GeneratedMessage {
 
   factory RebaselineRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RebaselineRequest()..mergeFromBuffer(data, registry);
   factory RebaselineRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RebaselineRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RebaselineRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RebaselineRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'reason')
     ..aOM<$2.Duration>(2, _omitFieldNames ? '' : 'wait',
-        subBuilder: $2.Duration.create)
+        subBuilder: $2.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1132,12 +1166,15 @@ class RebaselineRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use RebaselineRequest() / RebaselineRequest.new instead')
   static RebaselineRequest create() => RebaselineRequest._();
+  static $pb.GeneratedMessage $_createMessage() => RebaselineRequest._();
   @$core.override
-  RebaselineRequest createEmptyInstance() => create();
+  RebaselineRequest createEmptyInstance() => RebaselineRequest._();
   @$core.pragma('dart2js:noInline')
-  static RebaselineRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RebaselineRequest>(create);
+  static RebaselineRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RebaselineRequest>(
+          RebaselineRequest.$_createMessage);
   static RebaselineRequest? _defaultInstance;
 
   /// Why the operator is rebaselining; recorded in the audit log.
@@ -1171,7 +1208,7 @@ class RebaselineResponse extends $pb.GeneratedMessage {
     $fixnum.Int64? expected,
     $fixnum.Int64? baselineWriteErrors,
   }) {
-    final result = create();
+    final result = RebaselineResponse._();
     if (generation != null) result.generation = generation;
     if (completed != null) result.completed = completed;
     if (expected != null) result.expected = expected;
@@ -1184,15 +1221,15 @@ class RebaselineResponse extends $pb.GeneratedMessage {
 
   factory RebaselineResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      RebaselineResponse()..mergeFromBuffer(data, registry);
   factory RebaselineResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      RebaselineResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'RebaselineResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: RebaselineResponse.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -1216,12 +1253,15 @@ class RebaselineResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use RebaselineResponse() / RebaselineResponse.new instead')
   static RebaselineResponse create() => RebaselineResponse._();
+  static $pb.GeneratedMessage $_createMessage() => RebaselineResponse._();
   @$core.override
-  RebaselineResponse createEmptyInstance() => create();
+  RebaselineResponse createEmptyInstance() => RebaselineResponse._();
   @$core.pragma('dart2js:noInline')
   static RebaselineResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RebaselineResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<RebaselineResponse>(
+          RebaselineResponse.$_createMessage);
   static RebaselineResponse? _defaultInstance;
 
   /// Ticket generation of the requested pass.
@@ -1269,7 +1309,7 @@ class ResyncRequest extends $pb.GeneratedMessage {
     $core.String? reason,
     $2.Duration? wait,
   }) {
-    final result = create();
+    final result = ResyncRequest._();
     if (reason != null) result.reason = reason;
     if (wait != null) result.wait = wait;
     return result;
@@ -1279,18 +1319,18 @@ class ResyncRequest extends $pb.GeneratedMessage {
 
   factory ResyncRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResyncRequest()..mergeFromBuffer(data, registry);
   factory ResyncRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResyncRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResyncRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResyncRequest.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'reason')
     ..aOM<$2.Duration>(2, _omitFieldNames ? '' : 'wait',
-        subBuilder: $2.Duration.create)
+        subBuilder: $2.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1304,12 +1344,15 @@ class ResyncRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ResyncRequest() / ResyncRequest.new instead')
   static ResyncRequest create() => ResyncRequest._();
+  static $pb.GeneratedMessage $_createMessage() => ResyncRequest._();
   @$core.override
-  ResyncRequest createEmptyInstance() => create();
+  ResyncRequest createEmptyInstance() => ResyncRequest._();
   @$core.pragma('dart2js:noInline')
-  static ResyncRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResyncRequest>(create);
+  static ResyncRequest getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResyncRequest>(
+          ResyncRequest.$_createMessage);
   static ResyncRequest? _defaultInstance;
 
   /// Why the operator is resyncing; recorded in the audit log.
@@ -1342,7 +1385,7 @@ class ResyncResponse extends $pb.GeneratedMessage {
     $core.bool? completed,
     $1.Timestamp? lastSuccessfulResync,
   }) {
-    final result = create();
+    final result = ResyncResponse._();
     if (generation != null) result.generation = generation;
     if (completed != null) result.completed = completed;
     if (lastSuccessfulResync != null)
@@ -1354,21 +1397,21 @@ class ResyncResponse extends $pb.GeneratedMessage {
 
   factory ResyncResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ResyncResponse()..mergeFromBuffer(data, registry);
   factory ResyncResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ResyncResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ResyncResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'linkmonitor.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ResyncResponse.$_createMessage)
     ..a<$fixnum.Int64>(
         1, _omitFieldNames ? '' : 'generation', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOB(2, _omitFieldNames ? '' : 'completed')
     ..aOM<$1.Timestamp>(3, _omitFieldNames ? '' : 'lastSuccessfulResync',
-        subBuilder: $1.Timestamp.create)
+        subBuilder: $1.Timestamp.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1382,12 +1425,15 @@ class ResyncResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ResyncResponse() / ResyncResponse.new instead')
   static ResyncResponse create() => ResyncResponse._();
+  static $pb.GeneratedMessage $_createMessage() => ResyncResponse._();
   @$core.override
-  ResyncResponse createEmptyInstance() => create();
+  ResyncResponse createEmptyInstance() => ResyncResponse._();
   @$core.pragma('dart2js:noInline')
-  static ResyncResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResyncResponse>(create);
+  static ResyncResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResyncResponse>(
+          ResyncResponse.$_createMessage);
   static ResyncResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
