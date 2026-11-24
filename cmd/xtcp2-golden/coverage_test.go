@@ -85,9 +85,18 @@ func TestRunCheckCoverage(t *testing.T) {
 // TestRunCheckCommittedCoverage checks the committed fixtures against the
 // committed coverage.json, as checks.golden-records does.
 func TestRunCheckCommittedCoverage(t *testing.T) {
-	dirs, err := filepath.Glob("../../pkg/xtcp/testdata/golden/*/")
-	if err != nil || len(dirs) == 0 {
-		t.Fatalf("no golden fixtures: %v", err)
+	entries, err := os.ReadDir("../../pkg/xtcp/testdata/golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dirs []string
+	for _, e := range entries {
+		if e.IsDir() {
+			dirs = append(dirs, filepath.Join("../../pkg/xtcp/testdata/golden", e.Name()))
+		}
+	}
+	if len(dirs) == 0 {
+		t.Fatal("no golden fixtures")
 	}
 	if _, err := os.Stat("../../pkg/xtcp/testdata/golden/coverage.json"); err != nil {
 		t.Fatalf("coverage.json: %v", err)
