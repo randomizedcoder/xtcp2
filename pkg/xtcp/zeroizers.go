@@ -49,3 +49,20 @@ func (x *XTCP) InitZeroizers(wg *sync.WaitGroup) {
 	// 	xtcpnl.ZeroizePragueInfoXTCP(xtcpRecord)
 	// }
 }
+
+// recycleRecord clears r for the record pool but keeps the capacity of its
+// two address buffers. DeserializeInetDiagSockIDXTCP copies each socket's
+// 16-byte source and destination into those buffers (it can't alias the
+// receive buffer, which is reused for the next packet), so keeping them
+// means a recycled record decodes its addresses without allocating. Reset
+// alone nils them and costs two allocations per socket on every poll.
+//
+// Only call this once nothing else holds r: flushEnvelope has marshaled and
+// sent the envelope, and gRPC stream sends are synchronous.
+func recycleRecord(r *xtcp_flat_record.XtcpFlatRecord) {
+	src := r.InetDiagMsgSocketSource[:0]
+	dst := r.InetDiagMsgSocketDestination[:0]
+	r.Reset()
+	r.InetDiagMsgSocketSource = src
+	r.InetDiagMsgSocketDestination = dst
+}

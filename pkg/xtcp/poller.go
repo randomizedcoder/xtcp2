@@ -172,7 +172,7 @@ func (x *XTCP) flushEnvelope(ctx context.Context, reason string) {
 	}
 
 	for _, r := range e.Row {
-		r.Reset()
+		recycleRecord(r)
 		x.xtcpRecordPool.Put(r)
 	}
 	x.EnvelopeZero(e)

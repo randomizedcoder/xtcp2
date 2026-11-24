@@ -291,7 +291,7 @@ func (x *XTCP) processInetDiagRecord(
 	if x.currentEnvelope == nil {
 		x.envelopeMu.Unlock()
 		d.m.envelopePostFlushDrop.Inc()
-		xtcpRecord.Reset()
+		recycleRecord(xtcpRecord)
 		x.xtcpRecordPool.Put(xtcpRecord)
 		return offset
 	}

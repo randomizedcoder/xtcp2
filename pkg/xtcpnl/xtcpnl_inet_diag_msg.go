@@ -236,8 +236,20 @@ func DeserializeInetDiagSockIDXTCP(data []byte, x *xtcp_flat_record.XtcpFlatReco
 	// which uses (*[16]byte)(data[4:40]) — that conversion implicitly
 	// truncates to the first 16 bytes; the XTCP variant assigns a slice
 	// directly so the full 36 bytes flowed through.)
-	x.InetDiagMsgSocketSource = data[4:20]
-	x.InetDiagMsgSocketDestination = data[20:36]
+	//
+	// Copied, not sliced: data is the receive buffer, which goes back to the
+	// pool once its packet is decoded and is reused for the next packet,
+	// while this record waits in the envelope for the poll's flush. A slice
+	// of it took on a later socket's address. The copy reuses the record's
+	// own buffers, so a recycled record allocates nothing, and a new one
+	// allocates once: both addresses share one 32-byte array.
+	if cap(x.InetDiagMsgSocketSource) < 16 || cap(x.InetDiagMsgSocketDestination) < 16 {
+		b := make([]byte, 32)
+		x.InetDiagMsgSocketSource = b[:0:16]
+		x.InetDiagMsgSocketDestination = b[16:16:32]
+	}
+	x.InetDiagMsgSocketSource = append(x.InetDiagMsgSocketSource[:0], data[4:20]...)
+	x.InetDiagMsgSocketDestination = append(x.InetDiagMsgSocketDestination[:0], data[20:36]...)
 
 	x.InetDiagMsgSocketInterface = binary.LittleEndian.Uint32(data[36:40])
 
