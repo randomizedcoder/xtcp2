@@ -87,7 +87,9 @@ type controlInput struct {
 	network string
 	host    string
 	opts    Options
-	side    string // "client" checks the dialed socket, "accepted" the server's
+	// side "client" checks the dialed socket, "accepted" the server's,
+	// "reapplied" the server's after ApplyConn (opts on the listener too).
+	side string
 }
 
 // controlExpect is the error the dial or listen returns, or what getsockopt
@@ -142,9 +144,12 @@ func TestControlApplied(t *testing.T) {
 		{"tos_zero", "corner", "0 leaves TOS alone",
 			controlInput{"tcp4", "127.0.0.1", Options{}, "client"},
 			controlExpect{ints: map[string]int{"IP_TOS": 0}}},
-		{"accepted_inherits", "corner", "an accepted socket takes the listener's options",
+		{"accepted_inherits", "corner", "an accepted socket keeps the listener's algorithm but not its priority (sock.c sk_clone)",
 			controlInput{"tcp4", "127.0.0.1", Options{Cong: "reno", TOS: 0x10, Priority: 3}, "accepted"},
-			controlExpect{cong: "reno", ints: map[string]int{"IP_TOS": 0x10, "SO_PRIORITY": 3}}},
+			controlExpect{cong: "reno", ints: map[string]int{"SO_PRIORITY": 0}}},
+		{"accepted_reapplied", "corner", "ApplyConn sets the options on an accepted socket, whatever tcp_reflect_tos says",
+			controlInput{"tcp6", "::1", Options{Cong: "reno", TOS: 0x10, Priority: 3}, "reapplied"},
+			controlExpect{cong: "reno", ints: map[string]int{"IP_TOS": 0x10, "IPV6_TCLASS": 0x10, "SO_PRIORITY": 3}}},
 		{"transparent", "corner", "set with CAP_NET_ADMIN, else an error naming it",
 			controlInput{"tcp4", "127.0.0.1", Options{Transparent: true}, "accepted"},
 			controlExpect{ints: map[string]int{"IP_TRANSPARENT": 1}, optional: true}},
@@ -153,6 +158,7 @@ func TestControlApplied(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			fd, err := loopbackSocket(t, tc.input)
 			if tc.expected.optional && err != nil && errors.Is(err, syscall.EPERM) && strings.Contains(err.Error(), "IP_TRANSPARENT") {
+				t.Logf("%s: no CAP_NET_ADMIN, checked the error only: %v", tc.name, err)
 				return
 			}
 			fail := func(format string, args ...any) {
@@ -204,20 +210,21 @@ var readable = map[string][2]int{
 }
 
 // loopbackSocket opens a loopback connection with in.opts on the dialer
-// (side "client") or the listener (side "accepted") and returns the fd of
+// (side "client") or the listener (sides "accepted", "reapplied") and returns the fd of
 // that side's connected socket. The connections close with the test.
 func loopbackSocket(t *testing.T, in controlInput) (int, error) {
 	t.Helper()
 	var lc net.ListenConfig
 	var d net.Dialer
-	if in.side == "accepted" {
+	server := in.side != "client"
+	if server {
 		lc.Control = in.opts.Control
 	} else {
 		d.Control = in.opts.Control
 	}
 	ln, err := lc.Listen(t.Context(), in.network, net.JoinHostPort(in.host, "0"))
 	if err != nil {
-		if in.side != "accepted" {
+		if errors.Is(err, syscall.EADDRNOTAVAIL) || errors.Is(err, syscall.EAFNOSUPPORT) {
 			t.Skipf("no %s loopback: %v", in.network, err)
 		}
 		return 0, err
@@ -238,13 +245,18 @@ func loopbackSocket(t *testing.T, in controlInput) (int, error) {
 	}
 	t.Cleanup(func() { _ = c.Close() })
 	conn := c
-	if in.side == "accepted" {
+	if server {
 		a, ok := <-accepted
 		if !ok {
 			t.Fatal("accept failed")
 		}
 		t.Cleanup(func() { _ = a.Close() })
 		conn = a
+	}
+	if in.side == "reapplied" {
+		if err := in.opts.ApplyConn(conn.(*net.TCPConn)); err != nil {
+			return 0, err
+		}
 	}
 	return connFD(t, conn), nil
 }
