@@ -258,6 +258,7 @@ func (x *XTCP) applyEnrichment(r *xtcp_flat_record.XtcpFlatRecord) {
 	if m := x.nsidByInode.Load(); m != nil {
 		if id, ok := (*m)[r.NetnsInode]; ok {
 			r.Nsid = uint32(id)
+			r.NsidAssigned = true
 		}
 	}
 

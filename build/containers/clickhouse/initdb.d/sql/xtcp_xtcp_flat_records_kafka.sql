@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS xtcp.xtcp_flat_records_kafka
     netns                                                       String CODEC(ZSTD),
     netns_inode                                                 UInt64 CODEC(ZSTD),
     nsid                                                        UInt32 CODEC(LZ4),
+    nsid_assigned                                               Bool CODEC(LZ4),
 
     -- ---- metadata: container identity (40s) --------------------------------
     container_id                                                String CODEC(ZSTD),

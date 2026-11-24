@@ -25,7 +25,7 @@ import (
 // parquetColumnCount is ParquetRow's column count. A new column changes it,
 // fails TestGoldenClassesComplete until goldenrec.Columns lists it, and
 // means the golden fixture needs recapturing (nix run .#capture-golden-records).
-const parquetColumnCount = 181
+const parquetColumnCount = 182
 
 // goldenFixtureRows reads every committed golden capture,
 // testdata/golden/<kernel>/records.parquet.
