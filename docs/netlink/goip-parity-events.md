@@ -218,30 +218,65 @@ The `FuzzParse*` seeds and the benchmark over the EP1 twelve (`evlink-carrier`, 
 
 ### EP2 the crafted monitor files, at two versions
 
+The blob class exists for inputs the kernel cannot produce, and every row's expected value is now measured, not argued: this plan's commit ran each blob shape through nixpkgs' `ip` (7.2.0), the pinned 7.3.0, and goip as it stands (V386). Three facts came out of the probes that reshape the tasks:
+
+- **The bond series is upstream.** `0067cbc8` (the u16 read), `075f1b6f` (the `test_on_not` fix) and `4f49441d` (the testsuite test) were all applied 2026-10-19 and first released in **v7.3.0** — so the hionly blob genuinely prints differently at the two pins, which is what makes it the check's red case. The bond note's status block is corrected in this commit's docs pass.
+- **The red case's 7.3.0 print is `256` with an empty list, not `<active>`.** `print_slave_oper_state` iterates the eight `LACP_STATE_*` names and `0x0100` sets none of them, so 7.3.0 prints `ad_partner_oper_port_state 256 ad_partner_oper_port_state_str <>` — an earlier draft of this plan said `<active>`, which is the big-endian u8 read, not the u16 one. The hibyte blob (`0x3f01`) is the richer 7.3.0 corner: `319` and a **trailing comma** before the `>` (the `_PF` loop prints `state ? "," : "%s"` against bits still set, and the uncovered `0x100` bit keeps `state` non-zero after the last name) — goip's `addOperState` already prints that comma, its divergence note documented at `internal/goip/render/link_bond.go`.
+- **The truncated row is a match, not a refusal.** The bond note's goip table says a 1-byte partner payload is a decode error, not `63`; measured, `ip` prints `63 <full list>` at **both** versions — 7.2.0 reads the octet with `rta_getattr_u8`, 7.3.0's `rta_getattr_u16` reads the payload plus the alignment padding, which is zero — and goip's `setPartnerOperState` one-byte arm (`pkg/xtcpnl/xtcpnl_bond.go`) matches both. The note's row is superseded by the measurement; the committed blob expects `63`.
+
+Two goip render gaps the probes found, both reachable only by crafted input (every corpus message carries `IFLA_OPERSTATE`, and no kernel writer sends what these blobs carry):
+
+- goip prints `state UNKNOWN` when `IFLA_OPERSTATE` is absent; `ip` prints nothing (the attribute is guarded at `ip/ipaddress.c:859-860` and `1040-1041`). Every crafted link blob shows the word today.
+- goip prints `congctl cubic p` for a CC_ALG payload with garbage past the first NUL — both in the V038 shape (rta_len 10, the garbage in the padding, which goip's subattr walk reads past `rta_len`) and in the over-long shape (rta_len 12, `cubic\0p\0` as 8 data bytes, where `bytes.TrimRight` at `pkg/xtcpnl/xtcpnl_rtnexthop.go` keeps the interior NUL and the `p`). `ip`'s `rta_getattr_str` is a C string: it stops at the first NUL, and both versions print `congctl cubic` for every shape.
+
 #### EP2-T01 `nlcapgen monfile`
 
-The small subcommand: a pcap (or a crafted message list) → the `.nl` stream `rtnl_from_file` walks — each nlmsghdr and its body to the 4-byte boundary, the format `generate_nlmsg.c` writes. Gates: the round-trip table (a crafted message list → `.nl` → `monitorReadFile` → the same messages; a truncated header, a short body, a length under the header's, each the error `fromFile` documents); a chosen captured pcap (the `evnhb-bucket` row) converted and replayed through `ip -d monitor file` in the guest, its lines the row's `.out`.
-
-#### EP2-T02 the blobs
-
-Committed under `internal/goip/testdata/monitor/`, each with a comment naming why the kernel cannot send it. The bond note's table, whole: fast `0x3f`, slow `0x3d`, zero, all-bits `0xff`, high-byte `0x3f01`, high-only `0x0100` (the row that fails on any host), absent, truncated, and the actor-stays-u8 pair. P14's reason u32 (`0x9`, `0x100`, `0x80000001`). A one-RTA_METRICS route with `cubic\0p\0` padding. Rows for whatever EC3's verdiff adds — the verdiff added none, so the set is the note's three classes.
-
-#### EP2-T03 `test-goip-monitorfile`
-
-The nix check on the `test-linkmonitor-rdma-runtime` pattern: it builds nixpkgs' iproute2 (7.2.0) and `iproute2_7_3_0`, replays each blob through both `ip -d monitor file` and `goip monitor file` at both versions' knobs, and compares against committed goldens. ip's side is pinned per version — this is the check that would have caught `0067cbc8` and P14 before the notes existed. Gates: built red first (the `0x0100` blob: `ip` at 7.2.0 prints `0 <>`, at 7.3.0 prints `256`, `<active>` — goip at the 7.2.0 knob must print the 7.2.0 shape until the knob turns), then green; registered in `nix/checks/default.nix`; the docs check over the new goldens' tree.
-
-- **The artifact class.** `.nl` blobs of raw netlink messages — iproute2's own testsuite format (`testsuite/tools/generate_nlmsg.c`, `ip -d monitor file`) — committed under `internal/goip/testdata/monitor/`. They are *not* pcap fixtures and break no "real captures" rule: they exist for inputs the kernel cannot produce, the same carve-out the bond note states ("the out-of-range value *is* the input under test"). Each carries a comment naming why the kernel cannot send it.
-- **The rows.** The bond note's table, whole: fast `0x3f`, slow `0x3d`, zero, all-bits `0xff`, high-byte `0x3f01`, high-only `0x0100` (the row that fails on any host), absent, truncated, and the actor-stays-u8 pair. P14's reason u32 (`0x9`, `0x100`, `0x80000001`). A one-RTA_METRICS route with `cubic\0p\0` padding. Rows for whatever EC3's verdiff adds.
-- **The check.** `test-goip-monitorfile`, a nix check on the `test-linkmonitor-rdma-runtime` pattern: it builds nixpkgs' iproute2 (7.2.0) and `iproute2_7_3_0`, converts each blob (and, via a small `nlcapgen monfile`, a chosen captured pcap or two) to a `.nl`, replays each through both `ip -d monitor file` and `goip monitor file` at both versions' knobs, and compares against committed goldens. ip's side is pinned per version — this is the check that would have caught `0067cbc8` and P14 before the notes existed.
+The small subcommand, two inputs, one output: `-spec FILE` writes the `.nl` stream a crafted message list names (JSONL, one message per line — type, flags, seq, pid, body as hex, and a `why` the row must carry), and `-pcap FILE` writes what a captured pcap holds, the monitor's notifications only by default (`-all` for the raw stream) — the delivery filter, so `ip -d monitor file` over a converted row prints the row's `.out` and nothing else. The filter moves to `pkg/nlparity` (exported, `internal/goip/source_monitor.go`'s `replayNotifications` delegating to it), one home for the replay and the converter. The format facts are pinned at the source: `rtnl_from_file` (`lib/libnetlink.c:1315-1368`) takes no magic — each nlmsghdr, then its body to the 4-byte boundary, `generate_nlmsg.c`'s shape — refuses a header cut short with `rtnl-from_file: truncated message`, a length under 16 or over the 16384 buffer with `!!!malformed message: len=%d @%lu` (the `@` is `ftell` after the header's sixteen bytes, which is where goip's error puts it), and a body cut short with the truncated message again.
 
 | description | input | expected |
 |---|---|---|
-| positive: the hionly blob at 7.2.0 | `0x0100` partner state | `ip` prints `0 <>`; goip, at the 7.2.0 knob, the same |
-| positive: the hionly blob at 7.3.0 | the same blob | `256`, `<active>` |
-| positive: P14's reason 8 alone | `0x100` | nothing printed, on both |
-| corner: the truncated partner attribute | `3f` | a decode error, not `63` |
-| negative: not a netlink file | a text file | both tools' refusal, rc as each exits |
-| boundary: the actor pair | `3f` as the actor attribute | `63`, valid as u8 |
+| positive: a crafted message list | the spec, three messages | `.nl` bytes golden; `monitorReadFile` hands back the same three |
+| positive: a captured pcap | the `evnhb-bucket` row's pcap | only the notifications the monitor received; the guest replay (below) prints the `.out` |
+| negative: a header cut short | 10 bytes | `ErrMonitorFile` wrapping `rtnl-from_file: truncated message`, as `fromFile` documents |
+| negative: a body cut short | a length past the file's end | the same truncated message |
+| boundary: a length under the header's | `nlmsg_len` 12 | `!!!malformed message: len=12 @16` |
+| boundary: a length over the buffer | `nlmsg_len` 16385 | `!!!malformed message: len=16385 @16` |
+| corner: a nested-flagged RTA_METRICS | a metrics attr with `NLA_F_NESTED` | the spec does not set it: `parse_rtattr` does not mask the bit, so `ip` drops the attr whole (`iproute2`, `ip/iproute.c:982-984` — `RTA_PAYLOAD` walk); goip must too, a T02 row |
+
+Gates: the unit tables in `tools/nlcapgen` (spec → bytes, golden; pcap → bytes with the filter, golden); the round-trip and error table in `internal/goip` (the committed `.nl` bytes through `monitorReadFile`, the same messages back, and the four refusals above); and the guest probe — the `evnhb-bucket` row's pcap converted, then `ip -d monitor file` run **in the row's live namespace, before its teardown**, so the lazy gets resolve the row's own names; its lines are the row's `.out`. (The file path runs no `ll_init_map`; `ll_index_to_name` resolves lazily — `ll_link_get` on a miss, then `if_indextoname`, then `if%u` — so a replay outside the namespace prints `if7`-style names, a measured difference to record, not a gate to fudge.)
+
+#### EP2-T02 the blobs
+
+The specs and their `.nl` are committed under `internal/goip/testdata/monitor/`, regenerated together: `nlcapgen monfile -spec` must write the committed `.nl` byte for byte, so the binary can never drift from its reviewable source, and each spec line carries the `why` the check asserts is non-empty — why the kernel cannot send it. Crafted blobs use an ifindex no sandbox carries (7), so every `dev` prints `if7` and the goldens are host-independent. The measured table:
+
+| description | input | ip 7.2.0 | ip 7.3.0 | goip today |
+|---|---|---|---|---|
+| positive: negotiated fast partner | `0x003f` | `63 <active,short_timeout,aggregating,in_sync,collecting,distributing>` | same | same |
+| positive: slow partner | `0x003d` | `61 <active,aggregating,in_sync,collecting,distributing>` | same | same |
+| boundary: zero | `0x0000` | `0 <>` | same | same |
+| boundary: all eight bits | `0x00ff` | `255 <…defaulted,expired>` (all eight names) | same | same |
+| corner: high byte with low | `0x3f01` | `63 <full list>` (the u8 fault) | `319 <full list,>` (trailing comma) | 7.3.0's shape, no knob |
+| corner: high byte only, the red case | `0x0100` | `0 <>` | `256 <>` | 7.3.0's shape, no knob |
+| negative: the attribute absent | no partner attr | no partner line | same | same |
+| negative: truncated, one byte | `0x3f` as 1 byte | `63 <full list>` | `63 <full list>` (the pad read) | same — the note's decode-error row superseded |
+| boundary: the actor stays u8 | `0x3f` as the actor attr | `63`, both versions — an over-eager u16 read is the regression this row catches | same | same |
+| positive: P14 reason 0 and 3 | `0x9` | `protodown on protodown_reason <0,3>` | same | same |
+| boundary: P14 reason 8 alone | `0x100` | `protodown on`, no reasons (the u8 read) | same | same |
+| corner: P14 reasons 0 and 31 | `0x80000001` | `protodown on protodown_reason <0>` | same | same |
+| positive: the V038 padding | rta_len 10, pad `p\0` | `congctl cubic` | same | `congctl cubic p` ← the fault |
+| corner: the over-long payload | `cubic\0p\0` as 8 data bytes | `congctl cubic` | same | `congctl cubic p` ← the fault |
+| corner: a nested-flagged RTA_METRICS | the metrics attr with `NLA_F_NESTED` | no metrics printed | same | `congctl cubic …` ← diverges |
+| negative: not a netlink file | a text file | `rtnl-from_file: truncated message`, rc 1 | same | the same complaint, goip-prefixed, rc 1 |
+
+The work the table names: close the two render gaps (the `state UNKNOWN` word, the CC_ALG C-string semantics — stop at the first NUL, never read past `rta_len`); and add the version knob `render.RenderBondPartnerU8` plus the `GOIP_IP730` env seam that sets the whole release-knob set (`Keywords730`, `LLAddrStrict`, `RenderBondLacpStrict`, `RenderNhDstPort`, `RenderOvpnMode`, the new one — `useWsO5Release`'s list) from outside the binary, the P14 doctrine's external control. The u8 read is the **low** byte, as iproute2 on a little-endian host reads it (`rta_getattr_u8` is `*(__u8 *)RTA_DATA`, `include/libnetlink.h:240-243`); big-endian hosts read the high byte and are out of scope — the corpus VMs and the check are x86_64. `link_bond.go`'s "no knob is needed for the older releases" comment is superseded: it reasoned from kernel-producible values, and the crafted blob is exactly the input it was wrong about. The knob defaults off (7.3.0, the parity target).
+
+Gates: the spec-to-`.nl` regeneration golden; goip's renders matching the ip column per knob, both knobs; the O10 golden regenerated — **66 rows, 0 differ stands** (every corpus message carries `IFLA_OPERSTATE` and no kernel partner state, so the two render fixes and the knob must move no corpus row); the full suites; the fuzzers still green (the CC_ALG fix changes a parser, so `FuzzParse`-adjacent tables re-run).
+
+#### EP2-T03 `test-goip-monitorfile`
+
+The nix check on the `test-linkmonitor-rdma-runtime` pattern (`nix/checks/goip-monitorfile.nix`, registered in `nix/checks/default.nix`): it builds nixpkgs' iproute2 (7.2.0) and the pinned 7.3.0 (`nix/iproute2-7-3-0.nix`, the parity pin), regenerates every committed `.nl` from its spec with the real `nlcapgen` and refuses a byte of drift, then replays each blob through `ip -d monitor file` at both versions and `goip -d monitor file` at `GOIP_IP730=0` and `=1`, and compares stdout and rc against committed goldens (stderr only in the refusal rows — goip prefixes its complaint; stdout is the parity claim). This is the check that would have caught `0067cbc8` and P14 before the notes existed. Measured for the design: AF_NETLINK works in the build sandbox (a `runCommand` probe ran `ip -d link show` in it), so goip's eager `linkMap` dump (`obj_monitor.go`'s file path) works there too — and the same probe showed the sandbox carries the host's link indices, hence the no-sandbox-index rule for the blobs above.
+
+Gates: **built red first** — the commit that registers the check records the red run, its stderr naming the three gaps (the hionly row `256 <>` vs `0 <>` at `GOIP_IP730=0`, the `congctl cubic p` rows, the `state UNKNOWN` word) — then green once T02 lands; `nix flake check`'s list grows the attribute; the docs check over `internal/goip/testdata/monitor/` (its files count as artifacts when they start to exist); the O5/O9/O10 goldens regenerated in the same commit, `differs` and `sends` at 0.
 
 ## Tier EG: goip and the matrix
 

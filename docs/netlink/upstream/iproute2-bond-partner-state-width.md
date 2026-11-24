@@ -6,17 +6,22 @@ Reproduced, fixed and tested in a scratch clone of upstream iproute2
 x86_64 and on big-endian s390x (`qemu-s390x`, replaying a generated message).
 On s390x a partner state of 0x3f prints
 `ad_partner_oper_port_state 0 ad_partner_oper_port_state_str <>`.
-**Not yet sent to netdev.** The current version discloses LLM help in the
-cover letter's opening and an "LLM use" section, and every patch carries
-`Assisted-by: LLM`, per the kernel's `Documentation/process/coding-assistants.rst`.
-Latest results: [test-results-2026-10-10.txt](test-results-2026-10-10.txt).
-The plan is one series. The cover letter says patch 1 stands alone and
+**Sent and applied.** All three patches are in upstream iproute2 and first
+released in **v7.3.0**: `0067cbc8` (the one-line fix, applied by Stephen
+Hemminger 2026-10-19), `075f1b6f` (the `test_on_not` fix) and `4f49441d`
+(the testsuite test), the same series as below. The cover letter and every
+patch carry the LLM-use disclosure the kernel's
+`Documentation/process/coding-assistants.rst` asks for, and the patches carry
+`Assisted-by: LLM`.
+Latest results: [test-results-2026-10-10.txt](test-results-2026-10-10.txt),
+run against the pre-send series.
+The plan was one series. The cover letter says patch 1 stands alone and
 asks maintainers to take just that if they do not want the test. A
 two-posting alternative (fix alone, then tests) is kept in
 [`alternative-two-postings/`](alternative-two-postings/). The series went through a second-opinion review on
 2026-10-10 ([notes](second-opinion-review-2026-10-10.txt)); the revised patches
 and a merged cover letter are in this directory and in
-`~/Downloads/iproute2-lacp/`, ready for the user to trim and send.
+`~/Downloads/iproute2-lacp/`.
 
 **Series** (in this directory, `git format-patch` output against `e11870d5`):
 
@@ -474,6 +479,14 @@ line alone.
 
 ## What it means for goip
 
+> Measured 2026-11-24 (EP2's planning probes, V386): this section was
+> written before the decoder existed; the link-write arc has since added
+> both (`internal/goip/render/link_bond.go`, `pkg/xtcpnl/xtcpnl_bond.go`).
+> The truncated row below is superseded too: `ip` prints `63` for a one-byte
+> payload at both 7.2.0 and 7.3.0 (the u16 read takes the zero padding), so
+> goip's `setPartnerOperState` one-byte arm is a match, and the committed
+> blob expects `63`, not a refusal.
+
 goip has no bond-slave decoder yet (`grep -rn PARTNER_OPER --include=*.go`
 finds nothing). When the read half of the
 [link write path](../link-write-path.md) adds one:
@@ -503,7 +516,10 @@ reading one byte reintroduces the iproute2 behaviour.
 
 ## Sending it
 
-Not done. When the user is ready:
+Done. The series was sent to netdev and applied by Stephen Hemminger on
+2026-10-19: `0067cbc8` (the fix), `075f1b6f` (the `test_on_not` fix) and
+`4f49441d` (the testsuite test), all first released in v7.3.0. The sending
+recipe stays for the record:
 
 ```bash
 cd <clone with the three commits>
@@ -513,10 +529,9 @@ git send-email --to netdev@vger.kernel.org \
   docs/netlink/upstream/000[0-3]-*.patch
 ```
 
-The cover letter already carries `To:`/`Cc:` headers (Jay Vosburgh is the
+The cover letter carried `To:`/`Cc:` headers (Jay Vosburgh is the
 kernel bonding maintainer; Hangbin Liu wrote the last two changes to
-`ip/iplink_bond_slave.c`). Trim it further if wanted;
-every bullet is a single fact and can be cut independently. The same files
+`ip/iplink_bond_slave.c`). The same files
 live in `~/Downloads/iproute2-lacp/`; `email-draft.txt` there is the cover
 letter body as plain text and must be kept in sync with
 `0000-cover-letter.patch`, which is what `git send-email` actually sends.
