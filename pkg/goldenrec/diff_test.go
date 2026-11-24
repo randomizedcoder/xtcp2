@@ -25,6 +25,17 @@ func edit(rows []rec, i int, f func(*rec)) []rec {
 	return out
 }
 
+// inNetns returns a copy of rows with row 0 moved to netns and f, when
+// set, applied to it.
+func inNetns(rows []rec, netns string, f func(*rec)) []rec {
+	return edit(rows, 0, func(r *rec) {
+		r.Netns = netns
+		if f != nil {
+			f(r)
+		}
+	})
+}
+
 func mustNormalize(t *testing.T, rows []rec) []Row {
 	t.Helper()
 	n, err := Normalize(rows, Columns)
@@ -100,6 +111,24 @@ func TestDiff(t *testing.T) {
 		{"extra_row", "corner", "the candidate has one socket more",
 			g, append(append([]rec(nil), g...), rec{Family: afInet6, State: 10, SPort: 443, Src: v6("::1")}), Options{},
 			expected{n: 1, contains: "row only in candidate: inet_diag_msg_family=10"}},
+		{"lossy_counters_ignored", "positive", "a netem pair's loss counters vary run to run and are not compared",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 0; r.Bbr = 0 }),
+			Options{}, expected{}},
+		{"lossy_strict_kept", "negative", "a netem pair's MSS is still compared",
+			inNetns(g, "golden-bulk-a", nil), inNetns(g, "golden-bulk-a", func(r *rec) { r.Mss = 1398 }),
+			Options{}, expected{n: 1, contains: `tcp_info_snd_mss: golden "1448", candidate "1398"`}},
+		{"lossy_elsewhere", "negative", "the same counter flip outside a netem pair is a difference",
+			inNetns(g, "golden-cc-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-cc-a", nil),
+			Options{}, expected{n: 1, contains: `tcp_info_total_retrans: golden "nonzero", candidate "0"`}},
+		{"lossy_disabled", "boundary", "an empty LossyNetns compares every namespace",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-bulk-a", nil),
+			Options{LossyNetns: []string{}}, expected{n: 1, contains: "tcp_info_total_retrans"}},
+		{"lossy_custom", "corner", "a named LossyNetns replaces the default",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-bulk-a", nil),
+			Options{LossyNetns: []string{"other"}}, expected{n: 1, contains: "tcp_info_total_retrans"}},
+		{"lossy_row_missing", "corner", "a socket missing from a netem pair is still reported",
+			inNetns(g, "golden-bulk-a", nil), inNetns(g, "golden-bulk-a", nil)[:2],
+			Options{}, expected{n: 1, contains: "row only in golden"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
