@@ -127,6 +127,14 @@ func TestRunIP(t *testing.T) {
 	}
 	t.Setenv("PATH", bin)
 	t.Setenv(helperEnv, "1")
+	// An empty sysfs: the host's need not exist (the nix sandbox has none).
+	sys := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sys, "class", "net"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	saved := liveSys
+	liveSys = tnlsys.Live{SysRoot: sys, ProcRoot: t.TempDir()}
+	t.Cleanup(func() { liveSys = saved })
 	var out, errb bytes.Buffer
 	rc := run([]string{"--", "-j", "tunnel", "show"}, &out, &errb)
 	s, err := tnlsys.Parse(out.Bytes())

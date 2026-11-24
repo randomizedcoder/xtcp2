@@ -51,6 +51,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// liveSys is the kernel, sysfs and /proc snapshotIP asks: the host's,
+// unless a test points the roots at a fake tree (the nix test sandbox has
+// no /sys/class/net).
+var liveSys = tnlsys.Live{}
+
 // snapshotIP records `ip ARGS`. The program is fixed, ip as PATH
 // resolves it, and the arguments reach it as its argv, never a shell.
 func snapshotIP(args []string) ([]byte, error) {
@@ -60,7 +65,7 @@ func snapshotIP(args []string) ([]byte, error) {
 	}
 	// ip reads its stdin for `-batch -`: a readback's `< b.txt` reaches it.
 	cmd := &exec.Cmd{Path: path, Args: append([]string{"ip"}, args...), Stdin: os.Stdin}
-	return snapshot(cmd, tnlsys.Live{}, walksProc(args))
+	return snapshot(cmd, liveSys, walksProc(args))
 }
 
 // walksProc is whether ip, given args, runs show_processes: it sets
