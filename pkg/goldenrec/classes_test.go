@@ -28,7 +28,19 @@ func TestCheck(t *testing.T) {
 		A  uint32 `parquet:"a,delta"`
 		Ns string `parquet:"netns,dict,zstd"`
 	}
+	type assigned struct {
+		A   uint32 `parquet:"a"`
+		AAs bool   `parquet:"a_assigned"`
+	}
+	type assignedOnly struct {
+		G bool `parquet:"gone_assigned"`
+	}
+	type assignedUint struct {
+		A   uint32 `parquet:"a"`
+		AAs uint32 `parquet:"a_assigned"`
+	}
 	ab := Table{{Strict, []string{"a"}}, {Presence, []string{"b"}}}
+	aAssigned := Table{{Ordinal, []string{"a"}}, {Assigned, []string{"a_assigned"}}}
 	cases := []struct {
 		name        string
 		category    string
@@ -51,6 +63,19 @@ func TestCheck(t *testing.T) {
 		{"empty_struct", "boundary", "no columns and an empty table", reflect.TypeFor[struct{}](), nil, nil},
 		{"untagged_field", "corner", "untagged and \"-\" fields are not columns",
 			reflect.TypeFor[skipped](), ab, nil},
+		{"companion_ok", "positive", "an ordinal with a bool _assigned companion",
+			reflect.TypeFor[assigned](), aAssigned, nil},
+		{"companion_missing", "negative", "the companion's ordinal has no column",
+			reflect.TypeFor[assignedOnly](), Table{{Assigned, []string{"gone_assigned"}}},
+			[]string{"assigned column gone_assigned: no column gone"}},
+		{"companion_not_bool", "boundary", "the companion is not a bool",
+			reflect.TypeFor[assignedUint](), aAssigned, []string{"assigned column a_assigned is uint32, not bool"}},
+		{"companion_not_ordinal", "corner", "the companion's column is not an ordinal",
+			reflect.TypeFor[assigned](), Table{{Strict, []string{"a"}}, {Assigned, []string{"a_assigned"}}},
+			[]string{"assigned column a_assigned: a is strict, not ordinal"}},
+		{"companion_bad_name", "negative", "an assigned column must be named <ordinal>_assigned",
+			reflect.TypeFor[two](), Table{{Strict, []string{"a"}}, {Assigned, []string{"b"}}},
+			[]string{"assigned column b: name does not end in _assigned"}},
 		{"tag_options", "corner", "a tag's options are cut from its name",
 			reflect.TypeFor[options](), Table{{Strict, []string{"a"}}, {Netns, []string{"netns"}}}, nil},
 	}

@@ -49,9 +49,10 @@ type ParquetRow struct {
 	TreatmentAlgorithmExposed   bool   `parquet:"treatment_algorithm_exposed"`
 
 	// ---- metadata: network namespace identity (30s)
-	Netns      string `parquet:"netns,zstd"`
-	NetnsInode uint64 `parquet:"netns_inode,snappy"`
-	Nsid       uint32 `parquet:"nsid,snappy"`
+	Netns        string `parquet:"netns,zstd"`
+	NetnsInode   uint64 `parquet:"netns_inode,snappy"`
+	Nsid         uint32 `parquet:"nsid,snappy"`
+	NsidAssigned bool   `parquet:"nsid_assigned"`
 
 	// ---- metadata: container identity (40s)
 	ContainerId      string `parquet:"container_id,zstd"`

@@ -200,7 +200,7 @@ func columnDiffs(key string, g, c map[string]string) []Difference {
 func compareForm(cl Class, v string) string {
 	switch cl {
 	case Ordinal:
-		if v == "0" || v == "" {
+		if v == "0" || v == "" || v == "-" {
 			return v
 		}
 		return "set"

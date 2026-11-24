@@ -29,7 +29,15 @@ wait_second_poll "$FLUSH_SEC"
 for i in $(seq 1 "$CONTAINERS"); do
   pid=$(docker inspect --format '{{.State.Pid}}' "golden-$i")
   nsenter -t "$pid" -n ss -Htan >"$OUT/ss-golden-$i"
+  # The kernel's nsid for the container's namespace, for the nsid rows
+  # below: eth0's peer is the host end of its veth, whose link-netnsid is
+  # that id ("none" when the host has none for it).
+  peer=$(nsenter -t "$pid" -n ip -j link show eth0 | jq '.[0].link_index')
+  ip -j link show | jq -r --argjson i "$peer" '.[] | select(.ifindex == $i) | .link_netnsid // "none"' >"$OUT/nsid-golden-$i"
 done
+# golden-ns has no veth, so normally no id: `ip netns list` shows "(id: N)"
+# only once one is assigned.
+golden_ns_id=$(ip netns list | sed -n 's/^golden-ns (id: \([0-9]*\))$/\1/p')
 caps=$(systemctl show xtcp2 -p CapabilityBoundingSet --value)
 
 stop_and_fetch_second_poll "$OUT/raw.parquet"
@@ -51,6 +59,49 @@ ns=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-ns'")
 [ "$ns" -ge 1 ] || fail "golden-ns: no rows"
 host=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns <> 'golden-ns'")
 [ "$host" -ge 1 ] || fail "host namespace: no rows"
+
+# The nsid rows: nsid_assigned says whether nsid is set, so the kernel's
+# first id (0) reads apart from no id at all.
+row_failed=0
+row() {
+  if [ "$3" = 1 ]; then
+    echo "ROW $1 $2 PASS $4"
+  else
+    echo "ROW $1 $2 FAIL $4"
+    row_failed=1
+  fi
+}
+zeros=0
+for i in $(seq 1 "$CONTAINERS"); do
+  c="golden-$i"
+  want=$(cat "$OUT/nsid-golden-$i")
+  [ "$want" = 0 ] && zeros=$((zeros + 1))
+  n=$(q "SELECT count(*) FROM $P WHERE container_name = '$c' AND NOT nsid_assigned")
+  ok=0
+  [ "$want" != none ] && [ "$n" -eq 0 ] && ok=1
+  row container_assigned positive "$ok" "$c: $n rows without nsid_assigned, link-netnsid $want"
+  got=$(q "SELECT string_agg(DISTINCT nsid::VARCHAR, ',') FROM $P WHERE container_name = '$c'")
+  ok=0
+  [ "$got" = "$want" ] && ok=1
+  row matches_link_netnsid positive "$ok" "$c: nsid $got, link-netnsid $want"
+done
+got=$(q "SELECT string_agg(DISTINCT if(nsid_assigned, nsid::VARCHAR, 'none'), ',') FROM $P WHERE netns = 'golden-ns'")
+ok=0
+[ "$got" = "${golden_ns_id:-none}" ] && ok=1
+row matches_link_netnsid positive "$ok" "golden-ns: nsid $got, ip netns list ${golden_ns_id:-none}"
+n=$(q "SELECT count(*) FROM $P WHERE nsid <> 0 AND NOT nsid_assigned")
+ok=0
+[ "$n" -eq 0 ] && ok=1
+row no_stray negative "$ok" "$n rows with an nsid but no nsid_assigned"
+ok=0
+[ "$zeros" -eq 1 ] && ok=1
+row zero_present boundary "$ok" "$zeros container namespaces with kernel id 0"
+n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns <> 'golden-ns' AND nsid_assigned")
+ok=0
+[ "$n" -eq 0 ] && ok=1
+row host_unassigned corner "$ok" "$n host rows with nsid_assigned (the root namespace has no id for itself)"
+[ "$row_failed" = 0 ] || fail "nsid rows failed"
+
 version=$(q "SELECT any_value(daemon_version) FROM $P")
 
 uname -r >"$OUT/uname"
@@ -62,7 +113,7 @@ jq -n \
     capabilities: ($caps | split(" ")),
     workload: {containers: $containers, sockets_per_container: $sockets, named_netns: ["golden-ns"]},
     rows: $rows, captured: $captured}' >"$OUT/manifest.json"
-rm -f "$OUT"/ss-golden-*
+rm -f "$OUT"/ss-golden-* "$OUT"/nsid-golden-*
 
 echo "GOLDEN_ROWS $rows"
 echo "XTCP2_GOLDEN_DUMP_START"

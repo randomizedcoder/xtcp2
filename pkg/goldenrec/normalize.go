@@ -128,6 +128,7 @@ func newPlan(rows any, table Table) (*plan, error) {
 		return nil, err
 	}
 
+	flags := p.assignedFlags()
 	p.cells = make([][]cell, rv.Len())
 	for i := range rv.Len() {
 		row := rv.Index(i)
@@ -137,7 +138,12 @@ func newPlan(rows any, table Table) (*plan, error) {
 		}
 		p.cells[i] = make([]cell, len(p.cols))
 		for j, c := range p.cols {
-			p.cells[i][j] = classify(p.classes[j], row.Field(c.field), family)
+			v := row.Field(c.field)
+			if f, ok := flags[j]; ok {
+				p.cells[i][j] = classifyAssigned(v, row.Field(f).Bool())
+				continue
+			}
+			p.cells[i][j] = classify(p.classes[j], v, family)
 		}
 	}
 
@@ -343,10 +349,40 @@ func Normalize(rows any, table Table) ([]Row, error) {
 	return out, nil
 }
 
+// assignedFlags maps each Ordinal column that has an Assigned column to that
+// flag's struct field. A flag that is not a bool is left out: Check reports
+// it, and its ordinal falls back to plain Ordinal.
+func (p *plan) assignedFlags() map[int]int {
+	byName := make(map[string]int, len(p.cols))
+	for j, c := range p.cols {
+		byName[c.name] = j
+	}
+	flags := make(map[int]int)
+	for k, c := range p.cols {
+		if p.classes[k] != Assigned || p.rows.Type().Elem().Field(c.field).Type.Kind() != reflect.Bool {
+			continue
+		}
+		ord, ok := strings.CutSuffix(c.name, assignedSuffix)
+		if j, found := byName[ord]; ok && found && p.classes[j] == Ordinal {
+			flags[j] = c.field
+		}
+	}
+	return flags
+}
+
+// classifyAssigned reads an Ordinal value that has an Assigned flag: an id,
+// 0 included, when the flag is set, and "-" when it is not.
+func classifyAssigned(v reflect.Value, assigned bool) cell {
+	if !assigned {
+		return cell{sortForm: "-"}
+	}
+	return cell{sortForm: "#", raw: format(v), pending: true}
+}
+
 // classify reads one value by its column's class.
 func classify(cl Class, v reflect.Value, family uint64) cell {
 	switch cl {
-	case Strict:
+	case Strict, Assigned:
 		return cell{sortForm: format(v)}
 	case Presence:
 		if isZero(v) {

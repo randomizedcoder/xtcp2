@@ -55,9 +55,11 @@ current production deployment (which already mounts both dirs read-only). The
 remains a valid *complementary* knob but is no longer required.
 
 `netns_inode` (the nsfs inode) is the canonical, stable namespace key. `nsid`
-(NETNSA_NSID) is a small kernel-relative id, usually unassigned for
-Docker/containerd namespaces; it is opt-in (`-populateNsid`) and queried
-best-effort via `RTM_GETNSID` (`pkg/nsdiscover.Nsid`).
+(NETNSA_NSID) is a small kernel-relative id, assigned when something links
+the namespaces (a Docker veth does); it is opt-in (`-populateNsid`) and queried
+best-effort via `RTM_GETNSID` (`pkg/nsdiscover.Nsid`). The kernel's first id is
+0, so `nsid_assigned` says whether `nsid` holds one: it is false when the
+namespace has no id and when `-populateNsid` is off.
 
 ## 2. The four enrichers
 

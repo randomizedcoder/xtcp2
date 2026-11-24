@@ -1305,6 +1305,18 @@ func (m *XtcpFlatRecord) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xc2
 	}
+	if m.NsidAssigned {
+		i--
+		if m.NsidAssigned {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x2
+		i--
+		dAtA[i] = 0x88
+	}
 	if m.Nsid != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.Nsid))
 		i--
@@ -1664,6 +1676,9 @@ func (m *XtcpFlatRecord) SizeVT() (n int) {
 	}
 	if m.Nsid != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.Nsid))
+	}
+	if m.NsidAssigned {
+		n += 3
 	}
 	l = len(m.ContainerId)
 	if l > 0 {
@@ -2764,6 +2779,26 @@ func (m *XtcpFlatRecord) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 33:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NsidAssigned", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.NsidAssigned = bool(v != 0)
 		case 40:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ContainerId", wireType)
