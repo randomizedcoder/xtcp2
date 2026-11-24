@@ -1,0 +1,1 @@
+class htb 1:10 parent 1:1 prio 2 rate 1Mbit ceil 2Mbit burst 15Kb cburst 1600b

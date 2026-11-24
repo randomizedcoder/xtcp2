@@ -1,0 +1,16 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc fq 1: dev d0 root refcnt 2 limit 10000p flow_limit 50p buckets 1024 orphan_mask 1023 bands 3 priomap 2 1 1 1 2 1 1 1 1 1 1 1 1 1 1 1 weights 65536 32768 16384 quantum 3028b initial_quantum 15140b maxrate 1Gbit low_rate_threshold 550Kbit refill_delay 40ms timer_slack 10us horizon 5s horizon_cap offload_horizon 0us 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  flows 0 (inactive 0 throttled 0) band0_pkts 0 band1_pkts 0 band2_pkts 0
+  gc 0 highprio 0 throttled 0
+qdisc fq 2: dev d1 root refcnt 2 limit 10000p flow_limit 100p buckets 1024 orphan_mask 1023 bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1 weights 589824 196608 65536 quantum 3028b initial_quantum 15140b low_rate_threshold 550Kbit refill_delay 40ms timer_slack 10us horizon 10s horizon_drop offload_horizon 0us 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  flows 0 (inactive 0 throttled 0) band0_pkts 0 band1_pkts 0 band2_pkts 0
+  gc 0 highprio 0 throttled 0

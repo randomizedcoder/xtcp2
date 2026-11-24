@@ -1,0 +1,1 @@
+[{"class":"htb","handle":"1:10","parent":"1:1","prio":2,"rate":125000,"ceil":250000,"burst":15360,"cburst":1600}]

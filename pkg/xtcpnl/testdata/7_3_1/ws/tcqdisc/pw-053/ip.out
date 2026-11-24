@@ -1,0 +1,1 @@
+[{"kind":"ingress","handle":"ffff:","dev":"d0","parent":"ffff:fff1","options":{}},{"kind":"clsact","handle":"ffff:","dev":"d1","parent":"ffff:fff1","options":{}},{"kind":"clsact","handle":"ffff:","dev":"d2","parent":"ffff:fff1","ingress_block":5,"egress_block":6,"options":{}}]

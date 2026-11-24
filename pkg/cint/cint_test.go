@@ -155,6 +155,31 @@ func TestLongLong(t *testing.T) {
 	}
 }
 
+// TestShort is (short)v: tc_ratespec's cell_align and tc_sizespec's
+// cell_align read off the wire.
+//
+// go test ./pkg/cint/ -run TestShort
+func TestShort(t *testing.T) {
+	tests := []struct {
+		description string
+		v           uint16
+		expected    int16
+	}{
+		{"positive: a small value", 42, 42},
+		{"negative: 0xffff is -1", math.MaxUint16, -1},
+		{"boundary: MaxInt16 stays", math.MaxInt16, math.MaxInt16},
+		{"boundary: 0x8000 is MinInt16", 1 << 15, math.MinInt16},
+		{"corner: zero", 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			if got := Short(tt.v); got != tt.expected {
+				t.Fatalf("Short(%#x) = %d, expected %d", tt.v, got, tt.expected)
+			}
+		})
+	}
+}
+
 // TestNarrowInt is U8, U16 and U32 of an int: in range, or false.
 //
 // go test ./pkg/cint/ -run TestNarrowInt

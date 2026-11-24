@@ -1,0 +1,4 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc sfq 1: dev d0 root refcnt 2 limit 127p quantum 1514b depth 127 flows 128 divisor 1024 perturb 10sec 
+qdisc sfq 2: dev d1 root refcnt 2 limit 100p quantum 1514b depth 127 headdrop flows 100 divisor 1024 ewma 6 min 8000b max 60000b probability 0.2 ecn 

@@ -1,0 +1,1 @@
+[{"kind":"htb","handle":"1:","root":true,"refcnt":2,"options":{"r2q":5,"default":"0x10","direct_packets_stat":0,"direct_qlen":1000},"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0},{"kind":"pfifo","handle":"20:","parent":"1:20","options":{"limit":5},"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0}]

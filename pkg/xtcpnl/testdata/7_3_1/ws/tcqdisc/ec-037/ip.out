@@ -1,0 +1,2 @@
+qdisc htb 1: root refcnt 2 r2q 5 default 0x10 direct_packets_stat 0 ver 3.17 direct_qlen 1000
+qdisc pfifo 20: parent 1:20 limit 5p

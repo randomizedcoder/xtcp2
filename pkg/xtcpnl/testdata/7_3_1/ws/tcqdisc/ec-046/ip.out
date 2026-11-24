@@ -1,0 +1,5 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc netem 1: dev d0 root refcnt 2 limit 1000 delay 10ms  1ms loss 1% duplicate 1% reorder 25% 50% corrupt 0.1% rate 1Mbit slot 1ms 2ms seed 42 ecn  gap 5
+qdisc netem 2: dev d1 root refcnt 2 limit 1000 loss gemodel p 1% r 10% 1-h 70% 1-k 0.1% seed 7
+qdisc netem 3: dev d2 root refcnt 2 limit -1294967296 delay 10ms seed 1

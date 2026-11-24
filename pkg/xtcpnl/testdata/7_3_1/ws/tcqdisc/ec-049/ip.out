@@ -1,0 +1,8 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc noqueue 0: dev d0 root refcnt 2 
+qdisc ingress ffff: dev d0 parent ffff:fff1 ---------------- 
+qdisc noqueue 0: dev d1 root refcnt 2 
+qdisc clsact ffff: dev d1 parent ffff:fff1 
+qdisc noqueue 0: dev d2 root refcnt 2 
+qdisc clsact ffff: dev d2 parent ffff:fff1 ingress_block 5 egress_block 6 

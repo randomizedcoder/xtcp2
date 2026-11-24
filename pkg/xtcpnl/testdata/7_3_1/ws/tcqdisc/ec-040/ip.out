@@ -1,0 +1,15 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc tbf 1: dev d0 root refcnt 2 rate 1Mbit burst 10Kb lat 50ms 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc tbf 2: dev d1 root refcnt 2 rate 1Mbit burst 10Kb peakrate 2Mbit minburst 1600b lat 50ms 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc tbf 3: dev d2 root refcnt 2 rate 8Kbit burst 1600b lat 1.78e+03s 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

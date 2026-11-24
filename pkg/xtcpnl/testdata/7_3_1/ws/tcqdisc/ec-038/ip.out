@@ -1,0 +1,5 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc tbf 1: dev d0 root refcnt 2 rate 1Mbit burst 10Kb lat 50ms 
+qdisc tbf 2: dev d1 root refcnt 2 rate 1Mbit burst 10Kb peakrate 2Mbit minburst 1600b lat 50ms 
+qdisc tbf 3: dev d2 root refcnt 2 rate 8Kbit burst 1600b lat 1.78e+03s 
