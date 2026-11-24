@@ -40,6 +40,15 @@ vm_push() {
   ssh -F "$cfg" "$vm" "mv -f $remote_path.incoming $remote_path && chmod 0644 $remote_path"
 }
 
+# vm_pull <vm> <remote-path> <local-path>: scp a file OUT of the VM. Used by
+# the artifact-poisoner rows (rt-7-*): ipfeed-fixture crafts on the attacker
+# VM, and the artifact has to reach the victim's bind-mounted dir — the only
+# bridge is the harness host (the VMs do not ssh each other).
+vm_pull() {
+  local vm="$1" remote_path="$2" local_path="$3"
+  scp -q -F "$(vm_ssh_config "$vm")" "$vm:$remote_path" "$local_path"
+}
+
 # vm_up [--no-provision] <vm…>: idempotent boot. First boot lands on the
 # unprovisioned image on purpose — the scenario scps the tarballs to
 # /tmp/xtcp2-redteam BEFORE `vagrant provision` consumes them.

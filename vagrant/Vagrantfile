@@ -15,6 +15,13 @@
 #   XTCP2_AUTH     off | raw | hmac   listener credential shape
 #   XTCP2_CAPS     priv | min         daemon container capability shape
 #   XTCP2_ATTACKER plain | read-cred | privileged | admin
+#   XTCP2_DEST     tcp | s3          the daemon's dest scheme: tcp = the
+#                                  in-VM jsonl catcher; s3 = s3parquet to the
+#                                  in-VM Garage fixture (rt-3-2, the §29 S3
+#                                  sink shape)
+#   XTCP2_ENRICH   none | asn       add the ASN enricher with a bind-mounted
+#                                  artifact dir (rt-7-1..3, the artifact
+#                                  poisoner rows)
 #
 # Run everything through `nix run .#redteam-*` from the repo root; that pins
 # VAGRANT_CWD/VAGRANT_HOME to vagrant/.gen so no state leaks into ~/.vagrant.d.
@@ -29,6 +36,8 @@ MODE = ENV.fetch("XTCP2_MODE", "host")
 AUTH = ENV.fetch("XTCP2_AUTH", "off")
 CAPS = ENV.fetch("XTCP2_CAPS", "priv")
 ATTACKER = ENV.fetch("XTCP2_ATTACKER", "plain")
+DEST = ENV.fetch("XTCP2_DEST", "tcp")
+ENRICH = ENV.fetch("XTCP2_ENRICH", "none")
 
 Vagrant.configure("2") do |config|
   config.vm.box = BOX
@@ -69,7 +78,7 @@ Vagrant.configure("2") do |config|
 
     victim.vm.provision "shell", path: "provision/common.sh"
     victim.vm.provision "shell", path: "provision/victim.sh",
-      args: [MODE, AUTH, CAPS, ATTACKER]
+      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH]
   end
 
   config.vm.define "attacker" do |attacker|

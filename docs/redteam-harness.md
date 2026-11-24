@@ -208,8 +208,9 @@ vagrant/
   lib/
     assert.sh        ok/not_ok (TAP), done_testing, wait_for <cmd> <timeout>,
                      expect_outcome <actual> <expected>
-    matrix.sh        XTCP2_MODE/XTCP2_AUTH/XTCP2_CAPS/XTCP2_ATTACKER validation
-                     + docker run argument factories
+    matrix.sh        XTCP2_MODE/XTCP2_AUTH/XTCP2_CAPS/XTCP2_ATTACKER/
+                     XTCP2_DEST/XTCP2_ENRICH validation + docker run
+                     argument factories
     evidence.sh      run-id dirs (date+git sha), capture(), redact tokens
   scenarios/
     rt-1-1-unauth-scrape.sh
@@ -228,9 +229,17 @@ definition behind `REDTEAM_ROUTER=1`):
   attacker↔victim vantage — distinct from libvirt's default net so the DoD
   "no networks beyond the defined ones" assertion is `virsh net-list`-checkable;
 - `victim` provisioning: `common.sh` → upload `.gen/*.tar.gz` → `victim.sh
-  <MODE> <AUTH> <CAPS> <ATTACKER>` (matrix as argv, validated by
-  `lib/matrix.sh` — env → argv translation happens in the Vagrantfile so
-  `vagrant provision` alone re-applies a matrix change);
+  <MODE> <AUTH> <CAPS> <ATTACKER> <DEST> <ENRICH>` (matrix as argv, validated
+  by `lib/matrix.sh` — env → argv translation happens in the Vagrantfile so
+  `vagrant provision` alone re-applies a matrix change). The two later axes:
+  `XTCP2_DEST` (`tcp` — the in-VM jsonl catcher — or `s3` — s3parquet to the
+  in-VM Garage fixture, the §29 S3 sink shape; `DEST=s3` boots `dxflrs/garage:v2.1.0`
+  on the host with bucket `xtcp2-records` + a fixed imported key, mirroring
+  `nix/modules/garage-bucket-bootstrap.nix`) and `XTCP2_ENRICH` (`none` or
+  `asn` — the ASN enricher with the bind-mounted artifact dir
+  `/var/lib/xtcp2/asn`, `-asnRefreshInterval 5s`, `-ipmetaBootstrapPath` on
+  the mount; the rt-7 artifact-poisoner scenarios place crafted files there
+  via `tools/ipfeed-fixture`, which rides the attacker tools tar);
 - mounts: the daemon container gets `-v /var/lib/xtcp2:/var/lib/xtcp2`,
   `-v /run/netns:/run/netns:ro,rshared -v /run/docker/netns:/run/docker/netns:ro,rshared`
   — matching TODO-SOON §29 and the RT-11 poison/drop scenario shapes.

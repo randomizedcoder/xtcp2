@@ -270,6 +270,11 @@ let
     # open in its namespace. Rides xtcp2AllPackage into the socket-scale
     # microvm, which builds 100k-500k socket tables with it.
     "sockfill"
+    # ipfeed-fixture: crafts collector-shaped ASN artifacts (adversarial
+    # prefix tables) and zstd bombs for the red-team artifact-poisoner rows
+    # (docs/redteam-plan.md rt-7-1..3). Rides the attacker-tools tar into
+    # the red-team attacker VM.
+    "ipfeed-fixture"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:
@@ -399,6 +404,7 @@ defaultBinaries
     discovery-bench
     rtnlmon-probe
     sockfill
+    ipfeed-fixture
     ;
 
   # Internal nested sets for downstream consumers (containers/).
