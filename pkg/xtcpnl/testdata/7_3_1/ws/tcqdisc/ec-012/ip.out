@@ -1,0 +1,10 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc noqueue 0: dev d0 root refcnt 2 
+qdisc mq 1: dev d1 root 
+qdisc fq_codel 0: dev d1 parent 1:4 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+qdisc fq_codel 0: dev d1 parent 1:3 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+qdisc fq_codel 0: dev d1 parent 1:2 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+qdisc fq_codel 0: dev d1 parent 1:1 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+qdisc pfifo_fast 2: dev d2 root refcnt 2 bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
+qdisc prio 3: dev d3 root refcnt 2 bands 5 priomap 0 1 2 3 4 0 1 2 3 4 0 1 2 3 4 0

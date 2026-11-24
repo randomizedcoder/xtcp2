@@ -1,0 +1,14 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc sfq 1: dev d0 root refcnt 2 limit 127p quantum 1514b depth 127 divisor 1024 perturb 10sec 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+qdisc sfq 2: dev d1 root refcnt 2 limit 100p quantum 1514b depth 127 headdrop divisor 1024 ewma 6 min 8000b max 60000b probability 0.2 ecn 
+  prob_mark 0 prob_mark_head 0 prob_drop 0
+  forced_mark 0 forced_mark_head 0 forced_drop 0
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

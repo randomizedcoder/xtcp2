@@ -1,0 +1,4 @@
+# qdiscs
+
+qdisc \
+show dev d3 # prio

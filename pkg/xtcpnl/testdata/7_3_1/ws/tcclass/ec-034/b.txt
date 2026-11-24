@@ -1,0 +1,2 @@
+class show dev d0 classid 1:10
+class show dev d0

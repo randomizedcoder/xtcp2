@@ -1,0 +1,4 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc fq_codel 1: dev d0 root refcnt 2 limit 1000p flows 512 quantum 300 target 3ms ce_threshold 2ms interval 50ms memory_limit 4Mb ecn drop_batch 32 
+qdisc fq_codel 2: dev d1 root refcnt 2 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 

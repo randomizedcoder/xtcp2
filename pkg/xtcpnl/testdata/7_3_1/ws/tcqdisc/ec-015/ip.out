@@ -1,0 +1,6 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc noqueue 0: dev d0 root refcnt 2 
+qdisc mq 1: dev d1 root 
+qdisc pfifo_fast 2: dev d2 root refcnt 2 bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
+qdisc prio 3: dev d3 root refcnt 2 bands 5 priomap 0 1 2 3 4 0 1 2 3 4 0 1 2 3 4 0

@@ -90,6 +90,8 @@ v7.4-rc4.
 | Q30 | tc_class.c:152, 34-35 | C16 | class `filter_ifindex`, and `-g` nodes, carry over to the next line | batch rows |
 | Q31 | tc.c:348 | C16/C9 | `-nm` never loads names in batch mode | `-nm -batch` row |
 | Q32 | q_fq_codel.c / q_sfq.c xstats | C3/C2 | the leads 9B has to sweep: xstats struct casts and widths, class xstats per flow | `-s` rows and unit |
+| Q33 | tc_util.c:34-60 | C16/C9 | `cls_names_init` drops the whole database, the `-cf` file's names included, when neither default `tc_cls` exists, so `-nm -cf FILE` prints numbers | `-nm -cf cls.txt class show` (found in 9S) |
+| Q34 | tc_class.c:212-300 | C8 | `graph_cls_show` frees every node but leaves the static `root_cls_list`/`cls_list` heads pointing at them, so a second `-g` line in a batch walks freed memory: `!!!Deficit` with a garbage `rta_len`, then a glibc double-free abort, rc 134 | `-g -batch` graph-twice (found in 9C) |
 
 Carried to increments 10 and 11: L1–L5 (u32), L12–L13 and L22–L29 (actions), L37 (monitor), L40 and L42–L44
 (filter/flower) and L47 (matchall).

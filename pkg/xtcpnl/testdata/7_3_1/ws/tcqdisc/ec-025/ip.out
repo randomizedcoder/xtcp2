@@ -1,0 +1,6 @@
+qdisc noqueue 0: dev lo root refcnt 2 
+qdisc noqueue 0: dev nlmon0 root refcnt 2 
+qdisc prio 1: dev d0 root refcnt 2 bands 3 priomap 1 2 2 2 1 2 0 0 1 1 1 1 1 1 1 1
+qdisc pfifo_head_drop 30: dev d0 parent 1:3 limit 7p
+qdisc pfifo 10: dev d0 parent 1:1 limit 10p
+qdisc bfifo 20: dev d0 parent 1:2 limit 3000b

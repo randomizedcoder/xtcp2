@@ -1,0 +1,59 @@
+{
+ "axes": {
+  "fix": "qfq",
+  "json": "1",
+  "words": "qdisc show"
+ },
+ "cmd": "tc -j qdisc show",
+ "desc": "positive: opt=json cmd=qfq:qdisc_show",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcqdisc/pw-032",
+ "modules": [
+  "sch_fq",
+  "sch_fq_codel",
+  "sch_htb",
+  "sch_ingress",
+  "sch_netem",
+  "sch_prio",
+  "sch_sfq",
+  "sch_tbf"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d0 root handle 1: fq maxrate 1gbit flow_limit 50 horizon 5s horizon_cap bands 3 priomap 2 1 1 1 2 1 1 1 1 1 1 1 1 1 1 1 weights 65536 32768 16384",
+  "tc qdisc add dev d1 root handle 2: fq"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 root handle 1: fq maxrate 1gbit flow_limit 50 horizon 5s horizon_cap bands 3 priomap 2 1 1 1 2 1 1 1 1 1 1 1 1 1 1 1 weights 65536 32768 16384",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d1 root handle 2: fq",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

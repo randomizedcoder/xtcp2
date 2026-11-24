@@ -1,0 +1,1 @@
+qdisc bfifo 20: parent 1:2 limit 3000b
