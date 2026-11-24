@@ -185,6 +185,8 @@ The notification types both roots hold, over all 66 rows (each type's message co
 
 Each task gets a table test from the captures, a benchmark over the corpus picks and `FuzzParse*` seeds. Tier P's tables are written at EC4-T01; the two below are fixed by the increment's design, not by the rows.
 
+The increment's order is baseline-first, the discipline the captures set: EP1-T01 measures the render gap before any goip line changes, and EP2's check is built red before it is made green — the `0x0100` partner state at the two iproute2 versions is the red case the bond note predicted.
+
 ### EP1 O10 — the monitor replay golden
 
 - **The oracle.** Every event row's `.out` is `ip monitor`'s decoded output of the same run. A new corpus test (O10, after O3/O5/O9) replays the row's pcap through goip's monitor — in-process, `file FILE`'s walk, `ParseNetlinkPcap` for the records — and holds goip to that `.out`, text and errors. The `.out`'s canary blocks pair with their notifications, both ways, the A1-T02 rule.
@@ -198,7 +200,35 @@ Each task gets a table test from the captures, a benchmark over the corpus picks
 | negative: a render goip lacks | a finding | `lacks "…"` in the golden |
 | boundary: the empty monitor | a row whose trigger refuses | no lines, rc as recorded |
 
+#### EP1-T01 the O10 harness, and the measured baseline
+
+The corpus test `internal/goip/ws_monitor_test.go`, modeled on O9 (`ws_readbacks_test.go`): walk every `ev` row under both roots, parse the row's pcap (`ParseNetlinkPcap`), feed each message to goip's monitor (`obj_monitor.go`'s `accept`, the same path `monitor file` walks), and compare the rendered lines against the row's `.out`. The delivery filter is measured, not guessed: the pcap holds every socket's traffic in the namespace, and the monitor's socket received only its groups' broadcasts — the first run reports both sides, the lines goip lacks (renders to add) and the lines the walk would print that the monitor never received (messages to filter), each class named in the golden `testdata/ws-monitor.txt` (`-update-ws-monitor`, the O9 pattern). The canary blocks pair with their notifications, both ways — the A1-T02 rule the golden's per-row blocks hold.
+
+Gates: the test green with the golden recording the measured baseline (its lacks list is the task's evidence, however long); `go test ./pkg/xtcpnl/` unfiltered; the nlcapgen suite; `lint-baseline`, `gofmt`, `netlink-audit`.
+
+#### EP1-T02 close the lacks
+
+Each `lacks` entry from the baseline is a render gap in goip's monitor, closed in `obj_monitor.go`/`render` until the golden is empty. The refusal rows' boundary is part of the close: no render of the refused request, rc as recorded. If a lack is a version difference (a print that changed between 7.2.0 and 7.3.0), the render goes behind the version knob, the P14 doctrine — but EC3's verdiff says there are none in the event families, so a version difference here is a finding first, a note in the same task.
+
+Gates: the golden empty; O5/O9/O10 regenerated in the task's commit (`differs` and `sends` stay 0, no row moves away from `same`); the full suite.
+
+#### EP1-T03 the corpus picks' benchmarks
+
+The `FuzzParse*` seeds and the benchmark over the EP1 twelve (`evlink-carrier`, `evaddr-dad`, `evroute-autoconf`, `evneigh-v4`, `evnhb-bucket`, `evconf-del`, `evrule-v4`, `evstats-l3`, `evnsid-live`, `evprefix-route`, `anycast-del`, `evseq-mixed`), the tier's own opening rule. Gates: the fuzzers seeded, the benchmark recorded in the ledger.
+
 ### EP2 the crafted monitor files, at two versions
+
+#### EP2-T01 `nlcapgen monfile`
+
+The small subcommand: a pcap (or a crafted message list) → the `.nl` stream `rtnl_from_file` walks — each nlmsghdr and its body to the 4-byte boundary, the format `generate_nlmsg.c` writes. Gates: the round-trip table (a crafted message list → `.nl` → `monitorReadFile` → the same messages; a truncated header, a short body, a length under the header's, each the error `fromFile` documents); a chosen captured pcap (the `evnhb-bucket` row) converted and replayed through `ip -d monitor file` in the guest, its lines the row's `.out`.
+
+#### EP2-T02 the blobs
+
+Committed under `internal/goip/testdata/monitor/`, each with a comment naming why the kernel cannot send it. The bond note's table, whole: fast `0x3f`, slow `0x3d`, zero, all-bits `0xff`, high-byte `0x3f01`, high-only `0x0100` (the row that fails on any host), absent, truncated, and the actor-stays-u8 pair. P14's reason u32 (`0x9`, `0x100`, `0x80000001`). A one-RTA_METRICS route with `cubic\0p\0` padding. Rows for whatever EC3's verdiff adds — the verdiff added none, so the set is the note's three classes.
+
+#### EP2-T03 `test-goip-monitorfile`
+
+The nix check on the `test-linkmonitor-rdma-runtime` pattern: it builds nixpkgs' iproute2 (7.2.0) and `iproute2_7_3_0`, replays each blob through both `ip -d monitor file` and `goip monitor file` at both versions' knobs, and compares against committed goldens. ip's side is pinned per version — this is the check that would have caught `0067cbc8` and P14 before the notes existed. Gates: built red first (the `0x0100` blob: `ip` at 7.2.0 prints `0 <>`, at 7.3.0 prints `256`, `<active>` — goip at the 7.2.0 knob must print the 7.2.0 shape until the knob turns), then green; registered in `nix/checks/default.nix`; the docs check over the new goldens' tree.
 
 - **The artifact class.** `.nl` blobs of raw netlink messages — iproute2's own testsuite format (`testsuite/tools/generate_nlmsg.c`, `ip -d monitor file`) — committed under `internal/goip/testdata/monitor/`. They are *not* pcap fixtures and break no "real captures" rule: they exist for inputs the kernel cannot produce, the same carve-out the bond note states ("the out-of-range value *is* the input under test"). Each carries a comment naming why the kernel cannot send it.
 - **The rows.** The bond note's table, whole: fast `0x3f`, slow `0x3d`, zero, all-bits `0xff`, high-byte `0x3f01`, high-only `0x0100` (the row that fails on any host), absent, truncated, and the actor-stays-u8 pair. P14's reason u32 (`0x9`, `0x100`, `0x80000001`). A one-RTA_METRICS route with `cubic\0p\0` padding. Rows for whatever EC3's verdiff adds.

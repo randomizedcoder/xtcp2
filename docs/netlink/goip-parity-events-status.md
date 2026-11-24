@@ -1,6 +1,6 @@
 # goip ↔ `ip` parity events: implementation status
 
-**Last updated:** 2026-11-13
+**Last updated:** 2026-11-25
 
 **Summary:**
 - The design and the task plan are in [goip-parity-events.md](goip-parity-events.md). This document tracks progress against them.
@@ -12,9 +12,11 @@
 - EC1's tranche is done (V380): 18 new rows — the four base families (`evlink` carrier/admin/dummy/altname, `evaddr` v4/v6/DAD/dadfailed, `evroute` on-link/via/table/blackhole/v6/autoconf, `evneigh` v4/v6), `everr`'s deliberate ESRCH, and `evseq`'s mixed sequence — 22 ev rows, all serial, all OK in the corpus with the oracle green. Two probe findings reshaped them: `ip monitor`'s veth print is `r0@r0p: ` (the @peer notation) and the RA's autoconf route prints `proto kernel`, not `proto ra`. And the probe caught a genuine kernel race (below) — `ipnetns_have_nsid`'s init probe answered EINVAL under concurrent namespace churn even with the netns's own id provably in its table — so every ev row is serial and every pre-step assigns the self-id, which keeps the probe's window deterministic.
 - EC2 is done (V381): 11 more rows — the never-captured families (`evnhb` bucket/gateway, `evconf` del/clean, `evrule` v4/v6, `evstats`, `evnsid` live/eexist, `evprefix` dep/route) — 33 ev rows, all OK in two clean batch runs, the oracle green. The probe earned its keep again: the bucket notification's only path is the deferred upkeep work (a group replace migrates idle buckets silently), so the row needs traffic and the unbalanced timer; the plan's netconf corner is falsified (every unregister notifies, `devinet.c:294` registers the sysctl table for all devices); the init probe's unassigned answer is `RTM_NEWNSID` carrying `NETNSA_NSID -1` (`NETNSA_NSID_NOT_ASSIGNED`), not EINVAL — EC1's comment premise corrected; and a second id for a netns is the kernel's EEXIST, a refusal the nsid family now holds. `xtcp2-nl-ra` grew optional router-lifetime and preferred-lifetime arguments for the two prefix corners, its 3-arg form byte-identical for the seed row.
 - EC3 is done (V382): all 33 ev rows re-run at iproute2 7.3.0 (`nlcap-ws batch --ip`, fresh boot) into `testdata/7_3_1/ws-ip730/ev/`, the corpus oracle green over both roots — 66 event rows now. The NC3-T01 method held: a second 7.2.0 fresh-boot run as the noise baseline, then the 7.3.0 run, then `nlcapgen verdiff` over the two roots. Both diffs carry **43 differences of the same classes** — the canary dance (its addr, local-route, mcast and IGMP-neigh messages, and the join/retry pair), the random link-layer addresses and the solicited-node lines derived from them, the monitor's init ordering, and the veth carrier-settle transient — and **zero real differences**: no rc change, no request-byte change (the known `rta_addattr_l` padding leak did not fire), and no monitor *line* change at 7.3.0 in any of the eleven families. Every line shape the 7.3.0 windows print — `NO-CARRIER ... LOWERLAYERDOWN`, `nsid 3`, `prefix .../64dev r0 valid 600 preferred 0`, the bucket's `idle_time` — appears in the 7.2.0 corpus too. The events' print paths are unchanged between exactly these two versions.
-- The first tasks left, in order:
-  1. the EC1/EC2 rows from their own probes (`evlink`/`evaddr`/`evroute`/`evneigh`/`everr`/`evseq`, then the never-captured families);
-  2. [EP1](goip-parity-events.md#ep1-o10--the-monitor-replay-golden)'s O10 skeleton while the boots run.
+- The tree is synced with `origin/main` (2026-11-25, the bridge and tunnel arcs, 71 commits): the events arc's notes renumbered to DOC035–DOC037 (the bridge arc took DOC031–DOC034), the three upstream notes adopted into the findings index (49 documents, 12 notes), and the four corpus-inventory tests renewed for the ev corpus — they had been red since the first rows landed, the arc's `-run`-filtered gate list never reaching them; the gate list now includes the unfiltered `go test ./pkg/xtcpnl/`.
+- The first tasks left, in order (Tier EP, the plans now in [goip-parity-events.md](goip-parity-events.md#tier-ep-replay-and-parsers)):
+  1. [EP1-T01](goip-parity-events.md#ep1-t01-the-o10-harness-and-the-measured-baseline) — the O10 harness and the measured render baseline (the `lacks` golden);
+  2. [EP1-T02](goip-parity-events.md#ep1-t02-close-the-lacks) — close the lacks, the golden to empty;
+  3. [EP2-T01](goip-parity-events.md#ep2-t01-nlcapgen-monfile) — `nlcapgen monfile`, then [EP2-T02](goip-parity-events.md#ep2-t02-the-blobs) the blobs and [EP2-T03](goip-parity-events.md#ep2-t03-test-goip-monitorfile) the check, built red first.
 
 ## Contents
 
@@ -36,9 +38,9 @@
 | Phase | Work | Closed by | State | Evidence |
 |---|---|---|---|---|
 | [Tier EC](goip-parity-events.md#tier-ec-captures) | the event rows, both versions, verdiff | EC4-T01 | done | V383 |
-| [Tier EP](goip-parity-events.md#tier-ep-replay-and-parsers) | O10 and the crafted monitor files | EP2 | not started | — |
+| [Tier EP](goip-parity-events.md#tier-ep-replay-and-parsers) | O10 and the crafted monitor files | EP2-T03 | in progress | — |
 | [Tier EG](goip-parity-events.md#tier-eg-goip-and-the-matrix) | the monitor section | EG2 | not started | — |
-| [Tier UB](goip-parity-events.md#tier-ub-the-iproute2-findings-record) | the three owed notes, the index, the check, the procedure | UB0-T03 | done | V376, DOC036, DOC037 |
+| [Tier UB](goip-parity-events.md#tier-ub-the-iproute2-findings-record) | the three owed notes, the index, the check, the procedure | UB0-T03 | done | V376, DOC035–DOC037 |
 
 ## Task checklist
 
@@ -46,12 +48,18 @@
 |---|---|---|---|---|
 | [x] | [EC0-T01](goip-parity-events.md#ec0-t01-the-monitor-helpers-take---ip) | the monitor helpers take `--ip` | done | V377 |
 | [x] | [EC0-T02](goip-parity-events.md#ec0-t02-the-ev-family) | the `ev` family | done | V378 |
-| [ ] | [EC1](goip-parity-events.md#ec1--the-four-base-families-at-731) | the four base families at 7.3.1 | not started | — |
+| [x] | [EC1](goip-parity-events.md#ec1--the-four-base-families-at-731) | the four base families at 7.3.1 | done | V379, V380 |
 | [ ] | [EC2](goip-parity-events.md#ec2--the-notification-families-with-no-capture) | the notification families with no capture | done | V381 |
 | [ ] | [EC3](goip-parity-events.md#ec3--both-iproute2-versions-and-verdiff) | both iproute2 versions, verdiff | done | V382 |
 | [x] | [EC4-T01](goip-parity-events.md#ec4-t01) | recount; write Tier EP and EG tables | done | V383 |
 | [ ] | [EP1](goip-parity-events.md#ep1-o10--the-monitor-replay-golden) | O10, the monitor replay golden | not started | — |
+| [ ] | [EP1-T01](goip-parity-events.md#ep1-t01-the-o10-harness-and-the-measured-baseline) | the O10 harness, the measured baseline | not started | — |
+| [ ] | [EP1-T02](goip-parity-events.md#ep1-t02-close-the-lacks) | close the lacks | not started | — |
+| [ ] | [EP1-T03](goip-parity-events.md#ep1-t03-the-corpus-picks-benchmarks) | the corpus picks' benchmarks | not started | — |
 | [ ] | [EP2](goip-parity-events.md#ep2-the-crafted-monitor-files-at-two-versions) | the crafted monitor files, `test-goip-monitorfile` | not started | — |
+| [ ] | [EP2-T01](goip-parity-events.md#ep2-t01-nlcapgen-monfile) | `nlcapgen monfile` | not started | — |
+| [ ] | [EP2-T02](goip-parity-events.md#ep2-t02-the-blobs) | the blobs | not started | — |
+| [ ] | [EP2-T03](goip-parity-events.md#ep2-t03-test-goip-monitorfile) | `test-goip-monitorfile` | not started | — |
 | [ ] | [EG1](goip-parity-events.md#tier-eg-goip-and-the-matrix) | the monitor section (outline until EC4) | not started | — |
 | [ ] | [EG2](goip-parity-events.md#tier-eg-goip-and-the-matrix) | the offline section (outline until EC4) | not started | — |
 | [x] | [UB0-T01](goip-parity-events.md#ub0-t01-the-three-owed-notes) | the three owed notes | done | DOC036 |
