@@ -13,9 +13,36 @@
     "containers": 3,
     "sockets_per_container": 4,
     "named_netns": [
-      "golden-ns"
+      "golden-ns",
+      "golden-cc-a",
+      "golden-cc-b",
+      "golden-bulk-a",
+      "golden-bulk-b",
+      "golden-opts-a",
+      "golden-opts-b",
+      "golden-states-a",
+      "golden-states-b"
     ]
   },
-  "rows": 48,
+  "cong_available": [
+    "bbr",
+    "bic",
+    "cdg",
+    "cubic",
+    "dctcp",
+    "highspeed",
+    "htcp",
+    "hybla",
+    "illinois",
+    "lp",
+    "nv",
+    "reno",
+    "scalable",
+    "vegas",
+    "veno",
+    "westwood",
+    "yeah"
+  ],
+  "rows": 158,
   "captured": "2026-11-24"
 }
