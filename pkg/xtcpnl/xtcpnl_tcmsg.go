@@ -136,6 +136,20 @@ type TcInfo struct {
 	HwOffload       uint8
 	HasHwOffload    bool
 	ExtWarnMsg      string
+	// Stats, Stats2, Xstats, Rate and Stab are the TCA_STATS, TCA_STATS2,
+	// TCA_XSTATS, TCA_RATE and TCA_STAB payloads, undecoded and copied, the
+	// first of each winning as in tc's parse_rtattr_flags. ParseTcStats2,
+	// DecodeTcStats and ParseTcXstats (xtcpnl_tc_*.go) decode them.
+	Stats     []byte
+	HasStats  bool
+	Stats2    []byte
+	HasStats2 bool
+	Xstats    []byte
+	HasXstats bool
+	Rate      []byte
+	HasRate   bool
+	Stab      []byte
+	HasStab   bool
 	// Attrs is every top-level attribute type, in wire order.
 	Attrs []uint16
 }
@@ -169,9 +183,35 @@ func ParseTcMsg(body []byte) (TcInfo, error) {
 			}
 		case TcaExtWarnMsg:
 			ti.ExtWarnMsg = tcString(val)
+		default:
+			ti.keepRaw(atype, val)
 		}
 	})
 	return ti, err
+}
+
+// keepRaw copies the first TCA_STATS, TCA_STATS2, TCA_XSTATS, TCA_RATE or
+// TCA_STAB payload.
+func (ti *TcInfo) keepRaw(atype uint16, val []byte) {
+	var dst *[]byte
+	var has *bool
+	switch atype {
+	case TcaStats:
+		dst, has = &ti.Stats, &ti.HasStats
+	case TcaStats2:
+		dst, has = &ti.Stats2, &ti.HasStats2
+	case TcaXstats:
+		dst, has = &ti.Xstats, &ti.HasXstats
+	case TcaRate:
+		dst, has = &ti.Rate, &ti.HasRate
+	case TcaStab:
+		dst, has = &ti.Stab, &ti.HasStab
+	default:
+		return
+	}
+	if !*has {
+		*dst, *has = CopyBytes(val), true
+	}
 }
 
 // TcAction is one action of an RTM_*ACTION message's TCA_ROOT_TAB nest.

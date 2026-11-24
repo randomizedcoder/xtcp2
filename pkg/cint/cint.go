@@ -24,6 +24,14 @@ func Int(v uint32) int32 {
 	return -int32(math.MaxUint32-v) - 1
 }
 
+// Short is (short)v: a u16's bits read as a C short, so 0xffff is -1.
+func Short(v uint16) int16 {
+	if v <= math.MaxInt16 {
+		return int16(v)
+	}
+	return -int16(math.MaxUint16-v) - 1
+}
+
 // Low32 is (__u32)v: the low 32 bits of a wider unsigned value.
 func Low32(v uint64) uint32 {
 	return uint32(v & math.MaxUint32)

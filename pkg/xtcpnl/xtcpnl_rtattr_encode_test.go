@@ -837,7 +837,7 @@ func TestBuildRequest(t *testing.T) {
 			// exists to catch: an rtgenmsg where a 12-byte struct belongs
 			// leaves the kernel reading frh.flags and the first rta_len out
 			// of whatever follows. The unmodeled-passthrough property has not
-			// gone untested; the RTM_GETQDISC row below carries it.
+			// gone untested; the RTM_GETTFILTER row below carries it.
 			description: "corner: RTM_GETRULE is modeled now, so a 4-byte rtgenmsg is ErrBadFamilyHdr",
 			msgType:     uint16(unix.RTM_GETRULE),
 			flags:       uint16(unix.NLM_F_DUMP),
@@ -877,15 +877,24 @@ func TestBuildRequest(t *testing.T) {
 			wantErr:     ErrBadFamilyHdr,
 		},
 		{
-			// The unmodeled passthrough: tcmsg has no decoder here, so
-			// FamilyHdrLen is -1 and its 20-byte header is not checked.
-			description: "corner: RTM_GETQDISC is unmodeled, so its header passes unchecked",
-			msgType:     uint16(unix.RTM_GETQDISC),
+			// The unmodeled passthrough: no filter request is built here yet,
+			// so FamilyHdrLen is -1 and its header is not checked. RTM_GETQDISC
+			// carried this row until gotc modeled tcmsg for qdiscs and classes.
+			description: "corner: RTM_GETTFILTER is unmodeled, so its header passes unchecked",
+			msgType:     uint16(unix.RTM_GETTFILTER),
 			flags:       uint16(unix.NLM_F_DUMP),
 			seq:         testSeq,
 			familyHdr:   make([]byte, 20),
-			want: nlmsg(uint16(unix.RTM_GETQDISC), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
+			want: nlmsg(uint16(unix.RTM_GETTFILTER), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
 				make([]byte, 20)),
+		},
+		{
+			description: "negative: RTM_GETQDISC is modeled now, so a 16-byte header is ErrBadFamilyHdr",
+			msgType:     uint16(unix.RTM_GETQDISC),
+			flags:       uint16(unix.NLM_F_DUMP),
+			seq:         testSeq,
+			familyHdr:   make([]byte, 16),
+			wantErr:     ErrBadFamilyHdr,
 		},
 	}
 
@@ -1047,7 +1056,12 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"boundary: NLMSG_NOOP has no family header, 0", uint16(unix.NLMSG_NOOP), 0},
 		{"boundary: NLMSG_ERROR has no family header, 0", uint16(unix.NLMSG_ERROR), 0},
 
-		{"negative: RTM_GETQDISC is not modeled, -1", uint16(unix.RTM_GETQDISC), -1},
+		{"positive: RTM_GETQDISC is struct tcmsg, 20", uint16(unix.RTM_GETQDISC), TcMsgSizeCst},
+		{"positive: RTM_NEWQDISC is struct tcmsg, 20", uint16(unix.RTM_NEWQDISC), TcMsgSizeCst},
+		{"positive: RTM_DELQDISC is struct tcmsg, 20", uint16(unix.RTM_DELQDISC), TcMsgSizeCst},
+		{"positive: RTM_GETTCLASS is struct tcmsg, 20", uint16(unix.RTM_GETTCLASS), TcMsgSizeCst},
+		{"positive: RTM_NEWTCLASS is struct tcmsg, 20", uint16(unix.RTM_NEWTCLASS), TcMsgSizeCst},
+		{"positive: RTM_DELTCLASS is struct tcmsg, 20", uint16(unix.RTM_DELTCLASS), TcMsgSizeCst},
 		{"negative: RTM_GETTFILTER is not modeled, -1", uint16(unix.RTM_GETTFILTER), -1},
 		{"negative: message type 0 is not modeled, -1", 0, -1},
 		{"corner: 0xffff is not modeled, -1", 0xffff, -1},
