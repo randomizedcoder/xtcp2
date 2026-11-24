@@ -16,8 +16,8 @@ import (
 // two.
 //
 // A profile is meant to leave the host it was taken on, so it records no
-// identity: string columns are counted, and only the enum-like strings in
-// profileStringValues have their values listed.
+// identity: a column's values are listed only when profileListed names it,
+// and every other column is counted.
 
 const (
 	// maxDistinct is where a distinct count stops: past it, "64+".
@@ -30,13 +30,63 @@ const (
 	hostNetns       = "default"
 )
 
-// profileStringValues are the string columns whose values say nothing about
-// who runs on the host, only what software: these list their values.
-var profileStringValues = map[string]bool{
-	"container_runtime":  true,
-	"inet_diag_cong":     true,
-	"uplink1_nic_driver": true,
-	"uplink2_nic_driver": true,
+// profileListed decides, for each column of a valued class, whether a
+// profile lists its values (true) or only counts them (false). Listed
+// columns say what software and hardware run and how sockets behave; the
+// count-only ones could say who runs there or whom they talk to. A valued
+// column missing here is a test failure, so each new one gets a decision.
+var profileListed = map[string]bool{
+	"schema_version":                true,
+	"container_runtime":             true,
+	"uplink1_nic_driver":            true,
+	"uplink1_nic_pci_vendor":        true,
+	"uplink1_nic_pci_device":        true,
+	"uplink1_nic_speed_mbps":        true,
+	"uplink2_nic_driver":            true,
+	"uplink2_nic_pci_vendor":        true,
+	"uplink2_nic_pci_device":        true,
+	"uplink2_nic_speed_mbps":        true,
+	"enrich_socket_dest_locality":   true,
+	"inet_diag_msg_family":          true,
+	"inet_diag_msg_state":           true,
+	"tcp_info_state":                true,
+	"tcp_info_ca_state":             true,
+	"tcp_info_options":              true,
+	"tcp_info_snd_wscale":           true,
+	"tcp_info_rcv_wscale":           true,
+	"tcp_info_fastopen_client_fail": true,
+	"tcp_info_snd_mss":              true,
+	"tcp_info_pmtu":                 true,
+	"tcp_info_advmss":               true,
+	"tcp_info_reordering":           true,
+	"tcp_info_ecn_mode":             true,
+	"tcp_info_accecn_fail_mode":     true,
+	"tcp_info_options2":             true,
+	"inet_diag_cong":                true,
+	"inet_diag_cong_enum":           true,
+	"inet_diag_tos":                 true,
+	"inet_diag_tclass":              true,
+	"inet_diag_shutdown":            true,
+	"inet_diag_sockopt":             true,
+
+	"location":                         false,
+	"label":                            false,
+	"tag":                              false,
+	"treatment_state_revision":         false,
+	"treatment_assignment_id":          false,
+	"treatment_generation":             false,
+	"treatment_algorithm_exposed":      false,
+	"container_name":                   false,
+	"container_image":                  false,
+	"uplink1_nic_model":                false,
+	"uplink2_nic_model":                false,
+	"enrich_socket_interface_name":     false,
+	"enrich_socket_dest_egress_ifname": false,
+	"enrich_socket_dest_asn":           false,
+	"enrich_socket_dest_next_hop_asn":  false,
+	"enrich_socket_dest_network_owner": false,
+	"inet_diag_msg_uid":                false,
+	"inet_diag_class_id":               false,
 }
 
 // ColumnProfile is one column's shape.
@@ -46,8 +96,8 @@ type ColumnProfile struct {
 	// Distinct is the number of distinct values, "64+" past maxDistinct;
 	// empty for a Volatile column.
 	Distinct string `json:"distinct,omitempty"`
-	// Values is the sorted value set of a numeric, bool or listed string
-	// column of a valued class with at most maxValues distinct values.
+	// Values is the sorted value set of a column profileListed lists, of a
+	// valued class, with at most maxValues distinct values.
 	Values []string `json:"values,omitempty"`
 }
 
@@ -127,9 +177,7 @@ func profileColumn(rv reflect.Value, c column, cl Class) ColumnProfile {
 		return cp
 	}
 	cp.Distinct = strconv.Itoa(len(seen))
-	kind := rv.Type().Elem().Field(c.field).Type.Kind()
-	listable := kind != reflect.String && kind != reflect.Slice || profileStringValues[c.name]
-	if valued(cl) && listable && len(seen) > 0 && len(seen) <= maxValues {
+	if valued(cl) && profileListed[c.name] && len(seen) > 0 && len(seen) <= maxValues {
 		cp.Values = slices.SortedFunc(maps.Keys(seen), shortlex)
 	}
 	return cp

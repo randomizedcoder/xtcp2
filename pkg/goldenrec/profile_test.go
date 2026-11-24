@@ -154,9 +154,8 @@ func TestDiffProfiles(t *testing.T) {
 	}{
 		{"same_shape", "positive", "different row counts, same shape", [2]Profile{a, b}, nil},
 		{"populated_only", "positive", "a column only one side fills",
-			[2]Profile{a, edit(b, func(p *Profile) { p.Columns["enrich_socket_dest_asn"] = st(40, "3", "0", "13335", "15169") })},
-			[]string{"populated-only-in B: enrich_socket_dest_asn", "value-only-in B: enrich_socket_dest_asn=13335",
-				"value-only-in B: enrich_socket_dest_asn=15169"}},
+			[2]Profile{a, edit(b, func(p *Profile) { p.Columns["enrich_socket_dest_asn"] = st(40, "3") })},
+			[]string{"populated-only-in B: enrich_socket_dest_asn"}},
 		{"value_only", "negative", "an enum value missing on one side",
 			[2]Profile{a, edit(b, func(p *Profile) { p.Columns["inet_diag_msg_state"] = st(900, "1", "1") })},
 			[]string{"value-only-in A: inet_diag_msg_state=10"}},
@@ -180,6 +179,68 @@ func TestDiffProfiles(t *testing.T) {
 				t.Errorf("%s (%s): %s\nexpected %q\nactual   %q", tc.name, tc.category, tc.description, tc.expected, got)
 			}
 		})
+	}
+}
+
+// idRec has columns that could identify a tenant or a peer.
+type idRec struct {
+	Family uint32 `parquet:"inet_diag_msg_family"`
+	Asn    uint32 `parquet:"enrich_socket_dest_asn"`
+	UID    uint32 `parquet:"inet_diag_msg_uid"`
+	Cong   string `parquet:"inet_diag_cong"`
+	Model  string `parquet:"uplink1_nic_model"`
+}
+
+// go test ./pkg/goldenrec/ -run TestProfileListed
+func TestProfileListed(t *testing.T) {
+	rows := []idRec{{afInet, 13335, 1000, "cubic", "nic-a"}, {afInet6, 15169, 1001, "bbr", "nic-a"}}
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		input       string // column
+		expected    ColumnProfile
+	}{
+		{"listed_string", "positive", "an allowlisted string column lists its values",
+			"inet_diag_cong", ColumnProfile{Class: "strict", Nonzero: 2, Distinct: "2", Values: []string{"bbr", "cubic"}}},
+		{"asn_counted", "negative", "a numeric peer column is counted, never listed",
+			"enrich_socket_dest_asn", ColumnProfile{Class: "strict", Nonzero: 2, Distinct: "2"}},
+		{"uid_counted", "boundary", "a numeric tenant column is counted, never listed",
+			"inet_diag_msg_uid", ColumnProfile{Class: "strict", Nonzero: 2, Distinct: "2"}},
+		{"single_value_counted", "corner", "one value would still name it: counted",
+			"uplink1_nic_model", ColumnProfile{Class: "strict", Nonzero: 2, Distinct: "1"}},
+	}
+	p, err := ProfileOf(rows, Columns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := p.Columns[tc.input]; !reflect.DeepEqual(got, tc.expected) {
+				t.Errorf("%s (%s): %s\ninput column %s\nexpected %+v\nactual   %+v",
+					tc.name, tc.category, tc.description, tc.input, tc.expected, got)
+			}
+		})
+	}
+}
+
+// TestProfileListedDecided: every column of a valued class has a listing
+// decision in profileListed, and profileListed names no other column, so a
+// new column never lists its values by default.
+func TestProfileListedDecided(t *testing.T) {
+	idx, err := Columns.index()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, cl := range idx {
+		if _, ok := profileListed[name]; valued(cl) && !ok {
+			t.Errorf("column %s (%s): no decision in profileListed", name, cl)
+		}
+	}
+	for name := range profileListed {
+		if cl, ok := idx[name]; !ok || !valued(cl) {
+			t.Errorf("profileListed names %s, not a column of a valued class", name)
+		}
 	}
 }
 
