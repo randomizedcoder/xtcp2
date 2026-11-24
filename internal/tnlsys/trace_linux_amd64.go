@@ -164,7 +164,11 @@ func (t *tracer) run() (int, error) {
 		case !ws.Stopped():
 		case ws.StopSignal() == syscallStop:
 			if err := t.syscallStop(tid); err != nil {
-				return -1, err
+				if !threadGone(err) {
+					return -1, err
+				}
+				delete(t.thr, tid)
+				continue
 			}
 		case ws.StopSignal() == syscall.SIGTRAP:
 			// PTRACE_EVENT_CLONE and the like: resume without a signal.
@@ -177,6 +181,14 @@ func (t *tracer) run() (int, error) {
 			return -1, fmt.Errorf("tnlsys: trace: resume %d: %w", tid, err)
 		}
 	}
+}
+
+// threadGone reports a ptrace request on a thread that no longer exists:
+// ptrace(2) says a tracee can vanish at any stop, as a thread does when
+// a sibling's exit_group kills it between the wait and the request. Its
+// exit, if any, comes later from Wait4.
+func threadGone(err error) bool {
+	return errors.Is(err, unix.ESRCH)
 }
 
 // status is an exit status as a shell reports it.
