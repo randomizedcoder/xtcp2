@@ -99,13 +99,13 @@ func TestHandleChangePollFrequency_table(t *testing.T) {
 			// for regressions that reintroduce raw d <= 0.
 			defer func() {
 				if r := recover(); r != nil {
-				t.Fatalf("handleChangePollFrequency panicked on %v: %v", tc.newD, r)
-			}
+					t.Fatalf("handleChangePollFrequency panicked on %v: %v", tc.newD, r)
+				}
 			}()
 			x.handleChangePollFrequency(tc.newD, ticker, 1, 0)
 
 			gotCnt := testutil.ToFloat64(
-			x.pC.WithLabelValues("Poller", "ticker.Reset", "count"))
+				x.pC.WithLabelValues("Poller", "ticker.Reset", "count"))
 			if gotCnt != tc.wantCnt {
 				t.Errorf("ticker.Reset counter = %v, want %v", gotCnt, tc.wantCnt)
 			}
