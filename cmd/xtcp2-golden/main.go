@@ -7,8 +7,15 @@
 //	xtcp2-golden normalize in.parquet > records.jsonl
 //	xtcp2-golden diff [-columns re] [-limit 50] golden.parquet candidate.parquet
 //	xtcp2-golden check dir
+//	xtcp2-golden profile in.parquet > profile.json
+//	xtcp2-golden shape-diff a.parquet|a.json b.parquet|b.json
 //
-// diff and check exit 0 when they find nothing, 1 when they do, and 2 on an
+// profile reduces a capture to its shape (populated columns, enum values,
+// families, kinds of namespace) and records no identity, so a profile can
+// leave the host it was taken on. shape-diff compares two shapes, for
+// captures whose workloads differ.
+//
+// diff, check and shape-diff exit 0 when they find nothing, 1 when they do, and 2 on an
 // error.
 package main
 
@@ -57,7 +64,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-const usage = "usage: xtcp2-golden scrub IN OUT | normalize IN | diff [-columns re] [-limit n] GOLDEN CANDIDATE | check DIR"
+const usage = "usage: xtcp2-golden scrub IN OUT | normalize IN | diff [-columns re] [-limit n] GOLDEN CANDIDATE | check DIR | profile IN | shape-diff A B"
 
 func dispatch(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
@@ -82,6 +89,16 @@ func dispatch(args []string, stdout, stderr io.Writer) error {
 			return errors.New(usage)
 		}
 		return check(args[0], stdout)
+	case "profile":
+		if len(args) != 1 {
+			return errors.New(usage)
+		}
+		return profile(args[0], stdout)
+	case "shape-diff":
+		if len(args) != 2 {
+			return errors.New(usage)
+		}
+		return shapeDiff(args[0], args[1], stdout)
 	default:
 		return fmt.Errorf("unknown command %q\n%s", cmd, usage)
 	}
@@ -307,4 +324,55 @@ func lineDiff(got, want []byte) string {
 		}
 	}
 	return b.String()
+}
+
+// loadProfile profiles a .parquet capture, or reads a profile written by
+// xtcp2-golden profile (a .json file).
+func loadProfile(path string) (goldenrec.Profile, error) {
+	var p goldenrec.Profile
+	if strings.HasSuffix(path, ".json") {
+		b, err := readFile(filepath.Dir(path), filepath.Base(path))
+		if err != nil {
+			return p, err
+		}
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&p); err != nil {
+			return p, fmt.Errorf("%s: %w", path, err)
+		}
+		return p, nil
+	}
+	rows, err := readRows(path)
+	if err != nil {
+		return p, err
+	}
+	return goldenrec.ProfileOf(rows, goldenrec.Columns)
+}
+
+func profile(in string, stdout io.Writer) error {
+	p, err := loadProfile(in)
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(stdout).Encode(p)
+}
+
+func shapeDiff(a, b string, stdout io.Writer) error {
+	pa, err := loadProfile(a)
+	if err != nil {
+		return err
+	}
+	pb, err := loadProfile(b)
+	if err != nil {
+		return err
+	}
+	findings := goldenrec.DiffProfiles(pa, pb)
+	if len(findings) == 0 {
+		return nil
+	}
+	fmt.Fprintf(stdout, "A = %s\nB = %s\n", a, b)
+	for _, f := range findings {
+		fmt.Fprintln(stdout, f)
+	}
+	return errFound
 }
