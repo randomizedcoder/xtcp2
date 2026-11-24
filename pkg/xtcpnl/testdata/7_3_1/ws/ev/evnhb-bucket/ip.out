@@ -1,0 +1,4 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+id 10 group 1,3/2 type resilient buckets 4 idle_timer 60 unbalanced_timer 1 unbalanced_time 0 
+id 10 index 0 idle_time 0 nhid 1 

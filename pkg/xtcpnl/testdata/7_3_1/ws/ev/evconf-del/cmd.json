@@ -1,0 +1,35 @@
+{
+ "cmd": "xtcp2-nl-ipmon c0 \"monitor netconf maddress\" \"ip link del d0\" \"Deleted inet d0\"",
+ "desc": "positive: a forwarded device unregistered, RTM_DELNETCONF with its ifindex",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "floor": 18,
+ "id": "ev/evconf-del",
+ "pre": [
+  "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 up && echo 1 > /proc/sys/net/ipv4/conf/d0/forwarding"
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up && ip link add d0 type dummy && ip link set d0 up && echo 1 > /proc/sys/net/ipv4/conf/d0/forwarding",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ },
+ "serial": true
+}

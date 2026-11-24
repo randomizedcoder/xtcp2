@@ -1,0 +1,3 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+id 1 via 192.0.2.250 dev c0 scope link 

@@ -631,7 +631,8 @@ let
     main()
   '';
 
-  # xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>
+  # xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len> [router-lifetime
+  #   [preferred-lifetime]]
   #
   # One router advertisement, for the prefix event rows (C1-T04;
   # docs/netlink/goip-parity-gaps.md). The kernel sends RTM_NEWPREFIX only
@@ -641,8 +642,12 @@ let
   # limit 255 as ndisc requires, a router lifetime of 0 so the receiver
   # adds no default route, and one option: <prefix>, on-link, not
   # autonomous, so no address with a random interface id is made from it.
-  # The kernel fills in the ICMPv6 checksum. Multicast loop is off: <dev>
-  # would otherwise take its own RA, and send a second RTM_NEWPREFIX.
+  # The optional lifetimes widen that (EC2's prefix corners):
+  # <router-lifetime> nonzero lets the receiver add the default route the
+  # RA's source is the gateway of, and <preferred-lifetime> 0 is the
+  # deprecated prefix. The kernel fills in the ICMPv6 checksum. Multicast
+  # loop is off: <dev> would otherwise take its own RA, and send a second
+  # RTM_NEWPREFIX.
   #
   # The receiver is the other end of a veth in the same namespace, so it
   # needs accept_ra_from_local: the kernel drops an RA whose source is one
@@ -663,11 +668,11 @@ let
     ALL_NODES = "ff02::1"
 
 
-    def advert(prefix):
+    def advert(prefix, router_lifetime, preferred):
         head = struct.pack("!BBHBBHII", ND_ROUTER_ADVERT, 0, 0,
-                           CUR_HOP_LIMIT, 0, 0, 0, 0)
+                           CUR_HOP_LIMIT, 0, router_lifetime, 0, 0)
         pio = struct.pack("!BBBBIII", ND_OPT_PREFIX_INFORMATION, 4,
-                          prefix.prefixlen, PIO_ONLINK, VALID, PREFERRED, 0)
+                          prefix.prefixlen, PIO_ONLINK, VALID, preferred, 0)
         return head + pio + prefix.network_address.packed
 
 
@@ -676,10 +681,22 @@ let
         sys.exit(rc)
 
 
+    def num(arg, what):
+        try:
+            return int(arg)
+        except ValueError:
+            fail(2, "bad " + what + ": " + arg)
+
+
     def main():
-        if len(sys.argv) != 4:
-            fail(2, "usage: xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>")
-        dev, src, arg = sys.argv[1:]
+        if len(sys.argv) not in (4, 5, 6):
+            fail(2, "usage: xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>"
+                    " [router-lifetime [preferred-lifetime]]")
+        dev, src, arg = sys.argv[1:4]
+        router_lifetime = (num(sys.argv[4], "router-lifetime")
+                           if len(sys.argv) > 4 else 0)
+        preferred = (num(sys.argv[5], "preferred-lifetime")
+                     if len(sys.argv) > 5 else PREFERRED)
         try:
             prefix = ipaddress.IPv6Network(arg)
             source = ipaddress.IPv6Address(src)
@@ -687,7 +704,9 @@ let
             fail(2, str(e))
         if not source.is_link_local:
             fail(2, "not a link-local source: " + src)
-        msg = advert(prefix)
+        if preferred > VALID:
+            fail(2, "preferred beyond the valid lifetime: " + str(preferred))
+        msg = advert(prefix, router_lifetime, preferred)
         if dev == "-":
             print(msg.hex())
             return

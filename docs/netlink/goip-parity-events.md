@@ -133,19 +133,20 @@ The `nlmon-capture` oneshot's sequence, as rows. The committed 7_1_4 pcaps and s
 
 Each is verified to exist in the kernel tree; each gets its rows from a probe batch. `evmaddr` (the `addr-monitor` rows) and the `xfrm`/`brmpls` monitor rows already exist at 7.3.0 and are not redone.
 
-- **`evnhb`** — resilient nexthop bucket replacement: `ip nexthop replace` on a `type resilient` group under `ip monitor nexthop`. The kernel notifies `RTM_NEWNEXTHOPBUCKET` with `NLM_F_REPLACE` (`net/ipv4/nexthop.c:1222-1231`). The parity corpus holds bucket *dump replies*; no notification.
-- **`evconf`** — `RTM_NEWNETCONF` on a forwarding flip (already in `monitor_all`'s trigger) and **`RTM_DELNETCONF` on device unregister** (`net/ipv4/devinet.c:2761`, `net/ipv6/addrconf.c:7411`): d0 with forwarding on, then `ip link del d0`.
+- **`evnhb`** — resilient nexthop bucket replacement: `ip nexthop replace` on a `type resilient` group under `ip monitor nexthop`. The kernel notifies `RTM_NEWNEXTHOPBUCKET` with `NLM_F_REPLACE` (`net/ipv4/nexthop.c:1222-1231`). The parity corpus holds bucket *dump replies*; no notification. The EC2 probe traced the notify's only path: a group replace migrates idle buckets **silently** (`nh_res_table_migrate_buckets` re-points directly, and the replace's upkeep runs `notify_nl=false`), so the notified migration needs buckets that carried traffic and the unbalanced timer's forced deferral — 64 `/dev/udp` writes through a route on the group, then a weight-swap replace, and the migration lands one second later. The corner: a member's gateway replace notifies no bucket at all.
+- **`evconf`** — `RTM_NEWNETCONF` on a forwarding flip (already in `monitor_all`'s trigger) and **`RTM_DELNETCONF` on device unregister** (`net/ipv4/devinet.c:2761`, `net/ipv6/addrconf.c:7411`): d0 with forwarding on, then `ip link del d0`. The plan's corner — unregister without forwarding — is falsified by the kernel source: `inetdev_init` registers the sysctl table for every device (`devinet.c:294`), so `inetdev_destroy` → `devinet_sysctl_unregister` → `inet_netconf_notify_devconf` fires on **every** unregister; the probe measured it, and the corner row records the notification, not its absence.
 - **`evrule`** — `RTM_NEWRULE`/`RTM_DELRULE`: the rule selectors of `rule_add_selectors` under a monitor. `monitor_all` holds one add; no selector set, no delete pair, no v6.
 - **`evstats`** — `RTM_NEWSTATS` beyond the one `l3_stats on`: the off/on pair, and `-s`-shaped updates if the probe shows them.
-- **`evnsid`** — the `nsid_del_event` row holds the del; add the set and the assign-to-a-live-netns forms.
-- **`evprefix`** — the `prefix_event` row holds one RA; add the deprecated-lifetime corner and the v6-route-from-RA pair.
+- **`evnsid`** — the `nsid_del_event` row holds the del; add the set and the assign-to-a-live-netns forms. The probe found the live-netns shape needs no add or del at all — the row's own netns, assigned an id inside the window — and that a second id for a netns that has one is the kernel's EEXIST ("Peer netns already has a nsid assigned"), a refusal worth its own negative row. The same probe corrected EC1's reading of the init probe: an unassigned netns is answered `RTM_NEWNSID` carrying `NETNSA_NSID -1` (`NETNSA_NSID_NOT_ASSIGNED`), not EINVAL — the EINVALs were V380's churn race.
+- **`evprefix`** — the `prefix_event` row holds one RA; add the deprecated-lifetime corner and the v6-route-from-RA pair. Both need `xtcp2-nl-ra` lifetime knobs: an optional router lifetime (nonzero lets the receiver install the default route the RA's source is the gateway of) and preferred lifetime (0 is the deprecated prefix); the tool grew both, its 3-arg form unchanged for the seed row.
 
 | description | input | expected |
 |---|---|---|
 | positive: a bucket replacement | `evnhb` | `RTM_NEWNEXTHOPBUCKET`, `NLM_F_REPLACE`, in the window |
 | positive: netconf del | `evconf` | `RTM_DELNETCONF` with the device's ifindex |
 | positive: rule add/del pair | `evrule` | both notifications, the del's `Deleted` prefix in `.out` |
-| corner: unregister without forwarding | `evconf` | no `RTM_DELNETCONF`, only `RTM_DELLINK`; recorded as a negative row |
+| corner: unregister without forwarding | `evconf` | `RTM_DELNETCONF` anyway — the kernel notifies every unregister; the row records the measured behavior |
+| corner: a second id for a netns | `evnsid` | `NLMSG_ERROR` EEXIST, the refusal iproute2 prints |
 | boundary: floors | every row | the probe's count |
 
 ### EC3 — both iproute2 versions, and `verdiff`

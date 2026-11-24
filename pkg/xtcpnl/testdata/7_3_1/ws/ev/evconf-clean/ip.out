@@ -1,0 +1,8 @@
+Deleted 3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+Deleted inet d1 
+Deleted 4: d1    inet6 mcast ff02::1 scope global 
+       valid_lft forever preferred_lft forever
+Deleted inet6 d1 

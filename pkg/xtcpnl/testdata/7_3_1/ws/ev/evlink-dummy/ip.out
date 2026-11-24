@@ -5,8 +5,8 @@
 4: d1    inet6 mcast ff02::1 scope global 
        valid_lft forever preferred_lft forever
 4: d1: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
-    link/ether ea:66:48:84:77:f8 brd ff:ff:ff:ff:ff:ff
+    link/ether fa:fd:f7:fe:1a:7f brd ff:ff:ff:ff:ff:ff
 Deleted 4: d1    inet6 mcast ff02::1 scope global 
        valid_lft forever preferred_lft forever
 Deleted 4: d1: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
-    link/ether ea:66:48:84:77:f8 brd ff:ff:ff:ff:ff:ff
+    link/ether fa:fd:f7:fe:1a:7f brd ff:ff:ff:ff:ff:ff

@@ -1,0 +1,6 @@
+3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+local 224.0.0.250 dev c0 table local proto kernel scope host src 224.0.0.250 
+default via fe80::2 dev r0 proto ra metric 1024 expires 600sec pref medium
+2001:db8:5::/64 dev r0 proto kernel metric 256 expires 600sec pref medium
+prefix 2001:db8:5::/64dev r0 valid 600 preferred 300 

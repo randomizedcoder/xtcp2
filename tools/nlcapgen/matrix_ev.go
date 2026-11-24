@@ -79,6 +79,22 @@ var evUntilAll = []string{
 	"prefix 2001:db8:5::/64",
 }
 
+// evNH is the nexthop family's state: two nexthops through c0's subnet
+// and the resilient group over them. The unbalanced timer is one second
+// so a forced migration lands inside the helper's window: the only
+// RTM_NEWNEXTHOPBUCKET notification the kernel ever sends is the deferred
+// upkeep work's migration (nexthop_bucket_notify, net/ipv4/nexthop.c) —
+// a group replace migrates idle buckets silently, and a bucket has to
+// have carried traffic to be busy enough to defer. The 64 /dev/udp
+// writes mark the buckets used; their flow hash spreads them over the
+// four buckets, both of the overweight member's included (the EC2 probe
+// measured it; the escape keeps the dollars for the helper's shell, the
+// row cmd's own shell would expand them).
+const evNH = evCanary + " && ip addr add 192.0.2.1/24 dev c0" +
+	" && ip nexthop add id 1 via 192.0.2.254 dev c0" +
+	" && ip nexthop add id 2 via 192.0.2.253 dev c0" +
+	" && ip nexthop add id 10 group 1/2 type resilient buckets 4 idle_timer 60 unbalanced_timer 1"
+
 // evSelfID pre-assigns the row's netns its own id, so `ip monitor`'s init
 // probe (ip/ipnetns.c's ipnetns_have_nsid, which iproute2 itself expects to
 // fail — "Continuing anyway") is answered with the id, not the EINVAL of
@@ -94,6 +110,29 @@ const evSelfID = `n=$(ip netns identify $$) && ip netns set "$n" 0`
 // subscribed is a multicast join and `ip monitor all maddress` would be
 // maddress alone — any object named replaces all (ip/ipmonitor.c's
 // do_ipmonitor, as rtnl-write-corpus.exp's ipmon notes).
+func evRowNoSelf(id, desc, groups, trigger string, until []string, floor int, pre string, modules []string) row {
+	args := "monitor " + groups
+	if groups != "all" && groups != "maddress" {
+		args += " maddress"
+	}
+	cmd := "xtcp2-nl-ipmon c0 \"" + args + "\" \"" + trigger + "\""
+	for _, re := range until {
+		cmd += " \"" + re + "\""
+	}
+	return row{
+		ID: "ev/" + id, Desc: desc, Cmd: cmd,
+		// No evSelfID: the row's own trigger assigns the id, and the
+		// monitor's init probe is answered the unassigned netns's own
+		// reply — RTM_NEWNSID carrying NETNSA_NSID -1
+		// (NETNSA_NSID_NOT_ASSIGNED; rtnl_net_getid's peernet2id), the
+		// shape only this row holds (V381's probe measured it).
+		Pre:   []preStep{{Cmd: pre}},
+		Floor: floor, Modules: modules,
+		Serial: true,
+		Expect: expect{RC: intp(0), RefusedBy: refNone},
+	}
+}
+
 func evRow(id, desc, groups, trigger string, until []string, floor int, pre string, modules []string) row {
 	args := "monitor " + groups
 	if groups != "all" && groups != "maddress" {
@@ -266,16 +305,103 @@ func evFamily() []row {
 			[]string{"d0: <", "192.0.2.1/24", "198.51.100.0/24 dev d0",
 				"192.0.2.254 dev d0 lladdr", "inet d0 forwarding on"},
 			46, evAnycast+" && ip link set d0 up", nil),
+		// EC2, the notification families with no capture
+		// (goip-parity-events.md EC2). The floors are the minimum over
+		// the probe and two clean batch runs (the ev seeds' rule, V379):
+		// the canary join can race the monitor's subscription readiness
+		// even serial, and the helper's retry adds the delete/re-add pair
+		// and two GETNSID roundtrips to a window (V379).
+		evRow("evnhb-bucket",
+			"positive: a busy bucket forced to migrate by the unbalanced timer, RTM_NEWNEXTHOPBUCKET with NLM_F_REPLACE",
+			"nexthop",
+			"for i in \\$(seq 64); do echo x > /dev/udp/198.51.100.\\$i/9; done;"+
+				" ip nexthop replace id 10 group 1,3/2,1 type resilient buckets 4 idle_timer 60 unbalanced_timer 1",
+			[]string{"id 10 index [0-9]+ .*nhid 1"},
+			14, evNH+" && ip route add 198.51.100.0/24 nhid 10", nil),
+		evRow("evnhb-gw",
+			"corner: a member's gateway replaced, no bucket notification — the buckets do not move",
+			"nexthop",
+			"ip nexthop replace id 1 via 192.0.2.250 dev c0",
+			[]string{"id 1 via 192.0.2.250 dev c0 scope link"},
+			15, evNH, nil),
+		evRow("evconf-del",
+			"positive: a forwarded device unregistered, RTM_DELNETCONF with its ifindex",
+			"netconf",
+			"ip link del d0",
+			[]string{"Deleted inet d0"},
+			18, evCanary+" && ip link add d0 type dummy && ip link set d0 up &&"+
+				" echo 1 > /proc/sys/net/ipv4/conf/d0/forwarding", nil),
+		evRow("evconf-clean",
+			"corner: a device unregistered without forwarding ever set, RTM_DELNETCONF anyway",
+			"netconf",
+			"ip link del d1",
+			[]string{"Deleted inet d1"},
+			17, evCanary+" && ip link add d1 type dummy", nil),
+		evRow("evrule-v4",
+			"positive: a rule's add and del, the selector set",
+			"rule",
+			"ip rule add pref 100 from 192.0.2.0/24 to 198.51.100.0/24 tos 4 fwmark 0x64/0xff iif c0 oif c0 table 100;"+
+				" ip rule del pref 100",
+			[]string{"100:.*from 192.0.2.0/24 to 198.51.100.0/24 tos 0x04 fwmark 0x64/0xff iif c0 oif c0 lookup 100",
+				"^Deleted 100:.*from 192.0.2.0/24"},
+			16, evCanary, nil),
+		evRow("evrule-v6",
+			"positive: a v6 rule's add and del",
+			"rule",
+			"ip -6 rule add pref 200 to 2001:db8:9::/64 table 100; ip -6 rule del pref 200",
+			[]string{"200:.*from all to 2001:db8:9::/64 lookup 100",
+				"^Deleted 200:.*from all to 2001:db8:9::/64"},
+			16, evCanary, nil),
+		evRow("evstats-l3",
+			"positive: the l3_stats off and on pair",
+			"stats",
+			"ip stats set dev c0 l3_stats off; ip stats set dev c0 l3_stats on",
+			[]string{"l3_stats off used", "l3_stats on used"},
+			20, evCanary+" && ip stats set dev c0 l3_stats on", nil),
+		evRowNoSelf("evnsid-live",
+			"positive: an id assigned to the row's own live netns, no add or del around it",
+			"nsid",
+			"n=\\$(ip netns identify \\$\\$) && ip netns set \\\"\\$n\\\" 3",
+			[]string{"nsid 3 "},
+			15, evCanary, nil),
+		evRow("evnsid-eexist",
+			"negative: a second id for a netns that already has one, the kernel's EEXIST",
+			"nsid",
+			"n=\\$(ip netns identify \\$\\$) && ip netns set \\\"\\$n\\\" 3",
+			[]string{"mcast 224.0.0.250 "},
+			12, evCanary, nil),
+		evRow("evprefix-dep",
+			"corner: the deprecated prefix, preferred lifetime zero",
+			"prefix",
+			"xtcp2-nl-ra r0p fe80::2 2001:db8:5::/64 0 0",
+			[]string{"prefix 2001:db8:5::/64dev r0 valid 600 preferred 0"},
+			11, evCanary+" && "+evRA, []string{"veth"}),
+		evRow("evprefix-route",
+			"positive: the RA's default route and on-link prefix, one window",
+			"prefix route",
+			"xtcp2-nl-ra r0p fe80::2 2001:db8:5::/64 600",
+			[]string{"default via fe80::2 dev r0 proto ra", "prefix 2001:db8:5::/64dev r0"},
+			14, evCanary+" && "+evRA, []string{"veth"}),
 	}
 	// everr's trigger is the failure itself: the helper's rc 1 (the
 	// trigger's own exit) and the kernel's ESRCH are the row's oracle, so
-	// its expect says the refusal, not a clean window.
+	// its expect says the refusal, not a clean window. evnsid-eexist is
+	// the same shape for a second id: the kernel's EEXIST. evnsid-live
+	// keeps the default clean expect: without the self-id its probe is
+	// answered the unassigned netns's own reply, RTM_NEWNSID with
+	// NETNSA_NSID -1, and no refusal happens at all.
 	for i := range rows {
-		if rows[i].ID == "ev/everr-esrch" {
+		switch rows[i].ID {
+		case "ev/everr-esrch":
 			rc := 1
 			rows[i].Expect.RC = &rc
 			rows[i].Expect.RefusedBy = refKernel
 			rows[i].Expect.Errno = "ESRCH"
+		case "ev/evnsid-eexist":
+			rc := 1
+			rows[i].Expect.RC = &rc
+			rows[i].Expect.RefusedBy = refKernel
+			rows[i].Expect.Errno = "EEXIST"
 		}
 	}
 	return rows

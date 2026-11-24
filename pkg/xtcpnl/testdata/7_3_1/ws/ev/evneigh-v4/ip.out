@@ -1,3 +1,6 @@
+Deleted 3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+Deleted 224.0.0.22 dev c0 lladdr 01:00:5e:00:00:16 NOARP 
 3: c0    inet mcast 224.0.0.250 scope global 
        valid_lft forever preferred_lft forever
 192.0.2.254 dev c0 lladdr 02:00:00:00:00:01 PERMANENT 

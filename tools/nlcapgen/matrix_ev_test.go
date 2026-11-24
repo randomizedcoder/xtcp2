@@ -18,7 +18,10 @@ func TestEvFamily(t *testing.T) {
 	if err := checkRows(rows); err != nil {
 		t.Fatal(err)
 	}
-	ipmon := regexp.MustCompile(`^xtcp2-nl-ipmon c0 "([^"]*)" "([^"]*)"( ".*")?$`)
+	// The quoted regions accept \\-escapes: the nsid rows' triggers carry
+	// \\$n and \\" for the helper's inner shell (a row's cmd runs through
+	// its own shell first, V381).
+	ipmon := regexp.MustCompile(`^xtcp2-nl-ipmon c0 "((?:[^"\\]|\\.)*)" "((?:[^"\\]|\\.)*)"( "(.*)")?$`)
 	for _, r := range rows {
 		if r.Proto != "" {
 			t.Errorf("%s: proto %q set; an event row captures on route", r.ID, r.Proto)
@@ -40,7 +43,7 @@ func TestEvFamily(t *testing.T) {
 			t.Errorf("%s: cmd %q is not one xtcp2-nl-ipmon invocation", r.ID, r.Cmd)
 			continue
 		}
-		args, trigger, untils := m[1], m[2], m[3]
+		args, trigger, untils := m[1], m[2], m[4]
 		if !strings.HasPrefix(args, "monitor ") {
 			t.Errorf("%s: ip-args %q do not start a monitor", r.ID, args)
 		}
