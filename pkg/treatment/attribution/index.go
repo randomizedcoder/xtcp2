@@ -125,7 +125,9 @@ func (x *Index) Stamp(r *flat.XtcpFlatRecord) {
 	if !ok {
 		return
 	}
-	v, ok := x.routes[ip]
+	// A dual-stack (AF_INET6) socket talking to an IPv4 peer carries the
+	// peer as ::ffff:a.b.c.d; the route is keyed by the IPv4 address.
+	v, ok := x.routes[ip.Unmap()]
 	if !ok {
 		return
 	}
