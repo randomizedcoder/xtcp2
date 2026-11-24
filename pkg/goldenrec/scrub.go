@@ -69,7 +69,7 @@ func Scrub(rows any, table Table) (Report, error) {
 				}
 			case Address:
 				switch c.addr.kind {
-				case addrV4, addrV6:
+				case addrV4, addrV6, addrMapped:
 					setAddr(f, p.docAddr(c.addr), c.addr.n)
 				case addrInvalid:
 					rep.Invalid = append(rep.Invalid, fmt.Sprintf("%s row %d: %s", col.name, i, addrString(c.addr)))
@@ -180,7 +180,7 @@ func CheckScrubbed(rows any, table Table) ([]string, error) {
 			c := p.cells[i][j]
 			switch p.classes[j] {
 			case Address:
-				if (c.addr.kind == addrV4 || c.addr.kind == addrV6) && !isDocAddr(c.addr.addr) {
+				if c.addr.numbered() && !isDocAddr(c.addr.addr) {
 					bad = append(bad, fmt.Sprintf("%s row %d: unscrubbed address %s", col.name, i, c.addr.addr))
 				}
 			case Host, Volatile:
@@ -200,6 +200,7 @@ func CheckScrubbed(rows any, table Table) ([]string, error) {
 var docPrefixes = []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24"), netip.MustParsePrefix("2001:db8::/32")}
 
 func isDocAddr(a netip.Addr) bool {
+	a = a.Unmap()
 	for _, p := range docPrefixes {
 		if p.Contains(a) {
 			return true

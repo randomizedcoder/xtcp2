@@ -45,6 +45,7 @@ const (
 	addrKept           // loopback or unspecified: kept as is
 	addrV4
 	addrV6
+	addrMapped // ::ffff:a.b.c.d: numbered with the IPv4 addresses
 	addrInvalid
 )
 
@@ -53,6 +54,25 @@ type addrCell struct {
 	kind addrKind
 	addr netip.Addr
 	n    int // the original byte length, for addrInvalid and for writing back
+}
+
+// numbered reports whether the cell takes a documentation number.
+func (a addrCell) numbered() bool {
+	return a.kind == addrV4 || a.kind == addrV6 || a.kind == addrMapped
+}
+
+// key is the address the cell is numbered by, and whether that is in the
+// IPv4 numbering. A v4-mapped address shares its IPv4 address's number, so
+// a peer reads the same whichever socket family reached it.
+func (a addrCell) key() (netip.Addr, bool) {
+	switch a.kind {
+	case addrV4:
+		return a.addr, true
+	case addrMapped:
+		return a.addr.Unmap(), true
+	default:
+		return a.addr, false
+	}
 }
 
 // cell is one column of one row before ordinals and addresses are numbered.
@@ -190,10 +210,11 @@ func (p *plan) number1(j int, c cell) int {
 	case Netns:
 		return p.netns[c.raw]
 	default: // Address
-		if c.addr.kind == addrV4 {
-			return p.v4[c.addr.addr]
+		k, v4 := c.addr.key()
+		if v4 {
+			return p.v4[k]
 		}
-		return p.v6[c.addr.addr]
+		return p.v6[k]
 	}
 }
 
@@ -244,12 +265,13 @@ func (p *plan) number() error {
 					p.netns[c.raw] = len(p.netns) + 1
 				}
 			case Address:
+				k, v4 := c.addr.key()
 				m := p.v6
-				if c.addr.kind == addrV4 {
+				if v4 {
 					m = p.v4
 				}
-				if _, ok := m[c.addr.addr]; !ok {
-					m[c.addr.addr] = len(m) + 1
+				if _, ok := m[k]; !ok {
+					m[k] = len(m) + 1
 				}
 			default:
 			}
@@ -264,13 +286,18 @@ func (p *plan) number() error {
 	return nil
 }
 
-// docAddr is the documentation address a numbered address maps to.
+// docAddr is the documentation address a numbered address maps to; a
+// v4-mapped address stays v4-mapped (::ffff:192.0.2.N).
 func (p *plan) docAddr(a addrCell) netip.Addr {
-	if a.kind == addrV4 {
-		n := p.v4[a.addr]
-		return netip.AddrFrom4([4]byte{192, 0, 2, byte(n)})
+	k, v4 := a.key()
+	if v4 {
+		doc := netip.AddrFrom4([4]byte{192, 0, 2, byte(p.v4[k])})
+		if a.kind == addrMapped {
+			return netip.AddrFrom16(doc.As16())
+		}
+		return doc
 	}
-	n := p.v6[a.addr]
+	n := p.v6[k]
 	return netip.AddrFrom16([16]byte{0x20, 0x01, 0x0d, 0xb8, 14: byte(n >> 8), 15: byte(n)})
 }
 
@@ -355,6 +382,8 @@ func classify(cl Class, v reflect.Value, family uint64) cell {
 			return cell{sortForm: "v4", raw: a.addr.String(), addr: a, pending: true}
 		case addrV6:
 			return cell{sortForm: "v6", raw: a.addr.String(), addr: a, pending: true}
+		case addrMapped:
+			return cell{sortForm: "v4mapped", raw: a.addr.String(), addr: a, pending: true}
 		default:
 			return cell{sortForm: addrString(a), addr: a}
 		}
@@ -421,10 +450,15 @@ func decodeAddr(v reflect.Value, family uint64) addrCell {
 	}
 }
 
+// kindOf classifies an address. IsLoopback already reads ::ffff:127.0.0.0/104
+// as loopback; IsUnspecified does not unmap, so ::ffff:0.0.0.0 is checked
+// apart.
 func kindOf(a netip.Addr, n int) addrCell {
 	switch {
-	case a.IsLoopback() || a.IsUnspecified():
+	case a.IsLoopback() || a.IsUnspecified() || a.Is4In6() && a.Unmap().IsUnspecified():
 		return addrCell{kind: addrKept, addr: a, n: n}
+	case a.Is4In6():
+		return addrCell{kind: addrMapped, addr: a, n: n}
 	case a.Is4():
 		return addrCell{kind: addrV4, addr: a, n: n}
 	default:
