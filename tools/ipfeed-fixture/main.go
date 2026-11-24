@@ -113,6 +113,8 @@ func writeRows(out string, n int, shape string, asn uint32, owner string, invali
 		return fmt.Errorf("-prefix %q: %w", prefix, perr)
 	}
 	rows := make([]rowSchema, 0, n)
+	//nolint:gosec // G404: deterministic-by-design — a fixture artifact must
+	// be reproducible from its seed; this is not a secret or a nonce.
 	rng := rand.New(rand.NewSource(seed))
 	for i := 0; i < n; i++ {
 		if invalidEvery > 0 && i%invalidEvery == invalidEvery-1 {
@@ -222,7 +224,7 @@ func emit(out string, payload []byte) error {
 		}
 		return bw.Flush()
 	}
-	return os.WriteFile(out, payload, 0o644)
+	return os.WriteFile(out, payload, 0o600)
 }
 
 // parseSize accepts the sizes the harness scripts quote: a bare integer or
