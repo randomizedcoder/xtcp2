@@ -3,6 +3,7 @@ package gotc
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
@@ -203,4 +204,91 @@ func (r *runner) initMap() error {
 	}
 	r.llInited = true
 	return nil
+}
+
+// linkGet is ll_link_get: an RTM_GETLINK by name or index, errors
+// suppressed; the answer enters the cache. It returns the index, 0 on
+// failure.
+func (r *runner) linkGet(name string, index uint32) (uint32, error) {
+	var req []byte
+	var berr error
+	if name != "" {
+		req, berr = xtcpnl.BuildGetLinkByNameRequest(unix.AF_UNSPEC, name, llMaskCst, r.nextSeq())
+	} else {
+		req, berr = xtcpnl.BuildGetLinkByIndexRequest(unix.AF_UNSPEC, cint.Int(index), llMaskCst, r.nextSeq())
+	}
+	rep, err := r.talk(req, berr)
+	if err != nil {
+		return 0, err
+	}
+	for _, m := range rep.Msgs {
+		if m.Type == unix.RTM_NEWLINK && len(m.Body) >= xtcpnl.IfInfomsgSizeCst {
+			r.cache.rememberMsg(m)
+			return binary.LittleEndian.Uint32(m.Body[4:8]), nil
+		}
+	}
+	return 0, nil
+}
+
+// nameToIndex is ll_name_to_index: the cache, ll_link_get, then "ifN".
+// if_nametoindex would ask the kernel the same question by ioctl, so a
+// replay takes its answer as ll_link_get's.
+func (r *runner) nameToIndex(name string) (uint32, error) {
+	if i, ok := r.cache.byName[name]; ok {
+		return i, nil
+	}
+	i, err := r.linkGet(name, 0)
+	if err != nil || i != 0 {
+		return i, err
+	}
+	return idxA2N(name), nil
+}
+
+// idxA2N is ll_idx_a2n: sscanf(name, "if%u").
+func idxA2N(name string) uint32 {
+	rest, ok := strings.CutPrefix(name, "if")
+	if !ok {
+		return 0
+	}
+	n := 0
+	for n < len(rest) && rest[n] >= '0' && rest[n] <= '9' {
+		n++
+	}
+	if n == 0 {
+		return 0
+	}
+	v, err := strconv.ParseUint(rest[:n], 10, 32)
+	if err != nil {
+		return 0
+	}
+	u, _ := cint.U32From64(v)
+	return u
+}
+
+// indexToName is ll_index_to_name: "*" for 0, the cache, ll_link_get by
+// index, then "if%u".
+func (r *runner) indexToName(index uint32) (string, error) {
+	if index == 0 {
+		return "*", nil
+	}
+	if e, ok := r.cache.byIndex[index]; ok {
+		return e.name, nil
+	}
+	got, err := r.linkGet("", index)
+	if err != nil {
+		return "", err
+	}
+	if got == index {
+		if e, ok := r.cache.byIndex[index]; ok {
+			return e.name, nil
+		}
+	}
+	return "if" + strconv.FormatUint(uint64(index), 10), nil
+}
+
+// nodev is lib/utils.c nodev: the message; the shows return -nodev(d),
+// which is 1.
+func (r *runner) nodev(dev string) error {
+	r.errf("Cannot find device \"%s\"\n", dev)
+	return retCode(1)
 }

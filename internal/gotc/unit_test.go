@@ -108,12 +108,14 @@ func TestGotcOptions(t *testing.T) {
 		expected    want
 	}{
 		// Positive.
-		{"positive: -s -d -j set the flags and reach qdisc", []string{"-s", "-d", "-j", "qdisc", "show"}, nil,
-			want{stderr: notImpl + "tc qdisc show\n", rc: 255, flags: &flags{stats: 1, details: 1, json: true, sl: "\n"}}},
-		{"positive: -iec", []string{"-iec", "qdisc"}, nil,
-			want{stderr: notImpl + "tc qdisc show\n", rc: 255, flags: &flags{iec: 1, sl: "\n"}}},
-		{"positive: -stats and -statistics both count", []string{"-statistics", "-stats", "class", "show"}, nil,
-			want{stderr: notImpl + "tc class show\n", rc: 255, flags: &flags{stats: 2, sl: "\n"}}},
+		// A qdisc list with no dev dumps the links (ll_init_map), then the
+		// qdiscs; a class list dumps the classes alone.
+		{"positive: -s -d -j set the flags and reach qdisc", []string{"-s", "-d", "-j", "qdisc", "show"}, []Reply{rep(done()), rep(done())},
+			want{stdout: "[]\n", reqs: 2, flags: &flags{stats: 1, details: 1, json: true, sl: "\n"}}},
+		{"positive: -iec", []string{"-iec", "qdisc"}, []Reply{rep(done()), rep(done())},
+			want{reqs: 2, flags: &flags{iec: 1, sl: "\n"}}},
+		{"positive: -stats and -statistics both count", []string{"-statistics", "-stats", "class", "show"}, []Reply{rep(done())},
+			want{reqs: 1, flags: &flags{stats: 2, sl: "\n"}}},
 		{"positive: -r -p -g -N -br -o -nm", []string{"-r", "-p", "-g", "-N", "-br", "-o", "-j", "q", "help"}, nil,
 			want{stderr: qdiscUsageText, flags: &flags{raw: 1, pretty: true, graph: true, numeric: 1, brief: 1, json: true, sl: "\\"}}},
 		{"positive: -Version", []string{"-Version"}, nil,
@@ -169,8 +171,8 @@ func TestGotcOptions(t *testing.T) {
 		{"corner: help as a verb takes any prefix of help", []string{"qdisc", "h"}, nil, want{stderr: qdiscUsageText}},
 		{"corner: qdisc l and li are link, a write tested before list", []string{"qdisc", "li"}, nil,
 			want{stderr: notImpl + "tc qdisc li\n", rc: 255}},
-		{"corner: qdisc lis and ls are list", []string{"qdisc", "ls"}, nil, want{stderr: notImpl + "tc qdisc show\n", rc: 255}},
-		{"corner: class l is list: class has no link", []string{"class", "l"}, nil, want{stderr: notImpl + "tc class show\n", rc: 255}},
+		{"corner: qdisc lis and ls are list", []string{"qdisc", "ls"}, []Reply{rep(done()), rep(done())}, want{reqs: 2}},
+		{"corner: class l is list: class has no link", []string{"class", "l"}, []Reply{rep(done())}, want{reqs: 1}},
 		{"corner: words after an option-looking object are the object's", []string{"qdisc", "-s"}, nil,
 			want{stderr: "Command \"-s\" is unknown, try \"tc qdisc help\".\n", rc: 255}},
 	}

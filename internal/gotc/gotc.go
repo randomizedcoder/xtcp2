@@ -72,6 +72,9 @@ type runner struct {
 
 	cache    llCache
 	llInited bool // ll_init_map's initialized: one link dump a process
+
+	qf qdiscFilter // tc_qdisc.c's statics, kept across batch lines (Q29)
+	cf classFilter // tc_class.c's statics, kept across batch lines (Q30)
 }
 
 func (r *runner) errf(format string, a ...any) {
@@ -102,6 +105,7 @@ func run(cfg config, args []string, stdout, stderr io.Writer) int {
 func runWith(cfg config, args []string, stdout, stderr io.Writer) (*runner, int) {
 	w := bufio.NewWriter(stdout)
 	r := &runner{o: newOut(w), stderr: stderr, sys: cfg.sys}
+	r.o.under = stdout
 	return r, r.exit(r.main(cfg, args), w)
 }
 
@@ -344,7 +348,7 @@ func (r *runner) doCmd(obj string, args []string) error {
 		name string
 		fn   func([]string) error
 	}{
-		{"qdisc", r.doQdisc},
+		{wordQdisc, r.doQdisc},
 		{"class", r.doClass},
 		{"filter", r.refuse("filter")},
 		{"chain", r.refuse("chain")},
@@ -457,14 +461,4 @@ func (r *runner) classUsage() {
 		"Where:\n"+
 		"QDISC_KIND := { prio | etc. }\n"+
 		"OPTIONS := ... try tc class add <desired QDISC_KIND> help\n")
-}
-
-// qdiscList is tc_qdisc_list; 9R fills it in.
-func (r *runner) qdiscList([]string) error {
-	return fmt.Errorf("%w: tc qdisc show", errNotImplemented)
-}
-
-// classList is tc_class_list; 9R fills it in.
-func (r *runner) classList([]string) error {
-	return fmt.Errorf("%w: tc class show", errNotImplemented)
 }

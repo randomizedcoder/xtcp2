@@ -27,13 +27,14 @@ var gotcMayImport = map[string]string{
 	modulePath + "/pkg/xtcpnl":        "the subject under test: the request builders, the pcap reader and the tcmsg decoders",
 	modulePath + "/pkg/cint":          "the C integer conversions tc's scans and prints make (int of a u32, s64 of a u64)",
 	modulePath + "/internal/wsreplay": "the ws pcap replay core shared with the other read-only clones; xtcpnl only",
+	modulePath + "/internal/jsonw":    "json_writer.c's string escaping, shared with gobridge; stdlib only",
 }
 
 // gotcClosure is the first-party closure of gotc's non-test files.
 var gotcClosure = []string{
 	modulePath + "/cmd/gotc", modulePath + "/internal/gotc",
 	modulePath + "/pkg/xtcpnl", modulePath + "/internal/wsreplay",
-	modulePath + "/pkg/cint",
+	modulePath + "/pkg/cint", modulePath + "/internal/jsonw",
 	// Reached through xtcpnl's congestion-name decoder; stdlib only.
 	modulePath + "/pkg/strpolicy",
 	// Reached through xtcpnl's inet_diag decoders; see internal/gordma.
