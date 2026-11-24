@@ -25,7 +25,21 @@ type Options struct {
 	Columns string
 	// KeyColumns pair rows for reporting; DefaultKeyColumns when nil.
 	KeyColumns []string
+	// LossyNetns name the namespaces whose sockets carry deliberate random
+	// loss; in their rows the Presence and loss-history columns are not
+	// compared, the rest are. DefaultLossyNetns when nil; empty for none.
+	LossyNetns []string
 }
+
+// DefaultLossyNetns are the golden workload's netem pair
+// (nix/microvms/scripts/golden-workload.sh). netem drops and reorders at
+// random, so which counters a bulk transfer leaves nonzero (dsack_dups,
+// reord_seen, rwnd_limited, ...) and the reordering it settles on differ
+// from run to run. The profile still requires them populated.
+var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
+
+// lossHistory are the Strict columns that follow a connection's losses.
+var lossHistory = map[string]bool{"tcp_info_reordering": true, "tcp_info_ca_state": true}
 
 // Difference is one way a candidate differs from the golden capture: a
 // column (Golden and Candidate set), or a whole row only one side has
@@ -65,10 +79,18 @@ func Diff(golden, candidate []Row, table Table, opts Options) ([]Difference, err
 	if keyCols == nil {
 		keyCols = DefaultKeyColumns
 	}
+	lossyNetns := opts.LossyNetns
+	if lossyNetns == nil {
+		lossyNetns = DefaultLossyNetns
+	}
 	cmp := func(r Row) (key string, cols []string, vals map[string]string) {
 		vals = make(map[string]string, len(r))
+		lossy := slices.Contains(lossyNetns, r[netnsColumn])
 		for c, v := range r {
 			if filter != nil && !filter.MatchString(c) {
+				continue
+			}
+			if lossy && (idx[c] == Presence || lossHistory[c]) {
 				continue
 			}
 			vals[c] = compareForm(idx[c], v)
