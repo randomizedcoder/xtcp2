@@ -195,10 +195,10 @@ var Columns = Table{
 		"tcp_info_rto", "tcp_info_ato", "tcp_info_rcv_mss", "tcp_info_unacked", "tcp_info_sacked", "tcp_info_lost",
 		"tcp_info_retrans", "tcp_info_fackets", "tcp_info_last_data_sent", "tcp_info_last_ack_sent",
 		"tcp_info_last_data_recv", "tcp_info_last_ack_recv", "tcp_info_rcv_ssthresh", "tcp_info_rtt", "tcp_info_rttvar",
-		"tcp_info_snd_ssthresh", "tcp_info_snd_cwnd", "tcp_info_rcv_rtt", "tcp_info_rcv_space", "tcp_info_total_retrans",
+		"tcp_info_snd_ssthresh", "tcp_info_snd_cwnd", "tcp_info_rcv_space", "tcp_info_total_retrans",
 		"tcp_info_pacing_rate", "tcp_info_max_pacing_rate", "tcp_info_bytes_acked", "tcp_info_bytes_received",
 		"tcp_info_segs_out", "tcp_info_segs_in", "tcp_info_notsent_bytes", "tcp_info_min_rtt",
-		"tcp_info_data_segs_in", "tcp_info_data_segs_out", "tcp_info_delivery_rate", "tcp_info_busy_time",
+		"tcp_info_data_segs_in", "tcp_info_data_segs_out", "tcp_info_delivery_rate",
 		"tcp_info_rwnd_limited", "tcp_info_sndbuf_limited", "tcp_info_delivered", "tcp_info_delivered_ce",
 		"tcp_info_bytes_sent", "tcp_info_bytes_retrans", "tcp_info_dsack_dups", "tcp_info_reord_seen",
 		"tcp_info_rcv_ooopack", "tcp_info_snd_wnd", "tcp_info_rcv_wnd", "tcp_info_rehash", "tcp_info_total_rto",
@@ -231,10 +231,16 @@ var Columns = Table{
 	// between rows from run to run:
 	//   - netlinker_id: the decoder that took the packet, 0 or 1 by chance;
 	//   - inet_diag_msg_expires: a timer countdown, 0 as it fires
-	//     (inet_diag_msg_timer says whether one is set).
+	//     (inet_diag_msg_timer says whether one is set);
+	//   - tcp_info_busy_time: counted in jiffies (tcp_get_info_chrono_stats),
+	//     so a send shorter than a tick reads 0 or one tick;
+	//   - tcp_info_rcv_rtt: measured only once a receive window's worth of
+	//     data arrives, which a connection with one small exchange may or
+	//     may not have seen by the poll.
 	{Volatile, []string{
 		"daemon_version", "timestamp_ns", "event_date", "agent_id", "host_boot_id", "collection_id",
 		"treatment_applied_timestamp_ns", "record_counter", "netlinker_id", "inet_diag_msg_expires",
+		"tcp_info_busy_time", "tcp_info_rcv_rtt",
 	}},
 	{Host, []string{
 		"hostname",
