@@ -1,11 +1,17 @@
 {
   "populated": [
+    "bbr_info_bw_hi",
+    "bbr_info_min_rtt",
+    "bbr_info_pacing_gain",
     "container_id",
     "container_image",
     "container_name",
     "container_runtime",
+    "dctcp_info_enabled",
+    "enrich_socket_interface_name",
     "hostname",
     "inet_diag_cgroup_id",
+    "inet_diag_class_id",
     "inet_diag_cong",
     "inet_diag_cong_enum",
     "inet_diag_msg_family",
@@ -34,6 +40,7 @@
     "tcp_info_ato",
     "tcp_info_bytes_acked",
     "tcp_info_bytes_received",
+    "tcp_info_bytes_retrans",
     "tcp_info_bytes_sent",
     "tcp_info_data_segs_in",
     "tcp_info_data_segs_out",
@@ -49,6 +56,7 @@
     "tcp_info_pacing_rate",
     "tcp_info_pmtu",
     "tcp_info_rcv_mss",
+    "tcp_info_rcv_ooopack",
     "tcp_info_rcv_space",
     "tcp_info_rcv_ssthresh",
     "tcp_info_rcv_wnd",
@@ -66,24 +74,31 @@
     "tcp_info_snd_wnd",
     "tcp_info_snd_wscale",
     "tcp_info_state",
+    "tcp_info_total_retrans",
     "uplink1_ifname",
     "uplink1_nic_bus_info",
     "uplink1_nic_driver",
     "uplink1_nic_pci_device",
-    "uplink1_nic_pci_vendor"
+    "uplink1_nic_pci_vendor",
+    "vegas_info_enabled",
+    "vegas_info_rtt"
   ],
   "values": {
     "container_runtime": [
       "docker"
     ],
     "inet_diag_cong": [
-      "cubic"
+      "@manifest.cong_available"
     ],
     "inet_diag_cong_enum": [
       "1"
     ],
     "inet_diag_msg_state": [
       "1",
+      "2",
+      "5",
+      "6",
+      "8",
       "10"
     ],
     "inet_diag_sockopt": [
@@ -104,6 +119,9 @@
       "7"
     ],
     "tcp_info_pmtu": [
+      "1300",
+      "1450",
+      "1500",
       "65535"
     ],
     "tcp_info_rcv_wscale": [
@@ -113,6 +131,9 @@
       "3"
     ],
     "tcp_info_snd_mss": [
+      "1248",
+      "1398",
+      "1448",
       "32768",
       "47616"
     ],
@@ -131,6 +152,17 @@
     ],
     "uplink1_nic_pci_vendor": [
       "6900"
+    ],
+    "inet_diag_tos": [
+      "8",
+      "184"
+    ],
+    "inet_diag_tclass": [
+      "184"
+    ],
+    "inet_diag_shutdown": [
+      "1",
+      "2"
     ]
   },
   "families": [
