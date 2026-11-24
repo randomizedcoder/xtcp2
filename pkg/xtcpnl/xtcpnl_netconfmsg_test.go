@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
+	"reflect"
 )
 
 // netconfPcap is `ip netconf show`'s capture: the ll_init_map link dump followed
@@ -434,4 +435,30 @@ func TestBuildNetconfRequests(t *testing.T) {
 	if !bytes.Equal(gotGetNeg, wantGetNeg) {
 		t.Errorf("point get (-1) mismatch\ngot  %s\nwant %s", hex.EncodeToString(gotGetNeg), hex.EncodeToString(wantGetNeg))
 	}
+}
+
+// FuzzParseNewNetconf ensures ParseNewNetconf never panics on arbitrary
+// bytes, and decodes twice the same way. The seeds are the corpus's two
+// netconf shapes: RTM_DELNETCONF's bare ifindex (every unregister notifies
+// one, forwarding or not — devinet.c:294 registers the sysctl table for all
+// devices, V381's falsified corner) and RTM_NEWNETCONF with forwarding on.
+//
+//	go test ./pkg/xtcpnl/ -run FuzzParseNewNetconf
+func FuzzParseNewNetconf(f *testing.F) {
+	f.Add(mustHex(f, "020000000800010004000000"))
+	f.Add(mustHex(f, "0a0000000800010004000000"))
+	f.Add(mustHex(f, "0200000008000100040000000800020001000000"))
+	f.Add([]byte{})
+	f.Add(mustHex(f, "02000000"))
+	f.Add(mustHex(f, "02000000080001000400000008000200"))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		a, err := ParseNewNetconf(body)
+		if err != nil {
+			return
+		}
+		b, err := ParseNewNetconf(body)
+		if err != nil || !reflect.DeepEqual(a, b) {
+			t.Fatalf("two decodes differ: %+v / %+v (%v)", a, b, err)
+		}
+	})
 }

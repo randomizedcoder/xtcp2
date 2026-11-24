@@ -1,6 +1,7 @@
 package xtcpnl
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -203,4 +204,30 @@ func TestParseNexthopBucketCorpus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzParseNexthopBucket ensures ParseNexthopBucket never panics on
+// arbitrary bytes, and decodes twice the same way. The seeds are the two
+// RTM_NEWNEXTHOPBUCKET notifications the corpus holds (ws/ev and
+// ws-ip730/ev's evnhb-bucket rows, the only real ones anywhere — the kernel
+// sends the type from the deferred upkeep work alone, V381), the corpus's
+// dump reply's shape, and hand-built edges.
+//
+//	go test ./pkg/xtcpnl/ -run FuzzParseNexthopBucket
+func FuzzParseNexthopBucket(f *testing.F) {
+	// ws/ev/evnhb-bucket's notification: group 10, bucket 0, nhid 1.
+	f.Add(mustHex(f, "0000000000000000080001000a00000020000d80060001000000000008000300010000000c0002000000000000000000"))
+	f.Add([]byte{})
+	f.Add(mustHex(f, "0000000000000000"))
+	f.Add(mustHex(f, "0000000000000000080001000a00000020000d80060001000000000008000300010000000c0002"))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		a, err := ParseNexthopBucket(body)
+		if err != nil {
+			return
+		}
+		b, err := ParseNexthopBucket(body)
+		if err != nil || !reflect.DeepEqual(a, b) {
+			t.Fatalf("two decodes differ: %+v / %+v (%v)", a, b, err)
+		}
+	})
 }

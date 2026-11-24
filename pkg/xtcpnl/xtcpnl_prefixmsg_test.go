@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
+	"reflect"
 )
 
 // prefixRender shows a decoded RTM_NEWPREFIX body as its header, then each
@@ -181,4 +182,28 @@ func TestParsePrefixCorpus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzParsePrefix ensures ParsePrefix never panics on arbitrary bytes, and
+// decodes twice the same way. The seeds are the corpus's two RTM_NEWPREFIX
+// shapes: the deprecated prefix (preferred 0, valid 600, evprefix-dep's
+// row) and the normal one (preferred 300, the prefix row).
+//
+//	go test ./pkg/xtcpnl/ -run FuzzParsePrefix
+func FuzzParsePrefix(f *testing.F) {
+	f.Add(mustHex(f, "0a00000005000000034080001400010020010db80005000000000000000000000c0002000000000058020000"))
+	f.Add(mustHex(f, "0a00000005000000034080001400010020010db80005000000000000000000000c0002002c01000058020000"))
+	f.Add([]byte{})
+	f.Add(mustHex(f, "0a000000"))
+	f.Add(mustHex(f, "0a00000005000000034080001400010020010db80005000000000000000000000c0002"))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		a, err := ParsePrefix(body)
+		if err != nil {
+			return
+		}
+		b, err := ParsePrefix(body)
+		if err != nil || !reflect.DeepEqual(a, b) {
+			t.Fatalf("two decodes differ: %+v / %+v (%v)", a, b, err)
+		}
+	})
 }

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"io"
 )
 
 // O10, the monitor replay golden (goip-parity-events.md, EP1-T01): every
@@ -107,7 +108,26 @@ var wsMonitorNetnsRe = regexp.MustCompile(`nsid ([0-9]+) \(iproute2 netns name: 
 
 // wsMonitorRow replays one event row's capture through goip's monitor and
 // names the first gap between its output and the row's `.out`.
-func wsMonitorRow(t *testing.T, dir string) (string, string) {
+// wsMonitorRow replays one event row's capture through goip's monitor and
+// names the first gap between its output and the row's `.out`.
+func wsMonitorRow(t testing.TB, dir string) (string, string) {
+	t.Helper()
+	want, args := wsMonitorSetup(t, dir)
+	var stdout, stderr bytes.Buffer
+	if rc := Run(strings.Fields(args), &stdout, &stderr); rc != ExitOK {
+		return args, fmt.Sprintf("rc %d %q", rc, strings.TrimSpace(stderr.String()))
+	}
+	if stderr.Len() != 0 {
+		return args, fmt.Sprintf("stderr %q", stderr.String())
+	}
+	return args, wsMonitorGap(stdout.String(), want)
+}
+
+// wsMonitorSetup reads one event row and points the replay machinery at
+// it: the monitor arguments out of its cmd, the `.out` to hold goip to,
+// the netns names ip resolved under NETNS_RUN_DIR, and
+// GOIP_REPLAY/GOIP_NOW. The benchmark hoists it out of its loop.
+func wsMonitorSetup(t testing.TB, dir string) (string, string) {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(dir, "cmd.json"))
 	if err != nil {
@@ -123,13 +143,14 @@ func wsMonitorRow(t *testing.T, dir string) (string, string) {
 	if !ok {
 		t.Fatalf("%s: cmd %q is not one xtcp2-nl-ipmon invocation", dir, row.Cmd)
 	}
-	want, err := os.ReadFile(filepath.Join(dir, "ip.out"))
+	wantB, err := os.ReadFile(filepath.Join(dir, "ip.out"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	want := string(wantB)
 	// The netns names ip printed, the ones it resolved under NETNS_RUN_DIR.
 	names := map[int32]string{}
-	for _, m := range wsMonitorNetnsRe.FindAllStringSubmatch(string(want), -1) {
+	for _, m := range wsMonitorNetnsRe.FindAllStringSubmatch(want, -1) {
 		var id int32
 		if _, err := fmt.Sscanf(m[1], "%d", &id); err != nil {
 			t.Fatalf("%s: %v", dir, err)
@@ -142,16 +163,9 @@ func wsMonitorRow(t *testing.T, dir string) (string, string) {
 		return name, ok
 	}
 	t.Cleanup(func() { monitorNetnsName = saved })
-	t.Setenv("GOIP_REPLAY", filepath.Join(dir, "ip.pcap"))
-	t.Setenv("GOIP_NOW", "2026-11-25T12:00:00Z")
-	var stdout, stderr bytes.Buffer
-	if rc := Run(strings.Fields(args), &stdout, &stderr); rc != ExitOK {
-		return args, fmt.Sprintf("rc %d %q", rc, strings.TrimSpace(stderr.String()))
-	}
-	if stderr.Len() != 0 {
-		return args, fmt.Sprintf("stderr %q", stderr.String())
-	}
-	return args, wsMonitorGap(stdout.String(), string(want))
+	os.Setenv("GOIP_REPLAY", filepath.Join(dir, "ip.pcap"))
+	os.Setenv("GOIP_NOW", "2026-11-25T12:00:00Z")
+	return want, args
 }
 
 // wsMonitorArgs is the ipmon invocation's monitor arguments: the second of
@@ -195,4 +209,43 @@ func wsMonitorGap(got, want string) string {
 		return "adds words"
 	}
 	return "spacing"
+}
+
+// wsMonitorPicks are the EP1 twelve (goip-parity-events.md, EP1-T03), one
+// row per family, the tier's benchmark picks.
+var wsMonitorPicks = []string{
+	"evlink-carrier", "evaddr-dad", "evroute-autoconf", "evneigh-v4",
+	"evnhb-bucket", "evconf-del", "evrule-v4", "evstats-l3",
+	"evnsid-live", "evprefix-route", "anycast-del", "evseq-mixed",
+}
+
+// BenchmarkWsMonitor replays each of the EP1 twelve through goip's
+// monitor, the O10 harness's path, so a render regression that passes the
+// text gate still has to explain a step change here.
+//
+//	go test ./internal/goip/ -bench BenchmarkWsMonitor -benchtime 10x
+func BenchmarkWsMonitor(b *testing.B) {
+	roots, err := filepath.Glob("../../pkg/xtcpnl/testdata/*/ws/ev")
+	if err != nil {
+		b.Fatal(err)
+	}
+	if len(roots) == 0 {
+		b.Fatal("no event rows under testdata/*/ws/ev")
+	}
+	for _, name := range wsMonitorPicks {
+		b.Run(name, func(b *testing.B) {
+			want, args := wsMonitorSetup(b, filepath.Join(roots[0], name))
+			b.ResetTimer()
+			var out bytes.Buffer
+			for i := 0; i < b.N; i++ {
+				out.Reset()
+				if rc := Run(strings.Fields(args), &out, io.Discard); rc != ExitOK {
+					b.Fatalf("%s: rc %d", args, rc)
+				}
+				if out.String() != want {
+					b.Fatalf("%s: output drifted", args)
+				}
+			}
+		})
+	}
 }

@@ -12,7 +12,7 @@ import (
 )
 
 // mustHex decodes a hex string used to pin a real captured datagram body.
-func mustHex(t *testing.T, s string) []byte {
+func mustHex(t testing.TB, s string) []byte {
 	t.Helper()
 	b, err := hex.DecodeString(s)
 	if err != nil {

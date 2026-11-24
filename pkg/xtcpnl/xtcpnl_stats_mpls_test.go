@@ -231,6 +231,10 @@ func FuzzParseNewStats(f *testing.F) {
 	f.Add(statsAfSpecBody(rtattr(unix.AF_MPLS, rtattr(MplsStatsLink, mplsLinkPayload(1, MplsLinkStatsSizeCst-1)))))
 	f.Add(statsAfSpecBody())
 	f.Add([]byte{})
+	// The corpus's two l3_stats notifications (ws/ev/evstats-l3's row):
+	// off, then on again — the RTM_NEWSTATS shapes the ev corpus holds.
+	f.Add(mustHex(f, "0000000003000000080000001c000400180002801400038005000100000000000500020000000000"))
+	f.Add(mustHex(f, "0000000003000000080000001c000400180002801400038005000100010000000500020000000000"))
 	f.Fuzz(func(t *testing.T, body []byte) {
 		a, err := ParseNewStats(body)
 		if err != nil {

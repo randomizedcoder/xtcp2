@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
+	"reflect"
 )
 
 // nsidRender shows a decoded RTM_*NSID body as its family then each
@@ -193,4 +194,31 @@ func TestParseNsidCorpus(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzParseNsid ensures ParseNsid never panics on arbitrary bytes, and
+// decodes twice the same way. The seeds are the corpus's nsid shapes: the
+// unassigned netns's own reply (RTM_NEWNSID carrying NETNSA_NSID -1, the
+// answer evnsid-live's row holds, V381), the named add and del nsid-del's
+// row prints, and the fd+nsid request form.
+//
+//	go test ./pkg/xtcpnl/ -run FuzzParseNsid
+func FuzzParseNsid(f *testing.F) {
+	f.Add(mustHex(f, "0000000008000100ffffffff")) // nsid -1, unassigned
+	f.Add(mustHex(f, "000000000800010007000000"))
+	f.Add(mustHex(f, "000000000800010003000000"))
+	f.Add(mustHex(f, "0000000008000300050000000800010003000000"))
+	f.Add([]byte{})
+	f.Add(mustHex(f, "00000000"))
+	f.Add(mustHex(f, "0000000008000200040000"))
+	f.Fuzz(func(t *testing.T, body []byte) {
+		a, err := ParseNsid(body)
+		if err != nil {
+			return
+		}
+		b, err := ParseNsid(body)
+		if err != nil || !reflect.DeepEqual(a, b) {
+			t.Fatalf("two decodes differ: %+v / %+v (%v)", a, b, err)
+		}
+	})
 }
