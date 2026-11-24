@@ -148,7 +148,7 @@ func TestTunnelSpace(t *testing.T) {
 		{"corner: ip6gre through the v4 named path (T19)", "ip tunnel show gre6x|tnl6|", "corner 0 none  false | 6"},
 		{"corner: encaplimit 300 unchecked (T20)", "ip -6 tunnel show encaplimit 300|tnl6|", "corner 0 none  false | 6"},
 		{"corner: the tunl alias", "ip tunl show|tnl4|", "corner 0 none  false | 12"},
-		{"corner: mode any sticks across batch lines", "ip -batch b.txt|tnl4|any-sticks", "corner 0 none  false | 13"},
+		{"corner: mode any does not stick across batch lines (T21 refuted)", "ip -batch b.txt|tnl4|any-sticks", "corner 0 none  false | 13"},
 		{"corner: v6 named then the list, on stdin", "ip -batch - < b.txt|tnl6|v6-named-then-list", "corner 0 none  false | 7"},
 		{"corner: external and Ethernet kinds", "ip tunnel show|ext|", "corner 0 none  false | 5"},
 	})

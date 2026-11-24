@@ -191,7 +191,7 @@ func tunnelSpace() *space {
 				bb(brCorner, "tnl4", "twice", "", false, batchFile("tunnel show", "tunnel show"), tnl4Fix),
 				bb(brCorner, "tnl4", "mode-then-list", "", false,
 					batchFile("tunnel show mode gre", "tunnel show"), tnl4Fix),
-				bb(brCorner, "tnl4", "any-sticks", "", false, // preferred_family stays AF_INET6 (T21)
+				bb(brCorner, "tnl4", "any-sticks", "", false, // T21 refuted: ip_batch_cmd resets the family, line 2 is v4
 					batchFile("tunnel show mode any", "tunnel show"), tnl4Fix),
 				// A batch line takes no options: the mode pre-scan reaches the v6
 				// named path, whose missing newline runs into the next line (T9).
