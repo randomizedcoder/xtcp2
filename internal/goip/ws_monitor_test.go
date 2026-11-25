@@ -12,8 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"io"
+
+	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 )
 
 // O10, the monitor replay golden (goip-parity-events.md, EP1-T01): every
@@ -163,8 +164,10 @@ func wsMonitorSetup(t testing.TB, dir string) (string, string) {
 		return name, ok
 	}
 	t.Cleanup(func() { monitorNetnsName = saved })
-	os.Setenv("GOIP_REPLAY", filepath.Join(dir, "ip.pcap"))
-	os.Setenv("GOIP_NOW", "2026-11-25T12:00:00Z")
+	// os.Setenv, not t.Setenv: testing.TB has no Setenv, and the benchmark
+	// shares this setup. Both calls set, never fail on a sane environment.
+	_ = os.Setenv("GOIP_REPLAY", filepath.Join(dir, "ip.pcap"))
+	_ = os.Setenv("GOIP_NOW", "2026-11-25T12:00:00Z")
 	return want, args
 }
 

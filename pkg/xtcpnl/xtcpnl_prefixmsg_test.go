@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/sys/unix"
 	"reflect"
+
+	"golang.org/x/sys/unix"
 )
 
 // prefixRender shows a decoded RTM_NEWPREFIX body as its header, then each

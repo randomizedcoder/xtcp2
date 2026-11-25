@@ -5,8 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/sys/unix"
 	"reflect"
+
+	"golang.org/x/sys/unix"
 )
 
 // nsidRender shows a decoded RTM_*NSID body as its family then each

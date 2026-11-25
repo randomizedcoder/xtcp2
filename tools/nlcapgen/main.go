@@ -157,7 +157,7 @@ var families = map[string]func() []*space{
 // namedFamilies are families of named rows, written out as they are
 // rather than generated from a space.
 var namedFamilies = map[string]func() []row{
-	"ev":        func() []row { return evFamily() },
+	"ev":        evFamily,
 	"v730":      func() []row { return v730Family("7.3.0") },
 	"v730ip720": func() []row { return v730Family("7.2.0") },
 	"stats":     statsFamily,
@@ -178,11 +178,7 @@ func runMatrix(args []string, stdout, stderr io.Writer) int {
 		ok = true
 	}
 	if !ok || *out == "" || *random < 0 {
-<<<<<<< HEAD
 		fmt.Fprintln(stderr, "nlcapgen matrix: -family (ev, route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, devlink, vdpa, fou, mptcp, tipc, bridge, bridgex, bridgefdb, bridgemdb, tunnel, tuntap, tcqdisc, tcclass, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats) and -out are required, -random must be >= 0")
-=======
-		fmt.Fprintln(stderr, "nlcapgen matrix: -family (ev, route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, devlink, vdpa, fou, mptcp, tipc, bridge, bridgex, bridgefdb, bridgemdb, tunnel, tuntap, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats) and -out are required, -random must be >= 0")
->>>>>>> a55d304a2 (feat(netlink): the ev family and the event corpus plan (EC0-T01/T02, V376-V378))
 		return 2
 	}
 	var rows []row

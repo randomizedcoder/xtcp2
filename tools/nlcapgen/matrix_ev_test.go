@@ -35,7 +35,7 @@ func TestEvFamily(t *testing.T) {
 		if r.Expect.RC == nil {
 			t.Errorf("%s: no expected rc", r.ID)
 		} else if got := *r.Expect.RC; got != 0 &&
-			!(strings.HasPrefix(r.Desc, "negative:") && got == 1) {
+			(!strings.HasPrefix(r.Desc, "negative:") || got != 1) {
 			t.Errorf("%s: expect rc %d; a monitor that never subscribes is the helper's rc 1, a row to discard, and only a negative row's deliberate failure may expect 1", r.ID, got)
 		}
 		m := ipmon.FindStringSubmatch(r.Cmd)

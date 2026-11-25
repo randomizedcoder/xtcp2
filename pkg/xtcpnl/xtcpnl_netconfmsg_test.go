@@ -8,8 +8,9 @@ import (
 	"os"
 	"testing"
 
-	"golang.org/x/sys/unix"
 	"reflect"
+
+	"golang.org/x/sys/unix"
 )
 
 // netconfPcap is `ip netconf show`'s capture: the ll_init_map link dump followed
