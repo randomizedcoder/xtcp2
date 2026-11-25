@@ -216,6 +216,8 @@ func TestLossyColumns(t *testing.T) {
 		{"bytes_received_kept", "negative", "the transfer's size is fixed, so it is compared", "tcp_info_bytes_received", false},
 		{"total_retrans_kept", "negative", "2 % loss over 4 MiB always retransmits, so it is compared", "tcp_info_total_retrans", false},
 		{"ca_state_kept", "boundary", "an idle connection is back in Open, so ca_state is compared", caStateColumn, false},
+		{"rto_varies", "positive", "a tail loss sometimes ends in an RTO, which also rehashes", "tcp_info_total_rto", true},
+		{"rehash_varies", "boundary", "rehash moves with each RTO (tcp_write_timeout)", "tcp_info_rehash", true},
 		{"dctcp_alpha_varies", "corner", "a per-algorithm info column follows the marks netem drops", "dctcp_info_alpha", true},
 		{"unknown_kept", "corner", "a name that is no column is not exempt", "nope", false},
 	}
