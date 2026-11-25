@@ -154,6 +154,7 @@ var families = map[string]func() []*space{
 	"tcclass":   func() []*space { return []*space{tcclassSpace()} },
 	"tcfilter":  func() []*space { return []*space{tcfilterSpace()} },
 	"tcflower":  func() []*space { return []*space{tcflowerSpace()} },
+	"tcaction":  func() []*space { return []*space{tcactionSpace()} },
 }
 
 // namedFamilies are families of named rows, written out as they are
@@ -167,7 +168,7 @@ var namedFamilies = map[string]func() []row{
 func runMatrix(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("matrix", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, devlink, vdpa, fou, mptcp, tipc, bridge, bridgex, bridgefdb, bridgemdb, tunnel, tuntap, tcqdisc, tcclass, tcfilter, tcflower, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats")
+	family := fs.String("family", "", "the family to generate: route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, devlink, vdpa, fou, mptcp, tipc, bridge, bridgex, bridgefdb, bridgemdb, tunnel, tuntap, tcqdisc, tcclass, tcfilter, tcflower, tcaction, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats")
 	seed := fs.Uint64("seed", 1, "the random rows' seed, recorded in their ids")
 	random := fs.Int("random", 0, "random rows per space")
 	out := fs.String("out", "", "rows file to write")
@@ -179,7 +180,7 @@ func runMatrix(args []string, stdout, stderr io.Writer) int {
 		ok = true
 	}
 	if !ok || *out == "" || *random < 0 {
-		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, devlink, vdpa, fou, mptcp, tipc, bridge, bridgex, bridgefdb, bridgemdb, tunnel, tuntap, tcqdisc, tcclass, tcfilter, tcflower, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats) and -out are required, -random must be >= 0")
+		fmt.Fprintln(stderr, "nlcapgen matrix: -family (route, rule, nexthop, addr, neigh, link, linkattr, routeget, fdb, mdb, ss, mpls, ethtool, devlink, vdpa, fou, mptcp, tipc, bridge, bridgex, bridgefdb, bridgemdb, tunnel, tuntap, tcqdisc, tcclass, tcfilter, tcflower, tcaction, kwlive, lwt, lwtx, lwtenc, nhstats, v730, v730ip720, stats) and -out are required, -random must be >= 0")
 		return 2
 	}
 	var rows []row

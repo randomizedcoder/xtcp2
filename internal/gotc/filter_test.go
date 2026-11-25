@@ -178,11 +178,11 @@ func TestGotcFilterUnit(t *testing.T) {
 			expected:    result{stderr: "RTNETLINK answers: No such file or directory\nWe have an error talking to the kernel\n", rc: 2},
 		},
 		{
-			description: "negative: a mirred action is refused by name",
+			description: "negative: a pedit action (increment 13) is refused by name",
 			args:        []string{"filter", "show", "dev", "d0", "ingress"},
-			replies:     []Reply{d0, rep(matchall(0, nest(1, attr(xtcpnl.TcaActKind, str0("mirred")))), done())},
+			replies:     []Reply{d0, rep(matchall(0, nest(1, attr(xtcpnl.TcaActKind, str0("pedit")))), done())},
 			expected: result{stdout: "filter protocol all pref 3 matchall chain 0 handle 0x1 \n\taction order 1: ",
-				stderr: notImpl + "action kind \"mirred\"\n", rc: 255},
+				stderr: notImpl + "action kind \"pedit\"\n", rc: 255},
 		},
 		{
 			description: "negative: a bpf filter is refused by name",

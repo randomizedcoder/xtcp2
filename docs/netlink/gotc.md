@@ -393,3 +393,21 @@ continues at **V010**, and findings go in `upstream/iproute2-tc-flower.md` (FL1+
   (refused) and the write row.
 
 The ledger is in [gotc-status.md](gotc-status.md) (V010–V013, DOC003).
+
+## Increment 12: `tc actions` and 12 action kinds
+
+Increment 12 adds the read side of `tc actions` (`list`/`show`/`ls` and `get`) and 12 action kinds, printed both
+there (bind 0) and in filters (bind 1): police, mirred, skbedit, vlan, csum, nat, simple, connmark, ctinfo, sample,
+skbmod and mpls. The ledger continues at **V014**, and findings go in `upstream/iproute2-tc-action.md` (AC1+, not
+submitted to netdev).
+
+- **Command** (`internal/gotc/action_cmd.go`): `do_action`, `tc_action_gd` (get) and `tc_act_list_or_flush`
+  (list), with tc's argument quirks kept (AC6–AC10, AC34). add, change, replace, delete and flush are refused.
+- **Printers** (`action.go`, `m_<kind>.go`): one kind table for both callers; `tc_print_one_action`'s flags differ
+  by bind. Each kind follows its C printer line by line. Where C reads past a short struct or out of a table, gotc
+  refuses with "tc reads it unchecked". Police in filters prints through the same printer.
+- **Deferred to increment 13:** pedit, tunnel_key, ife, ct, gate, bpf and `tc monitor`, refused by name.
+- **Corpus:** the `tcaction` space (132 rows over six fixtures and a bare netns) replays byte for byte, and all 398
+  tdc `tc actions` readbacks render.
+
+The ledger is in [gotc-status.md](gotc-status.md) (V014–V017, DOC004).

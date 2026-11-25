@@ -1,0 +1,24 @@
+total acts 5
+
+	action order 0: mpls  pop protocol ip pipe
+	 index 1 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: mpls  push protocol mpls_uc label 100 tc 3 ttl 64 pipe
+	 index 2 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: mpls  modify label 200 pipe
+	 index 3 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3: mpls  dec_ttl pipe
+	 index 4 ref 1 bind 0
+	not_in_hw
+
+	action order 4: mpls  mac_push protocol mpls_uc label 300 bos 1 ttl 255 pipe
+	 index 5 ref 1 bind 0
+	not_in_hw

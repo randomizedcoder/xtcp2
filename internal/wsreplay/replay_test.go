@@ -173,6 +173,29 @@ func TestReplay(t *testing.T) {
 			expected:    want{types: []uint16{unix.NLMSG_DONE}, bodies: 4},
 		},
 		{
+			description: "corner: an echo of a get, which carries NLM_F_REQUEST, is its reply",
+			dgs: [][]byte{
+				msg(unix.RTM_GETTFILTER, unix.NLM_F_REQUEST|unix.NLM_F_ECHO, 7),
+				msg(unix.RTM_NEWTFILTER, unix.NLM_F_REQUEST|unix.NLM_F_ECHO, 7, 1, 2),
+			},
+			talks:    [][]byte{msg(unix.RTM_GETTFILTER, unix.NLM_F_REQUEST|unix.NLM_F_ECHO, 7)},
+			expected: want{types: []uint16{unix.RTM_NEWTFILTER}, bodies: 2},
+		},
+		{
+			description: "corner: a request after the echo, with the same seq, is a new request",
+			dgs: [][]byte{
+				msg(unix.RTM_GETTFILTER, unix.NLM_F_REQUEST|unix.NLM_F_ECHO, 7),
+				msg(unix.RTM_NEWTFILTER, unix.NLM_F_REQUEST|unix.NLM_F_ECHO, 7, 1, 2),
+				msg(typGet, unix.NLM_F_REQUEST, 7, 1, 0, 0, 0),
+				msg(typNew, 0, 7, 1, 2, 3),
+			},
+			talks: [][]byte{
+				msg(unix.RTM_GETTFILTER, unix.NLM_F_REQUEST|unix.NLM_F_ECHO, 7),
+				msg(typGet, unix.NLM_F_REQUEST, 7, 1, 0, 0, 0),
+			},
+			expected: want{types: []uint16{typNew}, bodies: 3},
+		},
+		{
 			description: "corner: CanonGenlCmd ignores the genl command byte",
 			dgs:         [][]byte{genl(5, 1), done},
 			canon:       CanonGenlCmd,

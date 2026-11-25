@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"skbedit","queue_mapping":3,"mark":16,"mask":"ff","ptype":"host","inheritdsfield":null,"control_action":{"type":"pipe"},"index":2,"ref":1,"bind":0,"not_in_hw":true}]}]

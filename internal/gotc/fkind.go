@@ -56,8 +56,16 @@ func (r *runner) printFopt(kind string, opt []byte, handle uint32) error {
 	return nil
 }
 
-// policeRefused is tc_print_police, which gotc does not print.
-func policeRefused() error { return fmt.Errorf("%w: police", errNotImplemented) }
+// printFilterPolice is tc_print_police, a filter's TCA_*_POLICE: u32,
+// basic and cgroup print a newline before it, fw, route and flow do not;
+// its return is ignored.
+func (r *runner) printFilterPolice(b []byte, nl bool) error {
+	if nl {
+		r.o.nl()
+	}
+	_, err := r.printPolice(b, true)
+	return err
+}
 
 // sprintU32Handle is f_u32.c sprint_u32_handle, with -r's "[%08x]".
 func (r *runner) sprintU32Handle(h uint32) string {
@@ -179,7 +187,9 @@ func printU32Opt(r *runner, opt []byte, handle uint32) error {
 		}
 	}
 	if tb.Has(xtcpnl.TcaU32Police) {
-		return policeRefused()
+		if err := r.printFilterPolice(tb.Bytes(xtcpnl.TcaU32Police), true); err != nil {
+			return err
+		}
 	}
 	if tb.Has(xtcpnl.TcaU32Indev) {
 		dev, _ := tb.Str(xtcpnl.TcaU32Indev)
@@ -379,7 +389,9 @@ func printFwOpt(r *runner, opt []byte, handle uint32) error {
 		o.str(printAny, colorNone, "classid", "classid "+c+" ", c)
 	}
 	if tb.Has(xtcpnl.TcaFwPolice) {
-		return policeRefused()
+		if err := r.printFilterPolice(tb.Bytes(xtcpnl.TcaFwPolice), false); err != nil {
+			return err
+		}
 	}
 	if tb.Has(xtcpnl.TcaFwIndev) {
 		dev, _ := tb.Str(xtcpnl.TcaFwIndev)
@@ -424,7 +436,9 @@ func printRouteOpt(r *runner, opt []byte, handle uint32) error {
 		o.str(printAny, colorIfname, "fromif", "fromif "+name, name)
 	}
 	if tb.Has(xtcpnl.TcaRoute4Police) {
-		return policeRefused()
+		if err := r.printFilterPolice(tb.Bytes(xtcpnl.TcaRoute4Police), false); err != nil {
+			return err
+		}
 	}
 	if tb.Has(xtcpnl.TcaRoute4Act) {
 		return r.printActions(tb.Bytes(xtcpnl.TcaRoute4Act))
@@ -450,7 +464,9 @@ func printBasicOpt(r *runner, opt []byte, handle uint32) error {
 		}
 	}
 	if tb.Has(xtcpnl.TcaBasicPolice) {
-		return policeRefused()
+		if err := r.printFilterPolice(tb.Bytes(xtcpnl.TcaBasicPolice), true); err != nil {
+			return err
+		}
 	}
 	if tb.Has(xtcpnl.TcaBasicAct) {
 		return r.printActions(tb.Bytes(xtcpnl.TcaBasicAct))
@@ -472,7 +488,9 @@ func printCgroupOpt(r *runner, opt []byte, handle uint32) error {
 		}
 	}
 	if tb.Has(xtcpnl.TcaCgroupPolice) {
-		return policeRefused()
+		if err := r.printFilterPolice(tb.Bytes(xtcpnl.TcaCgroupPolice), true); err != nil {
+			return err
+		}
 	}
 	if tb.Has(xtcpnl.TcaCgroupAct) {
 		return r.printActions(tb.Bytes(xtcpnl.TcaCgroupAct))
@@ -561,7 +579,9 @@ func printFlowOpt(r *runner, opt []byte, handle uint32) error {
 		}
 	}
 	if tb.Has(xtcpnl.TcaFlowPolice) {
-		return policeRefused()
+		if err := r.printFilterPolice(tb.Bytes(xtcpnl.TcaFlowPolice), false); err != nil {
+			return err
+		}
 	}
 	if tb.Has(xtcpnl.TcaFlowAct) {
 		o.nl()

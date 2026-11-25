@@ -1,0 +1,41 @@
+total acts 5
+
+	action order 0: vlan  pop pipe
+	 index 1 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: vlan  push id 100 protocol 802.1ad priority 3 pipe
+	 index 2 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: vlan  modify id 200 protocol 802.1Q pipe
+	 index 3 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3: vlan  push_eth dst_mac 02:00:00:00:00:01 src_mac 02:00:00:00:00:02 pipe
+	 index 4 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 4: vlan  pop_eth pipe
+	 index 5 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled

@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1:  nat egress 10.1.2.3/32 10.4.5.6 pass
+	 index 2 ref 1 bind 0
+	not_in_hw

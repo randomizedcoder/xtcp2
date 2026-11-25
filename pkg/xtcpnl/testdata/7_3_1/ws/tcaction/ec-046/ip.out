@@ -1,0 +1,22 @@
+total acts 3
+
+	action order 0: ctinfo zone 0 pipe
+	 index 1 ref 1 bind 0 dscp 0xfc000000 0x01000000 installed 0 sec used 0 sec DSCP set 0 error 0 CPMARK set 0
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+
+	action order 1: ctinfo zone 0 pipe
+	 index 2 ref 1 bind 0 dscp 0xfc000000 0000000000 installed 0 sec used 0 sec DSCP set 0 error 0 CPMARK set 0
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+
+	action order 2: ctinfo zone 3 pipe
+	 index 3 ref 1 bind 0 cpmark 0xffffffff installed 0 sec used 0 sec DSCP set 0 error 0 CPMARK set 0
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw

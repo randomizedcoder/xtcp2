@@ -312,10 +312,10 @@ func (a *AttrBuilder) EndNest(m NestMark) error {
 // to do that.
 //
 // Message types this package does not model — FamilyHdrLen returns -1, e.g.
-// RTM_GETACTION, whose tcamsg no request here builds yet — are not checked.
+// RTM_GETDCB, whose dcbmsg no request here builds yet — are not checked.
 // There is nothing to check against, and refusing them would block every
-// family added later. RTM_GETRULE, RTM_GETQDISC and then RTM_GETTFILTER used
-// to be the example in this sentence and are now modeled; when the next family lands,
+// family added later. RTM_GETRULE, RTM_GETQDISC, RTM_GETTFILTER and then
+// RTM_GETACTION used to be the example in this sentence and are now modeled; when the next family lands,
 // move the example rather than deleting it, because an unchecked type is the
 // interesting case, not a footnote.
 func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([]byte, error) {
@@ -460,9 +460,11 @@ func FamilyHdrLen(msgType uint16) int {
 		uint16(unix.RTM_GETTFILTER), uint16(unix.RTM_NEWTFILTER), uint16(unix.RTM_DELTFILTER),
 		uint16(unix.RTM_GETCHAIN), uint16(unix.RTM_NEWCHAIN), uint16(unix.RTM_DELCHAIN):
 		// struct tcmsg, 20: `tc qdisc show`, `tc class show`, and `tc
-		// filter` and `tc chain` show and get (gotc). The action messages
-		// carry struct tcamsg and stay unmodeled.
+		// filter` and `tc chain` show and get (gotc).
 		return TcMsgSizeCst
+	case uint16(unix.RTM_GETACTION), uint16(unix.RTM_NEWACTION), uint16(unix.RTM_DELACTION):
+		// struct tcamsg, 4: `tc actions list` and `get` (gotc).
+		return TcaMsgSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

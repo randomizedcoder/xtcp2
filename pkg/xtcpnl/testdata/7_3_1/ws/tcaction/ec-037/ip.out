@@ -1,0 +1,18 @@
+total acts 4
+
+	action order 0: skbmod pipe set dmac 02:00:00:00:00:01 set smac 02:00:00:00:00:02 
+	 index 1 ref 1 bind 0
+	not_in_hw
+
+	action order 1: skbmod pipe set etype 0xBEEF 
+	 
+	 index 2 ref 1 bind 0
+	not_in_hw
+
+	action order 2: skbmod pipe swap mac 
+	 index 3 ref 1 bind 0
+	not_in_hw
+
+	action order 3: skbmod pipe set dmac 02:00:00:00:00:01 
+	 index 4 ref 1 bind 0
+	not_in_hw

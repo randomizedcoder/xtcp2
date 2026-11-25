@@ -1,0 +1,32 @@
+total acts 6
+
+	action order 0:  police 0x1 rate 1Mbit burst 10Kb mtu 2Kb [00138800] action reclassify overhead 0b 
+	ref 2 bind 1 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1:  police 0x2 rate 1Mbit burst 10Kb mtu 2Kb [00138800] peakrate 2Mbit action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2:  police 0x3 rate 1Mbit burst 10Kb mtu 2Kb [00138800] action drop/pipe overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3:  police 0x4 rate 0bit burst 0b mtu 4Gb [00000000] pkts_rate 1000 pkts_burst 10 action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 4:  police 0x5 rate 40Gbit burst 1Mb mtu 2Kb [00000ccd] action reclassify overhead 0b 
+	ref 1 bind 0 
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 5:  police 0x6 rate 1Mbit burst 10Kb mtu 2Kb [00138800] action drop overhead 0b 
+	ref 1 bind 1 
+	not_in_hw
+	hw_stats disabled
+	used_hw_stats disabled

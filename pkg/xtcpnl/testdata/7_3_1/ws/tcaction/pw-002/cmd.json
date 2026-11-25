@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "1",
+  "words": "actions ls action gact"
+ },
+ "cmd": "tc -j actions ls action gact",
+ "desc": "boundary: opt=json cmd=bare:actions_ls_action_gact",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcaction/pw-002",
+ "modules": [
+  "sch_ingress",
+  "cls_u32",
+  "cls_matchall",
+  "act_gact",
+  "act_police",
+  "act_mirred",
+  "act_skbedit",
+  "act_vlan",
+  "act_csum",
+  "act_nat",
+  "act_simple",
+  "act_connmark",
+  "act_ctinfo",
+  "act_sample",
+  "act_skbmod",
+  "act_mpls"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 0,
+  "status": "OK"
+ }
+}

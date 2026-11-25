@@ -17,6 +17,7 @@ const (
 	wordNone    = "none"
 	wordQdisc   = "qdisc"
 	wordIngress = "ingress"
+	wordEgress  = "egress"
 	wordParent  = "parent"
 )
 
