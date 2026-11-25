@@ -172,6 +172,29 @@ n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-cc-b', 'go
 ok=0
 [ "$n" -eq 0 ] && ok=1
 row no_loss_idle negative "$ok" "$n idle rows with retransmits"
+if [ -n "${ERNIC_TX_EVERY:-}" ]; then
+  # The root namespace's bulk clients to golden-ernic-b, over ionic0.
+  E="netns = '' AND container_name = '' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1"
+  nbulk=$(wc -w <<<"$BULK_CC")
+  n=$(q "SELECT count(*) FROM $P WHERE $E AND tcp_info_total_retrans > 0")
+  per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans, ',' ORDER BY inet_diag_cong) FROM $P WHERE $E")
+  ok=0
+  [ "$n" -eq "$nbulk" ] && ok=1
+  row ernic_loss positive "$ok" "$n ionic bulk clients with retransmits, of $nbulk; retransmits per client: ${per_cc:-none}"
+  got=$(q "SELECT count(*) || ':' || coalesce(string_agg(DISTINCT enrich_socket_dest_egress_ifname, ','), '') FROM $P WHERE $E")
+  ok=0
+  [ "$got" = "$nbulk:ionic0" ] && ok=1
+  row ernic_egress positive "$ok" "ionic bulk clients and their egress: $got, want $nbulk:ionic0"
+  tx=$(cat /sys/class/net/ionic0/statistics/tx_packets)
+  dropped=$(cat /sys/class/net/ionic0/statistics/tx_dropped)
+  ok=0
+  [ "$dropped" -gt 0 ] && [ "$dropped" -eq $((tx / ERNIC_TX_EVERY)) ] && ok=1
+  row fault_count boundary "$ok" "ionic0 tx_packets $tx, tx_dropped $dropped, want tx_packets / $ERNIC_TX_EVERY = $((tx / ERNIC_TX_EVERY))"
+  before=$(cat /run/xtcp2-golden-ernic-before 2>/dev/null || echo missing)
+  ok=0
+  [ "$before" = "0 0" ] && ok=1
+  row no_noise corner "$ok" "ionic0 tx_packets, ionic1 rx_packets before the transfers: $before, want 0 0"
+fi
 got=$(q "SELECT concat_ws(',', count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 6), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 2), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 5), count(*) FILTER (netns = 'golden-states-b' AND inet_diag_msg_state = 8)) FROM $P")
 ok=0
 [ "$got" = "$K_TW,$K_SYN,1,1" ] && ok=1

@@ -2466,6 +2466,11 @@ let
   goldenUplink2Mac = "02:00:00:00:10:02";
   goldenErnic = lib.optionalAttrs (ernic != null) (import ./golden-ernic.nix { inherit ernic; });
   goldenErnicNics = goldenErnic.nics or [ ];
+  # ERNIC_* lines for the golden scripts; none without ernic, which skips
+  # the ernic workload and its ROWs.
+  shellVars =
+    vars: lib.concatStrings (lib.mapAttrsToList (k: v: "${k}=${lib.escapeShellArg v}\n") vars);
+  goldenErnicCaptureEnv = shellVars (goldenErnic.captureEnv or { });
   goldenNicArgs = lib.optionals (ernic != null) (ernic.nics.qemuArgs goldenErnicNics) ++ [
     "-global"
     "virtio-net-pci.speed=10000"
@@ -2529,6 +2534,7 @@ let
       TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
       BULK_CC="${goldenBulkCc}"
       ERR_TAG=GOLDEN_ERR
+      ${goldenErnicCaptureEnv}
     ''
     + builtins.readFile ./scripts/golden-common.sh
     + builtins.readFile ./scripts/golden-capture.sh;
