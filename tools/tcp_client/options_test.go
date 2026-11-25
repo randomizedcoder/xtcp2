@@ -192,7 +192,7 @@ func TestCloseModes(t *testing.T) {
 			}
 			var states []procnet.State
 			if tc.expected.state != 0 {
-				states = waitState(t, port, tc.expected.state)
+				states = waitState(t, port, conn.RemoteAddr().(*net.TCPAddr).AddrPort().Port(), tc.expected.state)
 			}
 			if !tc.expected.returned {
 				select {
@@ -239,14 +239,14 @@ func dialPeer(t *testing.T, serve func(net.Conn)) net.Conn {
 	return conn
 }
 
-// waitState polls the sockets on a local port until one is in want, or 5s
-// pass, and returns the last states seen.
-func waitState(t *testing.T, port uint16, want procnet.State) []procnet.State {
+// waitState polls the sockets from local port to peer until one is in
+// want, or 5s pass, and returns the last states seen.
+func waitState(t *testing.T, port, peer uint16, want procnet.State) []procnet.State {
 	t.Helper()
 	var states []procnet.State
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		var err error
-		states, err = procnet.Lookup(port)
+		states, err = procnet.Lookup(port, peer)
 		if err != nil {
 			t.Fatal(err)
 		}
