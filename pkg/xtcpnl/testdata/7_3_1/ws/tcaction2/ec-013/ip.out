@@ -1,0 +1,12 @@
+total acts 0
+
+	action order 1: tunnel_key  set
+	src_ip 10.0.0.1
+	dst_ip 10.0.0.2
+	key_id 7
+	dst_port 4789
+	nocsum	nofrag
+	tos 0x10
+	ttl 64 pipe
+	 index 2 ref 1 bind 0
+	not_in_hw

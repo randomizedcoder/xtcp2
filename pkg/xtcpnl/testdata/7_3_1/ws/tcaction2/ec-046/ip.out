@@ -1,0 +1,9 @@
+filter protocol ip pref 1 bpf chain 0 \filter protocol ip pref 1 bpf chain 0 handle 0x1 flowid 1:1 not_in_hw bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0'\filter protocol all pref 2 bpf chain 0 \filter protocol all pref 2 bpf chain 0 handle 0x2 direct-action skip_hw not_in_hw bytecode '1,6 0 0 0'\filter protocol all pref 3 bpf chain 0 \filter protocol all pref 3 bpf chain 0 handle 0x3 not_in_hw bytecode '1,6 0 0 4294967295'\	action order 1: gact action pass\	 random type none pass val 0\	 index 1 ref 1 bind 1\\filter protocol all pref 4 bpf chain 0 \filter protocol all pref 4 bpf chain 0 handle 0x4 not_in_hw bytecode '1,6 0 0 4294967295'\ police 0x1 rate 1Mbit burst 10Kb mtu 2Kb action drop overhead 0b \	ref 1 bind 1 \\filter protocol all pref 5 matchall chain 0 \filter protocol all pref 5 matchall chain 0 handle 0x5 
+  not_in_hw\	action order 1:  pedit action pass keys 1
+ 	 index 1 ref 1 bind 1
+	 key #0  at ipv4+8: add 01000000 mask 00ffffff\\	action order 2: ct commit zone 3 pipe\	 index 1 ref 1 bind 1\\	action order 3: 
+	priority wildcard	clockid TAI	flags 0
+	base-time 0ns	cycle-time 1ms	cycle-time-ext 0ns\	schedule:\	 number    0	gate-state open 	interval 1ms	 ipv wildcard	 max-octets wildcard\	pipe
+	 index 1 ref 1 bind 1
+\	action order 4: tunnel_key  unset pipe\	 index 1 ref 1 bind 1\\	action order 5: ife decode action pipe type 0 \	allow mark allow tcindex allow prio \	 index 1 ref 1 bind 1\\	action order 6: bpf bytecode '1,6 0 0 0' default-action pipe\	 index 3 ref 1 bind 1
+ \

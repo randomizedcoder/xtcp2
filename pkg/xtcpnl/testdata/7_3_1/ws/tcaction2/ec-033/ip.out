@@ -1,0 +1,23 @@
+total acts 2
+
+	action order 0: 
+	priority 2       	clockid TAI	flags 0
+	base-time 200s	cycle-time 300ms	cycle-time-ext 1us
+	schedule:
+	 number    0	gate-state open 	interval 100ms	 ipv 3         	 max-octets 8000b
+	 number    1	gate-state close 	interval 100ms	 ipv wildcard	 max-octets wildcard
+	 number    2	gate-state open 	interval 100ms	 ipv 1         	 max-octets wildcard
+	pipe
+	 index 1 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: 
+	priority wildcard	clockid TAI	flags 0
+	base-time 0ns	cycle-time 100ms	cycle-time-ext 0ns
+	schedule:
+	 number    0	gate-state close 	interval 100ms	 ipv wildcard	 max-octets wildcard
+	pipe
+	 index 2 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled

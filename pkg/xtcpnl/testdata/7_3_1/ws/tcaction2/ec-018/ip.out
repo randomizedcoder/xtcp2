@@ -1,0 +1,21 @@
+total acts 4
+
+	action order 0: ife encode action pipe type 0XED3E 
+	use mark 7 dst 02:00:00:00:00:01 src 02:00:00:00:00:02 
+	 index 1 ref 1 bind 0
+	not_in_hw
+
+	action order 1: ife encode action pipe type 0XED3E 
+	allow mark use tcindex 3 allow prio 
+	 index 2 ref 1 bind 0
+	not_in_hw
+
+	action order 2: ife decode action pipe type 0 
+	allow mark allow tcindex allow prio 
+	 index 3 ref 1 bind 0
+	not_in_hw
+
+	action order 3: ife encode action pipe type 0XED3E 
+	allow mark dst 02:00:00:00:00:01 
+	 index 4 ref 1 bind 0
+	not_in_hw

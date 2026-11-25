@@ -1,0 +1,98 @@
+{
+ "axes": {
+  "batch": "ls-then-filter",
+  "fix": "acbpf",
+  "json": "0",
+  "words": "-batch b.txt"
+ },
+ "cmd": "tc -batch b.txt",
+ "desc": "positive: opt=plain cmd=acbpf:batch:ls-then-filter",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcaction2/ec-048",
+ "modules": [
+  "sch_ingress",
+  "cls_matchall",
+  "cls_bpf",
+  "act_gact",
+  "act_police",
+  "act_pedit",
+  "act_tunnel_key",
+  "act_ife",
+  "act_ct",
+  "act_gate",
+  "act_bpf"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc actions add action bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' index 1",
+  "tc actions add action bpf bytecode '1,6 0 0 4294967295' drop index 2",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol ip handle 1 bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' classid 1:1",
+  "tc filter add dev d0 ingress pref 2 protocol all handle 2 bpf bytecode '1,6 0 0 0' da skip_hw",
+  "tc filter add dev d0 ingress pref 3 protocol all handle 3 bpf bytecode '1,6 0 0 4294967295' action gact pass",
+  "tc filter add dev d0 ingress pref 4 protocol all handle 4 bpf bytecode '1,6 0 0 4294967295' police rate 1mbit burst 10k drop",
+  "tc filter add dev d0 ingress pref 5 protocol all handle 5 matchall action pedit ex munge ip ttl add 1 action ct commit zone 3 action gate sched-entry open 1ms action tunnel_key unset action ife decode action bpf bytecode '1,6 0 0 0'",
+  "printf '%s\\n' 'actions ls action pedit' 'actions ls action gate' 'filter show dev d0 ingress' > b.txt"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action bpf bytecode '1,6 0 0 4294967295' drop index 2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol ip handle 1 bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' classid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 2 protocol all handle 2 bpf bytecode '1,6 0 0 0' da skip_hw",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 3 protocol all handle 3 bpf bytecode '1,6 0 0 4294967295' action gact pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 4 protocol all handle 4 bpf bytecode '1,6 0 0 4294967295' police rate 1mbit burst 10k drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 5 protocol all handle 5 matchall action pedit ex munge ip ttl add 1 action ct commit zone 3 action gate sched-entry open 1ms action tunnel_key unset action ife decode action bpf bytecode '1,6 0 0 0'",
+    "rc": 0
+   },
+   {
+    "cmd": "printf '%s\\n' 'actions ls action pedit' 'actions ls action gate' 'filter show dev d0 ingress' > b.txt",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
