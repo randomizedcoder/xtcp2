@@ -224,8 +224,8 @@ func TestParseTcFopt(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: bpf has no decoder",
-			kind:        "bpf",
+			description: "negative: tcindex (gone from the kernel) has no decoder",
+			kind:        "tcindex",
 			opt:         func(*testing.T) []byte { return nil },
 			expectedErr: ErrTcKindUnknown,
 		},
@@ -558,6 +558,7 @@ func TestBuildTcFilterRequest(t *testing.T) {
 // wsTcFilterSliceKinds are the filter kinds gotc prints; each must appear.
 var wsTcFilterSliceKinds = []string{
 	TcFKindU32, TcFKindFw, TcFKindRoute, TcFKindBasic, TcFKindCgroup, TcFKindFlow, TcFKindMatchall, TcFKindFlower,
+	TcFKindBpf,
 }
 
 // TestWsTcFilterKinds decodes every RTM_NEWTFILTER in any workbench
@@ -617,7 +618,7 @@ var (
 	tcFilterActTb = map[string]uint16{
 		TcFKindU32: TcaU32Act, TcFKindFw: TcaFwAct, TcFKindRoute: TcaRoute4Act, TcFKindBasic: TcaBasicAct,
 		TcFKindCgroup: TcaCgroupAct, TcFKindFlow: TcaFlowAct, TcFKindMatchall: TcaMatchallAct,
-		TcFKindFlower: TcaFlowerAct,
+		TcFKindFlower: TcaFlowerAct, TcFKindBpf: TcaBpfAct,
 	}
 	tcFilterEmTb = map[string]uint16{
 		TcFKindBasic: TcaBasicEmatches, TcFKindCgroup: TcaCgroupEmatches, TcFKindFlow: TcaFlowEmatches,
@@ -632,7 +633,8 @@ func wsTcFilterProblem(ti TcInfo) (gacts, ematches int, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	if f.U32SelShort || f.U32Sel.KeysShort || f.U32PcntShort || f.U32MarkShort || f.MaPcntShort {
+	if f.U32SelShort || f.U32Sel.KeysShort || f.U32PcntShort || f.U32MarkShort || f.MaPcntShort || f.Bpf.Ops.Short ||
+		f.Bpf.NameNoNUL {
 		return 0, 0, errors.New("a short structure")
 	}
 	if b := f.Tb.Bytes(tcFilterActTb[ti.Kind]); b != nil {

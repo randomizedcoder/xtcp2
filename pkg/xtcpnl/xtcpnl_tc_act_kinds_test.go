@@ -55,6 +55,15 @@ var actKindDecode = map[string]func([]byte) (TcGen, TcActCommon, error){
 		o, err := ParseTcMpls(b)
 		return o.P.TcGen, o.TcActCommon, err
 	},
+	TcActKindPedit: func(b []byte) (TcGen, TcActCommon, error) { o, err := ParseTcPedit(b); return o.P, o.TcActCommon, err },
+	TcActKindTunnelKey: func(b []byte) (TcGen, TcActCommon, error) {
+		o, err := ParseTcTunnelKey(b)
+		return o.P, o.TcActCommon, err
+	},
+	TcActKindIfe:  func(b []byte) (TcGen, TcActCommon, error) { o, err := ParseTcIfe(b); return o.P, o.TcActCommon, err },
+	TcActKindCt:   func(b []byte) (TcGen, TcActCommon, error) { o, err := ParseTcCt(b); return o.P, o.TcActCommon, err },
+	TcActKindGate: func(b []byte) (TcGen, TcActCommon, error) { o, err := ParseTcGate(b); return o.P, o.TcActCommon, err },
+	TcActKindBpf:  func(b []byte) (TcGen, TcActCommon, error) { o, err := ParseTcActBpf(b); return o.P, o.TcActCommon, err },
 }
 
 // wsTcActOpts is every action of kind in a 7_3_1 workbench row's
@@ -375,13 +384,14 @@ func reqDiff(t *testing.T, id string, build func(uint32) ([]byte, error)) (strin
 	return "same", nil
 }
 
-// TestWsTcAction decodes every action of the 12 kinds in the tcaction
-// captures and in the tdc corpus's action pcaps: each must decode, with a
-// full parms struct, and each kind must appear.
+// TestWsTcAction decodes every action of the 18 kinds in the tcaction and
+// tcaction2 captures and in the tdc corpus's action pcaps: each must
+// decode, with a full parms struct, and each kind must appear.
 func TestWsTcAction(t *testing.T) {
 	var pcaps []string
 	for _, g := range []string{
 		filepath.Join("testdata", "7_3_1", "ws", "tcaction", "*", "ip.pcap"),
+		filepath.Join("testdata", "7_3_1", "ws", "tcaction2", "*", "ip.pcap"),
 		filepath.Join("testdata", "7_3_0", "ws", "tdc", "actions", "*", "*", "*.pcap"),
 	} {
 		m, err := filepath.Glob(g)
@@ -398,6 +408,8 @@ func TestWsTcAction(t *testing.T) {
 		TcActKindVlan: TcVlanSizeCst, TcActKindCsum: TcCsumSizeCst, TcActKindNat: TcNatSizeCst,
 		TcActKindSimple: TcGactSizeCst, TcActKindConnmark: TcConnmarkSizeCst, TcActKindCtinfo: TcGactSizeCst,
 		TcActKindSample: TcGactSizeCst, TcActKindSkbmod: TcSkbmodSizeCst, TcActKindMpls: TcMplsSizeCst,
+		TcActKindPedit: TcPeditSelSizeCst, TcActKindTunnelKey: TcTunnelKeySizeCst, TcActKindIfe: TcIfeSizeCst,
+		TcActKindCt: TcCtSizeCst, TcActKindGate: TcGateSizeCst, TcActKindBpf: TcActBpfSizeCst,
 	}
 	seen := map[string]int{}
 	for _, p := range pcaps {
@@ -486,6 +498,13 @@ func BenchmarkParseTcActKinds(b *testing.B) {
 		{"sample", func() error { _, err := ParseTcSample(cat(parms(TcaSampleParms, TcGactSizeCst), tm)); return err }},
 		{"skbmod", func() error { _, err := ParseTcSkbmod(cat(parms(TcaSkbmodParms, TcSkbmodSizeCst), tm)); return err }},
 		{"mpls", func() error { _, err := ParseTcMpls(cat(parms(TcaMplsParms, TcMplsSizeCst), tm)); return err }},
+		{"pedit-8-keys-ex", func() error { _, err := ParseTcPedit(benchPedit); return err }},
+		{"tunnel_key-geneve-2", func() error { _, err := ParseTcTunnelKey(benchTunnelKey); return err }},
+		{"ife", func() error { _, err := ParseTcIfe(benchIfe); return err }},
+		{"ct-nat6-labels", func() error { _, err := ParseTcCt(benchCt); return err }},
+		{"gate-16-entries", func() error { _, err := ParseTcGate(benchGate); return err }},
+		{"bpf-64-ops", func() error { _, err := ParseTcActBpf(benchActBpf); return err }},
+		{"bpf-filter", func() error { _, err := ParseTcFopt(TcFKindBpf, benchBpfFilter); return err }},
 		{"get", func() error { _, err := BuildTcActionGet([]TcActRef{{TcActKindGact, 1}}, 1); return err }},
 		{"dump", func() error { _, err := BuildTcActionDump(TcActKindGact, true, 1, true, 1); return err }},
 	}

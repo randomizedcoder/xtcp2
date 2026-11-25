@@ -30,6 +30,7 @@ const (
 	TcFKindCgroup   = "cgroup"
 	TcFKindFlow     = "flow"
 	TcFKindMatchall = "matchall"
+	TcFKindBpf      = "bpf"
 )
 
 // TCA_U32_* from include/uapi/linux/pkt_cls.h.
@@ -139,6 +140,25 @@ const (
 	TcaMatchallPad     uint16 = 5 // TCA_MATCHALL_PAD
 	// TcaMatchallMaxKnown is TCA_MATCHALL_MAX.
 	TcaMatchallMaxKnown = TcaMatchallPad
+)
+
+// TCA_BPF_* (pkt_cls.h).
+const (
+	TcaBpfAct      uint16 = 1  // TCA_BPF_ACT: nest of actions
+	TcaBpfPolice   uint16 = 2  // TCA_BPF_POLICE: nest of TCA_POLICE_*
+	TcaBpfClassid  uint16 = 3  // TCA_BPF_CLASSID: u32
+	TcaBpfOpsLen   uint16 = 4  // TCA_BPF_OPS_LEN: u16 instructions
+	TcaBpfOps      uint16 = 5  // TCA_BPF_OPS: struct sock_filter[]
+	TcaBpfFd       uint16 = 6  // TCA_BPF_FD: u32 (requests only)
+	TcaBpfName     uint16 = 7  // TCA_BPF_NAME: string
+	TcaBpfFlags    uint16 = 8  // TCA_BPF_FLAGS: u32
+	TcaBpfFlagsGen uint16 = 9  // TCA_BPF_FLAGS_GEN: u32 TCA_CLS_FLAGS_*
+	TcaBpfTag      uint16 = 10 // TCA_BPF_TAG: eBPF program tag
+	TcaBpfID       uint16 = 11 // TCA_BPF_ID: u32 eBPF program id
+	// TcaBpfMaxKnown is TCA_BPF_MAX.
+	TcaBpfMaxKnown = TcaBpfID
+	// TcaBpfFlagActDirect is TCA_BPF_FLAG_ACT_DIRECT.
+	TcaBpfFlagActDirect = 1 << 0
 )
 
 // The fixed structures' sizes.
@@ -289,6 +309,7 @@ type TcFopt struct {
 	MatchallRhit uint64 // tc_matchall_pcnt.rhit
 	HasMaPcnt    bool
 	MaPcntShort  bool
+	Bpf          TcBpfProg // bpf: the ops and name f_bpf.c prints
 }
 
 // tcFoptMax is each slice kind's TCA_<KIND>_MAX.
@@ -301,6 +322,7 @@ var tcFoptMax = map[string]uint16{
 	TcFKindFlow:     TcaFlowMaxKnown,
 	TcFKindMatchall: TcaMatchallMaxKnown,
 	TcFKindFlower:   TcaFlowerMaxKnown,
+	TcFKindBpf:      TcaBpfMaxKnown,
 }
 
 // ParseTcFopt decodes opt, a TCA_OPTIONS payload, for kind. An unknown
@@ -320,6 +342,8 @@ func ParseTcFopt(kind string, opt []byte) (TcFopt, error) {
 	switch kind {
 	case TcFKindU32:
 		f.parseU32()
+	case TcFKindBpf:
+		f.Bpf = parseBpfProg(tb, TcaBpfOps, TcaBpfOpsLen, TcaBpfName)
 	case TcFKindMatchall:
 		if b := tb.Bytes(TcaMatchallPcnt); b != nil {
 			f.HasMaPcnt = true
