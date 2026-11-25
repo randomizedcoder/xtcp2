@@ -259,6 +259,15 @@ spawn loc-remote-server-6 golden-remote "$TCP_SERVER" -count 1 -bind 2001:db8:11
 wait_listen golden-loc-a 4000
 wait_listen golden-loc-b 4000
 wait_listen golden-remote 4000 2
+# Resolve every hop's neighbors first: a SYN that waits on neighbor
+# discovery at golden-loc-b is sometimes retransmitted, and its RTO shows in
+# one capture and not the next.
+for dst in 10.5.0.2 203.0.113.10; do
+  ip netns exec golden-loc-a ping -q -c 1 -W 5 "$dst" >/dev/null || fail "golden-loc-a: no reply from $dst"
+done
+for dst in fd00:5::2 2001:db8:113::10; do
+  ip netns exec golden-loc-a ping -6 -q -c 1 -W 5 "$dst" >/dev/null || fail "golden-loc-a: no reply from $dst"
+done
 spawn loc-self golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.1 -sleep 1h -pads 0
 spawn loc-subnet golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.2 -sleep 1h -pads 0
 spawn loc-remote-4 golden-loc-a "$TCP_CLIENT" -count 1 -connect 203.0.113.10 -sleep 1h -pads 0

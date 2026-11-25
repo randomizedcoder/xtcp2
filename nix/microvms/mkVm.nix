@@ -2492,6 +2492,7 @@ let
       gawk
       gnugrep
       iproute2
+      iputils
       kmod
       procps
       systemd
@@ -4629,8 +4630,6 @@ in
         # bond_enslave refuses a port that is up. Measured on the first
         # Tier 2 run: lb1 sent DHCP discovers from inside B's bond, and B's
         # bond sent one LACPDU and then none.
-        # The golden flavor's second uplink (goldenNicArgs): static, with a
-        # default route behind the DHCP one on the virtio NIC.
         # The golden flavor's virtio NIC keeps SLiRP DHCP, with its default
         # route behind the ionic (512) and e1000e (2048) uplinks, so
         # DefaultUplinks(2) leaves it out (docs/design-rocm-ernic-nics.md).
@@ -4640,6 +4639,13 @@ in
           dhcpV4Config.RouteMetric = 4096;
           ipv6AcceptRAConfig.RouteMetric = 4096;
         };
+        # The default route is ionic0's, where no NTP server answers, and
+        # timesyncd's polls (with the gateway ARP before them) would land on
+        # the emulator's fault counters at a time of their own. The guest
+        # clock is kvmclock's.
+        services.timesyncd.enable = lib.mkIf (isS3ParquetGolden && ernic != null) false;
+        # The golden flavor's second uplink (goldenNicArgs): static, with a
+        # default route behind the DHCP one on the virtio NIC.
         systemd.network.networks."05-golden-uplink2" = lib.mkIf isS3ParquetGolden {
           matchConfig.MACAddress = goldenUplink2Mac;
           address = [ "10.0.3.15/24" ];
