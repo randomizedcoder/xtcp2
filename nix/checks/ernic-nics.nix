@@ -162,19 +162,23 @@ let
       expr = problems [ (ionic0 // { bridge = "br-ernic"; }) ];
       expected = [ "ernic NIC ionic0 has a bridge but no tap" ];
     };
-    # unmanaged
-    "test corner: network = null names the NIC but leaves it unconfigured" = {
+    # unmanaged. Without its own .network, NixOS's 99-ethernet-default-dhcp
+    # would run DHCP on it.
+    "test corner: network = null names the NIC and marks it unmanaged" = {
       expr =
         let
           c = nics.guestConfig [ ionic1 ];
         in
         {
           link = c.systemd.network.links ? "10-ernic-ionic1";
-          network = c.systemd.network.networks ? "10-ernic-ionic1";
+          network = c.systemd.network.networks."10-ernic-ionic1";
         };
       expected = {
         link = true;
-        network = false;
+        network = {
+          matchConfig.Name = "ionic1";
+          linkConfig.Unmanaged = true;
+        };
       };
     };
     # bridges
