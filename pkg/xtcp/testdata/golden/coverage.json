@@ -8,6 +8,12 @@
     "container_name",
     "container_runtime",
     "dctcp_info_enabled",
+    "enrich_socket_dest_asn",
+    "enrich_socket_dest_egress_ifindex",
+    "enrich_socket_dest_egress_ifname",
+    "enrich_socket_dest_locality",
+    "enrich_socket_dest_network_owner",
+    "enrich_socket_interface_name",
     "hostname",
     "inet_diag_cgroup_id",
     "inet_diag_class_id",
@@ -79,6 +85,14 @@
     "uplink1_nic_driver",
     "uplink1_nic_pci_device",
     "uplink1_nic_pci_vendor",
+    "uplink1_nic_speed_mbps",
+    "uplink2_ifname",
+    "uplink2_nic_bus_info",
+    "uplink2_nic_driver",
+    "uplink2_nic_fw_version",
+    "uplink2_nic_pci_device",
+    "uplink2_nic_pci_vendor",
+    "uplink2_nic_speed_mbps",
     "vegas_info_enabled",
     "vegas_info_rtt"
   ],
@@ -162,6 +176,26 @@
     "inet_diag_shutdown": [
       "1",
       "2"
+    ],
+    "enrich_socket_dest_locality": [
+      "1",
+      "2",
+      "3"
+    ],
+    "uplink1_nic_speed_mbps": [
+      "10000"
+    ],
+    "uplink2_nic_driver": [
+      "e1000e"
+    ],
+    "uplink2_nic_pci_vendor": [
+      "32902"
+    ],
+    "uplink2_nic_pci_device": [
+      "4307"
+    ],
+    "uplink2_nic_speed_mbps": [
+      "1000"
     ]
   },
   "families": [
