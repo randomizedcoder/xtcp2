@@ -23,7 +23,8 @@ package main
 // control_actions (AC15), a pps-only policer (AC16), a mirred to a deleted
 // device (AC18), nat's "type" and double space (AC22, AC23), skbmod's
 // etype and line breaks (AC24-AC26), ctinfo's statemask (AC28), csum's
-// string (AC29) and mpls's protocol (AC30).
+// string (AC29) and mpls's protocol (AC30); and gets of 3, 32 and 33
+// actions, the last answered with 32 (K8).
 //
 // tc 7.2.0 can't add some forms the printers read, so those are unit-only:
 // police avrate (with rate the parser returns -1 with no message; alone
@@ -35,6 +36,11 @@ package main
 // install, and nothing sends a packet, so every -s counter is 0; the tcf_t
 // timers are the one allow-listed difference. Writes appear only as
 // negatives.
+
+import (
+	"strconv"
+	"strings"
+)
 
 // tcActionModules are the qdisc, classifier and action modules the
 // fixtures use; act_connmark and act_ctinfo pull in nf_conntrack.
@@ -213,6 +219,12 @@ func tcactionSpace() *space {
 		bb(brCorner, "acl3", "get-then-ls", "", false, batchFile(
 			"actions get action nat index 1",
 			"actions ls action csum"), acl3Fix),
+		// Gets of several actions, after the batches so the ids above
+		// stay: three kinds; 32 gacts (TCA_ACT_MAX_PRIO); 33, of which the
+		// kernel answers the first 32 (K8).
+		bc(brPos, "acmisc", "actions get action gact index 1 action simple index 1 action sample index 1", acmiscFix),
+		bc(brBoundary, "acmisc", "actions get"+actGetRange("gact", 2, 33), acmiscFix),
+		bc(brCorner, "acmisc", "actions get"+actGetRange("gact", 1, 33), acmiscFix),
 	}
 	noent := expect{RC: intp(255), Errno: "ENOENT", RefusedBy: refKernel}
 	inval := expect{RC: intp(255), Errno: "EINVAL", RefusedBy: refKernel}
@@ -232,4 +244,13 @@ func tcactionSpace() *space {
 	sp := tcSpace("tcaction", cmds, bad)
 	sp.Build = func(vals []value) row { return tcBuildMods(tcActionModules, vals) }
 	return sp
+}
+
+// actGetRange is " action kind index i" for i from lo to hi.
+func actGetRange(kind string, lo, hi int) string {
+	var b strings.Builder
+	for i := lo; i <= hi; i++ {
+		b.WriteString(" action " + kind + " index " + strconv.Itoa(i))
+	}
+	return b.String()
 }

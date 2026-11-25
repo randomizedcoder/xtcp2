@@ -460,10 +460,30 @@ func ParseTcSkbmod(opt []byte) (TcSkbmodOpt, error) {
 	return TcSkbmodOpt{TcActCommon: c, P: p}, nil
 }
 
-// tcActReqAttrsCst bounds a list or get request's attributes: TAB, its
-// order nest, KIND (IFNAMSIZ with its NUL), INDEX, ROOT_FLAGS and
-// TIME_DELTA.
+// tcActReqAttrsCst bounds a list request's attributes: TAB, its order
+// nest, KIND (IFNAMSIZ with its NUL), INDEX, ROOT_FLAGS and TIME_DELTA.
 const tcActReqAttrsCst = 3*RTAttrSizeCst + 16 + 8 + 12 + 8
+
+// TcActMaxMsgCst is tc's MAX_MSG (tc/tc_util.h): the bound addattr_l
+// holds a get's nlmsg_len to, header and tcamsg included.
+const TcActMaxMsgCst = 16384
+
+// TcActGetLen is the nlmsg_len of BuildTcActionGet's request for acts:
+// the header, the tcamsg and TCA_ACT_TAB holding, per action, its order
+// nest, KIND (cut to 15 bytes, with its NUL, aligned) and, unless its
+// index is 0, INDEX. tc_action_gd builds into MAX_MSG and ignores
+// addattr_l's failures, so past TcActMaxMsgCst tc sends what fit (AC38).
+func TcActGetLen(acts []TcActRef) int {
+	n := NlMsgHdrSizeCst + TcaMsgSizeCst + RTAttrSizeCst
+	for _, a := range acts {
+		k := min(len(a.Kind), TcActKindMaxCst)
+		n += RTAttrSizeCst + nlmsgAlign(RTAttrSizeCst+k+1)
+		if a.Index != 0 {
+			n += RTAttrSizeCst + 4
+		}
+	}
+	return n
+}
 
 // TcActKindMaxCst is the longest kind tc sends: char k[16] filled by
 // strncpy(k, *argv, sizeof(k) - 1), so 15 bytes (AC10).
@@ -513,8 +533,10 @@ type TcActRef struct {
 // 1, 2, ..., each action's TCA_ACT_KIND and, unless its index is 0,
 // TCA_ACT_INDEX. With none (`tc actions get` or `get help`) the tab is
 // empty (AC9).
+//
+// The attribute buffer is sized from acts, so any number of actions builds.
 func BuildTcActionGet(acts []TcActRef, seq uint32) ([]byte, error) {
-	ab := NewAttrBuilder(make([]byte, tcActReqAttrsCst))
+	ab := NewAttrBuilder(make([]byte, TcActGetLen(acts)-NlMsgHdrSizeCst-TcaMsgSizeCst))
 	tab, err := ab.BeginNest(TcaRootTab)
 	if err != nil {
 		return nil, err

@@ -82,9 +82,9 @@ func (r *runner) dumpAction(nest []byte, tot uint16, bind bool) error {
 type actPrinter func(r *runner, opt []byte, has bool) (int, error)
 
 // actionUtils is the action_util list tc 7.2.0 links, by id, for the kinds
-// gotc prints. The other linked kinds (bpf, ct, gate, ife, pedit and
-// tunnel_key) are refused by name; tc prints a kind it does not link as
-// gact (L22), which gotc refuses too.
+// gotc prints. The other linked kinds (deferredActKinds) are refused by
+// name; tc prints a kind it does not link as gact (L22), which gotc
+// refuses too.
 var actionUtils = map[string]actPrinter{
 	xtcpnl.TcActKindGact:     (*runner).printGact,
 	xtcpnl.TcActKindPolice:   (*runner).printPolice,
@@ -101,16 +101,27 @@ var actionUtils = map[string]actPrinter{
 	xtcpnl.TcActKindMpls:     (*runner).printMpls,
 }
 
-// linkedActKinds is every action_util id tc 7.2.0 links (TCMODULES), the
-// kinds get_action_kind finds by name: get and list refuse any other.
-var linkedActKinds = map[string]bool{
-	"bpf": true, "connmark": true, "csum": true, "ct": true, "ctinfo": true, "gact": true, "gate": true,
-	"ife": true, "mirred": true, "mpls": true, "nat": true, "pedit": true, "police": true, "sample": true,
-	"simple": true, "skbedit": true, "skbmod": true, "tunnel_key": true, "vlan": true,
-}
+// deferredActKinds are the action_util ids tc 7.2.0 links that gotc does
+// not print yet (increment 13): a kind moves from here to actionUtils.
+var deferredActKinds = []string{"bpf", "ct", "gate", "ife", "pedit", "tunnel_key"}
 
-// printOneAction is tc_print_one_action: bound (a filter's), no skip_hw,
-// skip_sw or in_hw prints.
+// linkedActKinds is every action_util id tc 7.2.0 links (TCMODULES), the
+// kinds get_action_kind finds by name: get and list refuse any other. It
+// is actionUtils' kinds plus deferredActKinds.
+var linkedActKinds = func() map[string]bool {
+	m := make(map[string]bool, len(actionUtils)+len(deferredActKinds))
+	for k := range actionUtils {
+		m[k] = true
+	}
+	for _, k := range deferredActKinds {
+		m[k] = true
+	}
+	return m
+}()
+
+// printOneAction is tc_print_one_action, for both callers: bind is a
+// filter's action (tc actions passes it unbound), and only unbound
+// actions print skip_hw, skip_sw and in_hw (printActFlags).
 func (r *runner) printOneAction(nest []byte, bind bool) (int, error) {
 	o := r.o
 	tb := r.nested(nest, xtcpnl.TcaActMaxKnown)

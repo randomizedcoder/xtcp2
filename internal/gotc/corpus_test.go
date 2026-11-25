@@ -13,7 +13,7 @@ import (
 )
 
 // corpusRows is how many rows each space holds (V002).
-var corpusRows = map[string]int{"tcqdisc": 142, "tcclass": 82, "tcfilter": 159, "tcflower": 97, "tcaction": 132}
+var corpusRows = map[string]int{"tcqdisc": 142, "tcclass": 82, "tcfilter": 159, "tcflower": 97, "tcaction": 138}
 
 // corpusKnown are the rows gotc cannot match byte for byte, each with the
 // reason, so the rest are held exactly.

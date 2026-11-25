@@ -19,11 +19,13 @@
   - The plan's bug-class sweep listed leads AC1–AC30.
   - The capture (12C, V014) confirmed many, corrected AC9, and added AC31–AC34.
   - The clone (12R, V016) and this write-up (12B) added AC35–AC37 from the corpus, plus K6 and K7.
+  - Review of PR 334 added AC38 and K8. That review also found gotc's own get buffer was sized for one action;
+    the fix added rows for gets of 3, 32 and 33 actions.
   - `gotc` replays all 132 capture rows byte for byte and renders all 398 tdc `tc actions` readbacks. So every
     captured finding below is reproduced by an independent implementation, not just read from the source.
 - **Kernel cross-check:** each struct and attribute the printers read was checked against `net/sched/act_*.c`'s
-  `tcf_<kind>_dump` and `act_api.c` at v7.4-rc4. See K1–K7.
-- **Corpus:** `pkg/xtcpnl/testdata/7_3_1/ws/tcaction/` (132 rows, six fixtures plus a bare netns), kernel 7.3.1,
+  `tcf_<kind>_dump` and `act_api.c` at v7.4-rc4. See K1–K8.
+- **Corpus:** `pkg/xtcpnl/testdata/7_3_1/ws/tcaction/` (138 rows, six fixtures plus a bare netns), kernel 7.3.1,
   tc 7.2.0. Row ids below are in that space: `ec-*` plain, `pw-*` their `-j` twins (the same number is the same
   command, except ec-002/pw-001, which swap `-j`), `ng-*` negatives.
 - **Reachability:**
@@ -32,13 +34,14 @@
     AC17, AC20, AC21, AC27. The kernel never sends what reaches them; a crafted or future message does.
   - **tc can't build it** (V014): AC19 (no `hash-type` in tc's parser), AC33 (police `rate` with `avrate`).
   - **Source only** (the writes, which gotc refuses): AC4, AC5, AC11.
+  - **Live, ad hoc** (too long for a row): AC38.
   - **Dropped:** AC13 (the same as F24 in [iproute2-tc-filter.md](iproute2-tc-filter.md)).
 
 ## Contents
 
 - [Summary](#summary)
 - [AC1–AC3, AC12, AC36. `total acts` and the action order](#ac1ac3-ac12-ac36-total-acts-and-the-action-order)
-- [AC6–AC10, AC34. Arguments](#ac6ac10-ac34-arguments)
+- [AC6–AC10, AC34, AC38. Arguments](#ac6ac10-ac34-ac38-arguments)
 - [AC4, AC5, AC11. The writes' messages](#ac4-ac5-ac11-the-writes-messages)
 - [AC14–AC16, AC33, AC37. police](#ac14ac16-ac33-ac37-police)
 - [AC22, AC29, AC31, AC32. JSON keys and types](#ac22-ac29-ac31-ac32-json-keys-and-types)
@@ -46,7 +49,7 @@
 - [AC18, AC19, AC30. What the printers leave out](#ac18-ac19-ac30-what-the-printers-leave-out)
 - [AC17, AC20, AC21, AC27. Reads tc never checked](#ac17-ac20-ac21-ac27-reads-tc-never-checked)
 - [AC13. Dropped](#ac13-dropped)
-- [K1–K7. Kernel notes](#k1k7-kernel-notes)
+- [K1–K8. Kernel notes](#k1k8-kernel-notes)
 - [A note on the capture tooling](#a-note-on-the-capture-tooling)
 
 ## Summary
@@ -88,6 +91,7 @@
 | AC35 | m_vlan.c:237, 249; m_mpls.c:221, 233; m_police.c:300; m_skbedit.c:189, 207 | C10 | double spaces by kind: `vlan  pop`, `mpls  pop`, `action order 0:  police`, `skbedit  priority 1:2` | tcaction/ec-030, ec-034, ec-005, ec-025 | present | reproduces |
 | AC36 | m_action.c:552-557; act_api.c:2359-2364 | C14 | `total acts` is per message: 34 actions in two messages print `total acts 22` and `total acts 12`, and the orders restart at 0 | tcaction/ec-050, pw-050 | present | reproduces |
 | AC37 | m_police.c:277 | C5/C14 | police prints its kind under JSON only, so `-br` text has no kind: `action order 0: \t index 1`, where mirred is `mirred \t index 1` | tcaction/ec-010, ec-021 | present | reproduces |
+| AC38 | m_action.c:627, 676-679; libnetlink.c:1380-1384 | C11/C8 | a get past `MAX_MSG` (16384) ignores `addattr_*`'s failures: tc prints `addattr_l ERROR: message exceeded bound of 16384` per dropped attribute, sends what fit (possibly an order nest with no KIND) and exits 0 | live (V018) | present | refuses |
 | AC13 | tc_util.c:664-682 | — | `print_tm` narrows `u64 / hz` through `print_uint`: already F24 | — | — | n/a (duplicate) |
 
 ## AC1–AC3, AC12, AC36. `total acts` and the action order
@@ -108,7 +112,7 @@
   `total acts 12` and 12 more numbered 0–11 (ec-050, pw-050). No line says 34, and each order from 0 to 11 appears
   twice. Under `-br` the same 34 fit one message, so `-br` prints `total acts 34` (ec-054).
 
-## AC6–AC10, AC34. Arguments
+## AC6–AC10, AC34, AC38. Arguments
 
 - **AC6:** `tc_act_list_or_flush` prints `bad action %s` for a kind it can't find and returns 0 (`goto bad_val` with
   `ret = 0`). `actions ls action nosuch` exits 0 (ec-004).
@@ -130,6 +134,16 @@
 - **AC34:** `tc_action_gd` requires `index` after each kind, though it puts `TCA_ACT_INDEX` only when the index is
   non-zero and the kernel accepts a get without it. `get action gact` is `Error: no index specified action: gact`,
   rc 255 (ng-002).
+- **AC38:** `tc_action_gd` builds into `MAX_MSG` (16384, tc_util.h:5) and never checks the return values of
+  `addattr_nest`, `addattr_l` or `addattr32` (m_action.c:627, 676-679). Past the bound, `addattr_l` prints
+  `addattr_l ERROR: message exceeded bound of 16384` and appends nothing (libnetlink.c:1380-1384). The loop goes
+  on, so an order nest can fit while its KIND does not. The nest is then sent with no KIND, or with only its INDEX.
+  Then `addattr_nest_end` closes it. tc sends the request and exits 0.
+  - **Live check** (V018): 681 indexed gacts and one unindexed fill `nlmsg_len` to exactly 16384. One more
+    unindexed gact drops its order nest and KIND, giving two `addattr_l ERROR` lines. The get still prints 32
+    actions (K8) and exits 0.
+  - **gotc:** it refuses a get whose request would pass `MAX_MSG`, naming its length, rather than send a truncated
+    request.
 
 ## AC4, AC5, AC11. The writes' messages
 
@@ -229,7 +243,7 @@ no NUL, a skbmod MAC of length 0 or over 21, and a tab of more than 1024 orders.
   This is F24 in [iproute2-tc-filter.md](iproute2-tc-filter.md), recorded in increment 10, and `printTm` already
   reproduces it.
 
-## K1–K7. Kernel notes
+## K1–K8. Kernel notes
 
 - **K1:** `tca_get_fill` (act_api.c) puts the tcamsg and `TCA_ACT_TAB` but no `TCA_ROOT_COUNT`. That is the cause
   of AC2.
@@ -246,6 +260,11 @@ no NUL, a skbmod MAC of length 0 or over 21, and a tab of more than 1024 orders.
 - **K7** (new): a dump with no actions trims its message (`nlmsg_trim`, act_api.c:2366), so the kernel sends only
   NLMSG_DONE. `actions ls` on no actions prints nothing (ec-001, and `[]` under `-j`, pw-002), while a get with an
   empty tab prints `total acts 0` (AC9).
+- **K8** (new): `tca_action_gd` parses the get's tab with `nla_parse_nested_deprecated(tb, TCA_ACT_MAX_PRIO, ...)`
+  (act_api.c:2081). That ignores orders above 32, and the loop stops at the first missing order (act_api.c:2094).
+  So a get of 33 actions is answered with the first 32, with no error or extack. tc prints them, `action order 1:`
+  to `32:`, and exits 0 (ec-066, pw-066). A gap stops the loop early too: orders 1, 2 and 4 are answered with 1
+  and 2. That is from the code: tc numbers its orders without gaps.
 
 ## A note on the capture tooling
 

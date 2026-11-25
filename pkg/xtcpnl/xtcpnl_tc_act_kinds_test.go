@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -290,6 +292,37 @@ func TestParseTcActKinds(t *testing.T) {
 			n2, _ := k2.Str(TcaActKind)
 			return fmt.Sprintf("%s %s %s %s %t", n1, hexOf(k1, TcaActIndex), n2, hexOf(k2, TcaActIndex), tab.Has(3)), nil
 		}, "gact 01000000 mirred 02000000 false"},
+		{"corner: a get of three actions builds, its tab holding orders 1 to 3", func() (string, error) {
+			return getShape(t, []TcActRef{{TcActKindGact, 1}, {TcActKindMirred, 1}, {TcActKindPolice, 1}})
+		}, "3 gact,mirred,police len ok"},
+		{"corner: a get of three kinds equals tc's", func() (string, error) {
+			return reqDiff(t, "tcaction/ec-064", func(seq uint32) ([]byte, error) {
+				return BuildTcActionGet([]TcActRef{{TcActKindGact, 1}, {TcActKindSimple, 1}, {TcActKindSample, 1}}, seq)
+			})
+		}, "same"},
+		{"corner: a get of 33 gacts equals tc's (the kernel answers 32, K8)", func() (string, error) {
+			acts := make([]TcActRef, 0, 33)
+			for i := range uint32(33) {
+				acts = append(acts, TcActRef{TcActKindGact, i + 1})
+			}
+			return reqDiff(t, "tcaction/ec-066", func(seq uint32) ([]byte, error) { return BuildTcActionGet(acts, seq) })
+		}, "same"},
+		{"corner: a get of two connmarks builds", func() (string, error) {
+			return getShape(t, []TcActRef{{TcActKindConnmark, 1}, {TcActKindConnmark, 2}})
+		}, "2 connmark,connmark len ok"},
+		{"corner: a get of 32 gacts builds", func() (string, error) {
+			return getShape(t, slices.Repeat([]TcActRef{{TcActKindGact, 1}}, 32))
+		}, "32 " + strings.TrimSuffix(strings.Repeat("gact,", 32), ",") + " len ok"},
+		{"corner: a get of 18-byte kinds is sized for the 15 bytes sent (AC10)", func() (string, error) {
+			return getShape(t, []TcActRef{{"aaaaaaaaaaaaaaaaaa", 1}, {"bbbbbbbbbbbbbbbbbb", 0}})
+		}, "2 aaaaaaaaaaaaaaa,bbbbbbbbbbbbbbb len ok"},
+		{"boundary: TcActGetLen of no actions is the header, tcamsg and an empty tab", func() (string, error) {
+			return strconv.Itoa(TcActGetLen(nil)), nil
+		}, "24"},
+		{"boundary: TcActGetLen of 681 indexed gacts and one without is MAX_MSG", func() (string, error) {
+			acts := append(slices.Repeat([]TcActRef{{TcActKindGact, 1}}, 681), TcActRef{TcActKindGact, 0})
+			return fmt.Sprintf("%t", TcActGetLen(acts) == TcActMaxMsgCst), nil
+		}, "true"},
 		{"corner: a kind past 15 bytes is cut (AC10)", func() (string, error) {
 			b, err := BuildTcActionGet([]TcActRef{{"aaaaaaaaaaaaaaaaaa", 1}}, 1)
 			return fmt.Sprintf("%t %t", bytes.Contains(b, []byte("aaaaaaaaaaaaaaa\x00")),
@@ -466,4 +499,39 @@ func BenchmarkParseTcActKinds(b *testing.B) {
 			}
 		})
 	}
+}
+
+// getShape builds a get of acts and reports how many orders its tab
+// holds, the kinds in order, and whether its length is TcActGetLen's
+// ("len ok").
+func getShape(t *testing.T, acts []TcActRef) (string, error) {
+	t.Helper()
+	b, err := BuildTcActionGet(acts, 1)
+	if err != nil {
+		return "", err
+	}
+	tab, err := ParseAttrTable(b[NlMsgHdrSizeCst+TcaMsgSizeCst+RTAttrSizeCst:], uint16(len(acts)+1))
+	if err != nil {
+		return "", err
+	}
+	orders := 0
+	for i := range len(acts) + 2 {
+		if tab.Has(uint16(i)) {
+			orders++
+		}
+	}
+	kinds := make([]string, 0, len(acts))
+	for i := range len(acts) {
+		k, err := ParseAttrTable(tab.Bytes(uint16(i+1)), TcaActMaxKnown)
+		if err != nil {
+			return "", err
+		}
+		n, _ := k.Str(TcaActKind)
+		kinds = append(kinds, n)
+	}
+	lenOK := "len bad"
+	if len(b) == TcActGetLen(acts) {
+		lenOK = "len ok"
+	}
+	return fmt.Sprintf("%d %s %s", orders, strings.Join(kinds, ","), lenOK), nil
 }

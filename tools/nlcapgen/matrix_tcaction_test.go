@@ -22,8 +22,8 @@ func TestTcActionSpace(t *testing.T) {
 	if err := checkRows(rows); err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 132 {
-		t.Errorf("%d rows, want 132 (63 commands plain and -j, 6 negatives)", len(rows))
+	if len(rows) != 138 {
+		t.Errorf("%d rows, want 138 (66 commands plain and -j, 6 negatives)", len(rows))
 	}
 	byKey := map[string]row{}
 	key := func(r row) string { return r.Cmd + "|" + r.Axes["fix"] + "|" + r.Axes["batch"] }
@@ -69,6 +69,8 @@ func TestTcActionSpace(t *testing.T) {
 		{"positive: simple and sample", "tc actions ls action sample|acmisc|", "positive 0 none  | 7"},
 		{"positive: three kinds in one filter", "tc -j filter show dev d0 ingress|acmisc|", "positive 0 none  | 7"},
 		{"positive: two gets in a batch", "tc -batch b.txt|acmisc|two-gets", "positive 0 none  | 8"},
+		{"positive: a get of three kinds",
+			"tc actions get action gact index 1 action simple index 1 action sample index 1|acmisc|", "positive 0 none  | 7"},
 		// Negative.
 		{"negative: list with no kind", "tc actions ls|bare|", "negative 255 iproute2  | 0"},
 		{"negative: get with no index", "tc actions get action gact|bare|", "negative 255 iproute2  | 0"},
@@ -84,6 +86,8 @@ func TestTcActionSpace(t *testing.T) {
 		{"boundary: a rate past 2^32 bit/s", "tc -j actions get action police index 5|acpol|", "boundary 0 none  | 9"},
 		{"boundary: 33 actions, past one dump message", "tc actions ls action gact|acmisc|", "boundary 0 none  | 7"},
 		{"boundary: the last of 33", "tc actions get action gact index 33|acmisc|", "boundary 0 none  | 7"},
+		{"boundary: a get of 32 actions, TCA_ACT_MAX_PRIO", "tc actions get" + actGetRange("gact", 2, 33) + "|acmisc|",
+			"boundary 0 none  | 7"},
 		// Corner.
 		{"corner: get with no kind (AC9)", "tc actions get|bare|", "corner 0 none  | 0"},
 		{"corner: get help sends a get (AC9)", "tc actions get help|bare|", "corner 0 none  | 0"},
@@ -97,6 +101,8 @@ func TestTcActionSpace(t *testing.T) {
 		{"corner: a terse dump", "tc -br actions ls action gact|acmisc|", "corner 0 none  | 7"},
 		{"corner: since", "tc actions ls action gact since 100000000|acmisc|", "corner 0 none  | 7"},
 		{"corner: get then list in a batch", "tc -batch b.txt|acl3|get-then-ls", "corner 0 none  | 12"},
+		{"corner: a get of 33 actions, answered with 32 (K8)", "tc -j actions get" + actGetRange("gact", 1, 33) + "|acmisc|",
+			"corner 0 none  | 7"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

@@ -119,6 +119,11 @@ func (r *runner) actionGet(args []string) (rest []string, ret int, err error) {
 		g = g[1:]
 		acts = append(acts, xtcpnl.TcActRef{Kind: k, Index: i})
 	}
+	if n := xtcpnl.TcActGetLen(acts); n > xtcpnl.TcActMaxMsgCst {
+		return nil, 0, fmt.Errorf("%w: tc actions get of %d actions is %d bytes, past tc's MAX_MSG of %d: "+
+			"tc ignores addattr_l's failures and sends what fit (AC38)",
+			errNotImplemented, len(acts), n, xtcpnl.TcActMaxMsgCst)
+	}
 	req, berr := xtcpnl.BuildTcActionGet(acts, r.nextSeq())
 	m, ok, err := r.talkAnswer(req, berr)
 	if err != nil {

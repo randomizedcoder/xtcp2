@@ -2,6 +2,7 @@ package gotc
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -411,6 +412,26 @@ func TestDoActionArgs(t *testing.T) {
 		}
 		return b
 	}
+	// getArgs is `get` naming n actions of kind at index idx, and refs
+	// their TcActRefs.
+	getArgs := func(n int, kind string, idx uint32) (args []string, refs []xtcpnl.TcActRef) {
+		args = make([]string, 0, 1+4*n)
+		args = append(args, "get")
+		refs = make([]xtcpnl.TcActRef, 0, n)
+		for range n {
+			args = append(args, "action", kind, "index", strconv.FormatUint(uint64(idx), 10))
+			refs = append(refs, xtcpnl.TcActRef{Kind: kind, Index: idx})
+		}
+		return args, refs
+	}
+	join := func(a, b []string) []string { return append(append([]string{}, a...), b[1:]...) }
+	args32, refs32 := getArgs(32, "gact", 1)
+	// 681 gacts with an index (24 bytes each) and one without (16) make
+	// nlmsg_len exactly MAX_MSG; one more without overflows it (AC38).
+	argsFull, refsFull := getArgs(681, "gact", 1)
+	argsZero, refsZero := getArgs(1, "gact", 0)
+	argsAtMax, refsAtMax := join(argsFull, argsZero), append(append([]xtcpnl.TcActRef{}, refsFull...), refsZero...)
+	argsPastMax := join(argsAtMax, argsZero)
 	dumpReply := []Reply{rep(done())}
 	getReply := []Reply{rep(actMsg(-1))}
 	type want struct {
@@ -436,6 +457,13 @@ func TestDoActionArgs(t *testing.T) {
 		{"positive: a get of two actions orders them 1 and 2",
 			[]string{"get", "action", "gact", "index", "1", "action", "mirred", "index", "2"}, getReply,
 			want{req: get(xtcpnl.TcActRef{Kind: "gact", Index: 1}, xtcpnl.TcActRef{Kind: "mirred", Index: 2})}},
+		{"positive: a get of three kinds, past one action's worth of buffer",
+			[]string{"get", "action", "gact", "index", "1", "action", "mirred", "index", "1", "action", "police", "index", "1"},
+			getReply, want{req: get(xtcpnl.TcActRef{Kind: "gact", Index: 1}, xtcpnl.TcActRef{Kind: "mirred", Index: 1},
+				xtcpnl.TcActRef{Kind: "police", Index: 1})}},
+		{"positive: a get of two long kinds", []string{"get", "action", "connmark", "index", "1", "action", "connmark", "index", "2"},
+			getReply, want{req: get(xtcpnl.TcActRef{Kind: "connmark", Index: 1}, xtcpnl.TcActRef{Kind: "connmark", Index: 2})}},
+		{"positive: a get of 32 actions", args32, getReply, want{req: get(refs32...)}},
 		{"positive: no sub-command does nothing", nil, nil, want{}},
 		// Negative.
 		{"negative: list with no kind is act_usage", []string{"list", "action"}, nil, want{stderr: "usage: tc actions", rc: 255}},
@@ -464,6 +492,9 @@ func TestDoActionArgs(t *testing.T) {
 			want{req: get(xtcpnl.TcActRef{Kind: "gact", Index: 0xffffffff})}},
 		{"boundary: index past 32 bits", []string{"get", "action", "gact", "index", "4294967296"}, nil,
 			want{stderr: "Illegal \"index\"\n", rc: 255}},
+		{"boundary: a get of exactly MAX_MSG bytes is sent", argsAtMax, getReply, want{req: get(refsAtMax...)}},
+		{"boundary: a get past MAX_MSG is refused, nothing sent (AC38)", argsPastMax, nil,
+			want{stderr: notImpl + "tc actions get of 683 actions is 16400 bytes, past tc's MAX_MSG of 16384", rc: 255}},
 		{"boundary: since 0 sends no TIME_DELTA", []string{"ls", "action", "gact", "since", "0"}, dumpReply,
 			want{req: dump("gact", false, 0)}},
 		// Corner.
