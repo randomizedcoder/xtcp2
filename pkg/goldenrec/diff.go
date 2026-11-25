@@ -39,7 +39,7 @@ type Options struct {
 var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
 
 // lossHistory are the Strict columns that follow a connection's losses.
-var lossHistory = map[string]bool{"tcp_info_reordering": true, "tcp_info_ca_state": true}
+var lossHistory = map[string]bool{reorderingColumn: true, caStateColumn: true}
 
 // Difference is one way a candidate differs from the golden capture: a
 // column (Golden and Candidate set), or a whole row only one side has
