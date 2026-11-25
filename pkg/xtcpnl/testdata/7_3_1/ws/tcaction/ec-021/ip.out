@@ -1,0 +1,11 @@
+total acts 5
+
+	action order 0: mirred 	 index 1
+
+	action order 1: mirred 	 index 2
+
+	action order 2: mirred 	 index 3
+
+	action order 3: mirred 	 index 4
+
+	action order 4: mirred 	 index 5

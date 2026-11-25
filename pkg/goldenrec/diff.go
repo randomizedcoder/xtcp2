@@ -25,6 +25,103 @@ type Options struct {
 	Columns string
 	// KeyColumns pair rows for reporting; DefaultKeyColumns when nil.
 	KeyColumns []string
+	// LossyNetns name the namespaces whose sockets carry deliberate random
+	// loss; in their rows the lossyColumns are not compared, the rest are.
+	// DefaultLossyNetns when nil; empty for none.
+	LossyNetns []string
+	// FaultNetns and FaultEgress pick the rows carrying an emulated NIC's
+	// injected drops: a row in one of FaultNetns, or whose destination
+	// leaves by one of FaultEgress. In them neither the lossyColumns nor the
+	// faultOnlyColumns are compared. DefaultFaultNetns and
+	// DefaultFaultEgress when nil; empty for none.
+	FaultNetns  []string
+	FaultEgress []string
+}
+
+// DefaultLossyNetns are the golden workload's netem pair
+// (nix/microvms/scripts/golden-workload.sh). netem drops and reorders at
+// random, so which of the lossyColumns a bulk transfer leaves nonzero, and
+// the reordering it settles on, differ from run to run. The profile still
+// requires them populated.
+var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
+
+// DefaultFaultNetns and DefaultFaultEgress are the golden workload's
+// rocm-ernic transfer (nix/microvms/golden-ernic.nix): the servers in
+// golden-ernic-b and the root namespace's clients out of ionic0. The
+// emulator drops every Nth frame, but which frames are Nth depends on how
+// data and ACKs interleave, so the counters vary as netem's do.
+var (
+	DefaultFaultNetns  = []string{"golden-ernic-b"}
+	DefaultFaultEgress = []string{"ionic0"}
+)
+
+// faultOnlyColumns are, beyond the lossyColumns, the columns five captures
+// showed differ on fault rows. Only ACKs are dropped on the servers' path,
+// so a server retransmits only after an RTO, in some runs and not others;
+// the clients' retransmits are checked in the VM (ernic_loss).
+var faultOnlyColumns = map[string]bool{
+	"tcp_info_total_retrans": true,
+	"tcp_info_bytes_retrans": true,
+}
+
+// faultColumn reports whether column c is left out of a fault row's
+// comparison.
+func faultColumn(c string) bool { return lossyColumns[c] || faultOnlyColumns[c] }
+
+// exemptions returns, for a row, which of its columns Diff leaves out: the
+// lossyColumns in a LossyNetns row, the faultColumns in a fault row.
+func exemptions(opts Options) func(Row) func(string) bool {
+	orDefault := func(v, d []string) []string {
+		if v == nil {
+			return d
+		}
+		return v
+	}
+	lossyNetns := orDefault(opts.LossyNetns, DefaultLossyNetns)
+	faultNetns := orDefault(opts.FaultNetns, DefaultFaultNetns)
+	faultEgress := orDefault(opts.FaultEgress, DefaultFaultEgress)
+	none := func(string) bool { return false }
+	lossy := func(c string) bool { return lossyColumns[c] }
+	return func(r Row) func(string) bool {
+		switch {
+		case slices.Contains(faultNetns, r[netnsColumn]) || slices.Contains(faultEgress, r[egressColumn]):
+			return faultColumn
+		case slices.Contains(lossyNetns, r[netnsColumn]):
+			return lossy
+		}
+		return none
+	}
+}
+
+// lossyColumns are the columns seen to differ between captures of the
+// netem rows, in strict diffs of five captures. The RTO group moves only
+// when a tail loss ends in a retransmission timeout (net/ipv4/tcp_timer.c:
+// tcp_write_timeout rehashes, tcp_retransmit_timer counts), which one
+// capture in five showed. sk_mem_info_drops moves on a listener when netem
+// drops a SYN-ACK: the retransmitted SYN reaches the request socket,
+// tcp_check_req resends the SYN-ACK, and tcp_v4_rcv counts the segment as
+// a drop on the listener (discard_and_relse). rqueue and the receive
+// memory move when a transfer's last echoed bytes, retransmitted late, are
+// still unread at the poll (one netem and one ionic row in six captures).
+// Every other column of those rows, such as total_retrans or
+// bytes_received, is compared.
+var lossyColumns = map[string]bool{
+	"tcp_info_total_rto":                 true,
+	"tcp_info_total_rto_recoveries":      true,
+	"tcp_info_total_rto_time":            true,
+	"tcp_info_rehash":                    true,
+	"tcp_info_dsack_dups":                true,
+	"tcp_info_reord_seen":                true,
+	"tcp_info_rwnd_limited":              true,
+	"tcp_info_probes":                    true,
+	"tcp_info_delivery_rate_app_limited": true,
+	"inet_diag_msg_retrans":              true,
+	"dctcp_info_alpha":                   true,
+	"sk_mem_info_drops":                  true,
+	"inet_diag_msg_rqueue":               true,
+	"sk_mem_info_rmem_alloc":             true,
+	"sk_mem_info_fwd_alloc":              true,
+	reorderingColumn:                     true,
 }
 
 // Difference is one way a candidate differs from the golden capture: a
@@ -65,10 +162,15 @@ func Diff(golden, candidate []Row, table Table, opts Options) ([]Difference, err
 	if keyCols == nil {
 		keyCols = DefaultKeyColumns
 	}
+	exempt := exemptions(opts)
 	cmp := func(r Row) (key string, cols []string, vals map[string]string) {
 		vals = make(map[string]string, len(r))
+		skip := exempt(r)
 		for c, v := range r {
 			if filter != nil && !filter.MatchString(c) {
+				continue
+			}
+			if skip(c) {
 				continue
 			}
 			vals[c] = compareForm(idx[c], v)

@@ -118,8 +118,15 @@ func isRequest(full []byte) bool {
 // NLM_F_ECHO and full has its sequence number. The kernel copies a get's
 // flags into its reply (tc_get_tfilter, and tc_ctl_chain, which also keeps
 // RTM_GETCHAIN as the reply's type), so the flag alone cannot tell them
-// apart; nlmon records no direction.
-func echoReply(full, req []byte) bool {
+// apart; nlmon records no direction. Only the first answer counts: a
+// get's echo is one message, and a request after it with the same sequence
+// number is a new one (tc's ll_link_get opens its own socket, whose
+// time-based seq can equal the main socket's).
+func echoReply(full []byte, last tx) bool {
+	if len(last.replies) > 0 {
+		return false
+	}
+	req := last.req
 	if len(full) < HeaderLen || len(req) < HeaderLen {
 		return false
 	}
@@ -147,7 +154,7 @@ func New(datagrams [][]byte, opts Options) *Replay {
 	s := &Replay{opts: opts}
 	for _, dg := range datagrams {
 		for _, full := range splitFull(dg) {
-			if isRequest(full) && (len(s.txs) == 0 || !echoReply(full, s.txs[len(s.txs)-1].req)) {
+			if isRequest(full) && (len(s.txs) == 0 || !echoReply(full, s.txs[len(s.txs)-1])) {
 				s.txs = append(s.txs, tx{req: full})
 				continue
 			}

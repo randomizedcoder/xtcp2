@@ -17,6 +17,8 @@ type rec struct {
 	Rtt       uint32 `parquet:"tcp_info_rtt"`
 	Retrans   uint32 `parquet:"tcp_info_total_retrans"`
 	Bbr       uint32 `parquet:"bbr_info_bw_lo"`
+	Dsack     uint32 `parquet:"tcp_info_dsack_dups"`
+	RcvBytes  uint64 `parquet:"tcp_info_bytes_received"`
 	Cookie    uint64 `parquet:"inet_diag_msg_socket_cookie"`
 	SPort     uint32 `parquet:"inet_diag_msg_socket_source_port"`
 	DPort     uint32 `parquet:"inet_diag_msg_socket_destination_port"`
@@ -26,6 +28,7 @@ type rec struct {
 	Date      string `parquet:"event_date"`
 	Counter   uint64 `parquet:"record_counter"`
 	Netns     string `parquet:"netns"`
+	Egress    string `parquet:"enrich_socket_dest_egress_ifname"`
 	Host      string `parquet:"hostname"`
 	Container string `parquet:"container_name"`
 	ID        string `parquet:"container_id"`

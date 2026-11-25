@@ -1,0 +1,2 @@
+actions get action gact index 1
+actions get action simple index 1

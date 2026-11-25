@@ -376,3 +376,38 @@ continues at **V006**, and findings go in `upstream/iproute2-tc-filter.md` (F1+,
 
 The plan, with its lead table and test tables, is in the session plan for increment 10. The ledger is in
 [gotc-status.md](gotc-status.md) (V006–V009, DOC002).
+
+## Increment 11: flower filters
+
+Increment 11 adds flower to gotc's filter kinds: everything tc 7.2.0's `flower_print_opt` prints. The ledger
+continues at **V010**, and findings go in `upstream/iproute2-tc-flower.md` (FL1+, not submitted to netdev).
+
+- **Printer** (`internal/gotc/f_flower.go`): `flower_print_opt` in C's order, with tc's quirks kept (FL1–FL19).
+  Where C reads an attribute it never tested, or memory it never wrote, gotc refuses and names it. A kernel never
+  sends these.
+- **Address helpers** (`addr.go`): MACs, glibc's `inet_ntop` forms, `__mask_bits`, tc_util's `print_masked_*`,
+  and the PPP protocol names. They are stdlib only, since the imports test keeps goip's helpers out.
+- **Get:** `filter get ... flower` has get_u32's strict handle and sends FLAGS 0 plus ETH_TYPE, as tc does. A
+  match key after the kind is refused by name.
+- **Corpus:** the `tcflower` space (97 rows over five fixtures) replays byte for byte, except a get with keys
+  (refused) and the write row.
+
+The ledger is in [gotc-status.md](gotc-status.md) (V010–V013, DOC003).
+
+## Increment 12: `tc actions` and 12 action kinds
+
+Increment 12 adds the read side of `tc actions` (`list`/`show`/`ls` and `get`) and 12 action kinds, printed both
+there (bind 0) and in filters (bind 1): police, mirred, skbedit, vlan, csum, nat, simple, connmark, ctinfo, sample,
+skbmod and mpls. The ledger continues at **V014**, and findings go in `upstream/iproute2-tc-action.md` (AC1+, not
+submitted to netdev).
+
+- **Command** (`internal/gotc/action_cmd.go`): `do_action`, `tc_action_gd` (get) and `tc_act_list_or_flush`
+  (list), with tc's argument quirks kept (AC6–AC10, AC34). add, change, replace, delete and flush are refused.
+- **Printers** (`action.go`, `m_<kind>.go`): one kind table for both callers; `tc_print_one_action`'s flags differ
+  by bind. Each kind follows its C printer line by line. Where C reads past a short struct or out of a table, gotc
+  refuses with "tc reads it unchecked". Police in filters prints through the same printer.
+- **Deferred to increment 13:** pedit, tunnel_key, ife, ct, gate, bpf and `tc monitor`, refused by name.
+- **Corpus:** the `tcaction` space (132 rows over six fixtures and a bare netns) replays byte for byte, and all 398
+  tdc `tc actions` readbacks render.
+
+The ledger is in [gotc-status.md](gotc-status.md) (V014–V017, DOC004).

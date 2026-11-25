@@ -26,27 +26,24 @@ var readbackSkips = map[string]int{
 	"cake": 19, "cake_mq": 22, "cbs": 10, "choke": 7, "codel": 13, "drr": 13, "dualpi2": 14, "etf": 4,
 	"ets": 33, "fq_pie": 2, "gred": 6, "hfsc": 10, "hhf": 14, "mqprio": 2, "multiq": 3, "pie": 1,
 	"plug": 7, "qfq": 10, "red": 10, "sfb": 13, "skbprio": 4, "taprio": 8,
-	// The filter readbacks (increment 10): bpf's filters, and every action
-	// kind but gact.
-	"filter:bpf": 5, "action:bpf": 1, "action:connmark": 1, "action:csum": 1, "action:ct": 4,
-	"action:ctinfo": 1, "action:gate": 1, "action:ife": 1, "action:mirred": 1, "action:mpls": 1,
-	"action:nat": 1, "action:pedit": 1, "action:police": 3, "action:sample": 1, "action:skbedit": 7,
-	"action:skbmod": 1, "action:tunnel_key": 1, "action:vlan": 1,
+	// bpf's filters, and the action kinds increment 13 adds, in filter
+	// readbacks and in `tc actions` ones.
+	"filter:bpf": 5, "action:bpf": 7, "action:ct": 21, "action:gate": 10, "action:ife": 42,
+	"action:pedit": 32, "action:tunnel_key": 21,
 }
 
 // readbackRendered pins how many readbacks render exactly: 216 qdisc and
-// class shows, and 254 filter and chain shows and gets.
-const readbackRendered = 470
+// class shows, 273 filter and chain shows and gets, and 398 `tc actions`
+// lists and gets.
+const readbackRendered = 887
 
 // kindRefused is a refusal by name: a qdisc kind is its bare name, the
-// filter path's are prefixed (filter:, action:, ematch:), police is police.
-var kindRefused = regexp.MustCompile(`not implemented: (?:(qdisc|filter|action) kind|(ematch)) "([^"]+)"|not implemented: (police)`)
+// filter path's are prefixed (filter:, action:, ematch:).
+var kindRefused = regexp.MustCompile(`not implemented: (?:(qdisc|filter|action) kind|(ematch)) "([^"]+)"`)
 
 // refusedKey is a kindRefused match's readbackSkips key.
 func refusedKey(m []string) string {
 	switch {
-	case m[4] != "":
-		return m[4]
 	case m[1] == "qdisc":
 		return m[3]
 	case m[2] != "":
@@ -64,7 +61,8 @@ type tdcRow struct {
 }
 
 // tcShowObject is the object word of a tc command line, after its
-// options: "qdisc" or "class" for the readbacks gotc renders.
+// options: qdisc, class, filter, chain or actions (by prefix, as tc
+// matches it) for the readbacks gotc renders.
 func tcShowObject(args []string) string {
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") {
@@ -116,7 +114,8 @@ func TestGotcReadbacks(t *testing.T) {
 		if len(args) < 2 || args[0] != "tc" || strings.ContainsAny(cmd, "|;&<>") {
 			continue
 		}
-		if obj := tcShowObject(args[1:]); obj != "qdisc" && obj != "class" && obj != "filter" && obj != "chain" {
+		if obj := tcShowObject(args[1:]); obj != "qdisc" && obj != "class" && obj != "filter" && obj != "chain" &&
+			!matches(obj, "actions") {
 			continue
 		}
 		src, err := NewReplaySource(filepath.Join(dir, "netlink_route_verify.pcap"))

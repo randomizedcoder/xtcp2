@@ -49,6 +49,9 @@
   # `stress-ng --cpu <workers> --cpu-load <loadPct>` for the life of the VM.
   # null (the default) adds nothing.
   cpuStress ? null,
+  # nix/ernic. When set, the golden flavor also carries the rocm-ernic ionic
+  # NICs of golden-ernic.nix (docs/design-rocm-ernic-nics.md).
+  ernic ? null,
 }:
 
 let
@@ -2389,6 +2392,9 @@ let
   # xtcp2 to record.
   goldenPromSocket = "/run/xtcp2/golden-metrics.sock";
   goldenSockets = 4;
+  # The algorithms the golden workload also runs a 4 MiB echo with, over
+  # netem loss, one per info struct (cubic has none).
+  goldenBulkCc = "cubic bbr dctcp vegas";
   xtcp2S3ParquetGoldenArgs = [
     "-dest"
     "s3parquet:http://127.0.0.1:9000"
@@ -2413,6 +2419,68 @@ let
     "-enrichContainer"
     "-enrichNic"
     "-populateNsid"
+  ]
+  # The golden flavor adds locality and ASN over goldenAsnDb; the families
+  # check keeps the base args.
+  ++ lib.optionals isS3ParquetGolden [
+    "-enrichLocality"
+    "-enrichAsn"
+    "-asnDbPath"
+    "${goldenAsnDb}"
+    "-ipmetaBootstrapPath"
+    ""
+    "-ipmetaCachePath"
+    "/run/xtcp2/golden-asn.lookup.parquet.zst"
+  ];
+
+  # The golden capture's ASN artifact, built here from documentation
+  # prefixes only (the golden-remote netns in golden-workload.sh), so
+  # -enrichAsn resolves without a feed or the internet. The columns are the
+  # ones pkg/ipasn reads.
+  goldenAsnPrefixes = [
+    {
+      prefix = "203.0.113.0/24";
+      asn = 64500;
+      owner = "fixture-net";
+    }
+    {
+      prefix = "2001:db8:113::/48";
+      asn = 64501;
+      owner = "fixture-net6";
+    }
+  ];
+  goldenAsnDb = pkgs.runCommand "xtcp2-golden-asn.parquet" { nativeBuildInputs = [ pkgs.duckdb ]; } ''
+    export HOME=$TMPDIR
+    duckdb -c "COPY (SELECT prefix, asn::UINTEGER AS asn, network_owner FROM (VALUES ${
+      lib.concatMapStringsSep ", " (
+        p: "('${p.prefix}', ${toString p.asn}, '${p.owner}')"
+      ) goldenAsnPrefixes
+    }) t(prefix, asn, network_owner)) TO '$out' (FORMAT parquet)"
+  '';
+
+  # The golden flavor's NICs. virtio-net reports no speed unless told
+  # (drivers/net/virtio_net.c), so eth0 gets 10000. A second uplink, an
+  # emulated e1000e on its own restricted SLiRP net, gives a PCI vendor and
+  # device, a firmware version and a bus address; its default route (below)
+  # has the higher metric, so DefaultUplinks lists it second.
+  goldenUplink2Mac = "02:00:00:00:10:02";
+  goldenErnic = lib.optionalAttrs (ernic != null) (import ./golden-ernic.nix { inherit ernic; });
+  goldenErnicNics = goldenErnic.nics or [ ];
+  # ERNIC_* lines for the golden scripts; none without ernic, which skips
+  # the ernic workload and its ROWs.
+  shellVars =
+    vars: lib.concatStrings (lib.mapAttrsToList (k: v: "${k}=${lib.escapeShellArg v}\n") vars);
+  goldenErnicWorkloadEnv = shellVars (goldenErnic.workloadEnv or { });
+  goldenErnicCaptureEnv = shellVars (goldenErnic.captureEnv or { });
+  goldenNicArgs = lib.optionals (ernic != null) (ernic.nics.qemuArgs goldenErnicNics) ++ [
+    "-global"
+    "virtio-net-pci.speed=10000"
+    "-global"
+    "virtio-net-pci.duplex=full"
+    "-netdev"
+    "user,id=up2,restrict=on,net=10.0.3.0/24"
+    "-device"
+    "e1000e,netdev=up2,mac=${goldenUplink2Mac},romfile="
   ];
 
   goldenWorkloadScript = pkgs.writeShellApplication {
@@ -2420,7 +2488,13 @@ let
     runtimeInputs = with pkgs; [
       coreutils
       docker
+      ethtool
+      gawk
+      gnugrep
       iproute2
+      iputils
+      kmod
+      procps
       systemd
       util-linux
     ];
@@ -2430,6 +2504,8 @@ let
       SOCKETS=${toString goldenSockets}
       TCP_SERVER=${xtcp2AllPackage}/bin/tcp_server
       TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
+      BULK_CC="${goldenBulkCc}"
+      ${goldenErnicWorkloadEnv}
     ''
     + builtins.readFile ./scripts/golden-workload.sh;
   };
@@ -2458,7 +2534,10 @@ let
       CONTAINERS=${toString goldenContainers}
       SOCKETS=${toString goldenSockets}
       FLAVOR=${xtcp2Package.pname or xtcp2Package.name}
+      TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
+      BULK_CC="${goldenBulkCc}"
       ERR_TAG=GOLDEN_ERR
+      ${goldenErnicCaptureEnv}
     ''
     + builtins.readFile ./scripts/golden-common.sh
     + builtins.readFile ./scripts/golden-capture.sh;
@@ -2801,6 +2880,7 @@ in
     ../modules/xtcp2-service.nix
   ]
   ++ extraModules
+  ++ lib.optional (isS3ParquetGolden && ernic != null) (ernic.nics.guestConfig goldenErnicNics)
   ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ lib.optionals isValkey valkeyModules
   ++ lib.optionals isNats natsModules
@@ -3129,6 +3209,7 @@ in
             ]
             # The lacp pair's two dgram links; empty for every other flavor.
             ++ lacpNicArgs
+            ++ lib.optionals isS3ParquetGolden goldenNicArgs
             # The workbench's ephemeral ssh key. A relative path, resolved in
             # the directory the host CLI starts qemu from (its state dir), so
             # the key is chosen at `up` time and never baked into the runner.
@@ -4549,6 +4630,38 @@ in
         # bond_enslave refuses a port that is up. Measured on the first
         # Tier 2 run: lb1 sent DHCP discovers from inside B's bond, and B's
         # bond sent one LACPDU and then none.
+        # The golden flavor's virtio NIC keeps SLiRP DHCP, with its default
+        # route behind the ionic (512) and e1000e (2048) uplinks, so
+        # DefaultUplinks(2) leaves it out (docs/design-rocm-ernic-nics.md).
+        systemd.network.networks."05-golden-eth0" = lib.mkIf (isS3ParquetGolden && ernic != null) {
+          matchConfig.MACAddress = "02:00:00:00:10:01";
+          networkConfig.DHCP = "yes";
+          dhcpV4Config.RouteMetric = 4096;
+          ipv6AcceptRAConfig.RouteMetric = 4096;
+        };
+        # The default route is ionic0's, where no NTP server answers, and
+        # timesyncd's polls (with the gateway ARP before them) would land on
+        # the emulator's fault counters at a time of their own. The guest
+        # clock is kvmclock's.
+        services.timesyncd.enable = lib.mkIf (isS3ParquetGolden && ernic != null) false;
+        # The golden flavor's second uplink (goldenNicArgs): static, with a
+        # default route behind the DHCP one on the virtio NIC.
+        systemd.network.networks."05-golden-uplink2" = lib.mkIf isS3ParquetGolden {
+          matchConfig.MACAddress = goldenUplink2Mac;
+          address = [ "10.0.3.15/24" ];
+          routes = [
+            {
+              Gateway = "10.0.3.2";
+              Metric = 2048;
+            }
+          ];
+          networkConfig = {
+            DHCP = "no";
+            IPv6AcceptRA = false;
+            LinkLocalAddressing = "no";
+          };
+        };
+
         systemd.network.networks."05-lacp-unmanaged" = lib.mkIf isLacpPair {
           matchConfig.Name = "la* lb* bond*";
           linkConfig.Unmanaged = true;

@@ -39,11 +39,11 @@
     "libvfio-user": {
       "flake": false,
       "locked": {
-        "lastModified": 1787057784,
-        "narHash": "sha256-VRwnY/JX3NAhXypM5tTZSpEQvWsAWgdrsii5kNkpEYg=",
+        "lastModified": 1792778315,
+        "narHash": "sha256-8YY8giJBH4HwnPtKJDy9leoOJWCkjQ3x+WaCartFclY=",
         "owner": "nutanix",
         "repo": "libvfio-user",
-        "rev": "323f4cb6cddc3713fb7aebe44436f28b28b5413a",
+        "rev": "5b9c7220647e45a0bbfc2a22bef05bbfd56e5742",
         "type": "github"
       },
       "original": {
@@ -141,17 +141,18 @@
         ]
       },
       "locked": {
-        "lastModified": 1791925215,
-        "narHash": "sha256-2jVx7zJF9I22bcgOjF8EnZg1y/Da+HTPCJMpmve+Q44=",
-        "owner": "randomizedcoder",
+        "lastModified": 1794963430,
+        "narHash": "sha256-vwIFQjGK7rorBfCNwyq4kepVz68A4BJHag2X3y/T+xU=",
+        "owner": "ROCm",
         "repo": "rocm-ernic",
-        "rev": "fe6cf85300c249d9ad9ba2240b0d34406ee29b65",
+        "rev": "bd902345b0f8f3863f535a0a09da9f21ce744737",
         "type": "github"
       },
       "original": {
-        "owner": "randomizedcoder",
+        "narHash": "sha256-vwIFQjGK7rorBfCNwyq4kepVz68A4BJHag2X3y/T+xU=",
+        "owner": "ROCm",
         "repo": "rocm-ernic",
-        "rev": "fe6cf85300c249d9ad9ba2240b0d34406ee29b65",
+        "rev": "bd902345b0f8f3863f535a0a09da9f21ce744737",
         "type": "github"
       }
     },

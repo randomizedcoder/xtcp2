@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"gact","control_action":{"type":"pass"},"prob":{"random_type":"none","control_action":{"type":"pass"},"val":0},"index":1,"ref":1,"bind":0,"installed":0,"last_used":0,"stats":{"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0},"cookie":"0102","not_in_hw":true}]}]

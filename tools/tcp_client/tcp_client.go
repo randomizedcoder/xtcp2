@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/randomizedcoder/xtcp2/tools/internal/sockopt"
 )
 
 const (
@@ -59,63 +61,132 @@ func main() {
 	os.Exit(runMain(os.Args[1:], os.Stderr))
 }
 
+// closeMode is how a client ends its connection after the exchange.
+type closeMode int
+
+const (
+	// keepOpen exchanges a message every -sleep until an error (today's
+	// behavior).
+	keepOpen closeMode = iota
+	// closeAfter closes after one exchange, leaving the socket in TIME_WAIT.
+	closeAfter
+	// halfClose shuts down writing after one exchange and holds the socket
+	// until the peer closes: FIN_WAIT2 here, CLOSE_WAIT at a -holdEOF
+	// server.
+	halfClose
+)
+
+// clientConfig is the parsed command line.
+type clientConfig struct {
+	count      int
+	connect    string
+	sleep      time.Duration
+	startsleep time.Duration
+	wto        time.Duration
+	rto        time.Duration
+	dialr      int
+	pads       int
+	srcaddr    string
+	iface      string
+	network    string
+	// dialTimeout is the first dial attempt's timeout; each retry after a
+	// timeout waits one more of it.
+	dialTimeout time.Duration
+	bulk        sockopt.Size
+	mode        closeMode
+	opts        sockopt.Options
+}
+
+// parseFlags reads the command line into a clientConfig. Every error is
+// also printed to stderr (flag errors with usage).
+func parseFlags(args []string, stderr io.Writer) (clientConfig, error) {
+	var c clientConfig
+	fs := flag.NewFlagSet("tcp_client", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.IntVar(&c.count, "count", countCst, "count")
+	fs.StringVar(&c.connect, "connect", connectCst, "connect")
+	fs.DurationVar(&c.sleep, "sleep", sleepCst, "sleep between writes")
+	fs.DurationVar(&c.startsleep, "startsleep", startsleepCst, "sleep between client starts")
+	fs.DurationVar(&c.wto, "wto", writeTimeoutCst, "write time out")
+	fs.DurationVar(&c.rto, "rto", readTimeoutCst, "read time out")
+	fs.IntVar(&c.dialr, "dialr", dialRetryCst, "dial retries")
+	fs.IntVar(&c.pads, "pads", padSizeCst, "pad size")
+	fs.StringVar(&c.srcaddr, "srcaddr", srcaddrCst, "bind each connection's source IP (net.Dialer.LocalAddr); empty = kernel default")
+	fs.StringVar(&c.iface, "iface", ifaceCst, "bind each connection to this interface via SO_BINDTODEVICE; empty = kernel default")
+	fs.StringVar(&c.network, "network", networkCst, "tcp (family from -connect), tcp4 or tcp6")
+	fs.DurationVar(&c.dialTimeout, "dialTimeout", dialTimeoutCst, "first dial attempt's timeout; longer than the kernel's SYN retries (about 2m) holds a SYN_SENT socket to an unanswering peer")
+	fs.Var(&c.bulk, "bulk", "send this many bytes (e.g. 4MiB) and read the echo back before the first message; 0 = none")
+	closeFlag := fs.Bool("close", false, "close after one exchange (the socket goes to TIME_WAIT)")
+	halfFlag := fs.Bool("halfclose", false, "shutdown(SHUT_WR) after one exchange and hold the socket until the peer closes (FIN_WAIT2)")
+	c.opts.Register(fs)
+	if err := fs.Parse(args); err != nil {
+		return clientConfig{}, err
+	}
+	err := c.opts.Validate()
+	if c.dialTimeout <= 0 {
+		err = errors.Join(err, fmt.Errorf("-dialTimeout %s must be positive", c.dialTimeout))
+	}
+	switch {
+	case *closeFlag && *halfFlag:
+		err = errors.Join(err, errors.New("-close and -halfclose are exclusive"))
+	case *closeFlag:
+		c.mode = closeAfter
+	case *halfFlag:
+		c.mode = halfClose
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return clientConfig{}, err
+	}
+	return c, nil
+}
+
 // runMain wires flag parsing + client fan-out. Extracted so tests can drive
 // it with synthetic args (and count=0 makes the function a pure no-op fan-out).
 func runMain(args []string, stderr io.Writer) int {
-	fs := flag.NewFlagSet("tcp_client", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	count := fs.Int("count", countCst, "count")
-	connect := fs.String("connect", connectCst, "connect")
-	sleep := fs.Duration("sleep", sleepCst, "sleep between writes")
-	startsleep := fs.Duration("startsleep", startsleepCst, "sleep between client starts")
-	wto := fs.Duration("wto", writeTimeoutCst, "write time out")
-	rto := fs.Duration("rto", readTimeoutCst, "read time out")
-	dialr := fs.Int("dialr", dialRetryCst, "dial retries")
-	pads := fs.Int("pads", padSizeCst, "pad size")
-	srcaddr := fs.String("srcaddr", srcaddrCst, "bind each connection's source IP (net.Dialer.LocalAddr); empty = kernel default")
-	iface := fs.String("iface", ifaceCst, "bind each connection to this interface via SO_BINDTODEVICE; empty = kernel default")
-	network := fs.String("network", networkCst, "tcp (family from -connect), tcp4 or tcp6")
-	if err := fs.Parse(args); err != nil {
+	c, err := parseFlags(args, stderr)
+	if err != nil {
 		return 2
 	}
-	if _, _, err := dialTarget(*network, *connect, *srcaddr, startPort+*count-1); err != nil {
+	if _, _, err := dialTarget(c.network, c.connect, c.srcaddr, startPort+c.count-1); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
-	d, err := newDialer(*srcaddr, *iface)
+	d, err := newDialer(c.srcaddr, c.iface, c.opts)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
 	// dialFailures counts clients that never established a connection. A
-	// client that does connect only returns on a read/write error, so a
-	// non-zero count at the end means part of the requested population was
-	// never created (bad -iface, unreachable peer, …). Exit 1 in that case so
-	// a systemd Restart=on-failure unit retries instead of sitting "active
-	// (exited)" with no sockets behind it.
+	// client that does connect only returns on a read/write error (or after
+	// -close / -halfclose), so a non-zero count at the end means part of the
+	// requested population was never created (bad -iface, unreachable peer,
+	// …). Exit 1 in that case so a systemd Restart=on-failure unit retries
+	// instead of sitting "active (exited)" with no sockets behind it.
 	var dialFailures atomic.Int32
 	var wg sync.WaitGroup
-	for i := 0; i < *count; i++ {
+	for i := 0; i < c.count; i++ {
 		wg.Add(1)
-		go client(&wg, &dialFailures, d, *network, *connect, startPort+i, *sleep, *wto, *rto, *dialr, *pads)
-		time.Sleep(*startsleep)
+		go client(&wg, &dialFailures, d, c, startPort+i)
+		time.Sleep(c.startsleep)
 	}
 	wg.Wait()
 	if n := dialFailures.Load(); n > 0 {
-		fmt.Fprintf(stderr, "tcp_client: %d of %d clients never connected\n", n, *count)
+		fmt.Fprintf(stderr, "tcp_client: %d of %d clients never connected\n", n, c.count)
 		return 1
 	}
 	return 0
 }
 
 // newDialer builds the net.Dialer used for every connection, applying the
-// optional source-address bind (LocalAddr) and interface bind (SO_BINDTODEVICE).
-// Both are empty by default, yielding a zero-value Dialer identical to the
-// previous behavior. A non-empty but unparseable srcaddr is a hard error so a
-// misconfigured load container fails loudly rather than silently binding nothing.
-func newDialer(srcaddr, iface string) (net.Dialer, error) {
+// optional source-address bind (LocalAddr), interface bind (SO_BINDTODEVICE)
+// and socket options. All are unset by default, yielding a zero-value Dialer
+// identical to the previous behavior. A non-empty but unparseable srcaddr is
+// a hard error so a misconfigured load container fails loudly rather than
+// silently binding nothing.
+func newDialer(srcaddr, iface string, opts sockopt.Options) (net.Dialer, error) {
 	var d net.Dialer
 	if srcaddr != "" {
 		ip := net.ParseIP(srcaddr)
@@ -124,9 +195,10 @@ func newDialer(srcaddr, iface string) (net.Dialer, error) {
 		}
 		d.LocalAddr = &net.TCPAddr{IP: ip}
 	}
+	var bind func(string, string, syscall.RawConn) error
 	if iface != "" {
 		name := iface
-		d.Control = func(_, _ string, c syscall.RawConn) error {
+		bind = func(_, _ string, c syscall.RawConn) error {
 			var operr error
 			if cerr := c.Control(func(fd uintptr) {
 				operr = unix.SetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE, name)
@@ -136,51 +208,110 @@ func newDialer(srcaddr, iface string) (net.Dialer, error) {
 			return operr
 		}
 	}
+	if opts != (sockopt.Options{}) {
+		d.Control = sockopt.Chain(bind, opts.Control)
+	} else if bind != nil {
+		d.Control = bind
+	}
 	return d, nil
 }
 
-func client(wg *sync.WaitGroup,
-	dialFailures *atomic.Int32,
-	d net.Dialer,
-	network string,
-	bind string,
-	port int,
-	sleep time.Duration,
-	wto time.Duration,
-	rto time.Duration,
-	dialr int,
-	pads int,
-) {
-
+func client(wg *sync.WaitGroup, dialFailures *atomic.Int32, d net.Dialer, c clientConfig, port int) {
 	defer wg.Done()
 
-	buf := buildMessage(port, pads)
-	reply := make([]byte, readBufferSizeCst)
-
-	conn, err := dialWithRetryDialer(d, network, bind, port, dialr, dialTimeoutCst)
+	conn, err := dialWithRetryDialer(d, c.network, c.connect, port, c.dialr, c.dialTimeout)
 	if err != nil {
 		log.Printf("dialWithRetry: %v", err)
 		dialFailures.Add(1)
 		return
 	}
+	if err := session(conn, c, port); err != nil {
+		log.Printf("session port=%d: %v", port, err)
+	}
+}
 
+// session runs one connection: the optional bulk transfer, then message
+// exchanges ended by c.mode. It closes conn.
+func session(conn net.Conn, c clientConfig, port int) error {
 	defer func() {
 		if cerr := conn.Close(); cerr != nil {
-			log.Printf("client: conn close: %v", cerr)
+			log.Printf("close port=%d: %v", port, cerr)
 		}
 	}()
 
+	if _, err := bulk(conn, int64(c.bulk)); err != nil {
+		return err
+	}
+	buf := buildMessage(port, c.pads)
+	reply := make([]byte, readBufferSizeCst)
 	for i := 0; ; i++ {
-		if err := clientOnce(conn, buf, reply, wto, rto); err != nil {
+		if err := clientOnce(conn, buf, reply, c.wto, c.rto); err != nil {
 			if errors.Is(err, ErrTimeout) {
 				continue
 			}
-			log.Printf("clientOnce i=%d: %v", i, err)
-			return
+			return fmt.Errorf("clientOnce i=%d: %w", i, err)
 		}
 		fmt.Printf("received from server i:%d : [%s]\n", i, string(reply))
-		time.Sleep(sleep)
+		switch c.mode {
+		case closeAfter:
+			return nil
+		case halfClose:
+			return holdHalfClosed(conn)
+		case keepOpen: // the next exchange, after c.sleep
+		}
+		time.Sleep(c.sleep)
 	}
+}
+
+// holdHalfClosed shuts down writing and reads until the peer closes.
+func holdHalfClosed(conn net.Conn) error {
+	tc, ok := conn.(*net.TCPConn)
+	if !ok {
+		return fmt.Errorf("halfclose: %T is not TCP", conn)
+	}
+	if err := tc.CloseWrite(); err != nil {
+		return fmt.Errorf("halfclose: %w", err)
+	}
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		return fmt.Errorf("halfclose: %w", err)
+	}
+	if _, err := io.Copy(io.Discard, conn); err != nil {
+		return fmt.Errorf("halfclose: read: %w", err)
+	}
+	return nil
+}
+
+// bulk writes n bytes and reads the echo back, returning the bytes read.
+// The deadlines -wto/-rto set are for the small messages, so bulk clears
+// them.
+func bulk(conn net.Conn, n int64) (int64, error) {
+	if n <= 0 {
+		return 0, nil
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		return 0, fmt.Errorf("bulk: %w", err)
+	}
+	werr := make(chan error, 1)
+	go func() {
+		_, err := io.CopyN(conn, zeroReader{}, n)
+		werr <- err
+	}()
+	got, err := io.CopyN(io.Discard, conn, n)
+	if err != nil {
+		return got, fmt.Errorf("bulk: read %d of %d: %w", got, n, err)
+	}
+	if err := <-werr; err != nil {
+		return got, fmt.Errorf("bulk: write: %w", err)
+	}
+	return got, nil
+}
+
+// zeroReader reads zeros.
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
 }
 
 // dialTarget returns the network and address a client dials for -network,
@@ -281,8 +412,9 @@ func dialWithRetryDialer(base net.Dialer, network, bind string, port, attempts i
 }
 
 // clientOnce performs one write+read round-trip against the open conn,
-// applying separate write/read deadlines. Returns ErrTimeout on a deadline
-// hit (caller decides whether to retry) or the underlying I/O error.
+// reading the whole echo of buf, with separate write/read deadlines.
+// Returns ErrTimeout on a deadline hit (caller decides whether to retry) or
+// the underlying I/O error.
 func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error {
 	if derr := conn.SetWriteDeadline(time.Now().Add(wto)); derr != nil {
 		return fmt.Errorf("set write deadline: %w", derr)
@@ -298,7 +430,7 @@ func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error 
 	if derr := conn.SetReadDeadline(time.Now().Add(rto)); derr != nil {
 		return fmt.Errorf("set read deadline: %w", derr)
 	}
-	if _, err := conn.Read(reply); err != nil {
+	if err := readEcho(conn, reply, len(buf)); err != nil {
 		var ne net.Error
 		if errors.As(err, &ne) && ne.Timeout() {
 			return ErrTimeout
@@ -306,4 +438,16 @@ func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error 
 		return fmt.Errorf("read: %w", err)
 	}
 	return nil
+}
+
+// readEcho reads the n-byte echo whole: the first len(reply) bytes into
+// reply, the rest discarded. A partial read would leave the remainder
+// queued, and closing a socket with unread data resets it (no TIME_WAIT).
+func readEcho(conn net.Conn, reply []byte, n int) error {
+	head := min(n, len(reply))
+	if _, err := io.ReadFull(conn, reply[:head]); err != nil {
+		return err
+	}
+	_, err := io.CopyN(io.Discard, conn, int64(n-head))
+	return err
 }

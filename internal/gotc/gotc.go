@@ -356,7 +356,7 @@ func (r *runner) doCmd(obj string, args []string) error {
 		{"class", r.doClass},
 		{"filter", r.doFilter},
 		{"chain", r.doChain},
-		{"actions", r.refuse("actions")},
+		{"actions", r.doAction},
 		{"monitor", r.refuse("monitor")},
 		{"exec", r.refuse("exec")},
 		{helpWord, func([]string) error { r.usage(); return nil }},

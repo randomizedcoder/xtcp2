@@ -26,6 +26,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -236,7 +237,8 @@ type manifest struct {
 }
 
 // check verifies a fixture directory: records.jsonl is records.parquet
-// normalized, records.parquet is scrubbed, and manifest.json counts its rows.
+// normalized, records.parquet is scrubbed, manifest.json counts its rows,
+// and the capture meets ../coverage.json when there is one.
 func check(dir string, stdout io.Writer) error {
 	rows, err := readRows(filepath.Join(dir, "records.parquet"))
 	if err != nil {
@@ -270,6 +272,11 @@ func check(dir string, stdout io.Writer) error {
 	if m.Rows != len(rows) {
 		problems = append(problems, fmt.Sprintf("manifest.json says %d rows, records.parquet has %d", m.Rows, len(rows)))
 	}
+	cov, err := coverageProblems(dir, rows, mb)
+	if err != nil {
+		return err
+	}
+	problems = append(problems, cov...)
 	if len(problems) == 0 {
 		return nil
 	}
@@ -277,6 +284,52 @@ func check(dir string, stdout io.Writer) error {
 		fmt.Fprintln(stdout, p)
 	}
 	return fmt.Errorf("%w: %d", errFound, len(problems))
+}
+
+// coverageFile is shared by every kernel's fixture, next to their
+// directories.
+const coverageFile = "coverage.json"
+
+// coverageProblems checks rows against the coverage.json beside dir, with
+// "@manifest.<key>" values taken from manifest (the fixture's
+// manifest.json). No coverage.json, no problems.
+func coverageProblems(dir string, rows []xtcp.ParquetRow, manifest []byte) ([]string, error) {
+	b, err := readFile(filepath.Dir(filepath.Clean(dir)), coverageFile)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var c goldenrec.Coverage
+	if err := json.Unmarshal(b, &c); err != nil {
+		return nil, fmt.Errorf("%s: %w", coverageFile, err)
+	}
+	p, err := goldenrec.ProfileOf(rows, goldenrec.Columns)
+	if err != nil {
+		return nil, err
+	}
+	refs, err := manifestRefs(manifest)
+	if err != nil {
+		return nil, err
+	}
+	return goldenrec.CheckCoverage(p, c, refs), nil
+}
+
+// manifestRefs is every string list at the top of manifest.json, by key.
+func manifestRefs(manifest []byte) (map[string][]string, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(manifest, &raw); err != nil {
+		return nil, fmt.Errorf("manifest.json: %w", err)
+	}
+	refs := make(map[string][]string)
+	for k, v := range raw {
+		var list []string
+		if json.Unmarshal(v, &list) == nil && list != nil {
+			refs[k] = list
+		}
+	}
+	return refs, nil
 }
 
 // firstDiffLine names the first line where got and want differ.

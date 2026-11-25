@@ -124,7 +124,7 @@ func parentWord(a string) (uint32, bool) {
 		return tcHRoot, true
 	case wordIngress:
 		return tcHClsactIngress, true
-	case "egress":
+	case wordEgress:
 		return tcHClsactEgress, true
 	}
 	return 0, false
@@ -136,7 +136,7 @@ func parentWord(a string) (uint32, bool) {
 // word that is neither's; rest is what follows the word and its value.
 func (r *runner) filterWord(a *filterArgs, args []string, get bool) (rest []string, handled bool, err error) {
 	w, f := args[0], &r.ff
-	if w == wordRoot || w == wordIngress || w == "egress" {
+	if w == wordRoot || w == wordIngress || w == wordEgress {
 		if a.parent != 0 {
 			r.errf("Error: \"%s\" is duplicate parent ID\n", w)
 			return nil, true, retCode(-1)
@@ -539,6 +539,9 @@ func (r *runner) parseFopt(kind string, a filterArgs, rest []string, q *xtcpnl.T
 	}
 	if _, ok := filterUtils[kind]; !ok {
 		return nil, fmt.Errorf("%w: filter kind %q", errNotImplemented, kind)
+	}
+	if kind == xtcpnl.TcFKindFlower {
+		return r.parseFlowerGet(a, rest, q)
 	}
 	if len(rest) > 0 {
 		return nil, fmt.Errorf("%w: %s options in a get (%q)", errNotImplemented, kind, rest[0])

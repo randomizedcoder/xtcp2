@@ -1,0 +1,211 @@
+{
+  "populated": [
+    "bbr_info_bw_lo",
+    "bbr_info_min_rtt",
+    "bbr_info_pacing_gain",
+    "container_id",
+    "container_image",
+    "container_name",
+    "container_runtime",
+    "dctcp_info_enabled",
+    "enrich_socket_dest_asn",
+    "enrich_socket_dest_egress_ifindex",
+    "enrich_socket_dest_egress_ifname",
+    "enrich_socket_dest_locality",
+    "enrich_socket_dest_network_owner",
+    "enrich_socket_interface_name",
+    "hostname",
+    "inet_diag_cgroup_id",
+    "inet_diag_class_id",
+    "inet_diag_cong",
+    "inet_diag_cong_enum",
+    "inet_diag_msg_family",
+    "inet_diag_msg_inode",
+    "inet_diag_msg_socket_cookie",
+    "inet_diag_msg_socket_destination",
+    "inet_diag_msg_socket_destination_port",
+    "inet_diag_msg_socket_interface",
+    "inet_diag_msg_socket_source",
+    "inet_diag_msg_socket_source_port",
+    "inet_diag_msg_state",
+    "inet_diag_msg_timer",
+    "inet_diag_msg_uid",
+    "inet_diag_msg_wqueue",
+    "inet_diag_sockopt",
+    "netns",
+    "netns_inode",
+    "nsid",
+    "nsid_assigned",
+    "schema_version",
+    "sk_mem_info_drops",
+    "sk_mem_info_rcvbuf",
+    "sk_mem_info_sndbuf",
+    "socket_fd",
+    "tcp_info_advmss",
+    "tcp_info_ato",
+    "tcp_info_bytes_acked",
+    "tcp_info_bytes_received",
+    "tcp_info_bytes_retrans",
+    "tcp_info_bytes_sent",
+    "tcp_info_data_segs_in",
+    "tcp_info_data_segs_out",
+    "tcp_info_delivered",
+    "tcp_info_delivery_rate",
+    "tcp_info_delivery_rate_app_limited",
+    "tcp_info_last_ack_recv",
+    "tcp_info_last_data_recv",
+    "tcp_info_last_data_sent",
+    "tcp_info_max_pacing_rate",
+    "tcp_info_min_rtt",
+    "tcp_info_options",
+    "tcp_info_pacing_rate",
+    "tcp_info_pmtu",
+    "tcp_info_rcv_mss",
+    "tcp_info_rcv_ooopack",
+    "tcp_info_rcv_space",
+    "tcp_info_rcv_ssthresh",
+    "tcp_info_rcv_wnd",
+    "tcp_info_rcv_wscale",
+    "tcp_info_reordering",
+    "tcp_info_rto",
+    "tcp_info_rtt",
+    "tcp_info_rttvar",
+    "tcp_info_sacked",
+    "tcp_info_segs_in",
+    "tcp_info_segs_out",
+    "tcp_info_snd_cwnd",
+    "tcp_info_snd_mss",
+    "tcp_info_snd_ssthresh",
+    "tcp_info_snd_wnd",
+    "tcp_info_snd_wscale",
+    "tcp_info_state",
+    "tcp_info_total_retrans",
+    "uplink1_ifname",
+    "uplink1_nic_bus_info",
+    "uplink1_nic_driver",
+    "uplink1_nic_fw_version",
+    "uplink1_nic_pci_device",
+    "uplink1_nic_pci_vendor",
+    "uplink1_nic_speed_mbps",
+    "uplink2_ifname",
+    "uplink2_nic_bus_info",
+    "uplink2_nic_driver",
+    "uplink2_nic_fw_version",
+    "uplink2_nic_pci_device",
+    "uplink2_nic_pci_vendor",
+    "uplink2_nic_speed_mbps",
+    "vegas_info_enabled",
+    "vegas_info_rtt"
+  ],
+  "values": {
+    "container_runtime": [
+      "docker"
+    ],
+    "inet_diag_cong": [
+      "@manifest.cong_available"
+    ],
+    "inet_diag_cong_enum": [
+      "1"
+    ],
+    "inet_diag_msg_state": [
+      "1",
+      "2",
+      "5",
+      "6",
+      "8",
+      "10"
+    ],
+    "inet_diag_sockopt": [
+      "18",
+      "82"
+    ],
+    "nsid_assigned": [
+      "true",
+      "false"
+    ],
+    "schema_version": [
+      "2"
+    ],
+    "tcp_info_advmss": [
+      "65483"
+    ],
+    "tcp_info_options": [
+      "7"
+    ],
+    "tcp_info_pmtu": [
+      "1300",
+      "1450",
+      "1500",
+      "65535"
+    ],
+    "tcp_info_rcv_wscale": [
+      "10"
+    ],
+    "tcp_info_reordering": [
+      "3"
+    ],
+    "tcp_info_snd_mss": [
+      "1248",
+      "1398",
+      "1448",
+      "32768",
+      "47616"
+    ],
+    "tcp_info_snd_wscale": [
+      "10"
+    ],
+    "tcp_info_state": [
+      "1",
+      "10"
+    ],
+    "uplink1_nic_driver": [
+      "ionic"
+    ],
+    "uplink1_nic_pci_device": [
+      "4098"
+    ],
+    "uplink1_nic_pci_vendor": [
+      "7640"
+    ],
+    "inet_diag_tos": [
+      "8",
+      "184"
+    ],
+    "inet_diag_tclass": [
+      "184"
+    ],
+    "inet_diag_shutdown": [
+      "1",
+      "2"
+    ],
+    "enrich_socket_dest_locality": [
+      "1",
+      "2",
+      "3"
+    ],
+    "uplink1_nic_speed_mbps": [
+      "100000"
+    ],
+    "uplink2_nic_driver": [
+      "e1000e"
+    ],
+    "uplink2_nic_pci_vendor": [
+      "32902"
+    ],
+    "uplink2_nic_pci_device": [
+      "4307"
+    ],
+    "uplink2_nic_speed_mbps": [
+      "1000"
+    ]
+  },
+  "families": [
+    "10",
+    "2"
+  ],
+  "kinds": [
+    "container",
+    "host",
+    "named"
+  ]
+}

@@ -1,0 +1,10 @@
+total acts 0
+
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	cookie 0102
+	not_in_hw

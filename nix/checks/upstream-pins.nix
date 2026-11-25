@@ -39,6 +39,11 @@
 
 let
   manifest = ../upstream-pins.json;
+  # Pin 4: rocm-ernic, checked at evaluation by the same rule as
+  # checks.ernic-pin (nix/lib/ernic-pin.nix) over this source tree.
+  ernicPin = import ../lib/ernic-pin.nix { inherit (pkgs) lib; };
+  ernicProblems = ernicPin.verify (ernicPin.inputsFrom src);
+  ernicRev = (pkgs.lib.importJSON (src + "/flake.lock")).nodes.rocm-ernic.locked.rev or "ABSENT";
   parityIproute2 = import ../iproute2-7-3-0.nix { inherit pkgs; };
 in
 pkgs.runCommand "xtcp2-upstream-pins"
@@ -47,6 +52,8 @@ pkgs.runCommand "xtcp2-upstream-pins"
     inherit src;
     xdp2Src = xdp2;
     iproute2Version = parityIproute2.version;
+    ernicProblems = pkgs.lib.concatStringsSep "\n" ernicProblems;
+    inherit ernicRev;
   }
   ''
     set -eu
@@ -134,6 +141,17 @@ pkgs.runCommand "xtcp2-upstream-pins"
     fi
     echo
 
+    # --- pin 4: rocm-ernic, upstream by rev and narHash ----------------------
+    echo "rocm-ernic (the emulated ionic NIC)"
+    echo "  flake.lock: $ernicRev"
+    if [ -n "$ernicProblems" ]; then
+      printf '  %s\n' "$ernicProblems" >&2
+      fail=1
+    else
+      echo "  ok (flake.nix, flake.lock and the manifest agree on rev and narHash)"
+    fi
+    echo
+
     if [ "$fail" != "0" ]; then
       echo "FAIL: nix/upstream-pins.json is out of date with the actual pins." >&2
       echo >&2
@@ -155,5 +173,6 @@ pkgs.runCommand "xtcp2-upstream-pins"
       echo "xdp2=$got_xdp2"
       echo "xdp2-embedded-xtcp2=$want_emb"
       echo "iproute2=$iproute2Version"
+      echo "rocm-ernic=$ernicRev"
     } > $out/verified-pins.txt
   ''

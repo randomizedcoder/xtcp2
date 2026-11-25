@@ -877,17 +877,25 @@ func TestBuildRequest(t *testing.T) {
 			wantErr:     ErrBadFamilyHdr,
 		},
 		{
-			// The unmodeled passthrough: no action request is built here yet,
+			// The unmodeled passthrough: no DCB request is built here yet,
 			// so FamilyHdrLen is -1 and its header is not checked; a 20-byte
-			// header where tcamsg is 4 passes. RTM_GETQDISC, then
-			// RTM_GETTFILTER, carried this row until gotc modeled them.
-			description: "corner: RTM_GETACTION is unmodeled, so its header passes unchecked",
+			// header where dcbmsg is 4 passes. RTM_GETQDISC, RTM_GETTFILTER,
+			// then RTM_GETACTION, carried this row until gotc modeled them.
+			description: "corner: RTM_GETDCB is unmodeled, so its header passes unchecked",
+			msgType:     uint16(unix.RTM_GETDCB),
+			flags:       uint16(unix.NLM_F_DUMP),
+			seq:         testSeq,
+			familyHdr:   make([]byte, 20),
+			want: nlmsg(uint16(unix.RTM_GETDCB), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
+				make([]byte, 20)),
+		},
+		{
+			description: "negative: RTM_GETACTION is modeled now, so a 20-byte header is ErrBadFamilyHdr",
 			msgType:     uint16(unix.RTM_GETACTION),
 			flags:       uint16(unix.NLM_F_DUMP),
 			seq:         testSeq,
 			familyHdr:   make([]byte, 20),
-			want: nlmsg(uint16(unix.RTM_GETACTION), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
-				make([]byte, 20)),
+			wantErr:     ErrBadFamilyHdr,
 		},
 		{
 			description: "negative: RTM_GETTFILTER is modeled now, so a 16-byte header is ErrBadFamilyHdr",
@@ -1077,7 +1085,10 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_GETCHAIN is struct tcmsg, 20", uint16(unix.RTM_GETCHAIN), TcMsgSizeCst},
 		{"positive: RTM_NEWCHAIN is struct tcmsg, 20", uint16(unix.RTM_NEWCHAIN), TcMsgSizeCst},
 		{"positive: RTM_DELCHAIN is struct tcmsg, 20", uint16(unix.RTM_DELCHAIN), TcMsgSizeCst},
-		{"negative: RTM_GETACTION is not modeled, -1", uint16(unix.RTM_GETACTION), -1},
+		{"positive: RTM_GETACTION is struct tcamsg, 4", uint16(unix.RTM_GETACTION), TcaMsgSizeCst},
+		{"positive: RTM_NEWACTION is struct tcamsg, 4", uint16(unix.RTM_NEWACTION), TcaMsgSizeCst},
+		{"positive: RTM_DELACTION is struct tcamsg, 4", uint16(unix.RTM_DELACTION), TcaMsgSizeCst},
+		{"negative: RTM_GETDCB is not modeled, -1", uint16(unix.RTM_GETDCB), -1},
 		{"negative: message type 0 is not modeled, -1", 0, -1},
 		{"corner: 0xffff is not modeled, -1", 0xffff, -1},
 	}

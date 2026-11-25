@@ -1,0 +1,1 @@
+[{"ingress":true,"protocol":"ip","pref":1,"kind":"flower","chain":3,"options":{"handle":1,"keys":{"eth_type":"ipv4","ip_proto":"tcp"},"not_in_hw":true,"actions":[{"order":1,"kind":"gact","control_action":{"type":"drop"},"prob":{"random_type":"none","control_action":{"type":"pass"},"val":0},"index":7,"ref":1,"bind":1}]}}]

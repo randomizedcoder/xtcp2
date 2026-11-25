@@ -1,0 +1,87 @@
+{
+ "axes": {
+  "fix": "acmisc",
+  "json": "1",
+  "words": "filter show dev d0 ingress"
+ },
+ "cmd": "tc -j filter show dev d0 ingress",
+ "desc": "positive: opt=json cmd=acmisc:filter_show_dev_d0_ingress",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcaction/pw-058",
+ "modules": [
+  "sch_ingress",
+  "cls_u32",
+  "cls_matchall",
+  "act_gact",
+  "act_police",
+  "act_mirred",
+  "act_skbedit",
+  "act_vlan",
+  "act_csum",
+  "act_nat",
+  "act_simple",
+  "act_connmark",
+  "act_ctinfo",
+  "act_sample",
+  "act_skbmod",
+  "act_mpls"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc actions add action simple sdata hello index 1",
+  "tc actions add action sample rate 100 group 5 trunc 64 index 1",
+  "tc actions add action gact pass index 1 cookie 0102",
+  "i=2; while [ $i -le 33 ]; do tc actions add action gact drop index $i || exit 1; i=$((i+1)); done",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol all handle 1 matchall action gact pass action mirred egress redirect dev d1 action skbedit priority 5"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action simple sdata hello index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action sample rate 100 group 5 trunc 64 index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action gact pass index 1 cookie 0102",
+    "rc": 0
+   },
+   {
+    "cmd": "i=2; while [ $i -le 33 ]; do tc actions add action gact drop index $i || exit 1; i=$((i+1)); done",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol all handle 1 matchall action gact pass action mirred egress redirect dev d1 action skbedit priority 5",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

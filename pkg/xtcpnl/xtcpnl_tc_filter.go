@@ -300,6 +300,7 @@ var tcFoptMax = map[string]uint16{
 	TcFKindCgroup:   TcaCgroupMaxKnown,
 	TcFKindFlow:     TcaFlowMaxKnown,
 	TcFKindMatchall: TcaMatchallMaxKnown,
+	TcFKindFlower:   TcaFlowerMaxKnown,
 }
 
 // ParseTcFopt decodes opt, a TCA_OPTIONS payload, for kind. An unknown
