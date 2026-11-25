@@ -58,9 +58,7 @@ let
             n = builtins.head rest;
             v = n.${field};
           in
-          (lib.optional (
-            seen ? ${v}
-          ) "ernic NICs ${seen.${v}} and ${n.name} share ${what} ${v}")
+          (lib.optional (seen ? ${v}) "ernic NICs ${seen.${v}} and ${n.name} share ${what} ${v}")
           ++ go (seen // lib.optionalAttrs (!(seen ? ${v})) { ${v} = n.name; }) (builtins.tail rest);
     in
     go { } l;
@@ -134,10 +132,7 @@ in
     l:
     lib.foldl' (
       acc: n:
-      if n.bridge == null then
-        acc
-      else
-        acc // { ${n.bridge} = (acc.${n.bridge} or [ ]) ++ [ n.tap ]; }
+      if n.bridge == null then acc else acc // { ${n.bridge} = (acc.${n.bridge} or [ ]) ++ [ n.tap ]; }
     ) { } (checked l);
 
   guestConfig =
@@ -169,23 +164,23 @@ in
               }
             else
               {
-            matchConfig.Name = n.name;
-            address = [ n.network.address ];
-            routes = lib.optional (n.network.gateway or null != null) (
-              {
-                Gateway = n.network.gateway;
+                matchConfig.Name = n.name;
+                address = [ n.network.address ];
+                routes = lib.optional (n.network.gateway or null != null) (
+                  {
+                    Gateway = n.network.gateway;
+                  }
+                  // lib.optionalAttrs (n.network.metric or null != null) { Metric = n.network.metric; }
+                );
+                # Only the workload's frames, so fault counters are exact.
+                networkConfig = {
+                  DHCP = "no";
+                  IPv6AcceptRA = false;
+                  LinkLocalAddressing = "no";
+                  LLDP = false;
+                  EmitLLDP = false;
+                };
               }
-              // lib.optionalAttrs (n.network.metric or null != null) { Metric = n.network.metric; }
-            );
-            # Only the workload's frames, so fault counters are exact.
-            networkConfig = {
-              DHCP = "no";
-              IPv6AcceptRA = false;
-              LinkLocalAddressing = "no";
-              LLDP = false;
-              EmitLLDP = false;
-            };
-          }
           )
         ) l
       );

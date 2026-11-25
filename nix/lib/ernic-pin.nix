@@ -38,8 +38,8 @@ in
             (get locked field)
           ];
         in
-        lib.optional (lib.unique values != [ (get pinned field) ]
-        ) "rocm-ernic ${field}: manifest ${builtins.elemAt values 0}, flake.nix ${builtins.elemAt values 1}, flake.lock ${builtins.elemAt values 2}";
+        lib.optional (lib.unique values != [ (get pinned field) ])
+          "rocm-ernic ${field}: manifest ${builtins.elemAt values 0}, flake.nix ${builtins.elemAt values 1}, flake.lock ${builtins.elemAt values 2}";
     in
     if pinned == null then
       [ "pins.rocm-ernic is absent from nix/upstream-pins.json" ]
@@ -47,12 +47,8 @@ in
       [ "flake.lock has no rocm-ernic node" ]
     else
       lib.optional
-        (
-          slug declared != upstream || slug locked != upstream || (pinned.repo or "ABSENT") != upstream
-        )
-        "rocm-ernic must pin ${upstream}: flake.nix ${slug declared}, flake.lock ${slug locked}, manifest ${
-          pinned.repo or "ABSENT"
-        }"
+        (slug declared != upstream || slug locked != upstream || (pinned.repo or "ABSENT") != upstream)
+        "rocm-ernic must pin ${upstream}: flake.nix ${slug declared}, flake.lock ${slug locked}, manifest ${pinned.repo or "ABSENT"}"
       ++ same "rev"
       ++ same "narHash";
 }

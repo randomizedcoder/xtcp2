@@ -130,10 +130,12 @@ let
     };
     # invalid_throws
     "test negative: qemuArgs refuses an invalid list" = {
-      expr = throws (nics.qemuArgs [
-        ionic0
-        ionic0
-      ]);
+      expr = throws (
+        nics.qemuArgs [
+          ionic0
+          ionic0
+        ]
+      );
       expected = true;
     };
     # empty
@@ -184,14 +186,20 @@ let
     # bridges
     "test corner: bridges lists each bridge once with its taps" = {
       expr = nics.bridges [
-        (ionic0 // {
-          tap = "tap-ionic0";
-          bridge = "br-ernic";
-        })
-        (ionic1 // {
-          tap = "tap-ionic1";
-          bridge = "br-ernic";
-        })
+        (
+          ionic0
+          // {
+            tap = "tap-ionic0";
+            bridge = "br-ernic";
+          }
+        )
+        (
+          ionic1
+          // {
+            tap = "tap-ionic1";
+            bridge = "br-ernic";
+          }
+        )
       ];
       expected = {
         br-ernic = [
