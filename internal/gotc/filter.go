@@ -540,6 +540,9 @@ func (r *runner) parseFopt(kind string, a filterArgs, rest []string, q *xtcpnl.T
 	if _, ok := filterUtils[kind]; !ok {
 		return nil, fmt.Errorf("%w: filter kind %q", errNotImplemented, kind)
 	}
+	if kind == xtcpnl.TcFKindFlower {
+		return r.parseFlowerGet(a, rest, q)
+	}
 	if len(rest) > 0 {
 		return nil, fmt.Errorf("%w: %s options in a get (%q)", errNotImplemented, kind, rest[0])
 	}
