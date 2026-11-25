@@ -62,6 +62,11 @@ in
   # The record epoch read from pkg/xtcp/schema_version.go
   # (nix/lib/xtcp2-schema-version.nix) and the DDL that must match it.
   xtcp2-schema-version = import ./xtcp2-schema-version.nix { inherit pkgs lib; };
+
+  # The rocm-ernic input is upstream ROCm/rocm-ernic, with the same rev and
+  # narHash in flake.nix, flake.lock and nix/upstream-pins.json
+  # (nix/lib/ernic-pin.nix, docs/design-rocm-ernic-nics.md).
+  ernic-pin = import ./ernic-pin.nix { inherit pkgs lib; };
   # The self-test's stream_until (nix/microvms/self-test-stream-until.nix),
   # driven against sh stand-ins for a streaming xtcp2client.
   self-test-stream-until = import ./self-test-stream-until.nix { inherit pkgs; };
