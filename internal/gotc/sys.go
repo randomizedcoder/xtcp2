@@ -28,8 +28,17 @@ const (
 	clsNamesDBName = "tc_cls"
 )
 
-// hostSys is the host's files.
-func hostSys() sysFS { return sysFS{root: "/", usrDir: confUsrDirCst} }
+// hostSys is the host's files. tc's CONF_USR_DIR is fixed when it is
+// built (the flake's is iproute2's store path's share/iproute2), so
+// GOTC_CONF_USR_DIR names the tc whose ematch_map, rt_realms and tc_cls
+// gotc should read.
+func hostSys() sysFS {
+	usr := confUsrDirCst
+	if d := os.Getenv("GOTC_CONF_USR_DIR"); d != "" {
+		usr = d
+	}
+	return sysFS{root: "/", usrDir: usr}
+}
 
 // path is p under root; a relative p (a -cf path) is taken from the
 // working directory on the host, from root otherwise.

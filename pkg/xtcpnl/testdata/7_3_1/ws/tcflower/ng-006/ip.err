@@ -1,0 +1,71 @@
+Usage: ... flower	[ MATCH-LIST ] [ verbose ]
+			[ skip_sw | skip_hw ]
+			[ action ACTION-SPEC ] [ classid CLASSID ]
+
+Where: MATCH-LIST := [ MATCH-LIST ] MATCH
+       MATCH      := {	indev DEV-NAME |
+			num_of_vlans VLANS_COUNT |
+			vlan_id VID |
+			vlan_prio PRIORITY |
+			vlan_ethtype [ ipv4 | ipv6 | ETH-TYPE ] |
+			cvlan_id VID |
+			cvlan_prio PRIORITY |
+			cvlan_ethtype [ ipv4 | ipv6 | ETH-TYPE ] |
+			pppoe_sid PSID |
+			ppp_proto [ ipv4 | ipv6 | mpls_uc | mpls_mc | PPP_PROTO ] |
+			dst_mac MASKED-LLADDR |
+			src_mac MASKED-LLADDR |
+			ip_proto [tcp | udp | sctp | icmp | icmpv6 | l2tp | esp | ah | IP-PROTO ] |
+			ip_tos MASKED-IP_TOS |
+			ip_ttl MASKED-IP_TTL |
+			mpls LSE-LIST |
+			mpls_label LABEL |
+			mpls_tc TC |
+			mpls_bos BOS |
+			mpls_ttl TTL |
+			spi SPI-INDEX  |
+			l2tpv3_sid LSID |
+			dst_ip PREFIX |
+			src_ip PREFIX |
+			dst_port PORT-NUMBER |
+			src_port PORT-NUMBER |
+			tcp_flags MASKED-TCP_FLAGS |
+			type MASKED-ICMP-TYPE |
+			code MASKED-ICMP-CODE |
+			arp_tip IPV4-PREFIX |
+			arp_sip IPV4-PREFIX |
+			arp_op [ request | reply | OP ] |
+			arp_tha MASKED-LLADDR |
+			arp_sha MASKED-LLADDR |
+			enc_dst_ip [ IPV4-ADDR | IPV6-ADDR ] |
+			enc_src_ip [ IPV4-ADDR | IPV6-ADDR ] |
+			enc_key_id [ KEY-ID ] |
+			enc_tos MASKED-IP_TOS |
+			enc_ttl MASKED-IP_TTL |
+			geneve_opts MASKED-OPTIONS |
+			vxlan_opts MASKED-OPTIONS |
+			erspan_opts MASKED-OPTIONS |
+			gtp_opts MASKED-OPTIONS |
+			pfcp_opts MASKED-OPTIONS |
+			ip_flags IP-FLAGS |
+			l2_miss L2_MISS |
+			enc_dst_port [ port_number ] |
+			ct_state MASKED_CT_STATE |
+			ct_label MASKED_CT_LABEL |
+			ct_mark MASKED_CT_MARK |
+			ct_zone MASKED_CT_ZONE |
+			cfm CFM |
+			enc_flags ENCFLAG-LIST }
+	LSE-LIST := [ LSE-LIST ] LSE
+	LSE := lse depth DEPTH { label LABEL | tc TC | bos BOS | ttl TTL }
+	FILTERID := X:Y:Z
+	MASKED_LLADDR := { LLADDR | LLADDR/MASK | LLADDR/BITS }
+	MASKED_CT_STATE := combination of {+|-} and flags trk,est,new,rel,rpl,inv
+	CFM := { mdl LEVEL | op OPCODE }
+	ENCFLAG-LIST := [ ENCFLAG-LIST/ ]ENCFLAG
+	ENCFLAG := { [no]tuncsum | [no]tundf | [no]tunoam | [no]tuncrit }
+	ACTION-SPEC := ... look at individual actions
+
+NOTE:	CLASSID, IP-PROTO are parsed as hexadecimal input.
+NOTE:	There can be only used one mask per one prio. If user needs
+	to specify different mask, he has to use different prio.

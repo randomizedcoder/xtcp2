@@ -1,0 +1,97 @@
+{
+ "axes": {
+  "fix": "fsimple",
+  "json": "1",
+  "words": "-s filter show dev d1"
+ },
+ "cmd": "tc -j -s filter show dev d1",
+ "desc": "positive: opt=json cmd=fsimple:-s_filter_show_dev_d1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcfilter/pw-025",
+ "modules": [
+  "sch_htb",
+  "sch_ingress",
+  "cls_basic",
+  "cls_cgroup",
+  "cls_flow",
+  "cls_flower",
+  "cls_fw",
+  "cls_matchall",
+  "cls_route",
+  "cls_u32",
+  "act_gact",
+  "act_mirred",
+  "act_police",
+  "em_canid",
+  "em_cmp",
+  "em_meta",
+  "em_nbyte",
+  "em_u32"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d0 clsact",
+  "tc qdisc add dev d1 root handle 1: htb",
+  "tc class add dev d1 parent 1: classid 1:1 htb rate 1mbit",
+  "tc filter add dev d1 parent 1: pref 10 protocol ip handle 5 fw classid 1:1",
+  "tc filter add dev d1 parent 1: pref 11 protocol ip handle 6/0xff fw action pass",
+  "tc filter add dev d1 parent 1: pref 20 protocol ip route from 1 to 2 classid 1:1",
+  "tc filter add dev d1 parent 1: pref 21 protocol ip route fromif d0 to 3 classid 1:1",
+  "tc filter add dev d0 egress pref 2 protocol all handle 1 matchall skip_hw action drop",
+  "tc filter add dev d0 egress pref 3 protocol all handle 1 matchall action drop"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d1 root handle 1: htb",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev d1 parent 1: classid 1:1 htb rate 1mbit",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d1 parent 1: pref 10 protocol ip handle 5 fw classid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d1 parent 1: pref 11 protocol ip handle 6/0xff fw action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d1 parent 1: pref 20 protocol ip route from 1 to 2 classid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d1 parent 1: pref 21 protocol ip route fromif d0 to 3 classid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 egress pref 2 protocol all handle 1 matchall skip_hw action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 egress pref 3 protocol all handle 1 matchall action drop",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

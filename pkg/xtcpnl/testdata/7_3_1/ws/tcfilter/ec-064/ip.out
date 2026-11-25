@@ -1,0 +1,6 @@
+filter protocol all pref 1 matchall chain 0 
+filter protocol all pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1: mirred (Egress Redirect to device d1) stolen
+	index 1 ref 1 bind 1
+
