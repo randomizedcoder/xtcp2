@@ -112,12 +112,13 @@ func TestBulk(t *testing.T) {
 	}
 }
 
-// closeInput is one session: how the peer behaves and the client's -bulk
-// and close mode.
+// closeInput is one session: how the peer behaves, and the client's -bulk,
+// close mode and -pads (message padding).
 type closeInput struct {
 	server sessionServer
 	bulk   sockopt.Size
 	mode   closeMode
+	pads   int
 }
 
 // sessionServer is how the peer of a session behaves.
@@ -147,17 +148,19 @@ func TestCloseModes(t *testing.T) {
 		expected    closeExpect
 	}{
 		{"close_timewait", "positive", "the closer goes to TIME_WAIT",
-			closeInput{echoClose, 0, closeAfter}, closeExpect{procnet.TimeWait, true, ""}},
+			closeInput{echoClose, 0, closeAfter, 4}, closeExpect{procnet.TimeWait, true, ""}},
 		{"halfclose_finwait2", "positive", "half-close to a peer that holds stays in FIN_WAIT2",
-			closeInput{echoHold, 0, halfClose}, closeExpect{procnet.FinWait2, false, ""}},
+			closeInput{echoHold, 0, halfClose, 4}, closeExpect{procnet.FinWait2, false, ""}},
 		{"keep_open", "negative", "no close mode stays ESTABLISHED",
-			closeInput{echoClose, 0, keepOpen}, closeExpect{procnet.Established, false, ""}},
+			closeInput{echoClose, 0, keepOpen, 4}, closeExpect{procnet.Established, false, ""}},
 		{"peer_closes_first", "negative", "the exchange fails when the peer closes unread",
-			closeInput{closeFirst, 0, closeAfter}, closeExpect{0, true, "read"}},
+			closeInput{closeFirst, 0, closeAfter, 4}, closeExpect{0, true, "read"}},
 		{"bulk_then_close", "boundary", "bulk runs before the close",
-			closeInput{echoClose, 64 << 10, closeAfter}, closeExpect{procnet.TimeWait, true, ""}},
+			closeInput{echoClose, 64 << 10, closeAfter, 4}, closeExpect{procnet.TimeWait, true, ""}},
 		{"halfclose_peer_closes", "corner", "half-close to a peer that closes ends in TIME_WAIT",
-			closeInput{echoClose, 0, halfClose}, closeExpect{procnet.TimeWait, true, ""}},
+			closeInput{echoClose, 0, halfClose, 4}, closeExpect{procnet.TimeWait, true, ""}},
+		{"close_large_echo", "corner", "an echo longer than one read is read whole before the close, else the close resets",
+			closeInput{echoClose, 0, closeAfter, 8 << 10}, closeExpect{procnet.TimeWait, true, ""}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -173,7 +176,7 @@ func TestCloseModes(t *testing.T) {
 				}
 			})
 			port := conn.LocalAddr().(*net.TCPAddr).AddrPort().Port()
-			cfg := clientConfig{pads: 4, sleep: 20 * time.Millisecond, wto: time.Second, rto: time.Second,
+			cfg := clientConfig{pads: tc.input.pads, sleep: 20 * time.Millisecond, wto: time.Second, rto: time.Second,
 				bulk: tc.input.bulk, mode: tc.input.mode}
 			done := make(chan error, 1)
 			go func() { done <- session(conn, cfg, int(port)) }()
