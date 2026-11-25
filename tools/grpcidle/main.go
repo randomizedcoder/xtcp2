@@ -83,7 +83,7 @@ func dialAll(ctx context.Context, target string, n int, dialTimeout time.Duratio
 				}
 				// One RPC to force the lazy transport up.
 				rpcCtx, cancel := context.WithTimeout(ctx, dialTimeout)
-				_, _ = healthpb.NewHealthClient(c).Check(rpcCtx, &healthpb.HealthCheckRequest{})
+				_, _ = healthpb.NewHealthClient(c).Check(rpcCtx, &healthpb.HealthCheckRequest{}) //nolint:errcheck // any outcome (auth, transport, serving) establishes the conn — the held state
 				cancel()
 				mu.Lock()
 				conns = append(conns, c)
