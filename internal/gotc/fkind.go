@@ -27,6 +27,7 @@ var filterUtils = map[string]filterPrinter{
 	xtcpnl.TcFKindCgroup:   printCgroupOpt,
 	xtcpnl.TcFKindFlow:     printFlowOpt,
 	xtcpnl.TcFKindMatchall: printMatchallOpt,
+	xtcpnl.TcFKindFlower:   printFlowerOpt,
 }
 
 // tcBuiltinFilters is every filter_util id the tc binary links (tc/Makefile

@@ -185,10 +185,10 @@ func TestGotcFilterUnit(t *testing.T) {
 				stderr: notImpl + "action kind \"mirred\"\n", rc: 255},
 		},
 		{
-			description: "negative: a flower filter is refused by name",
+			description: "negative: a bpf filter is refused by name",
 			args:        []string{"filter", "show", "dev", "d0", "ingress"},
-			replies:     []Reply{d0, rep(ing(1, 2, ethPIP, "flower", nest(xtcpnl.TcaOptions)), done())},
-			expected:    result{stdout: "filter protocol ip pref 2 flower chain 0 ", stderr: notImpl + "filter kind \"flower\"\n", rc: 255},
+			replies:     []Reply{d0, rep(ing(1, 2, ethPIP, "bpf", nest(xtcpnl.TcaOptions)), done())},
+			expected:    result{stdout: "filter protocol ip pref 2 bpf chain 0 ", stderr: notImpl + "filter kind \"bpf\"\n", rc: 255},
 		},
 		{
 			description: "boundary: no dev is ifindex 0, an empty dump (F8)",

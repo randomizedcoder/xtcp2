@@ -1,0 +1,10 @@
+filter ingress protocol mpls_uc pref 9 flower chain 0 handle 0x1 
+  eth_type 8847
+  mpls
+    lse depth 1 label 100 tc 3
+    lse depth 2 label 200 bos 1 ttl 9
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 9 ref 1 bind 1
+

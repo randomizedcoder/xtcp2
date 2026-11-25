@@ -1,0 +1,52 @@
+filter protocol ip pref 1 flower chain 0 
+filter protocol ip pref 1 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 2 flower chain 0 
+filter protocol ip pref 2 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol 802.1Q pref 3 flower chain 0 
+filter protocol 802.1Q pref 3 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol 802.1ad pref 4 flower chain 0 
+filter protocol 802.1ad pref 4 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol 802.1Q pref 5 flower chain 0 
+filter protocol 802.1Q pref 5 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol arp pref 6 flower chain 0 
+filter protocol arp pref 6 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ppp_ses pref 7 flower chain 0 
+filter protocol ppp_ses pref 7 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol mpls_uc pref 8 flower chain 0 
+filter protocol mpls_uc pref 8 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol mpls_uc pref 9 flower chain 0 
+filter protocol mpls_uc pref 9 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol cfm pref 10 flower chain 0 
+filter protocol cfm pref 10 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol all pref 11 flower chain 0 
+filter protocol all pref 11 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol all pref 12 flower chain 0 
+filter protocol all pref 12 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol [34997] pref 13 flower chain 0 
+filter protocol [34997] pref 13 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 

@@ -1,0 +1,9 @@
+filter ingress protocol ip pref 1 flower chain 0 handle 0x1 
+  dst_mac aa:bb:cc:dd:ee:ff
+  src_mac 02:00:00:00:00:01/24
+  eth_type ipv4
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

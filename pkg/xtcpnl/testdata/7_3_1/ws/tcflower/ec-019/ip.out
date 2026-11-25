@@ -1,0 +1,13 @@
+filter ingress protocol ip pref 1 flower chain 0 handle 0x1 
+  eth_type ipv4
+  ip_proto tcp
+  dst_ip 10.0.0.0/8
+  src_ip 10.1.0.0/16
+  dst_port 80
+  src_port 1000/0xff00
+  tcp_flags 0x2/12
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

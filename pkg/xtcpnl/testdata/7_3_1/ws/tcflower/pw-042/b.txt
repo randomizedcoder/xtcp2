@@ -1,0 +1,2 @@
+filter get dev d0 ingress protocol ip pref 1 handle 1 flower
+filter get dev d0 ingress protocol ipv6 pref 2 handle 1 flower

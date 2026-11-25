@@ -1,0 +1,87 @@
+{
+ "axes": {
+  "fix": "flenc",
+  "json": "0",
+  "words": "-d filter show dev d0 ingress"
+ },
+ "cmd": "tc -d filter show dev d0 ingress",
+ "desc": "positive: opt=plain cmd=flenc:-d_filter_show_dev_d0_ingress",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcflower/ec-024",
+ "modules": [
+  "sch_ingress",
+  "cls_flower",
+  "act_gact"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower enc_dst_ip 10.0.0.1 enc_src_ip 10.0.0.0/24 enc_key_id 100 enc_dst_port 4789 enc_tos 0x10/0xf0 enc_ttl 64 action pass",
+  "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower enc_dst_ip 2001:db8::1 enc_src_ip 2001:db8::/64 action pass",
+  "tc filter add dev d0 ingress pref 3 protocol ip handle 1 flower geneve_opts 0102:80:11223344/ffff:ff:ffffffff,0103:81:3344556677889900/0fff:ff:ffffffffffffffff action pass",
+  "tc filter add dev d0 ingress pref 4 protocol ip handle 1 flower vxlan_opts 1234/0xffff action pass",
+  "tc filter add dev d0 ingress pref 5 protocol ip handle 1 flower erspan_opts 1:12:0:0/1:0xffff:0:0 action pass",
+  "tc filter add dev d0 ingress pref 6 protocol ip handle 1 flower erspan_opts 2:0:1:3/2:0:1:0x3f action pass",
+  "tc filter add dev d0 ingress pref 7 protocol ip handle 1 flower gtp_opts 1:8/ff:ff action pass",
+  "tc filter add dev d0 ingress pref 8 protocol ip handle 1 flower pfcp_opts 1:123456789/ff:ffffffffff action pass",
+  "tc filter add dev d0 ingress pref 9 protocol ip handle 1 flower enc_flags tuncsum/notundf action pass"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower enc_dst_ip 10.0.0.1 enc_src_ip 10.0.0.0/24 enc_key_id 100 enc_dst_port 4789 enc_tos 0x10/0xf0 enc_ttl 64 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower enc_dst_ip 2001:db8::1 enc_src_ip 2001:db8::/64 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 3 protocol ip handle 1 flower geneve_opts 0102:80:11223344/ffff:ff:ffffffff,0103:81:3344556677889900/0fff:ff:ffffffffffffffff action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 4 protocol ip handle 1 flower vxlan_opts 1234/0xffff action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 5 protocol ip handle 1 flower erspan_opts 1:12:0:0/1:0xffff:0:0 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 6 protocol ip handle 1 flower erspan_opts 2:0:1:3/2:0:1:0x3f action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 7 protocol ip handle 1 flower gtp_opts 1:8/ff:ff action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 8 protocol ip handle 1 flower pfcp_opts 1:123456789/ff:ffffffffff action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 9 protocol ip handle 1 flower enc_flags tuncsum/notundf action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
