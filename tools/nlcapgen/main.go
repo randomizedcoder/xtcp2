@@ -22,6 +22,9 @@
 //	      policy table some request in the corpus sent (coverage.go)
 //	verdiff compare two runs of the same rows, made with two iproute2
 //	      versions, row by row (verdiff.go)
+//	monfile write the .nl stream `ip -d monitor file` walks, from a crafted
+//	      message list (-spec) or a captured pcap's notifications (-pcap,
+//	      monfile.go)
 //
 // Output is deterministic: the same input tree gives the same bytes, so a
 // regenerated rows file diffs cleanly against the committed one.
@@ -46,6 +49,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "       nlcapgen kselftest -src DIR -out ROWS -skipped FILE")
 		fmt.Fprintln(stderr, "       nlcapgen coverage -linux DIR -ws DIR -out FILE")
 		fmt.Fprintln(stderr, "       nlcapgen verdiff -a DIR -b DIR -out FILE")
+		fmt.Fprintln(stderr, "       nlcapgen monfile -spec FILE | -pcap FILE [-all] -out FILE")
 		return 2
 	}
 	switch args[0] {
@@ -59,6 +63,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runCoverage(args[1:], stdout, stderr)
 	case "verdiff":
 		return runVerdiff(args[1:], stdout, stderr)
+	case "monfile":
+		return runMonfile(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "nlcapgen: unknown subcommand %q\n", args[0])
 		return 2

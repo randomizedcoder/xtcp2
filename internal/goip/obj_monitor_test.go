@@ -544,6 +544,59 @@ func TestMonitorFromFile(t *testing.T) {
 	}
 }
 
+// TestMonitorReadFileRoundTrip is the .nl contract from the writer's side:
+// the bytes `nlcapgen monfile` writes — each nlmsghdr, its body, then zero
+// padding to the 4-byte boundary — come back as the same messages, the
+// headers' lengths re-derived, so a converter that drifts from the reader's
+// walk fails here rather than at a replay.
+//
+// go test ./internal/goip/ -run TestMonitorReadFileRoundTrip
+func TestMonitorReadFileRoundTrip(t *testing.T) {
+	msg := func(typ, flags uint16, seq, pid uint32, body []byte) []byte {
+		l := uint32(xtcpnl.NlMsgHdrSizeCst + len(body))
+		b := catBytes(le32(l), le16(typ), le16(flags), le32(seq), le32(pid), body)
+		for len(b)%4 != 0 {
+			b = append(b, 0)
+		}
+		return b
+	}
+	// The third body is 2 bytes on a 4-byte boundary: its record carries the
+	// two padding bytes the reader consumes with it.
+	file := catBytes(
+		msg(unix.RTM_NEWLINK, 0, 1, 42, le32(7)),
+		msg(unix.RTM_NEWADDR, unix.NLM_F_REPLACE, 2, 43, nil),
+		msg(unix.RTM_NEWROUTE, unix.NLM_F_MULTI, 3, 44, []byte{9, 10}),
+	)
+	path := filepath.Join(t.TempDir(), "row.nl")
+	if err := os.WriteFile(path, file, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got []monitorMsg
+	if err := monitorReadFile(path, func(m monitorMsg) error {
+		got = append(got, m)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := []monitorMsg{
+		{hdr: xtcpnl.NlMsgHdr{Len: 20, Type: unix.RTM_NEWLINK, Seq: 1, Pid: 42},
+			body: le32(7), nsid: -1},
+		{hdr: xtcpnl.NlMsgHdr{Len: 16, Type: unix.RTM_NEWADDR, Flags: unix.NLM_F_REPLACE,
+			Seq: 2, Pid: 43}, nsid: -1},
+		{hdr: xtcpnl.NlMsgHdr{Len: 18, Type: unix.RTM_NEWROUTE, Flags: unix.NLM_F_MULTI,
+			Seq: 3, Pid: 44}, body: []byte{9, 10}, nsid: -1},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d messages, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i].hdr != want[i].hdr || got[i].nsid != want[i].nsid ||
+			!bytes.Equal(got[i].body, want[i].body) {
+			t.Errorf("message %d: got %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 // TestMonitorDatagram is rtnl_listen's walk of one datagram: each message
 // to the callback with the datagram's nsid, and the malformed and remnant
 // refusals.
@@ -620,55 +673,6 @@ func TestListenNsid(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			if got := listenNsid(tc.oob); got != tc.expected {
 				t.Errorf("got %d, want %d", got, tc.expected)
-			}
-		})
-	}
-}
-
-// TestReplayNotifications is which of a capture's messages a subscriber
-// was sent: requests, dump parts, errors and a get's answer left out.
-//
-// go test ./internal/goip/ -run TestReplayNotifications
-func TestReplayNotifications(t *testing.T) {
-	m := func(typ, flags uint16, seq, pid uint32, body ...byte) nlparity.Msg {
-		return nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: typ, Flags: flags, Seq: seq, Pid: pid}, Body: body}
-	}
-	errFor := func(typ uint16, seq uint32) nlparity.Msg {
-		return m(unix.NLMSG_ERROR, 0, seq, 100, catBytes(le32(0), monHdr(typ, seq, xtcpnl.NlMsgHdrSizeCst))...)
-	}
-	const (
-		req  = unix.NLM_F_REQUEST
-		dump = unix.NLM_F_REQUEST | unix.NLM_F_DUMP
-	)
-	tests := []struct {
-		description string
-		msgs        []nlparity.Msg
-		expected    []int
-	}{
-		{"positive: notifications alone", []nlparity.Msg{m(unix.RTM_NEWADDR, 0, 0, 0), m(unix.RTM_DELADDR, 0, 0, 0)},
-			[]int{0, 1}},
-		{"negative: a dump and its parts", []nlparity.Msg{m(unix.RTM_GETLINK, dump, 1, 0),
-			m(unix.RTM_NEWLINK, unix.NLM_F_MULTI, 1, 100), m(unix.NLMSG_DONE, unix.NLM_F_MULTI, 1, 100),
-			m(unix.RTM_NEWLINK, 0, 0, 0)}, []int{3}},
-		{"positive: a nexthop event carries REQUEST and the requester's port", []nlparity.Msg{
-			m(unix.RTM_NEWNEXTHOP, req|unix.NLM_F_CREATE, 5, 0), errFor(unix.RTM_NEWNEXTHOP, 5),
-			m(unix.RTM_NEWNEXTHOP, req|unix.NLM_F_CREATE, 5, 4242)}, []int{2}},
-		{"negative: a get's answer", []nlparity.Msg{m(unix.RTM_GETNSID, req, 7, 0), m(unix.RTM_NEWNSID, 0, 7, 100),
-			m(unix.RTM_NEWNSID, 0, 0, 0)}, []int{2}},
-		{"corner: a get's answer is the first of its type and seq alone", []nlparity.Msg{
-			m(unix.RTM_GETNSID, req, 7, 0), m(unix.RTM_NEWADDR, 0, 7, 0), m(unix.RTM_NEWNSID, 0, 7, 100),
-			m(unix.RTM_NEWNSID, 0, 7, 100)}, []int{1, 3}},
-		{"corner: a refused get waits for no answer", []nlparity.Msg{m(unix.RTM_GETNSID, req, 7, 0),
-			errFor(unix.RTM_GETNSID, 7), m(unix.RTM_NEWNSID, 0, 7, 0)}, []int{2}},
-		{"boundary: a short error names nothing", []nlparity.Msg{m(unix.RTM_GETNSID, req, 7, 0),
-			m(unix.NLMSG_ERROR, 0, 7, 0, 0, 0, 0, 0), m(unix.RTM_NEWNSID, 0, 7, 0)}, nil},
-		{"boundary: none", nil, nil},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			got := replayNotifications(tc.msgs)
-			if fmt.Sprint(got) != fmt.Sprint(tc.expected) {
-				t.Errorf("got %v, want %v", got, tc.expected)
 			}
 		})
 	}
