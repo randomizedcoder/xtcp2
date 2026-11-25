@@ -142,6 +142,16 @@ let
         # the routes, xtcp2 reads the journal to stamp provenance.
         package = binaries.xtcp2-min;
         configFile = "/etc/xtcp2/unused.json";
+        # The harness's agentReady polls 127.0.0.1:9088/readyz after a
+        # restart (tools/tcp-controller-integration/main.go), so the agents
+        # need the daemon's TCP listener named explicitly. The listener model
+        # (a739d59cc) moved an unspecified module's default to a unix socket
+        # and updated the self-test, scrape-auth, linkmonitor and ip-listen
+        # fixtures to name theirs; this one was missed, and vm-tcp-controller
+        # had not been run between it landing (2026-11-11) and 2026-11-25.
+        listeners = [
+          "name=prometheus,serves=health,address=127.0.0.1:9088,network=tcp,auth=disabled"
+        ];
         linkMonitor.enable = false;
         treatments = {
           enable = true;
