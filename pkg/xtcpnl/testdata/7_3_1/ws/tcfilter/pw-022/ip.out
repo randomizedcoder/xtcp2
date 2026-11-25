@@ -1,0 +1,1 @@
+[{"ingress":true,"protocol":"ip","pref":3,"kind":"u32","chain":0,"options":{"fh":"2:","ht_divisor":16}}]

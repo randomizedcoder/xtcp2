@@ -113,6 +113,20 @@ func isRequest(full []byte) bool {
 	return binary.LittleEndian.Uint16(full[6:8])&unix.NLM_F_REQUEST != 0
 }
 
+// echoReply reports whether full, which carries NLM_F_REQUEST, is the
+// kernel's answer to req rather than a new request: req asked for
+// NLM_F_ECHO and full has its sequence number. The kernel copies a get's
+// flags into its reply (tc_get_tfilter, and tc_ctl_chain, which also keeps
+// RTM_GETCHAIN as the reply's type), so the flag alone cannot tell them
+// apart; nlmon records no direction.
+func echoReply(full, req []byte) bool {
+	if len(full) < HeaderLen || len(req) < HeaderLen {
+		return false
+	}
+	return binary.LittleEndian.Uint16(req[6:8])&unix.NLM_F_ECHO != 0 &&
+		bytes.Equal(full[8:12], req[8:12])
+}
+
 type tx struct {
 	req     []byte
 	replies []Msg
@@ -133,7 +147,7 @@ func New(datagrams [][]byte, opts Options) *Replay {
 	s := &Replay{opts: opts}
 	for _, dg := range datagrams {
 		for _, full := range splitFull(dg) {
-			if isRequest(full) {
+			if isRequest(full) && (len(s.txs) == 0 || !echoReply(full, s.txs[len(s.txs)-1].req)) {
 				s.txs = append(s.txs, tx{req: full})
 				continue
 			}

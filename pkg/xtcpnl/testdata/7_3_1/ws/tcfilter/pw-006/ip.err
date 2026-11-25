@@ -1,0 +1,2 @@
+Usage: tc chain [ add | del | get | show ] [ dev STRING ]
+       tc chain [ add | del | get | show ] [ block BLOCK_INDEX ] ]

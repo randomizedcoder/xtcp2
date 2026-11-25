@@ -1,0 +1,52 @@
+{
+ "axes": {
+  "fix": "flct",
+  "json": "1",
+  "words": "filter get dev d0 ingress protocol ip pref 2 handle 1 flower"
+ },
+ "cmd": "tc -j filter get dev d0 ingress protocol ip pref 2 handle 1 flower",
+ "desc": "positive: opt=json cmd=flct:filter_get_dev_d0_ingress_protocol_ip_pref_2_handle_1_flower",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcflower/pw-031",
+ "modules": [
+  "sch_ingress",
+  "cls_flower",
+  "act_gact"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower ct_state +trk+est-new ct_zone 5 ct_mark 0x10/0xff ct_label 0102/ffff action pass",
+  "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower ct_state +trk+rel+rpl-inv ct_label 0102030405060708090a0b0c0d0e0f10 action drop"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower ct_state +trk+est-new ct_zone 5 ct_mark 0x10/0xff ct_label 0102/ffff action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower ct_state +trk+rel+rpl-inv ct_label 0102030405060708090a0b0c0d0e0f10 action drop",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

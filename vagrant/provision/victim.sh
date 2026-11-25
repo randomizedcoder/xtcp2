@@ -25,6 +25,8 @@ CAPS="$3"
 ATTACKER_TIER="$4"
 DEST="${5:-tcp}"
 ENRICH="${6:-none}"
+NOFILE="${7:-default}"
+CPUS="${8:-0}"
 
 die() {
   echo "victim.sh: $*" >&2
@@ -55,6 +57,15 @@ case "$ENRICH" in
   none | asn) ;;
   *) die "invalid XTCP2_ENRICH '$ENRICH' (want none|asn)" ;;
 esac
+case "$NOFILE" in
+  default) ;;
+  "" | *[!0-9]*) die "invalid XTCP2_NOFILE '$NOFILE' (want default or an integer)" ;;
+  0 | 1) die "invalid XTCP2_NOFILE '$NOFILE' (want >= 2)" ;;
+esac
+case "$CPUS" in
+  0) ;;
+  "" | *[!0-9]*) die "invalid XTCP2_CPUS '$CPUS' (want 0 or an integer)" ;;
+esac
 
 HARNESS_DIR=/home/vagrant/xtcp2-redteam
 DAEMON_IMAGE=xtcp2:latest
@@ -71,6 +82,13 @@ docker load <"$HARNESS_DIR/xtcp2-oci.tar.gz"
 [ -f "$HARNESS_DIR/xtcp2-tcp-stress.tar.gz" ] \
   || die "$HARNESS_DIR/xtcp2-tcp-stress.tar.gz missing — run via nix run .#redteam-*"
 docker load <"$HARNESS_DIR/xtcp2-tcp-stress.tar.gz"
+
+# The attacker tools (static ELFs) also unpack on the victim: the co-tenant
+# vantage (rt-4-1/rt-4-2) docker-cp's them into the rt-attacker container.
+if [ -f "$HARNESS_DIR/xtcp2-redteam-attacker-tools.tar" ]; then
+  mkdir -p /opt/xtcp2-redteam
+  tar -xf "$HARNESS_DIR/xtcp2-redteam-attacker-tools.tar" -C /opt/xtcp2-redteam
+fi
 
 # --- catcher ----------------------------------------------------------------
 # socat appends every connection's bytes to records.jsonl. The daemon connects
@@ -289,11 +307,24 @@ if [ "$ENRICH" = asn ]; then
   ENRICH_MOUNTS=(-v /var/lib/xtcp2/asn:/var/lib/xtcp2/asn)
 fi
 
+# --- FD/CPU deploy limits (Phase 4 knees) ------------------------------------
+# NOFILE: default = docker's own (524287 on 24.04 — too wide to walk); an
+# integer pins a walkable FD knee (rt-4-1/rt-11-2). CPUS: 0 = unlimited; an
+# integer sets --cpus (rt-4-8's cgroup-protection variant).
+LIMIT_ARGS=()
+if [ "$NOFILE" != default ]; then
+  LIMIT_ARGS+=(--ulimit "nofile=$NOFILE:$NOFILE")
+fi
+if [ "$CPUS" != 0 ]; then
+  LIMIT_ARGS+=(--cpus "$CPUS")
+fi
+
 docker run -d --name rt-xtcp2 \
   "${NET_ARGS[@]}" \
   "${CAP_ARGS[@]}" \
   "${SECRET_MOUNTS[@]}" \
   "${ENRICH_MOUNTS[@]}" \
+  "${LIMIT_ARGS[@]}" \
   -v /var/lib/xtcp2:/var/lib/xtcp2 \
   -v /run/netns:/run/netns:ro,rslave \
   -v /run/docker/netns:/run/docker/netns:ro,rslave \

@@ -229,9 +229,15 @@ definition behind `REDTEAM_ROUTER=1`):
   attacker↔victim vantage — distinct from libvirt's default net so the DoD
   "no networks beyond the defined ones" assertion is `virsh net-list`-checkable;
 - `victim` provisioning: `common.sh` → upload `.gen/*.tar.gz` → `victim.sh
-  <MODE> <AUTH> <CAPS> <ATTACKER> <DEST> <ENRICH>` (matrix as argv, validated
-  by `lib/matrix.sh` — env → argv translation happens in the Vagrantfile so
-  `vagrant provision` alone re-applies a matrix change). The two later axes:
+  <MODE> <AUTH> <CAPS> <ATTACKER> <DEST> <ENRICH> <NOFILE> <CPUS>` (matrix as
+  argv, validated by `lib/matrix.sh` — env → argv translation happens in the
+  Vagrantfile so `vagrant provision` alone re-applies a matrix change). The
+  two Phase 4 axes: `XTCP2_NOFILE` (`default` = docker's own 524287 on
+  24.04, or an integer pinning a walkable FD knee via `--ulimit nofile=` —
+  rt-4-1/rt-11-2) and `XTCP2_CPUS` (`0` = unlimited, or an integer setting
+  `--cpus` — rt-4-8's cgroup variant). The attacker tools tar now also
+  unpacks on the victim (`/opt/xtcp2-redteam/bin`) so the co-tenant scenarios
+  can `docker cp` the static tools into the rt-attacker container. The two later axes:
   `XTCP2_DEST` (`tcp` — the in-VM jsonl catcher — or `s3` — s3parquet to the
   in-VM Garage fixture, the §29 S3 sink shape; `DEST=s3` boots `dxflrs/garage:v2.1.0`
   on the host with bucket `xtcp2-records` + a fixed imported key, mirroring

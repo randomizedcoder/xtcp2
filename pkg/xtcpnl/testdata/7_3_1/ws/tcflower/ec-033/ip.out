@@ -1,0 +1,76 @@
+filter protocol ip pref 1 flower chain 0 
+filter protocol ip pref 1 flower chain 0 handle 0x1 classid 1:1 
+  eth_type ipv4
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+filter protocol ip pref 2 flower chain 0 
+filter protocol ip pref 2 flower chain 0 handle 0x1 hw_tc 0 
+  eth_type ipv4
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 2 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+filter protocol ip pref 3 flower chain 0 
+filter protocol ip pref 3 flower chain 0 handle 0x1 hw_tc 2 
+  eth_type ipv4
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 3 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+filter protocol ip pref 4 flower chain 0 
+filter protocol ip pref 4 flower chain 0 handle 0xffffffff 
+  eth_type ipv4
+  skip_hw
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 4 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+filter protocol ip pref 5 flower chain 0 
+filter protocol ip pref 5 flower chain 0 handle 0x1 
+  eth_type ipv4
+  ip_proto udp
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 5 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+	action order 2: gact action drop
+	 random type none pass val 0
+	 index 6 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+filter protocol ip pref 1 flower chain 3 
+filter protocol ip pref 1 flower chain 3 handle 0x1 
+  eth_type ipv4
+  ip_proto tcp
+  not_in_hw
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 7 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
