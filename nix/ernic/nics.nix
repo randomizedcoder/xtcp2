@@ -23,7 +23,7 @@
 #   serverArgs  one NIC's rocm-ernic arguments, --socket first
 #   bridges     { <bridge> = [ <tap> ... ]; } for the fabric namespace
 #   guestConfig a NixOS module: the ionic driver, a .link per NIC and a
-#               .network per NIC that has `network`
+#               .network per NIC (Unmanaged when `network` is null)
 #
 # See docs/design-rocm-ernic-nics.md.
 { lib }:
@@ -144,7 +144,6 @@ in
     l0:
     let
       l = checked l0;
-      managed = lib.filter (n: n.network != null) l;
     in
     lib.optionalAttrs (l != [ ]) {
       boot.kernelModules = [ "ionic" ];
@@ -160,7 +159,16 @@ in
       systemd.network.networks = lib.listToAttrs (
         map (
           n:
-          lib.nameValuePair (unitName n) {
+          lib.nameValuePair (unitName n) (
+            if n.network == null then
+              # Without this, NixOS's 99-ethernet-default-dhcp would run DHCP
+              # on it; the VM's own scripts configure it instead.
+              {
+                matchConfig.Name = n.name;
+                linkConfig.Unmanaged = true;
+              }
+            else
+              {
             matchConfig.Name = n.name;
             address = [ n.network.address ];
             routes = lib.optional (n.network.gateway or null != null) (
@@ -178,7 +186,8 @@ in
               EmitLLDP = false;
             };
           }
-        ) managed
+          )
+        ) l
       );
     };
 }
