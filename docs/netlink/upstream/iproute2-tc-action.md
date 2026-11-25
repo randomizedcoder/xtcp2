@@ -23,7 +23,7 @@
     the fix added rows for gets of 3, 32 and 33 actions.
   - `gotc` replays all 132 capture rows byte for byte and renders all 398 tdc `tc actions` readbacks. So every
     captured finding below is reproduced by an independent implementation, not just read from the source.
-- **Increment 13** (2026-11-25) adds AC39–AC71 and K9–K17, for the last six kinds tc links and the bpf filter:
+- **Increment 13** (2026-11-25) adds AC39–AC71 and K9–K18, for the last six kinds tc links and the bpf filter:
   `tc/m_{pedit,tunnel_key,ife,ct,gate,bpf}.c`, `tc/f_bpf.c` and `lib/bpf_legacy.c` (`bpf_print_ops`), all at v7.2.0.
   - **At HEAD** (checked 2026-11-25 the same way, mirror at `5d13122576d6`): no commit since v7.2.0 touches those
     eight files, `tc_util.c` or `lib/inet_proto.c`. `ce764a619c7a` in `json_print.c` changes how
@@ -31,7 +31,7 @@
     Every finding below is present at HEAD.
   - **How:** the plan's sweep listed AC39–AC66. The capture (13C, V019) confirmed 14 of them and found K13. The
     decoders (13P, V020) corrected AC55's threshold and found K14. The clone (13R, V021) and this write-up (13B)
-    added AC67–AC71 and K15–K17.
+    added AC67–AC71 and K15–K17, and the live diff (13L, V022) K18.
   - **Corpus:** `pkg/xtcpnl/testdata/7_3_1/ws/tcaction2/` (105 rows), cited below as `tcaction2/<id>`. As in
     tcaction, `ec-*` and `pw-*` of one number are a command and its `-j` twin (ec-002/pw-001 swap again).
   - gotc replays all 105 rows byte for byte and renders the 138 tdc readbacks of these kinds (1025 in all).
@@ -71,7 +71,7 @@
 - [AC59–AC62, AC69. gate](#ac59ac62-ac69-gate)
 - [AC63–AC66, AC71. bpf, the action and the filter](#ac63ac66-ac71-bpf-the-action-and-the-filter)
 - [AC13. Dropped](#ac13-dropped)
-- [K1–K17. Kernel notes](#k1k17-kernel-notes)
+- [K1–K18. Kernel notes](#k1k18-kernel-notes)
 - [A note on the capture tooling](#a-note-on-the-capture-tooling)
 
 ## Summary
@@ -388,7 +388,7 @@ no NUL, a skbmod MAC of length 0 or over 21, and a tab of more than 1024 orders.
   This is F24 in [iproute2-tc-filter.md](iproute2-tc-filter.md), recorded in increment 10, and `printTm` already
   reproduces it.
 
-## K1–K17. Kernel notes
+## K1–K18. Kernel notes
 
 - **K1:** `tca_get_fill` (act_api.c) puts the tcamsg and `TCA_ACT_TAB` but no `TCA_ROOT_COUNT`. That is the cause
   of AC2.
@@ -428,6 +428,12 @@ no NUL, a skbmod MAC of length 0 or over 21, and a tab of more than 1024 orders.
   ct action prints `zone 0` unless it set one (ec-024), except clear.
 - **K17** (new): `tunnel_key_dump` always puts NO_CSUM for a set action (act_tunnel_key.c:755-756). tc's
   `if (!tb[nl_flag]) continue;` (m_tunnel_key.c:539) never skips it, so every set prints `csum` or `nocsum`.
+- **K18** (new, 13L): only a dump asks the offload callbacks for an action's hardware stats.
+  `tcf_dump_walker` calls `tcf_action_update_hw_stats` (act_api.c:596), which sets `used_hw_stats_valid` when the
+  callbacks answer (act_api.c:315-316). `tcf_action_dump_1` puts `TCA_ACT_USED_HW_STATS` only when that is set
+  (act_api.c:539-542). A get never calls it. So `actions get action ct index 8` prints no `used_hw_stats` until the
+  first `actions ls` of that action, and `used_hw_stats disabled` from then on. Seen live with ct: the batch
+  `get` then `ls` gave different gets depending on whether a dump had already run (tcaction2/ec-049).
 
 ## A note on the capture tooling
 
