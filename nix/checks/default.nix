@@ -67,6 +67,10 @@ in
   # narHash in flake.nix, flake.lock and nix/upstream-pins.json
   # (nix/lib/ernic-pin.nix, docs/design-rocm-ernic-nics.md).
   ernic-pin = import ./ernic-pin.nix { inherit pkgs lib; };
+
+  # nix/ernic/nics.nix: a VM's ionic NICs as data, turned into QEMU args,
+  # server args and guest network config.
+  ernic-nics = import ./ernic-nics.nix { inherit pkgs lib; };
   # The self-test's stream_until (nix/microvms/self-test-stream-until.nix),
   # driven against sh stand-ins for a streaming xtcp2client.
   self-test-stream-until = import ./self-test-stream-until.nix { inherit pkgs; };
