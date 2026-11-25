@@ -348,3 +348,31 @@ On the workbench VM (shared: no reboot; bracketed `pgrep`), run nix-built `gotc`
   kind.
 - **Live:** 9L is identical.
 - **Pre-push:** full `go test ./...` and `nix build --no-link .#checks.x86_64-linux.test-go-race`.
+
+## Increment 10: `tc filter` and `tc chain`
+
+Increment 10 adds `filter` and `chain` (`show|list|lst`, `get`, `help`, and the bare object) to gotc. The ledger
+continues at **V006**, and findings go in `upstream/iproute2-tc-filter.md` (F1+, not submitted to netdev).
+
+- **Filter kinds:** u32, fw, route, basic, cgroup, flow and matchall, each printed as its `tc/f_*.c` `print_fopt`
+  prints it (`internal/gotc/fkind.go`). A kind tc links but gotc does not print (flower, bpf) is refused by name. A
+  kind tc does not link takes `print_nofopt`'s path, as in C.
+- **ematches** (`ematch.go`): cmp, u32, nbyte, canid and meta. Their text goes to stdout as bare `fprintf` output,
+  so it lands inside `-j`'s JSON too (F1). Each kind's name comes from `ematch_map` (CONF_ETC_DIR, then
+  CONF_USR_DIR). ipset and ipt are refused by name.
+- **Actions** (`action.go`): the frame (`tc_print_action`, `tc_print_one_action`) and gact. Any other action kind,
+  and police, is refused by name.
+- **Arguments** (`filter.go`): the list and get loops, `print_filter`, and each kind's `parse_fopt` as far as
+  `get ... KIND handle H` reaches it. A get with options after its kind is refused. The statics `filter_*` persist
+  across batch lines (Q29f). A get's exit status is 1, 2 or 255 depending on where it fails (F15).
+- **Files tc reads at print time:** `ematch_map` and `rt_realms`, through the sys seam. tc's CONF_USR_DIR is fixed
+  at build time (the flake's tc uses its store path's `share/iproute2`), so `GOTC_CONF_USR_DIR` tells gotc which
+  tc's files to read. The corpus tests use a copy of the workbench tc's files in
+  `internal/gotc/testdata/share-iproute2/`.
+- **Replay:** the kernel answers an `NLM_F_ECHO` get with the request's flags. A filter get's reply is
+  RTM_NEWTFILTER and a chain get's is RTM_GETCHAIN, and both carry NLM_F_REQUEST. nlmon records no direction, so
+  `internal/wsreplay` now treats a request-flagged message as a reply when it has the seq of the NLM_F_ECHO request
+  before it.
+
+The plan, with its lead table and test tables, is in the session plan for increment 10. The ledger is in
+[gotc-status.md](gotc-status.md) (V006–V009, DOC002).

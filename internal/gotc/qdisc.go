@@ -134,7 +134,7 @@ func (r *runner) qdiscList(args []string) error {
 			}
 			args = args[1:]
 			dev = truncName(args[0])
-		case a == wordRoot, a == "ingress", a == "clsact":
+		case a == wordRoot, a == wordIngress, a == "clsact":
 			if err := r.qdiscOneOf(f, a); err != nil {
 				return err
 			}
@@ -142,7 +142,7 @@ func (r *runner) qdiscList(args []string) error {
 			if a != wordRoot {
 				f.parent = tcHIngress
 			}
-		case matches(a, "parent"), matches(a, "handle"):
+		case matches(a, wordParent), matches(a, "handle"):
 			if err := r.qdiscOneOf(f, a); err != nil {
 				return err
 			}
@@ -150,7 +150,7 @@ func (r *runner) qdiscList(args []string) error {
 				return r.incomplete()
 			}
 			args = args[1:]
-			if matches(a, "parent") {
+			if matches(a, wordParent) {
 				h, ok := tcClassid(args[0])
 				if !ok {
 					return r.invarg("invalid parent ID", args[0])
@@ -308,7 +308,7 @@ func (r *runner) printQdiscBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
 		o.boolean(printAny, wordRoot, "root ", true)
 	} else if t.Parent != 0 {
 		p := r.classid(t.Parent)
-		o.str(printAny, colorNone, "parent", "parent "+p+" ", p)
+		o.str(printAny, colorNone, wordParent, "parent "+p+" ", p)
 	}
 	if t.Info != 1 {
 		o.uint(printAny, "refcnt", "refcnt "+u32s(t.Info)+" ", t.Info)

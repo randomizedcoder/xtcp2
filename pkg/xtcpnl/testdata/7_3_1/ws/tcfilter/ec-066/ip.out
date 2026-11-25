@@ -1,0 +1,46 @@
+filter protocol ip u32 chain 0 
+filter protocol ip u32 chain 0 fh 800: ht divisor 1 
+filter protocol ip u32 chain 0 fh 800::1 order 1 key ht 800 bkt 0 terminal flowid not_in_hw 
+  match 0a000000/ff000000 at 12
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+
+filter protocol ip u32 chain 0 fh 800::800 order 2048 key ht 800 bkt 0 link 2: not_in_hw 
+  match 00060000/00ff0000 at 8
+    offset 0f00>>6 at 0  eat 
+filter protocol ip u32 chain 0 
+filter protocol ip u32 chain 0 fh 800: ht divisor 1 
+filter protocol ip u32 chain 0 fh 800::1 order 1 key ht 800 bkt 0 terminal flowid not_in_hw 
+  match 0a000000/ff000000 at 12
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+
+filter protocol ip u32 chain 0 fh 800::800 order 2048 key ht 800 bkt 0 link 2: not_in_hw 
+  match 00060000/00ff0000 at 8
+    offset 0f00>>6 at 0  eat 
+filter protocol ip pref 2 u32 chain 0 
+filter protocol ip pref 2 u32 chain 0 fh 801: ht divisor 1 
+filter protocol ip pref 2 u32 chain 0 fh 801::800 order 2048 key ht 801 bkt 0 flowid 1:1 not_in_hw 
+  match 0a000000/ff000000 at 12
+  match 00000050/0000ffff at 20
+filter protocol ip pref 3 u32 chain 0 
+filter protocol ip pref 3 u32 chain 0 fh 2: ht divisor 16 
+filter protocol ip pref 3 u32 chain 0 fh 802: ht divisor 1 
+filter protocol ipv6 pref 5 u32 chain 0 
+filter protocol ipv6 pref 5 u32 chain 0 fh 803: ht divisor 1 
+filter protocol ipv6 pref 5 u32 chain 0 fh 803::800 order 2048 key ht 803 bkt 0 terminal flowid not_in_hw 
+  match 20010db8/ffffffff at 8
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 2 ref 1 bind 1
+
+filter protocol ip pref 6 u32 chain 0 
+filter protocol ip pref 6 u32 chain 0 fh 804: ht divisor 1 
+filter protocol ip pref 6 u32 chain 0 fh 804::800 order 2048 key ht 804 bkt 0 terminal flowid not_in_hw 
+  match 40000000/ff000000 at 8
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 3 ref 1 bind 1
+

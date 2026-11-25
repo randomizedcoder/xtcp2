@@ -1,0 +1,16 @@
+filter parent 1: protocol ip pref 10 fw chain 0 
+filter parent 1: protocol ip pref 10 fw chain 0 handle 0x5 classid 1:1 
+filter parent 1: protocol ip pref 11 fw chain 0 
+filter parent 1: protocol ip pref 11 fw chain 0 handle 0x6/0xff 
+
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+filter parent 1: protocol ip pref 20 route chain 0 
+filter parent 1: protocol ip pref 20 route chain 0 fh 0x00010002 flowid 1:1 to 2 from 1 
+filter parent 1: protocol ip pref 21 route chain 0 
+filter parent 1: protocol ip pref 21 route chain 0 fh 0x80030003 flowid 1:1 to 3 fromif d0

@@ -1,0 +1,15 @@
+[{"protocol":"all","pref":1,"kind":"basic","chain":0},{"protocol":"all","pref":1,"kind":"basic","chain":0,"options":{"handle":"1"
+  cmp(u16 at 0 layer 1 mask 0xff eq 8)
+,"actions":[{"order":1,"kind":"gact","control_action":{"type":"pass"},"prob":{"random_type":"none","control_action":{"type":"pass"},"val":0},"index":1,"ref":1,"bind":1}]}},{"protocol":"all","pref":2,"kind":"basic","chain":0},{"protocol":"all","pref":2,"kind":"basic","chain":0,"options":{"handle":"2","flowid":"1:1"
+  u32(0a000000/ff000000 at 12)
+  AND meta(nf_mark eq 5)
+}},{"protocol":"all","pref":3,"kind":"basic","chain":0},{"protocol":"all","pref":3,"kind":"basic","chain":0,"options":{"handle":"3","flowid":"1:2"
+  NOT nbyte(61 62 63 "abc" at 0 layer 2)
+  OR meta(priority gt 3)
+}},{"protocol":"all","pref":4,"kind":"basic","chain":0},{"protocol":"all","pref":4,"kind":"basic","chain":0,"options":{"handle":"4","flowid":"1:3"
+  cmp(u32 at 0 layer 2 eq -2147483648)
+}},{"protocol":"can","pref":5,"kind":"basic","chain":0},{"protocol":"can","pref":5,"kind":"basic","chain":0,"options":{"handle":"5","flowid":"1:4"
+  canid(eff 0x456 sff 0x123)
+}},{"protocol":"all","pref":6,"kind":"basic","chain":0},{"protocol":"all","pref":6,"kind":"basic","chain":0,"options":{"handle":"6","flowid":"1:5"
+  meta(nf_mark eq -2147483648)
+}}]

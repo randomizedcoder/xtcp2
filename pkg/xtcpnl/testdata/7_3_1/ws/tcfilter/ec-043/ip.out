@@ -1,0 +1,33 @@
+filter protocol all pref 1 basic chain 0 
+filter protocol all pref 1 basic chain 0 handle 0x1 
+  cmp(u16 at 0 layer 1 mask 0xff eq 8)
+
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+
+filter protocol all pref 2 basic chain 0 
+filter protocol all pref 2 basic chain 0 handle 0x2 flowid 1:1 
+  u32(0a000000/ff000000 at 12)
+  AND meta(nf_mark eq 5)
+
+filter protocol all pref 3 basic chain 0 
+filter protocol all pref 3 basic chain 0 handle 0x3 flowid 1:2 
+  NOT nbyte(61 62 63 "abc" at 0 layer 2)
+  OR meta(priority gt 3)
+
+filter protocol all pref 4 basic chain 0 
+filter protocol all pref 4 basic chain 0 handle 0x4 flowid 1:3 
+  cmp(u32 at 0 layer 2 eq -2147483648)
+
+filter protocol can pref 5 basic chain 0 
+filter protocol can pref 5 basic chain 0 handle 0x5 flowid 1:4 
+  canid(eff 0x456 sff 0x123)
+
+filter protocol all pref 6 basic chain 0 
+filter protocol all pref 6 basic chain 0 handle 0x6 flowid 1:5 
+  meta(nf_mark eq -2147483648)
+
