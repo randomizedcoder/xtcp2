@@ -28,6 +28,7 @@ type rec struct {
 	Date      string `parquet:"event_date"`
 	Counter   uint64 `parquet:"record_counter"`
 	Netns     string `parquet:"netns"`
+	Egress    string `parquet:"enrich_socket_dest_egress_ifname"`
 	Host      string `parquet:"hostname"`
 	Container string `parquet:"container_name"`
 	ID        string `parquet:"container_id"`

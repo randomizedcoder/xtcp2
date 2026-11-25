@@ -36,6 +36,16 @@ func inNetns(rows []rec, netns string, f func(*rec)) []rec {
 	})
 }
 
+// viaEgress is inNetns with the destination's egress interface set too.
+func viaEgress(rows []rec, netns, egress string, f func(*rec)) []rec {
+	return inNetns(rows, netns, func(r *rec) {
+		r.Egress = egress
+		if f != nil {
+			f(r)
+		}
+	})
+}
+
 func mustNormalize(t *testing.T, rows []rec) []Row {
 	t.Helper()
 	n, err := Normalize(rows, Columns)
@@ -132,6 +142,24 @@ func TestDiff(t *testing.T) {
 		{"lossy_custom", "corner", "a named LossyNetns replaces the default",
 			inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-bulk-a", nil),
 			Options{LossyNetns: []string{"other"}}, expected{n: 1, contains: "tcp_info_total_retrans"}},
+		{"fault_netns_ignored", "positive", "an emulated-fault namespace's retransmits that vary run to run are not compared",
+			inNetns(g, "golden-ernic-b", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-ernic-b", nil),
+			Options{}, expected{}},
+		{"fault_egress_ignored", "positive", "a root-namespace socket out of the emulated NIC is a fault row",
+			viaEgress(g, "default", "ionic0", func(r *rec) { r.Dsack = 3; r.Retrans = 3 }), viaEgress(g, "default", "ionic0", nil),
+			Options{}, expected{}},
+		{"fault_strict_kept", "negative", "a fault row's MSS is still compared",
+			inNetns(g, "golden-ernic-b", nil), inNetns(g, "golden-ernic-b", func(r *rec) { r.Mss = 1398 }),
+			Options{}, expected{n: 1, contains: `tcp_info_snd_mss: golden "1448", candidate "1398"`}},
+		{"fault_presence_kept", "negative", "a fault row's receive bytes going to zero is still a difference",
+			viaEgress(g, "default", "ionic0", func(r *rec) { r.RcvBytes = 4194304 }), viaEgress(g, "default", "ionic0", nil),
+			Options{}, expected{n: 1, contains: `tcp_info_bytes_received: golden "nonzero", candidate "0"`}},
+		{"fault_egress_elsewhere", "negative", "the same flip out of another interface is a difference",
+			viaEgress(g, "default", "eth1", func(r *rec) { r.Retrans = 3 }), viaEgress(g, "default", "eth1", nil),
+			Options{}, expected{n: 1, contains: `tcp_info_total_retrans: golden "nonzero", candidate "0"`}},
+		{"fault_disabled", "boundary", "empty FaultNetns and FaultEgress compare fault rows strictly",
+			inNetns(g, "golden-ernic-b", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-ernic-b", nil),
+			Options{FaultNetns: []string{}, FaultEgress: []string{}}, expected{n: 1, contains: "tcp_info_total_retrans"}},
 		{"lossy_row_missing", "corner", "a socket missing from a netem pair is still reported",
 			inNetns(g, "golden-bulk-a", nil), inNetns(g, "golden-bulk-a", nil)[:2],
 			Options{}, expected{n: 1, contains: "row only in golden"}},
@@ -197,6 +225,35 @@ func TestFormat(t *testing.T) {
 	}
 }
 
+func TestFaultColumns(t *testing.T) {
+	idx, err := Columns.index()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for c := range faultOnlyColumns {
+		if _, ok := idx[c]; !ok {
+			t.Errorf("faultOnlyColumns names %q, which is not a column", c)
+		}
+	}
+	cases := []struct {
+		name, category, description, input string
+		expected                           bool
+	}{
+		{"retrans_varies", "positive", "a server's retransmits follow the ACKs the emulator drops", "tcp_info_total_retrans", true},
+		{"lossy_included", "positive", "every netem-lossy column is exempt in a fault row too", "tcp_info_total_rto", true},
+		{"bytes_received_kept", "negative", "the transfer's size is fixed, so it is compared", "tcp_info_bytes_received", false},
+		{"mss_kept", "boundary", "the path's MSS does not depend on drops", "tcp_info_snd_mss", false},
+		{"unknown_kept", "corner", "a name that is no column is not exempt", "nope", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := faultColumn(tc.input); got != tc.expected {
+				t.Errorf("[%s] %s: faultColumn(%q) = %v, expected %v", tc.category, tc.description, tc.input, got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestLossyColumns(t *testing.T) {
 	idx, err := Columns.index()
 	if err != nil {
@@ -220,6 +277,7 @@ func TestLossyColumns(t *testing.T) {
 		{"rehash_varies", "boundary", "rehash moves with each RTO (tcp_write_timeout)", "tcp_info_rehash", true},
 		{"listener_drops_vary", "corner", "a SYN retransmitted after netem drops the SYN-ACK is counted as a listener drop", "sk_mem_info_drops", true},
 		{"dctcp_alpha_varies", "corner", "a per-algorithm info column follows the marks netem drops", "dctcp_info_alpha", true},
+		{"rqueue_varies", "corner", "echoed bytes still unread at the poll after a late retransmit", "inet_diag_msg_rqueue", true},
 		{"unknown_kept", "corner", "a name that is no column is not exempt", "nope", false},
 	}
 	for _, tc := range cases {
