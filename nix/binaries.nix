@@ -279,8 +279,13 @@ let
     # requests — the rt-4-2 slowloris shape. Rides the attacker-tools tar.
     "slowloris"
     # grpcidle: holds N idle gRPC connections (15-min MaxConnectionIdle on
-    # the server) — the rt-11-2 FD-pin shape. Rides the attacker-tools tar.
+    # server) — the rt-11-2 FD-pin shape. Rides the attacker-tools tar.
     "grpcidle"
+    # grpcstorm: drives authenticated FlatRecords/PollFlatRecords stream
+    # shapes — never-reading streams (rt-11-3 wedge), paced readers (rt-4-4
+    # backpressure), conns×streams storm (rt-4-3), and the oversize
+    # recv-cap probe. Rides the attacker-tools tar.
+    "grpcstorm"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:
@@ -413,6 +418,7 @@ defaultBinaries
     ipfeed-fixture
     slowloris
     grpcidle
+    grpcstorm
     ;
 
   # Internal nested sets for downstream consumers (containers/).

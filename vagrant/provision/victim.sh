@@ -27,6 +27,7 @@ DEST="${5:-tcp}"
 ENRICH="${6:-none}"
 NOFILE="${7:-default}"
 CPUS="${8:-0}"
+PPROF="${9:-0}"
 
 die() {
   echo "victim.sh: $*" >&2
@@ -65,6 +66,10 @@ esac
 case "$CPUS" in
   0) ;;
   "" | *[!0-9]*) die "invalid XTCP2_CPUS '$CPUS' (want 0 or an integer)" ;;
+esac
+case "$PPROF" in
+  0 | 1) ;;
+  *) die "invalid XTCP2_PPROF '$PPROF' (want 0 or 1)" ;;
 esac
 
 HARNESS_DIR=/home/vagrant/xtcp2-redteam
@@ -319,8 +324,32 @@ if [ "$CPUS" != 0 ]; then
   LIMIT_ARGS+=(--cpus "$CPUS")
 fi
 
+# PPROF: 1 = a loopback, token-gated debug listener (pprof) so scenarios can
+# assert goroutine counts (rt-4-3/rt-11-3 leak asserts). Loopback-only and
+# behind the read token in raw/hmac modes — an observability axis, not a
+# surface change: host mode binds the VM's loopback directly, bridge mode
+# publishes 127.0.0.1 only.
+PPROF_ARGS=()
+PPROF_PUBLISH=()
+if [ "$PPROF" = 1 ]; then
+  case "$AUTH" in
+    off)
+      PPROF_ARGS=(-listener "name=debug,serves=debug,address=127.0.0.1:9090,network=tcp,auth=disabled")
+      ;;
+    raw)
+      PPROF_ARGS=(-listener "name=debug,serves=debug,address=:9090,network=tcp,tokenFile=/run/secrets/read")
+      PPROF_PUBLISH=(-p 127.0.0.1:9090:9090)
+      ;;
+    hmac)
+      PPROF_ARGS=(-listener "name=debug,serves=debug,address=:9090,network=tcp,hmacKeyFile=/run/secrets/read")
+      PPROF_PUBLISH=(-p 127.0.0.1:9090:9090)
+      ;;
+  esac
+fi
+
 docker run -d --name rt-xtcp2 \
   "${NET_ARGS[@]}" \
+  "${PPROF_PUBLISH[@]}" \
   "${CAP_ARGS[@]}" \
   "${SECRET_MOUNTS[@]}" \
   "${ENRICH_MOUNTS[@]}" \
@@ -332,6 +361,7 @@ docker run -d --name rt-xtcp2 \
   -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
   "$DAEMON_IMAGE" \
   "${LISTENER_ARGS[@]}" \
+  "${PPROF_ARGS[@]}" \
   "${DEST_ARGS[@]}" \
   "${ENRICH_ARGS[@]}" \
   -frequency 2s \

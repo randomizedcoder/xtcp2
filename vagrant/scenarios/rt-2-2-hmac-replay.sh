@@ -59,34 +59,51 @@ mint() { # mint <delta-minutes>
   vm_exec_root victim "python3 -c \"import hmac,hashlib,base64,time,pathlib; key=pathlib.Path(\\\"/opt/xtcp2-redteam/secrets/read\\\").read_text().strip(); minute=int(time.time())//60+$1; mac=hmac.new(key.encode(),str(minute).encode(),hashlib.sha256).digest(); print(base64.urlsafe_b64encode(mac).rstrip(b\\\"=\\\").decode())\""
 }
 
-# fresh-minute guard: land the mint in seconds 05..45 of a UTC minute.
+# fresh-minute guard: land the mint in seconds 05..18 of a UTC minute — the
+# mint -> scrape -> tcpdump(8s) -> replay sequence needs ~35 s of runway
+# INSIDE the mint's minute (a replay that crosses the boundary is CORRECTLY
+# 401 under skew 0, so a late mint races the assert; that failed a matrix run
+# once — 2026-11-25, mint at :44, replay at :11 of the next minute).
 sec=$(( $(date -u +%s) % 60 ))
-if [ "$sec" -lt 5 ] || [ "$sec" -gt 45 ]; then
+if [ "$sec" -lt 5 ] || [ "$sec" -gt 18 ]; then
   wait=$(( 65 - sec ))
   echo "rt-2-2: minute-boundary guard: sleeping ${wait}s (second :$sec)"
   sleep "$wait"
 fi
-
-# --- 1. the mint + the fleet client's scrape --------------------------------
-MINT_MINUTE=$(( $(date -u +%s) / 60 ))
-HMAC_TOKEN="$(mint 0)" || xtcp2_die 'could not mint the HMAC token (python3 on the VM?)'
-echo "rt-2-2: minted minute ${MINT_MINUTE}, token ${HMAC_TOKEN:0:8}…"
 vm_exec_root victim 'apt-get install -y -qq tcpdump >/dev/null 2>&1 || true'
-vm_exec_root victim 'rm -f /tmp/rt2-2.pcap'
-vm_exec_root victim 'timeout 8 tcpdump -i docker0 -A -s 0 -w /tmp/rt2-2.pcap port 9088 >/dev/null 2>&1 &'
-sleep 1
-code="$(vm_exec victim "sudo docker exec rt-attacker curl -s -m 5 -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer $HMAC_TOKEN' $PROM")"
-echo "rt-2-2: minted token scrape -> HTTP $code (second :$(( $(date -u +%s) % 60 )))"
+
+ # --- 1-3. mint, capture, replay (retried once if the minute crossed) ---------
+ # The capture races the minute: a slow provision can still push the replay
+ # past the boundary, so the sequence re-mints (a fresh minute) and redoes the
+ # capture once instead of failing the assert on correct skew-0 behavior.
+CAPTURED=""
+code=000
+r1=000
+for attempt in 1 2; do
+  MINT_MINUTE=$(( $(date -u +%s) / 60 ))
+  HMAC_TOKEN="$(mint 0)" || xtcp2_die 'could not mint the HMAC token (python3 on the VM?)'
+  echo "rt-2-2: minted minute ${MINT_MINUTE}, token ${HMAC_TOKEN:0:8}…"
+  vm_exec_root victim 'rm -f /tmp/rt2-2.pcap'
+  vm_exec_root victim 'timeout 8 tcpdump -i docker0 -A -s 0 -w /tmp/rt2-2.pcap port 9088 >/dev/null 2>&1 &'
+  sleep 1
+  code="$(vm_exec victim "sudo docker exec rt-attacker curl -s -m 5 -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer $HMAC_TOKEN' $PROM")"
+  echo "rt-2-2: minted token scrape -> HTTP $code (second :$(( $(date -u +%s) % 60 )))"
+  sleep 8 # the 8s tcpdump boundary
+  vm_exec_root victim 'chmod 0644 /tmp/rt2-2.pcap'
+  CAPTURED="$(vm_exec_root victim "grep -aoE 'Authorization: Bearer [A-Za-z0-9_-]+' /tmp/rt2-2.pcap | head -1")"
+  now_minute=$(( $(date -u +%s) / 60 ))
+  if [ "$now_minute" != "$MINT_MINUTE" ] && [ "$attempt" = 1 ]; then
+    echo "rt-2-2: the capture crossed the minute boundary (a replay now would be out-minute) — re-minting"
+    continue
+  fi
+  break
+done
 if [ "$code" = 200 ]; then
   ok "the minted HMAC token authenticates (the fleet client's view)"
 else
   not_ok "the minted token was rejected (HTTP $code — see evidence)"
 fi
 
-# --- 2. the on-path capture ------------------------------------------------
-sleep 8 # the 8s tcpdump boundary
-vm_exec_root victim 'chmod 0644 /tmp/rt2-2.pcap'
-CAPTURED="$(vm_exec_root victim "grep -aoE 'Authorization: Bearer [A-Za-z0-9_-]+' /tmp/rt2-2.pcap | head -1")"
 echo "rt-2-2: pcap header line: ${CAPTURED:0:24}…"
 if [ -n "$CAPTURED" ]; then
   ok "on-path capture reads the HMAC bearer off the wire"

@@ -29,6 +29,9 @@
 #   XTCP2_CPUS      0 | <n>         the daemon container's cpu quota (0 =
 #                                  unlimited): rt-4-8's cgroup-protection
 #                                  variant
+#   XTCP2_PPROF     0 | 1           add a loopback, token-gated debug
+#                                  listener (pprof) for scenarios that
+#                                  assert goroutine counts (rt-4-3/rt-11-3)
 #
 # Run everything through `nix run .#redteam-*` from the repo root; that pins
 # VAGRANT_CWD/VAGRANT_HOME to vagrant/.gen so no state leaks into ~/.vagrant.d.
@@ -47,6 +50,7 @@ DEST = ENV.fetch("XTCP2_DEST", "tcp")
 ENRICH = ENV.fetch("XTCP2_ENRICH", "none")
 NOFILE = ENV.fetch("XTCP2_NOFILE", "default")
 CPUS = ENV.fetch("XTCP2_CPUS", "0")
+PPROF = ENV.fetch("XTCP2_PPROF", "0")
 
 Vagrant.configure("2") do |config|
   config.vm.box = BOX
@@ -87,7 +91,7 @@ Vagrant.configure("2") do |config|
 
     victim.vm.provision "shell", path: "provision/common.sh"
     victim.vm.provision "shell", path: "provision/victim.sh",
-      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH, NOFILE, CPUS]
+      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH, NOFILE, CPUS, PPROF]
   end
 
   config.vm.define "attacker" do |attacker|
