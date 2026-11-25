@@ -269,6 +269,13 @@ func TestGotcAction2Unit(t *testing.T) {
 			has: []string{`"kind":"tunnel_key","mode":"set","src_ip":"10.0.0.1","dst_ip":"10.0.0.2","flag":"csum","nofrag":true`},
 		},
 		{
+			description: "corner: a t_action other than set or unset prints no mode (AC50)",
+			args:        ls("tunnel_key"),
+			replies: []Reply{one(0, "tunnel_key", attr(xtcpnl.TcaTunnelKeyParms,
+				cat(genB(1, tcActPipeCst, 1, 0), le32(3))))},
+			expected: result{stdout: "total acts 1\n\n\taction order 0: tunnel_key  pipe\n\t index 1 ref 1 bind 0\n"},
+		},
+		{
 			description: "corner: -j erspan v2 carries index 0 (AC48)",
 			args:        append([]string{"-j"}, get("tunnel_key")...),
 			replies: []Reply{one(1, "tunnel_key", cat(tkParms(), attr(xtcpnl.TcaTunnelKeyEncOpts, attr(xtcpnl.TcaTunnelKeyEncOptsErspan,
