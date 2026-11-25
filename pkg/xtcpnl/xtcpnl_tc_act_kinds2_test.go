@@ -366,6 +366,19 @@ func TestParseTcActKinds2(t *testing.T) {
 			off, err := ParseTcCt(opt(TcaCtActCommit))
 			return fmt.Sprintf("%t %t", on.NatUnchecked, off.NatUnchecked), err
 		}, "true false"},
+		{"negative: ct v4 bounds equal fall through to an IPv6 MAX without MIN (AC54)", func() (string, error) {
+			v4 := []byte{10, 0, 0, 1}
+			base := cat(rtattr(TcaCtParms, a2tg()), rtattr(TcaCtAction, a2le16(TcaCtActNat|TcaCtActNatSrc)),
+				rtattr(TcaCtNatIPv4Min, v4), rtattr(TcaCtNatIPv4Max, v4))
+			eq, err := ParseTcCt(cat(base, rtattr(TcaCtNatIPv6Max, make([]byte, 16))))
+			if err != nil {
+				return "", err
+			}
+			ne, err := ParseTcCt(cat(rtattr(TcaCtParms, a2tg()), rtattr(TcaCtAction, a2le16(TcaCtActNat|TcaCtActNatSrc)),
+				rtattr(TcaCtNatIPv4Min, v4), rtattr(TcaCtNatIPv4Max, []byte{10, 0, 0, 9}),
+				rtattr(TcaCtNatIPv6Max, make([]byte, 16))))
+			return fmt.Sprintf("%t %t", eq.NatUnchecked, ne.NatUnchecked), err
+		}, "true false"},
 		{"negative: ct LABELS without its mask; with an 8-byte mask (AC55)", func() (string, error) {
 			l := rtattr(TcaCtLabels, make([]byte, 16))
 			a, err := ParseTcCt(cat(rtattr(TcaCtParms, a2tg()), l))

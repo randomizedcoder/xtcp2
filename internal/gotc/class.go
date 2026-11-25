@@ -74,7 +74,7 @@ func (r *runner) classList(args []string) error {
 		a := args[0]
 		var err error
 		switch {
-		case a == wordDev, a == wordQdisc, a == "classid":
+		case a == wordDev, a == wordQdisc, a == wordClassid:
 			args, err = r.classArg(f, &dev, a, args)
 		case a == wordRoot:
 			if parent != 0 {
@@ -150,7 +150,7 @@ func (r *runner) classArg(f *classFilter, dev *string, a string, args []string) 
 		f.qdisc = h
 	default:
 		if f.classid != 0 {
-			return args, r.duparg("classid", v)
+			return args, r.duparg(wordClassid, v)
 		}
 		h, ok := tcClassid(v)
 		if !ok {

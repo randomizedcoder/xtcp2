@@ -148,7 +148,7 @@ func (r *runner) filterWord(a *filterArgs, args []string, get bool) (rest []stri
 		return args[1:], true, nil
 	}
 	valued := w == wordDev || w == wordParent || w == "handle" || matches(w, "block") ||
-		matches(w, "preference") || matches(w, "priority") || matches(w, "protocol") || matches(w, "chain")
+		matches(w, "preference") || matches(w, wordPriority) || matches(w, "protocol") || matches(w, "chain")
 	if !valued {
 		return nil, false, nil
 	}
@@ -173,7 +173,7 @@ func (r *runner) filterWord(a *filterArgs, args []string, get bool) (rest []stri
 			return nil, true, r.duparg("handle", v)
 		}
 		a.handle, a.hasHandle = v, true // a list parses it and never uses it (Q29h)
-	case matches(w, "preference") || matches(w, "priority"):
+	case matches(w, "preference") || matches(w, wordPriority):
 		err = r.prioArg(a, v, get)
 	case matches(w, "protocol"):
 		err = r.protoArg(a, v, get)
@@ -221,7 +221,7 @@ func (r *runner) parentArg(a *filterArgs, v string, get bool) error {
 // does.
 func (r *runner) prioArg(a *filterArgs, v string, get bool) error {
 	if a.prio != 0 {
-		return r.duparg("priority", v)
+		return r.duparg(wordPriority, v)
 	}
 	p, ok := getU32(v, 0)
 	switch {

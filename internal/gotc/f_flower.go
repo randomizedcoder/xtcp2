@@ -117,7 +117,7 @@ func (r *runner) flowerHead(tb xtcpnl.AttrTable, handle uint32) {
 		h := attrU32(tb, xtcpnl.TcaFlowerClassid)
 		if m := tcHMin(h); m < tcHMinPriority || m > tcHMinPriority+tcQoptMaxQueue-1 {
 			c := r.classid(h)
-			o.str(printAny, colorNone, "classid", "classid "+c+" ", c)
+			o.str(printAny, colorNone, wordClassid, "classid "+c+" ", c)
 		} else { // FL3: the major is dropped
 			o.uint(printAny, "hw_tc", "hw_tc "+u32s(m-tcHMinPriority)+" ", m-tcHMinPriority)
 		}
@@ -199,9 +199,9 @@ func (r *runner) flowerL2Keys(tb xtcpnl.AttrTable, nested xtcpnl.TcFlowerNested)
 // l2tpv3_sid, spi, ARP and PPPoE keys.
 func (r *runner) flowerL3Keys(tb xtcpnl.AttrTable, ethType uint16, ipProto uint8) {
 	o := r.o
-	r.flowerIPAddr("dst_ip", ethType, tb, xtcpnl.TcaFlowerKeyIPv4Dst, xtcpnl.TcaFlowerKeyIPv4DstMask,
+	r.flowerIPAddr(wordDstIP, ethType, tb, xtcpnl.TcaFlowerKeyIPv4Dst, xtcpnl.TcaFlowerKeyIPv4DstMask,
 		xtcpnl.TcaFlowerKeyIPv6Dst, xtcpnl.TcaFlowerKeyIPv6DstMask)
-	r.flowerIPAddr("src_ip", ethType, tb, xtcpnl.TcaFlowerKeyIPv4Src, xtcpnl.TcaFlowerKeyIPv4SrcMask,
+	r.flowerIPAddr(wordSrcIP, ethType, tb, xtcpnl.TcaFlowerKeyIPv4Src, xtcpnl.TcaFlowerKeyIPv4SrcMask,
 		xtcpnl.TcaFlowerKeyIPv6Src, xtcpnl.TcaFlowerKeyIPv6SrcMask)
 
 	r.flowerPorts(tb, ipProto)
@@ -374,9 +374,9 @@ func (r *runner) flowerEthType(t uint16) {
 	var out string
 	switch t {
 	case ethPIP:
-		out = "ipv4"
+		out = wordIPv4
 	case ethPIPv6:
-		out = "ipv6"
+		out = wordIPv6
 	case ethPARP:
 		out = "arp"
 	case ethPRARP:
@@ -393,9 +393,9 @@ func (r *runner) flowerIPProto(p uint8) {
 	var out string
 	switch p {
 	case ipprotoTCP:
-		out = "tcp"
+		out = wordTCP
 	case ipprotoUDP:
-		out = "udp"
+		out = wordUDP
 	case ipprotoSCTP:
 		out = "sctp"
 	case ipprotoICMP:
@@ -463,14 +463,14 @@ func flowerPortTypes(ipProto uint8) (keys, masks, mins, maxs [2]uint16, ok bool)
 }
 
 // flowerPorts is flower_print_opt's ports, then its port ranges: a range
-// is a JSON object under the same "dst_port"/"src_port" key an exact port
+// is a JSON object under the same wordDstPort/"src_port" key an exact port
 // uses as a number (FL6).
 func (r *runner) flowerPorts(tb xtcpnl.AttrTable, ipProto uint8) {
 	keys, masks, mins, maxs, ok := flowerPortTypes(ipProto)
 	if !ok {
 		return
 	}
-	names := [2]string{"dst_port", "src_port"}
+	names := [2]string{wordDstPort, "src_port"}
 	for i, name := range names {
 		r.printMaskedBE16(name, tb, keys[i], masks[i])
 	}
@@ -845,22 +845,22 @@ var flowerKeywords = []struct {
 	kw     string
 	strict bool
 }{
-	{"classid", false}, {"flowid", false}, {"hw_tc", false}, {"ip_flags", false},
+	{wordClassid, false}, {"flowid", false}, {"hw_tc", false}, {"ip_flags", false},
 	{"l2_miss", true}, {"verbose", false}, {"skip_hw", false}, {"skip_sw", false},
 	{"ct_state", false}, {"ct_zone", false}, {"ct_mark", false}, {"ct_label", false},
 	{"indev", false}, {"num_of_vlans", true}, {"vlan_id", false}, {"vlan_prio", false},
 	{"vlan_ethtype", false}, {"cvlan_id", false}, {"cvlan_prio", false},
 	{"cvlan_ethtype", false}, {"mpls", false}, {"mpls_label", false}, {"mpls_tc", false},
 	{"mpls_bos", false}, {"mpls_ttl", false}, {"dst_mac", false}, {"src_mac", false},
-	{"ip_proto", false}, {"ip_tos", false}, {"ip_ttl", false}, {"dst_ip", false},
-	{"src_ip", false}, {"dst_port", false}, {"src_port", false}, {"tcp_flags", false},
+	{"ip_proto", false}, {"ip_tos", false}, {"ip_ttl", false}, {wordDstIP, false},
+	{wordSrcIP, false}, {wordDstPort, false}, {"src_port", false}, {"tcp_flags", false},
 	{"type", false}, {"code", false}, {"l2tpv3_sid", true}, {"spi", true},
 	{"arp_tip", false}, {"arp_sip", false}, {"arp_op", false}, {"arp_tha", false},
 	{"arp_sha", false}, {"pppoe_sid", true}, {"ppp_proto", true}, {"enc_dst_ip", false},
 	{"enc_src_ip", false}, {"enc_key_id", false}, {"enc_dst_port", false},
 	{"enc_tos", false}, {"enc_ttl", false}, {"geneve_opts", false}, {"vxlan_opts", false},
 	{"erspan_opts", false}, {"gtp_opts", true}, {"pfcp_opts", true}, {"enc_flags", true},
-	{"action", false}, {"cfm", true},
+	{wordAction, false}, {"cfm", true},
 }
 
 // flowerKeyword is the keyword flower_parse_opt takes arg as, if any.

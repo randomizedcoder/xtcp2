@@ -19,6 +19,21 @@ func actShort(kind string, n int) error {
 	return fmt.Errorf("%w: %s parameters of %d bytes (tc reads it unchecked)", errNotImplemented, kind, n)
 }
 
+// attrNeed is the refusal for an attribute a printer reads n bytes of
+// without testing its length: present and shorter than n, C reads past it.
+func attrNeed(kind, what string, b []byte, n int) error {
+	if b != nil && len(b) < n {
+		return fmt.Errorf("%w: %s %s of %d bytes (tc reads it unchecked)", errNotImplemented, kind, what, len(b))
+	}
+	return nil
+}
+
+// actUnchecked is the refusal for what a printer would read through NULL
+// or past an attribute (a missing child, a count past its payload).
+func actUnchecked(kind, what string) error {
+	return fmt.Errorf("%w: %s %s (tc reads it unchecked)", errNotImplemented, kind, what)
+}
+
 // policeAttrU64 is a u64 police attribute tc reads only when its payload
 // holds one.
 func policeAttrU64(tb xtcpnl.AttrTable, t uint16) (uint64, bool) {

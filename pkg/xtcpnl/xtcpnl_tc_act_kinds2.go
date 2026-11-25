@@ -575,26 +575,37 @@ func ParseTcCt(opt []byte) (TcCtOpt, error) {
 }
 
 // ctNatUnchecked follows ct_print_nat to its memcmps: IPv4 MAX against
-// MIN (4 bytes), else IPv6 (16), then the ports (2).
+// MIN (4 bytes); only when that is absent or equal, IPv6 (16); then the
+// ports (2). ct_sprint_port reads a be16 from MIN when it is there.
 func ctNatUnchecked(tb AttrTable, act uint16) bool {
 	if act&TcaCtActNat == 0 || act&(TcaCtActNatSrc|TcaCtActNatDst) == 0 {
 		return false
 	}
-	short := func(minT uint16, n int) bool { return len(tb.Bytes(minT)) < n }
-	bad := false
-	switch {
-	case tb.Has(TcaCtNatIPv4Max):
-		bad = short(TcaCtNatIPv4Min, 4) || len(tb.Bytes(TcaCtNatIPv4Max)) < 4
-		// memcmp equal means the IPv6 branch is not taken either way.
-	case tb.Has(TcaCtNatIPv6Max):
-		bad = short(TcaCtNatIPv6Min, 16) || len(tb.Bytes(TcaCtNatIPv6Max)) < 16
+	// cmp is one memcmp: bad when MIN or MAX is shorter than n (NULL
+	// included), else whether they differ.
+	cmp := func(minT, maxT uint16, n int) (differ, bad bool) {
+		lo, hi := tb.Bytes(minT), tb.Bytes(maxT)
+		if len(lo) < n || len(hi) < n {
+			return false, true
+		}
+		return !bytes.Equal(lo[:n], hi[:n]), false
+	}
+	differ, bad := false, false
+	if tb.Has(TcaCtNatIPv4Max) {
+		if differ, bad = cmp(TcaCtNatIPv4Min, TcaCtNatIPv4Max, 4); bad {
+			return true
+		}
+	}
+	if !differ && tb.Has(TcaCtNatIPv6Max) {
+		if _, bad = cmp(TcaCtNatIPv6Min, TcaCtNatIPv6Max, 16); bad {
+			return true
+		}
+	}
+	if p := tb.Bytes(TcaCtNatPortMin); p != nil && len(p) < 2 {
+		return true
 	}
 	if tb.Has(TcaCtNatPortMax) {
-		bad = bad || short(TcaCtNatPortMin, 2) || len(tb.Bytes(TcaCtNatPortMax)) < 2
-	}
-	// ct_sprint_port reads a be16 from MIN when it is there.
-	if p := tb.Bytes(TcaCtNatPortMin); p != nil && len(p) < 2 {
-		bad = true
+		_, bad = cmp(TcaCtNatPortMin, TcaCtNatPortMax, 2)
 	}
 	return bad
 }

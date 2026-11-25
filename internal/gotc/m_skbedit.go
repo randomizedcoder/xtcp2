@@ -35,11 +35,11 @@ func (r *runner) printSkbedit(opt []byte, has bool) (int, error) {
 	}
 	if tb.Has(xtcpnl.TcaSkbeditPriority) {
 		c := r.classid(attrU32(tb, xtcpnl.TcaSkbeditPriority))
-		o.str(printAny, colorNone, "priority", " priority "+c, c)
+		o.str(printAny, colorNone, wordPriority, " priority "+c, c)
 	}
 	if tb.Has(xtcpnl.TcaSkbeditMark) {
 		v := attrU32(tb, xtcpnl.TcaSkbeditMark)
-		o.uint(printAny, "mark", " mark "+u32s(v), v)
+		o.uint(printAny, wordMark, " mark "+u32s(v), v)
 	}
 	if tb.Has(xtcpnl.TcaSkbeditMask) {
 		v := attrU32(tb, xtcpnl.TcaSkbeditMask)

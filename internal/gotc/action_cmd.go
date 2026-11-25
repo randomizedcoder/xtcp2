@@ -91,7 +91,7 @@ func (r *runner) actionGet(args []string) (rest []string, ret int, err error) {
 	var acts []xtcpnl.TcActRef
 	for len(g) > 0 {
 		switch g[0] {
-		case "action":
+		case wordAction:
 			g = g[1:]
 			continue
 		case helpWord:

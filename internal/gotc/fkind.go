@@ -11,7 +11,8 @@ import (
 )
 
 // tc.c get_filter_kind and the print_fopt of each slice kind: tc/f_u32.c,
-// f_fw.c, f_route.c, f_basic.c, f_cgroup.c, f_flow.c and f_matchall.c.
+// f_fw.c, f_route.c, f_basic.c, f_cgroup.c, f_flow.c and f_matchall.c
+// (flower and bpf have their own files).
 // print_filter ignores what a printer returns, so one that "returns -1"
 // here just stops.
 
@@ -28,6 +29,7 @@ var filterUtils = map[string]filterPrinter{
 	xtcpnl.TcFKindFlow:     printFlowOpt,
 	xtcpnl.TcFKindMatchall: printMatchallOpt,
 	xtcpnl.TcFKindFlower:   printFlowerOpt,
+	xtcpnl.TcFKindBpf:      printBpfOpt,
 }
 
 // tcBuiltinFilters is every filter_util id the tc binary links (tc/Makefile
@@ -330,10 +332,10 @@ func (r *runner) printU32IP(k xtcpnl.TcU32Key, v6 bool) {
 			o.nl()
 			if k.Off == 12 {
 				o.fp("  match IP src ")
-				o.openObject("src")
+				o.openObject(wordSrc)
 			} else {
 				o.fp("  match IP dst ")
-				o.openObject("dst")
+				o.openObject(wordDst)
 			}
 			var a [4]byte
 			binary.BigEndian.PutUint32(a[:], k.Val)
@@ -376,17 +378,17 @@ func printFwOpt(r *runner, opt []byte, handle uint32) error {
 		o.openObject("fw")
 		mark := handle
 		if mask := attrU32(tb, xtcpnl.TcaFwMask); tb.Has(xtcpnl.TcaFwMask) && mask != 0xFFFFFFFF {
-			o.hex0x(printAny, "mark", fmt.Sprintf("handle 0x%x", mark), uint64(mark))
+			o.hex0x(printAny, wordMark, fmt.Sprintf("handle 0x%x", mark), uint64(mark))
 			o.hex0x(printAny, "mask", fmt.Sprintf("/0x%x ", mask), uint64(mask))
 		} else {
-			o.hex0x(printAny, "mark", fmt.Sprintf("handle 0x%x ", mark), uint64(mark))
+			o.hex0x(printAny, wordMark, fmt.Sprintf("handle 0x%x ", mark), uint64(mark))
 			o.hex0x(printJSON, "mask", "", 0xFFFFFFFF)
 		}
 		o.closeObject()
 	}
 	if tb.Has(xtcpnl.TcaFwClassid) {
 		c := r.classid(attrU32(tb, xtcpnl.TcaFwClassid))
-		o.str(printAny, colorNone, "classid", "classid "+c+" ", c)
+		o.str(printAny, colorNone, wordClassid, "classid "+c+" ", c)
 	}
 	if tb.Has(xtcpnl.TcaFwPolice) {
 		if err := r.printFilterPolice(tb.Bytes(xtcpnl.TcaFwPolice), false); err != nil {
@@ -500,7 +502,7 @@ func printCgroupOpt(r *runner, opt []byte, handle uint32) error {
 
 // flowKeys is f_flow.c flow_keys.
 var flowKeys = [xtcpnl.FlowKeyMaxCst + 1]string{
-	"src", "dst", "proto", "proto-src", "proto-dst", "iif", "priority", "mark", "nfct",
+	wordSrc, wordDst, "proto", "proto-src", "proto-dst", "iif", wordPriority, wordMark, "nfct",
 	"nfct-src", "nfct-dst", "nfct-proto-src", "nfct-proto-dst", "rt-classid", "sk-uid",
 	"sk-gid", "vlan-tag", "rxhash",
 }

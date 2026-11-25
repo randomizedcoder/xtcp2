@@ -13,7 +13,9 @@ import (
 )
 
 // corpusRows is how many rows each space holds (V002).
-var corpusRows = map[string]int{"tcqdisc": 142, "tcclass": 82, "tcfilter": 159, "tcflower": 97, "tcaction": 138}
+var corpusRows = map[string]int{
+	"tcqdisc": 142, "tcclass": 82, "tcfilter": 159, "tcflower": 97, "tcaction": 138, "tcaction2": 105,
+}
 
 // corpusKnown are the rows gotc cannot match byte for byte, each with the
 // reason, so the rest are held exactly.
@@ -36,7 +38,7 @@ var corpusRefused = map[string]string{
 
 var corpusWrites = map[string]bool{
 	"tcqdisc/ng-018": true, "tcclass/ng-011": true, "tcfilter/ng-024": true, "tcflower/ng-009": true,
-	"tcaction/ng-006": true,
+	"tcaction/ng-006": true, "tcaction2/ng-007": true,
 }
 
 // pschedRow is the one row that reads the workbench's /proc/net/psched
@@ -185,7 +187,7 @@ func TestGotcCorpus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, sp := range []string{"tcclass", "tcfilter", "tcflower", "tcaction"} {
+	for _, sp := range []string{"tcclass", "tcfilter", "tcflower", "tcaction", "tcaction2"} {
 		more, err := filepath.Glob("../../pkg/xtcpnl/testdata/*/ws/" + sp)
 		if err != nil {
 			t.Fatal(err)

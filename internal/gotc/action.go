@@ -81,39 +81,37 @@ func (r *runner) dumpAction(nest []byte, tot uint16, bind bool) error {
 // TCA_ACT_OPTIONS is absent, has false) and tc's return.
 type actPrinter func(r *runner, opt []byte, has bool) (int, error)
 
-// actionUtils is the action_util list tc 7.2.0 links, by id, for the kinds
-// gotc prints. The other linked kinds (deferredActKinds) are refused by
-// name; tc prints a kind it does not link as gact (L22), which gotc
-// refuses too.
+// actionUtils is the action_util list tc 7.2.0 links (TCMODULES), by id:
+// gotc prints all 19. tc prints a kind it does not link as gact (L22),
+// which gotc refuses.
 var actionUtils = map[string]actPrinter{
-	xtcpnl.TcActKindGact:     (*runner).printGact,
-	xtcpnl.TcActKindPolice:   (*runner).printPolice,
-	xtcpnl.TcActKindMirred:   (*runner).printMirred,
-	xtcpnl.TcActKindSkbedit:  (*runner).printSkbedit,
-	xtcpnl.TcActKindVlan:     (*runner).printVlan,
-	xtcpnl.TcActKindCsum:     (*runner).printCsum,
-	xtcpnl.TcActKindNat:      (*runner).printNat,
-	xtcpnl.TcActKindSimple:   (*runner).printSimple,
-	xtcpnl.TcActKindConnmark: (*runner).printConnmark,
-	xtcpnl.TcActKindCtinfo:   (*runner).printCtinfo,
-	xtcpnl.TcActKindSample:   (*runner).printSample,
-	xtcpnl.TcActKindSkbmod:   (*runner).printSkbmod,
-	xtcpnl.TcActKindMpls:     (*runner).printMpls,
+	xtcpnl.TcActKindGact:      (*runner).printGact,
+	xtcpnl.TcActKindPolice:    (*runner).printPolice,
+	xtcpnl.TcActKindMirred:    (*runner).printMirred,
+	xtcpnl.TcActKindSkbedit:   (*runner).printSkbedit,
+	xtcpnl.TcActKindVlan:      (*runner).printVlan,
+	xtcpnl.TcActKindCsum:      (*runner).printCsum,
+	xtcpnl.TcActKindNat:       (*runner).printNat,
+	xtcpnl.TcActKindSimple:    (*runner).printSimple,
+	xtcpnl.TcActKindConnmark:  (*runner).printConnmark,
+	xtcpnl.TcActKindCtinfo:    (*runner).printCtinfo,
+	xtcpnl.TcActKindSample:    (*runner).printSample,
+	xtcpnl.TcActKindSkbmod:    (*runner).printSkbmod,
+	xtcpnl.TcActKindMpls:      (*runner).printMpls,
+	xtcpnl.TcActKindPedit:     (*runner).printPedit,
+	xtcpnl.TcActKindTunnelKey: (*runner).printTunnelKey,
+	xtcpnl.TcActKindIfe:       (*runner).printIfe,
+	xtcpnl.TcActKindCt:        (*runner).printCt,
+	xtcpnl.TcActKindGate:      (*runner).printGate,
+	xtcpnl.TcActKindBpf:       (*runner).printActBpf,
 }
-
-// deferredActKinds are the action_util ids tc 7.2.0 links that gotc does
-// not print yet (increment 13): a kind moves from here to actionUtils.
-var deferredActKinds = []string{"bpf", "ct", "gate", "ife", "pedit", "tunnel_key"}
 
 // linkedActKinds is every action_util id tc 7.2.0 links (TCMODULES), the
 // kinds get_action_kind finds by name: get and list refuse any other. It
-// is actionUtils' kinds plus deferredActKinds.
+// is actionUtils' kinds.
 var linkedActKinds = func() map[string]bool {
-	m := make(map[string]bool, len(actionUtils)+len(deferredActKinds))
+	m := make(map[string]bool, len(actionUtils))
 	for k := range actionUtils {
-		m[k] = true
-	}
-	for _, k := range deferredActKinds {
 		m[k] = true
 	}
 	return m
