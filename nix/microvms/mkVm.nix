@@ -2416,6 +2416,60 @@ let
     "-enrichContainer"
     "-enrichNic"
     "-populateNsid"
+  ]
+  # The golden flavor adds locality and ASN over goldenAsnDb; the families
+  # check keeps the base args.
+  ++ lib.optionals isS3ParquetGolden [
+    "-enrichLocality"
+    "-enrichAsn"
+    "-asnDbPath"
+    "${goldenAsnDb}"
+    "-ipmetaBootstrapPath"
+    ""
+    "-ipmetaCachePath"
+    "/run/xtcp2/golden-asn.lookup.parquet.zst"
+  ];
+
+  # The golden capture's ASN artifact, built here from documentation
+  # prefixes only (the golden-remote netns in golden-workload.sh), so
+  # -enrichAsn resolves without a feed or the internet. The columns are the
+  # ones pkg/ipasn reads.
+  goldenAsnPrefixes = [
+    {
+      prefix = "203.0.113.0/24";
+      asn = 64500;
+      owner = "fixture-net";
+    }
+    {
+      prefix = "2001:db8:113::/48";
+      asn = 64501;
+      owner = "fixture-net6";
+    }
+  ];
+  goldenAsnDb = pkgs.runCommand "xtcp2-golden-asn.parquet" { nativeBuildInputs = [ pkgs.duckdb ]; } ''
+    export HOME=$TMPDIR
+    duckdb -c "COPY (SELECT prefix, asn::UINTEGER AS asn, network_owner FROM (VALUES ${
+      lib.concatMapStringsSep ", " (
+        p: "('${p.prefix}', ${toString p.asn}, '${p.owner}')"
+      ) goldenAsnPrefixes
+    }) t(prefix, asn, network_owner)) TO '$out' (FORMAT parquet)"
+  '';
+
+  # The golden flavor's NICs. virtio-net reports no speed unless told
+  # (drivers/net/virtio_net.c), so eth0 gets 10000. A second uplink, an
+  # emulated e1000e on its own restricted SLiRP net, gives a PCI vendor and
+  # device, a firmware version and a bus address; its default route (below)
+  # has the higher metric, so DefaultUplinks lists it second.
+  goldenUplink2Mac = "02:00:00:00:10:02";
+  goldenNicArgs = [
+    "-global"
+    "virtio-net-pci.speed=10000"
+    "-global"
+    "virtio-net-pci.duplex=full"
+    "-netdev"
+    "user,id=up2,restrict=on,net=10.0.3.0/24"
+    "-device"
+    "e1000e,netdev=up2,mac=${goldenUplink2Mac},romfile="
   ];
 
   goldenWorkloadScript = pkgs.writeShellApplication {
@@ -3139,6 +3193,7 @@ in
             ]
             # The lacp pair's two dgram links; empty for every other flavor.
             ++ lacpNicArgs
+            ++ lib.optionals isS3ParquetGolden goldenNicArgs
             # The workbench's ephemeral ssh key. A relative path, resolved in
             # the directory the host CLI starts qemu from (its state dir), so
             # the key is chosen at `up` time and never baked into the runner.
@@ -4559,6 +4614,24 @@ in
         # bond_enslave refuses a port that is up. Measured on the first
         # Tier 2 run: lb1 sent DHCP discovers from inside B's bond, and B's
         # bond sent one LACPDU and then none.
+        # The golden flavor's second uplink (goldenNicArgs): static, with a
+        # default route behind the DHCP one on the virtio NIC.
+        systemd.network.networks."05-golden-uplink2" = lib.mkIf isS3ParquetGolden {
+          matchConfig.MACAddress = goldenUplink2Mac;
+          address = [ "10.0.3.15/24" ];
+          routes = [
+            {
+              Gateway = "10.0.3.2";
+              Metric = 2048;
+            }
+          ];
+          networkConfig = {
+            DHCP = "no";
+            IPv6AcceptRA = false;
+            LinkLocalAddressing = "no";
+          };
+        };
+
         systemd.network.networks."05-lacp-unmanaged" = lib.mkIf isLacpPair {
           matchConfig.Name = "la* lb* bond*";
           linkConfig.Unmanaged = true;

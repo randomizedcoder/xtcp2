@@ -179,6 +179,40 @@ got=$(q "SELECT string_agg(DISTINCT netns || '=' || tcp_info_pmtu || '/' || tcp_
 ok=0
 [ "$got" = "golden-cc-a=1500/1448,golden-opts-a=1450/1398,golden-states-a=1300/1248" ] && ok=1
 row mtu_paths corner "$ok" "IPv4 pmtu/snd_mss per pair: $got"
+
+# The NICs, locality and ASN (goldenNicArgs, goldenAsnDb, golden-loc-*).
+got=$(q "SELECT concat_ws(',', max(uplink2_nic_driver), max(uplink2_nic_pci_vendor), bool_or(uplink2_nic_fw_version <> ''), bool_or(uplink2_nic_bus_info <> '')) FROM $P")
+ok=0
+[ "$got" = "e1000e,32902,true,true" ] && ok=1
+row uplink2 positive "$ok" "uplink2 driver, PCI vendor, firmware set, bus set: $got"
+got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_locality::VARCHAR, ',' ORDER BY enrich_socket_dest_locality::VARCHAR) FROM $P WHERE netns = 'golden-loc-a' AND inet_diag_msg_state = 1")
+ok=0
+[ "$got" = "1,2,3" ] && ok=1
+row locality_all positive "$ok" "localities of golden-loc-a's connections: $got"
+n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-opts-a' AND enrich_socket_interface_name = 'veth0'")
+ok=0
+[ "$n" -eq 1 ] && ok=1
+row bound_ifname positive "$ok" "$n rows bound to veth0 (SO_BINDTODEVICE) named"
+got=$(q "SELECT concat_ws(',', count(*) FILTER (enrich_socket_dest_asn <> 0), count(*) FILTER (enrich_socket_dest_asn <> 0 AND (enrich_socket_dest_locality <> 3 OR enrich_socket_dest_network_owner = ''))) FROM $P")
+ok=0
+[ "$got" = "2,0" ] && ok=1
+row asn_remote negative "$ok" "rows with an ASN, and of those not REMOTE or without an owner: $got, want 2,0"
+n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-states-a' AND inet_diag_msg_state = 2 AND enrich_socket_dest_locality = 3 AND enrich_socket_dest_asn = 0")
+ok=0
+[ "$n" -eq "$K_SYN" ] && ok=1
+row no_asn_unlisted negative "$ok" "$n REMOTE SYN_SENT rows to 192.0.2.1 (not in the artifact) without an ASN, want $K_SYN"
+got=$(q "SELECT concat_ws(',', string_agg(DISTINCT uplink1_nic_speed_mbps::VARCHAR, '/'), string_agg(DISTINCT uplink2_nic_speed_mbps::VARCHAR, '/')) FROM $P")
+ok=0
+[ "$got" = "10000,1000" ] && ok=1
+row nic_speed boundary "$ok" "uplink1, uplink2 speed: $got"
+n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-loc-a' AND inet_diag_msg_family = 10 AND enrich_socket_dest_locality = 3 AND enrich_socket_dest_asn = 64501 AND enrich_socket_dest_network_owner = 'fixture-net6'")
+ok=0
+[ "$n" -eq 1 ] && ok=1
+row v6_remote corner "$ok" "$n IPv6 rows to 2001:db8:113::10 with AS64501"
+got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_egress_ifname, ',') FROM $P WHERE netns = 'golden-loc-a' AND enrich_socket_dest_locality = 3")
+ok=0
+[ "$got" = "veth0" ] && ok=1
+row egress_named corner "$ok" "egress of golden-loc-a's REMOTE rows: $got"
 [ "$row_failed" = 0 ] || fail "rows failed"
 
 version=$(q "SELECT any_value(daemon_version) FROM $P")
@@ -193,7 +227,8 @@ jq -n \
     capabilities: ($caps | split(" ")),
     workload: {containers: $containers, sockets_per_container: $sockets,
       named_netns: ["golden-ns", "golden-cc-a", "golden-cc-b", "golden-bulk-a", "golden-bulk-b",
-        "golden-opts-a", "golden-opts-b", "golden-states-a", "golden-states-b"]},
+        "golden-opts-a", "golden-opts-b", "golden-states-a", "golden-states-b",
+        "golden-loc-a", "golden-loc-b", "golden-remote"]},
     cong_available: $cong,
     rows: $rows, captured: $captured}' >"$OUT/manifest.json"
 rm -f "$OUT"/ss-golden-* "$OUT"/nsid-golden-*

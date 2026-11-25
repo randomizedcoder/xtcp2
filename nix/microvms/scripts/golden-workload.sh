@@ -15,6 +15,9 @@
 #                      sockopt bits, three receive buffers, SO_BINDTODEVICE
 #   golden-states-a/b  veth, MTU 1300: a FIN_WAIT2/CLOSE_WAIT pair; the
 #                      capture adds TIME_WAIT and SYN_SENT after poll 1
+#   golden-loc-a/b     veth, MTU 1500, and golden-remote behind golden-loc-b:
+#   golden-remote      one connection per locality (self, subnet, remote
+#                      over IPv4 and IPv6 to documentation addresses)
 #   the host     as it is
 #
 # Every pair is a named netns, so root picks any algorithm and option
@@ -175,6 +178,40 @@ wait_listen golden-states-b 4000 2
 wait_listen golden-states-b 4002
 spawn states-half golden-states-a "$TCP_CLIENT" -count 1 -connect 10.3.0.2 -halfclose -pads 0
 
+# loc: one destination of each locality from golden-loc-a. Its own address
+# (self), golden-loc-b's (subnet), and golden-remote's documentation
+# addresses through golden-loc-b as a router (remote; goldenAsnDb in mkVm.nix
+# maps them to ASNs).
+pair loc 5 1500
+ip netns del golden-remote 2>/dev/null || true
+ip netns add golden-remote
+ip -n golden-remote link set lo up
+ip link add veth1 netns golden-loc-b type veth peer name veth0 netns golden-remote
+ip -n golden-loc-b addr add 203.0.113.1/24 dev veth1
+ip -n golden-loc-b addr add 2001:db8:113::1/64 dev veth1 nodad
+ip -n golden-remote addr add 203.0.113.10/24 dev veth0
+ip -n golden-remote addr add 2001:db8:113::10/64 dev veth0 nodad
+ip -n golden-loc-b link set veth1 up
+ip -n golden-remote link set veth0 up
+ip netns exec golden-loc-b sysctl -qw net.ipv4.ip_forward=1 net.ipv6.conf.all.forwarding=1
+ip -n golden-remote route add default via 203.0.113.1
+ip -n golden-remote -6 route add default via 2001:db8:113::1
+ip -n golden-loc-a route add 203.0.113.0/24 via 10.5.0.2
+ip -n golden-loc-a -6 route add 2001:db8:113::/48 via fd00:5::2
+spawn loc-self-server golden-loc-a "$TCP_SERVER" -count 1 -bind 10.5.0.1
+spawn loc-subnet-server golden-loc-b "$TCP_SERVER" -count 1 -bind 10.5.0.2
+spawn loc-remote-server-4 golden-remote "$TCP_SERVER" -count 1 -bind 203.0.113.10
+spawn loc-remote-server-6 golden-remote "$TCP_SERVER" -count 1 -bind 2001:db8:113::10
+wait_listen golden-loc-a 4000
+wait_listen golden-loc-b 4000
+wait_listen golden-remote 4000 2
+spawn loc-self golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.1 -sleep 1h -pads 0
+spawn loc-subnet golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.2 -sleep 1h -pads 0
+spawn loc-remote-4 golden-loc-a "$TCP_CLIENT" -count 1 -connect 203.0.113.10 -sleep 1h -pads 0
+spawn loc-remote-6 golden-loc-a "$TCP_CLIENT" -count 1 -connect 2001:db8:113::10 -sleep 1h -pads 0
+# The self connection shows twice in golden-loc-a, once per end.
+loc_established=5
+
 # Each container's connections show twice, once per end.
 need=$((2 * SOCKETS))
 deadline=$((SECONDS + READY_SEC))
@@ -199,6 +236,8 @@ while :; do
   if [ $((n + m)) -lt "$want" ]; then pending="$pending golden-bulk($((n + m))/$want)"; fi
   n=$(count_state golden-opts-a established)
   if [ "$n" -lt "$opts_clients" ]; then pending="$pending golden-opts-a($n/$opts_clients)"; fi
+  n=$(count_state golden-loc-a established)
+  if [ "$n" -lt "$loc_established" ]; then pending="$pending golden-loc-a($n/$loc_established)"; fi
   n=$(count_state golden-states-a fin-wait-2)
   m=$(count_state golden-states-b close-wait)
   if [ "$n" -lt 1 ] || [ "$m" -lt 1 ]; then pending="$pending golden-states(fin-wait-2 $n, close-wait $m)"; fi
