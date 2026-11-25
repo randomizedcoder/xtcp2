@@ -218,6 +218,7 @@ func TestLossyColumns(t *testing.T) {
 		{"ca_state_kept", "boundary", "an idle connection is back in Open, so ca_state is compared", caStateColumn, false},
 		{"rto_varies", "positive", "a tail loss sometimes ends in an RTO, which also rehashes", "tcp_info_total_rto", true},
 		{"rehash_varies", "boundary", "rehash moves with each RTO (tcp_write_timeout)", "tcp_info_rehash", true},
+		{"listener_drops_vary", "corner", "a SYN retransmitted after netem drops the SYN-ACK is counted as a listener drop", "sk_mem_info_drops", true},
 		{"dctcp_alpha_varies", "corner", "a per-algorithm info column follows the marks netem drops", "dctcp_info_alpha", true},
 		{"unknown_kept", "corner", "a name that is no column is not exempt", "nope", false},
 	}
