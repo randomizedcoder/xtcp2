@@ -263,8 +263,9 @@ completing the RT-4 suite and RT-11 tiers 1–2.
 
 **Definition of done**
 
-- [ ] rt-4-1/rt-11-2 produces a table in findings.md: connections → {metrics, poll, delivery} status, with the crossover knee identified.
-- [ ] 24 h churn variant runs clean overnight once (logged evidence), or its blocker filed.
+- [x] rt-4-1/rt-11-2 produced the ladder table (findings.md, `20261125T225846`): connections → {FDs, scrape, catcher-delta, RSS} — and the crossover knee does NOT exist: the 5 s absolute header cap churns the FD budget for idle conns (scrape 200, catcher flowing at FDs 4096/4096 through every step), and at a PERFECT pin (idle gRPC conns, 15-min MaxConnectionIdle) the API goes dark while the catcher keeps flowing — the collection path holds its FDs persistently and opens nothing per poll. Two findings instead: the telemetry amplifier (~149x record volume from ~4K idle conns — the attack's own sockets are reported) and the prod-default arithmetic (~500K conns to exhaust 524287; conntrack knees first — rt-11-6).
+- [x] Phase 4 part 1 complete: rt-4-1 **BLOCKED** (8/8 — the ladder + the amplifier finding), rt-11-2 **BLOCKED** (11/11 — the crossover refuted at a pinned budget, the RT-11 ops answer), rt-4-2 **BLOCKED** (11/11 — the 5 s absolute ReadHeaderTimeout makes the slowloris premise unreachable; 26 KiB/conn while alive), rt-4-5 **BLOCKED** (9/9 — the in-flight cap engages on the slow paths, 10x 503 on `/metrics-all`; the fast path self-throttles). New tools: sockfill `-remote` (the ladder), slowloris (the drip), grpcidle (the gRPC pin) — all static, in the attacker tools tar; two new deploy axes `XTCP2_NOFILE`/`XTCP2_CPUS`.
+- [ ] 24 h churn variant runs clean overnight once (logged evidence), or its blocker filed. (Phase 4 part 4)
 - [ ] rt-11-5 shows delivery metrics lighting up during the L2 kill (assert specific series non-zero), or files the observability gap.
 - [ ] rt-11-7 either survives or produces a crashing fixture committed under the repo's fixture path and a linked parser issue.
 - [ ] Every scenario traps cleanup; a final "victim still reporting" assertion runs after each attack (the RT-11 invariant).
