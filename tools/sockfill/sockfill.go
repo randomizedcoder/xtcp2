@@ -11,6 +11,10 @@
 //	-listen A  listen on A and never accept (a SYN flood target: half-open
 //	           connections stay in SYN_RECV). The backlog is the namespace's
 //	           net.core.somaxconn.
+//	-remote A N dial N connections to the remote address A and hold them
+//	           idle (no accept needed on this side, no data either way) —
+//	           the connection-exhaustion ladder shape (rt-4-1). Like -pairs,
+//	           keepalive is off and exit resets with SO_LINGER 0.
 //
 // Keepalive is off on every connection, so the sockets stay idle and
 // established for as long as they are held.
@@ -181,6 +185,54 @@ feed:
 	return nil
 }
 
+// fillRemote dials n connections to addr and holds them. Unlike loopback
+// pairs mode the far end is another host's listener, so one socket per
+// connection. It returns once every dial succeeded.
+func (f *filler) fillRemote(ctx context.Context, addr string, n, dialers int) error {
+	if dialers <= 0 {
+		return errors.New("-dialers must be positive")
+	}
+	if err := raiseNofile(uint64(n) + fdMargin); err != nil {
+		return fmt.Errorf("RLIMIT_NOFILE %d: %w", n, err)
+	}
+	jobs := make(chan struct{})
+	errs := make(chan error, dialers)
+	var wg sync.WaitGroup
+	for w := 0; w < dialers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			d := net.Dialer{KeepAlive: noKeepAlive}
+			for range jobs {
+				c, err := d.DialContext(ctx, "tcp4", addr)
+				if err != nil {
+					errs <- fmt.Errorf("dial %s: %w", addr, err)
+					return
+				}
+				f.add(c)
+			}
+		}()
+	}
+	var dialErr error
+feed:
+	for i := 0; i < n; i++ {
+		select {
+		case jobs <- struct{}{}:
+		case dialErr = <-errs:
+			break feed
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	if dialErr == nil {
+		select {
+		case dialErr = <-errs:
+		default:
+		}
+	}
+	return dialErr
+}
+
 // closeQuiet closes c; a close error on teardown changes nothing here.
 func closeQuiet(c io.Closer) { _ = c.Close() }
 
@@ -209,10 +261,12 @@ func main() {
 	host := flag.String("host", "127.0.0.1", "loopback address to use")
 	dialers := flag.Int("dialers", defaultDialers, "concurrent dialers")
 	listen := flag.String("listen", "", "listen on this address and never accept (SYN flood target)")
+	remote := flag.String("remote", "", "dial this remote address (host:port) and hold the connections")
+	remoteN := flag.Int("remoteN", 0, "connections to hold in -remote mode")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	err := run(ctx, *pairs, *perPort, *base, *dialers, *host, *listen)
+	err := run(ctx, *pairs, *perPort, *base, *dialers, *host, *listen, *remote, *remoteN)
 	stop()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "SOCKFILL_ERR %v\n", err)
@@ -220,11 +274,20 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, pairs, perPort, base, dialers int, host, listen string) error {
+func run(ctx context.Context, pairs, perPort, base, dialers int, host, listen, remote string, remoteN int) error {
 	f := &filler{}
 	defer f.closeAll()
 	start := time.Now()
 	switch {
+	case remote != "":
+		if remoteN <= 0 {
+			return errors.New("-remote needs -remoteN > 0")
+		}
+		if err := f.fillRemote(ctx, remote, remoteN, dialers); err != nil {
+			return err
+		}
+		fmt.Printf("SOCKFILL_READY remote=%s conns=%d elapsed=%s\n",
+			remote, f.count(), time.Since(start).Round(time.Millisecond))
 	case listen != "":
 		lc := net.ListenConfig{KeepAlive: noKeepAlive}
 		l, err := lc.Listen(ctx, "tcp4", listen)
@@ -246,7 +309,7 @@ func run(ctx context.Context, pairs, perPort, base, dialers int, host, listen st
 		fmt.Printf("SOCKFILL_READY pairs=%d sockets=%d listeners=%d elapsed=%s\n",
 			pairs, f.count(), len(f.listeners), time.Since(start).Round(time.Millisecond))
 	default:
-		return errors.New("one of -pairs or -listen is required")
+		return errors.New("one of -pairs, -listen, or -remote is required")
 	}
 	<-ctx.Done()
 	return nil

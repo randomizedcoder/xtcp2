@@ -1,0 +1,7 @@
+filter ingress protocol all pref 11 flower chain 0 handle 0x1 
+  indev d1
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 11 ref 1 bind 1
+

@@ -1,0 +1,19 @@
+filter pref 3 flower chain 0 
+filter pref 3 flower chain 0 handle 0x1 
+  vlan_id 100
+  vlan_prio 3
+  vlan_ethtype ip
+  eth_type ipv4
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 3 ref 1 bind 1
+
+filter pref 5 flower chain 0 
+filter pref 5 flower chain 0 handle 0x1 
+  num_of_vlans 2
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 5 ref 1 bind 1
+

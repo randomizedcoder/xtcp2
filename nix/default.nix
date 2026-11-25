@@ -189,6 +189,8 @@ let
       xtcp2ctl
       sockfill
       ipfeed-fixture
+      slowloris
+      grpcidle
       ;
     inherit (containers) oci-xtcp2 oci-xtcp2-tcp-stress;
   };

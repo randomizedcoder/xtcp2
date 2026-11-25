@@ -14,9 +14,9 @@ import (
 // The tdc corpus's verify readbacks are tc's own oracle: each row of
 // pkg/xtcpnl/testdata/*/ws/tdc ran a tc command, then a readback whose
 // nlmon capture is netlink_route_verify.pcap and whose stdout is
-// verify.out. A readback that is a `tc qdisc` or `tc class` show must
-// render to verify.out byte for byte; one whose dump holds a kind gotc does
-// not print is refused, and counted by kind.
+// verify.out. A readback that is a `tc qdisc`, `tc class`, `tc filter` or
+// `tc chain` read must render to verify.out byte for byte; one whose dump
+// holds a kind gotc does not print is refused, and counted by kind.
 
 const tdcGlob = "../../pkg/xtcpnl/testdata/*/ws/tdc"
 
@@ -26,12 +26,34 @@ var readbackSkips = map[string]int{
 	"cake": 19, "cake_mq": 22, "cbs": 10, "choke": 7, "codel": 13, "drr": 13, "dualpi2": 14, "etf": 4,
 	"ets": 33, "fq_pie": 2, "gred": 6, "hfsc": 10, "hhf": 14, "mqprio": 2, "multiq": 3, "pie": 1,
 	"plug": 7, "qfq": 10, "red": 10, "sfb": 13, "skbprio": 4, "taprio": 8,
+	// The filter readbacks (increment 10): bpf's filters, and every action
+	// kind but gact.
+	"filter:bpf": 5, "action:bpf": 1, "action:connmark": 1, "action:csum": 1, "action:ct": 4,
+	"action:ctinfo": 1, "action:gate": 1, "action:ife": 1, "action:mirred": 1, "action:mpls": 1,
+	"action:nat": 1, "action:pedit": 1, "action:police": 3, "action:sample": 1, "action:skbedit": 7,
+	"action:skbmod": 1, "action:tunnel_key": 1, "action:vlan": 1,
 }
 
-// readbackRendered pins how many readbacks render exactly.
-const readbackRendered = 216
+// readbackRendered pins how many readbacks render exactly: 216 qdisc and
+// class shows, and 254 filter and chain shows and gets.
+const readbackRendered = 470
 
-var kindRefused = regexp.MustCompile(`not implemented: qdisc kind "([^"]+)"`)
+// kindRefused is a refusal by name: a qdisc kind is its bare name, the
+// filter path's are prefixed (filter:, action:, ematch:), police is police.
+var kindRefused = regexp.MustCompile(`not implemented: (?:(qdisc|filter|action) kind|(ematch)) "([^"]+)"|not implemented: (police)`)
+
+// refusedKey is a kindRefused match's readbackSkips key.
+func refusedKey(m []string) string {
+	switch {
+	case m[4] != "":
+		return m[4]
+	case m[1] == "qdisc":
+		return m[3]
+	case m[2] != "":
+		return m[2] + ":" + m[3]
+	}
+	return m[1] + ":" + m[3]
+}
 
 type tdcRow struct {
 	ID       string `json:"id"`
@@ -94,7 +116,7 @@ func TestGotcReadbacks(t *testing.T) {
 		if len(args) < 2 || args[0] != "tc" || strings.ContainsAny(cmd, "|;&<>") {
 			continue
 		}
-		if obj := tcShowObject(args[1:]); obj != "qdisc" && obj != "class" {
+		if obj := tcShowObject(args[1:]); obj != "qdisc" && obj != "class" && obj != "filter" && obj != "chain" {
 			continue
 		}
 		src, err := NewReplaySource(filepath.Join(dir, "netlink_route_verify.pcap"))
@@ -104,7 +126,7 @@ func TestGotcReadbacks(t *testing.T) {
 		var out, errb bytes.Buffer
 		run(config{src: src, sys: testSys(t, dir)}, args[1:], &out, &errb)
 		if m := kindRefused.FindStringSubmatch(errb.String()); m != nil {
-			skips[m[1]]++
+			skips[refusedKey(m)]++
 			continue
 		}
 		want := readFile(t, filepath.Join(dir, "verify.out"))

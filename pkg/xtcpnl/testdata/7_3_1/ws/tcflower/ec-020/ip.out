@@ -1,0 +1,12 @@
+filter ingress protocol ipv6 pref 2 flower chain 0 handle 0x1 
+  eth_type ipv6
+  ip_proto udp
+  dst_ip 2001:db8::/32
+  src_ip ::ffff:1.2.3.4
+  src_port 53
+  dst_port 1000-2000
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 2 ref 1 bind 1
+

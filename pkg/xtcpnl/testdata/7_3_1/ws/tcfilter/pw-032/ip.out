@@ -1,0 +1,1 @@
+[{"parent":"1:","protocol":"ip","pref":10,"kind":"fw","chain":0,"options":{"fw":{"mark":"0x5","mask":"0xffffffff"},"classid":"1:1"}}]

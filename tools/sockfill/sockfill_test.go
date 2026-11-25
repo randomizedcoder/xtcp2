@@ -99,7 +99,59 @@ func TestFill(t *testing.T) {
 	}
 }
 
-// TestFillErrors: a port already taken fails the fill instead of hanging.
+// TestFillRemote: the -remote ladder shape — dials land, are held, and are
+// reset on close (SO_LINGER 0).
+func TestFillRemote(t *testing.T) {
+	base := freePortRun(t, 1)
+	lc := net.ListenConfig{KeepAlive: noKeepAlive}
+	l, err := lc.Listen(context.Background(), "tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(base)))
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer l.Close()
+
+	type accepted struct {
+		c   net.Conn
+		err error
+	}
+	acceptedCh := make(chan accepted, 12)
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			acceptedCh <- accepted{c, nil}
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	f := &filler{}
+	defer f.closeAll()
+	if err := f.fillRemote(ctx, l.Addr().String(), 8, 4); err != nil {
+		t.Fatalf("fillRemote: %v", err)
+	}
+	if got := f.count(); got != 8 {
+		t.Errorf("fillRemote held %d conns, expected 8", got)
+	}
+	for i := 0; i < 8; i++ {
+		select {
+		case a := <-acceptedCh:
+			if a.err != nil {
+				t.Fatalf("accept %d: %v", i, a.err)
+			}
+			_ = a.c.Close()
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %d/8 connections reached the listener", i)
+		}
+	}
+	f.closeAll()
+	if f.count() != 0 {
+		t.Errorf("closeAll left %d remote conns", f.count())
+	}
+}
+
 func TestFillErrors(t *testing.T) {
 	busy, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -132,7 +184,7 @@ func TestRunRequiresMode(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := run(context.Background(), tc.pairs, tc.perPort, 2000, tc.dialers, "127.0.0.1", ""); err == nil {
+			if err := run(context.Background(), tc.pairs, tc.perPort, 2000, tc.dialers, "127.0.0.1", "", "", 0); err == nil {
 				t.Errorf("%s: expected an error", tc.description)
 			}
 		})

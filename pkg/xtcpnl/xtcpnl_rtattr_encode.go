@@ -312,10 +312,10 @@ func (a *AttrBuilder) EndNest(m NestMark) error {
 // to do that.
 //
 // Message types this package does not model — FamilyHdrLen returns -1, e.g.
-// RTM_GETTFILTER, whose tcmsg no request here builds yet — are not checked.
+// RTM_GETACTION, whose tcamsg no request here builds yet — are not checked.
 // There is nothing to check against, and refusing them would block every
-// family added later. RTM_GETRULE and then RTM_GETQDISC used to be the
-// example in this sentence and are now modeled; when the next family lands,
+// family added later. RTM_GETRULE, RTM_GETQDISC and then RTM_GETTFILTER used
+// to be the example in this sentence and are now modeled; when the next family lands,
 // move the example rather than deleting it, because an unchecked type is the
 // interesting case, not a footnote.
 func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([]byte, error) {
@@ -456,10 +456,12 @@ func FamilyHdrLen(msgType uint16) int {
 		// so a NETNSA_NSID of 8 against ip's 7 compared clean.
 		return RtGenMsgSizeCst
 	case uint16(unix.RTM_GETQDISC), uint16(unix.RTM_NEWQDISC), uint16(unix.RTM_DELQDISC),
-		uint16(unix.RTM_GETTCLASS), uint16(unix.RTM_NEWTCLASS), uint16(unix.RTM_DELTCLASS):
-		// struct tcmsg, 20: `tc qdisc show` and `tc class show` (gotc). The
-		// filter and chain messages carry it too and stay unmodeled until
-		// gotc sends them.
+		uint16(unix.RTM_GETTCLASS), uint16(unix.RTM_NEWTCLASS), uint16(unix.RTM_DELTCLASS),
+		uint16(unix.RTM_GETTFILTER), uint16(unix.RTM_NEWTFILTER), uint16(unix.RTM_DELTFILTER),
+		uint16(unix.RTM_GETCHAIN), uint16(unix.RTM_NEWCHAIN), uint16(unix.RTM_DELCHAIN):
+		// struct tcmsg, 20: `tc qdisc show`, `tc class show`, and `tc
+		// filter` and `tc chain` show and get (gotc). The action messages
+		// carry struct tcamsg and stay unmodeled.
 		return TcMsgSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0

@@ -1,0 +1,3 @@
+[{"ingress":true,"protocol":"all","pref":1,"kind":"basic","chain":0,"options":{"handle":"1"
+  cmp(u16 at 0 layer 1 mask 0xff eq 8)
+,"actions":[{"order":1,"kind":"gact","control_action":{"type":"pass"},"prob":{"random_type":"none","control_action":{"type":"pass"},"val":0},"index":1,"ref":1,"bind":1}]}}]

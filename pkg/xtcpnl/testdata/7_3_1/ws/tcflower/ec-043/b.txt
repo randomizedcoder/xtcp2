@@ -1,0 +1,2 @@
+filter get dev d0 ingress protocol ip pref 8 handle 1 flower
+filter show dev d0 ingress

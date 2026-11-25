@@ -1,0 +1,29 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "0",
+  "words": "filter add dev nosuch ingress protocol ip flower skip_sw action pass"
+ },
+ "cmd": "tc filter add dev nosuch ingress protocol ip flower skip_sw action pass",
+ "desc": "negative: opt=plain cmd=ng:bare:filter_add_dev_nosuch_ingress_protocol_ip_flower_skip_sw_action_pass: a write, recorded so gotc's refusal is never a pass",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "errno": "ENODEV",
+  "rc": 1,
+  "refused_by": "kernel"
+ },
+ "id": "tcflower/ng-009",
+ "modules": [
+  "sch_ingress",
+  "cls_flower",
+  "act_gact"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 1,
+  "status": "OK"
+ }
+}
