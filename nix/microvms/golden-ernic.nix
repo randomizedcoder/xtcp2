@@ -55,6 +55,10 @@ in
     address = "10.0.4.1/24";
     mac = "02:00:00:00:20:fe";
   };
-  # Variables for golden-capture.sh.
+  # Variables for golden-workload.sh and golden-capture.sh.
+  workloadEnv = {
+    ERNIC_A_MAC = macA;
+    ERNIC_B_MAC = macB;
+  };
   captureEnv.ERNIC_TX_EVERY = toString txEvery;
 }

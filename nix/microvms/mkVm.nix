@@ -2470,6 +2470,7 @@ let
   # the ernic workload and its ROWs.
   shellVars =
     vars: lib.concatStrings (lib.mapAttrsToList (k: v: "${k}=${lib.escapeShellArg v}\n") vars);
+  goldenErnicWorkloadEnv = shellVars (goldenErnic.workloadEnv or { });
   goldenErnicCaptureEnv = shellVars (goldenErnic.captureEnv or { });
   goldenNicArgs = lib.optionals (ernic != null) (ernic.nics.qemuArgs goldenErnicNics) ++ [
     "-global"
@@ -2503,6 +2504,7 @@ let
       TCP_SERVER=${xtcp2AllPackage}/bin/tcp_server
       TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
       BULK_CC="${goldenBulkCc}"
+      ${goldenErnicWorkloadEnv}
     ''
     + builtins.readFile ./scripts/golden-workload.sh;
   };

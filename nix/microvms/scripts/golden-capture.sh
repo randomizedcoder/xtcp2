@@ -124,7 +124,8 @@ row no_stray negative "$ok" "$n rows with an nsid but no nsid_assigned"
 ok=0
 [ "$zeros" -eq 1 ] && ok=1
 row zero_present boundary "$ok" "$zeros container namespaces with kernel id 0"
-n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns <> 'golden-ns' AND nsid_assigned")
+# golden-ernic-b has an id: ionic1 was moved there from the root namespace.
+n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns NOT IN ('golden-ns', 'golden-ernic-b') AND nsid_assigned")
 ok=0
 [ "$n" -eq 0 ] && ok=1
 row host_unassigned corner "$ok" "$n host rows with nsid_assigned (the root namespace has no id for itself)"
@@ -174,7 +175,7 @@ ok=0
 row no_loss_idle negative "$ok" "$n idle rows with retransmits"
 if [ -n "${ERNIC_TX_EVERY:-}" ]; then
   # The root namespace's bulk clients to golden-ernic-b, over ionic0.
-  E="netns = '' AND container_name = '' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1"
+  E="netns = 'default' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1"
   nbulk=$(wc -w <<<"$BULK_CC")
   n=$(q "SELECT count(*) FROM $P WHERE $E AND tcp_info_total_retrans > 0")
   per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans, ',' ORDER BY inet_diag_cong) FROM $P WHERE $E")
@@ -187,9 +188,12 @@ if [ -n "${ERNIC_TX_EVERY:-}" ]; then
   row ernic_egress positive "$ok" "ionic bulk clients and their egress: $got, want $nbulk:ionic0"
   tx=$(cat /sys/class/net/ionic0/statistics/tx_packets)
   dropped=$(cat /sys/class/net/ionic0/statistics/tx_dropped)
+  # The emulator sees every frame the guest queues; tx_packets counts only
+  # those it sent, so its events are tx_packets + tx_dropped.
+  want=$(((tx + dropped) / ERNIC_TX_EVERY))
   ok=0
-  [ "$dropped" -gt 0 ] && [ "$dropped" -eq $((tx / ERNIC_TX_EVERY)) ] && ok=1
-  row fault_count boundary "$ok" "ionic0 tx_packets $tx, tx_dropped $dropped, want tx_packets / $ERNIC_TX_EVERY = $((tx / ERNIC_TX_EVERY))"
+  [ "$dropped" -gt 0 ] && [ "$dropped" -eq "$want" ] && ok=1
+  row fault_count boundary "$ok" "ionic0 tx_packets $tx, tx_dropped $dropped, want (tx_packets + tx_dropped) / $ERNIC_TX_EVERY = $want"
   before=$(cat /run/xtcp2-golden-ernic-before 2>/dev/null || echo missing)
   ok=0
   [ "$before" = "0 0" ] && ok=1

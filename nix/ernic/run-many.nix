@@ -55,6 +55,12 @@ let
     ];
     text = ''
       dir=$1
+      ${lib.optionalString needsNetns ''
+        # The fabric is this process's own namespace: no IPv6, so the
+        # bridge and TAPs send no DAD, MLD or router solicitations.
+        echo 1 > /proc/sys/net/ipv6/conf/default/disable_ipv6
+        echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
+      ''}
       ${lib.concatStrings (
         lib.mapAttrsToList (
           br: brTaps:
