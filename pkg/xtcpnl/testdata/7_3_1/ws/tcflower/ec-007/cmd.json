@@ -1,0 +1,107 @@
+{
+ "axes": {
+  "fix": "fll2",
+  "json": "0",
+  "words": "filter show dev d0 ingress protocol 802.1q"
+ },
+ "cmd": "tc filter show dev d0 ingress protocol 802.1q",
+ "desc": "positive: opt=plain cmd=fll2:filter_show_dev_d0_ingress_protocol_802.1q",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcflower/ec-007",
+ "modules": [
+  "sch_ingress",
+  "cls_flower",
+  "act_gact"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower dst_mac aa:bb:cc:dd:ee:ff src_mac 02:00:00:00:00:01/24 action pass",
+  "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower dst_mac aa:bb:cc:dd:ee:ff/ff:00:ff:00:ff:00 action drop",
+  "tc filter add dev d0 ingress pref 3 protocol 802.1q handle 1 flower vlan_id 100 vlan_prio 3 vlan_ethtype ipv4 action pass",
+  "tc filter add dev d0 ingress pref 4 protocol 802.1ad handle 1 flower vlan_id 10 vlan_ethtype 802.1q cvlan_id 20 cvlan_prio 2 cvlan_ethtype ipv6 action pass",
+  "tc filter add dev d0 ingress pref 5 protocol 802.1q handle 1 flower num_of_vlans 2 action pass",
+  "tc filter add dev d0 ingress pref 6 protocol arp handle 1 flower arp_sip 10.0.0.1/24 arp_tip 10.0.0.2 arp_op request arp_sha 02:00:00:00:00:01 arp_tha 02:00:00:00:00:02/24 action pass",
+  "tc filter add dev d0 ingress pref 7 protocol ppp_ses handle 1 flower pppoe_sid 1234 ppp_proto ip action pass",
+  "tc filter add dev d0 ingress pref 8 protocol mpls_uc handle 1 flower mpls_label 100 mpls_tc 3 mpls_bos 1 mpls_ttl 64 action pass",
+  "tc filter add dev d0 ingress pref 9 protocol mpls_uc handle 1 flower mpls lse depth 1 label 100 tc 3 lse depth 2 label 200 bos 1 ttl 9 action pass",
+  "tc filter add dev d0 ingress pref 10 protocol 0x8902 handle 1 flower cfm mdl 5 op 1 action pass",
+  "tc filter add dev d0 ingress pref 11 protocol all handle 1 flower indev d1 action pass",
+  "tc filter add dev d0 ingress pref 12 protocol all handle 1 flower l2_miss 1 action pass",
+  "tc filter add dev d0 ingress pref 13 protocol 0x88b5 handle 1 flower action pass"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower dst_mac aa:bb:cc:dd:ee:ff src_mac 02:00:00:00:00:01/24 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower dst_mac aa:bb:cc:dd:ee:ff/ff:00:ff:00:ff:00 action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 3 protocol 802.1q handle 1 flower vlan_id 100 vlan_prio 3 vlan_ethtype ipv4 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 4 protocol 802.1ad handle 1 flower vlan_id 10 vlan_ethtype 802.1q cvlan_id 20 cvlan_prio 2 cvlan_ethtype ipv6 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 5 protocol 802.1q handle 1 flower num_of_vlans 2 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 6 protocol arp handle 1 flower arp_sip 10.0.0.1/24 arp_tip 10.0.0.2 arp_op request arp_sha 02:00:00:00:00:01 arp_tha 02:00:00:00:00:02/24 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 7 protocol ppp_ses handle 1 flower pppoe_sid 1234 ppp_proto ip action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 8 protocol mpls_uc handle 1 flower mpls_label 100 mpls_tc 3 mpls_bos 1 mpls_ttl 64 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 9 protocol mpls_uc handle 1 flower mpls lse depth 1 label 100 tc 3 lse depth 2 label 200 bos 1 ttl 9 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 10 protocol 0x8902 handle 1 flower cfm mdl 5 op 1 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 11 protocol all handle 1 flower indev d1 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 12 protocol all handle 1 flower l2_miss 1 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 13 protocol 0x88b5 handle 1 flower action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
