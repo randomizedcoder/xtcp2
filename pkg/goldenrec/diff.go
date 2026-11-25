@@ -68,6 +68,31 @@ var faultOnlyColumns = map[string]bool{
 // comparison.
 func faultColumn(c string) bool { return lossyColumns[c] || faultOnlyColumns[c] }
 
+// exemptions returns, for a row, which of its columns Diff leaves out: the
+// lossyColumns in a LossyNetns row, the faultColumns in a fault row.
+func exemptions(opts Options) func(Row) func(string) bool {
+	orDefault := func(v, d []string) []string {
+		if v == nil {
+			return d
+		}
+		return v
+	}
+	lossyNetns := orDefault(opts.LossyNetns, DefaultLossyNetns)
+	faultNetns := orDefault(opts.FaultNetns, DefaultFaultNetns)
+	faultEgress := orDefault(opts.FaultEgress, DefaultFaultEgress)
+	none := func(string) bool { return false }
+	lossy := func(c string) bool { return lossyColumns[c] }
+	return func(r Row) func(string) bool {
+		switch {
+		case slices.Contains(faultNetns, r[netnsColumn]) || slices.Contains(faultEgress, r[egressColumn]):
+			return faultColumn
+		case slices.Contains(lossyNetns, r[netnsColumn]):
+			return lossy
+		}
+		return none
+	}
+}
+
 // lossyColumns are the columns seen to differ between captures of the
 // netem rows, in strict diffs of five captures. The RTO group moves only
 // when a tail loss ends in a retransmission timeout (net/ipv4/tcp_timer.c:
@@ -137,27 +162,15 @@ func Diff(golden, candidate []Row, table Table, opts Options) ([]Difference, err
 	if keyCols == nil {
 		keyCols = DefaultKeyColumns
 	}
-	lossyNetns := opts.LossyNetns
-	if lossyNetns == nil {
-		lossyNetns = DefaultLossyNetns
-	}
-	faultNetns := opts.FaultNetns
-	if faultNetns == nil {
-		faultNetns = DefaultFaultNetns
-	}
-	faultEgress := opts.FaultEgress
-	if faultEgress == nil {
-		faultEgress = DefaultFaultEgress
-	}
+	exempt := exemptions(opts)
 	cmp := func(r Row) (key string, cols []string, vals map[string]string) {
 		vals = make(map[string]string, len(r))
-		lossy := slices.Contains(lossyNetns, r[netnsColumn])
-		fault := slices.Contains(faultNetns, r[netnsColumn]) || slices.Contains(faultEgress, r[egressColumn])
+		skip := exempt(r)
 		for c, v := range r {
 			if filter != nil && !filter.MatchString(c) {
 				continue
 			}
-			if (lossy && lossyColumns[c]) || (fault && faultColumn(c)) {
+			if skip(c) {
 				continue
 			}
 			vals[c] = compareForm(idx[c], v)
