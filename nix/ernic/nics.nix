@@ -179,6 +179,9 @@ in
                   LinkLocalAddressing = "no";
                   LLDP = false;
                   EmitLLDP = false;
+                  # No resolver multicast group, so no IGMP reports.
+                  LLMNR = false;
+                  MulticastDNS = false;
                 };
               }
           )
