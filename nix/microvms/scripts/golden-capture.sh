@@ -166,7 +166,8 @@ row opts_seen positive "$ok" "tos 8, tos 184, tclass 184, class_id 6, freebind, 
 n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC")"
+per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans, ',' ORDER BY inet_diag_cong) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000")
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); retransmits per client: ${per_cc:-none}"
 n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-cc-b', 'golden-opts-a', 'golden-opts-b') AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq 0 ] && ok=1
