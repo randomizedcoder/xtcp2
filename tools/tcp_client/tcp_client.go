@@ -233,7 +233,11 @@ func client(wg *sync.WaitGroup, dialFailures *atomic.Int32, d net.Dialer, c clie
 // session runs one connection: the optional bulk transfer, then message
 // exchanges ended by c.mode. It closes conn.
 func session(conn net.Conn, c clientConfig, port int) error {
-	defer func() { _ = conn.Close() }()
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("close port=%d: %v", port, cerr)
+		}
+	}()
 
 	if _, err := bulk(conn, int64(c.bulk)); err != nil {
 		return err
@@ -253,6 +257,7 @@ func session(conn net.Conn, c clientConfig, port int) error {
 			return nil
 		case halfClose:
 			return holdHalfClosed(conn)
+		case keepOpen: // the next exchange, after c.sleep
 		}
 		time.Sleep(c.sleep)
 	}
