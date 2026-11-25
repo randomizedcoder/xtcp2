@@ -455,6 +455,10 @@ direct `container_*` columns).
   - The runner scrubs it into `pkg/xtcp/testdata/golden/<guest kernel>/`: `records.parquet`, `records.jsonl` (normalized, for review) and `manifest.json`.
   - The raw object stays in a temporary directory. Run from the repo root; `--out DIR`, `--timeout SECONDS`.
 - `checks.golden-records` checks each fixture: the JSONL matches the Parquet file, every address is documentation, loopback or unspecified, the hostname is a placeholder, and the manifest's row count is right.
+- Coverage: `pkg/xtcp/testdata/golden/coverage.json` lists what every fixture must exercise, and `check` fails a fixture that falls short. A workload change can't quietly stop populating a column.
+  - `populated`: columns nonzero in at least one row. `values`: values a listed column must take. `families` and `kinds`: rows per family and kind of namespace.
+  - A value `@manifest.KEY` stands for the list under `KEY` in the fixture's `manifest.json`, so a requirement can follow the guest kernel (e.g. every congestion algorithm it offers).
+  - Widen it with the workload: add the requirement first and watch `check` fail, then recapture.
 - `nix build .#xtcp2-golden` builds the tool:
   - `xtcp2-golden diff [-columns RE] GOLDEN CANDIDATE` exits 0 when equal, 1 on differences (at most 50 printed), and 2 on error.
   - `scrub`, `normalize` and `check` are the runner's steps.
