@@ -11,6 +11,8 @@ import (
 	"os"
 	"strconv"
 	"sync"
+
+	"github.com/randomizedcoder/xtcp2/tools/internal/sockopt"
 )
 
 const (
@@ -29,29 +31,55 @@ func main() {
 	os.Exit(runMain(context.Background(), os.Args[1:], os.Stderr))
 }
 
+// serverConfig is the parsed command line.
+type serverConfig struct {
+	count   int
+	bind    string
+	network string
+	holdEOF bool
+	opts    sockopt.Options
+}
+
+// parseFlags reads the command line into a serverConfig. Every error is
+// also printed to stderr (flag errors with usage).
+func parseFlags(args []string, stderr io.Writer) (serverConfig, error) {
+	var c serverConfig
+	fs := flag.NewFlagSet("tcp_server", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	fs.IntVar(&c.count, "count", countCst, "count")
+	fs.StringVar(&c.bind, "bind", bindCst, "bind")
+	fs.StringVar(&c.network, "network", networkCst, "tcp (family from -bind; 0.0.0.0 is dual-stack), tcp4 or tcp6")
+	fs.BoolVar(&c.holdEOF, "holdEOF", false, "keep a connection open after the client's EOF (CLOSE_WAIT) until the server stops")
+	c.opts.Register(fs)
+	if err := fs.Parse(args); err != nil {
+		return serverConfig{}, err
+	}
+	if err := c.opts.Validate(); err != nil {
+		fmt.Fprintln(stderr, err)
+		return serverConfig{}, err
+	}
+	return c, nil
+}
+
 // runMain wires flag parsing + server fan-out. Extracted so tests can drive
 // it with a cancellable ctx + synthetic args without subprocessing. The ctx
 // argument lets tests bind once + cancel; production passes context.Background.
 func runMain(ctx context.Context, args []string, stderr io.Writer) int {
-	fs := flag.NewFlagSet("tcp_server", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	count := fs.Int("count", countCst, "count")
-	bind := fs.String("bind", bindCst, "bind")
-	network := fs.String("network", networkCst, "tcp (family from -bind; 0.0.0.0 is dual-stack), tcp4 or tcp6")
-	if err := fs.Parse(args); err != nil {
+	c, err := parseFlags(args, stderr)
+	if err != nil {
 		return 2
 	}
-	if _, _, err := listenTarget(*network, *bind, startPort+*count-1); err != nil {
+	if _, _, err := listenTarget(c.network, c.bind, startPort+c.count-1); err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
 
 	var wg sync.WaitGroup
-	for i := 0; i < *count; i++ {
+	for i := 0; i < c.count; i++ {
 		wg.Add(1)
 		go func(port int) {
 			defer wg.Done()
-			if err := runServer(ctx, *network, *bind, port); err != nil {
+			if err := runServer(ctx, c, port); err != nil {
 				log.Printf("runServer port=%d err=%v", port, err)
 			}
 		}(startPort + i)
@@ -64,12 +92,16 @@ func runMain(ctx context.Context, args []string, stderr io.Writer) int {
 // when ctx is canceled (after closing the listener) or on a hard listener
 // error. Extracted from main() / server() so tests can drive it with a
 // 0-port bind and ctx.Cancel() instead of a panic loop.
-func runServer(ctx context.Context, network, bind string, port int) error {
-	network, addr, err := listenTarget(network, bind, port)
+func runServer(ctx context.Context, c serverConfig, port int) error {
+	network, addr, err := listenTarget(c.network, c.bind, port)
 	if err != nil {
 		return err
 	}
 	lc := net.ListenConfig{}
+	setOpts := c.opts != (sockopt.Options{})
+	if setOpts {
+		lc.Control = c.opts.Control
+	}
 	ln, err := lc.Listen(ctx, network, addr)
 	if err != nil {
 		return fmt.Errorf("listen %s %s: %w", network, addr, err)
@@ -106,7 +138,16 @@ func runServer(ctx context.Context, network, bind string, port int) error {
 			}
 			return fmt.Errorf("accept: %w", aerr)
 		}
-		go handleConn(conn)
+		// Not every listener option reaches an accepted socket (see
+		// sockopt.Options.ApplyConn), so set them again.
+		if setOpts {
+			if tc, ok := conn.(*net.TCPConn); ok {
+				if oerr := c.opts.ApplyConn(tc); oerr != nil {
+					log.Printf("runServer: accepted socket options: %v", oerr)
+				}
+			}
+		}
+		go handleConn(ctx, conn, c.holdEOF)
 	}
 }
 
@@ -144,8 +185,9 @@ func checkFamily(network, flag, host string) error {
 	return nil
 }
 
-// handleConn echoes bytes back to the connection until EOF or error.
-func handleConn(conn net.Conn) {
+// handleConn echoes bytes back to the connection until EOF or error. With
+// holdEOF it then keeps the socket (CLOSE_WAIT) until ctx is done.
+func handleConn(ctx context.Context, conn net.Conn, holdEOF bool) {
 	defer func() {
 		if cerr := conn.Close(); cerr != nil {
 			log.Printf("handleConn: conn close: %v", cerr)
@@ -153,5 +195,8 @@ func handleConn(conn net.Conn) {
 	}()
 	if _, cerr := io.Copy(conn, conn); cerr != nil {
 		log.Printf("echo copy: %v", cerr)
+	}
+	if holdEOF {
+		<-ctx.Done()
 	}
 }

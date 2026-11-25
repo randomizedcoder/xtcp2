@@ -391,6 +391,9 @@ Used by the **soak** flavor with reduced parameters (`-initial 50 -sleep 250ms`)
 
 - `tcp_server -count N -bind 0.0.0.0` — N echo listeners on ports 4000..4000+N-1
 - `tcp_client -count N -connect <host> -sleep 5s -pads 2048` — N goroutines dialing the matching ports, writing 2 KiB messages every 5 s
+- Socket options, on both tools (set before connect/listen; the server sets them again on each accepted socket, since the kernel resets `SO_PRIORITY` there and `tcp_reflect_tos` replaces TOS): `-cong NAME` (TCP_CONGESTION), `-tos N` (IP_TOS, plus IPV6_TCLASS on IPv6), `-priority N` (SO_PRIORITY, which `inet_diag_class_id` falls back to), `-rcvbuf SIZE` (SO_RCVBUF, which sets the window scale), `-freebind`, `-transparent`, `-bindNoPort` (the `inet_diag_sockopt` bits)
+- `tcp_client -bulk 4MiB` sends that much and reads the echo back before the first message; `-close` closes after one exchange (TIME_WAIT), `-halfclose` shuts down writing and holds the socket (FIN_WAIT2); `tcp_server -holdEOF` keeps a connection after the client's EOF (CLOSE_WAIT)
+- In the OCI image, `TCP_CLIENT_ARGS` / `TCP_SERVER_ARGS` add flags to each half
 
 Used standalone in the **soak** flavor (default 100+100 on the VM host) and via the OCI image in the **tcp-stress** + **clickhouse-pipeline** flavors (one tcp_server+client pair per docker container).
 

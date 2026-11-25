@@ -119,6 +119,10 @@ let
       #   TCP_SRCADDR  bind clients' source IP         (default: kernel picks)
       #   TCP_IFACE    bind clients to this interface  (default: kernel picks)
       #                (SO_BINDTODEVICE — drives xtcp2 interface-name enrichment)
+      #   TCP_CLIENT_ARGS  extra tcp_client flags, split on spaces, e.g.
+      #                "-cong bbr -tos 0x08 -bulk 4MiB -close"
+      #   TCP_SERVER_ARGS  extra tcp_server flags, e.g. "-cong bbr -holdEOF"
+      #                (both come last, so they override the flags above)
       MODE="''${TCP_MODE:-both}"
       COUNT="''${TCP_COUNT:-100}"
       SLEEP="''${TCP_SLEEP:-5s}"
@@ -134,12 +138,15 @@ let
       CLIENT_EXTRA=()
       if [ -n "$SRCADDR" ]; then CLIENT_EXTRA+=(-srcaddr "$SRCADDR"); fi
       if [ -n "$IFACE" ]; then CLIENT_EXTRA+=(-iface "$IFACE"); fi
+      read -r -a CLIENT_ARGS <<<"''${TCP_CLIENT_ARGS:-}"
+      read -r -a SERVER_ARGS <<<"''${TCP_SERVER_ARGS:-}"
+      CLIENT_EXTRA+=("''${CLIENT_ARGS[@]}")
 
-      echo "tcp-stress: mode=$MODE count=$COUNT sleep=$SLEEP pads=$PADS network=$NETWORK connect=$CONNECT bind=$BIND srcaddr=''${SRCADDR:-<default>} iface=''${IFACE:-<default>}"
+      echo "tcp-stress: mode=$MODE count=$COUNT sleep=$SLEEP pads=$PADS network=$NETWORK connect=$CONNECT bind=$BIND srcaddr=''${SRCADDR:-<default>} iface=''${IFACE:-<default>} client_args=''${TCP_CLIENT_ARGS:-<none>} server_args=''${TCP_SERVER_ARGS:-<none>}"
 
       case "$MODE" in
         server)
-          exec /bin/tcp_server -network "$NETWORK" -count "$COUNT" -bind "$BIND"
+          exec /bin/tcp_server -network "$NETWORK" -count "$COUNT" -bind "$BIND" "''${SERVER_ARGS[@]}"
           ;;
         client)
           exec /bin/tcp_client -network "$NETWORK" -count "$COUNT" -connect "$CONNECT" \
@@ -149,7 +156,7 @@ let
           # In single-container mode we run both halves: server in
           # background, client in foreground. The 2s sleep gives the
           # server's Accept loop time to come up before clients dial.
-          /bin/tcp_server -network "$NETWORK" -count "$COUNT" -bind "$BIND" &
+          /bin/tcp_server -network "$NETWORK" -count "$COUNT" -bind "$BIND" "''${SERVER_ARGS[@]}" &
           sleep 2
           exec /bin/tcp_client -network "$NETWORK" -count "$COUNT" -connect "$CONNECT" \
             -sleep "$SLEEP" -pads "$PADS" "''${CLIENT_EXTRA[@]}"
