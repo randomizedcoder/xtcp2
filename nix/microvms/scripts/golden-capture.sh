@@ -8,8 +8,8 @@
 # xtcp2 polls every 30 s and flushes Parquet every 5 s, so poll 1 lands in
 # its own object; poll 2 is the object that appears after it.
 #
-# Expects PROM_SOCKET, TOKEN_FILE, BUCKET, CONTAINERS, SOCKETS and FLAVOR from
-# the wrapper, which prepends golden-common.sh (ERR_TAG=GOLDEN_ERR).
+# Expects PROM_SOCKET, TOKEN_FILE, BUCKET, CONTAINERS, SOCKETS, FLAVOR,
+# TCP_CLIENT and BULK_CC from the wrapper, which prepends golden-common.sh (ERR_TAG=GOLDEN_ERR).
 # Any unexpected exit reports itself, so the runner fails fast instead of
 # waiting out its timeout.
 trap 'echo "GOLDEN_ERR $0: line $LINENO exited $?"' ERR
@@ -20,8 +20,36 @@ FLUSH_SEC="${GOLDEN_FLUSH_SEC:-300}"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
+ip_bin=$(command -v ip)
+# spawn NAME NETNS CMD...: a transient unit, as in the workload.
+spawn() {
+  local unit=$1 ns=$2
+  shift 2
+  systemd-run --unit="xtcp2-golden-$unit" --collect "$ip_bin" netns exec "$ns" "$@" >/dev/null
+}
+count_state() { ip netns exec "$1" ss -Htan state "$2" | wc -l; }
+
+# After poll 1, so poll 2 holds exactly these: K_TW TIME_WAIT sockets
+# (TIME_WAIT lasts 60 s and polls are 30 s apart) and K_SYN SYN_SENT ones
+# (the SYN retries run about 2 min) in golden-states-a. Both are in a named
+# netns, so no host TCP.
+K_TW=3
+K_SYN=2
+after_first_poll() {
+  local tw=0 syn=0
+  spawn states-close golden-states-a "$TCP_CLIENT" -count "$K_TW" -connect 10.3.0.3 -close -startsleep 0 -pads 0
+  spawn states-syn golden-states-a "$TCP_CLIENT" -count "$K_SYN" -connect 192.0.2.1 -dialTimeout 10m -dialr 1 -startsleep 0 -pads 0
+  for _ in $(seq 1 50); do
+    tw=$(count_state golden-states-a time-wait)
+    syn=$(count_state golden-states-a syn-sent)
+    if [ "$tw" -eq "$K_TW" ] && [ "$syn" -eq "$K_SYN" ]; then return 0; fi
+    sleep 0.1
+  done
+  fail "after poll 1: $tw TIME_WAIT (want $K_TW), $syn SYN_SENT (want $K_SYN)"
+}
+
 echo "GOLDEN_START"
-wait_second_poll "$FLUSH_SEC"
+wait_second_poll "$FLUSH_SEC" after_first_poll
 
 # The TCP sockets each container holds now, both families, for the
 # row-count check below. The Go servers' 0.0.0.0 listeners are dual-stack
@@ -100,7 +128,58 @@ n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns <> 'golden-ns
 ok=0
 [ "$n" -eq 0 ] && ok=1
 row host_unassigned corner "$ok" "$n host rows with nsid_assigned (the root namespace has no id for itself)"
-[ "$row_failed" = 0 ] || fail "nsid rows failed"
+
+# The netns pairs (golden-workload.sh).
+mapfile -t cas </run/xtcp2-golden-cong-available
+missing=""
+for ca in "${cas[@]}"; do
+  for fam in 2 10; do
+    n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-cc-a' AND inet_diag_msg_state = 1 AND inet_diag_msg_family = $fam AND inet_diag_cong = '$ca'")
+    [ "$n" -eq 1 ] || missing="$missing $ca/$fam($n)"
+  done
+done
+ok=0
+[ -z "$missing" ] && ok=1
+row every_cc positive "$ok" "${#cas[@]} algorithms x 2 families, one row each in golden-cc-a; off:${missing:- none}"
+# Each algorithm with its own info struct fills it.
+missing=""
+info() {
+  local n
+  n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-bulk-a') AND inet_diag_cong = '$1' AND $2")
+  [ "$n" -ge 1 ] || missing="$missing $1"
+}
+for ca in "${cas[@]}"; do
+  case "$ca" in
+    bbr) info "$ca" "bbr_info_pacing_gain > 0" ;;
+    dctcp) info "$ca" "dctcp_info_enabled > 0" ;;
+    vegas | nv | illinois | westwood | yeah) info "$ca" "vegas_info_enabled > 0" ;;
+  esac
+done
+ok=0
+[ -z "$missing" ] && ok=1
+row cc_info positive "$ok" "bbr/dctcp/vegas info filled; missing:${missing:- none}"
+O="netns IN ('golden-opts-a', 'golden-opts-b')"
+got=$(q "SELECT concat_ws(',', bool_or(inet_diag_tos = 8), bool_or(inet_diag_tos = 184), bool_or(inet_diag_tclass = 184), bool_or(inet_diag_class_id = 6), bool_or(inet_diag_sockopt & 4 > 0), count(DISTINCT tcp_info_rcv_wscale) FILTER (netns = 'golden-opts-a') >= 3) FROM $P WHERE $O")
+ok=0
+[ "$got" = "true,true,true,true,true,true" ] && ok=1
+row opts_seen positive "$ok" "tos 8, tos 184, tclass 184, class_id 6, freebind, 3 rcv_wscale: $got"
+n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND tcp_info_total_retrans > 0")
+ok=0
+[ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC")"
+n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-cc-b', 'golden-opts-a', 'golden-opts-b') AND tcp_info_total_retrans > 0")
+ok=0
+[ "$n" -eq 0 ] && ok=1
+row no_loss_idle negative "$ok" "$n idle rows with retransmits"
+got=$(q "SELECT concat_ws(',', count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 6), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 2), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 5), count(*) FILTER (netns = 'golden-states-b' AND inet_diag_msg_state = 8)) FROM $P")
+ok=0
+[ "$got" = "$K_TW,$K_SYN,1,1" ] && ok=1
+row state_counts boundary "$ok" "TIME_WAIT,SYN_SENT,FIN_WAIT2,CLOSE_WAIT = $got, want $K_TW,$K_SYN,1,1"
+got=$(q "SELECT string_agg(DISTINCT netns || '=' || tcp_info_pmtu || '/' || tcp_info_snd_mss, ',' ORDER BY netns || '=' || tcp_info_pmtu || '/' || tcp_info_snd_mss) FROM $P WHERE netns IN ('golden-cc-a', 'golden-opts-a', 'golden-states-a') AND inet_diag_msg_family = 2 AND inet_diag_msg_state IN (1, 5)")
+ok=0
+[ "$got" = "golden-cc-a=1500/1448,golden-opts-a=1450/1398,golden-states-a=1300/1248" ] && ok=1
+row mtu_paths corner "$ok" "IPv4 pmtu/snd_mss per pair: $got"
+[ "$row_failed" = 0 ] || fail "rows failed"
 
 version=$(q "SELECT any_value(daemon_version) FROM $P")
 
@@ -109,9 +188,13 @@ jq -n \
   --arg flavor "$FLAVOR" --arg version "$version" --arg kernel "$(uname -r)" \
   --arg caps "$caps" --argjson containers "$CONTAINERS" --argjson sockets "$SOCKETS" \
   --argjson rows "$rows" --arg captured "$(date -u +%Y-%m-%d)" \
+  --argjson cong "$(printf '%s\n' "${cas[@]}" | jq -R . | jq -s 'sort')" \
   '{flavor: $flavor, daemon_version: $version, kernel: $kernel,
     capabilities: ($caps | split(" ")),
-    workload: {containers: $containers, sockets_per_container: $sockets, named_netns: ["golden-ns"]},
+    workload: {containers: $containers, sockets_per_container: $sockets,
+      named_netns: ["golden-ns", "golden-cc-a", "golden-cc-b", "golden-bulk-a", "golden-bulk-b",
+        "golden-opts-a", "golden-opts-b", "golden-states-a", "golden-states-b"]},
+    cong_available: $cong,
     rows: $rows, captured: $captured}' >"$OUT/manifest.json"
 rm -f "$OUT"/ss-golden-* "$OUT"/nsid-golden-*
 

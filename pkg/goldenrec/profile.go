@@ -25,9 +25,11 @@ const (
 	// maxValues is the most values a column's set lists.
 	maxValues = 32
 
-	netnsColumn     = "netns"
-	containerColumn = "container_name"
-	hostNetns       = "default"
+	netnsColumn      = "netns"
+	containerColumn  = "container_name"
+	hostNetns        = "default"
+	caStateColumn    = "tcp_info_ca_state"
+	reorderingColumn = "tcp_info_reordering"
 )
 
 // profileListed decides, for each column of a valued class, whether a
@@ -50,7 +52,7 @@ var profileListed = map[string]bool{
 	familyColumn:                    true,
 	stateColumn:                     true,
 	"tcp_info_state":                true,
-	"tcp_info_ca_state":             true,
+	caStateColumn:                   true,
 	"tcp_info_options":              true,
 	"tcp_info_snd_wscale":           true,
 	"tcp_info_rcv_wscale":           true,
@@ -58,7 +60,7 @@ var profileListed = map[string]bool{
 	"tcp_info_snd_mss":              true,
 	"tcp_info_pmtu":                 true,
 	"tcp_info_advmss":               true,
-	"tcp_info_reordering":           true,
+	reorderingColumn:                true,
 	"tcp_info_ecn_mode":             true,
 	"tcp_info_accecn_fail_mode":     true,
 	"tcp_info_options2":             true,

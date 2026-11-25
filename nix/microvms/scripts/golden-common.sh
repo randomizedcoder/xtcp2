@@ -46,9 +46,10 @@ wait_for() {
 
 # wait_second_poll waits for poll 2 to end, $1 seconds at most for poll 1
 # (from boot: the workload comes up before xtcp2), and checks no poll timed
-# out.
+# out. A second argument names a function run between the polls.
 wait_second_poll() {
   wait_for envelopeFlush poll_end 1 "$1"
+  if [ -n "${2:-}" ]; then "$2"; fi
   wait_for upload count 1 20
   wait_for envelopeFlush poll_end 2 60
   local ends timeouts

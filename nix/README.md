@@ -449,7 +449,14 @@ changes diff against it: FP-9 (no `CAP_NET_ADMIN`) and FP-12 (broker versus
 direct `container_*` columns).
 
 - `nix run .#capture-golden-records` boots the `s3parquet-golden` microVM.
-  - The workload: containers `golden-1` to `golden-3` (4 loopback connections each), a named netns `golden-ns`, and the host.
+  - The workload: containers `golden-1` to `golden-3` (4 loopback connections each), a named netns `golden-ns`, the host, and four named netns pairs joined by veth (`nix/microvms/scripts/golden-workload.sh`):
+    - `golden-cc-a/b` (MTU 1500): one idle connection per congestion algorithm the kernel offers, IPv4 and IPv6. Every `tcp_*` module is loaded first, and the list (`tcp_available_congestion_control`) goes into the manifest as `cong_available`, so a new kernel's new algorithm is covered unasked. dctcp clients dial a dctcp listener: a SYN that dctcp marks ECT gets ECN back only from a listener whose algorithm needs ECN (`tcp_ecn_create_request`), and without ECN dctcp falls back to `dctcp-reno`.
+    - `golden-bulk-a/b` (MTU 1500, netem delay 5 ms, loss 2 %, reorder 1 % both ways): a 4 MiB echo each for cubic, bbr, dctcp and vegas, done before xtcp2 starts, so the loss counters are settled.
+    - `golden-opts-a/b` (MTU 1450): TOS 0x08 and 0xb8 (traffic class on IPv6), priority 6 (`class_id`), freebind, transparent and bind-no-port (`sockopt`), receive buffers of 64 KiB, 1 MiB and 16 MiB (three window scales), and one client bound with `SO_BINDTODEVICE`.
+    - `golden-states-a/b` (MTU 1300): a FIN_WAIT2/CLOSE_WAIT pair. After poll 1 the capture adds exactly 3 TIME_WAIT sockets (they last 60 s; polls are 30 s apart) and 2 SYN_SENT ones (to 192.0.2.1, blackholed past `golden-states-b`; the SYN retries outlast poll 2).
+    - All in named netns, so root sets any algorithm or option without container capabilities, and no host TCP is opened before poll 2.
+  - netem loses and reorders at random, so `xtcp2-golden diff` doesn't compare the twelve columns seen to vary between captures (`goldenrec.lossyColumns`: dsack_dups, reord_seen, rwnd_limited, probes, delivery_rate_app_limited, idiag_retrans, dctcp alpha, reordering, and the RTO group: total_rto, its recoveries and time, rehash) in rows of `golden-bulk-a/b` (`goldenrec.DefaultLossyNetns`). Their other columns, such as total_retrans and bytes_received, are compared, and `coverage.json` still requires the loss counters populated.
+  - `ROW <name> <category> PASS|FAIL` lines on the console check the pairs: a row per algorithm and family, the info structs, the options, loss only where netem is, the state counts, and pmtu/snd_mss per pair.
   - The runner keeps xtcp2's second poll, uploaded as its own object. The first poll is immediate and can miss a namespace whose netlink socket is still opening.
   - Each container's rows must match `ss -Htan` (both families). Its Go listeners on `0.0.0.0` are dual-stack (`AF_INET6`), as are the connections they accept, whose IPv4 peers read `::ffff:a.b.c.d`.
   - The runner scrubs it into `pkg/xtcp/testdata/golden/<guest kernel>/`: `records.parquet`, `records.jsonl` (normalized, for review) and `manifest.json`.

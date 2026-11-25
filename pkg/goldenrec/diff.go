@@ -25,6 +25,38 @@ type Options struct {
 	Columns string
 	// KeyColumns pair rows for reporting; DefaultKeyColumns when nil.
 	KeyColumns []string
+	// LossyNetns name the namespaces whose sockets carry deliberate random
+	// loss; in their rows the lossyColumns are not compared, the rest are.
+	// DefaultLossyNetns when nil; empty for none.
+	LossyNetns []string
+}
+
+// DefaultLossyNetns are the golden workload's netem pair
+// (nix/microvms/scripts/golden-workload.sh). netem drops and reorders at
+// random, so which of the lossyColumns a bulk transfer leaves nonzero, and
+// the reordering it settles on, differ from run to run. The profile still
+// requires them populated.
+var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
+
+// lossyColumns are the columns seen to differ between captures of the
+// netem rows, in strict diffs of five captures. The RTO group moves only
+// when a tail loss ends in a retransmission timeout (net/ipv4/tcp_timer.c:
+// tcp_write_timeout rehashes, tcp_retransmit_timer counts), which one
+// capture in five showed. Every other column of those rows, such as
+// total_retrans or bytes_received, is compared.
+var lossyColumns = map[string]bool{
+	"tcp_info_total_rto":                 true,
+	"tcp_info_total_rto_recoveries":      true,
+	"tcp_info_total_rto_time":            true,
+	"tcp_info_rehash":                    true,
+	"tcp_info_dsack_dups":                true,
+	"tcp_info_reord_seen":                true,
+	"tcp_info_rwnd_limited":              true,
+	"tcp_info_probes":                    true,
+	"tcp_info_delivery_rate_app_limited": true,
+	"inet_diag_msg_retrans":              true,
+	"dctcp_info_alpha":                   true,
+	reorderingColumn:                     true,
 }
 
 // Difference is one way a candidate differs from the golden capture: a
@@ -65,10 +97,18 @@ func Diff(golden, candidate []Row, table Table, opts Options) ([]Difference, err
 	if keyCols == nil {
 		keyCols = DefaultKeyColumns
 	}
+	lossyNetns := opts.LossyNetns
+	if lossyNetns == nil {
+		lossyNetns = DefaultLossyNetns
+	}
 	cmp := func(r Row) (key string, cols []string, vals map[string]string) {
 		vals = make(map[string]string, len(r))
+		lossy := slices.Contains(lossyNetns, r[netnsColumn])
 		for c, v := range r {
 			if filter != nil && !filter.MatchString(c) {
+				continue
+			}
+			if lossy && lossyColumns[c] {
 				continue
 			}
 			vals[c] = compareForm(idx[c], v)

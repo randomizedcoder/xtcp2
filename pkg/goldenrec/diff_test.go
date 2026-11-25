@@ -25,6 +25,17 @@ func edit(rows []rec, i int, f func(*rec)) []rec {
 	return out
 }
 
+// inNetns returns a copy of rows with row 0 moved to netns and f, when
+// set, applied to it.
+func inNetns(rows []rec, netns string, f func(*rec)) []rec {
+	return edit(rows, 0, func(r *rec) {
+		r.Netns = netns
+		if f != nil {
+			f(r)
+		}
+	})
+}
+
 func mustNormalize(t *testing.T, rows []rec) []Row {
 	t.Helper()
 	n, err := Normalize(rows, Columns)
@@ -100,6 +111,30 @@ func TestDiff(t *testing.T) {
 		{"extra_row", "corner", "the candidate has one socket more",
 			g, append(append([]rec(nil), g...), rec{Family: afInet6, State: 10, SPort: 443, Src: v6("::1")}), Options{},
 			expected{n: 1, contains: "row only in candidate: inet_diag_msg_family=10"}},
+		{"lossy_counters_ignored", "positive", "a netem pair's counters that vary run to run are not compared",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.Dsack = 3 }), inNetns(g, "golden-bulk-a", nil),
+			Options{}, expected{}},
+		{"lossy_presence_kept", "negative", "a netem pair's receive bytes going to zero is still a difference",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.RcvBytes = 4194304 }), inNetns(g, "golden-bulk-a", nil),
+			Options{}, expected{n: 1, contains: `tcp_info_bytes_received: golden "nonzero", candidate "0"`}},
+		{"lossy_retrans_kept", "negative", "a netem pair that stops retransmitting is still a difference",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-bulk-a", nil),
+			Options{}, expected{n: 1, contains: `tcp_info_total_retrans: golden "nonzero", candidate "0"`}},
+		{"lossy_strict_kept", "negative", "a netem pair's MSS is still compared",
+			inNetns(g, "golden-bulk-a", nil), inNetns(g, "golden-bulk-a", func(r *rec) { r.Mss = 1398 }),
+			Options{}, expected{n: 1, contains: `tcp_info_snd_mss: golden "1448", candidate "1398"`}},
+		{"lossy_elsewhere", "negative", "the same counter flip outside a netem pair is a difference",
+			inNetns(g, "golden-cc-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-cc-a", nil),
+			Options{}, expected{n: 1, contains: `tcp_info_total_retrans: golden "nonzero", candidate "0"`}},
+		{"lossy_disabled", "boundary", "an empty LossyNetns compares every namespace",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-bulk-a", nil),
+			Options{LossyNetns: []string{}}, expected{n: 1, contains: "tcp_info_total_retrans"}},
+		{"lossy_custom", "corner", "a named LossyNetns replaces the default",
+			inNetns(g, "golden-bulk-a", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-bulk-a", nil),
+			Options{LossyNetns: []string{"other"}}, expected{n: 1, contains: "tcp_info_total_retrans"}},
+		{"lossy_row_missing", "corner", "a socket missing from a netem pair is still reported",
+			inNetns(g, "golden-bulk-a", nil), inNetns(g, "golden-bulk-a", nil)[:2],
+			Options{}, expected{n: 1, contains: "row only in golden"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -157,6 +192,39 @@ func TestFormat(t *testing.T) {
 			}
 			if tc.expectedLines > 0 && lines[len(lines)-1] != tc.expectedLast {
 				t.Fatalf("[%s] %s: last line %q, expected %q", tc.category, tc.description, lines[len(lines)-1], tc.expectedLast)
+			}
+		})
+	}
+}
+
+func TestLossyColumns(t *testing.T) {
+	idx, err := Columns.index()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for c := range lossyColumns {
+		if _, ok := idx[c]; !ok {
+			t.Errorf("lossyColumns names %q, which is not a column", c)
+		}
+	}
+	cases := []struct {
+		name, category, description, input string
+		expected                           bool
+	}{
+		{"dsack_varies", "positive", "a counter netem sets at random is exempt", "tcp_info_dsack_dups", true},
+		{"reordering_varies", "positive", "the reordering a transfer settles on is exempt", reorderingColumn, true},
+		{"bytes_received_kept", "negative", "the transfer's size is fixed, so it is compared", "tcp_info_bytes_received", false},
+		{"total_retrans_kept", "negative", "2 % loss over 4 MiB always retransmits, so it is compared", "tcp_info_total_retrans", false},
+		{"ca_state_kept", "boundary", "an idle connection is back in Open, so ca_state is compared", caStateColumn, false},
+		{"rto_varies", "positive", "a tail loss sometimes ends in an RTO, which also rehashes", "tcp_info_total_rto", true},
+		{"rehash_varies", "boundary", "rehash moves with each RTO (tcp_write_timeout)", "tcp_info_rehash", true},
+		{"dctcp_alpha_varies", "corner", "a per-algorithm info column follows the marks netem drops", "dctcp_info_alpha", true},
+		{"unknown_kept", "corner", "a name that is no column is not exempt", "nope", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := lossyColumns[tc.input]; got != tc.expected {
+				t.Errorf("[%s] %s: lossyColumns[%q] = %v, expected %v", tc.category, tc.description, tc.input, got, tc.expected)
 			}
 		})
 	}
