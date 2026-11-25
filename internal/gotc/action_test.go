@@ -351,6 +351,32 @@ func TestGotcActionUnit(t *testing.T) {
 			expected: result{stdout: "total acts 1\n\n\taction order 0: mpls ",
 				stderr: "[NULL mpls parameters]\nError printing action\n"},
 		},
+		{
+			description: "corner: ctinfo's missing-parameters note goes to stdout, with no newline (AC27)",
+			args:        []string{"actions", "ls", "action", "ctinfo"},
+			replies: []Reply{rep(actMsg(1, actOrder(0, "ctinfo",
+				attr(xtcpnl.TcaCtinfoZone, le16(3)))), done())},
+			expected: result{stdout: "total acts 1\n\n\taction order 0: ctinfo [NULL ctinfo action parameters]",
+				stderr: "Error printing action\n"},
+		},
+		{
+			description: "corner: skbedit ignores QUEUE_MAPPING_MAX and TXQ_SKBHASH, a hash range prints its low end (AC19)",
+			args:        []string{"actions", "ls", "action", "skbedit"},
+			replies: []Reply{rep(actMsg(1, actOrder(0, "skbedit", cat(attr(xtcpnl.TcaSkbeditParms, genB(1, 3, 1, 0)),
+				attr(xtcpnl.TcaSkbeditQueueMapping, le16(0)), attr(xtcpnl.TcaSkbeditQueueMappingMax, le16(3)),
+				attr(xtcpnl.TcaSkbeditFlags, le64(0x40))))), done())},
+			expected: result{stdout: "total acts 1\n\n\taction order 0: skbedit queue_mapping 0 pipe\n" +
+				"\t index 1 ref 1 bind 0\n"},
+		},
+		{
+			description: "corner: a 2-byte mirred BLOCKID is read as tc would, MIN-copied (AC17)",
+			args:        []string{"actions", "ls", "action", "mirred"},
+			replies: []Reply{rep(actMsg(1, actOrder(0, "mirred", cat(attr(xtcpnl.TcaMirredParms,
+				cat(genB(1, 4, 1, 0), le32(xtcpnl.TcaEgressRedirCst), le32(0))),
+				attr(xtcpnl.TcaMirredBlockid, le16(7))))), done())},
+			expected: result{stdout: "total acts 1\n\n\taction order 0: mirred (Egress Redirect to blockid 7) stolen\n" +
+				"\tindex 1 ref 1 bind 0\n"},
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
