@@ -15,6 +15,9 @@
 #                      sockopt bits, three receive buffers, SO_BINDTODEVICE
 #   golden-states-a/b  veth, MTU 1300: a FIN_WAIT2/CLOSE_WAIT pair; the
 #                      capture adds TIME_WAIT and SYN_SENT after poll 1
+#   golden-ernic-b     ionic1 (rocm-ernic) at 10.0.4.16-17: a 4 MiB echo per
+#                      BULK_CC algorithm from the root namespace over ionic0,
+#                      with the emulators' deterministic drops
 #   golden-loc-a/b     veth, MTU 1500, and golden-remote behind golden-loc-b:
 #   golden-remote      one connection per locality (self, subnet, remote
 #                      over IPv4 and IPv6 to documentation addresses)
@@ -102,10 +105,10 @@ count_state() { ip netns exec "$1" ss -Htan state "$2" | wc -l; }
 # bulk_done NS: sockets in NS that have received at least 4 MiB. awk rather
 # than grep: before the first byte arrives ss prints no bytes_received, and
 # a grep that matches nothing exits 1, which pipefail turns into an abort.
-bulk_done() {
-  ip netns exec "$1" ss -Htin state established |
-    awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^bytes_received:/ && substr($i, 16) + 0 >= 4194304) n++ } END { print n + 0 }'
+received_4mib() {
+  awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^bytes_received:/ && substr($i, 16) + 0 >= 4194304) n++ } END { print n + 0 }'
 }
+bulk_done() { ip netns exec "$1" ss -Htin state established | received_4mib; }
 
 # Every congestion module, so tcp_available_congestion_control lists every
 # algorithm this kernel has; a new kernel's new one is picked up unasked.
@@ -162,6 +165,46 @@ for ca in "${bulk_algos[@]}"; do
   spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect "10.4.0.$(host "$ca")" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0
 done
 
+# ernic (ERNIC_A_MAC set): ionic1 goes into golden-ernic-b, and one 4 MiB
+# echo per BULK_CC algorithm runs from the root namespace over ionic0, whose
+# emulator drops every ERNIC_TX_EVERY-th frame it transmits (ionic1's drops
+# frames it receives; nix/microvms/golden-ernic.nix). Static neighbors, no
+# IPv6 and no segmentation offloads, so each drop is one MTU frame and only
+# the transfers' own frames reach the counters.
+ernic_bulk=0
+if [ -n "${ERNIC_A_MAC:-}" ]; then
+  # What ionic0 has sent since boot, before this script touches it.
+  echo "GOLDEN_ERNIC_BEFORE $(ethtool -S ionic0 | awk '$1 ~ /^tx_/ && $2 != 0 { printf "%s%s ", $1, $2 }')neigh: $(ip neigh show dev ionic0 | tr '\n' ';') snmp6: $(awk '$2 != 0 { printf "%s=%s ", $1, $2 }' /proc/net/dev_snmp6/ionic0 2>/dev/null) maddr: $(ip maddr show dev ionic0 | tr -s ' \n' ' ')"
+  e=golden-ernic-b
+  ip netns del "$e" 2>/dev/null || true
+  ip netns add "$e"
+  ip -n "$e" link set lo up
+  ip netns exec "$e" sysctl -qw net.ipv6.conf.default.disable_ipv6=1 net.ipv6.conf.all.disable_ipv6=1
+  sysctl -qw net.ipv6.conf.ionic0.disable_ipv6=1
+  ethtool -K ionic0 tso off gso off gro off
+  ip link set ionic1 netns "$e"
+  ip netns exec "$e" ethtool -K ionic1 tso off gso off gro off
+  ip -n "$e" addr add 10.0.4.16/24 dev ionic1
+  ip -n "$e" addr add 10.0.4.17/24 dev ionic1
+  ip -n "$e" link set ionic1 up
+  ip -n "$e" neigh replace 10.0.4.15 lladdr "$ERNIC_A_MAC" dev ionic1 nud permanent
+  ip neigh replace 10.0.4.16 lladdr "$ERNIC_B_MAC" dev ionic0 nud permanent
+  ip neigh replace 10.0.4.17 lladdr "$ERNIC_B_MAC" dev ionic0 nud permanent
+  # The frames before any transfer, for the capture's no_noise ROW.
+  printf '%s %s\n' "$(cat /sys/class/net/ionic0/statistics/tx_packets)" \
+    "$(ip netns exec "$e" cat /sys/class/net/ionic1/statistics/rx_packets)" >/run/xtcp2-golden-ernic-before
+  spawn ernic-server-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.16
+  spawn ernic-server-dctcp-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.17 -cong dctcp
+  wait_listen "$e" 4000 2
+  for ca in "${bulk_algos[@]}"; do
+    dst=10.0.4.16
+    if [ "$ca" = dctcp ]; then dst=10.0.4.17; fi
+    systemd-run --unit="xtcp2-golden-ernic-bulk-$ca" --collect \
+      "$TCP_CLIENT" -count 1 -connect "$dst" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 >/dev/null
+  done
+  ernic_bulk=${#bulk_algos[@]}
+fi
+
 pair opts 2 1450
 spawn opts-server golden-opts-b "$TCP_SERVER" -count 1 -bind :: -tos 0xb8 -priority 6 -freebind -transparent
 wait_listen golden-opts-b 4000
@@ -216,6 +259,15 @@ spawn loc-remote-server-6 golden-remote "$TCP_SERVER" -count 1 -bind 2001:db8:11
 wait_listen golden-loc-a 4000
 wait_listen golden-loc-b 4000
 wait_listen golden-remote 4000 2
+# Resolve every hop's neighbors first: a SYN that waits on neighbor
+# discovery at golden-loc-b is sometimes retransmitted, and its RTO shows in
+# one capture and not the next.
+for dst in 10.5.0.2 203.0.113.10; do
+  ip netns exec golden-loc-a ping -q -c 1 -W 5 "$dst" >/dev/null || fail "golden-loc-a: no reply from $dst"
+done
+for dst in fd00:5::2 2001:db8:113::10; do
+  ip netns exec golden-loc-a ping -6 -q -c 1 -W 5 "$dst" >/dev/null || fail "golden-loc-a: no reply from $dst"
+done
 spawn loc-self golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.1 -sleep 1h -pads 0
 spawn loc-subnet golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.2 -sleep 1h -pads 0
 spawn loc-remote-4 golden-loc-a "$TCP_CLIENT" -count 1 -connect 203.0.113.10 -sleep 1h -pads 0
@@ -245,6 +297,11 @@ while :; do
   n=$(bulk_done golden-bulk-a)
   m=$(bulk_done golden-bulk-b)
   if [ $((n + m)) -lt "$want" ]; then pending="$pending golden-bulk($((n + m))/$want)"; fi
+  if [ "$ernic_bulk" -gt 0 ]; then
+    n=$(received_4mib < <(ss -Htin state established dst 10.0.4.16/31))
+    m=$(bulk_done golden-ernic-b)
+    if [ $((n + m)) -lt $((2 * ernic_bulk)) ]; then pending="$pending golden-ernic($((n + m))/$((2 * ernic_bulk)))"; fi
+  fi
   n=$(count_state golden-opts-a established)
   if [ "$n" -lt "$opts_clients" ]; then pending="$pending golden-opts-a($n/$opts_clients)"; fi
   n=$(count_state golden-loc-a established)

@@ -124,7 +124,8 @@ row no_stray negative "$ok" "$n rows with an nsid but no nsid_assigned"
 ok=0
 [ "$zeros" -eq 1 ] && ok=1
 row zero_present boundary "$ok" "$zeros container namespaces with kernel id 0"
-n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns <> 'golden-ns' AND nsid_assigned")
+# golden-ernic-b has an id: ionic1 was moved there from the root namespace.
+n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns NOT IN ('golden-ns', 'golden-ernic-b') AND nsid_assigned")
 ok=0
 [ "$n" -eq 0 ] && ok=1
 row host_unassigned corner "$ok" "$n host rows with nsid_assigned (the root namespace has no id for itself)"
@@ -166,11 +167,41 @@ row opts_seen positive "$ok" "tos 8, tos 184, tclass 184, class_id 6, freebind, 
 n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC")"
+per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans || '/state' || inet_diag_msg_state || '/segs_out' || tcp_info_segs_out || '/bytes_acked' || tcp_info_bytes_acked, ',' ORDER BY inet_diag_cong) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000")
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}"
 n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-cc-b', 'golden-opts-a', 'golden-opts-b') AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq 0 ] && ok=1
 row no_loss_idle negative "$ok" "$n idle rows with retransmits"
+if [ -n "${ERNIC_TX_EVERY:-}" ]; then
+  # The root namespace's bulk clients to golden-ernic-b, over ionic0.
+  E="netns = 'default' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1"
+  nbulk=$(wc -w <<<"$BULK_CC")
+  n=$(q "SELECT count(*) FROM $P WHERE $E AND tcp_info_total_retrans > 0")
+  per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans, ',' ORDER BY inet_diag_cong) FROM $P WHERE $E")
+  ok=0
+  [ "$n" -eq "$nbulk" ] && ok=1
+  row ernic_loss positive "$ok" "$n ionic bulk clients with retransmits, of $nbulk; retransmits per client: ${per_cc:-none}"
+  got=$(q "SELECT count(*) || ':' || coalesce(string_agg(DISTINCT enrich_socket_dest_egress_ifname, ','), '') FROM $P WHERE $E")
+  ok=0
+  [ "$got" = "$nbulk:ionic0" ] && ok=1
+  row ernic_egress positive "$ok" "ionic bulk clients and their egress: $got, want $nbulk:ionic0"
+  tx=$(cat /sys/class/net/ionic0/statistics/tx_packets)
+  dropped=$(cat /sys/class/net/ionic0/statistics/tx_dropped)
+  # The emulator sees every frame the guest queues; tx_packets counts only
+  # those it sent, so its events are tx_packets + tx_dropped.
+  want=$(((tx + dropped) / ERNIC_TX_EVERY))
+  ok=0
+  [ "$dropped" -gt 0 ] && [ "$dropped" -eq "$want" ] && ok=1
+  row fault_count boundary "$ok" "ionic0 tx_packets $tx, tx_dropped $dropped, want (tx_packets + tx_dropped) / $ERNIC_TX_EVERY = $want"
+  # ionic0's transmit site is the one fault_count checks exactly. ionic1's
+  # receive count is reported, not required: one capture in five saw one
+  # frame reach it from the fabric before the transfers.
+  before=$(cat /run/xtcp2-golden-ernic-before 2>/dev/null || echo missing)
+  ok=0
+  [ "${before%% *}" = 0 ] && ok=1
+  row no_noise corner "$ok" "ionic0 tx_packets, ionic1 rx_packets before the transfers: $before, want 0 and any"
+fi
 got=$(q "SELECT concat_ws(',', count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 6), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 2), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 5), count(*) FILTER (netns = 'golden-states-b' AND inet_diag_msg_state = 8)) FROM $P")
 ok=0
 [ "$got" = "$K_TW,$K_SYN,1,1" ] && ok=1
@@ -180,11 +211,21 @@ ok=0
 [ "$got" = "golden-cc-a=1500/1448,golden-opts-a=1450/1398,golden-states-a=1300/1248" ] && ok=1
 row mtu_paths corner "$ok" "IPv4 pmtu/snd_mss per pair: $got"
 
-# The NICs, locality and ASN (goldenNicArgs, goldenAsnDb, golden-loc-*).
+# The NICs, locality and ASN (goldenNicArgs, goldenErnicNics, goldenAsnDb,
+# golden-loc-*). Uplink 1 is the rocm-ernic ionic NIC, uplink 2 the e1000e;
+# virtio's default route ranks third (docs/design-rocm-ernic-nics.md).
+got=$(q "SELECT concat_ws(',', max(uplink1_ifname), max(uplink1_nic_driver), max(uplink1_nic_pci_vendor), max(uplink1_nic_pci_device), bool_or(uplink1_nic_bus_info <> '')) FROM $P")
+ok=0
+[ "$got" = "ionic0,ionic,7640,4098,true" ] && ok=1
+row uplink1_ionic positive "$ok" "uplink1 ifname, driver, PCI vendor, device, bus set: $got"
 got=$(q "SELECT concat_ws(',', max(uplink2_nic_driver), max(uplink2_nic_pci_vendor), bool_or(uplink2_nic_fw_version <> ''), bool_or(uplink2_nic_bus_info <> '')) FROM $P")
 ok=0
 [ "$got" = "e1000e,32902,true,true" ] && ok=1
 row uplink2 positive "$ok" "uplink2 driver, PCI vendor, firmware set, bus set: $got"
+n=$(q "SELECT count(*) FROM $P WHERE uplink1_nic_driver = 'virtio_net' OR uplink2_nic_driver = 'virtio_net'")
+ok=0
+[ "$n" -eq 0 ] && ok=1
+row virtio_not_uplink negative "$ok" "$n rows with virtio_net as an uplink"
 got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_locality::VARCHAR, ',' ORDER BY enrich_socket_dest_locality::VARCHAR) FROM $P WHERE netns = 'golden-loc-a' AND inet_diag_msg_state = 1")
 ok=0
 [ "$got" = "1,2,3" ] && ok=1
@@ -203,7 +244,7 @@ ok=0
 row no_asn_unlisted negative "$ok" "$n REMOTE SYN_SENT rows to 192.0.2.1 (not in the artifact) without an ASN, want $K_SYN"
 got=$(q "SELECT concat_ws(',', string_agg(DISTINCT uplink1_nic_speed_mbps::VARCHAR, '/'), string_agg(DISTINCT uplink2_nic_speed_mbps::VARCHAR, '/')) FROM $P")
 ok=0
-[ "$got" = "10000,1000" ] && ok=1
+[ "$got" = "100000,1000" ] && ok=1
 row nic_speed boundary "$ok" "uplink1, uplink2 speed: $got"
 n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-loc-a' AND inet_diag_msg_family = 10 AND enrich_socket_dest_locality = 3 AND enrich_socket_dest_asn = 64501 AND enrich_socket_dest_network_owner = 'fixture-net6'")
 ok=0
@@ -213,6 +254,10 @@ got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_egress_ifname, ',') FROM 
 ok=0
 [ "$got" = "veth0" ] && ok=1
 row egress_named corner "$ok" "egress of golden-loc-a's REMOTE rows: $got"
+got=$(q "SELECT string_agg(DISTINCT uplink1_nic_fw_version, ',') FROM $P")
+ok=0
+[ "$got" = "xtcp2-golden-1.0" ] && ok=1
+row fw_from_profile corner "$ok" "uplink1 firmware, from the NIC profile's [identity]: $got"
 [ "$row_failed" = 0 ] || fail "rows failed"
 
 version=$(q "SELECT any_value(daemon_version) FROM $P")

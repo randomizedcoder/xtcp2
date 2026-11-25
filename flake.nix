@@ -118,17 +118,25 @@
     xdp2.url = "github:randomizedcoder/xdp2/16aa76764c8ab18897de6af13cac37c2fa89bb37";
 
     # rocm-ernic emulates an AMD Pensando ionic NIC over vfio-user, so the
-    # in-tree ionic/ionic_rdma drivers give test-linkmonitor-ionic-vm real
-    # driver netlink, ethtool and verbs replies without hardware. Consumed
-    # for nixosModules.ernic-guest and packages.ernic-run. Override to a
-    # local checkout when iterating on the emulator:
+    # in-tree ionic/ionic_rdma drivers give the VM checks real driver
+    # netlink, ethtool and verbs replies without hardware. Consumed through
+    # nix/ernic (nixosModules.ernic-guest, packages.ernic-run and the
+    # server); see docs/design-rocm-ernic-nics.md.
+    #
+    # Pinned to upstream develop by rev AND narHash, so the fetched content
+    # is part of the declaration. checks.ernic-pin keeps this, flake.lock and
+    # nix/upstream-pins.json in step; `nix run .#check-upstream-pins` reports
+    # how far develop has moved. To bump: change rev, set narHash from
+    # `nix flake prefetch github:ROCm/rocm-ernic/<rev>`, then
+    # `nix flake lock --update-input rocm-ernic` and the manifest entry.
+    # Iterate on the emulator with:
     #   nix run .#test-linkmonitor-ionic-vm --override-input rocm-ernic path:/home/das/Downloads/rocm-ernic
-    # Pinned to the fork's xtcp2-integration branch (develop plus
-    # ROCm/rocm-ernic#219, #221, #222, #223 and #224, plus the fork's
-    # feat/ionic-eth-faults, feat/ionic-rdma-error-stats,
-    # feat/ionic-port-stats and feat/ernic-run-server-opts) until those merge.
     rocm-ernic = {
-      url = "github:randomizedcoder/rocm-ernic/fe6cf85300c249d9ad9ba2240b0d34406ee29b65";
+      type = "github";
+      owner = "ROCm";
+      repo = "rocm-ernic";
+      rev = "bd902345b0f8f3863f535a0a09da9f21ce744737";
+      narHash = "sha256-vwIFQjGK7rorBfCNwyq4kepVz68A4BJHag2X3y/T+xU=";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
       inputs.microvm.follows = "microvm";

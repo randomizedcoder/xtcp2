@@ -120,7 +120,7 @@ let
     # The production flavor, so the golden capture records what the fleet runs.
     goldenXtcp2Package = binaries.xtcp2-s3parquet-enrich;
     goldenTool = binaries.xtcp2-golden;
-    inherit rdmaCaptureManifest;
+    inherit rdmaCaptureManifest ernic;
   };
 
   # Static analysis + audit checks
@@ -195,6 +195,10 @@ let
     inherit (containers) oci-xtcp2 oci-xtcp2-tcp-stress;
   };
 
+  # rocm-ernic, read once (nix/ernic): the ionic VM checks and the golden
+  # VM's ionic NICs share these store paths.
+  ernic = import ./ernic { inherit pkgs lib rocmErnic; };
+
   # Guest tests that report through the serial console, each built around
   # microvms/mkVmCheck.nix's runner: checks.vm-<name>, run in the build
   # sandbox with KVM and cached by its inputs, and the app test-<name>-vm,
@@ -207,8 +211,8 @@ let
           inherit pkgs lib nixpkgs;
           artifact = tests.test-linkmonitor-rdma-build;
           monitor = linkmonitorPackages.go-link-monitor;
-          ernicModule = rocmErnic.nixosModules.ernic-guest;
-          ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
+          ernicModule = ernic.guestModule;
+          ernicRun = ernic.run;
           inherit rdmaCaptureManifest faults;
         };
     in
@@ -1078,8 +1082,8 @@ in
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
         inherit pkgs lib nixpkgs;
         monitor = linkmonitorPackages.go-link-monitor;
-        ernicModule = rocmErnic.nixosModules.ernic-guest;
-        ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
+        ernicModule = ernic.guestModule;
+        ernicRun = ernic.run;
       };
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;

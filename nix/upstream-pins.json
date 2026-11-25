@@ -61,6 +61,17 @@
       "consumed_by": "proto-audit itself, whenever --xtcp2-src is NOT overridden",
       "known_stale": true,
       "stale_note": "Dated 2025-04-19 and 732 commits behind xtcp2 main as of 2026-09-26 \u2014 it predates essentially all of the netlink coverage work, including the 7 kernel-versioned TCPInfo variants and the AccECN trailer. Auditing it would re-report the very gap that work closed. This is EXPECTED to be stale and is not a bug to fix here: the fix is that every xtcp2-side proto-audit invocation overrides the path. The runner still reports it so the number cannot quietly grow into something worse without anyone noticing, and so that bumping it upstream is an informed choice rather than a surprise."
+    },
+    "rocm-ernic": {
+      "repo": "ROCm/rocm-ernic",
+      "branch": "develop",
+      "rev": "bd902345b0f8f3863f535a0a09da9f21ce744737",
+      "narHash": "sha256-vwIFQjGK7rorBfCNwyq4kepVz68A4BJHag2X3y/T+xU=",
+      "declared_in": "flake.nix inputs.rocm-ernic (rev and narHash)",
+      "verify_via": "flake.lock nodes.rocm-ernic.locked.{rev,narHash}; checks.ernic-pin",
+      "role": "The emulated AMD Pensando ionic NIC (vfio-user server, ernic-run, nixosModules.ernic-guest) behind the ionic VM checks and the golden VM's ionic uplinks.",
+      "consumed_by": "nix/ernic/default.nix",
+      "known_stale": false
     }
   },
   "_comment_package_pins": [

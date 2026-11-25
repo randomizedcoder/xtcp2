@@ -30,6 +30,7 @@ const (
 	hostNetns        = "default"
 	caStateColumn    = "tcp_info_ca_state"
 	reorderingColumn = "tcp_info_reordering"
+	egressColumn     = "enrich_socket_dest_egress_ifname"
 )
 
 // profileListed decides, for each column of a valued class, whether a

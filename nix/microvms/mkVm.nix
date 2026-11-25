@@ -49,6 +49,9 @@
   # `stress-ng --cpu <workers> --cpu-load <loadPct>` for the life of the VM.
   # null (the default) adds nothing.
   cpuStress ? null,
+  # nix/ernic. When set, the golden flavor also carries the rocm-ernic ionic
+  # NICs of golden-ernic.nix (docs/design-rocm-ernic-nics.md).
+  ernic ? null,
 }:
 
 let
@@ -2461,7 +2464,15 @@ let
   # device, a firmware version and a bus address; its default route (below)
   # has the higher metric, so DefaultUplinks lists it second.
   goldenUplink2Mac = "02:00:00:00:10:02";
-  goldenNicArgs = [
+  goldenErnic = lib.optionalAttrs (ernic != null) (import ./golden-ernic.nix { inherit ernic; });
+  goldenErnicNics = goldenErnic.nics or [ ];
+  # ERNIC_* lines for the golden scripts; none without ernic, which skips
+  # the ernic workload and its ROWs.
+  shellVars =
+    vars: lib.concatStrings (lib.mapAttrsToList (k: v: "${k}=${lib.escapeShellArg v}\n") vars);
+  goldenErnicWorkloadEnv = shellVars (goldenErnic.workloadEnv or { });
+  goldenErnicCaptureEnv = shellVars (goldenErnic.captureEnv or { });
+  goldenNicArgs = lib.optionals (ernic != null) (ernic.nics.qemuArgs goldenErnicNics) ++ [
     "-global"
     "virtio-net-pci.speed=10000"
     "-global"
@@ -2481,6 +2492,7 @@ let
       gawk
       gnugrep
       iproute2
+      iputils
       kmod
       procps
       systemd
@@ -2493,6 +2505,7 @@ let
       TCP_SERVER=${xtcp2AllPackage}/bin/tcp_server
       TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
       BULK_CC="${goldenBulkCc}"
+      ${goldenErnicWorkloadEnv}
     ''
     + builtins.readFile ./scripts/golden-workload.sh;
   };
@@ -2524,6 +2537,7 @@ let
       TCP_CLIENT=${xtcp2AllPackage}/bin/tcp_client
       BULK_CC="${goldenBulkCc}"
       ERR_TAG=GOLDEN_ERR
+      ${goldenErnicCaptureEnv}
     ''
     + builtins.readFile ./scripts/golden-common.sh
     + builtins.readFile ./scripts/golden-capture.sh;
@@ -2866,6 +2880,7 @@ in
     ../modules/xtcp2-service.nix
   ]
   ++ extraModules
+  ++ lib.optional (isS3ParquetGolden && ernic != null) (ernic.nics.guestConfig goldenErnicNics)
   ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ lib.optionals isValkey valkeyModules
   ++ lib.optionals isNats natsModules
@@ -4615,6 +4630,20 @@ in
         # bond_enslave refuses a port that is up. Measured on the first
         # Tier 2 run: lb1 sent DHCP discovers from inside B's bond, and B's
         # bond sent one LACPDU and then none.
+        # The golden flavor's virtio NIC keeps SLiRP DHCP, with its default
+        # route behind the ionic (512) and e1000e (2048) uplinks, so
+        # DefaultUplinks(2) leaves it out (docs/design-rocm-ernic-nics.md).
+        systemd.network.networks."05-golden-eth0" = lib.mkIf (isS3ParquetGolden && ernic != null) {
+          matchConfig.MACAddress = "02:00:00:00:10:01";
+          networkConfig.DHCP = "yes";
+          dhcpV4Config.RouteMetric = 4096;
+          ipv6AcceptRAConfig.RouteMetric = 4096;
+        };
+        # The default route is ionic0's, where no NTP server answers, and
+        # timesyncd's polls (with the gateway ARP before them) would land on
+        # the emulator's fault counters at a time of their own. The guest
+        # clock is kvmclock's.
+        services.timesyncd.enable = lib.mkIf (isS3ParquetGolden && ernic != null) false;
         # The golden flavor's second uplink (goldenNicArgs): static, with a
         # default route behind the DHCP one on the virtio NIC.
         systemd.network.networks."05-golden-uplink2" = lib.mkIf isS3ParquetGolden {
