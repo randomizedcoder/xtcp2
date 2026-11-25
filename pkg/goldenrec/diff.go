@@ -39,9 +39,16 @@ type Options struct {
 var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
 
 // lossyColumns are the columns seen to differ between captures of the
-// netem rows, in a strict diff of four captures. Every other column of
-// those rows, such as total_retrans or bytes_received, is compared.
+// netem rows, in strict diffs of five captures. The RTO group moves only
+// when a tail loss ends in a retransmission timeout (net/ipv4/tcp_timer.c:
+// tcp_write_timeout rehashes, tcp_retransmit_timer counts), which one
+// capture in five showed. Every other column of those rows, such as
+// total_retrans or bytes_received, is compared.
 var lossyColumns = map[string]bool{
+	"tcp_info_total_rto":                 true,
+	"tcp_info_total_rto_recoveries":      true,
+	"tcp_info_total_rto_time":            true,
+	"tcp_info_rehash":                    true,
 	"tcp_info_dsack_dups":                true,
 	"tcp_info_reord_seen":                true,
 	"tcp_info_rwnd_limited":              true,
