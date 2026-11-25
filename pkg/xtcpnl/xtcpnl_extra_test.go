@@ -180,7 +180,7 @@ func TestDeserializeInetDiagMsgXTCPWG(t *testing.T) {
 }
 
 // TestDeserializeCongInfoXTCP_short exercises the length-guard branch
-// separately — every other case has the 4-byte minimum.
+// separately: one byte is below the minimum of a one-letter name plus NUL.
 func TestDeserializeCongInfoXTCP_short(t *testing.T) {
 	x := &xtcp_flat_record.XtcpFlatRecord{}
 	if err := DeserializeCongInfoXTCP([]byte{0x01}, x); err != ErrCongInfoSmall {
@@ -189,27 +189,27 @@ func TestDeserializeCongInfoXTCP_short(t *testing.T) {
 }
 
 // TestDeserializeCongInfoXTCP_dispatch is the table-driven combination of
-// the previous 8 one-off tests. Each row exercises one prefix → enum
-// mapping; the BBR row covers the data[3] sub-discriminator added in
-// bug 50. An empty wantAlg means "enum should stay at zero" (unknown
-// prefix branch).
+// the previous 8 one-off tests. Each row exercises one name → enum
+// mapping; the names are matched whole, so BBRv2/v3 stay apart from bbr
+// (bug 50) and look-alikes get no enum. An empty wantAlg means "enum
+// should stay at zero".
 func TestDeserializeCongInfoXTCP_dispatch(t *testing.T) {
 	cases := []struct {
 		name    string
 		data    []byte
 		wantAlg xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm
 	}{
-		{"cubic", []byte("cub\x00"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC},
+		{"cubic", []byte("cubic\x00"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC},
 		{"bbr1_explicit_nul", []byte{'b', 'b', 'r', 0}, xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1},
 		{"bbr1_prefix", []byte("bbr\x00"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1},
 		{"bbr2", []byte("bbr2"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2},
 		{"bbr3", []byte("bbr3"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3},
-		{"dctcp", []byte("dct\x00"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP},
-		{"vegas", []byte("veg\x00"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS},
+		{"dctcp", []byte("dctcp\x00"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP},
+		{"vegas", []byte("vegas\x00"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS},
 		{"unknown_prefix_stays_zero", []byte("xxxx"), 0},
-		// "bbr" with garbage 4th byte (anything but '2' or '3') falls
-		// back to BBR1 — covers the default-case of the inner switch.
-		{"bbr_garbage_byte_falls_back_to_bbr1", []byte("bbrX"), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1},
+		// "bbr" with an unknown suffix is not a BBR version we know.
+		{"bbr_unknown_suffix_stays_zero", []byte("bbrX"), 0},
+		{"truncated_prefix_stays_zero", []byte("cub\x00"), 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

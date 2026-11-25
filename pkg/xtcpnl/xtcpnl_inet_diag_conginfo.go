@@ -42,7 +42,10 @@ type CongInfo struct {
 }
 
 const (
-	CongInfoSizeCst = 4 // bbr\0 is 4 bytes
+	// CongInfoSizeCst is a one-letter name plus its NUL. The kernel sends
+	// ca_ops->name with nla_put_string, unpadded, and the shortest in-tree
+	// names are two letters ("nv", "lp": 3 bytes).
+	CongInfoSizeCst = 2
 	CongInfoReadCst = CongInfoSizeCst
 
 	CongInfoEmumValueCst = 4
@@ -82,40 +85,8 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 		return ErrCongInfoSmall
 	}
 
-	x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED
-
-	// Match on the first 3 bytes — the kernel attribute is a null-terminated
-	// algorithm name like "cubic", "bbr", "dctcp", "vegas". Comparing data[0:4]
-	// against 3-char strings would never match, so we use the 3-char prefix.
-	switch string(data[0:3]) {
-	case "cub":
-		x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC
-	case "bbr":
-		// Distinguish bbr1 / bbr2 / bbr3 via the 4th byte. The XtcpFlatRecord
-		// proto defines BBR1/BBR2/BBR3 as separate enum values — previously
-		// every "bbr*" prefix was bucketed into BBR1, so operators couldn't
-		// tell BBRv2/v3 connections apart from BBRv1 in their dashboards.
-		// CongInfoSizeCst is 4 (sizeof "bbr\0"); only inspect data[3] when
-		// the buffer is long enough.
-		switch {
-		case len(data) >= 4 && data[3] == '3':
-			x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3
-		case len(data) >= 4 && data[3] == '2':
-			x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2
-		default:
-			x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1
-		}
-	case "dct":
-		x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP
-	case "veg":
-		x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS
-	}
-
-	// Preserve the actual kernel name, including algorithms absent from our
-	// enum (for example Reno). Controller exposure is based on this field.
-	// Copy out of the reused netlink buffer and exclude the NUL terminator.
-	// One pass finds the NUL and checks the name is printable ASCII, the
-	// string policy's fast path; anything else goes through Clean.
+	// Find the NUL and check the name is printable ASCII in one pass. The
+	// payload may carry NLA padding after the NUL, or no NUL at all.
 	name, printable := data, true
 	for i, c := range data {
 		if c == 0 {
@@ -126,10 +97,76 @@ func DeserializeCongInfoXTCP(data []byte, x *xtcp_flat_record.XtcpFlatRecord) (e
 			printable = false
 		}
 	}
+	if known, algorithm, ok := congKnown(name); ok {
+		// A kernel name: a constant, so no copy out of the reused buffer.
+		x.InetDiagCong, x.InetDiagCongEnum = known, algorithm
+		return nil
+	}
+	// Preserve any other name: controller exposure is based on this field.
+	// Copy out of the reused netlink buffer; anything outside printable
+	// ASCII or longer than TCP_CA_NAME_MAX goes through the string policy.
+	x.InetDiagCongEnum = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED
 	if printable && len(name) <= strpolicy.MaxCong {
 		x.InetDiagCong = string(name)
 	} else {
 		x.InetDiagCong = strpolicy.Clean(string(name), strpolicy.MaxCong)
 	}
 	return nil
+}
+
+// congKnown maps a congestion-control name to a constant string and its
+// enum, matching the whole name: "dctcp-reno" (dctcp's fallback when ECN
+// isn't negotiated, tcp_dctcp.c) is not DCTCP, and "bbr2"/"bbr3" are told
+// apart from "bbr". The list is the in-tree modules (net/ipv4/tcp_*.c, Linux
+// 7.3) plus the out-of-tree BBRv2/v3 and Prague. switch on string(name)
+// doesn't allocate.
+func congKnown(name []byte) (string, xtcp_flat_record.XtcpFlatRecord_CongestionAlgorithm, bool) {
+	const unspecified = xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED
+	switch string(name) {
+	case "cubic":
+		return "cubic", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_CUBIC, true
+	case "bbr", "bbr1":
+		return string(name), xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR1, true
+	case "bbr2":
+		return "bbr2", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR2, true
+	case "bbr3":
+		return "bbr3", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_BBR3, true
+	case "dctcp":
+		return "dctcp", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_DCTCP, true
+	case "vegas":
+		return "vegas", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_VEGAS, true
+	case "prague":
+		return "prague", xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_PRAGUE, true
+	case "reno":
+		return "reno", unspecified, true
+	case "dctcp-reno":
+		return "dctcp-reno", unspecified, true
+	case "westwood":
+		return "westwood", unspecified, true
+	case "htcp":
+		return "htcp", unspecified, true
+	case "illinois":
+		return "illinois", unspecified, true
+	case "nv":
+		return "nv", unspecified, true
+	case "cdg":
+		return "cdg", unspecified, true
+	case "hybla":
+		return "hybla", unspecified, true
+	case "lp":
+		return "lp", unspecified, true
+	case "scalable":
+		return "scalable", unspecified, true
+	case "veno":
+		return "veno", unspecified, true
+	case "yeah":
+		return "yeah", unspecified, true
+	case "bic":
+		return "bic", unspecified, true
+	case "highspeed":
+		return "highspeed", unspecified, true
+	case "roccet":
+		return "roccet", unspecified, true
+	}
+	return "", unspecified, false
 }
