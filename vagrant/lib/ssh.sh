@@ -31,11 +31,14 @@ vm_exec_root() {
 # vm_push <vm> <local-path> <remote-path>: scp a file into the VM. Atomic via
 # .incoming + mv: nix store sources are mode 0444 and scp preserves that, so a
 # second push of the same remote path could otherwise not overwrite its own
-# first copy.
+# first copy. A push that DIES mid-upload (e.g. the victim disk filling under
+# the catcher) leaves a 0444 .incoming the retry then cannot open — remove it
+# first.
 vm_push() {
   local vm="$1" local_path="$2" remote_path="$3"
   local cfg
   cfg="$(vm_ssh_config "$vm")"
+  ssh -F "$cfg" "$vm" "rm -f $remote_path.incoming" >/dev/null
   scp -q -F "$cfg" "$local_path" "$vm:$remote_path.incoming"
   ssh -F "$cfg" "$vm" "mv -f $remote_path.incoming $remote_path && chmod 0644 $remote_path"
 }
