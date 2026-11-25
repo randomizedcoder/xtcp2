@@ -42,8 +42,11 @@ var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
 // netem rows, in strict diffs of five captures. The RTO group moves only
 // when a tail loss ends in a retransmission timeout (net/ipv4/tcp_timer.c:
 // tcp_write_timeout rehashes, tcp_retransmit_timer counts), which one
-// capture in five showed. Every other column of those rows, such as
-// total_retrans or bytes_received, is compared.
+// capture in five showed. sk_mem_info_drops moves on a listener when netem
+// drops a SYN-ACK: the retransmitted SYN reaches the request socket,
+// tcp_check_req resends the SYN-ACK, and tcp_v4_rcv counts the segment as
+// a drop on the listener (discard_and_relse). Every other column of those
+// rows, such as total_retrans or bytes_received, is compared.
 var lossyColumns = map[string]bool{
 	"tcp_info_total_rto":                 true,
 	"tcp_info_total_rto_recoveries":      true,
@@ -56,6 +59,7 @@ var lossyColumns = map[string]bool{
 	"tcp_info_delivery_rate_app_limited": true,
 	"inet_diag_msg_retrans":              true,
 	"dctcp_info_alpha":                   true,
+	"sk_mem_info_drops":                  true,
 	reorderingColumn:                     true,
 }
 
