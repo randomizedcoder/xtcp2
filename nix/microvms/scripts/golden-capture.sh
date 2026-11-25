@@ -180,11 +180,21 @@ ok=0
 [ "$got" = "golden-cc-a=1500/1448,golden-opts-a=1450/1398,golden-states-a=1300/1248" ] && ok=1
 row mtu_paths corner "$ok" "IPv4 pmtu/snd_mss per pair: $got"
 
-# The NICs, locality and ASN (goldenNicArgs, goldenAsnDb, golden-loc-*).
+# The NICs, locality and ASN (goldenNicArgs, goldenErnicNics, goldenAsnDb,
+# golden-loc-*). Uplink 1 is the rocm-ernic ionic NIC, uplink 2 the e1000e;
+# virtio's default route ranks third (docs/design-rocm-ernic-nics.md).
+got=$(q "SELECT concat_ws(',', max(uplink1_ifname), max(uplink1_nic_driver), max(uplink1_nic_pci_vendor), max(uplink1_nic_pci_device), bool_or(uplink1_nic_bus_info <> '')) FROM $P")
+ok=0
+[ "$got" = "ionic0,ionic,7640,4098,true" ] && ok=1
+row uplink1_ionic positive "$ok" "uplink1 ifname, driver, PCI vendor, device, bus set: $got"
 got=$(q "SELECT concat_ws(',', max(uplink2_nic_driver), max(uplink2_nic_pci_vendor), bool_or(uplink2_nic_fw_version <> ''), bool_or(uplink2_nic_bus_info <> '')) FROM $P")
 ok=0
 [ "$got" = "e1000e,32902,true,true" ] && ok=1
 row uplink2 positive "$ok" "uplink2 driver, PCI vendor, firmware set, bus set: $got"
+n=$(q "SELECT count(*) FROM $P WHERE uplink1_nic_driver = 'virtio_net' OR uplink2_nic_driver = 'virtio_net'")
+ok=0
+[ "$n" -eq 0 ] && ok=1
+row virtio_not_uplink negative "$ok" "$n rows with virtio_net as an uplink"
 got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_locality::VARCHAR, ',' ORDER BY enrich_socket_dest_locality::VARCHAR) FROM $P WHERE netns = 'golden-loc-a' AND inet_diag_msg_state = 1")
 ok=0
 [ "$got" = "1,2,3" ] && ok=1
@@ -203,7 +213,7 @@ ok=0
 row no_asn_unlisted negative "$ok" "$n REMOTE SYN_SENT rows to 192.0.2.1 (not in the artifact) without an ASN, want $K_SYN"
 got=$(q "SELECT concat_ws(',', string_agg(DISTINCT uplink1_nic_speed_mbps::VARCHAR, '/'), string_agg(DISTINCT uplink2_nic_speed_mbps::VARCHAR, '/')) FROM $P")
 ok=0
-[ "$got" = "10000,1000" ] && ok=1
+[ "$got" = "100000,1000" ] && ok=1
 row nic_speed boundary "$ok" "uplink1, uplink2 speed: $got"
 n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-loc-a' AND inet_diag_msg_family = 10 AND enrich_socket_dest_locality = 3 AND enrich_socket_dest_asn = 64501 AND enrich_socket_dest_network_owner = 'fixture-net6'")
 ok=0
@@ -213,6 +223,10 @@ got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_egress_ifname, ',') FROM 
 ok=0
 [ "$got" = "veth0" ] && ok=1
 row egress_named corner "$ok" "egress of golden-loc-a's REMOTE rows: $got"
+got=$(q "SELECT string_agg(DISTINCT uplink1_nic_fw_version, ',') FROM $P")
+ok=0
+[ "$got" = "xtcp2-golden-1.0" ] && ok=1
+row fw_from_profile corner "$ok" "uplink1 firmware, from the NIC profile's [identity]: $got"
 [ "$row_failed" = 0 ] || fail "rows failed"
 
 version=$(q "SELECT any_value(daemon_version) FROM $P")
