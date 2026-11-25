@@ -13,7 +13,7 @@ import (
 )
 
 // corpusRows is how many rows each space holds (V002).
-var corpusRows = map[string]int{"tcqdisc": 142, "tcclass": 82, "tcfilter": 159, "tcflower": 97}
+var corpusRows = map[string]int{"tcqdisc": 142, "tcclass": 82, "tcfilter": 159, "tcflower": 97, "tcaction": 132}
 
 // corpusKnown are the rows gotc cannot match byte for byte, each with the
 // reason, so the rest are held exactly.
@@ -26,20 +26,18 @@ var corpusKnown = map[string]string{
 
 // corpusWrites are the write rows 9C recorded so none could pass as a
 // read: gotc refuses each, exit 255, sending nothing.
-// corpusRefused are the rows whose filters hold a kind gotc does not
-// print (fout's police and mirred), or a flower get with match keys:
-// each is refused, exit 255, naming the first one met.
+// corpusRefused are the rows gotc refuses, exit 255, naming what: a
+// flower get with match keys.
 var corpusRefused = map[string]string{
-	"tcfilter/ec-063": "not implemented: police",
-	"tcfilter/pw-063": "not implemented: police",
-	"tcfilter/ec-064": `not implemented: action kind "mirred"`,
-	"tcfilter/pw-064": `not implemented: action kind "mirred"`,
 	// FL21: tc parses get's match keys, sends them, then fails on the
 	// words left; gotc refuses the key.
 	"tcflower/ng-004": "not implemented: flower ip_proto in a get",
 }
 
-var corpusWrites = map[string]bool{"tcqdisc/ng-018": true, "tcclass/ng-011": true, "tcfilter/ng-024": true, "tcflower/ng-009": true}
+var corpusWrites = map[string]bool{
+	"tcqdisc/ng-018": true, "tcclass/ng-011": true, "tcfilter/ng-024": true, "tcflower/ng-009": true,
+	"tcaction/ng-006": true,
+}
 
 // pschedRow is the one row that reads the workbench's /proc/net/psched
 // beside its capture; pschedContent is what it read, loaded before any
@@ -187,7 +185,7 @@ func TestGotcCorpus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, sp := range []string{"tcclass", "tcfilter", "tcflower"} {
+	for _, sp := range []string{"tcclass", "tcfilter", "tcflower", "tcaction"} {
 		more, err := filepath.Glob("../../pkg/xtcpnl/testdata/*/ws/" + sp)
 		if err != nil {
 			t.Fatal(err)

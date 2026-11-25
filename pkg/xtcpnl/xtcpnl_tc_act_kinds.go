@@ -84,7 +84,7 @@ const (
 	TcaSkbeditQueueMappingMax uint16 = 10 // TCA_SKBEDIT_QUEUE_MAPPING_MAX: u16
 	TcaSkbeditMaxKnown               = TcaSkbeditQueueMappingMax
 	// SKBEDIT_F_INHERITDSFIELD, the one flag tc prints.
-	SkbeditFInheritDsfield = 1 << 0
+	SkbeditFInheritDsfield = 0x20
 )
 
 // TCA_VLAN_* from include/uapi/linux/tc_act/tc_vlan.h.
@@ -108,6 +108,15 @@ const (
 	TcaCsumPad      uint16 = 3 // TCA_CSUM_PAD
 	TcaCsumMaxKnown        = TcaCsumPad
 	TcCsumSizeCst          = 24 // sizeof(struct tc_csum)
+
+	// TCA_CSUM_UPDATE_FLAG_*, tc_csum's update_flags.
+	TcaCsumUpdateFlagIPv4Hdr = 1
+	TcaCsumUpdateFlagICMP    = 2
+	TcaCsumUpdateFlagIGMP    = 4
+	TcaCsumUpdateFlagTCP     = 8
+	TcaCsumUpdateFlagUDP     = 16
+	TcaCsumUpdateFlagUDPLite = 32
+	TcaCsumUpdateFlagSCTP    = 64
 )
 
 // TCA_NAT_* from include/uapi/linux/tc_act/tc_nat.h.
@@ -475,7 +484,7 @@ const (
 // NLA_F_NESTED.
 func BuildTcActionDump(kind string, terse bool, since uint32, hasSince bool, seq uint32) ([]byte, error) {
 	ab := NewAttrBuilder(make([]byte, tcActReqAttrsCst))
-	if err := putActTab(&ab, kind, 0); err != nil {
+	if err := putActTab(&ab, kind); err != nil {
 		return nil, err
 	}
 	flags := uint32(TcaActFlagLargeDumpOn)
@@ -493,46 +502,67 @@ func BuildTcActionDump(kind string, terse bool, since uint32, hasSince bool, seq
 	return BuildRequest(uint16(unix.RTM_GETACTION), uint16(unix.NLM_F_DUMP), seq, make([]byte, TcaMsgSizeCst), ab.Bytes())
 }
 
+// TcActRef is one action a get names: its kind and, unless 0, index.
+type TcActRef struct {
+	Kind  string
+	Index uint32
+}
+
 // BuildTcActionGet is tc_action_gd's get: RTM_GETACTION with
-// NLM_F_REQUEST alone, a zero tcamsg and TCA_ACT_TAB holding order 1 with
-// TCA_ACT_KIND and, unless index is 0, TCA_ACT_INDEX. With no kind (`tc
-// actions get` or `get help`) the tab is empty (AC9).
-func BuildTcActionGet(kind string, index, seq uint32) ([]byte, error) {
+// NLM_F_REQUEST alone, a zero tcamsg and TCA_ACT_TAB holding, at orders
+// 1, 2, ..., each action's TCA_ACT_KIND and, unless its index is 0,
+// TCA_ACT_INDEX. With none (`tc actions get` or `get help`) the tab is
+// empty (AC9).
+func BuildTcActionGet(acts []TcActRef, seq uint32) ([]byte, error) {
 	ab := NewAttrBuilder(make([]byte, tcActReqAttrsCst))
-	if err := putActTab(&ab, kind, index); err != nil {
+	tab, err := ab.BeginNest(TcaRootTab)
+	if err != nil {
+		return nil, err
+	}
+	var order uint16
+	for _, a := range acts {
+		order++
+		if err := putActOrder(&ab, order, a.Kind, a.Index); err != nil {
+			return nil, err
+		}
+	}
+	if err := ab.EndNest(tab); err != nil {
 		return nil, err
 	}
 	return BuildRequest(uint16(unix.RTM_GETACTION), 0, seq, make([]byte, TcaMsgSizeCst), ab.Bytes())
 }
 
-// putActTab writes TCA_ACT_TAB{1{KIND[, INDEX]}}, or an empty
-// TCA_ACT_TAB for no kind.
-func putActTab(ab *AttrBuilder, kind string, index uint32) error {
+// putActTab writes TCA_ACT_TAB{1{KIND}}, a list's tab.
+func putActTab(ab *AttrBuilder, kind string) error {
 	tab, err := ab.BeginNest(TcaRootTab)
 	if err != nil {
 		return err
 	}
-	if kind != "" {
-		ord, err := ab.BeginNest(1)
-		if err != nil {
-			return err
-		}
-		if len(kind) > TcActKindMaxCst {
-			kind = kind[:TcActKindMaxCst]
-		}
-		if err := ab.PutString(TcaActKind, kind); err != nil {
-			return err
-		}
-		if index != 0 {
-			if err := ab.PutU32(TcaActIndex, index); err != nil {
-				return err
-			}
-		}
-		if err := ab.EndNest(ord); err != nil {
+	if err := putActOrder(ab, 1, kind, 0); err != nil {
+		return err
+	}
+	return ab.EndNest(tab)
+}
+
+// putActOrder writes order{KIND[, INDEX]}: the kind cut to 15 bytes, as
+// tc's strncpy into char k[16] leaves it (AC10).
+func putActOrder(ab *AttrBuilder, order uint16, kind string, index uint32) error {
+	ord, err := ab.BeginNest(order)
+	if err != nil {
+		return err
+	}
+	if len(kind) > TcActKindMaxCst {
+		kind = kind[:TcActKindMaxCst]
+	}
+	if err := ab.PutString(TcaActKind, kind); err != nil {
+		return err
+	}
+	if index != 0 {
+		if err := ab.PutU32(TcaActIndex, index); err != nil {
 			return err
 		}
 	}
-	return ab.EndNest(tab)
+	return ab.EndNest(ord)
 }
 
 // appendBitfield32 appends a struct nla_bitfield32.

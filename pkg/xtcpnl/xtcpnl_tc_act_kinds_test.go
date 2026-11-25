@@ -160,9 +160,9 @@ func TestParseTcActKinds(t *testing.T) {
 		}, "1 4 1 0 eaction 1 ifindex>0 true | block 07000000"},
 		{"positive: skbedit queue_mapping, mark, mask, ptype and inheritdsfield (0x20)", func() (string, error) {
 			o, err := ParseTcSkbedit(skb[2])
-			return fmt.Sprintf("%s %s", gen(o.P), hexOf(o.Tb, TcaSkbeditQueueMapping, TcaSkbeditMark, TcaSkbeditMask,
-				TcaSkbeditPtype, TcaSkbeditFlags)), err
-		}, "2 3 1 0 0300 10000000 ff000000 0000 2000000000000000"},
+			return fmt.Sprintf("%s %s %t", gen(o.P), hexOf(o.Tb, TcaSkbeditQueueMapping, TcaSkbeditMark, TcaSkbeditMask,
+				TcaSkbeditPtype, TcaSkbeditFlags), o.Tb.Bytes(TcaSkbeditFlags)[0]&SkbeditFInheritDsfield != 0), err
+		}, "2 3 1 0 0300 10000000 ff000000 0000 2000000000000000 true"},
 		{"positive: vlan push", func() (string, error) {
 			o, err := ParseTcVlan(vlan[2])
 			return fmt.Sprintf("v_action %d %s", o.P.V, hexOf(o.Tb, TcaVlanPushVlanID, TcaVlanPushVlanProtocol,
@@ -265,18 +265,33 @@ func TestParseTcActKinds(t *testing.T) {
 		// Corner: the requests, against tc's.
 		{"corner: get with an index", func() (string, error) {
 			return reqDiff(t, "tcaction/ec-013", func(seq uint32) ([]byte, error) {
-				return BuildTcActionGet(TcActKindPolice, 1, seq)
+				return BuildTcActionGet([]TcActRef{{TcActKindPolice, 1}}, seq)
 			})
 		}, "same"},
 		{"corner: get with no kind sends an empty tab (AC9)", func() (string, error) {
-			return reqDiff(t, "tcaction/ec-003", func(seq uint32) ([]byte, error) { return BuildTcActionGet("", 0, seq) })
+			return reqDiff(t, "tcaction/ec-003", func(seq uint32) ([]byte, error) { return BuildTcActionGet(nil, seq) })
 		}, "same"},
 		{"corner: get with index 0 sends no INDEX", func() (string, error) {
-			b, err := BuildTcActionGet(TcActKindGact, 0, 1)
+			b, err := BuildTcActionGet([]TcActRef{{TcActKindGact, 0}}, 1)
 			return fmt.Sprintf("%x", b[NlMsgHdrSizeCst:]), err
 		}, "000000001400010010000100090001006761637400000000"},
+		{"corner: a get of two actions orders them 1 and 2", func() (string, error) {
+			b, err := BuildTcActionGet([]TcActRef{{TcActKindGact, 1}, {TcActKindMirred, 2}}, 1)
+			if err != nil {
+				return "", err
+			}
+			tab, err := ParseAttrTable(b[NlMsgHdrSizeCst+TcaMsgSizeCst+RTAttrSizeCst:], 3)
+			if err != nil {
+				return "", err
+			}
+			k1, _ := ParseAttrTable(tab.Bytes(1), TcaActMaxKnown)
+			k2, _ := ParseAttrTable(tab.Bytes(2), TcaActMaxKnown)
+			n1, _ := k1.Str(TcaActKind)
+			n2, _ := k2.Str(TcaActKind)
+			return fmt.Sprintf("%s %s %s %s %t", n1, hexOf(k1, TcaActIndex), n2, hexOf(k2, TcaActIndex), tab.Has(3)), nil
+		}, "gact 01000000 mirred 02000000 false"},
 		{"corner: a kind past 15 bytes is cut (AC10)", func() (string, error) {
-			b, err := BuildTcActionGet("aaaaaaaaaaaaaaaaaa", 1, 1)
+			b, err := BuildTcActionGet([]TcActRef{{"aaaaaaaaaaaaaaaaaa", 1}}, 1)
 			return fmt.Sprintf("%t %t", bytes.Contains(b, []byte("aaaaaaaaaaaaaaa\x00")),
 				bytes.Contains(b, []byte("aaaaaaaaaaaaaaaa"))), err
 		}, "true false"},
@@ -438,7 +453,7 @@ func BenchmarkParseTcActKinds(b *testing.B) {
 		{"sample", func() error { _, err := ParseTcSample(cat(parms(TcaSampleParms, TcGactSizeCst), tm)); return err }},
 		{"skbmod", func() error { _, err := ParseTcSkbmod(cat(parms(TcaSkbmodParms, TcSkbmodSizeCst), tm)); return err }},
 		{"mpls", func() error { _, err := ParseTcMpls(cat(parms(TcaMplsParms, TcMplsSizeCst), tm)); return err }},
-		{"get", func() error { _, err := BuildTcActionGet(TcActKindGact, 1, 1); return err }},
+		{"get", func() error { _, err := BuildTcActionGet([]TcActRef{{TcActKindGact, 1}}, 1); return err }},
 		{"dump", func() error { _, err := BuildTcActionDump(TcActKindGact, true, 1, true, 1); return err }},
 	}
 	for _, c := range cases {

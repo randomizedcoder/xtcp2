@@ -149,10 +149,10 @@ func TestGotcFlowerUnit(t *testing.T) {
 			expected:    result{stderr: usage, rc: 1},
 		},
 		{
-			description: "negative: a mirred action is refused by name",
+			description: "negative: a pedit action (increment 13) is refused by name",
 			args:        show,
-			replies:     []Reply{d0, fl(ethPIP, nest(xtcpnl.TcaFlowerAct, nest(1, attr(xtcpnl.TcaActKind, str0("mirred")))))},
-			expected:    result{stdout: head + "\n\taction order 1: ", stderr: notImpl + "action kind \"mirred\"\n", rc: 255},
+			replies:     []Reply{d0, fl(ethPIP, nest(xtcpnl.TcaFlowerAct, nest(1, attr(xtcpnl.TcaActKind, str0("pedit")))))},
+			expected:    result{stdout: head + "\n\taction order 1: ", stderr: notImpl + "action kind \"pedit\"\n", rc: 255},
 		},
 		{
 			description: "negative: a truncated geneve option is refused where C reads NULL (FL10)",

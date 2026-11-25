@@ -27,19 +27,23 @@ const (
 	printAny  outType = 4 // PRINT_ANY: whichever is active
 )
 
-// colorAttr is color.h's enum color_attr; tc colors only the device name.
+// colorAttr is color.h's enum color_attr; tc colors the device name and
+// skbmod's MACs.
 type colorAttr int
 
 const (
 	colorIfname colorAttr = 0
+	colorMac    colorAttr = 1
 	colorNone   colorAttr = 6
 )
 
-// The ANSI codes color.c picks for COLOR_IFNAME: attr_colors_dark (the
-// default) and attr_colors_light, then C_CLEAR.
+// The ANSI codes color.c picks for COLOR_IFNAME and COLOR_MAC:
+// attr_colors_dark (the default) and attr_colors_light, then C_CLEAR.
 const (
 	colorIfnameDark  = "\x1b[1;36m"
 	colorIfnameLight = "\x1b[36m"
+	colorMacDark     = "\x1b[1;33m"
+	colorMacLight    = "\x1b[33m"
 	colorClear       = "\x1b[0m"
 )
 
@@ -109,7 +113,12 @@ func (o *out) colorText(c colorAttr, text string) {
 		return
 	}
 	code := colorIfnameDark
-	if !o.dark {
+	switch {
+	case c == colorMac && o.dark:
+		code = colorMacDark
+	case c == colorMac:
+		code = colorMacLight
+	case !o.dark:
 		code = colorIfnameLight
 	}
 	o.raw(code + text + colorClear)

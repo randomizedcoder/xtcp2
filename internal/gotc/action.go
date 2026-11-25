@@ -33,20 +33,38 @@ const (
 	userHZ = 100
 )
 
-// printActions is tc_print_action(f, arg, 0): each action of the table by
-// order, 0..TCA_ACT_MAX_PRIO.
+// printActions is tc_print_action(f, arg, 0): a filter's actions, bound
+// (bind 1), each by order, 0..TCA_ACT_MAX_PRIO.
 func (r *runner) printActions(nest []byte) error {
+	return r.dumpAction(nest, 0, true)
+}
+
+// actTabMaxCst bounds tc_dump_action's VLA: tot_acts is the reply's
+// TCA_ROOT_COUNT, a u16 tc trusts; past the attribute table's bound gotc
+// refuses.
+const actTabMaxCst = 1024
+
+// dumpAction is tc_dump_action: tot of 0 is TCA_ACT_MAX_PRIO, and the
+// table holds orders 0..tot. The flush-reply path (tab_flush) follows
+// only RTM_DELACTION, which gotc does not send.
+func (r *runner) dumpAction(nest []byte, tot uint16, bind bool) error {
 	o := r.o
-	tb := r.nested(nest, xtcpnl.TcaActMaxPrioCst)
+	if tot == 0 {
+		tot = xtcpnl.TcaActMaxPrioCst
+	}
+	if tot > actTabMaxCst {
+		return fmt.Errorf("%w: an action table of %d orders", errNotImplemented, tot)
+	}
+	tb := r.nested(nest, tot)
 	o.openArray(printJSON, "actions")
-	for i := uint16(0); i <= xtcpnl.TcaActMaxPrioCst; i++ {
+	for i := range tot + 1 {
 		if !tb.Has(i) {
 			continue
 		}
 		o.openObject("")
 		o.nl()
 		o.uint(printAny, "order", "\taction order "+strconv.Itoa(int(i))+": ", uint32(i))
-		rc, err := r.printOneAction(tb.Bytes(i))
+		rc, err := r.printOneAction(tb.Bytes(i), bind)
 		if err != nil {
 			return err
 		}
@@ -59,9 +77,41 @@ func (r *runner) printActions(nest []byte) error {
 	return nil
 }
 
-// printOneAction is tc_print_one_action with bind set: a filter's action
-// prints no skip_hw, skip_sw or in_hw.
-func (r *runner) printOneAction(nest []byte) (int, error) {
+// actPrinter is an action_util's print_aopt: its options (nil when
+// TCA_ACT_OPTIONS is absent, has false) and tc's return.
+type actPrinter func(r *runner, opt []byte, has bool) (int, error)
+
+// actionUtils is the action_util list tc 7.2.0 links, by id, for the kinds
+// gotc prints. The other linked kinds (bpf, ct, gate, ife, pedit and
+// tunnel_key) are refused by name; tc prints a kind it does not link as
+// gact (L22), which gotc refuses too.
+var actionUtils = map[string]actPrinter{
+	xtcpnl.TcActKindGact:     (*runner).printGact,
+	xtcpnl.TcActKindPolice:   (*runner).printPolice,
+	xtcpnl.TcActKindMirred:   (*runner).printMirred,
+	xtcpnl.TcActKindSkbedit:  (*runner).printSkbedit,
+	xtcpnl.TcActKindVlan:     (*runner).printVlan,
+	xtcpnl.TcActKindCsum:     (*runner).printCsum,
+	xtcpnl.TcActKindNat:      (*runner).printNat,
+	xtcpnl.TcActKindSimple:   (*runner).printSimple,
+	xtcpnl.TcActKindConnmark: (*runner).printConnmark,
+	xtcpnl.TcActKindCtinfo:   (*runner).printCtinfo,
+	xtcpnl.TcActKindSample:   (*runner).printSample,
+	xtcpnl.TcActKindSkbmod:   (*runner).printSkbmod,
+	xtcpnl.TcActKindMpls:     (*runner).printMpls,
+}
+
+// linkedActKinds is every action_util id tc 7.2.0 links (TCMODULES), the
+// kinds get_action_kind finds by name: get and list refuse any other.
+var linkedActKinds = map[string]bool{
+	"bpf": true, "connmark": true, "csum": true, "ct": true, "ctinfo": true, "gact": true, "gate": true,
+	"ife": true, "mirred": true, "mpls": true, "nat": true, "pedit": true, "police": true, "sample": true,
+	"simple": true, "skbedit": true, "skbmod": true, "tunnel_key": true, "vlan": true,
+}
+
+// printOneAction is tc_print_one_action: bound (a filter's), no skip_hw,
+// skip_sw or in_hw prints.
+func (r *runner) printOneAction(nest []byte, bind bool) (int, error) {
 	o := r.o
 	tb := r.nested(nest, xtcpnl.TcaActMaxKnown)
 	if !tb.Has(xtcpnl.TcaActKind) {
@@ -69,13 +119,12 @@ func (r *runner) printOneAction(nest []byte) (int, error) {
 		return -1, nil
 	}
 	kind, _ := tb.Str(xtcpnl.TcaActKind)
-	if kind != xtcpnl.TcActKindGact {
-		// tc prints a kind it does not link as gact (L22); gotc refuses
-		// every kind but gact, by name.
+	pr, ok := actionUtils[kind]
+	if !ok {
 		return 0, fmt.Errorf("%w: action kind %q", errNotImplemented, kind)
 	}
-	if rc := r.printGact(tb.Bytes(xtcpnl.TcaActOptions), tb.Has(xtcpnl.TcaActOptions)); rc < 0 {
-		return rc, nil
+	if rc, err := pr(r, tb.Bytes(xtcpnl.TcaActOptions), tb.Has(xtcpnl.TcaActOptions)); err != nil || rc < 0 {
+		return rc, err
 	}
 	if r.brief > 0 && tb.Has(xtcpnl.TcaActIndex) {
 		v := attrU32(tb, xtcpnl.TcaActIndex)
@@ -100,15 +149,7 @@ func (r *runner) printOneAction(nest []byte) (int, error) {
 		o.nl()
 	}
 	if tb.Has(xtcpnl.TcaActFlags) || tb.Has(xtcpnl.TcaActInHwCount) {
-		// With bind set only no_percpu prints, on its selector bit alone
-		// (F20); in_hw_count needs !bind.
-		if tb.Has(xtcpnl.TcaActFlags) {
-			fl := xtcpnl.DecodeNlaBitfield32(tb.Bytes(xtcpnl.TcaActFlags))
-			if fl.Selector&xtcpnl.TcaActFlagsNoPercpuStats != 0 {
-				o.boolean(printAny, "no_percpu", "\tno_percpu", fl.Value&xtcpnl.TcaActFlagsNoPercpuStats != 0)
-				o.nl()
-			}
-		}
+		r.printActFlags(tb, bind)
 	}
 	if tb.Has(xtcpnl.TcaActHwStats) {
 		r.printHwStats(tb.Bytes(xtcpnl.TcaActHwStats), false)
@@ -117,6 +158,49 @@ func (r *runner) printOneAction(nest []byte) (int, error) {
 		r.printHwStats(tb.Bytes(xtcpnl.TcaActUsedHwStats), true)
 	}
 	return 0, nil
+}
+
+// printActFlags is tc_print_one_action's flags block: no_percpu on its
+// selector bit alone (F20); unbound, skip_hw, skip_sw, and in_hw (with its
+// count) or not_in_hw unless skip_hw is set. A newline only if any
+// printed.
+func (r *runner) printActFlags(tb xtcpnl.AttrTable, bind bool) {
+	o := r.o
+	skipHw, newline := false, false
+	if tb.Has(xtcpnl.TcaActFlags) {
+		fl := xtcpnl.DecodeNlaBitfield32(tb.Bytes(xtcpnl.TcaActFlags))
+		for _, f := range []struct {
+			bit      uint32
+			key      string
+			unbound  bool
+			isSkipHw bool
+		}{
+			{xtcpnl.TcaActFlagsNoPercpuStats, "no_percpu", false, false},
+			{xtcpnl.TcaActFlagsSkipHw, "skip_hw", true, true},
+			{xtcpnl.TcaActFlagsSkipSw, "skip_sw", true, false},
+		} {
+			if (f.unbound && bind) || fl.Selector&f.bit == 0 {
+				continue
+			}
+			newline = true
+			o.boolean(printAny, f.key, "\t"+f.key, fl.Value&f.bit != 0)
+			if f.isSkipHw {
+				skipHw = fl.Value&f.bit != 0
+			}
+		}
+	}
+	if tb.Has(xtcpnl.TcaActInHwCount) && !bind && !skipHw {
+		newline = true
+		if n := attrU32(tb, xtcpnl.TcaActInHwCount); n != 0 {
+			o.boolean(printAny, "in_hw", "\tin_hw", true)
+			o.uint(printAny, "in_hw_count", " in_hw_count "+u32s(n), n)
+		} else {
+			o.boolean(printAny, "not_in_hw", "\tnot_in_hw", true)
+		}
+	}
+	if newline {
+		o.nl()
+	}
 }
 
 // printHwStats is print_hw_stats; tc casts the bitfield unchecked (L28)
@@ -145,11 +229,11 @@ func (r *runner) printHwStats(b []byte, used bool) {
 
 // printGact is print_gact: without TCA_GACT_PROB a zeroed tc_gact_p
 // prints all the same (F19); PARMS, PROB and TM are MIN-copied (L28).
-func (r *runner) printGact(opt []byte, has bool) int {
+func (r *runner) printGact(opt []byte, has bool) (int, error) {
 	o := r.o
 	o.str(printAny, colorNone, "kind", "gact ", "gact")
 	if !has {
-		return 0
+		return 0, nil
 	}
 	g, err := xtcpnl.ParseTcGact(opt)
 	if err != nil {
@@ -157,7 +241,7 @@ func (r *runner) printGact(opt []byte, has bool) int {
 	}
 	if !g.HasParms {
 		r.errf("Missing gact parameters\n")
-		return -1
+		return -1, nil
 	}
 	r.printActionControl("action ", g.Parms.Action, "")
 	o.openObject("prob")
@@ -176,7 +260,7 @@ func (r *runner) printGact(opt []byte, has bool) int {
 		r.printTm(g.Tm)
 	}
 	o.nl()
-	return 0
+	return 0, nil
 }
 
 // probN2A is m_gact.c prob_n2a.
