@@ -31,10 +31,12 @@ xtcp2_matrix_defaults() {
   : "${XTCP2_EXPECT:=CONFIRMED}"
   : "${XTCP2_DEST:=tcp}"
   : "${XTCP2_ENRICH:=none}"
+  : "${XTCP2_NOFILE:=default}"
+  : "${XTCP2_CPUS:=0}"
   # The Vagrantfile reads these from ITS environment (a child of this shell),
   # so they must be exported — a scenario-level default (`: "${XTCP2_AUTH:=raw}"`)
   # without export reaches the provisioner as the off row.
-  export XTCP2_MODE XTCP2_AUTH XTCP2_CAPS XTCP2_ATTACKER XTCP2_DEST XTCP2_ENRICH
+  export XTCP2_MODE XTCP2_AUTH XTCP2_CAPS XTCP2_ATTACKER XTCP2_DEST XTCP2_ENRICH XTCP2_NOFILE XTCP2_CPUS
 
   case "$XTCP2_MODE" in
     host | bridge) ;;
@@ -60,12 +62,22 @@ xtcp2_matrix_defaults() {
     none | asn) ;;
     *) xtcp2_die "XTCP2_ENRICH='$XTCP2_ENRICH' (want none|asn)" ;;
   esac
+  case "$XTCP2_NOFILE" in
+    default) ;;
+    *[!0-9]*) xtcp2_die "XTCP2_NOFILE='$XTCP2_NOFILE' (want default or an integer)" ;;
+    "") xtcp2_die "XTCP2_NOFILE='$XTCP2_NOFILE' (want default or an integer)" ;;
+    0 | 1) xtcp2_die "XTCP2_NOFILE='$XTCP2_NOFILE' (want >= 2: the daemon needs FDs to serve anything)" ;;
+  esac
+  case "$XTCP2_CPUS" in
+    0) ;;
+    *[!0-9]* | "") xtcp2_die "XTCP2_CPUS='$XTCP2_CPUS' (want 0 = unlimited or an integer number of CPUs)" ;;
+  esac
   case "$XTCP2_EXPECT" in
     BLOCKED | MITIGATED | CONFIRMED | NA) ;;
     *) xtcp2_die "XTCP2_EXPECT='$XTCP2_EXPECT' (want BLOCKED|MITIGATED|CONFIRMED|NA)" ;;
   esac
 
-  echo "rt: matrix MODE=$XTCP2_MODE AUTH=$XTCP2_AUTH CAPS=$XTCP2_CAPS ATTACKER=$XTCP2_ATTACKER DEST=$XTCP2_DEST ENRICH=$XTCP2_ENRICH EXPECT=$XTCP2_EXPECT"
+  echo "rt: matrix MODE=$XTCP2_MODE AUTH=$XTCP2_AUTH CAPS=$XTCP2_CAPS ATTACKER=$XTCP2_ATTACKER DEST=$XTCP2_DEST ENRICH=$XTCP2_ENRICH NOFILE=$XTCP2_NOFILE CPUS=$XTCP2_CPUS EXPECT=$XTCP2_EXPECT"
 }
 
 # The co-tenant vantage: the docker0 gateway in the victim VM's host netns.

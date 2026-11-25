@@ -275,6 +275,12 @@ let
     # (docs/redteam-plan.md rt-7-1..3). Rides the attacker-tools tar into
     # the red-team attacker VM.
     "ipfeed-fixture"
+    # slowloris: holds HTTP connections open with partial, slowly-dripped
+    # requests — the rt-4-2 slowloris shape. Rides the attacker-tools tar.
+    "slowloris"
+    # grpcidle: holds N idle gRPC connections (15-min MaxConnectionIdle on
+    # the server) — the rt-11-2 FD-pin shape. Rides the attacker-tools tar.
+    "grpcidle"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:
@@ -405,6 +411,8 @@ defaultBinaries
     rtnlmon-probe
     sockfill
     ipfeed-fixture
+    slowloris
+    grpcidle
     ;
 
   # Internal nested sets for downstream consumers (containers/).
