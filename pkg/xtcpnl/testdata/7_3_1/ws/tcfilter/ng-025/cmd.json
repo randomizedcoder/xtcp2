@@ -1,0 +1,93 @@
+{
+ "axes": {
+  "batch": "chain-twice",
+  "fix": "fchain",
+  "json": "0",
+  "words": "-batch b.txt"
+ },
+ "cmd": "tc -batch b.txt",
+ "desc": "negative: opt=plain cmd=ng:fchain:batch:chain-twice: the second line's chain is a duparg (Q29f)",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 255,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "tcfilter/ng-025",
+ "modules": [
+  "sch_htb",
+  "sch_ingress",
+  "cls_basic",
+  "cls_cgroup",
+  "cls_flow",
+  "cls_flower",
+  "cls_fw",
+  "cls_matchall",
+  "cls_route",
+  "cls_u32",
+  "act_gact",
+  "act_mirred",
+  "act_police",
+  "em_canid",
+  "em_cmp",
+  "em_meta",
+  "em_nbyte",
+  "em_u32"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d0 clsact",
+  "tc chain add dev d0 ingress chain 9",
+  "tc filter add dev d0 ingress pref 1 protocol all handle 1 matchall action goto chain 5",
+  "tc filter add dev d0 ingress chain 5 pref 1 protocol ip handle 1 basic match \"cmp(u8 at 9 layer network eq 6)\" action drop",
+  "tc filter add dev d0 ingress chain 7 pref 1 protocol all handle 1 matchall action pass",
+  "tc qdisc add dev d1 ingress_block 10 clsact",
+  "tc filter add block 10 pref 1 protocol all handle 1 matchall action pass",
+  "printf '%s\\n' 'filter show dev d0 ingress chain 5' 'filter show dev d0 ingress chain 5' > b.txt"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc chain add dev d0 ingress chain 9",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol all handle 1 matchall action goto chain 5",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress chain 5 pref 1 protocol ip handle 1 basic match \"cmp(u8 at 9 layer network eq 6)\" action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress chain 7 pref 1 protocol all handle 1 matchall action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d1 ingress_block 10 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add block 10 pref 1 protocol all handle 1 matchall action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "printf '%s\\n' 'filter show dev d0 ingress chain 5' 'filter show dev d0 ingress chain 5' > b.txt",
+    "rc": 0
+   }
+  ],
+  "rc": 255,
+  "status": "OK"
+ }
+}

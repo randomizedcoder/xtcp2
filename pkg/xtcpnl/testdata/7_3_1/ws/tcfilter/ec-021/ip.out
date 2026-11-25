@@ -1,0 +1,3 @@
+filter ingress protocol ip pref 1 u32 chain 0 fh 800::800 order 2048 key ht 800 bkt 0 link 2: not_in_hw 
+  match 00060000/00ff0000 at 8
+    offset 0f00>>6 at 0  eat 

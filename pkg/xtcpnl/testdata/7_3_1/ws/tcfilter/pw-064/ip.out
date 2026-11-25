@@ -1,0 +1,1 @@
+[{"protocol":"all","pref":1,"kind":"matchall","chain":0},{"protocol":"all","pref":1,"kind":"matchall","chain":0,"options":{"handle":1,"not_in_hw":true,"actions":[{"order":1,"kind":"mirred","mirred_action":"redirect","direction":"egress","to_dev":"d1","control_action":{"type":"stolen"},"index":1,"ref":1,"bind":1}]}}]

@@ -877,16 +877,25 @@ func TestBuildRequest(t *testing.T) {
 			wantErr:     ErrBadFamilyHdr,
 		},
 		{
-			// The unmodeled passthrough: no filter request is built here yet,
-			// so FamilyHdrLen is -1 and its header is not checked. RTM_GETQDISC
-			// carried this row until gotc modeled tcmsg for qdiscs and classes.
-			description: "corner: RTM_GETTFILTER is unmodeled, so its header passes unchecked",
-			msgType:     uint16(unix.RTM_GETTFILTER),
+			// The unmodeled passthrough: no action request is built here yet,
+			// so FamilyHdrLen is -1 and its header is not checked; a 20-byte
+			// header where tcamsg is 4 passes. RTM_GETQDISC, then
+			// RTM_GETTFILTER, carried this row until gotc modeled them.
+			description: "corner: RTM_GETACTION is unmodeled, so its header passes unchecked",
+			msgType:     uint16(unix.RTM_GETACTION),
 			flags:       uint16(unix.NLM_F_DUMP),
 			seq:         testSeq,
 			familyHdr:   make([]byte, 20),
-			want: nlmsg(uint16(unix.RTM_GETTFILTER), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
+			want: nlmsg(uint16(unix.RTM_GETACTION), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
 				make([]byte, 20)),
+		},
+		{
+			description: "negative: RTM_GETTFILTER is modeled now, so a 16-byte header is ErrBadFamilyHdr",
+			msgType:     uint16(unix.RTM_GETTFILTER),
+			flags:       uint16(unix.NLM_F_DUMP),
+			seq:         testSeq,
+			familyHdr:   make([]byte, 16),
+			wantErr:     ErrBadFamilyHdr,
 		},
 		{
 			description: "negative: RTM_GETQDISC is modeled now, so a 16-byte header is ErrBadFamilyHdr",
@@ -1062,7 +1071,13 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_GETTCLASS is struct tcmsg, 20", uint16(unix.RTM_GETTCLASS), TcMsgSizeCst},
 		{"positive: RTM_NEWTCLASS is struct tcmsg, 20", uint16(unix.RTM_NEWTCLASS), TcMsgSizeCst},
 		{"positive: RTM_DELTCLASS is struct tcmsg, 20", uint16(unix.RTM_DELTCLASS), TcMsgSizeCst},
-		{"negative: RTM_GETTFILTER is not modeled, -1", uint16(unix.RTM_GETTFILTER), -1},
+		{"positive: RTM_GETTFILTER is struct tcmsg, 20", uint16(unix.RTM_GETTFILTER), TcMsgSizeCst},
+		{"positive: RTM_NEWTFILTER is struct tcmsg, 20", uint16(unix.RTM_NEWTFILTER), TcMsgSizeCst},
+		{"positive: RTM_DELTFILTER is struct tcmsg, 20", uint16(unix.RTM_DELTFILTER), TcMsgSizeCst},
+		{"positive: RTM_GETCHAIN is struct tcmsg, 20", uint16(unix.RTM_GETCHAIN), TcMsgSizeCst},
+		{"positive: RTM_NEWCHAIN is struct tcmsg, 20", uint16(unix.RTM_NEWCHAIN), TcMsgSizeCst},
+		{"positive: RTM_DELCHAIN is struct tcmsg, 20", uint16(unix.RTM_DELCHAIN), TcMsgSizeCst},
+		{"negative: RTM_GETACTION is not modeled, -1", uint16(unix.RTM_GETACTION), -1},
 		{"negative: message type 0 is not modeled, -1", 0, -1},
 		{"corner: 0xffff is not modeled, -1", 0xffff, -1},
 	}

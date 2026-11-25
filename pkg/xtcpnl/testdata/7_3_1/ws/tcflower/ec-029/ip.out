@@ -1,0 +1,22 @@
+filter protocol ip pref 1 flower chain 0 
+filter protocol ip pref 1 flower chain 0 handle 0x1 
+  eth_type ipv4
+  ct_state +trk-new+est
+  ct_zone 5
+  ct_mark 16/0xff
+  ct_label 01020000000000000000000000000000/ffff0000000000000000000000000000
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+
+filter protocol ip pref 2 flower chain 0 
+filter protocol ip pref 2 flower chain 0 handle 0x1 
+  eth_type ipv4
+  ct_state +trk+rel-inv+rpl
+  ct_label 0102030405060708090a0b0c0d0e0f10
+  not_in_hw
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 2 ref 1 bind 1
+

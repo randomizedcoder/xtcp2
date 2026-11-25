@@ -1,0 +1,1 @@
+[{"ingress":true,"protocol":"ip","pref":1,"kind":"u32","chain":0,"options":{"fh":"800::1","order":1,"key_ht":"800","bkt":"0","not_in_hw":true,"match":{"value":"a000000","mask":"ff000000","offmask":"","off":12},"actions":[{"order":1,"kind":"gact","control_action":{"type":"pass"},"prob":{"random_type":"none","control_action":{"type":"pass"},"val":0},"index":1,"ref":1,"bind":1}]}}]

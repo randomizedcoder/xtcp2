@@ -1,0 +1,87 @@
+{
+ "axes": {
+  "fix": "fchain",
+  "json": "0",
+  "words": "filter get dev d0 ingress chain 5 protocol ip pref 1 handle 1 basic"
+ },
+ "cmd": "tc filter get dev d0 ingress chain 5 protocol ip pref 1 handle 1 basic",
+ "desc": "positive: opt=plain cmd=fchain:filter_get_dev_d0_ingress_chain_5_protocol_ip_pref_1_handle_1_basic",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcfilter/ec-062",
+ "modules": [
+  "sch_htb",
+  "sch_ingress",
+  "cls_basic",
+  "cls_cgroup",
+  "cls_flow",
+  "cls_flower",
+  "cls_fw",
+  "cls_matchall",
+  "cls_route",
+  "cls_u32",
+  "act_gact",
+  "act_mirred",
+  "act_police",
+  "em_canid",
+  "em_cmp",
+  "em_meta",
+  "em_nbyte",
+  "em_u32"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d0 clsact",
+  "tc chain add dev d0 ingress chain 9",
+  "tc filter add dev d0 ingress pref 1 protocol all handle 1 matchall action goto chain 5",
+  "tc filter add dev d0 ingress chain 5 pref 1 protocol ip handle 1 basic match \"cmp(u8 at 9 layer network eq 6)\" action drop",
+  "tc filter add dev d0 ingress chain 7 pref 1 protocol all handle 1 matchall action pass",
+  "tc qdisc add dev d1 ingress_block 10 clsact",
+  "tc filter add block 10 pref 1 protocol all handle 1 matchall action pass"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc chain add dev d0 ingress chain 9",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol all handle 1 matchall action goto chain 5",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress chain 5 pref 1 protocol ip handle 1 basic match \"cmp(u8 at 9 layer network eq 6)\" action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress chain 7 pref 1 protocol all handle 1 matchall action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d1 ingress_block 10 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add block 10 pref 1 protocol all handle 1 matchall action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

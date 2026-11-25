@@ -1,0 +1,2 @@
+filter show dev d0 ingress
+chain show dev d0 ingress

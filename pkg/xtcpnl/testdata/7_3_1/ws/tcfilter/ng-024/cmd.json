@@ -1,0 +1,44 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "0",
+  "words": "filter add dev nosuch ingress matchall action pass"
+ },
+ "cmd": "tc filter add dev nosuch ingress matchall action pass",
+ "desc": "negative: opt=plain cmd=ng:bare:filter_add_dev_nosuch_ingress_matchall_action_pass: a write, recorded so gotc's refusal is never a pass",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "errno": "ENODEV",
+  "rc": 1,
+  "refused_by": "kernel"
+ },
+ "id": "tcfilter/ng-024",
+ "modules": [
+  "sch_htb",
+  "sch_ingress",
+  "cls_basic",
+  "cls_cgroup",
+  "cls_flow",
+  "cls_flower",
+  "cls_fw",
+  "cls_matchall",
+  "cls_route",
+  "cls_u32",
+  "act_gact",
+  "act_mirred",
+  "act_police",
+  "em_canid",
+  "em_cmp",
+  "em_meta",
+  "em_nbyte",
+  "em_u32"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 1,
+  "status": "OK"
+ }
+}

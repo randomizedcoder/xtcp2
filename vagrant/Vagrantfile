@@ -22,6 +22,13 @@
 #   XTCP2_ENRICH   none | asn       add the ASN enricher with a bind-mounted
 #                                  artifact dir (rt-7-1..3, the artifact
 #                                  poisoner rows)
+#   XTCP2_NOFILE    default | <n>    the daemon container's nofile ulimit:
+#                                  default = docker's own (524287 on
+#                                  24.04); an integer pins a walkable FD
+#                                  knee (rt-4-1/rt-11-2)
+#   XTCP2_CPUS      0 | <n>         the daemon container's cpu quota (0 =
+#                                  unlimited): rt-4-8's cgroup-protection
+#                                  variant
 #
 # Run everything through `nix run .#redteam-*` from the repo root; that pins
 # VAGRANT_CWD/VAGRANT_HOME to vagrant/.gen so no state leaks into ~/.vagrant.d.
@@ -38,6 +45,8 @@ CAPS = ENV.fetch("XTCP2_CAPS", "priv")
 ATTACKER = ENV.fetch("XTCP2_ATTACKER", "plain")
 DEST = ENV.fetch("XTCP2_DEST", "tcp")
 ENRICH = ENV.fetch("XTCP2_ENRICH", "none")
+NOFILE = ENV.fetch("XTCP2_NOFILE", "default")
+CPUS = ENV.fetch("XTCP2_CPUS", "0")
 
 Vagrant.configure("2") do |config|
   config.vm.box = BOX
@@ -78,7 +87,7 @@ Vagrant.configure("2") do |config|
 
     victim.vm.provision "shell", path: "provision/common.sh"
     victim.vm.provision "shell", path: "provision/victim.sh",
-      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH]
+      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH, NOFILE, CPUS]
   end
 
   config.vm.define "attacker" do |attacker|

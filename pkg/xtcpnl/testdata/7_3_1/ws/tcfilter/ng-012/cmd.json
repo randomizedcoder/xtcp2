@@ -1,0 +1,43 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "0",
+  "words": "filter show block 99"
+ },
+ "cmd": "tc filter show block 99",
+ "desc": "negative: opt=plain cmd=ng:bare:filter_show_block_99: a block with no qdisc: tc_qdisc_block_exists dumps the qdiscs and finds none",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 1,
+  "refused_by": "ack-then-fail"
+ },
+ "id": "tcfilter/ng-012",
+ "modules": [
+  "sch_htb",
+  "sch_ingress",
+  "cls_basic",
+  "cls_cgroup",
+  "cls_flow",
+  "cls_flower",
+  "cls_fw",
+  "cls_matchall",
+  "cls_route",
+  "cls_u32",
+  "act_gact",
+  "act_mirred",
+  "act_police",
+  "em_canid",
+  "em_cmp",
+  "em_meta",
+  "em_nbyte",
+  "em_u32"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 1,
+  "status": "OK"
+ }
+}

@@ -1,0 +1,8 @@
+filter ingress protocol ip pref 8 flower chain 0 handle 0x1 
+  eth_type ipv4
+  pfcp_opts 01:123456789/ff:ffffffffff
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 8 ref 1 bind 1
+

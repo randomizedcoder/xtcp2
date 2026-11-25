@@ -1,0 +1,1 @@
+[{"protocol":"all","pref":1,"kind":"matchall"},{"protocol":"all","pref":1,"kind":"matchall","options":{"handle":1,"not_in_hw":true,"actions":[{"order":1,"kind":"gact","control_action":{"type":"goto","chain":5},"prob":{"random_type":"none","control_action":{"type":"pass"},"val":0},"index":1,"ref":1,"bind":1}]}}]

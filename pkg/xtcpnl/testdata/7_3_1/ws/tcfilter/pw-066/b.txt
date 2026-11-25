@@ -1,0 +1,2 @@
+filter show dev d0 ingress pref 1
+filter show dev d0 ingress

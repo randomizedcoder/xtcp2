@@ -1,0 +1,22 @@
+filter protocol all pref 1 matchall chain 0 
+filter protocol all pref 1 matchall chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact action goto chain 5
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+
+filter protocol ip pref 1 basic chain 5 
+filter protocol ip pref 1 basic chain 5 handle 0x1 
+  cmp(u8 at 9 layer 1 eq 6)
+
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 2 ref 1 bind 1
+
+filter protocol all pref 1 matchall chain 7 
+filter protocol all pref 1 matchall chain 7 handle 0x1 
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 3 ref 1 bind 1
+

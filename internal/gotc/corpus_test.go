@@ -13,7 +13,7 @@ import (
 )
 
 // corpusRows is how many rows each space holds (V002).
-var corpusRows = map[string]int{"tcqdisc": 142, "tcclass": 82}
+var corpusRows = map[string]int{"tcqdisc": 142, "tcclass": 82, "tcfilter": 159, "tcflower": 97}
 
 // corpusKnown are the rows gotc cannot match byte for byte, each with the
 // reason, so the rest are held exactly.
@@ -26,7 +26,20 @@ var corpusKnown = map[string]string{
 
 // corpusWrites are the write rows 9C recorded so none could pass as a
 // read: gotc refuses each, exit 255, sending nothing.
-var corpusWrites = map[string]bool{"tcqdisc/ng-018": true, "tcclass/ng-011": true}
+// corpusRefused are the rows whose filters hold a kind gotc does not
+// print (fout's police and mirred), or a flower get with match keys:
+// each is refused, exit 255, naming the first one met.
+var corpusRefused = map[string]string{
+	"tcfilter/ec-063": "not implemented: police",
+	"tcfilter/pw-063": "not implemented: police",
+	"tcfilter/ec-064": `not implemented: action kind "mirred"`,
+	"tcfilter/pw-064": `not implemented: action kind "mirred"`,
+	// FL21: tc parses get's match keys, sends them, then fails on the
+	// words left; gotc refuses the key.
+	"tcflower/ng-004": "not implemented: flower ip_proto in a get",
+}
+
+var corpusWrites = map[string]bool{"tcqdisc/ng-018": true, "tcclass/ng-011": true, "tcfilter/ng-024": true, "tcflower/ng-009": true}
 
 // pschedRow is the one row that reads the workbench's /proc/net/psched
 // beside its capture; pschedContent is what it read, loaded before any
@@ -34,6 +47,16 @@ var corpusWrites = map[string]bool{"tcqdisc/ng-018": true, "tcclass/ng-011": tru
 const pschedRow = "../../pkg/xtcpnl/testdata/7_3_1/ws/tcqdisc/pw-001/psched.out"
 
 var pschedContent string
+
+// shareDir holds the workbench tc's CONF_USR_DIR files (iproute2 7.2.0's
+// share/iproute2), as an absolute path taken before any row's Chdir.
+var shareDir = func() string {
+	d, err := filepath.Abs(filepath.Join("testdata", "share-iproute2"))
+	if err != nil {
+		panic(err)
+	}
+	return d
+}()
 
 type cmdJSON struct {
 	ID     string `json:"id"`
@@ -95,6 +118,28 @@ func testSys(t *testing.T, rowDir string) sysFS {
 			t.Fatal(err)
 		}
 	}
+	// tc's CONF_USR_DIR files: the workbench tc's ematch_map and rt_realms.
+	if err := os.MkdirAll(filepath.Join(root, confUsrDirCst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rt.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	for _, name := range []string{ematchMapName, "rt_realms"} {
+		b, err := os.ReadFile(filepath.Join(shareDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := rt.WriteFile(strings.TrimPrefix(confUsrDirCst, "/")+"/"+name, b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return sysFS{root: root, usrDir: confUsrDirCst}
 }
 
@@ -142,11 +187,13 @@ func TestGotcCorpus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	more, err := filepath.Glob("../../pkg/xtcpnl/testdata/*/ws/tcclass")
-	if err != nil {
-		t.Fatal(err)
+	for _, sp := range []string{"tcclass", "tcfilter", "tcflower"} {
+		more, err := filepath.Glob("../../pkg/xtcpnl/testdata/*/ws/" + sp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bases = append(bases, more...)
 	}
-	bases = append(bases, more...)
 	pschedContent = readFile(t, pschedRow)
 	if len(bases) == 0 {
 		t.Fatal("no tc ws corpus")
@@ -175,6 +222,12 @@ func TestGotcCorpus(t *testing.T) {
 				if corpusWrites[c.ID] {
 					if got.rc != 255 || !strings.Contains(got.stderr, "not implemented") || got.stdout != "" {
 						t.Fatalf("write row not refused: %#v", got)
+					}
+					return
+				}
+				if what, ok := corpusRefused[c.ID]; ok {
+					if got.rc != 255 || !strings.Contains(got.stderr, what) {
+						t.Fatalf("row not refused for %s: %#v", what, got)
 					}
 					return
 				}

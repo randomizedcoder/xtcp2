@@ -1,0 +1,82 @@
+{
+ "axes": {
+  "fix": "flmisc",
+  "json": "1",
+  "words": "filter get block 20 parent 1: protocol ip pref 1 handle 1 flower"
+ },
+ "cmd": "tc -j filter get block 20 parent 1: protocol ip pref 1 handle 1 flower",
+ "desc": "corner: opt=json cmd=flmisc:filter_get_block_20_parent_1:_protocol_ip_pref_1_handle_1_flower",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcflower/pw-041",
+ "modules": [
+  "sch_ingress",
+  "cls_flower",
+  "act_gact"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower classid 1:1 action pass",
+  "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower classid 1:ffe0 action pass",
+  "tc filter add dev d0 ingress pref 3 protocol ip handle 1 flower hw_tc 2 action pass",
+  "tc filter add dev d0 ingress pref 4 protocol ip handle 0xffffffff flower skip_hw action pass",
+  "tc filter add dev d0 ingress pref 5 protocol ip handle 1 flower ip_proto udp action pass action drop",
+  "tc filter add dev d0 ingress chain 3 pref 1 protocol ip handle 1 flower ip_proto tcp action drop",
+  "tc qdisc add dev d1 ingress_block 20 clsact",
+  "tc filter add block 20 pref 1 protocol ip handle 1 flower dst_ip 10.0.0.1 action pass"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up && ip link add d1 address 02:00:00:00:02:01 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower classid 1:1 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 2 protocol ip handle 1 flower classid 1:ffe0 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 3 protocol ip handle 1 flower hw_tc 2 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 4 protocol ip handle 0xffffffff flower skip_hw action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 5 protocol ip handle 1 flower ip_proto udp action pass action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress chain 3 pref 1 protocol ip handle 1 flower ip_proto tcp action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d1 ingress_block 20 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add block 20 pref 1 protocol ip handle 1 flower dst_ip 10.0.0.1 action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
