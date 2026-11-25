@@ -91,6 +91,19 @@ let
         lll = "no";
       };
     };
+    # no_resolver_multicast
+    "test corner: a managed NIC joins no LLMNR or mDNS group, so it sends no IGMP" = {
+      expr = {
+        inherit ((nics.guestConfig [ ionic0 ]).systemd.network.networks."10-ernic-ionic0".networkConfig)
+          LLMNR
+          MulticastDNS
+          ;
+      };
+      expected = {
+        LLMNR = false;
+        MulticastDNS = false;
+      };
+    };
     # duplicate_name
     "test negative: names are unique" = {
       expr = problems [
