@@ -224,8 +224,8 @@ func TestParseTcFopt(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: flower has no decoder",
-			kind:        "flower",
+			description: "negative: bpf has no decoder",
+			kind:        "bpf",
 			opt:         func(*testing.T) []byte { return nil },
 			expectedErr: ErrTcKindUnknown,
 		},
@@ -557,7 +557,7 @@ func TestBuildTcFilterRequest(t *testing.T) {
 
 // wsTcFilterSliceKinds are the filter kinds gotc prints; each must appear.
 var wsTcFilterSliceKinds = []string{
-	TcFKindU32, TcFKindFw, TcFKindRoute, TcFKindBasic, TcFKindCgroup, TcFKindFlow, TcFKindMatchall,
+	TcFKindU32, TcFKindFw, TcFKindRoute, TcFKindBasic, TcFKindCgroup, TcFKindFlow, TcFKindMatchall, TcFKindFlower,
 }
 
 // TestWsTcFilterKinds decodes every RTM_NEWTFILTER in any workbench
@@ -617,6 +617,7 @@ var (
 	tcFilterActTb = map[string]uint16{
 		TcFKindU32: TcaU32Act, TcFKindFw: TcaFwAct, TcFKindRoute: TcaRoute4Act, TcFKindBasic: TcaBasicAct,
 		TcFKindCgroup: TcaCgroupAct, TcFKindFlow: TcaFlowAct, TcFKindMatchall: TcaMatchallAct,
+		TcFKindFlower: TcaFlowerAct,
 	}
 	tcFilterEmTb = map[string]uint16{
 		TcFKindBasic: TcaBasicEmatches, TcFKindCgroup: TcaCgroupEmatches, TcFKindFlow: TcaFlowEmatches,
@@ -662,7 +663,8 @@ func walkTcActs(b []byte) (int, error) {
 		if err != nil {
 			return n, err
 		}
-		if k, _ := one.Str(TcaActKind); k == TcActKindGact {
+		// A terse dump's action has no TCA_ACT_OPTIONS (tcf_action_dump_terse).
+		if k, _ := one.Str(TcaActKind); k == TcActKindGact && one.Has(TcaActOptions) {
 			g, err := ParseTcGact(one.Bytes(TcaActOptions))
 			if err != nil {
 				return n, err
