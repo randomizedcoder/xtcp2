@@ -2,6 +2,8 @@
 
 How xtcp2 uses [rocm-ernic](https://github.com/ROCm/rocm-ernic), the userspace emulated AMD Pensando ionic NIC, and the plan to pin it to upstream and give the test VMs ionic NICs alongside their existing virtio and e1000e NICs.
 
+**Status (2026-11-25):** phases 0–4 are implemented on one branch; see [Status](#status) for what the phases found.
+
 The audience is xtcp2 contributors and the rocm-ernic maintainers: the section "What xtcp2 needs from rocm-ernic" lists the features we depend on, so a change there can be checked against a real consumer.
 
 ## Why an emulated ionic NIC
@@ -123,17 +125,20 @@ vfio-user needs guest RAM shared with the server (`share=on`). The golden VM alr
 
 | NIC | driver | role | default route metric | columns |
 |---|---|---|---|---|
-| eth0 | virtio-net | SLiRP management, no default route | – | – |
-| ionic0 | ionic (ernic, `generic-100g` + `[identity] fw_version`) | uplink 1 | 512 | `uplink1_nic_*`: driver ionic, vendor 7640 (`0x1dd8`), device 4098 (`0x1002`), speed 100000, fw_version, bus_info |
+| eth0 | virtio-net | SLiRP management | 4096 | – |
+| ionic0 | ionic (ernic, `nix/ernic/profiles/golden-uplink.ini`) | uplink 1 | 512 | `uplink1_nic_*`: driver ionic, vendor 7640 (`0x1dd8`), device 4098 (`0x1002`), speed 100000, fw_version (scrubbed as host identity; the VM checks `xtcp2-golden-1.0`), bus_info |
 | eth1 | e1000e | uplink 2 (unchanged) | 2048 | `uplink2_nic_*` unchanged |
+| ionic1 | ionic (same profile) | phase 4 peer, moved into netns `golden-ernic-b` | – | – |
 
 ionic0 needs no TAP to be an uplink: `DefaultUplinks` reads routes and ethtool, not traffic. The ionic driver loads without `ionic_rdma` (no RDMA, so the 4-vCPU EQ minimum does not apply). A profile with `eth = 2` queues matches the golden VM's 2 vCPUs.
 
-**Decision D1, recommended above:** ionic0 takes uplink 1 and eth0 gives up its default route. The fixture then holds a datacenter driver and e1000e, and virtio (not a fleet NIC) leaves the uplink columns. The alternative keeps eth0 as uplink 1 and makes ionic0 uplink 2, which drops e1000e from the columns. xtcp2 records two uplinks, so three NICs cannot all be uplinks.
+**Decision D1 (decided):** ionic0 is uplink 1 and e1000e stays uplink 2. eth0 keeps a DHCP default route at metric 4096, so it ranks third and `DefaultUplinks(2)` leaves it out. The fixture then holds a datacenter driver and e1000e, and virtio (not a fleet NIC) leaves the uplink columns. xtcp2 records two uplinks, so three NICs cannot all be uplinks.
 
 ### 7. Loss rows without netem (phase 4, exploratory)
 
 The golden workload makes its loss rows with `tc netem loss 2% reorder 1%`, which is random, so twelve columns are exempt from the strict diff (`pkg/goldenrec/diff.go`, `lossyColumns`). ernic's `--inject "eth_tx: every N effect drop"` drops a deterministic frame sequence. A bulk connection routed through an ionic NIC with a TAP peer could then produce the same retransmit, DSACK and RTO counters on every capture, and those columns could return to the strict diff. This is a measurement first: five captures, as for `lossyColumns`, and only columns that come out identical move.
+
+**Result:** the drops are exact at the frame level (ionic0's `tx_dropped` equals `(tx_packets + tx_dropped) / 50` in every capture), but the TCP counters are not stable. How data and ACKs interleave depends on timing, so which segments are every 50th frame changes, and so do the frame totals (14064–14542 across runs). No column moved out of `lossyColumns`. Instead the ionic rows are "fault rows" (`Options.FaultNetns`/`FaultEgress` in `pkg/goldenrec/diff.go`): they skip the `lossyColumns` plus the servers' `total_retrans` and `bytes_retrans`, and the VM checks the clients' retransmits (`ernic_loss`) and the exact drop count (`fault_count`).
 
 ### 8. Other VMs
 
@@ -159,7 +164,7 @@ Upstream changes that would let xtcp2 drop local code, proposed as small PRs onc
 3. **microvm.nix guests:** a documented `qemuArgs` helper with a literal socket path, and a note that `pc`/i440fx works (or does not).
 4. **Link without a peer:** document the carrier state of an ionic netdev with no `--tap`.
 
-## Phases (one PR each, off `origin/main`)
+## Phases (one PR for 0–4, off `origin/main`)
 
 | # | PR | Content | Proof |
 |---|---|---|---|
@@ -215,3 +220,26 @@ Every table follows the repo convention: `name`, `category` (positive, negative,
 - **Host processes:** each ionic NIC is one more host process. A capture with two NICs is two servers. `runMany` stops them on every exit path, and T2 `sigterm` covers that.
 - **Sandbox:** the cached checks run ernic inside the nix build sandbox with KVM, as `checks.vm-linkmonitor-ionic` already does; TAP NICs need `/dev/net/tun` in `extra-sandbox-paths` (already the case on the build host; `VM_CHECK_NO_TUN` skips them elsewhere).
 - **Upstream drift:** develop moves quickly (it reached #600 by 2026-11-17). The narHash pin means we move deliberately, and phase 1's `vm-all` run is the gate for each bump.
+
+## Status
+
+Phases 0–4 are on one branch, each test committed red before its implementation.
+
+### Phase 0 findings
+
+- `vfio-user-pci` works on the `pc` (i440fx) machine with microvm.nix's `memory-backend-memfd,share=on`; the golden flavor stays on `pc`.
+- A relative `socket.path` resolves in QEMU's working directory, so `ernic-run-many --dir "$STAGE/ernic"` starting `microvm-run` there works.
+- `ionic` binds on 2 vCPUs with `[queues] eth = 2`. `ionic_rdma` probes and fails (`Failed to register ibdev`, -EINVAL), harmlessly: the Ethernet device is unaffected and the golden VM wants no RDMA.
+- ethtool reports the profile's 100000 Mb/s and `fw_version` `xtcp2-golden-1.0`; the carrier is up with a TAP on the fabric bridge.
+
+### Phase 3 and 4 findings
+
+- **Two NICs, one fabric:** `ernic-run-many` holds both servers, their TAPs and a bridge in one unprivileged user + network namespace; QEMU stays in the caller's namespace, so SLiRP and host ports work. No host root.
+- **Noise on the fault counters:** before the transfers, ionic0 sent IGMP reports (systemd-resolved joins `224.0.0.252` for LLMNR on every link; fixed by `LLMNR=no`, `MulticastDNS=no` in `nics.nix`) and, in 3 of 5 captures, an NTP poll with the gateway ARP (ionic0 holds the default route; timesyncd is off in the golden VM). With both gone, ionic0 sends nothing before the transfers. One capture in five still saw one frame reach ionic1 from the fabric; its source is not identified, and `no_noise` reports but does not require ionic1's count.
+- **The guest's `tx_packets` excludes injected drops:** the emulator's `eth_tx` events are `tx_packets + tx_dropped`.
+- **Measurement:** five captures; with the fault-row rule, captures 3–5 diff clean pairwise.
+
+### Open, outside this change
+
+- **netem pair:** in some captures one bulk direction shows almost no loss (0, 2 or 10 retransmits of about 3500 segments, against about 70 expected at 2%), so `loss_seen` occasionally sees 3 of 4 clients with retransmits and `tcp_info_total_retrans` on the netem rows is not always stable. Seen before any ernic workload ran; `loss_seen` now prints each client's state, segments and bytes acked to find the cause.
+- The four upstream rocm-ernic changes above (phase 5).
