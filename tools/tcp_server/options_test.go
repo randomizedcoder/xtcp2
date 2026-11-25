@@ -142,7 +142,7 @@ func TestHoldEOF(t *testing.T) {
 			closeWait := false
 			var states []procnet.State
 			for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-				states, err = procnet.Lookup(serverPort)
+				states, err = procnet.Lookup(serverPort, 0)
 				if err != nil {
 					t.Fatal(err)
 				}

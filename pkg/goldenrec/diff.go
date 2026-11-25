@@ -26,20 +26,31 @@ type Options struct {
 	// KeyColumns pair rows for reporting; DefaultKeyColumns when nil.
 	KeyColumns []string
 	// LossyNetns name the namespaces whose sockets carry deliberate random
-	// loss; in their rows the Presence and loss-history columns are not
-	// compared, the rest are. DefaultLossyNetns when nil; empty for none.
+	// loss; in their rows the lossyColumns are not compared, the rest are.
+	// DefaultLossyNetns when nil; empty for none.
 	LossyNetns []string
 }
 
 // DefaultLossyNetns are the golden workload's netem pair
 // (nix/microvms/scripts/golden-workload.sh). netem drops and reorders at
-// random, so which counters a bulk transfer leaves nonzero (dsack_dups,
-// reord_seen, rwnd_limited, ...) and the reordering it settles on differ
-// from run to run. The profile still requires them populated.
+// random, so which of the lossyColumns a bulk transfer leaves nonzero, and
+// the reordering it settles on, differ from run to run. The profile still
+// requires them populated.
 var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
 
-// lossHistory are the Strict columns that follow a connection's losses.
-var lossHistory = map[string]bool{reorderingColumn: true, caStateColumn: true}
+// lossyColumns are the columns seen to differ between captures of the
+// netem rows, in a strict diff of four captures. Every other column of
+// those rows, such as total_retrans or bytes_received, is compared.
+var lossyColumns = map[string]bool{
+	"tcp_info_dsack_dups":                true,
+	"tcp_info_reord_seen":                true,
+	"tcp_info_rwnd_limited":              true,
+	"tcp_info_probes":                    true,
+	"tcp_info_delivery_rate_app_limited": true,
+	"inet_diag_msg_retrans":              true,
+	"dctcp_info_alpha":                   true,
+	reorderingColumn:                     true,
+}
 
 // Difference is one way a candidate differs from the golden capture: a
 // column (Golden and Candidate set), or a whole row only one side has
@@ -90,7 +101,7 @@ func Diff(golden, candidate []Row, table Table, opts Options) ([]Difference, err
 			if filter != nil && !filter.MatchString(c) {
 				continue
 			}
-			if lossy && (idx[c] == Presence || lossHistory[c]) {
+			if lossy && lossyColumns[c] {
 				continue
 			}
 			vals[c] = compareForm(idx[c], v)

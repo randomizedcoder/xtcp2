@@ -99,6 +99,13 @@ wait_listen() {
 
 # count_state NETNS STATE: the TCP sockets in that state (ss state names).
 count_state() { ip netns exec "$1" ss -Htan state "$2" | wc -l; }
+# bulk_done NS: sockets in NS that have received at least 4 MiB. awk rather
+# than grep: before the first byte arrives ss prints no bytes_received, and
+# a grep that matches nothing exits 1, which pipefail turns into an abort.
+bulk_done() {
+  ip netns exec "$1" ss -Htin state established |
+    awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^bytes_received:/ && substr($i, 16) + 0 >= 4194304) n++ } END { print n + 0 }'
+}
 
 # Every congestion module, so tcp_available_congestion_control lists every
 # algorithm this kernel has; a new kernel's new one is picked up unasked.
@@ -235,8 +242,8 @@ while :; do
   if [ "$n" -lt $((2 * ${#cas[@]})) ]; then pending="$pending golden-cc-a($n/$((2 * ${#cas[@]})))"; fi
   # A bulk connection is done once both ends have received its 4 MiB.
   want=$((2 * ${#bulk_algos[@]}))
-  n=$(ip netns exec golden-bulk-a ss -Htin state established | grep -oE 'bytes_received:[0-9]+' | awk -F: '$2 >= 4194304' | wc -l)
-  m=$(ip netns exec golden-bulk-b ss -Htin state established | grep -oE 'bytes_received:[0-9]+' | awk -F: '$2 >= 4194304' | wc -l)
+  n=$(bulk_done golden-bulk-a)
+  m=$(bulk_done golden-bulk-b)
   if [ $((n + m)) -lt "$want" ]; then pending="$pending golden-bulk($((n + m))/$want)"; fi
   n=$(count_state golden-opts-a established)
   if [ "$n" -lt "$opts_clients" ]; then pending="$pending golden-opts-a($n/$opts_clients)"; fi
