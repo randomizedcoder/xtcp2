@@ -53,7 +53,7 @@ func main() {
 		wg.Add(1)
 		go func(c *grpc.ClientConn) {
 			defer wg.Done()
-			_ = c.Close()
+			_ = c.Close() //nolint:errcheck // teardown: a close error changes nothing
 		}(c)
 	}
 	wg.Wait()
