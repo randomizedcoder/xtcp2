@@ -1,0 +1,26 @@
+filter protocol ip pref 1 flower chain 0 
+filter protocol ip pref 1 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 2 flower chain 0 
+filter protocol ip pref 2 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 3 flower chain 0 
+filter protocol ip pref 3 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 4 flower chain 0 
+filter protocol ip pref 4 flower chain 0 handle 0xffffffff 
+  skip_hw
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 5 flower chain 0 
+filter protocol ip pref 5 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+	action order 2: gact 
+filter protocol ip pref 1 flower chain 3 
+filter protocol ip pref 1 flower chain 3 handle 0x1 
+  not_in_hw
+	action order 1: gact 

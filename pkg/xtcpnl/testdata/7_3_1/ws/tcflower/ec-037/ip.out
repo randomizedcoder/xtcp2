@@ -1,0 +1,13 @@
+filter protocol ip flower chain 0 
+filter protocol ip flower chain 0 handle 0x1 
+  eth_type ipv4
+  ip_proto udp
+  not_in_hw
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 5 ref 1 bind 1
+
+	action order 2: gact action drop
+	 random type none pass val 0
+	 index 6 ref 1 bind 1
+

@@ -237,6 +237,14 @@ preconditions, and quantify detection.
 **Goal:** quantify DoS knees and prove/refute the collection-path crossover,
 completing the RT-4 suite and RT-11 tiers 1–2.
 
+**Premortem audit (2026-11-24, before any scenario):**
+
+- **NOFILE:** the daemon container's limit in the §29 shape is **524287/524288** (docker's default on Ubuntu 24.04 — not the classic 1024). Full exhaustion needs ~500K connections — beyond the attacker VM, and conntrack (rt-11-6) likely knees first. The rt-4-1/rt-11-2 ladder therefore pins a walkable knee via a new `XTCP2_NOFILE` deploy axis (`--ulimit nofile=4096:4096`); the findings table documents the prod-default arithmetic.
+- **Timeouts + caps (verified):** HTTP read-header 5 s / read 10 s / write 15 s / idle 30 s (cmd/xtcp2/http_server.go:26-31); gRPC streams 20, recv msg 4 MB, 64 KB buffers, keepalive 299 s / idle 15 min (pkg/xtcp/grpc_server.go:29-45). The rt-4-2/rt-4-3 rows' premises hold.
+- **Dest outage behavior:** tcp drops on error — the envelope is recycled, records are lost permanently (no reconnect: the pinned tcpDest finding), counters `destTCP/Write/error` + `Poller/envelopeFlush/error` light up. s3 is bounded by construction — queue 16 deep / 64 MiB, full-jitter backoff (10 attempts, cap clamp(PollFrequency/10, 1 s, 1 h)), 1 GiB spill, then counted drops (`s3_dropped_total{reason}`, `destS3Parquet/uploadRowsDropped/error`); minio dials per request so it **recovers when the endpoint returns**. rt-4-7 therefore expects a split verdict: CONFIRMED (tcp half — the permanent blind) / BLOCKED (s3 half — bounded + recovery).
+- **Poll-cycle duration observable EXISTS:** `xtcp_histograms{function="Poller",type="pollToDoneDuration",variable="count"}` (SummaryVec, 0.5/0.99 quantiles, 5 min MaxAge) + the `Poller/PollTimeout` counter — rt-11-4's primary observable. Per-namespace lag is NOT labeled (aggregate only); coverage lag is measured as victim-record arrival lag at the catcher.
+- **rt-4-8 refocused (not folded):** the mechanism — full-dump per poll — is measured (rt-3-3: 3× at 1 s); a 100-container population adds arithmetic, not mechanism. What rt-3-3 did not test is the row's second clause: cgroup protection. rt-4-8 becomes the cgroup-cap variant via a new `XTCP2_CPUS` deploy axis (default unlimited; rt-4-8 pins 2), asserting amplification is bounded by the quota, metrics stays 200, no OOM-kill.
+
 **Tasks**
 
 | # | Task | Scenario |
@@ -255,8 +263,9 @@ completing the RT-4 suite and RT-11 tiers 1–2.
 
 **Definition of done**
 
-- [ ] rt-4-1/rt-11-2 produces a table in findings.md: connections → {metrics, poll, delivery} status, with the crossover knee identified.
-- [ ] 24 h churn variant runs clean overnight once (logged evidence), or its blocker filed.
+- [x] rt-4-1/rt-11-2 produced the ladder table (findings.md, `20261125T225846`): connections → {FDs, scrape, catcher-delta, RSS} — and the crossover knee does NOT exist: the 5 s absolute header cap churns the FD budget for idle conns (scrape 200, catcher flowing at FDs 4096/4096 through every step), and at a PERFECT pin (idle gRPC conns, 15-min MaxConnectionIdle) the API goes dark while the catcher keeps flowing — the collection path holds its FDs persistently and opens nothing per poll. Two findings instead: the telemetry amplifier (~149x record volume from ~4K idle conns — the attack's own sockets are reported) and the prod-default arithmetic (~500K conns to exhaust 524287; conntrack knees first — rt-11-6).
+- [x] Phase 4 part 1 complete: rt-4-1 **BLOCKED** (8/8 — the ladder + the amplifier finding), rt-11-2 **BLOCKED** (11/11 — the crossover refuted at a pinned budget, the RT-11 ops answer), rt-4-2 **BLOCKED** (11/11 — the 5 s absolute ReadHeaderTimeout makes the slowloris premise unreachable; 26 KiB/conn while alive), rt-4-5 **BLOCKED** (9/9 — the in-flight cap engages on the slow paths, 10x 503 on `/metrics-all`; the fast path self-throttles). New tools: sockfill `-remote` (the ladder), slowloris (the drip), grpcidle (the gRPC pin) — all static, in the attacker tools tar; two new deploy axes `XTCP2_NOFILE`/`XTCP2_CPUS`.
+- [ ] 24 h churn variant runs clean overnight once (logged evidence), or its blocker filed. (Phase 4 part 4)
 - [ ] rt-11-5 shows delivery metrics lighting up during the L2 kill (assert specific series non-zero), or files the observability gap.
 - [ ] rt-11-7 either survives or produces a crashing fixture committed under the repo's fixture path and a linked parser issue.
 - [ ] Every scenario traps cleanup; a final "victim still reporting" assertion runs after each attack (the RT-11 invariant).

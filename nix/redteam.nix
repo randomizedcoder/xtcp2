@@ -41,6 +41,8 @@
   xtcp2ctl, # binaries.xtcp2ctl     (static, CGO_ENABLED=0)
   sockfill, # binaries.sockfill (static; holds N TCP pairs — rt-11-2/4/8)
   ipfeed-fixture, # binaries.ipfeed-fixture (static; crafts ASN artifacts — rt-7-1..3)
+  slowloris, # binaries.slowloris (static; partial-header drip — rt-4-2)
+  grpcidle, # binaries.grpcidle (static; idle gRPC conns — rt-11-2)
   oci-xtcp2, # containers.oci-xtcp2: streamLayeredImage script
   oci-xtcp2-tcp-stress, # containers.oci-xtcp2-tcp-stress, same form
 }:
@@ -67,6 +69,8 @@ let
       xtcp2ctl
       sockfill
       ipfeed-fixture
+      slowloris
+      grpcidle
       ;
   };
   attackerTools =
@@ -226,6 +230,10 @@ in
               redteam-rt-7-1
               redteam-rt-7-2
               redteam-rt-7-3
+              redteam-rt-4-1
+              redteam-rt-4-2
+              redteam-rt-4-5
+              redteam-rt-11-2
             )
             failed=0
             for s in "''${scenarios[@]}"; do

@@ -1,0 +1,7 @@
+filter protocol all pref 1 matchall 
+filter protocol all pref 1 matchall handle 0x1 
+  not_in_hw
+	action order 1: gact action goto chain 5
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+

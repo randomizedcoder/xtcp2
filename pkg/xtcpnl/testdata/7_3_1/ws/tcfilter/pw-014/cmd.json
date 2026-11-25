@@ -1,0 +1,87 @@
+{
+ "axes": {
+  "fix": "fu32",
+  "json": "1",
+  "words": "filter show dev d0 ingress protocol ipv6"
+ },
+ "cmd": "tc -j filter show dev d0 ingress protocol ipv6",
+ "desc": "positive: opt=json cmd=fu32:filter_show_dev_d0_ingress_protocol_ipv6",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcfilter/pw-014",
+ "modules": [
+  "sch_htb",
+  "sch_ingress",
+  "cls_basic",
+  "cls_cgroup",
+  "cls_flow",
+  "cls_flower",
+  "cls_fw",
+  "cls_matchall",
+  "cls_route",
+  "cls_u32",
+  "act_gact",
+  "act_mirred",
+  "act_police",
+  "em_canid",
+  "em_cmp",
+  "em_meta",
+  "em_nbyte",
+  "em_u32"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol ip handle 800::1 u32 match ip src 10.0.0.0/8 action pass",
+  "tc filter add dev d0 ingress pref 2 protocol ip u32 match ip src 10.0.0.0/8 match ip dport 80 0xffff flowid 1:1",
+  "tc filter add dev d0 ingress pref 3 protocol ip handle 2: u32 divisor 16",
+  "tc filter add dev d0 ingress pref 3 protocol ip u32 ht 800:: match ip protocol 6 0xff link 2: offset at 0 mask 0x0f00 shift 6 plus 0 eat",
+  "tc filter add dev d0 ingress pref 5 protocol ipv6 u32 match ip6 src 2001:db8::/32 action drop",
+  "tc filter add dev d0 ingress pref 6 protocol ip u32 match u8 64 0xff at 8 action pass"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol ip handle 800::1 u32 match ip src 10.0.0.0/8 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 2 protocol ip u32 match ip src 10.0.0.0/8 match ip dport 80 0xffff flowid 1:1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 3 protocol ip handle 2: u32 divisor 16",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 3 protocol ip u32 ht 800:: match ip protocol 6 0xff link 2: offset at 0 mask 0x0f00 shift 6 plus 0 eat",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 5 protocol ipv6 u32 match ip6 src 2001:db8::/32 action drop",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 6 protocol ip u32 match u8 64 0xff at 8 action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

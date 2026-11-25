@@ -224,7 +224,7 @@ func (r *runner) printClassBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
 		o.boolean(printAny, wordRoot, "root ", true)
 	} else {
 		p := r.classidUnder(t.Parent)
-		o.str(printAny, colorNone, "parent", "parent "+p+" ", p)
+		o.str(printAny, colorNone, wordParent, "parent "+p+" ", p)
 	}
 	if t.Info != 0 {
 		o.hex0x(printAny, "leaf", "leaf "+u32hex(t.Info>>16)+": ", uint64(t.Info>>16))

@@ -155,8 +155,11 @@ var qingressFix = []string{
 // row's directory.
 const tcNamesFile = "printf '1:1 top\\n1:10 web\\n0x10020 bulk\\n' > cls.txt"
 
-// tcBuild makes a tc row of the opt and cmd values.
-func tcBuild(vals []value) row {
+// tcBuild makes a tc row of the opt and cmd values, loading tcModules.
+func tcBuild(vals []value) row { return tcBuildMods(tcModules, vals) }
+
+// tcBuildMods makes a tc row of the opt and cmd values, loading mods.
+func tcBuildMods(mods []string, vals []value) row {
 	var optArg, cmdArg string
 	var pre []string
 	for i, val := range vals {
@@ -171,7 +174,7 @@ func tcBuild(vals []value) row {
 	r := row{
 		Cmd:     strings.TrimSpace("tc " + joinArgs(optArg, cmdArg)),
 		Proto:   "route",
-		Modules: tcModules,
+		Modules: mods,
 		Expect:  expect{RC: intp(0), RefusedBy: refNone},
 		Axes:    mergeFacts(vals),
 	}

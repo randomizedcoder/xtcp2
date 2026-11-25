@@ -1,6 +1,6 @@
 // Package gotc is a read-only Go clone of iproute2's tc(8), the version the
-// flake pins (7.2.0), for its qdisc and class reads, built on pkg/xtcpnl's
-// tcmsg decoders.
+// flake pins (7.2.0), for its qdisc, class, filter and chain reads, built on
+// pkg/xtcpnl's tcmsg decoders.
 //
 // Like gobridge, it exists to make xtcpnl's coverage something a diff can
 // check: replaying tc's nlmon (ws) pcap corpus must reproduce tc's stdout,
@@ -8,9 +8,9 @@
 // (docs/netlink/gotc.md, docs/netlink/upstream/iproute2-tc-qdisc-class.md).
 // The comments cite the tc/*.c and lib/*.c function each piece follows.
 //
-// Scope is qdisc and class show, alone or in a -batch (file or stdin,
-// -force), with -netns. filter, chain, actions, monitor and exec, and every
-// write, are refused: gotc never writes.
+// Scope is qdisc and class show, and filter and chain show and get, alone
+// or in a -batch (file or stdin, -force), with -netns. actions, monitor and
+// exec, and every write, are refused: gotc never writes.
 package gotc
 
 import (
@@ -37,7 +37,7 @@ type retCode int
 func (e retCode) Error() string { return "return " + strconv.Itoa(int(e)) }
 
 // errNotImplemented is a command gotc does not clone: a write, an object
-// outside qdisc and class, or a qdisc kind outside the slice.
+// outside qdisc, class, filter and chain, or a kind outside the slice.
 var errNotImplemented = errors.New("gotc: not implemented")
 
 // The tc version strings -Version prints: the flake's iproute2 and the
@@ -73,8 +73,12 @@ type runner struct {
 	cache    llCache
 	llInited bool // ll_init_map's initialized: one link dump a process
 
-	qf qdiscFilter // tc_qdisc.c's statics, kept across batch lines (Q29)
-	cf classFilter // tc_class.c's statics, kept across batch lines (Q30)
+	qf qdiscFilter  // tc_qdisc.c's statics, kept across batch lines (Q29)
+	cf classFilter  // tc_class.c's statics, kept across batch lines (Q30)
+	ff filterFilter // tc_filter.c's statics, kept across batch lines (Q29f)
+
+	fProto uint16     // f_proto: the last filter's htons'd protocol, u32 -p's key
+	realms rtRealmTab // rt_names.c's realm table
 }
 
 func (r *runner) errf(format string, a ...any) {
@@ -350,8 +354,8 @@ func (r *runner) doCmd(obj string, args []string) error {
 	}{
 		{wordQdisc, r.doQdisc},
 		{"class", r.doClass},
-		{"filter", r.refuse("filter")},
-		{"chain", r.refuse("chain")},
+		{"filter", r.doFilter},
+		{"chain", r.doChain},
 		{"actions", r.refuse("actions")},
 		{"monitor", r.refuse("monitor")},
 		{"exec", r.refuse("exec")},

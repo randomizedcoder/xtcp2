@@ -1,0 +1,97 @@
+{
+ "axes": {
+  "fix": "fll3",
+  "json": "1",
+  "words": "filter get dev d0 ingress protocol ip pref 4 handle 1 flower"
+ },
+ "cmd": "tc -j filter get dev d0 ingress protocol ip pref 4 handle 1 flower",
+ "desc": "positive: opt=json cmd=fll3:filter_get_dev_d0_ingress_protocol_ip_pref_4_handle_1_flower",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcflower/pw-021",
+ "modules": [
+  "sch_ingress",
+  "cls_flower",
+  "act_gact"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 clsact",
+  "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower dst_ip 10.0.0.0/8 src_ip 10.1.0.0/16 ip_proto tcp dst_port 80 src_port 1000/0xff00 tcp_flags 0x2/0x12 action pass",
+  "tc filter add dev d0 ingress pref 2 protocol ipv6 handle 1 flower dst_ip 2001:db8::/32 src_ip ::ffff:1.2.3.4 ip_proto udp dst_port 1000-2000 src_port 53 action pass",
+  "tc filter add dev d0 ingress pref 3 protocol ip handle 1 flower ip_proto sctp dst_port 5000 action pass",
+  "tc filter add dev d0 ingress pref 4 protocol ip handle 1 flower ip_proto icmp type 8/15 code 0 action pass",
+  "tc filter add dev d0 ingress pref 5 protocol ipv6 handle 1 flower ip_proto icmpv6 type 128 code 0/15 action pass",
+  "tc filter add dev d0 ingress pref 6 protocol ip handle 1 flower ip_proto l2tp l2tpv3_sid 1234 action pass",
+  "tc filter add dev d0 ingress pref 7 protocol ip handle 1 flower ip_proto esp spi 0x1234 action pass",
+  "tc filter add dev d0 ingress pref 8 protocol ip handle 1 flower ip_proto ah spi 5 action pass",
+  "tc filter add dev d0 ingress pref 9 protocol ip handle 1 flower ip_proto 0x99 ip_tos 0x10/0xf0 ip_ttl 64 action pass",
+  "tc filter add dev d0 ingress pref 10 protocol ip handle 1 flower ip_flags frag/nofirstfrag action pass",
+  "tc filter add dev d0 ingress pref 11 protocol ipv6 handle 1 flower dst_ip ::1 src_ip 2001:db8:: action pass"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 clsact",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 1 protocol ip handle 1 flower dst_ip 10.0.0.0/8 src_ip 10.1.0.0/16 ip_proto tcp dst_port 80 src_port 1000/0xff00 tcp_flags 0x2/0x12 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 2 protocol ipv6 handle 1 flower dst_ip 2001:db8::/32 src_ip ::ffff:1.2.3.4 ip_proto udp dst_port 1000-2000 src_port 53 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 3 protocol ip handle 1 flower ip_proto sctp dst_port 5000 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 4 protocol ip handle 1 flower ip_proto icmp type 8/15 code 0 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 5 protocol ipv6 handle 1 flower ip_proto icmpv6 type 128 code 0/15 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 6 protocol ip handle 1 flower ip_proto l2tp l2tpv3_sid 1234 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 7 protocol ip handle 1 flower ip_proto esp spi 0x1234 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 8 protocol ip handle 1 flower ip_proto ah spi 5 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 9 protocol ip handle 1 flower ip_proto 0x99 ip_tos 0x10/0xf0 ip_ttl 64 action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 10 protocol ip handle 1 flower ip_flags frag/nofirstfrag action pass",
+    "rc": 0
+   },
+   {
+    "cmd": "tc filter add dev d0 ingress pref 11 protocol ipv6 handle 1 flower dst_ip ::1 src_ip 2001:db8:: action pass",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

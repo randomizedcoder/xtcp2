@@ -1,0 +1,44 @@
+filter protocol ip pref 1 flower chain 0 
+filter protocol ip pref 1 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ipv6 pref 2 flower chain 0 
+filter protocol ipv6 pref 2 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 3 flower chain 0 
+filter protocol ip pref 3 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 4 flower chain 0 
+filter protocol ip pref 4 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ipv6 pref 5 flower chain 0 
+filter protocol ipv6 pref 5 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 6 flower chain 0 
+filter protocol ip pref 6 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 7 flower chain 0 
+filter protocol ip pref 7 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 8 flower chain 0 
+filter protocol ip pref 8 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 9 flower chain 0 
+filter protocol ip pref 9 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ip pref 10 flower chain 0 
+filter protocol ip pref 10 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 
+filter protocol ipv6 pref 11 flower chain 0 
+filter protocol ipv6 pref 11 flower chain 0 handle 0x1 
+  not_in_hw
+	action order 1: gact 

@@ -1,0 +1,1 @@
+[{"parent":"1:","protocol":"ip","pref":11,"kind":"fw","chain":0,"options":{"fw":{"mark":"0x6","mask":"0xff"},"actions":[{"order":1,"kind":"gact","control_action":{"type":"pass"},"prob":{"random_type":"none","control_action":{"type":"pass"},"val":0},"index":1,"ref":1,"bind":1}]}}]
