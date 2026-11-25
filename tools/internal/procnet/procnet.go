@@ -55,8 +55,9 @@ func (s State) String() string {
 }
 
 // ParseStates returns, sorted, the states of the sockets in a
-// /proc/net/tcp or /proc/net/tcp6 table whose local port is port.
-func ParseStates(r io.Reader, port uint16) ([]State, error) {
+// /proc/net/tcp or /proc/net/tcp6 table whose local port is port and, when
+// remote is not 0, whose remote port is remote.
+func ParseStates(r io.Reader, port, remote uint16) ([]State, error) {
 	var out []State
 	sc := bufio.NewScanner(r)
 	first := true
@@ -69,16 +70,21 @@ func ParseStates(r io.Reader, port uint16) ([]State, error) {
 		if len(f) < 4 {
 			return nil, fmt.Errorf("procnet: short line %q", sc.Text())
 		}
-		i := strings.LastIndexByte(f[1], ':')
-		if i < 0 {
-			return nil, fmt.Errorf("procnet: local address %q has no port", f[1])
-		}
-		p, err := strconv.ParseUint(f[1][i+1:], 16, 16)
+		p, err := addrPort("local", f[1])
 		if err != nil {
-			return nil, fmt.Errorf("procnet: local address %q: %w", f[1], err)
+			return nil, err
 		}
-		if uint16(p) != port {
+		if p != port {
 			continue
+		}
+		if remote != 0 {
+			rp, err := addrPort("remote", f[2])
+			if err != nil {
+				return nil, err
+			}
+			if rp != remote {
+				continue
+			}
 		}
 		st, err := strconv.ParseUint(f[3], 16, 8)
 		if err != nil {
@@ -93,10 +99,24 @@ func ParseStates(r io.Reader, port uint16) ([]State, error) {
 	return out, nil
 }
 
+// addrPort is the port of a table address, hex "ADDR:PORT".
+func addrPort(which, a string) (uint16, error) {
+	i := strings.LastIndexByte(a, ':')
+	if i < 0 {
+		return 0, fmt.Errorf("procnet: %s address %q has no port", which, a)
+	}
+	p, err := strconv.ParseUint(a[i+1:], 16, 16)
+	if err != nil {
+		return 0, fmt.Errorf("procnet: %s address %q: %w", which, a, err)
+	}
+	return uint16(p), nil
+}
+
 // Lookup returns, sorted, the states of this network namespace's TCP
-// sockets, both families, whose local port is port. A missing tcp6 table
-// (IPv6 disabled) counts as empty.
-func Lookup(port uint16) ([]State, error) {
+// sockets, both families, whose local port is port and, when remote is not
+// 0, whose remote port is remote. A missing tcp6 table (IPv6 disabled)
+// counts as empty.
+func Lookup(port, remote uint16) ([]State, error) {
 	var out []State
 	for _, name := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
 		f, err := os.Open(name)
@@ -106,7 +126,7 @@ func Lookup(port uint16) ([]State, error) {
 		if err != nil {
 			return nil, err
 		}
-		s, err := ParseStates(f, port)
+		s, err := ParseStates(f, port, remote)
 		_ = f.Close()
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
