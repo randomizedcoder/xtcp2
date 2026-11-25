@@ -44,6 +44,8 @@
   # expose the s3parquet-golden flavor and its runner.
   goldenXtcp2Package ? null,
   goldenTool ? null,
+  # nix/ernic: the golden VM's rocm-ernic NICs and the runner's servers.
+  ernic ? null,
 }:
 
 let
@@ -488,6 +490,7 @@ let
         ipfeedCollectorPackage
         tcpStressImage
         extraModules
+        ernic
         ;
       xtcp2Package = goldenXtcp2Package;
       sink = "s3parquet-golden";
@@ -1088,6 +1091,16 @@ let
     lib.genAttrs constants.supportedArchs (arch: {
       runner = microvmLib.mkGoldenCaptureRunner {
         inherit arch goldenTool;
+        ernicRunMany = lib.mapNullable (
+          e:
+          let
+            g = import ./golden-ernic.nix { ernic = e; };
+          in
+          e.runMany {
+            name = "golden";
+            inherit (g) nics fabric;
+          }
+        ) ernic;
         vm = vmsS3ParquetGolden.${arch};
       };
     })

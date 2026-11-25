@@ -1203,6 +1203,9 @@ rec {
       arch,
       vm,
       goldenTool,
+      # ernic-run-many for the VM's rocm-ernic NICs, or null for none. QEMU
+      # then starts in its --dir, where the relative vfio-user sockets are.
+      ernicRunMany ? null,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -1264,7 +1267,11 @@ rec {
         echo "================================================"
 
         QEMU_LOG="''${LOG}.qemu"
-        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        ${
+          lib.optionalString (
+            ernicRunMany != null
+          ) "${ernicRunMany}/bin/ernic-run-many-golden --dir \"$STAGE/ernic\" -- "
+        }${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
         vm_pid=$!
 
         nc_serial_pid=""

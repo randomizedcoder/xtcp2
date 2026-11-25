@@ -49,6 +49,9 @@
   # `stress-ng --cpu <workers> --cpu-load <loadPct>` for the life of the VM.
   # null (the default) adds nothing.
   cpuStress ? null,
+  # nix/ernic. When set, the golden flavor also carries the rocm-ernic ionic
+  # NICs of golden-ernic.nix (docs/design-rocm-ernic-nics.md).
+  ernic ? null,
 }:
 
 let
@@ -2461,7 +2464,9 @@ let
   # device, a firmware version and a bus address; its default route (below)
   # has the higher metric, so DefaultUplinks lists it second.
   goldenUplink2Mac = "02:00:00:00:10:02";
-  goldenNicArgs = [
+  goldenErnic = lib.optionalAttrs (ernic != null) (import ./golden-ernic.nix { inherit ernic; });
+  goldenErnicNics = goldenErnic.nics or [ ];
+  goldenNicArgs = lib.optionals (ernic != null) (ernic.nics.qemuArgs goldenErnicNics) ++ [
     "-global"
     "virtio-net-pci.speed=10000"
     "-global"
@@ -2866,6 +2871,7 @@ in
     ../modules/xtcp2-service.nix
   ]
   ++ extraModules
+  ++ lib.optional (isS3ParquetGolden && ernic != null) (ernic.nics.guestConfig goldenErnicNics)
   ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ lib.optionals isValkey valkeyModules
   ++ lib.optionals isNats natsModules
@@ -4617,6 +4623,15 @@ in
         # bond sent one LACPDU and then none.
         # The golden flavor's second uplink (goldenNicArgs): static, with a
         # default route behind the DHCP one on the virtio NIC.
+        # The golden flavor's virtio NIC keeps SLiRP DHCP, with its default
+        # route behind the ionic (512) and e1000e (2048) uplinks, so
+        # DefaultUplinks(2) leaves it out (docs/design-rocm-ernic-nics.md).
+        systemd.network.networks."05-golden-eth0" = lib.mkIf (isS3ParquetGolden && ernic != null) {
+          matchConfig.MACAddress = "02:00:00:00:10:01";
+          networkConfig.DHCP = "yes";
+          dhcpV4Config.RouteMetric = 4096;
+          ipv6AcceptRAConfig.RouteMetric = 4096;
+        };
         systemd.network.networks."05-golden-uplink2" = lib.mkIf isS3ParquetGolden {
           matchConfig.MACAddress = goldenUplink2Mac;
           address = [ "10.0.3.15/24" ];

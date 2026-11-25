@@ -83,6 +83,7 @@
     "uplink1_ifname",
     "uplink1_nic_bus_info",
     "uplink1_nic_driver",
+    "uplink1_nic_fw_version",
     "uplink1_nic_pci_device",
     "uplink1_nic_pci_vendor",
     "uplink1_nic_speed_mbps",
@@ -158,13 +159,13 @@
       "10"
     ],
     "uplink1_nic_driver": [
-      "virtio_net"
+      "ionic"
     ],
     "uplink1_nic_pci_device": [
-      "1"
+      "4098"
     ],
     "uplink1_nic_pci_vendor": [
-      "6900"
+      "7640"
     ],
     "inet_diag_tos": [
       "8",
@@ -183,7 +184,7 @@
       "3"
     ],
     "uplink1_nic_speed_mbps": [
-      "10000"
+      "100000"
     ],
     "uplink2_nic_driver": [
       "e1000e"

@@ -18,7 +18,7 @@
 #   socket appears or while CMD runs; every server and CMD's process group
 #   are stopped on EXIT, INT and TERM.
 #
-# fabric = { <bridge> = { address = "10.0.4.1/24"; neighbors = [ { address; mac; } ]; }; }
+# fabric = { <bridge> = { address = "10.0.4.1/24"; mac = "02:..."; neighbors = [ { address; mac; } ]; }; }
 {
   pkgs,
   lib,
@@ -63,6 +63,7 @@ let
           in
           ''
             ip link add ${br} type bridge
+            ${lib.optionalString (f ? mac) "ip link set ${br} address ${f.mac}"}
             ${lib.optionalString (f ? address) "ip addr add ${f.address} dev ${br}"}
             ip link set ${br} up
             ${lib.concatMapStrings (
@@ -149,9 +150,7 @@ pkgs.writeShellApplication {
     }
 
     if [ "''${#names[@]}" -gt 0 ]; then
-      setsid ${
-        lib.optionalString needsNetns "unshare --user --map-root-user --net -- "
-      }${fabricScript}/bin/ernic-fabric-${name} "$dir" &
+      setsid ${lib.optionalString needsNetns "unshare --user --map-root-user --net -- "}${fabricScript}/bin/ernic-fabric-${name} "$dir" &
       fabric=$!
       up=0
       for _ in $(seq 1 ${toString startupAttempts}); do

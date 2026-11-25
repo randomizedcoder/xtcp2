@@ -120,7 +120,7 @@ let
     # The production flavor, so the golden capture records what the fleet runs.
     goldenXtcp2Package = binaries.xtcp2-s3parquet-enrich;
     goldenTool = binaries.xtcp2-golden;
-    inherit rdmaCaptureManifest;
+    inherit rdmaCaptureManifest ernic;
   };
 
   # Static analysis + audit checks
