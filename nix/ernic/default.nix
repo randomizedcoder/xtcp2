@@ -9,8 +9,12 @@
 #   rdmaErrors  ernic-rdma-errors, the guest's RDMA error counter check
 #   guestModule nixosModules.ernic-guest, for qemu-vm.nix guests on q35
 #   profiles    upstream's NIC profiles (generic-100g.ini, ...)
+#   ownProfiles xtcp2's NIC profiles (./profiles)
+#   nics        NICs as data: qemuArgs, serverArgs, guestConfig (nics.nix)
+#   runMany     { name, nics, fabric } -> ernic-run-many-<name> (run-many.nix)
 {
   pkgs,
+  lib,
   rocmErnic,
 }:
 
@@ -23,4 +27,10 @@ in
   rdmaErrors = packages.ernic-rdma-errors;
   guestModule = rocmErnic.nixosModules.ernic-guest;
   profiles = "${rocmErnic}/profiles";
+  ownProfiles = ./profiles;
+  nics = import ./nics.nix { inherit lib; };
+  runMany = import ./run-many.nix {
+    inherit pkgs lib;
+    server = packages.rocm-ernic;
+  };
 }

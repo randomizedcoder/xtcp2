@@ -197,7 +197,7 @@ let
 
   # rocm-ernic, read once (nix/ernic): the ionic VM checks and the golden
   # VM's ionic NICs share these store paths.
-  ernic = import ./ernic { inherit pkgs rocmErnic; };
+  ernic = import ./ernic { inherit pkgs lib rocmErnic; };
 
   # Guest tests that report through the serial console, each built around
   # microvms/mkVmCheck.nix's runner: checks.vm-<name>, run in the build

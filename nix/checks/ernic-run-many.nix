@@ -22,7 +22,7 @@ let
           *) shift ;;
         esac
       done
-      name=''${socket##*/ernic-}
+      name=''${socket##*ernic-}
       name=''${name%.sock}
       if [ "''${FAKE_ERNIC_FAIL:-}" = "$name" ]; then
         echo "fake: $name failing before its socket" >&2
@@ -33,9 +33,8 @@ let
       exec python3 -c 'import socket, sys, time; s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(1); time.sleep(1 if sys.argv[2] == "1" else 3600)' "$socket" "$late"
     '';
   };
-  nics = import ../ernic/nics.nix { inherit lib; };
   runMany = import ../ernic/run-many.nix {
-    inherit pkgs lib nics;
+    inherit pkgs lib;
     server = fakeServer;
   };
   nic = name: slot: {
@@ -68,18 +67,18 @@ pkgs.runCommand "xtcp2-ernic-run-many"
       if [ "$4" = 1 ]; then r=PASS; else r=FAIL; fail=1; fi
       echo "ROW $1 $2 $r $3: $5"
     }
-    fakes() { pgrep -f 'python3 -c' | wc -l; }
+    fakes() { pgrep -fc 'python3 -c' || true; }
     TWO=${two}/bin/ernic-run-many-two
     NONE=${none}/bin/ernic-run-many-none
 
     d=$(mktemp -d)
-    $TWO --dir "$d" -- sh -c 'test -S ernic-a.sock && test -S ernic-b.sock'
-    rc=$?
+    rc=0
+    $TWO --dir "$d" -- sh -c 'test -S ernic-a.sock && test -S ernic-b.sock' || rc=$?
     row all_up positive "every socket exists before the command" "$([ $rc = 0 ] && echo 1)" "rc=$rc"
 
     d=$(mktemp -d)
-    $TWO --dir "$d" -- sh -c 'exit 3'
-    rc=$?
+    rc=0
+    $TWO --dir "$d" -- sh -c 'exit 3' || rc=$?
     n=$(fakes)
     row exit_status positive "the command's status passes through" "$([ $rc = 3 ] && [ "$n" = 0 ] && echo 1)" "rc=$rc fakes=$n"
 
@@ -88,24 +87,24 @@ pkgs.runCommand "xtcp2-ernic-run-many"
     row cwd positive "the command runs in --dir" "$([ "$got" = "$d" ] && echo 1)" "pwd=$got"
 
     d=$(mktemp -d)
-    err=$(FAKE_ERNIC_FAIL=b $TWO --dir "$d" -- true 2>&1)
-    rc=$?
+    rc=0
+    err=$(FAKE_ERNIC_FAIL=b $TWO --dir "$d" -- true 2>&1) || rc=$?
     row server_dies negative "an early server exit fails the run" "$([ $rc != 0 ] && [[ $err == *"b exited before creating its socket"* ]] && echo 1)" "rc=$rc err=$err"
 
     d=$(mktemp -d)
-    err=$(FAKE_ERNIC_DIE_LATE=a $TWO --dir "$d" -- sleep 30 2>&1)
-    rc=$?
+    rc=0
+    err=$(FAKE_ERNIC_DIE_LATE=a $TWO --dir "$d" -- sleep 30 2>&1) || rc=$?
     row server_dies_late negative "a server exit while the command runs fails the run" "$([ $rc != 0 ] && [[ $err == *"a exited while the command ran"* ]] && echo 1)" "rc=$rc err=$err"
 
     d=$(mktemp -d)
     touch "$d/ernic-a.sock"
-    err=$($TWO --dir "$d" -- true 2>&1)
-    rc=$?
+    rc=0
+    err=$($TWO --dir "$d" -- true 2>&1) || rc=$?
     row stale_socket negative "an existing socket is refused" "$([ $rc != 0 ] && [[ $err == *"already exists"* ]] && echo 1)" "rc=$rc err=$err"
 
     d=$(mktemp -d)
-    got=$($NONE --dir "$d" -- echo ran)
-    rc=$?
+    rc=0
+    got=$($NONE --dir "$d" -- echo ran) || rc=$?
     row zero_nics boundary "no NICs just runs the command" "$([ $rc = 0 ] && [ "$got" = ran ] && echo 1)" "rc=$rc out=$got"
 
     d=$(mktemp -d)
@@ -114,8 +113,8 @@ pkgs.runCommand "xtcp2-ernic-run-many"
     for _ in $(seq 1 100); do [ -S "$d/ernic-b.sock" ] && break; sleep 0.1; done
     sleep 0.5
     kill -TERM "$pid"
-    wait "$pid"
-    rc=$?
+    rc=0
+    wait "$pid" || rc=$?
     sleep 0.5
     n=$(fakes)
     row sigterm corner "TERM stops the command and every server" "$([ $rc = 143 ] && [ "$n" = 0 ] && echo 1)" "rc=$rc fakes=$n"
