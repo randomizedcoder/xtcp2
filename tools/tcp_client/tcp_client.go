@@ -412,8 +412,9 @@ func dialWithRetryDialer(base net.Dialer, network, bind string, port, attempts i
 }
 
 // clientOnce performs one write+read round-trip against the open conn,
-// applying separate write/read deadlines. Returns ErrTimeout on a deadline
-// hit (caller decides whether to retry) or the underlying I/O error.
+// reading the whole echo of buf, with separate write/read deadlines.
+// Returns ErrTimeout on a deadline hit (caller decides whether to retry) or
+// the underlying I/O error.
 func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error {
 	if derr := conn.SetWriteDeadline(time.Now().Add(wto)); derr != nil {
 		return fmt.Errorf("set write deadline: %w", derr)
@@ -429,7 +430,7 @@ func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error 
 	if derr := conn.SetReadDeadline(time.Now().Add(rto)); derr != nil {
 		return fmt.Errorf("set read deadline: %w", derr)
 	}
-	if _, err := conn.Read(reply); err != nil {
+	if err := readEcho(conn, reply, len(buf)); err != nil {
 		var ne net.Error
 		if errors.As(err, &ne) && ne.Timeout() {
 			return ErrTimeout
@@ -437,4 +438,16 @@ func clientOnce(conn net.Conn, buf, reply []byte, wto, rto time.Duration) error 
 		return fmt.Errorf("read: %w", err)
 	}
 	return nil
+}
+
+// readEcho reads the n-byte echo whole: the first len(reply) bytes into
+// reply, the rest discarded. A partial read would leave the remainder
+// queued, and closing a socket with unread data resets it (no TIME_WAIT).
+func readEcho(conn net.Conn, reply []byte, n int) error {
+	head := min(n, len(reply))
+	if _, err := io.ReadFull(conn, reply[:head]); err != nil {
+		return err
+	}
+	_, err := io.CopyN(io.Discard, conn, int64(n-head))
+	return err
 }
