@@ -2477,6 +2477,7 @@ let
     runtimeInputs = with pkgs; [
       coreutils
       docker
+      ethtool
       gawk
       gnugrep
       iproute2

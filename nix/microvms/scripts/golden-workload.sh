@@ -142,7 +142,11 @@ for ca in "${cas[@]}"; do
 done
 
 pair bulk 4 1500
+# Offloads off, so netem drops single segments: with TSO/GSO it drops whole
+# 64 KiB super-packets, a 4 MiB transfer is a hundred or so of them, and a
+# client can lose none of its own.
 for ns in golden-bulk-a golden-bulk-b; do
+  ip netns exec "$ns" ethtool -K veth0 tso off gso off gro off
   tc -n "$ns" qdisc add dev veth0 root netem delay 5ms loss 2% reorder 1%
 done
 servers bulk 4
