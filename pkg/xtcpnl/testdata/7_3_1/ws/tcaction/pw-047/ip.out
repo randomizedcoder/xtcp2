@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"ctinfo","zone":0,"control_action":{"type":"pipe"},"index":2,"ref":1,"bind":0,"dscpmask":"0xfc000000","dscpstatemask":"0","not_in_hw":true}]}]

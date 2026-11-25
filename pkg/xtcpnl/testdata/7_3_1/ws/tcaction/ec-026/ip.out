@@ -1,0 +1,24 @@
+total acts 3
+
+	action order 0: skbedit  priority 1:2 pipe
+	 index 1 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: skbedit queue_mapping 3 mark 16/0xff ptype host inheritdsfield pipe
+	 index 2 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+
+	action order 2: skbedit  priority :5 pipe
+	 index 3 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled

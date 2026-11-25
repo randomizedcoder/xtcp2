@@ -1,0 +1,17 @@
+filter protocol ip pref 1 u32 chain 0 
+filter protocol ip pref 1 u32 chain 0 fh 800: ht divisor 1 
+filter protocol ip pref 1 u32 chain 0 fh 800::1 order 1 key ht 800 bkt 0 terminal flowid not_in_hw (rule hit 0 success 0)
+  match 0a000001/ffffffff at 16 (success 0 ) 
+ police 0x6 rate 1Mbit burst 10Kb mtu 2Kb action drop overhead 0b 
+	ref 1 bind 1  installed 0 sec used 0 sec
+
+ Sent 0 bytes 0 pkts (dropped 0, overlimits 0) 
+filter protocol all pref 2 matchall chain 0 
+filter protocol all pref 2 matchall chain 0 handle 0x1 
+  not_in_hw (rule hit 0)
+	action order 1:  police 0x1 rate 1Mbit burst 10Kb mtu 2Kb action reclassify overhead 0b 
+	ref 2 bind 1  installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+

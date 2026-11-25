@@ -1,0 +1,5 @@
+total acts 0
+
+	action order 1: vlan  push id 100 protocol 802.1ad priority 3 pipe
+	 index 2 ref 1 bind 0
+	not_in_hw

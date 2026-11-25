@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"police","index":4,"pkts_rate":1000,"pkts_burst":10,"control_action":{"type":"reclassify"},"overhead":0,"ref":1,"bind":0,"not_in_hw":true}]}]

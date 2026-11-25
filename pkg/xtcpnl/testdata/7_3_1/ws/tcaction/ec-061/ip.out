@@ -1,0 +1,12 @@
+total acts 0
+
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 0
+	cookie 0102
+	not_in_hw
+total acts 0
+
+	action order 1: Simple <hello>
+	 index 1 ref 1 bind 0
+	not_in_hw

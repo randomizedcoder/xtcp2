@@ -1,0 +1,48 @@
+{
+ "axes": {
+  "fix": "bare",
+  "json": "0",
+  "words": "actions get action gact"
+ },
+ "cmd": "tc actions get action gact",
+ "desc": "negative: opt=plain cmd=ng:bare:actions_get_action_gact: get with no index: Error: no index specified, before any request",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 255,
+  "refused_by": "iproute2"
+ },
+ "id": "tcaction/ng-002",
+ "modules": [
+  "sch_ingress",
+  "cls_u32",
+  "cls_matchall",
+  "act_gact",
+  "act_police",
+  "act_mirred",
+  "act_skbedit",
+  "act_vlan",
+  "act_csum",
+  "act_nat",
+  "act_simple",
+  "act_connmark",
+  "act_ctinfo",
+  "act_sample",
+  "act_skbmod",
+  "act_mpls"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 255,
+  "status": "OK"
+ }
+}

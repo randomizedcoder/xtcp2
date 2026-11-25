@@ -1,0 +1,15 @@
+usage: tc actions <ACTSPECOP>*
+Where:		ACTSPECOP := ACR | GD | FL
+	ACR := add | change | replace <ACTSPEC>*
+	GD := get | delete | <ACTISPEC>*
+	FL := ls | list | flush | <ACTNAMESPEC>
+	ACTNAMESPEC :=  action <ACTNAME>
+	ACTISPEC := <ACTNAMESPEC> <INDEXSPEC>
+	ACTSPEC := action <ACTDETAIL> [INDEXSPEC] [HWSTATSSPEC] [SKIPSPEC]
+	INDEXSPEC := index <32 bit indexvalue>
+	HWSTATSSPEC := hw_stats [ immediate | delayed | disabled ]
+	SKIPSPEC := [ skip_sw | skip_hw ]
+	ACTDETAIL := <ACTNAME> <ACTPARAMS>
+		Example ACTNAME is gact, mirred, bpf, etc
+		Each action has its own parameters (ACTPARAMS)
+

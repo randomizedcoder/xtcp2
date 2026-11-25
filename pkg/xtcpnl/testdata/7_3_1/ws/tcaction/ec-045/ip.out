@@ -1,0 +1,13 @@
+total acts 3
+
+	action order 0: ctinfo zone 0 pipe
+	 index 1 ref 1 bind 0 dscp 0xfc000000 0x01000000
+	not_in_hw
+
+	action order 1: ctinfo zone 0 pipe
+	 index 2 ref 1 bind 0 dscp 0xfc000000 0000000000
+	not_in_hw
+
+	action order 2: ctinfo zone 3 pipe
+	 index 3 ref 1 bind 0 cpmark 0xffffffff
+	not_in_hw

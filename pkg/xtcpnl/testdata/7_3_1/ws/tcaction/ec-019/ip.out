@@ -1,0 +1,26 @@
+total acts 5
+
+	action order 0: mirred (Egress Redirect to device d1) stolen
+	index 1 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: mirred (Egress Mirror to device d1) pipe
+	index 2 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: mirred (Ingress Redirect to device d1) stolen
+	index 3 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3: mirred (Egress Redirect to blockid 7) stolen
+	index 4 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 4: mirred (Egress Mirror to device *) pipe
+	index 5 ref 1 bind 0
+	not_in_hw
+	used_hw_stats disabled
