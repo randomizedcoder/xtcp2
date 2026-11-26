@@ -286,12 +286,25 @@ func hasAttr(attrs []uint16, t uint16) bool {
 	return false
 }
 
-func (r *runner) printQdiscBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
-	o, t := r.o, ti.Hdr
-	o.openObject("")
+// printQdiscEvent is print_qdisc's event words. replaced and added both
+// need NLM_F_CREATE, which qdisc_notify never sends: its flags are 0 or
+// NLM_F_REPLACE (MO6, K19), so only a crafted event reaches them.
+func printQdiscEvent(o *out, m Msg) {
 	if m.Type == unix.RTM_DELQDISC {
 		o.boolean(printAny, "deleted", "deleted ", true)
 	}
+	if m.Type == unix.RTM_NEWQDISC && m.Flags&unix.NLM_F_CREATE != 0 && m.Flags&unix.NLM_F_REPLACE != 0 {
+		o.boolean(printAny, "replaced", "replaced ", true)
+	}
+	if m.Type == unix.RTM_NEWQDISC && m.Flags&unix.NLM_F_CREATE != 0 && m.Flags&unix.NLM_F_EXCL != 0 {
+		o.boolean(printAny, "added", "added ", true)
+	}
+}
+
+func (r *runner) printQdiscBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
+	o, t := r.o, ti.Hdr
+	o.openObject("")
+	printQdiscEvent(o, m)
 	o.str(printAny, colorNone, "kind", "qdisc "+ti.Kind, ti.Kind)
 	h := u32hex(t.Handle>>16) + ":"
 	o.str(printAny, colorNone, "handle", " "+h, h)

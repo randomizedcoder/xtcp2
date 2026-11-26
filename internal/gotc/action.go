@@ -45,8 +45,8 @@ func (r *runner) printActions(nest []byte) error {
 const actTabMaxCst = 1024
 
 // dumpAction is tc_dump_action: tot of 0 is TCA_ACT_MAX_PRIO, and the
-// table holds orders 0..tot. The flush-reply path (tab_flush) follows
-// only RTM_DELACTION, which gotc does not send.
+// table holds orders 0..tot. After a flush event (tab_flush), a table of
+// order 0 alone is the flush's count.
 func (r *runner) dumpAction(nest []byte, tot uint16, bind bool) error {
 	o := r.o
 	if tot == 0 {
@@ -56,6 +56,9 @@ func (r *runner) dumpAction(nest []byte, tot uint16, bind bool) error {
 		return fmt.Errorf("%w: an action table of %d orders", errNotImplemented, tot)
 	}
 	tb := r.nested(nest, tot)
+	if r.tabFlush && tb.Has(0) && !tb.Has(1) {
+		return r.printActionFlush(tb.Bytes(0))
+	}
 	o.openArray(printJSON, "actions")
 	for i := range tot + 1 {
 		if !tb.Has(i) {
@@ -74,6 +77,30 @@ func (r *runner) dumpAction(nest []byte, tot uint16, bind bool) error {
 		o.closeObject()
 	}
 	o.closeArray(printJSON, "")
+	return nil
+}
+
+// printActionFlush is tc_print_action_flush: a flush event's order-0
+// nest, parsed as TCA_* (not TCA_ACT_*), so its count is TCA_FCNT, printed
+// with %d. It clears tab_flush only on this path: a flush whose table is
+// not order 0 alone leaves it set for the next table (MO15). tc
+// dereferences a missing TCA_FCNT; gotc refuses it, and a kind tc does not
+// link, which tc would name gact (L22).
+func (r *runner) printActionFlush(nest []byte) error {
+	tb := r.nested(nest, xtcpnl.TcaMaxKnown)
+	if !tb.Has(xtcpnl.TcaKind) {
+		r.errf("NULL Action!\n")
+		return nil
+	}
+	kind, _ := tb.Str(xtcpnl.TcaKind)
+	if _, ok := actionUtils[kind]; !ok {
+		return fmt.Errorf("%w: action kind %q", errNotImplemented, kind)
+	}
+	if !tb.Has(xtcpnl.TcaFcnt) {
+		return fmt.Errorf("%w: a flush event with no TCA_FCNT", errNotImplemented)
+	}
+	r.o.raw(" " + kind + " (" + strconv.FormatInt(int64(cint.Int(attrU32(tb, xtcpnl.TcaFcnt))), 10) + " entries)\n")
+	r.tabFlush = false
 	return nil
 }
 

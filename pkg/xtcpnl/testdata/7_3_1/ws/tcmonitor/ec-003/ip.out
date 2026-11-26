@@ -1,0 +1,24 @@
+added chain dev d0 parent ffff: chain 0 
+added filter dev d0 ingress protocol all pref 1 basic chain 0 handle 0x1 
+	action order 1: gact action pass
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+
+replaced filter dev d0 ingress protocol all pref 1 basic chain 0 handle 0x1 
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 2 ref 1 bind 1
+
+filter dev d0 ingress protocol all pref 1 basic chain 0 handle 0x1 
+	action order 1: gact action pipe
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+
+deleted filter dev d0 ingress protocol all pref 1 basic chain 0 handle 0x1 
+	action order 1: gact action pipe
+	 random type none pass val 0
+	 index 1 ref 1 bind 1
+
+deleted chain dev d0 parent ffff: chain 0 
+added chain dev d0 parent ffff: chain 3 
+deleted chain dev d0 parent ffff: chain 3 

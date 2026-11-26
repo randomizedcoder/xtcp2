@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/internal/nlmon"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -517,9 +518,4 @@ func nowFromEnv() time.Time {
 
 // nowFuncFromEnv is the clock a monitor stamps each message with: GOIP_NOW's
 // instant when it parses, for a replay, else the wall clock, read per message.
-func nowFuncFromEnv() func() time.Time {
-	if t, err := time.Parse(time.RFC3339, os.Getenv("GOIP_NOW")); err == nil {
-		return func() time.Time { return t }
-	}
-	return time.Now
-}
+func nowFuncFromEnv() func() time.Time { return nlmon.NowFunc("GOIP_NOW") }

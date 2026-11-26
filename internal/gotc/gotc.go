@@ -21,6 +21,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // exitCode is tc leaving with exit(code), or main returning it; -1 is 255.
@@ -77,6 +78,11 @@ type runner struct {
 	cf classFilter  // tc_class.c's statics, kept across batch lines (Q30)
 	ff filterFilter // tc_filter.c's statics, kept across batch lines (Q29f)
 
+	timestamp int              // timestamp: -timestamp and -tshort each add one
+	tshort    int              // timestamp_short: -tshort
+	now       func() time.Time // the monitor's clock (GOTC_NOW for a replay)
+	tabFlush  bool             // m_action.c's static tab_flush: a flush event's, kept until printed (MO15)
+
 	fProto uint16     // f_proto: the last filter's htons'd protocol, u32 -p's key
 	realms rtRealmTab // rt_names.c's realm table
 }
@@ -96,8 +102,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 type config struct {
 	src    Source // overrides replay when set
 	replay string
-	stdin  io.Reader // -batch -
-	sys    sysFS     // /proc/net/psched and the class names files
+	stdin  io.Reader        // -batch -
+	sys    sysFS            // /proc/net/psched and the class names files
+	now    func() time.Time // the monitor's clock; nil is GOTC_NOW, else the wall clock
 }
 
 func run(cfg config, args []string, stdout, stderr io.Writer) int {
@@ -108,7 +115,10 @@ func run(cfg config, args []string, stdout, stderr io.Writer) int {
 // runWith is run, keeping the runner for the tests to look at.
 func runWith(cfg config, args []string, stdout, stderr io.Writer) (*runner, int) {
 	w := bufio.NewWriter(stdout)
-	r := &runner{o: newOut(w), stderr: stderr, sys: cfg.sys}
+	r := &runner{o: newOut(w), stderr: stderr, sys: cfg.sys, now: cfg.now}
+	if r.now == nil {
+		r.now = nowFunc()
+	}
 	r.o.under = stdout
 	return r, r.exit(r.main(cfg, args), w)
 }
@@ -321,8 +331,12 @@ func (r *runner) options(args []string, st *options) ([]string, error) {
 				r.confFile = &args[0]
 			}
 		case matchesColor(opt, &st.color):
-		case matches(opt, "-timestamp"), matches(opt, "-tshort"):
-			// Only monitor prints a timestamp, and gotc refuses monitor.
+		case matches(opt, "-timestamp"):
+			r.timestamp++
+		case matches(opt, "-tshort"):
+			// ++timestamp; ++timestamp_short: -tshort alone stamps.
+			r.timestamp++
+			r.tshort++
 		case matches(opt, "-json"):
 			st.json++
 		case matches(opt, "-oneline"):
@@ -357,7 +371,7 @@ func (r *runner) doCmd(obj string, args []string) error {
 		{"filter", r.doFilter},
 		{"chain", r.doChain},
 		{"actions", r.doAction},
-		{"monitor", r.refuse("monitor")},
+		{"monitor", r.doMonitor},
 		{"exec", r.refuse("exec")},
 		{helpWord, func([]string) error { r.usage(); return nil }},
 	} {

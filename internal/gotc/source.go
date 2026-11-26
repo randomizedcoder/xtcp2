@@ -26,7 +26,10 @@ type Source interface {
 var ErrReplay = errors.New("gotc: replay")
 
 // ReplaySource answers from a ws pcap capture, request by request.
-type ReplaySource struct{ *wsreplay.Replay }
+type ReplaySource struct {
+	*wsreplay.Replay
+	path string // the capture, which a monitor's Subscribe reads again
+}
 
 // NewReplaySource opens the ws pcap at path.
 func NewReplaySource(path string) (*ReplaySource, error) {
@@ -34,7 +37,7 @@ func NewReplaySource(path string) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{Replay: r}, nil
+	return &ReplaySource{Replay: r, path: path}, nil
 }
 
 // errLive wraps a live socket failure.

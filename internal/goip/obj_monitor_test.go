@@ -2,16 +2,14 @@ package goip
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
+	"github.com/randomizedcoder/xtcp2/internal/nlmon"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -511,13 +509,13 @@ func TestMonitorFromFile(t *testing.T) {
 			result{errText: "rtnl-from_file: truncated message", exit: ExitUsage}},
 		{"negative: a length under the header's", monFileRecord(unix.RTM_NEWADDR, nil, 8),
 			result{errText: "!!!malformed message: len=8 @16", exit: ExitUsage}},
-		{"boundary: a length over the 16384-byte buffer", monFileRecord(unix.RTM_NEWADDR, nil, monitorBufCst+1),
+		{"boundary: a length over the 16384-byte buffer", monFileRecord(unix.RTM_NEWADDR, nil, nlmon.RecvBufCst+1),
 			result{errText: "!!!malformed message: len=16385 @16", exit: ExitUsage}},
 		{"corner: a short route stops the walk with -1", catBytes(
 			monFileRecord(unix.RTM_NEWROUTE, make([]byte, 4), 20), rec(addr)),
 			result{errText: errMonitorStop.Error(), exit: ExitUsage}},
 		{"negative: no such file is fopen's exit(-1)", nil,
-			result{errText: "Cannot fopen: no such file or directory", exit: ExitMinusOne}},
+			result{errText: "Cannot fopen: No such file or directory", exit: ExitMinusOne}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -539,170 +537,6 @@ func TestMonitorFromFile(t *testing.T) {
 			}
 			if got != tc.expected {
 				t.Errorf("got %+v, want %+v", got, tc.expected)
-			}
-		})
-	}
-}
-
-// TestMonitorDatagram is rtnl_listen's walk of one datagram: each message
-// to the callback with the datagram's nsid, and the malformed and remnant
-// refusals.
-//
-// go test ./internal/goip/ -run TestMonitorDatagram
-func TestMonitorDatagram(t *testing.T) {
-	msg := func(typ uint16, body []byte) []byte {
-		return monFileRecord(typ, body, uint32(xtcpnl.NlMsgHdrSizeCst+len(body)))
-	}
-	type result struct {
-		types   string
-		errText string
-	}
-	tests := []struct {
-		description string
-		datagram    []byte
-		expected    result
-	}{
-		{"positive: two messages", catBytes(msg(unix.RTM_NEWLINK, le32(1)), msg(unix.RTM_NEWADDR, nil)),
-			result{types: "16/5 20/5 "}},
-		{"boundary: an empty datagram", nil, result{}},
-		{"positive: the last body unpadded", msg(unix.RTM_NEWLINK, []byte{1})[:17], result{types: "16/5 "}},
-		{"negative: a length past the datagram", monFileRecord(unix.RTM_NEWLINK, nil, 64),
-			result{errText: "!!!malformed message: len=64"}},
-		{"negative: a length under the header's", monFileRecord(unix.RTM_NEWLINK, nil, 4),
-			result{errText: "!!!malformed message: len=4"}},
-		{"corner: a remnant under a header", catBytes(msg(unix.RTM_NEWLINK, nil), []byte{1, 2, 3, 4}),
-			result{types: "16/5 ", errText: "!!!Remnant of size 4"}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			var types strings.Builder
-			err := monitorDatagram(tc.datagram, 5, func(m monitorMsg) error {
-				fmt.Fprintf(&types, "%d/%d ", m.hdr.Type, m.nsid)
-				return nil
-			})
-			got := result{types: types.String()}
-			if err != nil {
-				got.errText = err.Error()
-			}
-			if got != tc.expected {
-				t.Errorf("got %+v, want %+v", got, tc.expected)
-			}
-		})
-	}
-}
-
-// TestListenNsid is the nsid a NETLINK_LISTEN_ALL_NSID control message
-// carries.
-//
-// go test ./internal/goip/ -run TestListenNsid
-func TestListenNsid(t *testing.T) {
-	// cmsg is a cmsghdr on a 64-bit host, its length a size_t, then data
-	// padded to 8 bytes.
-	cmsg := func(level, typ int32, data []byte) []byte {
-		b := catBytes(binary.LittleEndian.AppendUint64(nil, uint64(unix.CmsgLen(len(data)))),
-			le32(uint32(level)), le32(uint32(typ)), data)
-		return append(b, make([]byte, unix.CmsgSpace(len(data))-len(b))...)
-	}
-	tests := []struct {
-		description string
-		oob         []byte
-		expected    int32
-	}{
-		{"positive: nsid 9", cmsg(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, le32(9)), 9},
-		{"boundary: none is -1", nil, -1},
-		{"negative: another level is -1", cmsg(unix.SOL_SOCKET, unix.NETLINK_LISTEN_ALL_NSID, le32(9)), -1},
-		{"negative: a short value is -1", cmsg(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, []byte{9}), -1},
-		{"corner: the last of two", catBytes(cmsg(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, le32(9)),
-			cmsg(unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, le32(2))), 2},
-		{"negative: garbage is -1", []byte{1, 2, 3}, -1},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			if got := listenNsid(tc.oob); got != tc.expected {
-				t.Errorf("got %d, want %d", got, tc.expected)
-			}
-		})
-	}
-}
-
-// TestReplayNotifications is which of a capture's messages a subscriber
-// was sent: requests, dump parts, errors and a get's answer left out.
-//
-// go test ./internal/goip/ -run TestReplayNotifications
-func TestReplayNotifications(t *testing.T) {
-	m := func(typ, flags uint16, seq, pid uint32, body ...byte) nlparity.Msg {
-		return nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: typ, Flags: flags, Seq: seq, Pid: pid}, Body: body}
-	}
-	errFor := func(typ uint16, seq uint32) nlparity.Msg {
-		return m(unix.NLMSG_ERROR, 0, seq, 100, catBytes(le32(0), monHdr(typ, seq, xtcpnl.NlMsgHdrSizeCst))...)
-	}
-	const (
-		req  = unix.NLM_F_REQUEST
-		dump = unix.NLM_F_REQUEST | unix.NLM_F_DUMP
-	)
-	tests := []struct {
-		description string
-		msgs        []nlparity.Msg
-		expected    []int
-	}{
-		{"positive: notifications alone", []nlparity.Msg{m(unix.RTM_NEWADDR, 0, 0, 0), m(unix.RTM_DELADDR, 0, 0, 0)},
-			[]int{0, 1}},
-		{"negative: a dump and its parts", []nlparity.Msg{m(unix.RTM_GETLINK, dump, 1, 0),
-			m(unix.RTM_NEWLINK, unix.NLM_F_MULTI, 1, 100), m(unix.NLMSG_DONE, unix.NLM_F_MULTI, 1, 100),
-			m(unix.RTM_NEWLINK, 0, 0, 0)}, []int{3}},
-		{"positive: a nexthop event carries REQUEST and the requester's port", []nlparity.Msg{
-			m(unix.RTM_NEWNEXTHOP, req|unix.NLM_F_CREATE, 5, 0), errFor(unix.RTM_NEWNEXTHOP, 5),
-			m(unix.RTM_NEWNEXTHOP, req|unix.NLM_F_CREATE, 5, 4242)}, []int{2}},
-		{"negative: a get's answer", []nlparity.Msg{m(unix.RTM_GETNSID, req, 7, 0), m(unix.RTM_NEWNSID, 0, 7, 100),
-			m(unix.RTM_NEWNSID, 0, 0, 0)}, []int{2}},
-		{"corner: a get's answer is the first of its type and seq alone", []nlparity.Msg{
-			m(unix.RTM_GETNSID, req, 7, 0), m(unix.RTM_NEWADDR, 0, 7, 0), m(unix.RTM_NEWNSID, 0, 7, 100),
-			m(unix.RTM_NEWNSID, 0, 7, 100)}, []int{1, 3}},
-		{"corner: a refused get waits for no answer", []nlparity.Msg{m(unix.RTM_GETNSID, req, 7, 0),
-			errFor(unix.RTM_GETNSID, 7), m(unix.RTM_NEWNSID, 0, 7, 0)}, []int{2}},
-		{"boundary: a short error names nothing", []nlparity.Msg{m(unix.RTM_GETNSID, req, 7, 0),
-			m(unix.NLMSG_ERROR, 0, 7, 0, 0, 0, 0, 0), m(unix.RTM_NEWNSID, 0, 7, 0)}, nil},
-		{"boundary: none", nil, nil},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			got := replayNotifications(tc.msgs)
-			if fmt.Sprint(got) != fmt.Sprint(tc.expected) {
-				t.Errorf("got %v, want %v", got, tc.expected)
-			}
-		})
-	}
-}
-
-// TestReplayDumpEnd is the index past a recorded dump's NLMSG_DONE, where a
-// replayed monitor's notifications begin.
-//
-// go test ./internal/goip/ -run TestReplayDumpEnd
-func TestReplayDumpEnd(t *testing.T) {
-	m := func(typ, flags uint16, seq, pid uint32) nlparity.Msg {
-		return nlparity.Msg{Hdr: xtcpnl.NlMsgHdr{Type: typ, Flags: flags, Seq: seq, Pid: pid}}
-	}
-	dump := uint16(unix.NLM_F_REQUEST | unix.NLM_F_DUMP)
-	tests := []struct {
-		description string
-		msgs        []nlparity.Msg
-		expected    int
-	}{
-		{"positive: past the DONE", []nlparity.Msg{m(unix.RTM_NEWADDR, 0, 0, 0), m(unix.RTM_GETLINK, dump, 3, 0),
-			m(unix.RTM_NEWADDR, 0, 0, 0), m(unix.NLMSG_DONE, 2, 3, 100), m(unix.RTM_NEWADDR, 0, 0, 0)}, 4},
-		{"negative: no dump is 0", []nlparity.Msg{m(unix.RTM_NEWADDR, 0, 0, 0)}, 0},
-		{"negative: a dump with no DONE is 0", []nlparity.Msg{m(unix.RTM_GETLINK, dump, 3, 0)}, 0},
-		{"corner: a DONE of another seq is not the dump's", []nlparity.Msg{m(unix.RTM_GETLINK, dump, 3, 0),
-			m(unix.NLMSG_DONE, 2, 2, 100), m(unix.NLMSG_DONE, 2, 3, 100)}, 3},
-		{"corner: a get of the type is not a dump", []nlparity.Msg{m(unix.RTM_GETLINK, unix.NLM_F_REQUEST, 3, 0),
-			m(unix.NLMSG_DONE, 2, 3, 100)}, 0},
-		{"boundary: a reply from the kernel is not the request", []nlparity.Msg{m(unix.RTM_GETLINK, dump, 3, 100),
-			m(unix.NLMSG_DONE, 2, 3, 100)}, 0},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			if got := replayDumpEnd(tc.msgs, unix.RTM_GETLINK); got != tc.expected {
-				t.Errorf("got %d, want %d", got, tc.expected)
 			}
 		})
 	}

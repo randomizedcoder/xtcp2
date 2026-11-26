@@ -1,0 +1,11 @@
+[2026-11-26T04:58:20.105150] qdisc htb 1: dev nlmon0 root refcnt 2 r2q 5 default 0x10 direct_packets_stat 0 direct_qlen 1000
+[2026-11-26T04:58:20.105212] class htb 1:10 dev nlmon0 parent 1:1 prio 2 rate 1Mbit ceil 2Mbit burst 15Kb cburst 1600b
+[2026-11-26T04:58:20.105220] added filter dev d0 parent 1: protocol ip pref 10 fw chain 0 handle 0x5 classid 1:1 
+[2026-11-26T04:58:20.105248] total acts 0
+Added action 
+	action order 1: gact action drop
+	 random type none pass val 0
+	 index 33 ref 1 bind 0
+	not_in_hw
+[2026-11-26T04:58:20.105256] qdisc htb 1: dev d0 root refcnt 2 r2q 5 default 0x10 direct_packets_stat 0 direct_qlen 1000
+[2026-11-26T04:58:20.105259] deleted qdisc htb 1: dev nlmon0 root refcnt 2 r2q 5 default 0x10 direct_packets_stat 0 direct_qlen 1000
