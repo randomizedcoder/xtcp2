@@ -1,6 +1,7 @@
 package nlmon
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -58,19 +59,39 @@ func BenchmarkWalkFile(b *testing.B) {
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*1000), "ns/msg")
 }
 
-// BenchmarkNotifications classifies goip's monitor capture.
+// BenchmarkNotifications classifies goip's monitor capture and every
+// tcmonitor capture (gotc 14P).
 //
 // go test ./internal/nlmon/ -run '^$' -bench Notifications -benchmem
 func BenchmarkNotifications(b *testing.B) {
-	ms, err := PcapMsgs(monitorAllPcap)
-	if err != nil {
-		b.Fatal(err)
+	tcPcaps, err := filepath.Glob("../../pkg/xtcpnl/testdata/7_3_1/ws/tcmonitor/*/ip.pcap")
+	if err != nil || len(tcPcaps) == 0 {
+		b.Fatalf("tcmonitor pcaps: %d, %v", len(tcPcaps), err)
 	}
-	b.ReportAllocs()
-	for b.Loop() {
-		Notifications(ms)
+	for _, bc := range []struct {
+		name  string
+		pcaps []string
+	}{{"ipmonitor", []string{monitorAllPcap}}, {"tcmonitor", tcPcaps}} {
+		caps := make([][]Msg, 0, len(bc.pcaps))
+		n := 0
+		for _, p := range bc.pcaps {
+			ms, err := PcapMsgs(p)
+			if err != nil {
+				b.Fatal(err)
+			}
+			caps = append(caps, ms)
+			n += len(ms)
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				for _, ms := range caps {
+					Notifications(ms)
+				}
+			}
+			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*n), "ns/msg")
+		})
 	}
-	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*len(ms)), "ns/msg")
 }
 
 // TestAllocs pins the walks' allocations: the bodies are subslices, so a
