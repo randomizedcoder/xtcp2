@@ -62,8 +62,9 @@ func (l Locality) String() string {
 // that prefix is classified, plus the egress interface index of the route it
 // came from (0 when unknown, e.g. for self addresses without an owning route).
 type routeEntry struct {
-	loc Locality
-	oif uint32 // egress interface index (route Oif / address ifindex)
+	loc  Locality
+	oif  uint32 // egress interface index (route Oif / address ifindex)
+	prio uint32 // route metric (RTA_PRIORITY; 0 when absent); orders same-prefix routes
 }
 
 // Snapshot is an immutable per-namespace view of local addresses, connected
@@ -257,13 +258,13 @@ func BuildSnapshot(addrs []xtcpnl.AddrInfo, routes []xtcpnl.RouteInfo, links map
 				if ri.HasMultipath || ri.NhID != 0 {
 					oif = 0
 				}
-				insertRoute(tbl, pfx, routeEntry{loc: LocalityRemote, oif: oif})
+				insertRoute(tbl, pfx, routeEntry{loc: LocalityRemote, oif: oif, prio: ri.Priority})
 			case pfx.Bits() == 0:
 				// A gatewayless default route (`default dev wg0`: a point-to-point
 				// tunnel or PPP link). Everything not matched more specifically
 				// leaves via that interface, but it is not a local subnet — a /0
 				// must never swallow every address into LocalitySubnet.
-				insertRoute(tbl, pfx, routeEntry{loc: LocalityRemote, oif: ri.Oif})
+				insertRoute(tbl, pfx, routeEntry{loc: LocalityRemote, oif: ri.Oif, prio: ri.Priority})
 			default:
 				// A directly-connected subnet (one L2 hop, no next-hop router).
 				// The distinguishing signal is unicast + a destination prefix + no
@@ -272,7 +273,7 @@ func BuildSnapshot(addrs []xtcpnl.AddrInfo, routes []xtcpnl.RouteInfo, links map
 				// subnets carry scope=RT_SCOPE_UNIVERSE (0), so gating on
 				// RT_SCOPE_LINK silently misclassifies every IPv6 on-link subnet
 				// as REMOTE.
-				insertRoute(tbl, pfx, routeEntry{loc: LocalitySubnet, oif: ri.Oif})
+				insertRoute(tbl, pfx, routeEntry{loc: LocalitySubnet, oif: ri.Oif, prio: ri.Priority})
 			}
 		}
 	}
@@ -329,9 +330,15 @@ func routePrefix(ri *xtcpnl.RouteInfo) (netip.Prefix, bool) {
 // insertRoute records a route-derived (non-self) entry unless the exact prefix
 // is already a self entry: a namespace's own address must stay self whether the
 // address dump or a same-prefix unicast route (e.g. `10.0.0.5/32 dev eth0`) was
-// seen first. Later routes for the same prefix otherwise overwrite earlier ones.
+// seen first.
+//
+// Among routes for the same prefix (two default routes, say) it keeps the one
+// the kernel uses: the lowest metric, and on equal metrics the first one seen.
+// The kernel keeps same-prefix routes sorted by metric (IPv4 fib_find_alias,
+// net/ipv4/fib_trie.c; IPv6 fib6_add_rt2node, net/ipv6/ip6_fib.c), dumps them
+// in that order, and its lookup takes the first.
 func insertRoute(tbl *bart.Table[routeEntry], pfx netip.Prefix, e routeEntry) {
-	if cur, ok := tbl.Get(pfx); ok && cur.loc == LocalitySelf {
+	if cur, ok := tbl.Get(pfx); ok && (cur.loc == LocalitySelf || cur.prio <= e.prio) {
 		return
 	}
 	tbl.Insert(pfx, e)
