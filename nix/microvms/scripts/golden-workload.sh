@@ -18,6 +18,8 @@
 #   golden-ernic-b     ionic1 (rocm-ernic) at 10.0.4.16-17: a 4 MiB echo per
 #                      BULK_CC algorithm from the root namespace over ionic0,
 #                      with the emulators' deterministic drops
+#   golden-ernic-c/d   ionic2 (10.0.5.15) and ionic3 (10.0.5.16): one cubic
+#                      4 MiB echo, through ionic2's fixed drop sequence
 #   golden-loc-a/b     veth, MTU 1500, and golden-remote behind golden-loc-b:
 #   golden-remote      one connection per locality (self, subnet, remote
 #                      over IPv4 and IPv6 to documentation addresses)
@@ -210,6 +212,35 @@ if [ -n "${ERNIC_A_MAC:-}" ]; then
   ernic_bulk=${#bulk_algos[@]}
 fi
 
+# The sequence-pattern pair (ERNIC_C_MAC set): ionic2 into golden-ernic-c,
+# ionic3 into golden-ernic-d, and one cubic 4 MiB echo between them, the
+# only traffic on either, set up as the first pair is.
+ernic_seq=0
+if [ -n "${ERNIC_C_MAC:-}" ]; then
+  for e in golden-ernic-c golden-ernic-d; do
+    ip netns del "$e" 2>/dev/null || true
+    ip netns add "$e"
+    ip -n "$e" link set lo up
+    ip netns exec "$e" sysctl -qw net.ipv6.conf.default.disable_ipv6=1 net.ipv6.conf.all.disable_ipv6=1
+  done
+  ip link set ionic2 netns golden-ernic-c
+  ip link set ionic3 netns golden-ernic-d
+  ip netns exec golden-ernic-c ethtool -K ionic2 tso off gso off gro off
+  ip netns exec golden-ernic-d ethtool -K ionic3 tso off gso off gro off
+  ip -n golden-ernic-c addr add 10.0.5.15/24 dev ionic2
+  ip -n golden-ernic-d addr add 10.0.5.16/24 dev ionic3
+  ip -n golden-ernic-c link set ionic2 up
+  ip -n golden-ernic-d link set ionic3 up
+  ip -n golden-ernic-c neigh replace 10.0.5.16 lladdr "$ERNIC_D_MAC" dev ionic2 nud permanent
+  ip -n golden-ernic-d neigh replace 10.0.5.15 lladdr "$ERNIC_C_MAC" dev ionic3 nud permanent
+  printf '%s %s\n' "$(ip netns exec golden-ernic-c cat /sys/class/net/ionic2/statistics/tx_packets)" \
+    "$(ip netns exec golden-ernic-d cat /sys/class/net/ionic3/statistics/rx_packets)" >/run/xtcp2-golden-ernic-seq-before
+  spawn ernic-seq-server golden-ernic-d "$TCP_SERVER" -count 1 -bind 10.0.5.16 -cong cubic -keepalive -1s
+  wait_listen golden-ernic-d 4000
+  spawn ernic-seq-client golden-ernic-c "$TCP_CLIENT" -count 1 -connect 10.0.5.16 -network tcp4 -cong cubic -bulk 4MiB -sleep 1h -pads 0 -keepalive -1s
+  ernic_seq=1
+fi
+
 pair opts 2 1450
 spawn opts-server golden-opts-b "$TCP_SERVER" -count 1 -bind :: -tos 0xb8 -priority 6 -freebind -transparent
 wait_listen golden-opts-b 4000
@@ -330,6 +361,11 @@ while :; do
     n=$(received_4mib < <(ss -Htin state established dst 10.0.4.16/31))
     m=$(bulk_done golden-ernic-b)
     if [ $((n + m)) -lt $((2 * ernic_bulk)) ]; then pending="$pending golden-ernic($((n + m))/$((2 * ernic_bulk)))"; fi
+  fi
+  if [ "$ernic_seq" -gt 0 ]; then
+    n=$(bulk_done golden-ernic-c)
+    m=$(bulk_done golden-ernic-d)
+    if [ $((n + m)) -lt 2 ]; then pending="$pending golden-ernic-seq($((n + m))/2)"; fi
   fi
   n=$(count_state golden-opts-a established)
   if [ "$n" -lt "$opts_clients" ]; then pending="$pending golden-opts-a($n/$opts_clients)"; fi
