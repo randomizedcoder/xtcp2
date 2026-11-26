@@ -434,6 +434,7 @@ no NUL, a skbmod MAC of length 0 or over 21, and a tab of more than 1024 orders.
   (act_api.c:539-542). A get never calls it. So `actions get action ct index 8` prints no `used_hw_stats` until the
   first `actions ls` of that action, and `used_hw_stats disabled` from then on. Seen live with ct: the batch
   `get` then `ls` gave different gets depending on whether a dump had already run (tcaction2/ec-049).
+  Written up on its own in [kernel-act-get-skips-hw-stats.md](kernel-act-get-skips-hw-stats.md).
 
 ## A note on the capture tooling
 
