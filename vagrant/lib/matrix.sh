@@ -34,10 +34,12 @@ xtcp2_matrix_defaults() {
   : "${XTCP2_NOFILE:=default}"
   : "${XTCP2_CPUS:=0}"
   : "${XTCP2_PPROF:=0}"
+  : "${XTCP2_MAX_RECORDS:=0}"
+  : "${XTCP2_SINK_IP:=}"
   # The Vagrantfile reads these from ITS environment (a child of this shell),
   # so they must be exported — a scenario-level default (`: "${XTCP2_AUTH:=raw}"`)
   # without export reaches the provisioner as the off row.
-  export XTCP2_MODE XTCP2_AUTH XTCP2_CAPS XTCP2_ATTACKER XTCP2_DEST XTCP2_ENRICH XTCP2_NOFILE XTCP2_CPUS XTCP2_PPROF
+  export XTCP2_MODE XTCP2_AUTH XTCP2_CAPS XTCP2_ATTACKER XTCP2_DEST XTCP2_ENRICH XTCP2_NOFILE XTCP2_CPUS XTCP2_PPROF XTCP2_MAX_RECORDS XTCP2_SINK_IP
 
   case "$XTCP2_MODE" in
     host | bridge) ;;
@@ -77,12 +79,16 @@ xtcp2_matrix_defaults() {
     0 | 1) ;;
     *) xtcp2_die "XTCP2_PPROF='$XTCP2_PPROF' (want 0 or 1)" ;;
   esac
+  case "$XTCP2_MAX_RECORDS" in
+    0) ;;
+    *[!0-9]* | "") xtcp2_die "XTCP2_MAX_RECORDS='$XTCP2_MAX_RECORDS' (want 0 = the daemon default, or an integer record budget)" ;;
+  esac
   case "$XTCP2_EXPECT" in
     BLOCKED | MITIGATED | CONFIRMED | NA) ;;
     *) xtcp2_die "XTCP2_EXPECT='$XTCP2_EXPECT' (want BLOCKED|MITIGATED|CONFIRMED|NA)" ;;
   esac
 
-  echo "rt: matrix MODE=$XTCP2_MODE AUTH=$XTCP2_AUTH CAPS=$XTCP2_CAPS ATTACKER=$XTCP2_ATTACKER DEST=$XTCP2_DEST ENRICH=$XTCP2_ENRICH NOFILE=$XTCP2_NOFILE CPUS=$XTCP2_CPUS PPROF=$XTCP2_PPROF EXPECT=$XTCP2_EXPECT"
+  echo "rt: matrix MODE=$XTCP2_MODE AUTH=$XTCP2_AUTH CAPS=$XTCP2_CAPS ATTACKER=$XTCP2_ATTACKER DEST=$XTCP2_DEST ENRICH=$XTCP2_ENRICH NOFILE=$XTCP2_NOFILE CPUS=$XTCP2_CPUS PPROF=$XTCP2_PPROF MAX_RECORDS=$XTCP2_MAX_RECORDS SINK_IP=$XTCP2_SINK_IP EXPECT=$XTCP2_EXPECT"
 }
 
 # The co-tenant vantage: the docker0 gateway in the victim VM's host netns.

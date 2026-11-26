@@ -44,6 +44,7 @@
   slowloris, # binaries.slowloris (static; partial-header drip — rt-4-2)
   grpcidle, # binaries.grpcidle (static; idle gRPC conns — rt-11-2)
   grpcstorm, # binaries.grpcstorm (static; FlatRecords stream storm/wedge — rt-4-3/4-4/11-3)
+  arppoison, # binaries.arppoison (static; gratuitous-ARP L2 blackhole — rt-11-5)
   oci-xtcp2, # containers.oci-xtcp2: streamLayeredImage script
   oci-xtcp2-tcp-stress, # containers.oci-xtcp2-tcp-stress, same form
 }:
@@ -73,6 +74,7 @@ let
       slowloris
       grpcidle
       grpcstorm
+      arppoison
       ;
   };
   attackerTools =
@@ -240,6 +242,9 @@ in
               redteam-rt-4-4
               redteam-rt-11-3
               redteam-rt-2-9
+              redteam-rt-4-7
+              redteam-rt-11-4
+              redteam-rt-11-5
             )
             failed=0
             for s in "''${scenarios[@]}"; do

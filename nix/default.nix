@@ -192,6 +192,7 @@ let
       slowloris
       grpcidle
       grpcstorm
+      arppoison
       ;
     inherit (containers) oci-xtcp2 oci-xtcp2-tcp-stress;
   };
