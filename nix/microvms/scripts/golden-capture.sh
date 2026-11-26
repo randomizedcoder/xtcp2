@@ -248,6 +248,11 @@ if [ -n "${ERNIC_SEQ_DROPS:-}" ]; then
   ok=0
   [ "$retrans" -gt 0 ] && ok=1
   row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), for $dropped drops"
+  # The bursts are short enough for fast recovery: no timeout in six of six
+  # captures when this row was added.
+  ok=0
+  [ "$rto" = 0 ] && ok=1
+  row seq_no_rto corner "$ok" "the sequence flow's total_rto $rto, want 0 (bursts of 1, 3 and 8 recover without a timeout)"
   ok=0
   [ "$segs_out" -eq $((tx + dropped)) ] && ok=1
   row seq_segs_out positive "$ok" "the sequence flow's segs_out $segs_out, want ionic2 tx_packets $tx + tx_dropped $dropped"
