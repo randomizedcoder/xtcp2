@@ -112,6 +112,17 @@ that carries it retires this bug.
 
 ## What it means for goip
 
+The fault's own blobs are the committed set's `route-metrics-v038pad`
+(`route-metrics-v038pad.spec` `route-metrics-v038pad.nl`
+`route-metrics-v038pad.ip720.out` `route-metrics-v038pad.ip730.out`),
+`route-metrics-overlong` (`route-metrics-overlong.spec`
+`route-metrics-overlong.nl` `route-metrics-overlong.ip720.out`
+`route-metrics-overlong.ip730.out`) and `route-metrics-nested`
+(`route-metrics-nested.spec` `route-metrics-nested.nl`
+`route-metrics-nested.ip720.out` `route-metrics-nested.ip730.out`), each
+named in [the plan's blob file
+index](../goip-parity-events.md#ep2-t02-the-blobs).
+
 goip sends zeroed padding (Go's `make`), so it never trips the tolerance from
 its own side. O5 keeps `samePastPadding` over RTA_METRICS and RTA_MULTIPATH
 hops so `ip`'s stack bytes do not fail a row; once a release carrying

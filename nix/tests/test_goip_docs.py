@@ -14,6 +14,13 @@ def tree(tmp, files):
         path = base / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
+    # The blob set (goip_docs.py's check_monitor_blobs): a fixture the docs
+    # check needs, one named blob — GOOD's plan names it.
+    blob = tmp / "internal" / "goip" / "testdata" / "monitor"
+    blob.mkdir(parents=True)
+    (blob / "bond-partner-hionly.spec").write_text(
+        '{"type":16,"flags":0,"seq":0,"pid":0,"body":"",'
+        '"why":"the named"}\n')
     return base
 
 
@@ -23,7 +30,8 @@ GOOD = {
         "\n"
         "- [plan](plan.md) names [the bond bug](upstream/note.md).\n"
     ),
-    "plan.md": "# plan\n\nSee [the index](README.md#index) and the rows.\n",
+    "plan.md": "# plan\n\nSee [the index](README.md#index) and the rows,\n"
+               "bond-partner-hionly.spec the named blob.\n",
     "upstream/README.md": (
         "# upstream index\n"
         "\n"
@@ -108,6 +116,20 @@ class UpstreamTests(unittest.TestCase):
 
 
 class DocsTests(unittest.TestCase):
+    def test_orphan_blob_rejected(self):
+        # The blob the record has lost: committed, but named from no
+        # document, so it fails the check rather than rot (EP2-T03's gate:
+        # the blob files count as artifacts, no orphans).
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            tree(root, GOOD)
+            orphan = root / "internal" / "goip" / "testdata" / "monitor" / "linkpd-0009.nl"
+            orphan.write_text(
+                '{"type":16,"flags":0,"seq":0,"pid":0,"body":"",'
+                '"why":"the orphan"}\n')
+            with self.assertRaisesRegex(ValueError, "linkpd-0009.nl: named"):
+                check_docs(root)
+
     def test_good_tree_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -51,6 +51,19 @@ in
   # and linked, so a referenced note that was never written fails the build
   # instead of rotting as a dead link.
   test-goip-docs = import ./goip-docs.nix { inherit pkgs src; };
+  # The crafted monitor files, gated: every committed .nl is what the real
+  # nlcapgen writes from its spec, and both tools' `monitor file` replays
+  # match the committed goldens at the matching version — the check that
+  # would have caught 0067cbc8 and P14 before the notes existed
+  # (docs/netlink/goip-parity-events.md, "EP2-T03 test-goip-monitorfile").
+  test-goip-monitorfile = import ./goip-monitorfile.nix {
+    inherit
+      pkgs
+      lib
+      src
+      binaries
+      ;
+  };
   # Nix static analysis, gating since 2026-09-23. nix-fmt only checks layout;
   # these two check content — deadnix for unused bindings/arguments, statix for
   # antipatterns. Lint scope for statix lives in the repo-root statix.toml.

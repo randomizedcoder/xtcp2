@@ -67,15 +67,35 @@ def check_upstream(base):
     return len(list(upstream.iterdir())), notes
 
 
+def check_monitor_blobs(base, root):
+    """Every committed monitor blob file is named from a document.
+
+    The crafted .nl blobs under internal/goip/testdata/monitor are EP2's
+    artifact class (goip-parity-events.md, EP2-T03's gate): each is the
+    four files a blob is — the spec, the .nl, and the two measured goldens
+    — so the rule is the upstream index's own: a file no document names
+    is a file the record has lost, and it fails the check rather than rot.
+    """
+    monitor = root / "internal" / "goip" / "testdata" / "monitor"
+    require(monitor.is_dir(), f"{monitor}: the blob set is missing")
+    docs = [path.read_text() for path in base.rglob("*.md")]
+    files = sorted(entry.name for entry in monitor.iterdir())
+    for name in files:
+        require(any(name in text for text in docs),
+                f"{name}: named from no document under docs/netlink")
+    return len(files)
+
+
 def check_docs(root):
     base = root / "docs" / "netlink"
     paths = sorted(base.rglob("*.md"))
     for path in paths:
         check_links(path)
     artifacts, notes = check_upstream(base)
+    blobs = check_monitor_blobs(base, root)
     print(f"PASS: {len(paths)} documents; links, anchors and whitespace;"
           f" the upstream index lists all {artifacts} artifacts,"
-          f" all {notes} notes linked")
+          f" all {notes} notes linked; {blobs} committed blob files named")
 
 
 if __name__ == "__main__":

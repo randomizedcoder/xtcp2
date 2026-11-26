@@ -130,8 +130,14 @@ $ nix run .#nlcap-ws -- run nix/microvms/workbench/linkattr.rows.jsonl --id link
 
 The crash needs a crafted message — a link dump whose `IFLA_PROTO_DOWN_REASON`
 nest has no `VALUE` and whose link carries `IFLA_BROADCAST` — which the
-monitor-file replay ([goip-parity-events.md](../goip-parity-events.md), EP2)
-exists to build.
+monitor-file replay ([goip-parity-events.md](../goip-parity-events.md),
+EP2) exists to build. The fault's own blobs are the committed set's
+`linkpd-0009` (`linkpd-0009.spec` `linkpd-0009.nl` `linkpd-0009.ip720.out`
+`linkpd-0009.ip730.out`), `linkpd-0100` (`linkpd-0100.spec` `linkpd-0100.nl`
+`linkpd-0100.ip720.out` `linkpd-0100.ip730.out`) and `linkpd-80000001`
+(`linkpd-80000001.spec` `linkpd-80000001.nl` `linkpd-80000001.ip720.out`
+`linkpd-80000001.ip730.out`), each named in [the plan's blob file
+index](../goip-parity-events.md#ep2-t02-the-blobs).
 
 ## Fixed upstream?
 

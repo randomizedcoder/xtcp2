@@ -479,6 +479,16 @@ line alone.
 
 ## What it means for goip
 
+The fault's own blobs are the committed set's bond partner series —
+`bond-partner-fast` (`bond-partner-fast.spec` `bond-partner-fast.nl`
+`bond-partner-fast.ip720.out` `bond-partner-fast.ip730.out`),
+`bond-partner-slow`, `bond-partner-zero`, `bond-partner-all`,
+`bond-partner-hibyte`, `bond-partner-hionly` (`bond-partner-hionly.spec`
+`bond-partner-hionly.nl` `bond-partner-hionly.ip720.out`
+`bond-partner-hionly.ip730.out`), `bond-partner-absent` and
+`bond-partner-trunc1`, each named in [the plan's blob file
+index](../goip-parity-events.md#ep2-t02-the-blobs).
+
 > Measured 2026-11-24 (EP2's planning probes, V386): this section was
 > written before the decoder existed; the link-write arc has since added
 > both (`internal/goip/render/link_bond.go`, `pkg/xtcpnl/xtcpnl_bond.go`).
