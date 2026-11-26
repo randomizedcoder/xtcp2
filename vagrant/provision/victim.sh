@@ -28,6 +28,8 @@ ENRICH="${6:-none}"
 NOFILE="${7:-default}"
 CPUS="${8:-0}"
 PPROF="${9:-0}"
+MAX_RECORDS="${10:-0}"
+SINK_IP="${11:-}"
 
 die() {
   echo "victim.sh: $*" >&2
@@ -70,6 +72,15 @@ esac
 case "$PPROF" in
   0 | 1) ;;
   *) die "invalid XTCP2_PPROF '$PPROF' (want 0 or 1)" ;;
+esac
+case "$MAX_RECORDS" in
+  0) ;;
+  "" | *[!0-9]*) die "invalid XTCP2_MAX_RECORDS '$MAX_RECORDS' (want 0 = the daemon default, or an integer record budget)" ;;
+esac
+case "$SINK_IP" in
+  "") ;;
+  *.*.*.*) ;;
+  *) die "invalid XTCP2_SINK_IP '$SINK_IP' (want an IPv4)" ;;
 esac
 
 HARNESS_DIR=/home/vagrant/xtcp2-redteam
@@ -205,6 +216,21 @@ case "$MODE" in
     DEST_ADDR=172.17.0.1
     ;;
 esac
+
+# SINK_IP: move the tcp dest off the gateway onto a dedicated docker0 alias —
+# a separate "sibling endpoint on the bridge" (rt-11-5's L2-kill shape: the
+# attacker can ARP-blackhole the sink WITHOUT touching the gateway path the
+# published metrics/gRPC listeners use; poisoning 172.17.0.1 itself takes
+# the docker-proxy replies down with it — measured, probe 2026-11-25).
+# 172.17.99.2 sits far from docker's sequential IPAM (.2, .3, ...) so the
+# alias cannot collide with a container assignment. The catcher stays
+# 0.0.0.0:9999, so it accepts the alias too.
+if [ -n "$SINK_IP" ] && [ "$MODE" = bridge ] && [ "$DEST" = tcp ]; then
+  if ! ip -4 addr show docker0 | grep -q "$SINK_IP/"; then
+    ip addr add "$SINK_IP/16" dev docker0
+  fi
+  DEST_ADDR="$SINK_IP"
+fi
 
 CAP_ARGS=()
 case "$CAPS" in
@@ -347,6 +373,15 @@ if [ "$PPROF" = 1 ]; then
   esac
 fi
 
+# MAX_RECORDS: 0 = the daemon's own -maxRecordsPerPoll default (1M); an
+# integer pins a walkable record budget — rt-11-4's degradation-valve half
+# (over the budget, namespaces above their fair share stop asking for
+# TIME_WAIT/SYN_RECV, then are port-sampled: xtcp_poll_degraded_total).
+MAX_RECORDS_ARGS=()
+if [ "$MAX_RECORDS" != 0 ]; then
+  MAX_RECORDS_ARGS=(-maxRecordsPerPoll "$MAX_RECORDS")
+fi
+
 docker run -d --name rt-xtcp2 \
   "${NET_ARGS[@]}" \
   "${PPROF_PUBLISH[@]}" \
@@ -366,6 +401,7 @@ docker run -d --name rt-xtcp2 \
   "${ENRICH_ARGS[@]}" \
   -frequency 2s \
   -timeout 1s \
+  "${MAX_RECORDS_ARGS[@]}" \
   -hostname rt-victim
 
 # --- RT-11 work population -------------------------------------------------

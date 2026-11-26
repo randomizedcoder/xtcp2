@@ -229,7 +229,7 @@ definition behind `REDTEAM_ROUTER=1`):
   attacker↔victim vantage — distinct from libvirt's default net so the DoD
   "no networks beyond the defined ones" assertion is `virsh net-list`-checkable;
 - `victim` provisioning: `common.sh` → upload `.gen/*.tar.gz` → `victim.sh
-  <MODE> <AUTH> <CAPS> <ATTACKER> <DEST> <ENRICH> <NOFILE> <CPUS> <PPROF>` (matrix as
+  <MODE> <AUTH> <CAPS> <ATTACKER> <DEST> <ENRICH> <NOFILE> <CPUS> <PPROF> <MAX_RECORDS> <SINK_IP>` (matrix as
   argv, validated by `lib/matrix.sh` — env → argv translation happens in the
   Vagrantfile so `vagrant provision` alone re-applies a matrix change). The
   Phase 4 axes: `XTCP2_NOFILE` (`default` = docker's own 524287 on
@@ -238,7 +238,13 @@ definition behind `REDTEAM_ROUTER=1`):
   `--cpus` — rt-4-8's cgroup variant) and `XTCP2_PPROF` (`0`/`1` — a loopback,
   token-gated `serves=debug` listener on 9090, published on 127.0.0.1 only,
   for the goroutine-count asserts in rt-4-3/rt-4-4/rt-11-3; an observability
-  axis, not a surface change). The attacker tools tar now also
+  axis, not a surface change). The delivery-outage axes: `XTCP2_MAX_RECORDS`
+  (`0` = the daemon's own 1M `-maxRecordsPerPoll` default, or an integer
+  walkable budget — rt-11-4's degradation-valve half) and `XTCP2_SINK_IP`
+  (empty = the mode's own dest IP; an IP adds it as a docker0 alias so the
+  tcp sink is a separate sibling endpoint — rt-11-5's L2-kill shape, which
+  needs the gateway path left clean: poisoning 172.17.0.1 itself takes the
+  docker-proxy scrape replies down with it, measured). The attacker tools tar now also
   unpacks on the victim (`/opt/xtcp2-redteam/bin`) so the co-tenant scenarios
   can `docker cp` the static tools into the rt-attacker container. The two later axes:
   `XTCP2_DEST` (`tcp` — the in-VM jsonl catcher — or `s3` — s3parquet to the

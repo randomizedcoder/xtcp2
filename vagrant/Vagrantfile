@@ -32,6 +32,15 @@
 #   XTCP2_PPROF     0 | 1           add a loopback, token-gated debug
 #                                  listener (pprof) for scenarios that
 #                                  assert goroutine counts (rt-4-3/rt-11-3)
+#   XTCP2_MAX_RECORDS 0 | <n>      the daemon's -maxRecordsPerPoll budget
+#                                  (0 = the daemon's own 1M default; an
+#                                  integer pins a walkable knee — rt-11-4's
+#                                  degradation-valve half)
+#   XTCP2_SINK_IP   <ip>|""        the tcp dest IP (default = the mode's
+#                                  own; an ip adds it as a docker0 alias
+#                                  so the sink is a separate sibling
+#                                  endpoint — rt-11-5's L2-kill shape that
+#                                  leaves the gateway path clean)
 #
 # Run everything through `nix run .#redteam-*` from the repo root; that pins
 # VAGRANT_CWD/VAGRANT_HOME to vagrant/.gen so no state leaks into ~/.vagrant.d.
@@ -51,6 +60,8 @@ ENRICH = ENV.fetch("XTCP2_ENRICH", "none")
 NOFILE = ENV.fetch("XTCP2_NOFILE", "default")
 CPUS = ENV.fetch("XTCP2_CPUS", "0")
 PPROF = ENV.fetch("XTCP2_PPROF", "0")
+MAX_RECORDS = ENV.fetch("XTCP2_MAX_RECORDS", "0")
+SINK_IP = ENV.fetch("XTCP2_SINK_IP", "")
 
 Vagrant.configure("2") do |config|
   config.vm.box = BOX
@@ -91,7 +102,7 @@ Vagrant.configure("2") do |config|
 
     victim.vm.provision "shell", path: "provision/common.sh"
     victim.vm.provision "shell", path: "provision/victim.sh",
-      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH, NOFILE, CPUS, PPROF]
+      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH, NOFILE, CPUS, PPROF, MAX_RECORDS, SINK_IP]
   end
 
   config.vm.define "attacker" do |attacker|

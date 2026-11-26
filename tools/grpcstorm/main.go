@@ -100,9 +100,16 @@ func oversizeProbe(ctx context.Context, target string, conns, size int, auth lis
 			req.ProtoReflect().SetUnknown(make([]byte, size))
 			err = stream.Send(req)
 			if err == nil {
-				// CloseAndRecv-shaped drain: the server's verdict arrives
-				// on Recv (or the send fails).
-				_, err = stream.Recv()
+				// Drain to the TERMINAL verdict: the first Recv can deliver a
+				// fanned-out record (the real PollFlatRecords handler stores its
+				// stream and flatRecordServiceSend pushes to it) BEFORE the
+				// transport's recv-limit kill lands on the oversized frame — the
+				// headers precede the 8 MB DATA on a fresh slow-start conn, and the
+				// kill is arrival-based. Measured racing OK 3/3 in the 2026-11-26
+				// matrix run; the kill always follows, so Recv until terminal.
+				for err == nil {
+					_, err = stream.Recv()
+				}
 			}
 		}
 		cancel()

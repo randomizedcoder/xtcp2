@@ -286,6 +286,10 @@ let
     # backpressure), conns×streams storm (rt-4-3), and the oversize
     # recv-cap probe. Rides the attacker-tools tar.
     "grpcstorm"
+    # arppoison: sends gratuitous ARP replies claiming the delivery
+    # endpoint's IP for a poison MAC — the rt-11-5 L2 blackhole of the
+    # daemon→sink path. Rides the attacker tools tar.
+    "arppoison"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:
@@ -419,6 +423,7 @@ defaultBinaries
     slowloris
     grpcidle
     grpcstorm
+    arppoison
     ;
 
   # Internal nested sets for downstream consumers (containers/).
