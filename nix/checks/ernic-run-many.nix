@@ -66,6 +66,19 @@ let
     name = "none";
     nics = [ ];
   };
+  # Only generated, never run: a fabric needs a user namespace and TAPs.
+  bridged = runMany {
+    name = "bridged";
+    nics = [
+      (
+        (nic "a" "0a")
+        // {
+          tap = "tap-a";
+          bridge = "br-x";
+        }
+      )
+    ];
+  };
 in
 pkgs.runCommand "xtcp2-ernic-run-many"
   {
@@ -147,6 +160,10 @@ pkgs.runCommand "xtcp2-ernic-run-many"
     rc=0
     err=$($NONE --dir "$d" --pcap br0 -- true 2>&1) || rc=$?
     row pcap_no_fabric negative "--pcap without any fabric is refused" "$([ $rc = 2 ] && [[ $err == *"--pcap br0 is not a fabric bridge or TAP"* ]] && echo 1)" "rc=$rc err=$err"
+
+    fab=$(grep -o '/nix/store/[^ ]*/bin/ernic-fabric-bridged' ${bridged}/bin/ernic-run-many-bridged | head -n 1)
+    got=$(grep -c 'ip link add br-x type bridge mcast_snooping 0' "$fab" || true)
+    row bridge_no_snooping corner "a fabric bridge is created without multicast snooping, so it never joins 224.0.0.106 and sends no IGMP report" "$([ "$got" = 1 ] && echo 1)" "fabric=$fab matches=$got"
 
     d=$(mktemp -d)
     mine=$(readlink /proc/self/ns/net)

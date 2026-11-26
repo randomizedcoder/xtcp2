@@ -82,6 +82,37 @@ pkgs.runCommand "xtcp2-ernic-oracle"
     row not_a_number corner "a counter that is not a decimal number fails" \
       "$(ok "$([ $rc = 1 ] && has 'ionic0_tx is not a number' && echo y)")" "rc=$rc out=$out"
 
+    # Frame accounting: the emulator's tx frames against the senders'
+    # tcp_info_segs_out, and the frames delivered to the receiving NIC
+    # against the receivers' tcp_info_segs_in, as xtcp2 recorded them.
+    seg() { # COUNTERS-LINE: sets rc and out, with --segs-out ionic0 --segs-in ionic1
+      d=$(mktemp -d)
+      printf '%b' "$1" > "$d/console.log"
+      printf '%b' "$TX" > "$d/ernic-ionic0.log"
+      printf '%b' "$RX" > "$d/ernic-ionic1.log"
+      rc=0
+      out=$($ORACLE --log "$d/console.log" --dir "$d" --tx ionic0 --rx ionic1 --segs-out ionic0 --segs-in ionic1 2>&1) || rc=$?
+    }
+    S='GOLDEN_ERNIC_COUNTERS ionic0_tx=14542 ionic0_tx_dropped=296 ionic1_rx=8860'
+
+    seg "$S ionic0_segs_out=14838 ionic1_segs_in=8860\n"
+    row segs_out_match positive "every frame the emulator saw from ionic0 is a segment the senders counted" \
+      "$(ok "$([ $rc = 0 ] && has 'ROW oracle_segs_out corner PASS' && echo y)")" "rc=$rc out=$out"
+    row segs_in_match positive "every frame delivered to ionic1 is a segment the receivers counted" \
+      "$(ok "$([ $rc = 0 ] && has 'ROW oracle_segs_in corner PASS' && echo y)")" "rc=$rc out=$out"
+
+    seg "$S ionic0_segs_out=14830 ionic1_segs_in=8860\n"
+    row segs_out_short negative "frames the senders did not count (keepalives after the poll) fail" \
+      "$(ok "$([ $rc = 1 ] && has 'ionic0 eligible 14838 != segs_out 14830' && echo y)")" "rc=$rc out=$out"
+
+    seg "$S ionic0_segs_out=14838 ionic1_segs_in=8859\n"
+    row segs_in_extra negative "a delivered frame no receiver counted (a stray frame) fails" \
+      "$(ok "$([ $rc = 1 ] && has 'ionic1 rx 8860 != segs_in 8859' && echo y)")" "rc=$rc out=$out"
+
+    seg "$S\n"
+    row segs_missing boundary "asked for segment counts the guest did not print" \
+      "$(ok "$([ $rc = 1 ] && has 'ionic0_segs_out is not a number' && echo y)")" "rc=$rc out=$out"
+
     [ "$fail" = 0 ] || exit 1
     touch $out
   ''
