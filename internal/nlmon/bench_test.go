@@ -1,6 +1,7 @@
 package nlmon
 
 import (
+	"bytes"
 	"path/filepath"
 	"testing"
 
@@ -18,7 +19,7 @@ func qdiscEvents(n int) []byte {
 	return b
 }
 
-// fileOf is n records for WalkFile.
+// fileOf is n records for FromFile.
 func fileOf(n int) []byte {
 	b := make([]byte, 0, 116*n)
 	for range n {
@@ -44,15 +45,17 @@ func BenchmarkDatagram(b *testing.B) {
 	b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*40), "ns/msg")
 }
 
-// BenchmarkWalkFile is rtnl_from_file over 1000 records.
+// BenchmarkFromFile is rtnl_from_file over 1000 records.
 //
-// go test ./internal/nlmon/ -run '^$' -bench WalkFile -benchmem
-func BenchmarkWalkFile(b *testing.B) {
+// go test ./internal/nlmon/ -run '^$' -bench FromFile -benchmem
+func BenchmarkFromFile(b *testing.B) {
 	f := fileOf(1000)
+	var r bytes.Reader
 	b.ReportAllocs()
 	b.SetBytes(int64(len(f)))
 	for b.Loop() {
-		if err := WalkFile(f, discard); err != nil {
+		r.Reset(f)
+		if err := FromFile(&r, discard); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -95,19 +98,20 @@ func BenchmarkNotifications(b *testing.B) {
 }
 
 // TestAllocs pins the walks' allocations: the bodies are subslices, so a
-// walk allocates nothing per message.
+// walk allocates nothing per message; a file walk allocates its one buffer.
 //
 // go test ./internal/nlmon/ -run TestAllocs
 func TestAllocs(t *testing.T) {
 	big := rec(unix.RTM_NEWTFILTER, make([]byte, RecvBufCst-xtcpnl.NlMsgHdrSizeCst))
 	dg40, file1000 := qdiscEvents(40), fileOf(1000)
+	var r bytes.Reader
 	tests := []struct {
 		description string
 		run         func()
 		budget      float64
 	}{
 		{"positive: a datagram of 40 events", func() { mustNil(t, Datagram(dg40, false, -1, discard)) }, 0},
-		{"positive: a file of 1000 records", func() { mustNil(t, WalkFile(file1000, discard)) }, 0},
+		{"positive: a file of 1000 records, one buffer for all", func() { r.Reset(file1000); mustNil(t, FromFile(&r, discard)) }, 1},
 		{"boundary: a 16384-byte message", func() { mustNil(t, Datagram(big, false, -1, discard)) }, 0},
 		{"corner: an empty datagram", func() { mustNil(t, Datagram(nil, false, -1, discard)) }, 0},
 	}

@@ -1,9 +1,11 @@
 package nlmon
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,10 +115,26 @@ func TestDatagram(t *testing.T) {
 	})
 }
 
-// TestWalkFile is rtnl_from_file.
+// failAfter is a reader that hands out data, then fails with err instead
+// of ending, as an fread that meets EIO partway.
+type failAfter struct {
+	data []byte
+	err  error
+}
+
+func (f *failAfter) Read(p []byte) (int, error) {
+	if len(f.data) == 0 {
+		return 0, f.err
+	}
+	n := copy(p, f.data)
+	f.data = f.data[n:]
+	return n, nil
+}
+
+// TestFromFile is rtnl_from_file.
 //
-// go test ./internal/nlmon/ -run TestWalkFile
-func TestWalkFile(t *testing.T) {
+// go test ./internal/nlmon/ -run TestFromFile
+func TestFromFile(t *testing.T) {
 	type result struct {
 		types string
 		err   string
@@ -125,25 +143,38 @@ func TestWalkFile(t *testing.T) {
 	tests := []struct {
 		description string
 		data        []byte
+		failWith    error // the read past data fails with this, not EOF
 		kind        error
 		expected    result
 	}{
-		{"positive: two records", two, nil, result{types: "36/-1 44/-1 "}},
-		{"boundary: an empty file", nil, nil, result{}},
-		{"negative: cut inside the header", two[:len(two)-20+4], ErrFileTruncated,
+		{"positive: two records", two, nil, nil, result{types: "36/-1 44/-1 "}},
+		{"boundary: an empty file", nil, nil, nil, result{}},
+		{"boundary: a 16384-byte record, the buffer's size", rec(unix.RTM_NEWTFILTER, make([]byte, RecvBufCst-16)), nil, nil,
+			result{types: "44/-1 "}},
+		{"negative: cut inside the header", two[:len(two)-20+4], nil, ErrFileTruncated,
 			result{types: "36/-1 ", err: "rtnl-from_file: truncated message"}},
-		{"negative: cut inside the body", two[:len(two)-1], ErrFileTruncated,
+		{"negative: cut inside the body", two[:len(two)-1], nil, ErrFileTruncated,
 			result{types: "36/-1 ", err: "rtnl-from_file: truncated message"}},
-		{"negative: a length of 8", cat(rec(unix.RTM_NEWQDISC, nil), hdr(unix.RTM_NEWQDISC, 0, 0, 0, 8)), ErrMalformed,
+		{"negative: a length of 8", cat(rec(unix.RTM_NEWQDISC, nil), hdr(unix.RTM_NEWQDISC, 0, 0, 0, 8)), nil, ErrMalformed,
 			result{types: "36/-1 ", err: "!!!malformed message: len=8 @32"}},
-		{"boundary: a length over the buffer", hdr(unix.RTM_NEWQDISC, 0, 0, 0, RecvBufCst+1), ErrMalformed,
+		{"boundary: a length over the buffer", hdr(unix.RTM_NEWQDISC, 0, 0, 0, RecvBufCst+1), nil, ErrMalformed,
 			result{err: "!!!malformed message: len=16385 @16"}},
-		{"corner: the last body unpadded is cut short", rec(unix.RTM_NEWLINK, []byte{1})[:17], ErrFileTruncated,
+		{"corner: the last body unpadded is cut short", rec(unix.RTM_NEWLINK, []byte{1})[:17], nil, ErrFileTruncated,
 			result{err: "rtnl-from_file: truncated message"}},
+		{"negative: a read error between records is fread's perror, after the records before it", rec(unix.RTM_NEWQDISC, nil),
+			unix.EIO, ErrRead, result{types: "36/-1 ", err: "rtnl_from_file: fread: Input/output error"}},
+		{"corner: a read error inside a body is fread's perror, not truncated", two[:len(two)-1], unix.EIO, ErrRead,
+			result{types: "36/-1 ", err: "rtnl_from_file: fread: Input/output error"}},
+		{"corner: a read error with no errno keeps its own text", nil, errors.New("boom"), ErrRead,
+			result{err: "rtnl_from_file: fread: boom"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			s, err := types(func(fn func(Msg) error) error { return WalkFile(tc.data, fn) })
+			var r io.Reader = bytes.NewReader(tc.data)
+			if tc.failWith != nil {
+				r = &failAfter{data: tc.data, err: tc.failWith}
+			}
+			s, err := types(func(fn func(Msg) error) error { return FromFile(r, fn) })
 			got := result{types: s}
 			if err != nil {
 				got.err = err.Error()
@@ -155,6 +186,50 @@ func TestWalkFile(t *testing.T) {
 				t.Errorf("error %v, want kind %v", err, tc.kind)
 			}
 		})
+	}
+}
+
+// TestFromFileStreams pins that a record is handed on as soon as it is
+// read, as fread's loop does, not once the file ends: the writer sends the
+// second record only after fn has seen the first, which deadlocks a reader
+// that waits for EOF.
+//
+// go test ./internal/nlmon/ -run TestFromFileStreams
+func TestFromFileStreams(t *testing.T) {
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(chan uint16, 2)
+	done := make(chan error, 1)
+	go func() {
+		done <- FromFile(pr, func(m Msg) error { seen <- m.Hdr.Type; return nil })
+	}()
+	write := func(b []byte) {
+		if _, err := pw.Write(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	timeout := time.After(10 * time.Second)
+	write(rec(unix.RTM_NEWQDISC, nil))
+	for _, want := range []uint16{unix.RTM_NEWQDISC, unix.RTM_DELQDISC} {
+		select {
+		case got := <-seen:
+			if got != want {
+				t.Fatalf("got type %d, want %d", got, want)
+			}
+		case <-timeout:
+			t.Fatalf("type %d not handed on before the file ended", want)
+		}
+		if want == unix.RTM_NEWQDISC {
+			write(rec(unix.RTM_DELQDISC, nil))
+			if err := pw.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := <-done; err != nil {
+		t.Errorf("got %v at the end, want nil", err)
 	}
 }
 
@@ -175,7 +250,7 @@ func TestReadFile(t *testing.T) {
 	}{
 		{"positive: a file of one record", good, "36/-1 ", "", nil},
 		{"negative: a missing file", filepath.Join(dir, "none"), "", "Cannot fopen: No such file or directory", ErrOpen},
-		{"negative: a directory", dir, "", "Cannot fopen: Is a directory", ErrOpen},
+		{"negative: a directory opens, as fopen's does, then its read fails", dir, "", "rtnl_from_file: fread: Is a directory", ErrRead},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

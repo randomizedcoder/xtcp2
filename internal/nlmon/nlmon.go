@@ -41,6 +41,8 @@ type Msg struct {
 var (
 	// ErrOpen is rtnl_from_file's caller failing to fopen the file.
 	ErrOpen = errors.New("nlmon: open")
+	// ErrRead is rtnl_from_file's fread failing (ferror): -1.
+	ErrRead = errors.New("nlmon: read")
 	// ErrFileTruncated is rtnl_from_file's short read: -1.
 	ErrFileTruncated = errors.New("nlmon: file truncated")
 	// ErrMalformed is a length under the header's or past the data: in
@@ -198,49 +200,76 @@ func ListenNsid(oob []byte) int32 {
 }
 
 // ReadFile is the fopen and rtnl_from_file over path: an fopen failure is
-// ErrOpen with perror's "Cannot fopen: <strerror>".
+// ErrOpen with perror's "Cannot fopen: <strerror>"; the rest is FromFile's.
 func ReadFile(path string, fn func(Msg) error) error {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
-		var errno unix.Errno
-		if errors.As(err, &errno) {
-			return errorf(ErrOpen, "Cannot fopen: %s", Strerror(errno))
-		}
-		return &Error{Kind: ErrOpen, Text: "Cannot fopen: " + err.Error()}
+		return freadError(ErrOpen, "Cannot fopen", err)
 	}
-	return WalkFile(data, fn)
+	err = FromFile(f, fn)
+	if cerr := f.Close(); cerr != nil && err == nil {
+		return freadError(ErrRead, "rtnl_from_file: fread", cerr)
+	}
+	return err
 }
 
-// WalkFile is rtnl_from_file over data: each header, then its body to the
-// 4-byte boundary, until the data ends between messages. A header or body
-// cut short is ErrFileTruncated, a length under the header's or over the
-// buffer ErrMalformed naming the offset past the header; fn's error ends it
-// as it is.
-func WalkFile(data []byte, fn func(Msg) error) error {
+// FromFile is rtnl_from_file over r: each header, then its body to the
+// 4-byte boundary, each handed to fn as soon as it is read, so a pipe or a
+// growing file is walked as it comes, until r ends between messages. Body
+// is valid only until fn returns: as the C's, the buffer is reused. A read
+// failing is ErrRead with perror's "rtnl_from_file: fread: <strerror>"; a
+// header or body cut short by the end of r is ErrFileTruncated; a length
+// under the header's or over the buffer is ErrMalformed naming the offset
+// past the header, ftell's; fn's error ends it as it is.
+func FromFile(r io.Reader, fn func(Msg) error) error {
+	buf := make([]byte, RecvBufCst)
 	off := 0
-	for off < len(data) {
-		if len(data)-off < xtcpnl.NlMsgHdrSizeCst {
-			return errorf(ErrFileTruncated, "rtnl-from_file: truncated message")
+	for {
+		n, err := io.ReadFull(r, buf[:xtcpnl.NlMsgHdrSizeCst])
+		switch {
+		case n == 0 && errors.Is(err, io.EOF):
+			return nil
+		case err != nil:
+			return fileReadError(err)
 		}
+		off += n
 		var h xtcpnl.NlMsgHdr
-		if _, err := xtcpnl.DeserializeNlMsgHdr(data[off:], &h); err != nil {
+		if _, err := xtcpnl.DeserializeNlMsgHdr(buf, &h); err != nil {
 			return err
 		}
 		if h.Len < xtcpnl.NlMsgHdrSizeCst || h.Len > RecvBufCst {
-			return errorf(ErrMalformed, "!!!malformed message: len=%d @%d", int32(h.Len), off+xtcpnl.NlMsgHdrSizeCst)
+			return errorf(ErrMalformed, "!!!malformed message: len=%d @%d", int32(h.Len), off)
 		}
 		l := int(h.Len) - xtcpnl.NlMsgHdrSizeCst
-		end := off + xtcpnl.NlMsgHdrSizeCst + align(l)
-		if end > len(data) {
-			return errorf(ErrFileTruncated, "rtnl-from_file: truncated message")
+		end := xtcpnl.NlMsgHdrSizeCst + align(l) // at most 16384, as l is at most 16368
+		n, err = io.ReadFull(r, buf[xtcpnl.NlMsgHdrSizeCst:end])
+		off += n
+		if err != nil {
+			return fileReadError(err)
 		}
-		body := data[off+xtcpnl.NlMsgHdrSizeCst : off+xtcpnl.NlMsgHdrSizeCst+l]
-		if err := fn(Msg{Hdr: h, Body: body, Nsid: -1}); err != nil {
+		if err := fn(Msg{Hdr: h, Body: buf[xtcpnl.NlMsgHdrSizeCst : xtcpnl.NlMsgHdrSizeCst+l], Nsid: -1}); err != nil {
 			return err
 		}
-		off = end
 	}
-	return nil
+}
+
+// fileReadError is a short fread: the end of the file is feof's
+// "truncated message", anything else ferror's perror.
+func fileReadError(err error) error {
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return errorf(ErrFileTruncated, "rtnl-from_file: truncated message")
+	}
+	return freadError(ErrRead, "rtnl_from_file: fread", err)
+}
+
+// freadError is perror(prefix) of err as kind: strerror of its errno, or
+// the error's own text when it carries none.
+func freadError(kind error, prefix string, err error) error {
+	var errno unix.Errno
+	if errors.As(err, &errno) {
+		return errorf(kind, "%s: %s", prefix, Strerror(errno))
+	}
+	return errorf(kind, "%s: %s", prefix, err.Error())
 }
 
 // asctimeLayoutCst is asctime's "%.3s %.3s%3d %.2d:%.2d:%.2d %d".

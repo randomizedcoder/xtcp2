@@ -7,6 +7,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/internal/nlmon"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // monitorStampRe matches both of print_timestamp's forms: the asctime line
@@ -20,6 +24,28 @@ func maskStamps(s string) string {
 		}
 		return "Timestamp: STAMP"
 	})
+}
+
+// checkTriggerAfterDump fails a live row whose trigger ran before tc's
+// ll_init_map dump ended: any tc message, request or event, ahead of the
+// dump's NLMSG_DONE. rtnl_dump_filter drops an event that lands during the
+// dump, so such a capture can lose events and still match its until-EREs;
+// xtcp2-nl-tcmon waits for rtnl_listen to prevent it.
+func checkTriggerAfterDump(t *testing.T, pcap string) {
+	t.Helper()
+	msgs, err := nlmon.PcapMsgs(pcap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	end := nlmon.DumpEnd(msgs, unix.RTM_GETLINK)
+	if end == 0 {
+		t.Fatalf("%s: no link dump", pcap)
+	}
+	for i, m := range msgs[:end] {
+		if obj, _ := xtcpnl.TcEventKind(m.Hdr.Type); obj != xtcpnl.TcObjNone {
+			t.Fatalf("%s: message %d, type %d, comes before the dump ends at %d", pcap, i, m.Hdr.Type, end)
+		}
+	}
 }
 
 // shellWords splits a command line the way the rows write them: words
@@ -118,6 +144,9 @@ func TestGotcMonitorCorpus(t *testing.T) {
 				args = words[1:]
 			default:
 				t.Fatalf("cmd %q is neither tc nor the helper", c.Cmd)
+			}
+			if isLive {
+				checkTriggerAfterDump(t, filepath.Join(dir, "ip.pcap"))
 			}
 			t.Chdir(dir)
 			got := replayIn(t, dir, strings.NewReader(""), args...)

@@ -422,12 +422,23 @@ let
   # (docs/netlink/gotc-status.md, 14C), as xtcp2-nl-xfrmmon is for
   # `ip xfrm monitor`.
   #
-  # tc_monitor.c binds RTNLGRP_TC, group 4, so subscribed reads off
-  # /proc/net/netlink as a NETLINK_ROUTE (0) socket whose Groups column has
-  # bit 0x8. A row's namespace is fresh, so the only such socket is the
-  # monitor. NLCAP_PROC_NETLINK points the read at a file and NLCAP_TC the
-  # monitor at another binary, for the hermetic check
-  # (nix/checks/nlcap-tcmon.nix).
+  # Ready means listening, not only subscribed. tc_monitor.c binds
+  # RTNLGRP_TC, group 4, then runs ll_init_map's link dump on that same
+  # socket before rtnl_listen, and rtnl_dump_filter drops whatever is not
+  # the dump's, so an event the trigger raises during the dump is lost while
+  # the until-EREs can still match on later ones. So ready is all of:
+  #   - a NETLINK_ROUTE (0) socket in /proc/net/netlink whose Groups column
+  #     has bit 0x8 (a row's namespace is fresh, so it is the monitor's),
+  #   - with its Dump column 0 (no dump running) and Rmem 0 (nothing queued,
+  #     the dump's NLMSG_DONE included, as no TC event comes before the
+  #     trigger),
+  #   - and a thread of the monitor blocked in recvmsg(2): tc's dump reads
+  #     only while a part is queued or the dump runs, and makes no recvmsg
+  #     before its dump request, so the three together are rtnl_listen.
+  # NLCAP_PROC_NETLINK points the socket read at a file, NLCAP_PROC the
+  # /proc/<pid>/task/*/syscall reads at a tree, NLCAP_RECVMSG_NR names
+  # recvmsg's number (else x86_64's or aarch64's), and NLCAP_TC the monitor
+  # at another binary, for the hermetic check (nix/checks/nlcap-tcmon.nix).
   #
   # Then <trigger> runs with `bash -c`, its output kept apart and shown only
   # if it fails, and the monitor is stopped with SIGTERM once its stdout or
@@ -435,8 +446,8 @@ let
   # ends by itself or 10 s pass. A monitor that ends by itself (tc's rtnl_listen failing: `Truncated message`, exit 2) stops
   # the wait, and its exit status is the helper's. stdout is the monitor's
   # stdout, stderr the monitor's stderr then the helper's own complaints.
-  # A monitor that never subscribes, a failed trigger or a timeout exits 1;
-  # a usage error exits 2.
+  # A monitor that never subscribes or never finishes its dump, a failed
+  # trigger or a timeout exits 1; a usage error exits 2.
   tcmon = pkgs.writeShellApplication {
     name = "xtcp2-nl-tcmon";
     runtimeInputs = with pkgs; [
@@ -455,7 +466,19 @@ let
       trigger=$2
       shift 2
       proc=''${NLCAP_PROC_NETLINK:-/proc/net/netlink}
+      procdir=''${NLCAP_PROC:-/proc}
       tc=''${NLCAP_TC:-tc}
+      nr=''${NLCAP_RECVMSG_NR:-}
+      if [ -z "$nr" ]; then
+        case $(uname -m) in
+          x86_64) nr=47 ;;
+          aarch64) nr=212 ;;
+          *)
+            echo "xtcp2-nl-tcmon: no recvmsg number for $(uname -m); set NLCAP_RECVMSG_NR" >&2
+            exit 2
+            ;;
+        esac
+      fi
 
       out=$(mktemp)
       err=$(mktemp)
@@ -479,12 +502,38 @@ let
         return 1
       }
 
+      # sock_state: "listening" for the monitor's socket with no dump
+      # running and nothing queued, "subscribed" for it otherwise, else
+      # nothing. Columns: sk Eth Pid Groups Rmem Wmem Dump ...
+      sock_state() {
+        awk '$2 == 0 && and(strtonum("0x" $4), 8) {
+               s = ($5 == 0 && $7 == 0) ? "listening" : "subscribed"
+             }
+             END { print s }' "$proc"
+      }
+      # in_recvmsg: a thread of the monitor is blocked in recvmsg(2).
+      in_recvmsg() {
+        local f n
+        for f in "$procdir/$mpid"/task/*/syscall; do
+          read -r n _ 2>/dev/null <"$f" || continue
+          [ "$n" = "$nr" ] && return 0
+        done
+        return 1
+      }
+
       ready=0
+      subscribed=0
       for _ in $(seq 1 100); do
-        if awk '$2 == 0 && and(strtonum("0x" $4), 8) { found = 1 } END { exit !found }' "$proc"; then
-          ready=1
-          break
-        fi
+        case $(sock_state) in
+          listening)
+            subscribed=1
+            if in_recvmsg; then
+              ready=1
+              break
+            fi
+            ;;
+          subscribed) subscribed=1 ;;
+        esac
         kill -0 "$mpid" 2>/dev/null || break
         sleep 0.05
       done
@@ -492,7 +541,13 @@ let
       rc=0
       complaints=()
       if [ "$ready" -ne 1 ]; then
-        kill -0 "$mpid" 2>/dev/null && complaints+=("xtcp2-nl-tcmon: the monitor never subscribed")
+        if kill -0 "$mpid" 2>/dev/null; then
+          if [ "$subscribed" -eq 1 ]; then
+            complaints+=("xtcp2-nl-tcmon: the monitor never finished its link dump")
+          else
+            complaints+=("xtcp2-nl-tcmon: the monitor never subscribed")
+          fi
+        fi
         rc=1
       else
         if ! bash -c "$trigger" >"$tout" 2>&1; then

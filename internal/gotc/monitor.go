@@ -70,8 +70,10 @@ func (r *runner) doMonitor(args []string) error {
 
 // monitorFile is the file branch: fopen, then rtnl_from_file with no
 // ll_init_map, so a name the cache lacks is an RTM_GETLINK per index
-// (MO12). rtnl_from_file's -1 is do_cmd's: main exits 255, a batch line
-// fails.
+// (MO12). Records are printed as they are read, so a pipe is followed as
+// it comes. rtnl_from_file's -1 (a read error, a truncated or malformed
+// record) is do_cmd's: main exits 255, a batch line fails and -force goes
+// on. Only fopen's failure exits.
 func (r *runner) monitorFile(path string) error {
 	err := nlmon.ReadFile(path, r.acceptTcmsg)
 	var ne *nlmon.Error
