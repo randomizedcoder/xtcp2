@@ -1431,7 +1431,9 @@ func TestLinkViewForAddr(t *testing.T) {
 		MTU:            1500,
 		Qdisc:          "noqueue",
 		OperState:      6,
+		HasOperState:   true, // a kernel link message always carries the two
 		LinkMode:       0,
+		HasLinkMode:    true, // presence flags; print_linkinfo guards on them
 		Group:          0,
 		HasGroup:       true,
 		TxQLen:         1000,
@@ -1535,8 +1537,10 @@ func TestLinkViewForAddr(t *testing.T) {
 		},
 		{
 			// Non-vacuity for the row above: LinkViewOf, which `link show`
-			// uses, does set it. If both were empty the row would prove
-			// nothing.
+			// uses, does set it — from a PRESENT IFLA_LINKMODE, the guard
+			// print_linkinfo itself takes (ip/ipaddress.c:1040-1043); an
+			// absent attribute prints no mode word at all, the EP2 blobs'
+			// measured fix. If both were empty the row would prove nothing.
 			description: "boundary: LinkViewOf does set LinkMode, so the clearing above is a real difference",
 			family:      unix.AF_UNSPEC,
 			wantLines:   2,
@@ -1626,6 +1630,10 @@ func TestLinkViewForAddrPresence(t *testing.T) {
 		Flags:     unix.IFF_LOOPBACK | unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_LOWER_UP,
 		MTU:       65536,
 		OperState: 0,
+		// Present, as every kernel link dump is: the inet6 row's comment
+		// names OPERSTATE among its attrs, and an absent attribute would
+		// print no state word at all (print_linkinfo's guard).
+		HasOperState: true,
 	}
 
 	withFull := base
@@ -1792,8 +1800,8 @@ func TestAddrGroupViewText(t *testing.T) {
 		Flags:     unix.IFF_LOOPBACK | unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_LOWER_UP,
 		MTU:       65536,
 		Qdisc:     "noqueue",
-		OperState: 0,
-		Group:     0, HasGroup: true,
+		OperState: 0, HasOperState: true, // present, as the kernel's dumps are
+		Group: 0, HasGroup: true,
 		TxQLen: 1000, HasTxQLen: true,
 		Address:   []byte{0, 0, 0, 0, 0, 0},
 		Broadcast: []byte{0, 0, 0, 0, 0, 0},

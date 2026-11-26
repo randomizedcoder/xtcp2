@@ -1569,6 +1569,22 @@ func FuzzParseNewRoute(f *testing.F) {
 		}
 		f.Add(b)
 	}
+	// The EP2 crafted metrics bodies (internal/goip/testdata/monitor): a
+	// CC_ALG payload with garbage past its first NUL — the alignment pad
+	// (rta_len 10, the rta_addattr fault's shape) and the over-long eight
+	// data bytes — and the nested-flagged RTA_METRICS parse_rtattr drops
+	// whole, whose walk never reaches the metrics at all.
+	for _, h := range []string{
+		"02180000fe0200010000000008000100c63364000800040007000000100008000a0010006375626963007000",
+		"02180000fe0200010000000008000100c63364000800040007000000100008000c0010006375626963007000",
+		"02180000fe0200010000000008000100c63364000800040007000000100008800a0010006375626963000000",
+	} {
+		b, err := hex.DecodeString(h)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(b)
+	}
 	f.Add([]byte{})
 	f.Fuzz(func(_ *testing.T, body []byte) {
 		_, _ = ParseNewRoute(body)

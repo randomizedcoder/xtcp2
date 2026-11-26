@@ -1,0 +1,2 @@
+7: if7: <UP> 
+    link/ether 02:00:00:00:00:01 brd ff:ff:ff:ff:ff:ff protodown on 

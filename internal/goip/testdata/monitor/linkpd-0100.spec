@@ -1,0 +1,2 @@
+# reason VALUE 0x100: the u8 read prints no reasons
+{"type":16,"flags":0,"seq":0,"pid":0,"body":"0000010007000000410000000000000008000300696637000a00010002000000000100000a000200ffffffffffff000005002700010000000c0037800800020000010000","why":"reason VALUE 0x100: the u8 read prints no reasons"}

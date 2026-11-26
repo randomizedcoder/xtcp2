@@ -27,10 +27,13 @@ import (
 //
 // IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE is a u16 on the wire
 // (bond_netlink.c, bond_fill_slave_info), and goip renders the u16 it
-// decoded. iproute2 read it with rta_getattr_u8 until 0067cbc8, first
+// decoded. iproute2 read it with rta_getattr_u8 until 4f49441d, first
 // released in 7.3.0, which reads the u16. On a little-endian host the two
 // agree on every value the kernel can produce, because the LACP port state
-// is eight bits wide, so no knob is needed for the older releases.
+// is eight bits wide — which was once taken to mean no knob was needed for
+// the older releases. That reasoning was wrong about exactly the input a
+// crafted blob can carry: 0x0100 prints 0 at u8 and 256 at u16, 0x013f
+// prints 63 and 319. RenderBondPartnerU8 switches it.
 
 // Exported for the `-d` gate in internal/goip, which has to agree with this
 // file on which kinds have a print_opt here.
@@ -239,10 +242,18 @@ func bondSlaveData(s *xtcpnl.BondSlaveInfo) *KindData {
 	}
 	addU16Int(k, "ad_aggregator_id", s.AdAggregatorID)
 	if s.AdActorOperState.Present {
+		// The actor stays a u8 at both versions; the knob is the partner's
+		// alone (see RenderBondPartnerU8), and this line is what catches an
+		// over-eager u16 read of it.
 		addOperState(k, "ad_actor_oper_port_state", uint16(s.AdActorOperState.Value))
 	}
 	if s.AdPartnerOperState.Present {
-		addOperState(k, "ad_partner_oper_port_state", s.AdPartnerOperState.Value)
+		state := s.AdPartnerOperState.Value
+		if RenderBondPartnerU8 {
+			// rta_getattr_u8: the low byte, on a little-endian host.
+			state &= 0xff
+		}
+		addOperState(k, "ad_partner_oper_port_state", state)
 	}
 	if s.AdChurnActorState.Present {
 		addChurn(k, "churn_actor_state", s.AdChurnActorState.Value)

@@ -280,12 +280,34 @@ func TestLinkViewText(t *testing.T) {
 		want        string
 	}{
 		{
+			// The presence guard: print_linkinfo prints the state and mode
+			// words only when the attributes are (ip/ipaddress.c:1040-1043).
+			// The kernel always sends them, so only a crafted blob rides the
+			// difference — the EP2 blobs measured it, both ips printing no
+			// state word where goip once printed "state UNKNOWN".
+			description: "negative: no IFLA_OPERSTATE or IFLA_LINKMODE prints neither word",
+			link: xtcpnl.LinkInfo{
+				Index: 1, Name: "lo", Type: unix.ARPHRD_LOOPBACK, Flags: 0x10049,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 65536, Qdisc: "noqueue", TxQLen: 1000,
+				Address:   []byte{0, 0, 0, 0, 0, 0},
+				Broadcast: []byte{0, 0, 0, 0, 0, 0},
+			},
+			want: "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue group default qlen 1000\n" +
+				"    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00\n",
+		},
+		{
 			// ip_link_n:1-2, the whole lo stanza minus the -d attributes.
 			description: "positive: lo renders both lines exactly as ip_link_n:1-2 does",
 			link: xtcpnl.LinkInfo{
 				Index: 1, Name: "lo", Type: unix.ARPHRD_LOOPBACK, Flags: 0x10049,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 65536, Qdisc: "noqueue", OperState: 0, TxQLen: 1000,
+				// Both present, as the kernel's dumps are; print_linkinfo
+				// guards the two words on presence (ip/ipaddress.c:1040-1043).
+				MTU: 65536, Qdisc: "noqueue",
+				OperState: 0, HasOperState: true,
+				LinkMode: 0, HasLinkMode: true,
+				TxQLen:    1000,
 				Address:   []byte{0, 0, 0, 0, 0, 0},
 				Broadcast: []byte{0, 0, 0, 0, 0, 0},
 			},
@@ -299,7 +321,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 60, Name: "veth179a698", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noqueue", OperState: 6, Master: 9,
+				MTU: 1500, Qdisc: "noqueue", OperState: 6, HasOperState: true, HasLinkMode: true, Master: 9,
 				Link: 2, HasLink: true, LinkNetnsID: 3, HasLinkNetnsID: true,
 				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
@@ -317,7 +339,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 8, Name: "docker0", Type: unix.ARPHRD_ETHER, Flags: 0x1003,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noqueue", OperState: 2, TxQLen: 0,
+				MTU: 1500, Qdisc: "noqueue", OperState: 2, HasOperState: true, HasLinkMode: true, TxQLen: 0,
 				Address:   []byte{0xa6, 0x56, 0x62, 0x1d, 0x73, 0x01},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			},
@@ -334,7 +356,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 161, Name: "nlmon0", Type: 824, Flags: 0x100c1,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 3776, Qdisc: "noqueue", OperState: 0, TxQLen: 1000,
+				MTU: 3776, Qdisc: "noqueue", OperState: 0, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 			},
 			want: "161: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000\n" +
 				"    link/netlink \n",
@@ -353,7 +375,7 @@ func TestLinkViewText(t *testing.T) {
 				// up-with-carrier link carries both, and leaving LOWER_UP out of
 				// this row is what it went red on the first time it ran.
 				Flags: unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_LOWER_UP | unix.IFF_POINTOPOINT,
-				MTU:   1492, Qdisc: "noqueue", OperState: 6,
+				MTU:   1492, Qdisc: "noqueue", OperState: 6, HasOperState: true, HasLinkMode: true,
 				Address:   []byte{0x0a, 0x00, 0x00, 0x01},
 				Broadcast: []byte{0x0a, 0x00, 0x00, 0x02},
 			},
@@ -369,7 +391,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 61, Name: "vethx", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
+				MTU: 1500, Qdisc: "noqueue", OperState: 6, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Link: 2, HasLink: true, LinkNetnsID: -1, HasLinkNetnsID: true,
 				Address:   []byte{0x02, 0, 0, 0, 0, 0x01},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
@@ -387,7 +409,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 70, Name: "macvlan0", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
+				MTU: 1500, Qdisc: "noqueue", OperState: 6, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Link: 5, HasLink: true,
 				Address:   []byte{0x02, 0, 0, 0, 0, 0x02},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
@@ -403,7 +425,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 71, Name: "macvlan1", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
+				MTU: 1500, Qdisc: "noqueue", OperState: 6, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Link: 404, HasLink: true,
 				Address:   []byte{0x02, 0, 0, 0, 0, 0x03},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
@@ -419,7 +441,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 80, Name: "eth0", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "mq", OperState: 6, TxQLen: 1000,
+				MTU: 1500, Qdisc: "mq", OperState: 6, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Address:   []byte{0x02, 0, 0, 0, 0, 0x04},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				AltNames:  []string{"enp0s1", "enx020000000004"},
@@ -445,7 +467,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 4, Name: "gre0", Type: unix.ARPHRD_IPGRE, Flags: unix.IFF_NOARP,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1476, Qdisc: "noop", OperState: 2, TxQLen: 1000,
+				MTU: 1476, Qdisc: "noop", OperState: 2, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Link: 0, HasLink: true,
 				Address:   []byte{0, 0, 0, 0},
 				Broadcast: []byte{0, 0, 0, 0},
@@ -464,7 +486,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 10, Name: "ipip1", Type: unix.ARPHRD_TUNNEL,
 				Flags:     unix.IFF_POINTOPOINT | unix.IFF_NOARP,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1480, Qdisc: "noop", OperState: 2, TxQLen: 1000,
+				MTU: 1480, Qdisc: "noop", OperState: 2, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Link: 0, HasLink: true,
 				Address:   []byte{192, 0, 2, 1},
 				Broadcast: []byte{198, 51, 100, 1},
@@ -490,7 +512,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 13, Name: "ip6tnl1", Type: unix.ARPHRD_TUNNEL6,
 				Flags:     unix.IFF_POINTOPOINT | unix.IFF_NOARP,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1452, Qdisc: "noop", OperState: 2, TxQLen: 1000,
+				MTU: 1452, Qdisc: "noop", OperState: 2, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Link: 0, HasLink: true,
 				Address: []byte{
 					0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
@@ -519,7 +541,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 2, Name: "enp1s0", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "mq", OperState: 6, TxQLen: 1000,
+				MTU: 1500, Qdisc: "mq", OperState: 6, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Address:     []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
 				Broadcast:   []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				PermAddress: []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
@@ -538,7 +560,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 30, Name: "odd0", Type: unix.ARPHRD_ETHER,
 				Flags:     unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_LOWER_UP,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noop", OperState: 6,
+				MTU: 1500, Qdisc: "noop", OperState: 6, HasOperState: true, HasLinkMode: true,
 				PermAddress: []byte{0x02, 0, 0, 0, 0, 0x05},
 			},
 			want: "30: odd0: <UP,LOWER_UP> mtu 1500 qdisc noop state UP mode DEFAULT group default \n" +
@@ -553,7 +575,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 31, Name: "odd1", Type: unix.ARPHRD_ETHER,
 				Flags:     unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_LOWER_UP,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noop", OperState: 6,
+				MTU: 1500, Qdisc: "noop", OperState: 6, HasOperState: true, HasLinkMode: true,
 				Address:     []byte{0x02, 0x00, 0x00},
 				PermAddress: []byte{0x02, 0x00, 0x00, 0x00},
 			},
@@ -568,7 +590,7 @@ func TestLinkViewText(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 90, Name: "rawip0", Type: 519, Flags: unix.IFF_UP | unix.IFF_RUNNING,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noop", OperState: 6,
+				MTU: 1500, Qdisc: "noop", OperState: 6, HasOperState: true, HasLinkMode: true,
 			},
 			want: "90: rawip0: <UP> mtu 1500 qdisc noop state UP mode DEFAULT group default \n" +
 				"    link/[519] \n",
@@ -592,7 +614,7 @@ func TestRenderQlenZero(t *testing.T) {
 	link := xtcpnl.LinkInfo{
 		Index: 8, Name: "docker0", Type: unix.ARPHRD_ETHER, Flags: 0x1003,
 		HasTxQLen: true, HasGroup: true,
-		MTU: 1500, Qdisc: "noqueue", OperState: 2, TxQLen: 0,
+		MTU: 1500, Qdisc: "noqueue", OperState: 2, HasOperState: true, HasLinkMode: true, TxQLen: 0,
 	}
 
 	tests := []struct {
@@ -662,6 +684,10 @@ func TestLinkViewJSON(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 1, Name: "lo", Type: unix.ARPHRD_LOOPBACK, Flags: 0x10049,
 				HasTxQLen: true, HasGroup: true,
+				// Present, as the kernel's dumps are: the two keys are
+				// presence-guarded, like the words they mirror in text.
+				OperState: 0, HasOperState: true,
+				LinkMode: 0, HasLinkMode: true,
 				MTU: 65536, Qdisc: "noqueue", TxQLen: 1000,
 				Address:   []byte{0, 0, 0, 0, 0, 0},
 				Broadcast: []byte{0, 0, 0, 0, 0, 0},
@@ -683,7 +709,7 @@ func TestLinkViewJSON(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 58, Name: "ve-nfb-vpn", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
+				MTU: 1500, Qdisc: "noqueue", OperState: 6, HasOperState: true, HasLinkMode: true, TxQLen: 1000,
 				Link: 2, HasLink: true, LinkNetnsID: 1, HasLinkNetnsID: true,
 			},
 			wantKeys:   []string{"link_index", "link_netnsid"},

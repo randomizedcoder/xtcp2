@@ -508,6 +508,40 @@ func WalkRTAttrsNested(val []byte, fn func(atype uint16, val []byte)) error {
 	return WalkRTAttrs(val, fn)
 }
 
+// WalkRTAttrsRaw iterates exactly as WalkRTAttrs does but hands fn the type as
+// it is on the wire, NLA_F_NESTED and NLA_F_NET_BYTEORDER included —
+// parse_rtattr's contract (lib/libnetlink.c:1541-1557), which iproute2's
+// route and metrics walks take (ip/iproute.c:630, 982-984): a nested-flagged
+// attribute matches nothing and is dropped whole.
+//
+// Which walk a message takes is not a choice but a fact of iproute2's own
+// code: the route walkers call parse_rtattr, the link walker
+// parse_rtattr_flags with NLA_F_NESTED (ip/ipaddress.c:947), because the
+// kernel writes its rtnetlink nests accordingly — IFLA_LINKINFO and
+// IFLA_INFO_SLAVE_DATA with nla_nest_start_noflag (net/core/rtnetlink.c:963,
+// 911), IFLA_PROTO_DOWN_REASON with nla_nest_start (:2059). The kernel never
+// flags an RTA_*, so only crafted input rides the difference.
+func WalkRTAttrsRaw(data []byte, fn func(atype uint16, val []byte)) error {
+	for len(data) >= RTAttrSizeCst {
+		var rta RTAttr
+		if _, err := DeserializeRTAttr(data, &rta); err != nil {
+			return err
+		}
+		alen := int(rta.Len)
+		if alen < RTAttrSizeCst || alen > len(data) {
+			return ErrRTAttrSmall
+		}
+		fn(rta.Type, data[RTAttrSizeCst:alen])
+
+		adv := alen + FourByteAlignPadding(alen)
+		if adv <= 0 || adv > len(data) {
+			break
+		}
+		data = data[adv:]
+	}
+	return nil
+}
+
 // CopyBytes returns a fresh copy of b, or nil for an empty slice, so parsed
 // results never alias the reused receive buffer.
 func CopyBytes(b []byte) []byte {

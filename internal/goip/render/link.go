@@ -279,12 +279,21 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 		IfIndex:   li.Index,
 		IfName:    li.Name,
 		Qdisc:     li.Qdisc,
-		OperState: operStateName(li.OperState),
-		LinkMode:  linkModeName(li.LinkMode),
 		LinkType:  li.TypeName(),
 		Address:   li.HWAddr(),
 		Broadcast: li.BroadcastAddr(),
 		AltNames:  li.AltNames,
+	}
+	// The state and mode words are presence-guarded, as print_linkinfo's
+	// are (ip/ipaddress.c:858-860, 1040-1043): a message without
+	// IFLA_OPERSTATE prints no state word at all, not "state UNKNOWN" — the
+	// kernel always sends the attribute, so only a crafted blob rides the
+	// difference.
+	if li.HasOperState {
+		v.OperState = operStateName(li.OperState)
+	}
+	if li.HasLinkMode {
+		v.LinkMode = linkModeName(li.LinkMode)
 	}
 
 	// Presence is not the condition — see PermAddrDiffers. Setting this from

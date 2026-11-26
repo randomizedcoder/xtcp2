@@ -74,7 +74,8 @@ func wsO5SpacePath(sp string) string {
 }
 
 // useWsO5Release sets the knobs to the release a space's rows ran: 7.3.0
-// for an ip730/ space, else 7.2.0.
+// for an ip730/ space, else 7.2.0. The list is applyReleaseEnv's
+// (release_env.go), the harness's side of the GOIP_IP730 seam's set.
 func useWsO5Release(sp string) {
 	ip730 := strings.HasPrefix(sp, wsO5IP730Prefix)
 	LLAddrStrict = ip730
@@ -82,6 +83,7 @@ func useWsO5Release(sp string) {
 	render.RenderBondLacpStrict = ip730
 	render.RenderNhDstPort = ip730
 	render.RenderOvpnMode = ip730
+	render.RenderBondPartnerU8 = !ip730
 }
 
 // wsO5Verbs are the verbs whose request O5 compares, as ip spells them in

@@ -115,6 +115,9 @@ func TestLinkViewMonitorTokens(t *testing.T) {
 	q := uint32(1000)
 	li := func(event uint32, has bool) xtcpnl.LinkInfo {
 		return xtcpnl.LinkInfo{Index: 4, Name: "d0", MTU: 1500, HasMTU: true, TxQLen: q, HasTxQLen: true,
+			// Present, as the kernel's messages are: print_linkinfo guards the
+			// state word on presence, and an absent attribute prints none.
+			OperState: 0, HasOperState: true,
 			Event: event, HasEvent: has}
 	}
 	tests := []struct {

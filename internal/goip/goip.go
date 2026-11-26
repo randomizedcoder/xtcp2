@@ -54,6 +54,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 // run is Run with stdin a parameter, which the showdump and restore verbs
 // read.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if rc := applyReleaseEnv(stderr); rc != 0 {
+		return rc
+	}
 	c := newRunCtx(stdin, stdout, stderr)
 
 	o, args, err := parseOptions(args)

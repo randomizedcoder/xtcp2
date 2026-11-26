@@ -279,16 +279,28 @@ func (m *RouteMetrics) Get(rtax uint16) (value uint32, ok bool) {
 	return m.Values[rtax], true
 }
 
-// ParseRouteMetrics decodes an RTA_METRICS payload.
+// ParseRouteMetrics decodes an RTA_METRICS payload, walking it as
+// print_rta_metrics does (ip/iproute.c:630): parse_rtattr, so a nested-flagged
+// RTAX_* matches nothing and is dropped whole.
 func ParseRouteMetrics(val []byte) (*RouteMetrics, error) {
 	m := &RouteMetrics{}
-	err := WalkRTAttrsNested(val, func(atype uint16, aval []byte) {
+	err := WalkRTAttrsRaw(val, func(atype uint16, aval []byte) {
 		if atype > RouteMetricMaxCst {
 			m.Unknown++
 			return
 		}
 		if atype == uint16(unix.RTAX_CC_ALGO) {
-			m.CcAlgo = string(bytes.TrimRight(aval, "\x00"))
+			// rta_getattr_str's C string: the bytes to the first NUL, and
+			// never past rta_len. TrimRight kept whatever followed an
+			// interior NUL — a crafted `cubic\0p\0` printed the NUL and the
+			// p — where ip stops at the first NUL. A well-formed writer
+			// NUL-terminates (nla_put_string), so only crafted input rides
+			// the difference.
+			if i := bytes.IndexByte(aval, 0); i >= 0 {
+				m.CcAlgo = string(aval[:i])
+			} else {
+				m.CcAlgo = string(aval)
+			}
 			m.Present |= 1 << atype
 			return
 		}

@@ -1,0 +1,3 @@
+7: if7: <BROADCAST,MULTICAST,SLAVE,UP,LOWER_UP> mtu 1500 
+    link/ether 02:00:00:00:00:01
+    bond_slave state ACTIVE mii_status UP link_failure_count 0 perm_hwaddr 02:00:00:00:00:01 queue_id 0 ad_aggregator_id 1 ad_actor_oper_port_state 63 ad_actor_oper_port_state_str <active,short_timeout,aggregating,in_sync,collecting,distributing> ad_partner_oper_port_state 0 ad_partner_oper_port_state_str <> 

@@ -189,7 +189,11 @@ func ParseNewRoute(body []byte) (RouteInfo, error) {
 	// route, not just the completeness of the struct.
 	var nestErr error
 	var seen attrSeen
-	err := WalkRTAttrs(body[RtMsgSizeCst:], func(atype uint16, val []byte) {
+	// parse_rtattr, not parse_rtattr_flags: the route walkers take no mask
+	// (ip/iproute.c:982-984), so a nested-flagged RTA_* — nothing the kernel
+	// writes, everything a crafted blob can — matches no case and is dropped
+	// whole.
+	err := WalkRTAttrsRaw(body[RtMsgSizeCst:], func(atype uint16, val []byte) {
 		if !seen.first(atype) {
 			return
 		}
@@ -279,8 +283,15 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 		}
 	case uint16(unix.RTA_MULTIPATH), uint16(unix.RTA_VIA),
 		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO),
-		uint16(unix.RTA_NEWDST), uint16(unix.RTA_ENCAP_TYPE), uint16(unix.RTA_ENCAP):
-		return parseRouteNestedAttr(ri, atype, val)
+		uint16(unix.RTA_NEWDST), uint16(unix.RTA_ENCAP_TYPE),
+		uint16(unix.RTA_ENCAP), uint16(unix.RTA_ENCAP) | uint16(unix.NLA_F_NESTED):
+		// The last case is the walk's one carve-out from parse_rtattr:
+		// iproute2's own REQUEST builder writes RTA_ENCAP flagged (rta_nest,
+		// lib/libnetlink.c:1519-1527), where the kernel's replies never do
+		// (lwtunnel_fill_encap, nla_nest_start_noflag) — and a captured
+		// request echo, which the corpus's O3 reads, carries the flagged
+		// shape. Every other flagged RTA_* matches nothing, as in ip.
+		return parseRouteNestedAttr(ri, atype&NlaTypeMaskCst, val)
 	case uint16(unix.RTA_MFC_STATS), uint16(unix.RTA_EXPIRES):
 		return setRouteMcastAttr(ri, atype, val)
 	case RtaNhID:

@@ -107,6 +107,24 @@ var RenderQlenZero = true
 // reproduces 7.2.0 and earlier, for the corpora captured with them.
 var RenderBondLacpStrict = true
 
+// RenderBondPartnerU8 is whether the bond slave's AD partner port state is
+// printed as iproute2 7.2.0 read it, the bare octet (rta_getattr_u8), rather
+// than the u16 the attribute carries.
+//
+// iproute2 read IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE with
+// rta_getattr_u8 until 4f49441d (with 0067cbc8 and 075f1b6f), first released
+// in 7.3.0, which reads the u16. Every value the kernel produces fits in
+// the eight LACP state bits, so the two agree on kernel input — the
+// difference needs a crafted attribute: 0x0100 prints 0 at u8 and 256 at
+// u16, 0x013f prints 63 and 319. The u8 read is the low byte on a
+// little-endian host, as rta_getattr_u8 is on the corpus VMs; big-endian
+// hosts are out of scope.
+//
+// false, the default and the parity target, is 7.3.0's u16; true reproduces
+// 7.2.0 and earlier. Unlike its siblings the knob names the older behavior,
+// because that is what it switches on — the GOIP_IP730 seam maps both ways.
+var RenderBondPartnerU8 = false
+
 // RenderNhDstPort is whether a nexthop renders as iproute2 7.3.0's does.
 //
 // iproute2 commit ad2b2d95 "ip nexthop: support fdb destination port", first

@@ -199,6 +199,37 @@ func TestMonfilePcap(t *testing.T) {
 	}
 }
 
+// TestMonfileCommittedSpecs is the regeneration golden over the committed
+// spec/.nl pairs (internal/goip/testdata/monitor): every spec must rewrite
+// its .nl byte for byte, so the binary can never drift from its reviewable
+// source.
+//
+// go test ./tools/nlcapgen/ -run TestMonfileCommittedSpecs
+func TestMonfileCommittedSpecs(t *testing.T) {
+	const dir = "../../internal/goip/testdata/monitor"
+	specs, err := filepath.Glob(filepath.Join(dir, "*.spec"))
+	if err != nil || len(specs) == 0 {
+		t.Fatalf("glob %s: %v", dir, err)
+	}
+	for _, spec := range specs {
+		nl := strings.TrimSuffix(spec, ".spec") + ".nl"
+		want, err := os.ReadFile(nl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Run(filepath.Base(spec), func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "regen.nl")
+			rc, stdout, stderr, got := monfileRun(t, "-spec", spec, "-out", out)
+			if rc != 0 || stdout != "1 messages\n" || stderr != "" {
+				t.Fatalf("rc %d, stdout %q, stderr %q", rc, stdout, stderr)
+			}
+			if !bytes.Equal(got, want) {
+				t.Errorf("%s: regenerated %x, committed %x", filepath.Base(nl), got, want)
+			}
+		})
+	}
+}
+
 // walkMonfile walks .nl bytes as rtnl_from_file does — each header, then its
 // body to the 4-byte boundary — failing unless the walk ends exactly at the
 // end of the stream.
