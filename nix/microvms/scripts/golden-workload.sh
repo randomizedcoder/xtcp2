@@ -177,7 +177,11 @@ done
 # IPv6 and no segmentation offloads, so each drop is one MTU frame and only
 # the transfers' own frames reach the counters. No TCP keepalive either: an
 # idle connection then sends nothing after xtcp2's poll, so the emulator's
-# frame counts equal the segment counts xtcp2 records.
+# frame counts equal the segment counts xtcp2 records. A long dial timeout
+# too: ionic1 can drop a SYN, and the kernel resends it after 1 s
+# (TCP_TIMEOUT_INIT, include/net/tcp.h), when tcp_client's default 1 s
+# timeout would close that socket and dial again, taking the SYN's
+# segs_out with it.
 ernic_bulk=0
 if [ -n "${ERNIC_A_MAC:-}" ]; then
   # What ionic0 has sent since boot, before this script touches it.
@@ -207,7 +211,7 @@ if [ -n "${ERNIC_A_MAC:-}" ]; then
     dst=10.0.4.16
     if [ "$ca" = dctcp ]; then dst=10.0.4.17; fi
     systemd-run --unit="xtcp2-golden-ernic-bulk-$ca" --collect \
-      "$TCP_CLIENT" -count 1 -connect "$dst" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 -keepalive -1s >/dev/null
+      "$TCP_CLIENT" -count 1 -connect "$dst" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 -keepalive -1s -dialTimeout 30s >/dev/null
   done
   ernic_bulk=${#bulk_algos[@]}
 fi
@@ -237,7 +241,7 @@ if [ -n "${ERNIC_C_MAC:-}" ]; then
     "$(ip netns exec golden-ernic-d cat /sys/class/net/ionic3/statistics/rx_packets)" >/run/xtcp2-golden-ernic-seq-before
   spawn ernic-seq-server golden-ernic-d "$TCP_SERVER" -count 1 -bind 10.0.5.16 -cong cubic -keepalive -1s
   wait_listen golden-ernic-d 4000
-  spawn ernic-seq-client golden-ernic-c "$TCP_CLIENT" -count 1 -connect 10.0.5.16 -network tcp4 -cong cubic -bulk 4MiB -sleep 1h -pads 0 -keepalive -1s
+  spawn ernic-seq-client golden-ernic-c "$TCP_CLIENT" -count 1 -connect 10.0.5.16 -network tcp4 -cong cubic -bulk 4MiB -sleep 1h -pads 0 -keepalive -1s -dialTimeout 30s
   ernic_seq=1
 fi
 
