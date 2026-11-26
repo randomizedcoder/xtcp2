@@ -1206,6 +1206,9 @@ rec {
       # ernic-run-many for the VM's rocm-ernic NICs, or null for none. QEMU
       # then starts in its --dir, where the relative vfio-user sockets are.
       ernicRunMany ? null,
+      # { bin; oracleArgs; }: ernic-oracle, run on the servers' logs after
+      # the VM stops, or null for none.
+      ernicOracle ? null,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -1244,6 +1247,9 @@ rec {
               echo "  --out defaults to pkg/xtcp/testdata/golden/<guest kernel>,"
               echo "  e.g. pkg/xtcp/testdata/golden/7_1_8, and must be run from"
               echo "  the xtcp2 repo root."
+              echo ""
+              echo "  ERNIC_PCAP=<fabric bridge or TAP> records that interface's"
+              echo "  frames next to the transcript (ernic-run-many --pcap)."
               exit 0
               ;;
             *) echo "unknown arg: $1" >&2; exit 1 ;;
@@ -1268,9 +1274,8 @@ rec {
 
         QEMU_LOG="''${LOG}.qemu"
         ${
-          lib.optionalString (
-            ernicRunMany != null
-          ) "${ernicRunMany}/bin/ernic-run-many-golden --dir \"$STAGE/ernic\" -- "
+          lib.optionalString (ernicRunMany != null)
+            "${ernicRunMany}/bin/ernic-run-many-golden --dir \"$STAGE/ernic\" \${ERNIC_PCAP:+--pcap \"$ERNIC_PCAP\"} -- "
         }${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
         vm_pid=$!
 
@@ -1293,14 +1298,32 @@ rec {
           sleep 1
         done
 
-        trap '
-          rm -rf "$STAGE"
+        # Power the guest off and wait for QEMU, then for ernic-run-many,
+        # which stops each rocm-ernic server cleanly: a server prints its
+        # fault counts at the end of a clean shutdown.
+        stop_vm() {
           if kill -0 "$vm_pid" 2>/dev/null; then
             ( printf "systemctl poweroff\n" | nc -q 1 127.0.0.1 "$SERIAL_PORT" ) >/dev/null 2>&1 || true
-            sleep 10
+            for _ in $(seq 1 60); do
+              kill -0 "$vm_pid" 2>/dev/null || break
+              sleep 1
+            done
             kill "$vm_pid" 2>/dev/null || true
-            wait "$vm_pid" 2>/dev/null || true
           fi
+          wait "$vm_pid" 2>/dev/null || true
+        }
+        # The guest's ROW lines, without the journal prefix.
+        print_rows() {
+          grep -a 'ROW ' "$LOG" | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' | tr -d '\r' || true
+        }
+
+        trap '
+          stop_vm
+          if [ -d "$STAGE/ernic" ]; then
+            mkdir -p "''${LOG%.log}.ernic"
+            cp -f "$STAGE/ernic"/*.log "$STAGE/ernic"/*.pcap "''${LOG%.log}.ernic/" 2>/dev/null || true
+          fi
+          rm -rf "$STAGE"
           if [ -n "$nc_serial_pid" ] && kill -0 "$nc_serial_pid" 2>/dev/null; then
             kill "$nc_serial_pid" 2>/dev/null || true
           fi
@@ -1322,6 +1345,7 @@ rec {
             break
           fi
           if grep -q 'GOLDEN_ERR' "$LOG" 2>/dev/null; then
+            print_rows
             echo "FATAL: the guest reported:"
             grep -E 'GOLDEN_ERR' "$LOG" || true
             exit 2
@@ -1334,6 +1358,7 @@ rec {
           tail -n 40 "$LOG" 2>/dev/null || true
           exit 2
         fi
+        print_rows
         grep -E 'GOLDEN_WORKLOAD_READY|GOLDEN_ROWS' "$LOG" | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' || true
 
         # Strip journal+console's `[TIME] ident[PID]: ` prefix before
@@ -1363,6 +1388,15 @@ rec {
           echo "FATAL: $OUT_DIR fails xtcp2-golden check"
           exit 2
         fi
+        ${lib.optionalString (ernicOracle != null) ''
+          # The emulator's own fault counts, from the servers' clean
+          # shutdown, against the guest's counters.
+          stop_vm
+          if ! ${ernicOracle.bin} --log "$LOG" --dir "$STAGE/ernic" ${lib.escapeShellArgs ernicOracle.oracleArgs}; then
+            echo "FATAL: the guest's NIC counters disagree with the emulator's; server logs: ''${LOG%.log}.ernic"
+            exit 2
+          fi
+        ''}
 
         echo ""
         echo "================================================"

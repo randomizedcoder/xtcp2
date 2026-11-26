@@ -95,6 +95,9 @@ type clientConfig struct {
 	bulk        sockopt.Size
 	mode        closeMode
 	opts        sockopt.Options
+	// keepalive is net.Dialer.KeepAlive: 0 is Go's default (on, 15 s), a
+	// negative value is off.
+	keepalive time.Duration
 }
 
 // parseFlags reads the command line into a clientConfig. Every error is
@@ -115,6 +118,7 @@ func parseFlags(args []string, stderr io.Writer) (clientConfig, error) {
 	fs.StringVar(&c.iface, "iface", ifaceCst, "bind each connection to this interface via SO_BINDTODEVICE; empty = kernel default")
 	fs.StringVar(&c.network, "network", networkCst, "tcp (family from -connect), tcp4 or tcp6")
 	fs.DurationVar(&c.dialTimeout, "dialTimeout", dialTimeoutCst, "first dial attempt's timeout; longer than the kernel's SYN retries (about 2m) holds a SYN_SENT socket to an unanswering peer")
+	fs.DurationVar(&c.keepalive, "keepalive", 0, "TCP keepalive idle time; 0 = Go's default (15s), negative = off")
 	fs.Var(&c.bulk, "bulk", "send this many bytes (e.g. 4MiB) and read the echo back before the first message; 0 = none")
 	closeFlag := fs.Bool("close", false, "close after one exchange (the socket goes to TIME_WAIT)")
 	halfFlag := fs.Bool("halfclose", false, "shutdown(SHUT_WR) after one exchange and hold the socket until the peer closes (FIN_WAIT2)")
@@ -153,7 +157,7 @@ func runMain(args []string, stderr io.Writer) int {
 		return 2
 	}
 
-	d, err := newDialer(c.srcaddr, c.iface, c.opts)
+	d, err := dialerFor(c)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -178,6 +182,13 @@ func runMain(args []string, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// dialerFor is newDialer for a parsed config, with its keepalive.
+func dialerFor(c clientConfig) (net.Dialer, error) {
+	d, err := newDialer(c.srcaddr, c.iface, c.opts)
+	d.KeepAlive = c.keepalive
+	return d, err
 }
 
 // newDialer builds the net.Dialer used for every connection, applying the

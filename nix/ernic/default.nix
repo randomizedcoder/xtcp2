@@ -12,6 +12,7 @@
 #   ownProfiles xtcp2's NIC profiles (./profiles)
 #   nics        NICs as data: qemuArgs, serverArgs, guestConfig (nics.nix)
 #   runMany     { name, nics, fabric } -> ernic-run-many-<name> (run-many.nix)
+#   oracle      ernic-oracle: guest NIC counters vs the emulator's fault counts
 {
   pkgs,
   lib,
@@ -29,6 +30,7 @@ in
   profiles = "${rocmErnic}/profiles";
   ownProfiles = ./profiles;
   nics = import ./nics.nix { inherit lib; };
+  oracle = import ./oracle.nix { inherit pkgs lib; };
   runMany = import ./run-many.nix {
     inherit pkgs lib;
     server = packages.rocm-ernic;
