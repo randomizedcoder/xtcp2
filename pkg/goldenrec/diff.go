@@ -46,12 +46,14 @@ type Options struct {
 var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
 
 // DefaultFaultNetns and DefaultFaultEgress are the golden workload's
-// rocm-ernic transfer (nix/microvms/golden-ernic.nix): the servers in
-// golden-ernic-b and the root namespace's clients out of ionic0. The
-// emulator drops every Nth frame, but which frames are Nth depends on how
-// data and ACKs interleave, so the counters vary as netem's do.
+// rocm-ernic transfers (nix/microvms/golden-ernic.nix): the servers in
+// golden-ernic-b and the root namespace's clients out of ionic0, and the
+// sequence-pattern flow from golden-ernic-c (ionic2) to golden-ernic-d
+// (ionic3). The emulator drops fixed frame numbers, but which segments
+// those frames carry depends on how data and ACKs interleave, so the
+// counters vary as netem's do.
 var (
-	DefaultFaultNetns  = []string{"golden-ernic-b"}
+	DefaultFaultNetns  = []string{"golden-ernic-b", "golden-ernic-c", "golden-ernic-d"}
 	DefaultFaultEgress = []string{"ionic0"}
 )
 
