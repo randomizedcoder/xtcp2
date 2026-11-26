@@ -1274,9 +1274,8 @@ rec {
 
         QEMU_LOG="''${LOG}.qemu"
         ${
-          lib.optionalString (
-            ernicRunMany != null
-          ) "${ernicRunMany}/bin/ernic-run-many-golden --dir \"$STAGE/ernic\" \${ERNIC_PCAP:+--pcap \"$ERNIC_PCAP\"} -- "
+          lib.optionalString (ernicRunMany != null)
+            "${ernicRunMany}/bin/ernic-run-many-golden --dir \"$STAGE/ernic\" \${ERNIC_PCAP:+--pcap \"$ERNIC_PCAP\"} -- "
         }${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
         vm_pid=$!
 
