@@ -116,20 +116,23 @@ Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/gol
 
 ## Phase 5: one deterministic loss pattern on a single flow
 
-- **New pair:** ionic2 in the root netns (10.0.5.15, no default route) and ionic3 in netns `golden-ernic-c` (10.0.5.16), on the same bridge with their own subnet. Slots come from phase 0.
-- **ionic2 fault:** `eth_tx: sequence "0x400,1x1,0x400,1x3,0x400,1x8,0x64323"`, a total of 65536. That is one isolated drop, then a burst of 3, then a burst of 8, and nothing more for 4 MiB.
-- **Traffic:** one cubic `-bulk 4MiB` flow, the only traffic over ionic2.
-- **ROWs:**
+- **New pair:** ionic2 in netns `golden-ernic-c` (10.0.5.15) and ionic3 in netns `golden-ernic-d` (10.0.5.16), both unmanaged, at PCI slots 0x1b and 0x1c. They are on their own fabric bridge, `br-ernic2`, so no frame of the first pair reaches them. The client's own namespace keeps the flow out of the root namespace's ionic0 rows, which select on destination port 4000.
+- **ionic2 fault:** `eth_tx: sequence "0x500,1x1,0x500,1x3,0x500,1x8,0x60000"`. The counts are decimal (`1xK` repeats K times; src/ionic/ionic_fault.c upstream), 61512 events in all, so the pattern never repeats within the transfer. It drops frame 501 alone, then 1002-1004, then 1505-1512: 12 drops, all in the first half of the transfer's roughly 3100 frames.
+- **Traffic:** one cubic `-bulk 4MiB` echo, the only traffic on either NIC, with keepalive off.
+- **ROWs** (guest; the host oracle adds `oracle_tx`, `oracle_segs_out` and `oracle_segs_in` for ionic2 and ionic3):
 
 | name | category | description | input | expected |
 |---|---|---|---|---|
-| seq_fired | boundary | exactly the pattern's drops | ionic2 tx_dropped and the emulator's fired | 12 and 12 |
-| seq_retrans | positive | xtcp2 sees the recovery | `tcp_info_total_retrans` of the flow | ≥ 12 |
-| seq_segs_out | positive | exact frame accounting on one flow | `tcp_info_segs_out` | == emulator eligible (± constant) |
-| seq_no_rto_isolated | corner | short bursts recover without a timeout | `tcp_info_total_rto` | measured in phase 0: asserted only if it is 0 in five of five captures, otherwise reported |
+| seq_fired | boundary | exactly the pattern's drops | ionic2 tx_dropped (the oracle checks the emulator's fired) | 12 |
+| seq_retrans | positive | xtcp2 sees the recovery | `tcp_info_total_retrans` of the flow | > 0 (pure ACK drops are never resent, so not ≥ 12) |
+| seq_segs_out | positive | exact frame accounting on one flow | `tcp_info_segs_out` | == tx_packets + tx_dropped |
+| seq_no_noise | corner | nothing on the pair before the transfer | ionic2 tx, ionic3 rx | 0 0 |
+| seq_quiescent | corner | the counters are final when read | two reads 1 s apart | equal |
 | seq_egress | negative | the flow is not attributed to uplink ionic0 | egress ifname | ionic2 |
 
-- `DefaultFaultNetns` gains `golden-ernic-c` and `DefaultFaultEgress` gains `ionic2`. This comes with a red `TestDiff` row first (`fault_ernic_c`: a retrans difference on a golden-ernic-c row → no finding).
+`tcp_info_total_rto` is reported in `seq_retrans`'s detail rather than asserted.
+
+- `DefaultFaultNetns` gains `golden-ernic-c` and `golden-ernic-d`, with red `TestDiff` rows first (`fault_ernic_c`, `fault_ernic_d`). `DefaultFaultEgress` is unchanged: the flow's sockets are already in fault namespaces.
 
 ## Phase 6: uplink corner cases (Go unit tests and documentation; no behavior change)
 
@@ -171,3 +174,16 @@ Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/gol
 - One PR; the doc lands first, then one test-first series per phase, each red commit before its fix.
 - Captures: one VM at a time, after checking the host load and the forwarded ports.
 - A Status section is added at the end with the phase 0 findings and the measurements.
+
+## Status
+
+### Findings
+
+- **Egress metric (phase 1):** fixed. `insertRoute` now keeps the lower metric, and on a tie the first route seen, as the kernel orders the routes (`fib_find_alias`, net/ipv4/fib_trie.c:1006; `fib6_add_rt2node`, net/ipv6/ip6_fib.c:1212). The golden row `egress_metric` checks it in netns golden-metric-a, which has default routes over m1 (metric 100) and m2 (metric 200).
+- **Emulator counts (phase 2):** kept. The fabric's TERM trap waits for every server before it stops tcpdump. The runner powers the VM off and stops run-many before it deletes the stage, and copies the server logs and any pcap next to the transcript (`<log>.ernic/`). `ernic-oracle` then compares each fault site with the guest's counters; it has been exact in every capture.
+- **Frame accounting (phase 3):** exact, with no constant. The emulator's `eth_tx` eligible count on ionic0 equals the sum of `tcp_info_segs_out` over the root namespace's sockets out of ionic0, and ionic1's delivered frames equal the sum of `tcp_info_segs_in` in golden-ernic-b. For example, one capture had eligible 14948 and segs_out 14948, and rx 14422 and segs_in 14422. Two sources of extra frames had to go first:
+  - **TCP keepalive:** Go's default of 15 s sent a probe and its ACK on every connection after xtcp2's last poll, 2 frames per flow on each side. The ernic workload now passes `-keepalive -1s`, a new flag on tcp_client and tcp_server.
+  - **The stray ionic1 frame:** a Linux bridge with multicast snooping on joins 224.0.0.106 (all-snoopers) when it comes up (`br_dev_open`, net/bridge/br_device.c:174) and floods an IGMPv3 report to every port. The pcap showed it. The fabric bridges now run with `mcast_snooping 0`, and `no_noise` again requires 0 frames on both NICs before the transfers.
+- **Dropped rows:** `retrans_covers_drops` and `bytes_retrans_mss` were not added. The bulk transfers are echoes, so some dropped frames are pure ACKs for the echoed data, and TCP never retransmits those. Retransmits can therefore be fewer than the drops.
+- **netem `loss_seen`:** the row's detail now reports netem's own drop count per namespace (`tc -s qdisc`). No failure has happened since, so the cause is still open (TODO).
+- **Uplinks (phase 6):** `DefaultUplinks` trusts the kernel's listing order (ascending metric), puts IPv4 before IPv6, and runs once at startup (pkg/xtcp/enrich.go). `TestDefaultUplinksMetric` pins that behavior. TODO: the uplink columns don't follow a runtime metric change until xtcp2 restarts. Egress and locality refresh every 60 s, so only the uplinks lag.
