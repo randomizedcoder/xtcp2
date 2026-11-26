@@ -201,6 +201,13 @@ if [ -n "${ERNIC_TX_EVERY:-}" ]; then
   ok=0
   [ "${before%% *}" = 0 ] && ok=1
   row no_noise corner "$ok" "ionic0 tx_packets, ionic1 rx_packets before the transfers: $before, want 0 and any"
+  # For the host's ernic-oracle: the final counters (xtcp2 has stopped and
+  # the transfers are idle), then both links down, so nothing more reaches
+  # the emulator before its fault report at shutdown.
+  rx=$(ip netns exec golden-ernic-b cat /sys/class/net/ionic1/statistics/rx_packets)
+  echo "GOLDEN_ERNIC_COUNTERS ionic0_tx=$tx ionic0_tx_dropped=$dropped ionic1_rx=$rx"
+  ip link set ionic0 down
+  ip -n golden-ernic-b link set ionic1 down
 fi
 got=$(q "SELECT concat_ws(',', count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 6), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 2), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 5), count(*) FILTER (netns = 'golden-states-b' AND inet_diag_msg_state = 8)) FROM $P")
 ok=0
