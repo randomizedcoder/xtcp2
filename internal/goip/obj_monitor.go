@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/internal/nlmon"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -67,8 +67,6 @@ const (
 	monitorDeletedCst = "Deleted "
 	monitorAllNsidCst = "all-nsid"
 	monitorHelpCst    = "help"
-	// monitorBufCst is rtnl_from_file's buffer, the longest message it reads.
-	monitorBufCst = 16384
 	// nlmsgTstampCst is NLMSG_TSTAMP (include/libnetlink.h), the record
 	// rtmon writes ahead of each batch in its file.
 	nlmsgTstampCst = 15
@@ -464,17 +462,8 @@ func (m *monitor) headers(label string, nsid int32) string {
 // asctimeLayoutCst is asctime's "%.3s %.3s%3d %.2d:%.2d:%.2d %d".
 const asctimeLayoutCst = "Mon Jan _2 15:04:05 2006"
 
-// timestampText is print_timestamp: asctime of the local time and the
-// microseconds on a line of their own, or under -ts the ISO form in
-// brackets ahead of the label.
-func timestampText(t time.Time, short bool) string {
-	t = t.Local()
-	usec := t.Nanosecond() / 1000
-	if short {
-		return fmt.Sprintf("[%s.%06d] ", t.Format("2006-01-02T15:04:05"), usec)
-	}
-	return fmt.Sprintf("Timestamp: %s %d usec\n", t.Format(asctimeLayoutCst), usec)
-}
+// timestampText is print_timestamp (nlmon.Timestamp).
+func timestampText(t time.Time, short bool) string { return nlmon.Timestamp(t, short) }
 
 // tstampText is print_nlmsg_timestamp, an NLMSG_TSTAMP record's seconds and
 // microseconds, two u32s. `ip` reads them whatever the length; a short body
@@ -713,40 +702,17 @@ func (m *monitor) fromFile(path string) error {
 	return monitorReadFile(path, m.accept)
 }
 
-// monitorReadFile is rtnl_from_file over path, each message handed to fn,
-// as fromFile describes; `ip xfrm monitor file` walks it the same way.
+// monitorReadFile is nlmon.ReadFile with goip's sentinels: a file it
+// cannot open is ErrMonitorAbort, any other failure ErrMonitorFile.
 func monitorReadFile(path string, fn func(monitorMsg) error) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		var errno unix.Errno
-		if errors.As(err, &errno) {
-			return fmt.Errorf("%w: Cannot fopen: %s", ErrMonitorAbort, errno.Error())
-		}
-		return fmt.Errorf("%w: Cannot fopen: %w", ErrMonitorAbort, err)
+	err := nlmon.ReadFile(path, func(m nlmon.Msg) error {
+		return fn(monitorMsg{hdr: m.Hdr, body: m.Body, nsid: m.Nsid})
+	})
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, nlmon.ErrOpen):
+		return fmt.Errorf("%w: %w", ErrMonitorAbort, err)
 	}
-	off := 0
-	for off < len(data) {
-		if len(data)-off < xtcpnl.NlMsgHdrSizeCst {
-			return fmt.Errorf("%w: rtnl-from_file: truncated message", ErrMonitorFile)
-		}
-		var h xtcpnl.NlMsgHdr
-		if _, err := xtcpnl.DeserializeNlMsgHdr(data[off:], &h); err != nil {
-			return fmt.Errorf("%w: %w", ErrMonitorFile, err)
-		}
-		if h.Len < xtcpnl.NlMsgHdrSizeCst || h.Len > monitorBufCst {
-			return fmt.Errorf("%w: !!!malformed message: len=%d @%d", ErrMonitorFile,
-				int32(h.Len), off+xtcpnl.NlMsgHdrSizeCst)
-		}
-		l := int(h.Len) - xtcpnl.NlMsgHdrSizeCst
-		end := off + xtcpnl.NlMsgHdrSizeCst + nlmsgAlign(l)
-		if end > len(data) {
-			return fmt.Errorf("%w: rtnl-from_file: truncated message", ErrMonitorFile)
-		}
-		body := data[off+xtcpnl.NlMsgHdrSizeCst : off+xtcpnl.NlMsgHdrSizeCst+l]
-		if err := fn(monitorMsg{hdr: h, body: body, nsid: -1}); err != nil {
-			return fmt.Errorf("%w: %w", ErrMonitorFile, err)
-		}
-		off = end
-	}
-	return nil
+	return fmt.Errorf("%w: %w", ErrMonitorFile, err)
 }
