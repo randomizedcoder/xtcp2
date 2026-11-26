@@ -3,24 +3,38 @@
 package nicinfo
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
 
 const routeV4Header = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n"
 
-// routeV4 is one /proc/net/route line.
+// routeV4 is one /proc/net/route line, metric 0.
 func routeV4(iface, dest, flags, mask string) string {
-	return iface + "\t" + dest + "\t0100A8C0\t" + flags + "\t0\t0\t0\t" + mask + "\t0\t0\t0\n"
+	return routeV4Metric(iface, dest, flags, mask, 0)
 }
 
-// routeV6 is one /proc/net/ipv6_route line.
+// routeV4Metric is one /proc/net/route line with a metric (decimal, as the
+// kernel prints it).
+func routeV4Metric(iface, dest, flags, mask string, metric int) string {
+	return iface + "\t" + dest + "\t0100A8C0\t" + flags + "\t0\t0\t" + strconv.Itoa(metric) + "\t" + mask + "\t0\t0\t0\n"
+}
+
+// routeV6 is one /proc/net/ipv6_route line, metric 1024 (0x400).
 func routeV6(dest, prefix, flags, iface string) string {
+	return routeV6Metric(dest, prefix, flags, iface, 0x400)
+}
+
+// routeV6Metric is one /proc/net/ipv6_route line with a metric (8 hex digits,
+// as the kernel prints it).
+func routeV6Metric(dest, prefix, flags, iface string, metric int) string {
 	zero := strings.Repeat("0", 32)
-	return dest + " " + prefix + " " + zero + " 00 " + zero + " 00000400 00000001 00000000 " + flags + " " + iface + "\n"
+	return dest + " " + prefix + " " + zero + " 00 " + zero + " " + fmt.Sprintf("%08x", metric) + " 00000001 00000000 " + flags + " " + iface + "\n"
 }
 
 var (
@@ -46,7 +60,7 @@ func TestParseDefaultRoutesV4(t *testing.T) {
 		{"subnet", "negative", "a subnet route, not the default", routeV4Header + routeV4("eth0", "0000A8C0", "0001", "00FFFFFF"), nil},
 		{"mask", "boundary", "destination 0 with a /8 mask is 0.0.0.0/8, not default", routeV4Header + routeV4("eth0", "00000000", "0001", "000000FF"), nil},
 		{"header-only", "boundary", "a table with only the header", routeV4Header, nil},
-		{"two", "corner", "two defaults by metric, kept in table order", routeV4Header + routeV4("eth1", "00000000", "0003", "00000000") + routeV4("eth0", "00000000", "0003", "00000000"), []string{"eth1", "eth0"}},
+		{"two", "corner", "two defaults (metric 0 each), kept in table order", routeV4Header + routeV4("eth1", "00000000", "0003", "00000000") + routeV4("eth0", "00000000", "0003", "00000000"), []string{"eth1", "eth0"}},
 		{"garbage", "corner", "short lines and non-hex flags", routeV4Header + "eth0 00000000\n" + routeV4("eth0", "00000000", "zz", "00000000"), nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -173,6 +187,77 @@ func TestDefaultUplinksFixture(t *testing.T) {
 			}
 			if got := defaultUplinks(proc, sys, tc.max); !slices.Equal(got, tc.expected) {
 				t.Fatalf("got %v, expected %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestDefaultUplinksMetric pins how uplinks relate to route metrics.
+// defaultUplinks never reads the metric: it trusts the kernel, which lists
+// same-prefix routes in ascending metric order (IPv4 fib_find_alias,
+// net/ipv4/fib_trie.c; IPv6 fib6_add_rt2node, net/ipv6/ip6_fib.c). These rows
+// keep that reliance explicit, so a change to it shows up here.
+//
+// go test ./pkg/nicinfo/ -run TestDefaultUplinksMetric
+func TestDefaultUplinksMetric(t *testing.T) {
+	const dflt, ug, mask0 = "00000000", "0003", "00000000"
+	for _, tc := range []struct {
+		name, category, description string
+		v4, v6                      string
+		expected                    []string
+		fallback                    []string // PhysicalInterfaces, checked when expected is nil
+	}{
+		{
+			"kernel_order", "positive", "defaults listed in the kernel's metric order give the uplinks in that order",
+			routeV4Header + routeV4Metric("eth1", dflt, ug, mask0, 100) + routeV4Metric("eth0", dflt, ug, mask0, 200), "",
+			[]string{"eth1", "eth0"}, nil,
+		},
+		{
+			"v4_before_v6", "positive", "IPv4 defaults come before IPv6 ones whatever their metrics",
+			routeV4Header + routeV4Metric("eth0", dflt, ug, mask0, 1000), routeV6Metric(zeroV6, "00", "00000003", "eth1", 1),
+			[]string{"eth0", "eth1"}, nil,
+		},
+		{
+			"metric_ignored", "negative", "lines out of metric order are not reordered: the listing order is trusted",
+			routeV4Header + routeV4Metric("eth0", dflt, ug, mask0, 200) + routeV4Metric("eth1", dflt, ug, mask0, 100), "",
+			[]string{"eth0", "eth1"}, nil,
+		},
+		{
+			"equal_metric", "boundary", "equal metrics keep the listing order",
+			routeV4Header + routeV4Metric("eth1", dflt, ug, mask0, 100) + routeV4Metric("eth0", dflt, ug, mask0, 100), "",
+			[]string{"eth1", "eth0"}, nil,
+		},
+		{
+			"none_physical_fallback", "corner", "no default route gives no uplinks; the caller's fallback lists the sysfs NICs by name",
+			routeV4Header, "",
+			nil, []string{"eth0", "eth1"},
+		},
+		{
+			"same_nic_twice", "corner", "a NIC holding both the IPv4 and the IPv6 default counts once",
+			routeV4Header + routeV4Metric("eth1", dflt, ug, mask0, 100), routeV6Metric(zeroV6, "00", "00000003", "eth1", 256),
+			[]string{"eth1"}, nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s", tc.category, tc.description)
+			sys := sysNet(t, []string{"eth1", "eth0"}, nil, []string{"veth9"})
+			proc := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(proc, "net"), 0o750); err != nil {
+				t.Fatal(err)
+			}
+			for file, body := range map[string]string{"route": tc.v4, "ipv6_route": tc.v6} {
+				if err := os.WriteFile(filepath.Join(proc, "net", file), []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := defaultUplinks(proc, sys, 4)
+			if !slices.Equal(got, tc.expected) {
+				t.Fatalf("defaultUplinks: got %v, expected %v", got, tc.expected)
+			}
+			if tc.expected == nil {
+				if fb := PhysicalInterfaces(sys, 4); !slices.Equal(fb, tc.fallback) {
+					t.Fatalf("PhysicalInterfaces: got %v, expected %v", fb, tc.fallback)
+				}
 			}
 		})
 	}

@@ -30,6 +30,13 @@ const maxLowerDepth = 8
 // "unreachable ::/0 dev lo" is in every ipv6_route), as are routes not up. A
 // virtual device holding the route (bond0, a vlan, a bridge) is replaced by the
 // physical NICs beneath it, which is where the NIC and LLDP columns live.
+//
+// Order: IPv4 defaults first, then IPv6, each in the kernel's listing order.
+// The metric is not read: the kernel lists same-prefix routes in ascending
+// metric order (IPv4 fib_find_alias, net/ipv4/fib_trie.c; IPv6
+// fib6_add_rt2node, net/ipv6/ip6_fib.c), so the listing order is already the
+// lowest metric first. xtcp2 calls this once at startup; a later route change
+// does not move the uplink columns until a restart.
 func DefaultUplinks(maxN int) []string {
 	return defaultUplinks("/proc", "/sys", maxN)
 }
