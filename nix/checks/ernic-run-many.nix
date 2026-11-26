@@ -2,7 +2,8 @@
 #
 # Table test for nix/ernic/run-many.nix with a fake rocm-ernic: the fake
 # binds its --socket (or exits first when FAKE_ERNIC_FAIL names it, or
-# later when FAKE_ERNIC_DIE_LATE does). Each row prints
+# later when FAKE_ERNIC_DIE_LATE does); on TERM it waits 0.5 s and prints a
+# fault report, as rocm-ernic's clean shutdown does. Each row prints
 #   ROW <name> <category> PASS|FAIL <description>: <detail>
 # and any FAIL fails the check.
 { pkgs, lib }:
@@ -30,7 +31,20 @@ let
       fi
       late=0
       if [ "''${FAKE_ERNIC_DIE_LATE:-}" = "$name" ]; then late=1; fi
-      exec python3 -c 'import socket, sys, time; s = socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(1); time.sleep(1 if sys.argv[2] == "1" else 3600)' "$socket" "$late"
+      # Like rocm-ernic, TERM starts a clean shutdown that takes a moment and
+      # ends with the fault report.
+      exec python3 -c '
+      import signal, socket, sys, time
+      def term(*_):
+          time.sleep(0.5)
+          print("  Fault eth_tx: eligible 7, fired 1", flush=True)
+          sys.exit(0)
+      signal.signal(signal.SIGTERM, term)
+      s = socket.socket(socket.AF_UNIX)
+      s.bind(sys.argv[1])
+      s.listen(1)
+      time.sleep(1 if sys.argv[2] == "1" else 3600)
+      ' "$socket" "$late"
     '';
   };
   runMany = import ../ernic/run-many.nix {
@@ -118,6 +132,21 @@ pkgs.runCommand "xtcp2-ernic-run-many"
     sleep 0.5
     n=$(fakes)
     row sigterm corner "TERM stops the command and every server" "$([ $rc = 143 ] && [ "$n" = 0 ] && echo 1)" "rc=$rc fakes=$n"
+
+    d=$(mktemp -d)
+    $TWO --dir "$d" -- true
+    got=$(cat "$d/ernic-a.log" "$d/ernic-b.log" 2>/dev/null | grep -c 'Fault eth_tx: eligible 7, fired 1' || true)
+    row clean_stop positive "each server finishes its clean shutdown, so its fault report reaches its log" "$([ "$got" = 2 ] && echo 1)" "reports=$got"
+
+    d=$(mktemp -d)
+    rc=0
+    err=$($TWO --dir "$d" --pcap eth9 -- true 2>&1) || rc=$?
+    row pcap_unknown negative "--pcap names an interface the fabric does not have" "$([ $rc = 2 ] && [[ $err == *"--pcap eth9 is not a fabric bridge or TAP"* ]] && echo 1)" "rc=$rc err=$err"
+
+    d=$(mktemp -d)
+    rc=0
+    err=$($NONE --dir "$d" --pcap br0 -- true 2>&1) || rc=$?
+    row pcap_no_fabric negative "--pcap without any fabric is refused" "$([ $rc = 2 ] && [[ $err == *"--pcap br0 is not a fabric bridge or TAP"* ]] && echo 1)" "rc=$rc err=$err"
 
     d=$(mktemp -d)
     mine=$(readlink /proc/self/ns/net)
