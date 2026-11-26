@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -188,6 +189,96 @@ func TestPcapMsgs(t *testing.T) {
 				if s := tc.check(ms); s != "" {
 					t.Error(s)
 				}
+			}
+		})
+	}
+}
+
+// TestReplay is a capture's notifications played through rtnl_listen's
+// buffer: the offsets Datagram records decide what a receive would cut.
+//
+// go test ./internal/nlmon/ -run TestReplay
+func TestReplay(t *testing.T) {
+	type result struct {
+		types string
+		err   string
+	}
+	// sized is a message of n bytes in all at offset off.
+	sized := func(typ uint16, n uint32, off int) Msg {
+		return Msg{Hdr: xtcpnl.NlMsgHdr{Len: n, Type: typ}, Nsid: -1, Off: off}
+	}
+	stop := errors.New("stop")
+	tests := []struct {
+		description string
+		msgs        []Msg
+		notes       []int
+		start, buf  int
+		fn          func(Msg) error
+		expected    result
+	}{
+		{"positive: every notification in order", []Msg{sized(36, 20, 0), sized(16, 20, 0), sized(37, 20, 0)},
+			[]int{0, 2}, 0, 0, nil, result{types: "36 37 "}},
+		{"positive: those before start are lost", []Msg{sized(36, 20, 0), sized(37, 20, 0)},
+			[]int{0, 1}, 1, 0, nil, result{types: "37 "}},
+		{"negative: a 16396-byte event is cut (MO5)", []Msg{sized(100, 36, 0), sized(44, 16396, 0)},
+			[]int{0, 1}, 0, 0, nil, result{types: "100 ", err: "Truncated message"}},
+		{"negative: fn's error ends it as it is", []Msg{sized(36, 20, 0), sized(37, 20, 0)},
+			[]int{0, 1}, 0, 0, func(Msg) error { return stop }, result{err: "stop"}},
+		{"boundary: a 16384-byte event fits", []Msg{sized(44, RecvBufCst, 0)}, []int{0}, 0, 0, nil, result{types: "44 "}},
+		{"boundary: a 16380-byte event at offset 4 fits; at 8 it does not", []Msg{sized(44, 16380, 4), sized(44, 16380, 8)},
+			[]int{0, 1}, 0, 0, nil, result{types: "44 ", err: "Truncated message"}},
+		{"boundary: no notifications", []Msg{sized(36, 20, 0)}, nil, 0, 0, nil, result{}},
+		{"corner: a smaller buffer cuts sooner", []Msg{sized(36, 20, 0), sized(37, 40, 0)}, []int{0, 1}, 0, 32, nil,
+			result{types: "36 ", err: "Truncated message"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var b strings.Builder
+			fn := tc.fn
+			if fn == nil {
+				fn = func(m Msg) error {
+					fmt.Fprintf(&b, "%d ", m.Hdr.Type)
+					return nil
+				}
+			}
+			err := Replay(tc.msgs, tc.notes, tc.start, tc.buf, fn)
+			got := result{types: b.String()}
+			if err != nil {
+				got.err = err.Error()
+				if got.err == "Truncated message" && !errors.Is(err, ErrTruncated) {
+					t.Errorf("%v is not ErrTruncated", err)
+				}
+			}
+			if got != tc.expected {
+				t.Errorf("got %+v, want %+v", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestDatagramOffsets pins Off: each message's start in its datagram,
+// past the padding of those before it.
+func TestDatagramOffsets(t *testing.T) {
+	tests := []struct {
+		description string
+		datagram    []byte
+		expected    string
+	}{
+		{"positive: three messages", cat(rec(1, le32(1)), rec(2, nil), rec(3, nil)), "0 20 36 "},
+		{"boundary: one message", rec(1, nil), "0 "},
+		{"corner: a padded body moves the next", cat(rec(1, []byte{1}), rec(2, nil)), "0 20 "},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var b strings.Builder
+			if err := Datagram(tc.datagram, false, -1, func(m Msg) error {
+				fmt.Fprintf(&b, "%d ", m.Off)
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if b.String() != tc.expected {
+				t.Errorf("got %q, want %q", b.String(), tc.expected)
 			}
 		})
 	}

@@ -197,6 +197,8 @@ func (r *runner) actList(args []string) error {
 // unchecked (here MIN-copied) and absent from a get's reply, so a get
 // prints 0 (AC2); it prints before the tab is checked (AC3), as a JSON
 // object of its own whose key has a space (AC1). The actions are unbound.
+// A monitor's events add a word: Added, Replaced or Deleted action, or
+// Flushed table.
 func (r *runner) printAction(m Msg) (int, error) {
 	o := r.o
 	if len(m.Body) < xtcpnl.TcaMsgSizeCst {
@@ -218,6 +220,20 @@ func (r *runner) printAction(m Msg) (int, error) {
 			r.errf("print_action: NULL kind\n")
 		}
 		return -1, nil
+	}
+	// The event words go out through fprintf, outside any JSON (MO9).
+	// NLM_F_ROOT and NLM_F_REPLACE are both 0x100: a delete's flag space is
+	// a get's.
+	switch {
+	case m.Type == unix.RTM_DELACTION && m.Flags&unix.NLM_F_ROOT != 0:
+		o.raw("Flushed table ")
+		r.tabFlush = true
+	case m.Type == unix.RTM_DELACTION:
+		o.raw("Deleted action ")
+	case m.Type == unix.RTM_NEWACTION && m.Flags&unix.NLM_F_CREATE != 0 && m.Flags&unix.NLM_F_REPLACE == 0:
+		o.raw("Added action ")
+	case m.Type == unix.RTM_NEWACTION && m.Flags&unix.NLM_F_REPLACE != 0:
+		o.raw("Replaced action ")
 	}
 	o.openObject("")
 	if err := r.dumpAction(tb.Bytes(xtcpnl.TcaRootTab), tot, false); err != nil {

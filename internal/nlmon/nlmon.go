@@ -28,11 +28,13 @@ const cmsgBufCst = 64
 
 // Msg is one message a monitor's accept function is handed: its header,
 // its body past the header, and the netns id a NETLINK_LISTEN_ALL_NSID
-// socket names it with, -1 for none.
+// socket names it with, -1 for none. Off is where it starts in its
+// datagram, so a replay can tell what a receive buffer would have cut.
 type Msg struct {
 	Hdr  xtcpnl.NlMsgHdr
 	Body []byte
 	Nsid int32
+	Off  int
 }
 
 // Kinds of Error, for a clone's exit status.
@@ -78,6 +80,7 @@ func align(n int) int { return (n + 3) &^ 3 }
 // and no remnant check, as rtnl_listen's `continue` skips it; the caller
 // prints "Message truncated". Otherwise bytes left over are ErrRemnant.
 func Datagram(b []byte, truncated bool, nsid int32, fn func(Msg) error) error {
+	off := 0
 	for len(b) >= xtcpnl.NlMsgHdrSizeCst {
 		var h xtcpnl.NlMsgHdr
 		if _, err := xtcpnl.DeserializeNlMsgHdr(b, &h); err != nil {
@@ -89,7 +92,7 @@ func Datagram(b []byte, truncated bool, nsid int32, fn func(Msg) error) error {
 			}
 			return errorf(ErrMalformed, "!!!malformed message: len=%d", int32(h.Len))
 		}
-		if err := fn(Msg{Hdr: h, Body: b[xtcpnl.NlMsgHdrSizeCst:h.Len], Nsid: nsid}); err != nil {
+		if err := fn(Msg{Hdr: h, Body: b[xtcpnl.NlMsgHdrSizeCst:h.Len], Nsid: nsid, Off: off}); err != nil {
 			return err
 		}
 		next := align(int(h.Len))
@@ -97,6 +100,7 @@ func Datagram(b []byte, truncated bool, nsid int32, fn func(Msg) error) error {
 			return nil
 		}
 		b = b[next:]
+		off += next
 	}
 	if truncated {
 		return nil

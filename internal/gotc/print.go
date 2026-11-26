@@ -84,6 +84,13 @@ func (o *out) raw(s string) {
 
 func (o *out) printf(s string) { o.raw(s) }
 
+// flush is fflush(stdout).
+func (o *out) flush() {
+	if err := o.w.Flush(); err != nil && o.err == nil {
+		o.err = err
+	}
+}
+
 // newJSONObj is new_json_obj: with -j, open the writer and its array.
 func (o *out) newJSONObj() {
 	if o.json {

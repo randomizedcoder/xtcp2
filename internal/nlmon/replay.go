@@ -158,3 +158,28 @@ func Notifications(msgs []Msg) []int {
 func IsRtmGet(t uint16) bool {
 	return t >= unix.RTM_BASE && (t-unix.RTM_BASE)%4 == 2
 }
+
+// Replay hands fn each notification of msgs at or past start, by the
+// indexes Notifications gave, as rtnl_listen with a buffer of bufSize (0
+// is RecvBufCst) would: a message that does not fit in the buffer from its
+// offset in its datagram is the receive's MSG_TRUNC, which ends the listen
+// with ErrTruncated, "Truncated message". nlmon records the datagram
+// whole, so the capture has what the listener could not read.
+func Replay(msgs []Msg, notes []int, start, bufSize int, fn func(Msg) error) error {
+	if bufSize == 0 {
+		bufSize = RecvBufCst
+	}
+	for _, i := range notes {
+		if i < start {
+			continue
+		}
+		m := msgs[i]
+		if m.Off+int(m.Hdr.Len) > bufSize {
+			return errorf(ErrTruncated, "Truncated message")
+		}
+		if err := fn(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
