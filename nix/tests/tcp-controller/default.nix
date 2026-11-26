@@ -143,6 +143,10 @@ let
         package = binaries.xtcp2-min;
         configFile = "/etc/xtcp2/unused.json";
         linkMonitor.enable = false;
+        # The fixture's agentReady probes 127.0.0.1:9088/readyz. The default
+        # listener is a token-protected UDS, so serve health alone on
+        # loopback TCP, the one place auth=disabled is allowed for TCP.
+        listeners = [ "name=health,serves=health,address=127.0.0.1:9088,network=tcp,auth=disabled" ];
         treatments = {
           enable = true;
           mode = "standalone";
