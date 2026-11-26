@@ -290,18 +290,26 @@ Gates: the spec-to-`.nl` regeneration golden (`TestMonfileCommittedSpecs`); goip
 
 The nix check on the `test-linkmonitor-rdma-runtime` pattern (`nix/checks/goip-monitorfile.nix`, registered in `nix/checks/default.nix`): it builds nixpkgs' iproute2 (7.2.0) and the pinned 7.3.0 (`nix/iproute2-7-3-0.nix`, the parity pin), regenerates every committed `.nl` from its spec with the real `nlcapgen` and refuses a byte of drift, then replays each blob through `ip -d monitor file` at both versions and `goip -d monitor file` at `GOIP_IP730=0` and `=1`, and compares stdout and rc against committed goldens (stderr only in the refusal rows — goip prefixes its complaint; stdout is the parity claim). This is the check that would have caught `0067cbc8` and P14 before the notes existed. Measured for the design: AF_NETLINK works in the build sandbox (a `runCommand` probe ran `ip -d link show` in it), so goip's eager `linkMap` dump (`obj_monitor.go`'s file path) works there too — and the same probe showed the sandbox carries the host's link indices, hence the no-sandbox-index rule for the blobs above.
 
-Gates: **built red first** — the commit that registers the check records the red run, its stderr naming the three gaps (the hionly row `256 <>` vs `0 <>` at `GOIP_IP730=0`, the `congctl cubic p` rows, the `state UNKNOWN` word) — then green once T02 lands; `nix flake check`'s list grows the attribute; the docs check over `internal/goip/testdata/monitor/` (its files count as artifacts when they start to exist); the O5/O9/O10 goldens regenerated in the same commit, `differs` and `sends` at 0.
+The red-run mechanics, corrected for the order the work landed (V390 landed T02's fixes before this check exists, so the check cannot go red at HEAD): the red run is produced in a `git worktree` at `d30a4886c` (the tree before the fixes) carrying the blob files and this check — the flake reads tracked files, so the worktree adds them to its own index — and its stderr names the three gaps the fixes closed (the hionly row `256 <>` where the 7.2.0 golden says `0 <>` at `GOIP_IP730=0` — the pre-fix goip always read the u16 — the `congctl cubic p` rows, the `state UNKNOWN` word); the green run is at HEAD. The task's commit records both runs.
+
+Gates: the check green at HEAD; `nix flake check`'s list grows the attribute; the docs check gains the blob files as artifacts — every file under `internal/goip/testdata/monitor/` named from a `docs/netlink/` document (the plan's tables and the upstream notes' evidence lines name them), the same no-orphans rule the upstream index carries, so a blob cannot rot unexercised; the O5/O9/O10 goldens regenerated in the same commit, `differs` and `sends` at 0.
 
 ## Tier EG: goip and the matrix
 
-Outline; its tables, written at EC4-T01 from the rows.
+Planned (V391), measured before written. The grounding probe: the workbench guest, the `evlink-carrier` row's own recipe, three sides — `ip monitor link maddress`, `goip monitor link maddress` at `GOIP_IP730=1` (the parity release), `ip` again — each in a fresh namespace, the row's `pre`, the 224.0.0.250 canary join, the `r0p down; r0p up` trigger, a stop. **goip's live monitor printed `ip`'s lines** — the only differences across the sides were the addresses derived from each namespace's random veth MAC. The control noise is three classes, all measured:
 
-- **EG1 — the monitor section.** A new row kind in the parity harness: the row starts `ip monitor <objects>` and `goip monitor <objects>` in the row's namespace, runs the trigger, stops both on the `until` EREs, and the comparator diffs the two monitors' stdout with the D_control discipline (an `ip`-only control run around the goip one, as `ip_a → goip → ip_b` does for dumps). The hygiene rule inverts for these rows only: a notification is the point, not pollution. Timestamps are excluded (`-t` is never used in a compared row; the `monitor_all_timestamp` row stays a capture, not a comparison).
+1. **The canary retry's pair.** When a monitor has not printed the canary within its window, the helper deletes and rejoins; the pair of blocks (the `Deleted … mcast 224.0.0.250` block, the join block) appeared on the `ip` side in one run and on goip's in another — whichever side the race hits. The A1-T02 rule (canary blocks pair with their notifications) already carries it, and the row kind keeps the helper's own retry code, so the pair is expected on any side.
+2. **The random MAC and its derived addresses.** The solicited-node mcast line (`ff02::1:ff…`) derives from the link's MAC; the comparator's existing MAC rule covers both, the same rule the corpus rows normalize with.
+3. **The carrier transient.** The trigger's `down; up` settles asynchronously — the r0p line after the up prints `state LOWERLAYERDOWN` with `NO-CARRIER` when the carrier had not returned, `state UP` when it had; one run measured `ip_a` catching the first shape and `ip_b` the second. That is the D_control for monitor rows: a real control disagreement the comparator subtracts, and the goip row's shape is accepted while it lies inside the controls' own disagreement.
+
+The refusal row's expect is the measured `everr-esrch` record — `rc 1, errno ESRCH, refused_by kernel` — the helper's own discipline (`rc=1` when the trigger fails), not the trigger's own rc; the table's "goip exits the trigger's rc" is corrected to the helper's rc below. What already exists: `goip` ships to the parity guest via `xtcp2AllPackage` (every flavor gets it), `xtcp2-nl-ipmon` is on the driven guests' PATH, the parity guest's `ip` is the 7.3.0 pin (hiPrio, `mkVm.nix`), and the save-blobs machinery ships store paths to the guest — the restore rows' own device, which EG2's blob inputs ride. V382 covers the version: the event print paths are unchanged between 7.2.0 and 7.3.0, so the rows' equality at the parity pin is the corpus's equality too.
+
+- **EG1 — the monitor section.** A new row kind in the parity harness: the row starts `ip monitor <objects>` and `goip monitor <objects>` in the row's namespace, runs the trigger, stops both on the `until` EREs, and the comparator diffs the two monitors' stdout with the D_control discipline (an `ip`-only control run around the goip one, as `ip_a → goip → ip_b` does for dumps). The hygiene rule inverts for these rows only: a notification is the point, not pollution — the monitor section runs with the harness's hygiene check off, its rows carry no pcap and no floor (the until-EREs matched are the row's own floor). Timestamps are excluded (`-t` is never used in a compared row; the `monitor_all_timestamp` row stays a capture, not a comparison).
 
 | description | input | expected |
 |---|---|---|
 | positive: one row per family, both monitors | the EP1 twelve (`evlink-carrier`, `evaddr-dad`, `evroute-autoconf`, `evneigh-v4`, `evnhb-bucket`, `evconf-del`, `evrule-v4`, `evstats-l3`, `evnsid-live`, `evprefix-route`, `anycast-del`, `evseq-mixed`) | goip's stdout equals ip's, canary blocks and all, on both boots' `ip` controls |
-| positive: the refusals | `everr-esrch`, `evnsid-eexist` | the canary blocks, and goip exits the trigger's rc like `ip` does |
+| positive: the refusals | `everr-esrch`, `evnsid-eexist` | the canary blocks, no render of the refused request, and the helper's own rc (1, V391's measured record) on both tools' sides |
 | corner: the @peer print | `evlink-carrier`, `evlink-admin` | goip prints `r0@r0p: ` (the @peer notation, V380) |
 | corner: the carrier transient | `evlink-carrier` | whichever carrier-settle shape the window caught, as the D_control run around it did |
 | negative: a render goip prints differently | a finding | the line, both tools, the version knob |
@@ -315,6 +323,28 @@ Outline; its tables, written at EC4-T01 from the rows.
 | positive: the metrics padding | the `cubic\0p\0` route | the padded byte, both tools (UB0-T01) |
 | corner: a captured pcap, as a file | the `evnhb-bucket` pcap, via `nlcapgen monfile` | the same lines as the `.out` |
 | negative: not a netlink file | a text file | both tools' refusal, rc as each exits |
+
+#### EG1-T01 the row kind, and the probe's row
+
+The harness grows the row kind: the `Command` table (`internal/goipparity/commands.go`) gains the monitor fields — the trigger, the until-EREs, the canary device — and `goip-parity commands` prints them, the guest row format growing past its fixed ten fields (the driver and the table stay one source: `TestCommandTable`'s pair rule). The driver (`goip-parity.exp`) grows the monitor flow: per side a fresh namespace (the Write discipline — the trigger changes state), the row's Setup, then `xtcp2-nl-ipmon <canary> <objects> <trigger> <until>…` with the tool switched for the goip side — the tool by env, one code path, so the canary loop, the trigger, the until-loop and the stop cannot fork between the tools. The comparator grows the monitor rows: stdout compared, D_control subtracted, the three noise classes handled as measured above — the MAC normalized, the canary pairs kept, the transient bounded by the controls' own disagreement.
+
+Gates: the `evlink-carrier` row green through the harness (the three stdouts, the report naming the section); `TestCommandTable` and the harness's own tests over the new fields; the workbench hermetic tests; the full suites; the docs.
+
+#### EG1-T02 the rows
+
+The EG1 table's rows — the EP1 twelve, the two refusals, the @peer and carrier corners — each the `ipmon` row's own shape at the parity guest's release, goip at `GOIP_IP730=1`. The refusal rows' rc is the helper's (measured: `rc 1, errno ESRCH, refused_by kernel`), the stdout is the parity claim.
+
+Gates: every row green or its finding recorded (the findings rule: an `ip` print-path difference obligates a `upstream/` note in the same task); the harness's report; O5/O9/O10 regenerated, `differs` and `sends` at 0; the full suites; the checks.
+
+#### EG2-T01 the offline rows
+
+The monitor-file row kind: an empty namespace per side (ifindex 7 misses — the `if7` fallback, the no-sandbox-index rule), `ip -d monitor file <blob>` against `goip -d monitor file <blob>` at `GOIP_IP730=1`, the blobs shipped to the guest by the save-blobs machinery. The `=0` rows hold goip to the committed `.ip720.out` goldens — the measurement of record — because the parity guest carries no 7.2.0 `ip` (T03's check is what gates that knob against the real 7.2.0 binary). The EG2 table's rows, as written at EC4-T01, plus the pcap corner's input: the `evnhb-bucket` capture converted by `nlcapgen monfile` and committed beside the blobs — a real capture's bytes, the fixture rule's own class.
+
+Gates: every row green or its finding recorded; the committed `.nl` regenerated by the spec golden; O5/O9/O10 regenerated; the full suites; the checks; the docs check naming the pcap corner's committed files.
+
+#### EG2-T02 the tier closes
+
+The gates: O5/O9/O10 regenerated, `differs` and `sends` at 0, no row moved away from `same`; the full suites; the checks; the docs. The two decisions the plan's follow-ups leave to EG's close, answered in the task's own ledger row: the kernel spread for events (whether any decoder branch depends on a kernel-conditional attribute first — if none does, the spread is deferred with the reason recorded) and the oneshot's retirement (whether `nlmon-capture` stays as the one baked-in, zero-driver capture; if it goes, `flake.nix`'s header, `nix/README.md`'s fixture table and `docs/netlink/collection.md` name the retirement in the same task).
 
 ## Tier UB: the iproute2 findings record
 
