@@ -222,6 +222,10 @@ if [ -n "${ERNIC_TX_EVERY:-}" ]; then
   segs_in=$(q "SELECT coalesce(sum(tcp_info_segs_in), 0) FROM $P WHERE netns = 'golden-ernic-b'")
   # The final counters for the host's ernic-oracle, then both links down,
   # so nothing more reaches the emulator before its fault report.
+  # Diagnostic: the same sum from the kernel now, per socket, so a
+  # disagreement tells frames sent after xtcp2's poll from frames no socket
+  # counted.
+  echo "GOLDEN_ERNIC_SS_SEGS_OUT $(ss -Htin state all dst 10.0.4.16/31 | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^segs_out:/) { n += substr($i, 10); printf "%s ", substr($i, 10) } } END { print "sum " n + 0 }')"
   ernic_counters="ionic0_tx=$tx ionic0_tx_dropped=$dropped ionic1_rx=$rx ionic0_segs_out=$segs_out ionic1_segs_in=$segs_in"
   ip link set ionic0 down
   ip -n golden-ernic-b link set ionic1 down
