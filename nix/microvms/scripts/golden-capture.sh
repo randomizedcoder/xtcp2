@@ -168,7 +168,13 @@ n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_s
 ok=0
 [ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
 per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans || '/state' || inet_diag_msg_state || '/segs_out' || tcp_info_segs_out || '/bytes_acked' || tcp_info_bytes_acked, ',' ORDER BY inet_diag_cong) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000")
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}"
+# netem's own drop count on each side's veth0, to tell "netem dropped
+# nothing" from "TCP saw no loss" when this row fails.
+netem_drops=""
+for ns in golden-bulk-a golden-bulk-b; do
+  netem_drops="$netem_drops $ns=$(ip netns exec "$ns" tc -s qdisc show dev veth0 | awk '/dropped/ { sub(",", "", $7); print $7; exit }')"
+done
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem dropped:$netem_drops"
 n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-cc-b', 'golden-opts-a', 'golden-opts-b') AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq 0 ] && ok=1
@@ -194,18 +200,27 @@ if [ -n "${ERNIC_TX_EVERY:-}" ]; then
   ok=0
   [ "$dropped" -gt 0 ] && [ "$dropped" -eq "$want" ] && ok=1
   row fault_count boundary "$ok" "ionic0 tx_packets $tx, tx_dropped $dropped, want (tx_packets + tx_dropped) / $ERNIC_TX_EVERY = $want"
-  # ionic0's transmit site is the one fault_count checks exactly. ionic1's
-  # receive count is reported, not required: one capture in five saw one
-  # frame reach it from the fabric before the transfers.
   before=$(cat /run/xtcp2-golden-ernic-before 2>/dev/null || echo missing)
   ok=0
-  [ "${before%% *}" = 0 ] && ok=1
-  row no_noise corner "$ok" "ionic0 tx_packets, ionic1 rx_packets before the transfers: $before, want 0 and any"
-  # For the host's ernic-oracle: the final counters (xtcp2 has stopped and
-  # the transfers are idle), then both links down, so nothing more reaches
-  # the emulator before its fault report at shutdown.
+  [ "$before" = "0 0" ] && ok=1
+  row no_noise corner "$ok" "ionic0 tx_packets, ionic1 rx_packets before the transfers: $before, want 0 0"
+  # Settled: the counters do not move in a second (no keepalives, xtcp2
+  # stopped).
   rx=$(ip netns exec golden-ernic-b cat /sys/class/net/ionic1/statistics/rx_packets)
-  echo "GOLDEN_ERNIC_COUNTERS ionic0_tx=$tx ionic0_tx_dropped=$dropped ionic1_rx=$rx"
+  sleep 1
+  tx2=$(cat /sys/class/net/ionic0/statistics/tx_packets)
+  rx2=$(ip netns exec golden-ernic-b cat /sys/class/net/ionic1/statistics/rx_packets)
+  ok=0
+  [ "$tx2" = "$tx" ] && [ "$rx2" = "$rx" ] && ok=1
+  row quiescent corner "$ok" "ionic0 tx_packets $tx then $tx2, ionic1 rx_packets $rx then $rx2, 1 s apart"
+  # The segments xtcp2 recorded: sent by the root namespace's sockets out of
+  # ionic0, received by golden-ernic-b's sockets on ionic1 (every state, so
+  # a retransmitted SYN counted on a listener is in).
+  segs_out=$(q "SELECT coalesce(sum(tcp_info_segs_out), 0) FROM $P WHERE netns = 'default' AND enrich_socket_dest_egress_ifname = 'ionic0'")
+  segs_in=$(q "SELECT coalesce(sum(tcp_info_segs_in), 0) FROM $P WHERE netns = 'golden-ernic-b'")
+  # For the host's ernic-oracle: the final counters, then both links down,
+  # so nothing more reaches the emulator before its fault report.
+  echo "GOLDEN_ERNIC_COUNTERS ionic0_tx=$tx ionic0_tx_dropped=$dropped ionic1_rx=$rx ionic0_segs_out=$segs_out ionic1_segs_in=$segs_in"
   ip link set ionic0 down
   ip -n golden-ernic-b link set ionic1 down
 fi
