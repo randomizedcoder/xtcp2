@@ -103,8 +103,8 @@ func TestNsidRequestsCorpus(t *testing.T) {
 		got         string
 		expected    string
 	}{
-		{"positive: every GETNSID ip sent, by fd or the dump, rebuilds", rebuild(unix.RTM_GETNSID), "202 of 202"},
-		{"positive: every NEWNSID ip sent rebuilds", rebuild(unix.RTM_NEWNSID), "4 of 4"},
+		{"positive: every GETNSID ip sent, by fd or the dump, rebuilds", rebuild(unix.RTM_GETNSID), "274 of 274"},
+		{"positive: every NEWNSID ip sent rebuilds", rebuild(unix.RTM_NEWNSID), "12 of 12"},
 		{"negative: no DELNSID request exists to rebuild", rebuild(unix.RTM_DELNSID), "0 of 0"},
 	}
 	for _, tc := range tests {

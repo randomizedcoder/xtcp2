@@ -15,7 +15,7 @@ import (
 // word abbreviates its object, changes this list and has to say so here.
 func TestSections(t *testing.T) {
 	want := []string{
-		"addr", "addrlabel", "fou", "ila", "ioam", "l2tp", "link", "macsec", "maddress",
+		"addr", "addrlabel", "fou", "ila", "ioam", "l2tp", "link", "macsec", "maddress", "monitor",
 		"mptcp", "mroute", "mrule", "neigh", "netconf", "netns", "nexthop",
 		"ntable", "route", "rule", "sr", "stats", "tcp_metrics", "token", "vrf",
 		"xfrm",

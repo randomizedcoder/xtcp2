@@ -107,7 +107,20 @@ func TestCommandTable(t *testing.T) {
 				// stops at `dev` so the allowlist key does not depend on
 				// what the topology called the interface.
 				for _, c := range Commands() {
-					if want := strings.Join(c.Args, " "); c.Name != want {
+					want := strings.Join(c.Args, " ")
+					// A monitor row grows its own subject past the objects, so two
+					// rows that hold one objects string (the carrier and the admin
+					// rows both watch `monitor link maddress`) carry two names:
+					// the ev row's subject (carrier, admin, dad), so the argv
+					// cannot drift and the names stay unique (V391).
+					if c.Monitor {
+						if !strings.HasPrefix(c.Name, want+" ") {
+							t.Errorf("%q's Args join to %q, which the name grows on",
+								c.Name, want)
+						}
+						continue
+					}
+					if c.Name != want {
 						t.Errorf("%q has Args %q, which join to %q", c.Name, c.Args, want)
 					}
 				}
@@ -603,8 +616,17 @@ func TestCommandString(t *testing.T) {
 
 	t.Run("corner: no field may contain a tab, or the field count would be wrong", func(t *testing.T) {
 		for _, c := range Commands() {
-			if n := len(strings.Split(c.String(), "\t")); n != 10 {
-				t.Errorf("%q renders %d fields, want 10", c.Name, n)
+			// A monitor row carries 10+5: the canary, the trigger and the until-EREs
+			// (10+1 is the marker (`monitor`), 10+2 the canary device, 10+3 the
+			// trigger, and each remaining field one until-ERE — the driver's
+			// lassign reads the tail as the EREs, so the count is the row's own
+			// and cannot be one fixed number (V391, EG1-T01)).
+			want := 10
+			if c.Monitor {
+				want = 13 + len(c.Until)
+			}
+			if n := len(strings.Split(c.String(), "\t")); n != want {
+				t.Errorf("%q renders %d fields, want %d", c.Name, n, want)
 			}
 		}
 	})
@@ -1172,6 +1194,13 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// held out by design.
 	expected := []string{
 		"addr show dynamic",
+		// EG1's first monitor rows (V393, commands.go): ungated until their
+		// first two clean live runs (EG1-T01 the row kind, EG1-T02 the rows),
+		// which gate them like the write rows — the monitor rows after EG1-T03
+		// below. They hold no pcap, so the gate holds the stdout comparison
+		// (the driver's own monitor triple's .out), not the capture.
+		"monitor link maddress admin",
+		"monitor link maddress carrier",
 	}
 
 	tests := []struct {
@@ -1179,10 +1208,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is one named row, held out by design",
+			description: "boundary: the list is the named rows, held out by design",
 			check: func(t *testing.T) {
-				if len(expected) != 1 {
-					t.Errorf("got %d named rows, want 1", len(expected))
+				// The forever-ungated row is the one whose lifetime ticks; a row
+				// about to gate holds the list, and the tally is the monitor
+				// rows' own. The guard is exact: the forever-ungated row is
+				// always in the list.
+				found := false
+				for _, name := range expected {
+					if name == "addr show dynamic" {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("addr show dynamic is not in the list, and is always")
 				}
 			},
 		},

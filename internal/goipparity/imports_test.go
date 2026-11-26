@@ -164,6 +164,9 @@ func TestParityCannotOpenASocket(t *testing.T) {
 				"write into the generated proto",
 			modulePath + "/pkg/cint": "reached through pkg/xtcpnl, which converts C ints with it; " +
 				"stdlib only",
+			modulePath + "/pkg/strpolicy": "reached through pkg/xtcpnl's inet_diag conginfo, " +
+				"which cleans the congestion label with it (FP-7, 2281332d5); " +
+				"stdlib only",
 		}
 		for pkg := range closure {
 			if _, ok := want[pkg]; !ok {

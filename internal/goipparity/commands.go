@@ -139,6 +139,36 @@ type Command struct {
 	// task implements it and clears this. Such a row is not Implemented,
 	// and it is never gated.
 	IPStandIn bool
+
+	// Monitor marks a live monitor row (EG1): the row does not capture a
+	// command that runs and prints — it starts `ip monitor <objects>` and
+	// `goip monitor <objects>` in the row's namespace, runs Trigger, stops
+	// both when every Until ERE has matched, and the comparator diffs the
+	// three monitors' stdout (the D_control discipline). Such a row is a
+	// write row's shape for the driver — the trigger changes the namespace,
+	// so each side runs in a namespace the driver recreates with Setup — but
+	// it carries no pcap, no Floor and no Writes, and Args is the monitor's
+	// own objects (`monitor link maddress`): the ipmon helper runs the
+	// tools. TestCommandTable is on the whole.
+	Monitor bool
+
+	// Trigger is a monitor row's `sh -c` command, the one string the
+	// driver's outer ipmon invocation receives (a step may not contain one
+	// for the same reason a Setup step may not; Trigger is one command).
+	Trigger string
+
+	// Until is a monitor row's stop conditions — every one of them must
+	// have matched the monitor's output before the row stops the monitor
+	// and claims its stdout. The EREs are the ev rows' own.
+	Until []string
+
+	// Canary is the monitor row's canary device, the ipmon helper's own
+	// rule (netlink-capture.nix): the 224.0.0.250 autojoin the helper
+	// joins and rejoins until the monitor prints it, so the subscription
+	// is proven before the trigger runs — and the pair of blocks the
+	// retry prints stays in the output, paired, the A1-T02 rule. Empty
+	// means no canary: not a row the EG1 table holds.
+	Canary string
 }
 
 // ProtoGenericCst is Proto for a generic netlink row.
@@ -185,6 +215,37 @@ func Sides() []string { return []string{SideIPA, SideGoip, SideIPB} }
 // (nix/microvms/scripts/capture-netlink-dumps.exp), because they were measured
 // against the same topology.
 var commands = withArgs([]Command{
+	{
+		// EG1's monitor section: the EP1 twelve, the refusals, the corners (V391's
+		// rows, the ev table's own). Args is the monitor's objects, the row's
+		// section the monitor's. Floor 1 — a monitor row's own floor is its
+		// until-EREs matching — is the Fixtures Layer. Setup is the ipmon row's
+		// pre, one step (the driver joins the steps on ';', and a step cannot
+		// contain one). The until-EREs are the ev rows' own words. canary c0.
+		Name: "monitor link maddress carrier", Slug: "monitor_link_carrier",
+		Floor: 1, Implemented: true, Monitor: true,
+		Args:   []string{"monitor", "link", "maddress"},
+		Canary: "c0",
+		Setup: []string{
+			"n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up && ip link add r0 type veth peer name r0p && ip link set r0 up && ip link set r0p up",
+		},
+		Trigger: "ip link set r0p down; ip link set r0p up",
+		Until:   []string{"r0@r0p: .*NO-CARRIER", "r0@r0p: .*state UP"},
+	},
+	{
+		// The admin corner: the peer's NO-CARRIER print across an admin down
+		// (V380's @peer notation) — the window caught the r0 line (unlike the
+		// carrier row, where the r0p line caught by the carriers draw the peer.
+		Name: "monitor link maddress admin", Slug: "monitor_link_admin",
+		Floor: 1, Implemented: true, Monitor: true,
+		Args:   []string{"monitor", "link", "maddress"},
+		Canary: "c0",
+		Setup: []string{
+			"n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up && ip link add r0 type veth peer name r0p && ip link set r0 up && ip link set r0p up",
+		},
+		Trigger: "ip link set r0 down; ip link set r0 up",
+		Until:   []string{"r0@r0p: <BROADCAST,MULTICAST> .*state DOWN", "r0@r0p: .*state UP"},
+	},
 	{
 		Name: "link show", Slug: "link_show",
 		// Two datagrams: the request and the multipart reply. `link show`
@@ -8595,7 +8656,14 @@ func addrStateSetup(dev, addr string) []string {
 // place to catch a Name that does not round-trip through strings.Fields.
 func withArgs(rows []Command) []Command {
 	for i := range rows {
-		rows[i].Args = strings.Fields(rows[i].Name)
+		// A monitor row's Args are its own (the ipmon objects), not its
+		// Name's words: the names carry the ev row's subject to stay unique
+		// (the carrier and the admin rows share one objects string), so the
+		// Args must not be derived for them — the driver's argv is the
+		// objects, the objects without the subject.
+		if rows[i].Args == nil {
+			rows[i].Args = strings.Fields(rows[i].Name)
+		}
 	}
 	return rows
 }
@@ -8700,7 +8768,7 @@ func (c Command) String() string {
 	if c.Stdin != nil {
 		stdin = stdinMarkCst + *c.Stdin
 	}
-	return strings.Join([]string{
+	fields := []string{
 		c.Slug,
 		fmt.Sprint(c.Floor),
 		impl,
@@ -8711,7 +8779,19 @@ func (c Command) String() string {
 		stdin,
 		strings.Join(c.Args, " "),
 		c.Name,
-	}, "\t")
+	}
+	// A monitor row grows the row past its fixed ten fields: the marker,
+	// the canary device, the trigger, and the until-EREs each a field (so a
+	// row carries any count of them; the driver's lassign leaves the tail
+	// as the EREs). The until-EREs hold no tabs — they cannot, the format
+	// is tab separated — and TestCommandTable holds the whole to the fields
+	// the driver parses, the pair rule; a table row the driver misread is
+	// precisely how a row stops being compared.
+	if c.Monitor {
+		fields = append(fields, "monitor", c.Canary, c.Trigger)
+		fields = append(fields, c.Until...)
+	}
+	return strings.Join(fields, "\t")
 }
 
 // stdinMarkCst begins String()'s stdin field when the row has a Stdin.
