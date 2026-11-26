@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/randomizedcoder/xtcp2/tools/internal/procnet"
 	"github.com/randomizedcoder/xtcp2/tools/internal/sockopt"
 )
@@ -17,6 +19,7 @@ type parsed struct {
 	bulk        sockopt.Size
 	mode        closeMode
 	dialTimeout time.Duration
+	keepalive   time.Duration
 	err         string
 }
 
@@ -43,12 +46,15 @@ func TestParseClientFlags(t *testing.T) {
 		{"bulk_zero", "boundary", "0 is one message, as today", []string{"-bulk", "0"}, parsed{dialTimeout: dialTimeoutCst}},
 		{"halfclose", "corner", "half-close alone", []string{"-halfclose"}, parsed{mode: halfClose, dialTimeout: dialTimeoutCst}},
 		{"dial_timeout_long", "boundary", "longer than the kernel's SYN retries, for SYN_SENT sockets", []string{"-dialTimeout", "10m"}, parsed{dialTimeout: 10 * time.Minute}},
+		{"keepalive_off", "positive", "a negative -keepalive turns TCP keepalive off", []string{"-keepalive", "-1s"}, parsed{dialTimeout: dialTimeoutCst, keepalive: -time.Second}},
+		{"keepalive_bad", "negative", "a -keepalive that is not a duration", []string{"-keepalive", "soon"}, parsed{err: `invalid value "soon" for flag -keepalive`}},
+		{"keepalive_zero", "boundary", "0 keeps Go's default keepalive", []string{"-keepalive", "0s"}, parsed{dialTimeout: dialTimeoutCst}},
 		{"last_wins", "corner", "a repeated flag takes the last value, so appended args override", []string{"-tos", "8", "-tos", "0xb8"}, parsed{opts: sockopt.Options{TOS: 0xb8}, dialTimeout: dialTimeoutCst}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c, err := parseFlags(tc.input, io.Discard)
-			got := parsed{opts: c.opts, bulk: c.bulk, mode: c.mode, dialTimeout: c.dialTimeout}
+			got := parsed{opts: c.opts, bulk: c.bulk, mode: c.mode, dialTimeout: c.dialTimeout, keepalive: c.keepalive}
 			ok := errMatches(err, tc.expected.err)
 			if err == nil {
 				want := tc.expected
@@ -263,4 +269,71 @@ func errMatches(err error, want string) bool {
 		return err == nil
 	}
 	return err != nil && strings.Contains(err.Error(), want)
+}
+
+// go test ./tools/tcp_client/ -run TestDialerKeepAlive
+func TestDialerKeepAlive(t *testing.T) {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = ln.Close() }()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer func() { _ = c.Close() }()
+		}
+	}()
+	tests := []struct {
+		name, category, description string
+		input                       time.Duration
+		expectedOn                  int
+		expectedIdle                int // TCP_KEEPIDLE seconds, checked when on
+	}{
+		{"default", "positive", "0 keeps Go's default: keepalive on, 15 s idle", 0, 1, 15},
+		{"off", "positive", "a negative value turns keepalive off, so an idle connection sends nothing", -time.Second, 0, 0},
+		{"set", "boundary", "a positive value is the idle time", 30 * time.Second, 1, 30},
+		{"off_large", "corner", "any negative value is off, not a huge idle time", -time.Hour, 0, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := dialerFor(clientConfig{keepalive: tc.input})
+			if err != nil {
+				t.Fatal(err)
+			}
+			conn, err := d.Dial("tcp4", ln.Addr().String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = conn.Close() }()
+			on, idle := keepAliveOf(t, conn)
+			if on != tc.expectedOn || (on == 1 && idle != tc.expectedIdle) {
+				t.Errorf("%s [%s] %s: SO_KEEPALIVE %d TCP_KEEPIDLE %d, expected %d %d",
+					tc.name, tc.category, tc.description, on, idle, tc.expectedOn, tc.expectedIdle)
+			}
+		})
+	}
+}
+
+// keepAliveOf reads SO_KEEPALIVE and TCP_KEEPIDLE from a TCP connection.
+func keepAliveOf(t *testing.T, conn net.Conn) (on, idle int) {
+	t.Helper()
+	raw, err := conn.(*net.TCPConn).SyscallConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var e1, e2 error
+	if err := raw.Control(func(fd uintptr) {
+		on, e1 = unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_KEEPALIVE)
+		idle, e2 = unix.GetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_KEEPIDLE)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if e1 != nil || e2 != nil {
+		t.Fatal(e1, e2)
+	}
+	return on, idle
 }
