@@ -16,8 +16,8 @@ var csumFlags = []struct {
 	{xtcpnl.TcaCsumUpdateFlagIPv4Hdr, "iph"},
 	{xtcpnl.TcaCsumUpdateFlagICMP, "icmp"},
 	{xtcpnl.TcaCsumUpdateFlagIGMP, "igmp"},
-	{xtcpnl.TcaCsumUpdateFlagTCP, "tcp"},
-	{xtcpnl.TcaCsumUpdateFlagUDP, "udp"},
+	{xtcpnl.TcaCsumUpdateFlagTCP, wordTCP},
+	{xtcpnl.TcaCsumUpdateFlagUDP, wordUDP},
 	{xtcpnl.TcaCsumUpdateFlagUDPLite, "udplite"},
 	{xtcpnl.TcaCsumUpdateFlagSCTP, "sctp"},
 }

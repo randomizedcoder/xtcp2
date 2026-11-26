@@ -212,7 +212,7 @@ var pppProtoNames = []struct {
 	name string
 }{
 	{0x21, "ip"}, {0x29, "at"}, {0x2b, "ipx"}, {0x2d, "vjc_comp"}, {0x2f, "vjc_uncomp"},
-	{0x3d, "mp"}, {0x57, "ipv6"}, {0xfb, "compfrag"}, {0xfd, "comp"}, {0x0281, "mpls_uc"},
+	{0x3d, "mp"}, {0x57, wordIPv6}, {0xfb, "compfrag"}, {0xfd, "comp"}, {0x0281, "mpls_uc"},
 	{0x0283, "mpls_mc"}, {0x8021, "ipcp"}, {0x8029, "atcp"}, {0x802b, "ipxcp"},
 	{0x8057, "ipv6cp"}, {0x80fb, "ccpfrag"}, {0x80fd, "ccp"}, {0x80fd, "mplscp"},
 	{0xc021, "lcp"}, {0xc023, "pap"}, {0xc025, "lqr"}, {0xc223, "chap"}, {0xc029, "cbcp"},

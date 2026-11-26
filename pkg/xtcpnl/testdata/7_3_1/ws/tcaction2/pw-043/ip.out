@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"bpf","bytecode":{"length":1,"insns":[{"code":6,"jt":0,"jf":0,"k":4294967295}]},"control_action":{"type":"drop"},"index":2,"ref":1,"bind":0,"not_in_hw":true}]}]

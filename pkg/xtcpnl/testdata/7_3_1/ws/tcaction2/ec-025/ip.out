@@ -1,0 +1,73 @@
+total acts 9
+
+	action order 0: ct zone 0 pipe
+	 index 1 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 1: ct commit mark 66/0xf0 zone 404 label 12312300000000000000000000000001/ffffffff000000000000000000000001 pipe
+	 index 2 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 2: ct commit force zone 0 pipe
+	 index 3 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 3: ct clear pipe
+	 index 4 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 4: ct commit zone 0 nat src addr 10.0.0.1-10.0.0.9 port 1000-2000 pipe
+	 index 5 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 5: ct commit zone 0 nat dst addr 2001:db8::1 pipe
+	 index 6 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 6: ct zone 0 nat pipe
+	 index 7 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 7: ct commit zone 0 helper ipv6-tcp-ftp pipe
+	 index 8 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled
+
+	action order 8: ct commit zone 0 label 01020000000000000000000000000000/0fff0000000000000000000000000000 pipe
+	 index 9 ref 1 bind 0 installed 0 sec used 0 sec
+	Action statistics:
+	Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+	backlog 0b 0p requeues 0
+	not_in_hw
+	used_hw_stats disabled

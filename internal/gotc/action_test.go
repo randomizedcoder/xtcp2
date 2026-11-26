@@ -207,10 +207,10 @@ func TestGotcActionUnit(t *testing.T) {
 				"Command \"action\" is unknown, try \"tc actions help\".\n", rc: 255},
 		},
 		{
-			description: "negative: a pedit action (increment 13) in a dump is refused by name",
+			description: "corner: a pedit with no options prints its kind alone, double space and all (AC44)",
 			args:        []string{"actions", "ls", "action", "pedit"},
 			replies:     []Reply{rep(actMsg(1, actOrder(0, "pedit", nil)), done())},
-			expected:    result{stdout: "total acts 1\n\n\taction order 0: ", stderr: notImpl + "action kind \"pedit\"\n", rc: 255},
+			expected:    result{stdout: "total acts 1\n\n\taction order 0:  pedit "},
 		},
 		{
 			description: "negative: a write is refused, nothing sent",

@@ -1,0 +1,13 @@
+total acts 3
+
+	action order 0: bpf bytecode '4,40 0 0 12,21 0 1 2048,6 0 0 262144,6 0 0 0' default-action pipe
+	 index 1 ref 1 bind 0
+ 	not_in_hw
+
+	action order 1: bpf bytecode '1,6 0 0 4294967295' default-action drop
+	 index 2 ref 1 bind 0
+ 	not_in_hw
+
+	action order 2: bpf bytecode '1,6 0 0 0' default-action pipe
+	 index 3 ref 1 bind 1
+ 	not_in_hw

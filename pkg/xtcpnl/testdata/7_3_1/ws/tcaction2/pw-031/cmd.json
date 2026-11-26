@@ -1,0 +1,97 @@
+{
+ "axes": {
+  "fix": "acct",
+  "json": "1",
+  "words": "actions get action ct index 8"
+ },
+ "cmd": "tc -j actions get action ct index 8",
+ "desc": "corner: opt=json cmd=acct:actions_get_action_ct_index_8",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcaction2/pw-031",
+ "modules": [
+  "sch_ingress",
+  "cls_matchall",
+  "cls_bpf",
+  "act_gact",
+  "act_police",
+  "act_pedit",
+  "act_tunnel_key",
+  "act_ife",
+  "act_ct",
+  "act_gate",
+  "act_bpf"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc actions add action ct index 1",
+  "tc actions add action ct commit zone 404 mark 0x42/0xf0 label 12312300000000000000000000000001/ffffffff000000000000000000000001 index 2",
+  "tc actions add action ct commit force index 3",
+  "tc actions add action ct clear index 4",
+  "tc actions add action ct commit nat src addr 10.0.0.1-10.0.0.9 port 1000-2000 index 5",
+  "tc actions add action ct commit nat dst addr 2001:db8::1 index 6",
+  "tc actions add action ct nat index 7",
+  "tc actions add action ct commit helper ipv4-tcp-ftp index 8",
+  "tc actions add action ct commit label 0102/0fff index 9"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct index 1",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct commit zone 404 mark 0x42/0xf0 label 12312300000000000000000000000001/ffffffff000000000000000000000001 index 2",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct commit force index 3",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct clear index 4",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct commit nat src addr 10.0.0.1-10.0.0.9 port 1000-2000 index 5",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct commit nat dst addr 2001:db8::1 index 6",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct nat index 7",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct commit helper ipv4-tcp-ftp index 8",
+    "rc": 0
+   },
+   {
+    "cmd": "tc actions add action ct commit label 0102/0fff index 9",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

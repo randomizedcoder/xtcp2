@@ -26,16 +26,14 @@ var readbackSkips = map[string]int{
 	"cake": 19, "cake_mq": 22, "cbs": 10, "choke": 7, "codel": 13, "drr": 13, "dualpi2": 14, "etf": 4,
 	"ets": 33, "fq_pie": 2, "gred": 6, "hfsc": 10, "hhf": 14, "mqprio": 2, "multiq": 3, "pie": 1,
 	"plug": 7, "qfq": 10, "red": 10, "sfb": 13, "skbprio": 4, "taprio": 8,
-	// bpf's filters, and the action kinds increment 13 adds, in filter
-	// readbacks and in `tc actions` ones.
-	"filter:bpf": 5, "action:bpf": 7, "action:ct": 21, "action:gate": 10, "action:ife": 42,
-	"action:pedit": 32, "action:tunnel_key": 21,
 }
 
 // readbackRendered pins how many readbacks render exactly: 216 qdisc and
 // class shows, 273 filter and chain shows and gets, and 398 `tc actions`
-// lists and gets.
-const readbackRendered = 887
+// lists and gets (increment 12's 887), then increment 13's 138: 5 bpf
+// filter shows and 133 readbacks holding pedit, tunnel_key, ife, ct, gate
+// or bpf, in filters and in `tc actions`. None is eBPF.
+const readbackRendered = 1025
 
 // kindRefused is a refusal by name: a qdisc kind is its bare name, the
 // filter path's are prefixed (filter:, action:, ematch:).

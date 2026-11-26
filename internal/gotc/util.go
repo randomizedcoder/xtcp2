@@ -19,6 +19,20 @@ const (
 	wordIngress = "ingress"
 	wordEgress  = "egress"
 	wordParent  = "parent"
+	// Words several printers share.
+	wordAction   = "action"
+	wordClassid  = "classid"
+	wordDst      = "dst"
+	wordSrc      = "src"
+	wordDstIP    = "dst_ip"
+	wordSrcIP    = "src_ip"
+	wordDstPort  = "dst_port"
+	wordIPv4     = "ipv4"
+	wordIPv6     = "ipv6"
+	wordMark     = "mark"
+	wordPriority = "priority"
+	wordTCP      = "tcp"
+	wordUDP      = "udp"
 )
 
 // The tc handle values (pkt_sched.h).

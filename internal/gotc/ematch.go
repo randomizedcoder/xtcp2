@@ -313,7 +313,7 @@ var metaNames = []struct {
 	name string
 }{
 	{0, "Generic"}, {1, "random"}, {2, "loadavg_1"}, {3, "loadavg_5"}, {4, "loadavg_15"},
-	{0, "Interfaces"}, {5, "dev"}, {0, "Packet attributes"}, {6, "priority"}, {7, "protocol"},
+	{0, "Interfaces"}, {5, "dev"}, {0, "Packet attributes"}, {6, wordPriority}, {7, "protocol"},
 	{8, "pkt_type"}, {9, "pkt_len"}, {10, "data_len"}, {11, "mac_len"}, {0, "Netfilter"},
 	{12, "nf_mark"}, {12, "fwmark"}, {0, "Traffic Control"}, {13, "tc_index"}, {0, "Routing"},
 	{14, "rt_classid"}, {15, "rt_iif"}, {48, "vlan"}, {0, "Sockets"}, {16, "sk_family"},

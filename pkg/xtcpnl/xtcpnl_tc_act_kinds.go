@@ -232,19 +232,22 @@ type TcActCommon struct {
 func (c TcActCommon) ParmsShort(size int) bool { return c.HasParms && c.ParmsLen < size }
 
 // parseActKind is parse_rtattr_nested(tb, max, arg), then the parms and tm
-// attributes, the parms MIN-copied to size.
-func parseActKind(opt []byte, maxType, parms, tm uint16, size int) (TcActCommon, *tcRd, error) {
+// attributes, the parms MIN-copied to size. With no parms the reader holds
+// size zero bytes.
+func parseActKind(opt []byte, maxType, parms, tm uint16, size int) (TcActCommon, tcRd, error) {
 	var c TcActCommon
 	tb, err := ParseAttrTableFlags(opt, maxType, tcNestedFlags)
 	if err != nil {
-		return c, nil, err
+		return c, tcRd{}, err
 	}
 	c.Tb = tb
-	r := &tcRd{b: make([]byte, size)}
+	var r tcRd
 	if parms != 0 && tb.Has(parms) {
 		b := tb.Bytes(parms)
 		c.HasParms, c.ParmsLen = true, len(b)
 		r.b = TcMinCopy(b, size)
+	} else {
+		r.b = make([]byte, size)
 	}
 	if tm != 0 && tb.Has(tm) {
 		c.Tm, c.HasTm = DecodeTcfT(tb.Bytes(tm)), true

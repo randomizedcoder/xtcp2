@@ -1,6 +1,6 @@
 # iproute2 `tc actions` and action printers: totals that aren't totals, JSON that drops or doubles keys, spacing by kind, and reads tc never checked
 
-**Status (2026-11-24, increment 12):**
+**Status (2026-11-24, increment 12; extended 2026-11-25, increment 13):**
 
 - **Not submitted to netdev.** These are drafts for the user's review, recorded here only, like the other write-ups in
   this directory. No patch, no PR, no sign-off.
@@ -23,6 +23,18 @@
     the fix added rows for gets of 3, 32 and 33 actions.
   - `gotc` replays all 132 capture rows byte for byte and renders all 398 tdc `tc actions` readbacks. So every
     captured finding below is reproduced by an independent implementation, not just read from the source.
+- **Increment 13** (2026-11-25) adds AC39–AC71 and K9–K18, for the last six kinds tc links and the bpf filter:
+  `tc/m_{pedit,tunnel_key,ife,ct,gate,bpf}.c`, `tc/f_bpf.c` and `lib/bpf_legacy.c` (`bpf_print_ops`), all at v7.2.0.
+  - **At HEAD** (checked 2026-11-25 the same way, mirror at `5d13122576d6`): no commit since v7.2.0 touches those
+    eight files, `tc_util.c` or `lib/inet_proto.c`. `ce764a619c7a` in `json_print.c` changes how
+    `print_uint_name_value` builds its format, which ct's `mark` and `zone` go through, but not what it prints.
+    Every finding below is present at HEAD.
+  - **How:** the plan's sweep listed AC39–AC66. The capture (13C, V019) confirmed 14 of them and found K13. The
+    decoders (13P, V020) corrected AC55's threshold and found K14. The clone (13R, V021) and this write-up (13B)
+    added AC67–AC71 and K15–K17, and the live diff (13L, V022) K18.
+  - **Corpus:** `pkg/xtcpnl/testdata/7_3_1/ws/tcaction2/` (105 rows), cited below as `tcaction2/<id>`. As in
+    tcaction, `ec-*` and `pw-*` of one number are a command and its `-j` twin (ec-002/pw-001 swap again).
+  - gotc replays all 105 rows byte for byte and renders the 138 tdc readbacks of these kinds (1025 in all).
 - **Kernel cross-check:** each struct and attribute the printers read was checked against `net/sched/act_*.c`'s
   `tcf_<kind>_dump` and `act_api.c` at v7.4-rc4. See K1–K8.
 - **Corpus:** `pkg/xtcpnl/testdata/7_3_1/ws/tcaction/` (138 rows, six fixtures plus a bare netns), kernel 7.3.1,
@@ -36,6 +48,10 @@
   - **Source only** (the writes, which gotc refuses): AC4, AC5, AC11.
   - **Live, ad hoc** (too long for a row): AC38.
   - **Dropped:** AC13 (the same as F24 in [iproute2-tc-filter.md](iproute2-tc-filter.md)).
+  - **Increment 13, in the corpus:** AC39, AC42–AC44, AC48, AC49, AC51, AC53, AC56, AC57, AC59, AC61, AC65–AC69,
+    AC71. **Latent, with unit rows** (`internal/gotc/action2_test.go`, `pkg/xtcpnl/xtcpnl_tc_act_kinds2_test.go`):
+    AC40, AC41, AC45–AC47, AC50, AC52 (unreachable live, K15), AC54, AC55, AC58, AC60, AC62–AC64. **Seen live on
+    the write side:** AC70.
 
 ## Contents
 
@@ -48,8 +64,14 @@
 - [AC23–AC26, AC28, AC35. Text layout](#ac23ac26-ac28-ac35-text-layout)
 - [AC18, AC19, AC30. What the printers leave out](#ac18-ac19-ac30-what-the-printers-leave-out)
 - [AC17, AC20, AC21, AC27. Reads tc never checked](#ac17-ac20-ac21-ac27-reads-tc-never-checked)
+- [AC39–AC45, AC67. pedit](#ac39ac45-ac67-pedit)
+- [AC46–AC50, AC68. tunnel_key](#ac46ac50-ac68-tunnel_key)
+- [AC51–AC53, AC70. ife](#ac51ac53-ac70-ife)
+- [AC54–AC58. ct](#ac54ac58-ct)
+- [AC59–AC62, AC69. gate](#ac59ac62-ac69-gate)
+- [AC63–AC66, AC71. bpf, the action and the filter](#ac63ac66-ac71-bpf-the-action-and-the-filter)
 - [AC13. Dropped](#ac13-dropped)
-- [K1–K8. Kernel notes](#k1k8-kernel-notes)
+- [K1–K18. Kernel notes](#k1k18-kernel-notes)
 - [A note on the capture tooling](#a-note-on-the-capture-tooling)
 
 ## Summary
@@ -92,6 +114,39 @@
 | AC36 | m_action.c:552-557; act_api.c:2359-2364 | C14 | `total acts` is per message: 34 actions in two messages print `total acts 22` and `total acts 12`, and the orders restart at 0 | tcaction/ec-050, pw-050 | present | reproduces |
 | AC37 | m_police.c:277 | C5/C14 | police prints its kind under JSON only, so `-br` text has no kind: `action order 0: \t index 1`, where mirred is `mirred \t index 1` | tcaction/ec-010, ec-021 | present | reproduces |
 | AC38 | m_action.c:627, 676-679; libnetlink.c:1380-1384 | C11/C8 | a get past `MAX_MSG` (16384) ignores `addattr_*`'s failures: tc prints `addattr_l ERROR: message exceeded bound of 16384` per dropped attribute, sends what fit (possibly an order nest with no KIND) and exits 0 | live (V018) | present | refuses |
+| AC39 | m_pedit.c:795 | C2/C10 | `print_uint` with `"keys %d\n"`: a u32 through `%d`, and a hard newline that `-o` keeps | tcaction2/ec-004 | present | reproduces |
+| AC40 | m_pedit.c:767, 771, 810 | C3/C4 | PARMS and PARMS_EX are cast with no length check, and the key loop walks `sel->nkeys` keys past the payload | TestParseTcActKinds2, TestGotcAction2Unit | present | refuses |
+| AC41 | m_pedit.c:848-849 | C5 | nkeys 0 `fprintf`s `pedit %x keys %d is not LEGIT` to stdout, into `-j` output, the index in hex | TestGotcAction2Unit (crafted) | present | text reproduces; `-j` refuses |
+| AC42 | m_pedit.c:738, 826 | C2/C10 | the u32 offset goes through `print_int "%+d"`; `\n\t key #%d  at ` has a double space and a hard newline | tcaction2/pw-001 | present | reproduces |
+| AC43 | m_pedit.c:734, 836-840 | C7 | text says `val` where JSON says `"cmd":"set"`; an unknown htype prints `unknown(%d)` | tcaction2/pw-001, ec-002 | present | reproduces |
+| AC44 | m_pedit.c:755 | C10 | the kind prints `" %s "`: `action order 0:  pedit` | tcaction2/pw-001 | present | reproduces |
+| AC45 | m_pedit.c:581-582 | C3/C12 | `pedit_keys_ex_getattr` reads HTYPE and CMD with `rta_getattr_u16` and no presence check | TestParseTcActKinds2 (crafted) | present | refuses |
+| AC46 | m_tunnel_key.c:572-580 | C3/C12 | geneve's walk takes CLASS, TYPE and DATA untested from what remains and steps DATA+20 bytes; a missing child is a NULL read, an odd DATA a step off the list | TestParseTcActKinds2, TestGotcAction2Unit | present | refuses |
+| AC47 | m_tunnel_key.c:611, 632-641 | C3/C12 | vxlan GBP and erspan VER, INDEX, DIR and HWID are read with no presence check | TestParseTcActKinds2 (crafted) | present | refuses |
+| AC48 | m_tunnel_key.c:645-649 | C7 | erspan JSON always has index, dir and hwid: v1 prints dir and hwid 0, v2 prints index 0 | tcaction2/pw-016, pw-017 | present | reproduces |
+| AC49 | m_tunnel_key.c:541, 548 | C7 | csum is `"flag":"csum"` (a string), nofrag is `"nofrag":true` (a bool) | tcaction2/pw-013 | present | reproduces |
+| AC50 | m_tunnel_key.c:708-728 | C14 | a t_action other than set or unset prints no mode: `tunnel_key  pipe` | TestGotcAction2Unit (crafted) | present | reproduces |
+| AC51 | m_ife.c:244 | C10 | `type %#llX` prints `type 0XED3E`, an upper-case prefix; JSON is `"0xed3e"` | tcaction2/ec-018, pw-018 | present | reproduces |
+| AC52 | m_ife.c:242-248, 293-307 | C14 | `has_optional` is tested before DMAC and SMAC set it (AC25 again); live, TYPE is always there (K15) | TestGotcAction2Unit (crafted) | present | reproduces |
+| AC53 | m_ife.c:258-290 | C3/C7 | a meta value is read as u32 or u16 whatever its length; `"mark"` is the number 7 or the string `"allow"` | tcaction2/pw-018 | present | reproduces; refuses a short value |
+| AC54 | m_ct.c:416-431 | C3/C12 | `memcmp` of a NAT max against its min, with the min untested; equal IPv4 bounds fall through to the IPv6 test | TestParseTcActKinds2 (crafted) | present | refuses |
+| AC55 | m_ct.c:450-470 | C3/C11/C12 | labels: the mask is read untested, for the label's length; `p` and its NUL run past `out[256]` from a 64-byte label | TestParseTcActKinds2 (crafted) | present | refuses |
+| AC56 | m_ct.c:483-486 | C1/C14 | HELPER_FAMILY and PROTO are u8s read through `int *`; any family but AF_INET prints `ipv6`, and the ftp helper's family is 0 (K13), so `helper ipv4-tcp-ftp` reads back `ipv6-tcp-ftp` | tcaction2/ec-031, pw-031 | present | reproduces |
+| AC57 | m_ct.c:438 | C7 | a nat with neither src nor dst prints `"nat":""` | tcaction2/pw-030 | present | reproduces |
+| AC58 | m_ct.c:504 | C5/C10 | `[NULL ct parameters]` goes to stdout with no newline, as AC27 | TestGotcAction2Unit (crafted) | present | reproduces |
+| AC59 | m_gate.c:455-465 | C7 | gate prints no kind, in text or JSON, and with no options returns -1 where the others return 0 | tcaction2/pw-033 | present | reproduces |
+| AC60 | m_gate.c:420, 427, 499 | C2 | the s32 ipv goes through `print_uint "%-10u"`, the s32 max-octets through `print_size` (sign-extended to u64), the s64 times through `print_lluint` | source; TestParseTcActKinds2 | present | reproduces |
+| AC61 | m_gate.c:410, 465, 473, 491, 534 | C10 | hard newlines that `-o` keeps; `%-8d`, `%-10u` and `"gate-state %s "` leave trailing spaces, and the kindless order line is `action order 0: ` | tcaction2/ec-037 | present | reproduces |
+| AC62 | m_gate.c:478-482 | C14 | an unknown clockid and a missing CLOCKID both print `clockid invalid` | TestGotcAction2Unit (crafted) | present | reproduces |
+| AC63 | bpf_legacy.c:344-366; m_bpf.c:177; f_bpf.c:238 | C3/C4 | `bpf_print_ops` walks OPS_LEN instructions with no check against OPS | TestParseTcActKinds2, TestGotcAction2Unit | present | refuses |
+| AC64 | m_bpf.c:175; f_bpf.c:212 | C3 | NAME is read with `rta_getattr_str` and no NUL check | TestParseTcActKinds2 (crafted) | present | refuses |
+| AC65 | m_bpf.c:204 | C10 | the trailing `"\n "` puts a space before the next line: ` \tnot_in_hw` | tcaction2/ec-040 | present | reproduces |
+| AC66 | f_bpf.c:202, 206 | C7/C10 | the u32 handle is `print_0xhex` (`"handle":"0x1"`, a string where matchall's is a number); the classid is `"flowid"` | tcaction2/ec-044, pw-044 | present | reproduces |
+| AC67 | m_pedit.c:841-844 | C7 | val and mask are `%08x` in text but print_hex's `%x` in JSON: `val 02000000`, `"val":"2000000"`, `"mask":"0"` | tcaction2/ec-002 | present | reproduces |
+| AC68 | m_tunnel_key.c:696, 710, 713 | C10 | the kind prints `"%s "` and the mode `" %s"`: `tunnel_key  set` (AC35's pattern) | tcaction2/ec-010 | present | reproduces |
+| AC69 | m_gate.c:488 | C10/C7 | `flags %#x` of 0 is `flags 0` and `"flags":"0"`, beside `0x...` for anything else (AC31's pattern) | tcaction2/ec-033, pw-033 | present | reproduces |
+| AC70 | m_ife.c:117, 127, 137, 179 | C5 | `parse_ife` writes `IFE type 0x%04X`, `dst MAC address <...>` and `src MAC address <...>` to stderr on every add, with a type line even when none was given | live (13C pre steps) | present | refuses the write |
+| AC71 | f_bpf.c:249-252; m_police.c:363-366 | C7 | a filter's police prints into the filter's own options object: `"kind":"police"` and its keys sit beside `"handle"` and `"bytecode"` | tcaction2/pw-044 | present | reproduces |
 | AC13 | tc_util.c:664-682 | — | `print_tm` narrows `u64 / hz` through `print_uint`: already F24 | — | — | n/a (duplicate) |
 
 ## AC1–AC3, AC12, AC36. `total acts` and the action order
@@ -237,13 +292,103 @@ gotc MIN-copies the scalar attributes as tc's reads would (AC17). Where tc would
 instead, saying "tc reads it unchecked": a short PARMS for any kind, a vlan or mpls action out of range, sdata with
 no NUL, a skbmod MAC of length 0 or over 21, and a tab of more than 1024 orders.
 
+## AC39–AC45, AC67. pedit
+
+- **AC39, AC42:** `print_pedit` prints `"keys %d\n"` and, per key, `"\n\t key #%d  at "`, both with literal
+  newlines. Under `-o` the rest of the line folds and these don't (ec-004): `keys 1` then a new line `\t index 1
+  ref 1 bind 0`. The key's offset is a u32 printed `%+d` after a header type (`ipv4+8`), `%d` without one.
+- **AC43, AC67:** the comment at m_pedit.c:834 says text reports set as `val` "to keep backward compatibility",
+  so the two outputs name one command differently (pw-001, ec-002). The value and mask print `%08x` in text and
+  print_hex's `%x` in JSON, so `"val":"2000000"` beside text `02000000`, and `"mask":"0"`.
+- **AC44:** `" %s "` for the kind gives `action order 0:  pedit`, as nat (AC23) and police (AC35).
+- **AC40, AC41, AC45:** the sel is cast from PARMS or PARMS_EX with no length check, and its `nkeys` keys are
+  walked whatever the payload holds. A KEYS_EX child's HTYPE and CMD are `rta_getattr_u16` of whatever
+  `parse_rtattr_nested` found, NULL included. With `nkeys` 0 (the kernel refuses to create one) tc writes
+  `\npedit %x keys %d is not LEGIT` with `fprintf(f, ...)`, which lands inside `-j` output.
+
+## AC46–AC50, AC68. tunnel_key
+
+- **AC46:** `tunnel_key_print_geneve_options` runs `parse_rtattr` over everything left in the list, takes the first
+  CLASS, TYPE and DATA, then steps `data_len + 20` bytes: 8 for CLASS, 8 for TYPE, 4 for DATA's header. That is
+  right only when DATA is a multiple of 4 and the three come in that order, which the kernel ensures. Otherwise a
+  missing child is `rta_getattr_*(NULL)`, and a step past the end leaves `rem` negative, which `while (rem)`
+  doesn't stop. A first option missing TYPE silently borrows the next one's.
+- **AC47:** vxlan's GBP and erspan's fields are `rta_getattr_*` of untested table entries.
+- **AC48:** erspan prints all four fields, zeroing what the version doesn't use: `"ver":1,"index":12,"dir":0,
+  "hwid":0` (pw-016) and `"ver":2,"index":0,"dir":1,"hwid":7` (pw-017). A reader can't tell index 0 from no index.
+- **AC49:** NO_CSUM prints as `"flag":"csum"` or `"flag":"nocsum"`, while NO_FRAG is `"nofrag":true|false` (pw-013).
+- **AC50:** a `t_action` other than set (1) and release (2) prints neither mode nor fields, just
+  `tunnel_key  pipe`.
+- **AC68:** the kind is `"%s "` and the mode `" %s"`: `tunnel_key  set`, `tunnel_key  unset` (ec-010).
+
+## AC51–AC53, AC70. ife
+
+- **AC51:** `print_0xhex(PRINT_ANY, "type", "type %#llX ", ...)`: `type 0XED3E` in text (ec-018), `"type":"0xed3e"`
+  in JSON (pw-018). A decode action's type 0 prints `type 0`.
+- **AC52:** `has_optional` controls the `_SL_\t` break after the type, but DMAC and SMAC set it only after the test,
+  as skbmod's AC25. The kernel always sends TYPE (K15), so live output always breaks; a dst-only message would not.
+- **AC53:** a meta's value is `rta_getattr_u32` (mark, prio) or `_u16` (tcindex) when its length is not 0, whatever
+  the length; an empty one prints `allow`. JSON's `"mark"` is then a number or the string `"allow"` (pw-018).
+- **AC70:** on the write side, `parse_ife` reports what it parsed on stderr: `IFE type 0x%04X` for a given type and,
+  at m_ife.c:179, `IFE type 0xED3E` when none was given, plus the MAC addresses. Seen in every ife pre step of 13C.
+
+## AC54–AC58. ct
+
+- **AC54:** `ct_print_nat` compares each max with `memcmp(RTA_DATA(min), RTA_DATA(max), n)` after testing only the
+  max. A max without its min is a NULL read. The chain is `if (v4max && memcmp(...)) ... else if (v6max &&
+  memcmp(...))`, so equal IPv4 bounds still evaluate the IPv6 test. gotc's decoder first missed that fall-through
+  (fixed in 13R, V021).
+- **AC55:** `ct_print_labels` reads the mask with no presence check and for the label's length. It prints the mask
+  unless the label is 16 bytes of 0xff mask, so any other length writes `4n+2` bytes into `out[256]`: `p` and the
+  final NUL run past it from a 64-byte label (the plan said 128; 13P corrected it). The kernel's policy caps labels
+  at 16 bytes, so only a crafted message gets there.
+- **AC56:** `int *f = RTA_DATA(family)` reads four bytes from a one-byte attribute: the family and its padding.
+  `(*f == AF_INET) ? "ipv4" : "ipv6"` then names anything else ipv6. The kernel dumps `helper->nfproto`, and ftp
+  registers for NFPROTO_UNSPEC (K13), so `ct commit helper ipv4-tcp-ftp` reads back as `helper ipv6-tcp-ftp`
+  (ec-031, pw-031). The protocol is named through `getprotobynumber`, from the host's /etc/protocols.
+- **AC57:** `ct nat` with neither src nor dst prints `print_string(PRINT_ANY, "nat", " nat", "")`: `"nat":""` (pw-030).
+- **AC58:** with no PARMS, `[NULL ct parameters]` is `print_string(PRINT_FP, ...)`: stdout, mid-line, as AC27.
+- The masked values (`mark 66/0xf0`, `"mark":66,"mark_mask":"f0"`) are tc_util's `print_masked_type`, as flower's
+  (FL5 in [iproute2-tc-flower.md](iproute2-tc-flower.md)). Not a new finding.
+
+## AC59–AC62, AC69. gate
+
+- **AC59:** `print_gate` prints no kind at all, so the order line is `action order 0: ` and JSON has no `"kind"`
+  (pw-033). With no options it returns -1, which `tc_print_one_action` reports as an error; the other printers
+  print their kind and return 0.
+- **AC60:** the s32 `ipv` is printed `%-10u` (a negative would print as a large number), the s32 `maxoctets` goes to
+  `print_size`, which takes a u64, so it is sign-extended, and the s64 times go through `print_lluint`. Only -1
+  (wildcard) is special-cased, and the kernel takes any s32 (act_gate.c:172-173, 205).
+- **AC61:** `"\n"` after the order line, after the flags and after the action print with `%s` of a literal
+  newline, so `-o` keeps them (ec-037). `%-8d`, `%-10u` and `"\tgate-state %s "` leave trailing spaces.
+- **AC62:** `get_clock_name` returns `invalid` for a clockid outside its four, and `CLOCKID_INVALID` (-1) is the
+  default when CLOCKID is absent, so the two can't be told apart. The kernel always sends CLOCKID (`clockid TAI`
+  even for a gate added without one, ec-044).
+- **AC69:** `print_0xhex(PRINT_ANY, "flags", "\tflags %#x", flags)`: `%#x` of 0 has no prefix, so `flags 0` and
+  `"flags":"0"` (ec-033, pw-033), as ctinfo's AC31.
+
+## AC63–AC66, AC71. bpf, the action and the filter
+
+- **AC63:** `bpf_print_ops` casts OPS to `struct sock_filter *` and prints OPS_LEN instructions; nothing checks
+  OPS's length. The kernel sends exactly OPS_LEN of them (act_bpf.c:102-108).
+- **AC64:** NAME is `rta_getattr_str`, with no check that it ends in NUL. The kernel sends a NAME only for eBPF.
+- **AC65:** the action ends `print_string(PRINT_FP, NULL, "%s", "\n ")`, so the flags line that follows starts with
+  a space: ` \tnot_in_hw` (ec-040).
+- **AC66:** the filter's handle is `print_0xhex(..., "handle %#llx ", handle)`, a JSON string (`"handle":"0x1"`),
+  where matchall's is a number. The classid is keyed `"flowid"`, as matchall's (pw-044).
+- **AC71:** `tc_print_police` is `print_police(NULL, ...)`, which opens no JSON object of its own. Inside a filter
+  its keys (`"kind":"police"`, `"index"`, `"control_action"`, `"overhead"`, `"ref"`, `"bind"`) land in the filter's
+  `"options"`, beside `"handle"` and `"bytecode"` (pw-044), with no `"police"` object to tell them apart.
+- gotc prints cBPF only. An eBPF program's ID is answered by `bpf_dump_prog_info`, which asks the kernel via bpf(2);
+  gotc refuses an ID, in the action and in the filter.
+
 ## AC13. Dropped
 
 - **AC13:** `print_tm` divides each `__u64` timer by hz and passes it to `print_uint`, which takes `unsigned int`.
   This is F24 in [iproute2-tc-filter.md](iproute2-tc-filter.md), recorded in increment 10, and `printTm` already
   reproduces it.
 
-## K1–K8. Kernel notes
+## K1–K18. Kernel notes
 
 - **K1:** `tca_get_fill` (act_api.c) puts the tcamsg and `TCA_ACT_TAB` but no `TCA_ROOT_COUNT`. That is the cause
   of AC2.
@@ -265,6 +410,31 @@ no NUL, a skbmod MAC of length 0 or over 21, and a tab of more than 1024 orders.
   So a get of 33 actions is answered with the first 32, with no error or extack. tc prints them, `action order 1:`
   to `32:`, and exits 0 (ec-066, pw-066). A gap stops the loop early too: orders 1, 2 and 4 are answered with 1
   and 2. That is from the code: tc numbers its orders without gaps.
+- **K9:** `tunnel_key_dump` puts TOS and TTL only when non-zero (act_tunnel_key.c:762-766), so tc's `!= 0` tests
+  never fail on a dump.
+- **K10:** `tcf_pedit_dump` puts PARMS_EX and KEYS_EX when any key is extended, otherwise PARMS
+  (act_pedit.c:536-546). A legacy-only pedit (pw-001, index 1) has no KEYS_EX.
+- **K11:** `tcf_gate_dump` puts each entry's GATE flag only when open, and IPV and MAX_OCTETS always, -1 meaning a
+  wildcard (act_gate.c:594-611).
+- **K12:** `tcf_bpf_dump` puts OPS_LEN and OPS for cBPF, and NAME, ID and TAG for eBPF (act_bpf.c:102-130).
+- **K13** (new): `tcf_ct_dump_helper` puts `helper->nfproto` as HELPER_FAMILY (act_ct.c:1569), and
+  nf_conntrack_ftp registers with NFPROTO_UNSPEC (nf_conntrack_ftp.c:579). So the ftp helper is dumped with
+  family 0, whatever family it was added for. That, with AC56, makes `ipv4-tcp-ftp` read back `ipv6-tcp-ftp`.
+- **K14** (new): the uapi comment says `TCA_TUNNEL_KEY_ENC_KEY_ID` is be64 (tc_tunnel_key.h:28), but the policy is
+  NLA_U32 (act_tunnel_key.c:337) and the dump puts a be32 (act_tunnel_key.c:749). tc reads a be32, so it agrees
+  with the code, not the header.
+- **K15** (new): `tcf_ife_dump` always puts TYPE (act_ife.c:674), 0 for decode. So AC52's break always prints live.
+- **K16** (new): `tcf_ct_dump` puts ZONE whenever `CONFIG_NF_CONNTRACK_ZONES` is set (act_ct.c:1616-1619), so every
+  ct action prints `zone 0` unless it set one (ec-024), except clear.
+- **K17** (new): `tunnel_key_dump` always puts NO_CSUM for a set action (act_tunnel_key.c:755-756). tc's
+  `if (!tb[nl_flag]) continue;` (m_tunnel_key.c:539) never skips it, so every set prints `csum` or `nocsum`.
+- **K18** (new, 13L): only a dump asks the offload callbacks for an action's hardware stats.
+  `tcf_dump_walker` calls `tcf_action_update_hw_stats` (act_api.c:596), which sets `used_hw_stats_valid` when the
+  callbacks answer (act_api.c:315-316). `tcf_action_dump_1` puts `TCA_ACT_USED_HW_STATS` only when that is set
+  (act_api.c:539-542). A get never calls it. So `actions get action ct index 8` prints no `used_hw_stats` until the
+  first `actions ls` of that action, and `used_hw_stats disabled` from then on. Seen live with ct: the batch
+  `get` then `ls` gave different gets depending on whether a dump had already run (tcaction2/ec-049).
+  Written up on its own in [kernel-act-get-skips-hw-stats.md](kernel-act-get-skips-hw-stats.md).
 
 ## A note on the capture tooling
 

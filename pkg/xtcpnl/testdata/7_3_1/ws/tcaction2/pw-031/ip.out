@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"kind":"ct","action":"commit","zone":0,"helper":"ipv6-tcp-ftp","control_action":{"type":"pipe"},"index":8,"ref":1,"bind":0,"not_in_hw":true}]}]

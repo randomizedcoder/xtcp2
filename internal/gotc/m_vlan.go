@@ -66,7 +66,7 @@ func (r *runner) printVlan(opt []byte, has bool) (int, error) {
 		}
 		if tb.Has(xtcpnl.TcaVlanPushVlanPriority) {
 			pr := uint32(rtaU8(tb.Bytes(xtcpnl.TcaVlanPushVlanPriority)))
-			o.uint(printAny, "priority", " priority "+u32s(pr), pr)
+			o.uint(printAny, wordPriority, " priority "+u32s(pr), pr)
 		}
 	case tcaVlanActPushEth:
 		for _, m := range []struct {

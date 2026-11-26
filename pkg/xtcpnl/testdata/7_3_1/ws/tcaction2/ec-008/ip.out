@@ -1,0 +1,7 @@
+total acts 0
+
+	action order 1:  pedit action drop keys 2
+ 	 index 4 ref 1 bind 0
+	 key #0  at 12: val 08000000 mask 00ffffff
+	 key #1  at 16: val 0a000001 mask 00000000
+	not_in_hw

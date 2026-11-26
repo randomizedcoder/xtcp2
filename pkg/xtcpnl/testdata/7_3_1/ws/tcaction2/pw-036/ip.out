@@ -1,0 +1,1 @@
+[{"total acts":0},{"actions":[{"order":1,"priority":-1,"clockid":"TAI","flags":"0","base_time":0,"cycle_time":100000000,"cycle_time_ext":0,"schedule":[{"number":0,"gate_state":"close","interval":100000000,"ipv":-1,"max_octets":-1}],"control_action":{"type":"pipe"},"index":2,"ref":1,"bind":0,"not_in_hw":true}]}]
