@@ -3,7 +3,7 @@
 # ernic-run-many-<name>: one rocm-ernic server per NIC around a command,
 # for VMs with several ionic NICs (upstream ernic-run serves one).
 #
-#   ernic-run-many-<name> --dir DIR -- CMD [ARGS...]
+#   ernic-run-many-<name> --dir DIR [--pcap IFNAME] -- CMD [ARGS...]
 #
 # - The servers bind DIR/ernic-<nic>.sock and log to DIR/ernic-<nic>.log.
 #   CMD (the VM launcher) runs with DIR as its working directory, so the
@@ -16,7 +16,11 @@
 #   network change.
 # - Exit status is CMD's. It is non-zero if a server exits before its
 #   socket appears or while CMD runs; every server and CMD's process group
-#   are stopped on EXIT, INT and TERM.
+#   are stopped on EXIT, INT and TERM. A server gets TERM and time to
+#   finish its clean shutdown, which ends with its fault report
+#   ("Fault <site>: eligible N, fired M") in its log; the logs stay in DIR.
+# - --pcap IFNAME runs tcpdump on that fabric bridge or TAP, writing
+#   DIR/IFNAME.pcap (for finding stray frames).
 #
 # fabric = { <bridge> = { address = "10.0.4.1/24"; mac = "02:..."; neighbors = [ { address; mac; } ]; }; }
 {
@@ -45,16 +49,19 @@ let
   taps = lib.filter (t: t != null) (map (n: n.tap or null) list);
   needsNetns = taps != [ ];
   names = map (n: n.name) list;
+  pcapIfs = lib.attrNames bridges ++ taps;
 
   fabricScript = pkgs.writeShellApplication {
     name = "ernic-fabric-${name}";
     runtimeInputs = [
       pkgs.coreutils
       pkgs.iproute2
+      pkgs.tcpdump
       server
     ];
     text = ''
       dir=$1
+      pcap=''${2:-}
       ${lib.optionalString needsNetns ''
         # The fabric is this process's own namespace: no IPv6, so the
         # bridge and TAPs send no DAD, MLD or router solicitations.
@@ -87,16 +94,31 @@ let
         ''
       ) list}
       cd "$dir"
+      dump=""
+      if [ -n "$pcap" ]; then
+        tcpdump -i "$pcap" -n -U -w "$pcap.pcap" 2> "$pcap.tcpdump.log" &
+        dump=$!
+      fi
       declare -A who
       ${lib.concatMapStrings (n: ''
         rocm-ernic ${lib.escapeShellArgs (lib'.serverArgs n)} > ernic-${n.name}.log 2>&1 &
         who[$!]=${n.name}
       '') list}
-      trap 'kill "''${!who[@]}" 2>/dev/null || true; exit 143' TERM INT
+      # TERM each server and wait for it: its fault report is printed at the
+      # end of its clean shutdown. The caller's deadline bounds the wait.
+      stop() {
+        kill "''${!who[@]}" 2>/dev/null || true
+        wait "''${!who[@]}" 2>/dev/null || true
+        if [ -n "$dump" ]; then
+          kill "$dump" 2>/dev/null || true
+          wait "$dump" 2>/dev/null || true
+        fi
+      }
+      trap 'stop; exit 143' TERM INT
       done_pid=""
-      wait -n -p done_pid || true
+      wait -n -p done_pid "''${!who[@]}" || true
       echo "''${who[$done_pid]:-unknown}" > ernic-failed
-      kill "''${!who[@]}" 2>/dev/null || true
+      stop
       exit 1
     '';
   };
@@ -109,18 +131,31 @@ pkgs.writeShellApplication {
   ];
   text = ''
     usage() {
-      echo "usage: ernic-run-many-${name} --dir DIR -- CMD [ARGS...]" >&2
+      echo "usage: ernic-run-many-${name} --dir DIR [--pcap IFNAME] -- CMD [ARGS...]" >&2
       exit 2
     }
     dir=""
+    pcap=""
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --dir) [ "$#" -ge 2 ] || usage; dir=$2; shift 2 ;;
+        --pcap) [ "$#" -ge 2 ] || usage; pcap=$2; shift 2 ;;
         --) shift; break ;;
         *) usage ;;
       esac
     done
     [ -n "$dir" ] && [ "$#" -gt 0 ] || usage
+    if [ -n "$pcap" ]; then
+      pcap_ifs=(${lib.escapeShellArgs pcapIfs})
+      known=0
+      for i in "''${pcap_ifs[@]}"; do
+        if [ "$i" = "$pcap" ]; then known=1; fi
+      done
+      if [ "$known" = 0 ]; then
+        echo "ernic-run-many: --pcap $pcap is not a fabric bridge or TAP" >&2
+        exit 2
+      fi
+    fi
     mkdir -p "$dir"
     dir=$(cd "$dir" && pwd)
 
@@ -156,7 +191,7 @@ pkgs.writeShellApplication {
     }
 
     if [ "''${#names[@]}" -gt 0 ]; then
-      setsid ${lib.optionalString needsNetns "unshare --user --map-root-user --net -- "}${fabricScript}/bin/ernic-fabric-${name} "$dir" &
+      setsid ${lib.optionalString needsNetns "unshare --user --map-root-user --net -- "}${fabricScript}/bin/ernic-fabric-${name} "$dir" "$pcap" &
       fabric=$!
       up=0
       for _ in $(seq 1 ${toString startupAttempts}); do
