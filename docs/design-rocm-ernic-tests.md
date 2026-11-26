@@ -129,8 +129,7 @@ Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/gol
 | seq_no_noise | corner | nothing on the pair before the transfer | ionic2 tx, ionic3 rx | 0 0 |
 | seq_quiescent | corner | the counters are final when read | two reads 1 s apart | equal |
 | seq_egress | negative | the flow is not attributed to uplink ionic0 | egress ifname | ionic2 |
-
-`tcp_info_total_rto` is reported in `seq_retrans`'s detail rather than asserted.
+| seq_no_rto | corner | short bursts recover without a timeout | `tcp_info_total_rto` | 0 (it was 0 in six of six captures, so it is asserted) |
 
 - `DefaultFaultNetns` gains `golden-ernic-c` and `golden-ernic-d`, with red `TestDiff` rows first (`fault_ernic_c`, `fault_ernic_d`). `DefaultFaultEgress` is unchanged: the flow's sockets are already in fault namespaces.
 
@@ -187,3 +186,5 @@ Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/gol
 - **Dropped rows:** `retrans_covers_drops` and `bytes_retrans_mss` were not added. The bulk transfers are echoes, so some dropped frames are pure ACKs for the echoed data, and TCP never retransmits those. Retransmits can therefore be fewer than the drops.
 - **netem `loss_seen`:** the row's detail now reports netem's own drop count per namespace (`tc -s qdisc`). No failure has happened since, so the cause is still open (TODO).
 - **Uplinks (phase 6):** `DefaultUplinks` trusts the kernel's listing order (ascending metric), puts IPv4 before IPv6, and runs once at startup (pkg/xtcp/enrich.go). `TestDefaultUplinksMetric` pins that behavior. TODO: the uplink columns don't follow a runtime metric change until xtcp2 restarts. Egress and locality refresh every 60 s, so only the uplinks lag.
+- **Keepalive probe in flight (diff flake, TODO):** in one of five captures, `xtcp2-golden diff` reported an idle `golden-cc-a` connection with `inet_diag_msg_retrans` 1 and `tcp_info_probes` 1, but `total_retrans` 0 and nothing unacked. The poll caught Go's default 15 s keepalive probe before its ACK: the probe sets `icsk_probes_out` (net/ipv4/tcp_timer.c:844), `tcp_ack` clears it (net/ipv4/tcp_input.c:4430), and inet_diag reports it as `idiag_retrans` while the keepalive timer is pending (net/ipv4/inet_diag.c:295). This predates this work. A fix is `-keepalive 1h` on the idle workloads: the keepalive timer still shows (`inet_diag_msg_timer` 2), but no probe is sent during a capture.
+- **Captures:** five, all 47 rows PASS on each (one at host load 18.6), with the oracle exact on all four NICs every time. `xtcp2-golden diff` is clean between captures 1, 3, 4 and 5; capture 2 differs only by the keepalive probe above. The sequence flow sent about 3100 frames with 12 drops, retransmitted 11 or 12 times (an 11 means one drop was a pure ACK), and never had an RTO, so `seq_no_rto` is asserted.
