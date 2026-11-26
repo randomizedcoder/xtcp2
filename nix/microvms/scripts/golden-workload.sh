@@ -173,7 +173,9 @@ done
 # emulator drops every ERNIC_TX_EVERY-th frame it transmits (ionic1's drops
 # frames it receives; nix/microvms/golden-ernic.nix). Static neighbors, no
 # IPv6 and no segmentation offloads, so each drop is one MTU frame and only
-# the transfers' own frames reach the counters.
+# the transfers' own frames reach the counters. No TCP keepalive either: an
+# idle connection then sends nothing after xtcp2's poll, so the emulator's
+# frame counts equal the segment counts xtcp2 records.
 ernic_bulk=0
 if [ -n "${ERNIC_A_MAC:-}" ]; then
   # What ionic0 has sent since boot, before this script touches it.
@@ -196,14 +198,14 @@ if [ -n "${ERNIC_A_MAC:-}" ]; then
   # The frames before any transfer, for the capture's no_noise ROW.
   printf '%s %s\n' "$(cat /sys/class/net/ionic0/statistics/tx_packets)" \
     "$(ip netns exec "$e" cat /sys/class/net/ionic1/statistics/rx_packets)" >/run/xtcp2-golden-ernic-before
-  spawn ernic-server-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.16
-  spawn ernic-server-dctcp-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.17 -cong dctcp
+  spawn ernic-server-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.16 -keepalive -1s
+  spawn ernic-server-dctcp-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.17 -cong dctcp -keepalive -1s
   wait_listen "$e" 4000 2
   for ca in "${bulk_algos[@]}"; do
     dst=10.0.4.16
     if [ "$ca" = dctcp ]; then dst=10.0.4.17; fi
     systemd-run --unit="xtcp2-golden-ernic-bulk-$ca" --collect \
-      "$TCP_CLIENT" -count 1 -connect "$dst" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 >/dev/null
+      "$TCP_CLIENT" -count 1 -connect "$dst" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 -keepalive -1s >/dev/null
   done
   ernic_bulk=${#bulk_algos[@]}
 fi

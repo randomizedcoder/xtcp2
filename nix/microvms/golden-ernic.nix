@@ -61,12 +61,17 @@ in
     ERNIC_B_MAC = macB;
   };
   captureEnv.ERNIC_TX_EVERY = toString txEvery;
-  # ernic-oracle: each fault site against the guest's counters, after the VM
-  # stops (nix/ernic/oracle.nix).
+  # ernic-oracle, after the VM stops (nix/ernic/oracle.nix): each fault site
+  # against the guest's counters, and the frames against the TCP segments
+  # xtcp2 recorded.
   oracleArgs = [
     "--tx"
     "ionic0"
     "--rx"
+    "ionic1"
+    "--segs-out"
+    "ionic0"
+    "--segs-in"
     "ionic1"
   ];
 }

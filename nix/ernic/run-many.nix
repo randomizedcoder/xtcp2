@@ -22,6 +22,10 @@
 # - --pcap IFNAME runs tcpdump on that fabric bridge or TAP, writing
 #   DIR/IFNAME.pcap (for finding stray frames).
 #
+# Fabric bridges have multicast snooping off: with it on, a bridge joins
+# 224.0.0.106 when it comes up (br_dev_open, net/bridge/br_device.c) and
+# floods an IGMP report to every TAP.
+#
 # fabric = { <bridge> = { address = "10.0.4.1/24"; mac = "02:..."; neighbors = [ { address; mac; } ]; }; }
 {
   pkgs,
@@ -75,7 +79,7 @@ let
             f = fabric.${br} or { };
           in
           ''
-            ip link add ${br} type bridge
+            ip link add ${br} type bridge mcast_snooping 0
             ${lib.optionalString (f ? mac) "ip link set ${br} address ${f.mac}"}
             ${lib.optionalString (f ? address) "ip addr add ${f.address} dev ${br}"}
             ip link set ${br} up
