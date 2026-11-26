@@ -1,0 +1,173 @@
+# rocm-ernic verification, round 2
+
+Status: plan (2026-11-25). Follows [design-rocm-ernic-nics.md](design-rocm-ernic-nics.md), whose phases 0–4 put two emulated ionic NICs in the golden VM.
+
+The emulator counts frames, never time, so the same workload gives the same faults. That makes it an exact outside witness for what xtcp2 reports. Round 1 compared guest counters only with each other; this round compares them, and xtcp2's TCP counters, with the emulator's own counts, fixes a bug found on the way, and pins the uplink choice with tests.
+
+## Background
+
+PR #335 put two ionic NICs in the golden VM:
+- **ionic0** is in the root netns, is uplink 1, and has fault `eth_tx: every 50 drop`.
+- **ionic1** is in netns golden-ernic-b, with fault `eth_rx: every 64 drop`.
+
+Gaps found while planning:
+1. **Egress metric bug:** `insertRoute` (`pkg/localnet/localnet.go:333`) lets a later route with the same prefix overwrite an earlier one. The kernel lists same-prefix routes in ascending metric order:
+   - IPv4: `fib_find_alias`, net/ipv4/fib_trie.c:1006.
+   - IPv6: `fib6_add_rt2node`, net/ipv6/ip6_fib.c:1212.
+
+   So with two default routes, `enrich_socket_dest_egress_ifname` names the **highest**-metric route, the one the kernel uses last. The parsed `RouteInfo.Priority` (`pkg/xtcpnl/xtcpnl_rtmsg.go:108`) is never used.
+2. **Emulator counts are lost:** rocm-ernic prints `Fault <site>: eligible X, fired Y` only on a clean SIGINT/TERM shutdown. Two things throw that away today:
+   - `mkGoldenCaptureRunner`'s EXIT trap (`nix/microvms/lib.nix:1296`) runs `rm -rf "$STAGE"` before it stops the VM, which deletes `$STAGE/ernic/*.log`.
+   - `ernic-run-many`'s `stop_group` (`nix/ernic/run-many.nix:138`) waits only for the group leader, then SIGKILLs the group. That can kill a server before it calls `report_faults`.
+3. **Frames could be checked exactly against TCP counters:**
+   - `tp->segs_out` counts every transmitted segment, including SYNs, pure ACKs and retransmits (net/ipv4/tcp_output.c:1758).
+   - `segs_in` counts every received skb (include/net/tcp.h:2836); a child socket starts at 1 (tcp_minisocks.c:574).
+   - With TSO/GSO/GRO off, one segment is one frame.
+   - So the frames the emulator saw on `eth_tx` should equal the sum of the senders' `tcp_info_segs_out` as xtcp2 reports it.
+4. **Two flakes predate this work:**
+   - netem `loss_seen` fails in about 1 run in 5.
+   - In 1 of 5 runs, one stray frame reaches ionic1.
+5. **Uplinks:** `nicinfo.DefaultUplinks` (`pkg/nicinfo/uplinks.go:37`) never reads the metric. It relies on the kernel listing order and runs once at startup (`pkg/xtcp/enrich.go:111`). The tests' route helpers write metric 0 (v4) or a single fixed metric (v6), so nothing pins that reliance.
+
+**Decisions:** one PR for all phases, the egress fix included; the golden ionic profile stays at 100000 Mb/s.
+
+## Phase 0: spike (findings go in the doc; no code kept)
+
+One capture with local hacks, to confirm:
+1. A clean TERM (after the run-many fix) prints the `Fault` lines for ionic0 and ionic1.
+2. Taking ionic0/ionic1 down after the final counter read freezes the counters: no frames are sent at poweroff.
+3. On one capture, sum(client `segs_out`) for the 4 ionic clients equals `tx_packets + tx_dropped` on ionic0. If it is off by a constant, find the cause in the kernel source and record it with file:line.
+4. A free PCI slot pair for ionic2/ionic3. Slot 0x1f is the only one known free, so the fallback is `-device pci-bridge,id=ernicbr,chassis_nr=1,addr=0x1f` with both NICs on `bus=ernicbr`.
+5. The phase 5 `sequence` pattern finishes the 4 MiB transfer without a long stall.
+
+## Phase 1: egress follows the lowest metric (Go)
+
+- `routeEntry` gains `prio uint32` (from `ri.Priority`).
+- `insertRoute` replaces an existing non-self entry only if the new route's `prio` is strictly lower. On equal prio the first one seen wins, which matches the kernel: its lookup takes the first alias in list order, and the dump order is the list order.
+- The self-entry rule is unchanged. The comment cites the kernel lines above.
+- **Golden VM row** in netns `golden-metric`:
+  - two veths to `golden-metric-peer`, with default routes at metric 100 (`m1`) and 200 (`m2`);
+  - a listener in the peer on 192.0.2.80 (lo), and one client connection to it;
+  - row `egress_metric`: the client's egress is `m1`.
+  - Red on main (it gives `m2`); recapture the fixture.
+
+**T1 `TestLookupEgressMetric`** (`pkg/localnet/localnet_test.go`, in the existing BuildSnapshot style)
+
+| name | category | description | input | expected |
+|---|---|---|---|---|
+| lowest_wins_dump_order | positive | the lower metric wins in the kernel's order | default m1 prio 100 then m2 prio 200 | egress m1 |
+| lowest_wins_reverse | positive | order does not matter | m2 200 then m1 100 | egress m1 |
+| specific_beats_metric | negative | longest prefix still beats metric | 10/8 prio 900 on eth1, default prio 1 on eth0; dst 10.1.1.1 | egress eth1 |
+| equal_prio_first | boundary | equal metric keeps the first seen, like the kernel | m1 100 then m2 100 | egress m1 |
+| prio_zero | boundary | metric 0 (no RTA_PRIORITY) is the lowest | m1 no prio, m2 prio 1 | egress m1 |
+| self_kept | corner | a self /32 is never replaced by a lower-metric route | addr 10.0.0.5, route 10.0.0.5/32 prio 0 | LocalitySelf |
+| v6_default | corner | IPv6 follows the same rule | ::/0 prio 1024 on m2, prio 256 on m1 | egress m1 |
+| multipath_lower | corner | a lower-metric multipath route wins, with oif 0 | multipath prio 10, single-path prio 20 | egress empty (oif 0) |
+
+## Phase 2: keep and read the emulator's counts
+
+- **`nix/ernic/run-many.nix`:**
+  - The fabric trap sends TERM to every server, then `wait`s for each one, up to 10 s, before exiting.
+  - `stop_group` then needs no early SIGKILL.
+  - New option `--pcap IFNAME`: tcpdump inside the fabric writes `DIR/<ifname>.pcap`; used in phase 4.
+- **`nix/microvms/lib.nix` `mkGoldenCaptureRunner`:**
+  - After `xtcp2-golden check`: power off the VM, `wait` on run-many, copy `$STAGE/ernic/*.log` next to `$LOG`, then run the host check.
+  - The EXIT trap's `rm -rf "$STAGE"` moves after the VM stop.
+  - The runner prints ROW lines, and fails on `ROW … FAIL`, as `mkFamiliesRunner` already does.
+- **Guest (`golden-capture.sh`):**
+  - After the last xtcp2 read, it prints one line: `GOLDEN_ERNIC_COUNTERS ionic0 tx=… dropped=… ionic1 rx=… segs_out=… segs_in=…`. The segs values are summed from the captured records, not from `ss`.
+  - Then `ip link set ionic0 down`, and the same for ionic1 inside its netns.
+- **Host check `ernic-oracle`:** a small shell script in `nix/microvms/scripts/` that parses the `Fault` lines and the COUNTERS line. Its pure logic is tested by T2 against fixture log text.
+
+**T2 `checks.ernic-oracle`** (shell table, fixture log snippets; prints `ROW` lines)
+
+| name | category | description | input | expected |
+|---|---|---|---|---|
+| tx_match | positive | the emulator's tx count equals the guest's | `eligible 14838, fired 296`; tx=14542 dropped=296 | PASS |
+| rx_match | positive | rx eligible equals delivered plus dropped | rx `eligible 9000, fired 140`; ionic1 rx=8860 | PASS |
+| fired_mismatch | negative | a guest counter that disagrees fails | fired 296, dropped=295 | FAIL `ionic0 fired 296 != tx_dropped 295` |
+| no_fault_line | negative | a missing count (unclean stop) fails | log without a `Fault` line | FAIL `no Fault line for ionic0` |
+| zero_eligible | boundary | a site that saw nothing is reported, not divided by zero | `eligible 0, fired 0` | FAIL `ionic0 saw no frames` |
+| fired_equals_eligible | boundary | every frame dropped is still consistent | `eligible 50, fired 50`, tx=0 dropped=50 | PASS |
+| two_sites | corner | lines for other sites or NICs are not mixed up | ionic0 and ionic1 logs, eth_tx and eth_rx sites | each compared with its own NIC |
+| u64 | corner | large counts parse | eligible 18446744073709551615 | parsed exactly; no overflow |
+
+## Phase 3: frame accounting, the emulator against xtcp2's TCP counters
+
+These are new ROWs. Guest rows go in `golden-capture.sh`; the exact three-way comparison is in the host `ernic-oracle`.
+
+| name | category | description | input | expected |
+|---|---|---|---|---|
+| segs_out_frames | positive | client segments equal ionic0 tx frames | sum `tcp_info_segs_out`, 4 ionic clients | == tx_packets + tx_dropped == emulator eligible (± the phase 0 constant) |
+| segs_in_frames | positive | server segments equal ionic1 delivered frames | sum `tcp_info_segs_in` of the server children in golden-ernic-b | == ionic1 rx_packets (± constant) |
+| retrans_covers_drops | boundary | every dropped data frame was retransmitted | sum `tcp_info_total_retrans`, ionic0 clients | ≥ ionic0 tx_dropped |
+| bytes_retrans_mss | boundary | retransmitted bytes match the drops | sum `tcp_info_bytes_retrans` | ≥ tx_dropped × (mss − 1) |
+| idle_segs_zero | negative | sockets not on ionic add no ionic frames | non-ionic rows | excluded; the sum is taken over ionic rows only |
+| quiescent | corner | the counters are final when read | two reads 1 s apart | equal |
+
+Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/goldenrec/diff_test.go`) only if that column's diff rule changes; otherwise there is no Go change.
+
+## Phase 4: the two flakes
+
+- **Stray ionic1 frame:** run captures with `--pcap br-ernic` until it reproduces, identify the frame, and remove its source. Then `no_noise` again requires ionic1 rx to be 0 (red with the requirement restored, green after the fix).
+- **netem `loss_seen`:** add per-namespace `tc -s qdisc show dev veth0` drop counts to the row detail, then find the cause from the next failures.
+  - If found: fix it, and turn the row's per-client check into a table row.
+  - If not found within the phase's captures: record it as a TODO in the Status section and keep going.
+
+## Phase 5: one deterministic loss pattern on a single flow
+
+- **New pair:** ionic2 in the root netns (10.0.5.15, no default route) and ionic3 in netns `golden-ernic-c` (10.0.5.16), on the same bridge with their own subnet. Slots come from phase 0.
+- **ionic2 fault:** `eth_tx: sequence "0x400,1x1,0x400,1x3,0x400,1x8,0x64323"`, a total of 65536. That is one isolated drop, then a burst of 3, then a burst of 8, and nothing more for 4 MiB.
+- **Traffic:** one cubic `-bulk 4MiB` flow, the only traffic over ionic2.
+- **ROWs:**
+
+| name | category | description | input | expected |
+|---|---|---|---|---|
+| seq_fired | boundary | exactly the pattern's drops | ionic2 tx_dropped and the emulator's fired | 12 and 12 |
+| seq_retrans | positive | xtcp2 sees the recovery | `tcp_info_total_retrans` of the flow | ≥ 12 |
+| seq_segs_out | positive | exact frame accounting on one flow | `tcp_info_segs_out` | == emulator eligible (± constant) |
+| seq_no_rto_isolated | corner | short bursts recover without a timeout | `tcp_info_total_rto` | measured in phase 0: asserted only if it is 0 in five of five captures, otherwise reported |
+| seq_egress | negative | the flow is not attributed to uplink ionic0 | egress ifname | ionic2 |
+
+- `DefaultFaultNetns` gains `golden-ernic-c` and `DefaultFaultEgress` gains `ionic2`. This comes with a red `TestDiff` row first (`fault_ernic_c`: a retrans difference on a golden-ernic-c row → no finding).
+
+## Phase 6: uplink corner cases (Go unit tests and documentation; no behavior change)
+
+- **Fixtures:** `routeV4`/`routeV6` in `pkg/nicinfo/uplinks_test.go` gain a metric argument.
+- **Header comment:** `DefaultUplinks` gets a comment saying it relies on the kernel listing order (ascending metric, with the file:lines above) and is evaluated once at startup.
+- **Status section:** records that the uplink columns don't follow a runtime metric swap until restart (a TODO, not changed here).
+
+**T6 additions to `TestDefaultUplinksFixture` / `TestParseDefaultRoutesV4`/`V6`**
+
+| name | category | description | input | expected |
+|---|---|---|---|---|
+| kernel_order | positive | routes in kernel (metric) order give the uplinks in that order | eth1 100, eth0 200 | [eth1 eth0] |
+| v4_before_v6 | positive | IPv4 defaults come before IPv6 ones whatever the metric | v4 eth0 1000, v6 eth1 1 | [eth0 eth1] |
+| metric_ignored | negative | the parser does not reorder (it trusts the kernel) | eth0 200 listed before eth1 100 | [eth0 eth1], so the reliance is pinned |
+| equal_metric | boundary | equal metric keeps the listing order | eth1 100, eth0 100 | [eth1 eth0] |
+| none_physical_fallback | corner | no default route falls back to the sysfs NICs | empty route files, two sysfs NICs | PhysicalInterfaces order |
+| same_nic_twice | corner | a NIC with v4 and v6 defaults counts once | eth0 in both | [eth0] |
+
+## Critical files
+
+- `pkg/localnet/localnet.go`, `pkg/localnet/localnet_test.go`
+- `nix/ernic/run-many.nix`, `nix/checks/ernic-run-many.nix` (new rows: `clean_stop` positive: a fake server's shutdown line reaches the log; `pcap` positive; `pcap_no_fabric` negative: `--pcap` without a bridge is rejected)
+- `nix/microvms/lib.nix` (`mkGoldenCaptureRunner`), `nix/microvms/scripts/{golden-capture,golden-workload}.sh`, new `nix/microvms/scripts/ernic-oracle.sh`, `nix/checks/ernic-oracle.nix` (registered in `nix/checks/default.nix`)
+- `nix/microvms/golden-ernic.nix` (ionic2/ionic3), `nix/microvms/mkVm.nix` (golden-metric veths if they live in networkd)
+- `pkg/goldenrec/diff.go` + test, `pkg/nicinfo/uplinks.go` (comment) + `uplinks_test.go`
+- `pkg/xtcp/testdata/golden/{coverage.json,7_3_1/*}` (recapture), `nix/README.md`, `CHANGELOG.md`, `docs/design-rocm-ernic-tests.md`, `docs/README.md`
+
+## Verification
+
+1. `TMPDIR=/tmp go test ./pkg/localnet/... ./pkg/nicinfo/... ./pkg/goldenrec/...`, red then green per phase; then `go test ./...`.
+2. `nix build .#checks.x86_64-linux.{ernic-oracle,ernic-run-many,ernic-nics,golden-records}`.
+3. Golden: five captures, with every ROW PASS (guest and host), `xtcp2-golden diff` clean pairwise, and the oracle three-way equality in every capture.
+4. `checks.vm-all` still passes (the run-many change touches only golden; the ionic VM checks use `ernic-run`).
+5. The full nix check list before pushing: gofmt, go-vet, nix-fmt, lint-baseline, golangci ×3, redteam-lint, golden-records, test-fuzz-all, ernic-*, upstream-pins. No shellcheck disables, no nolint.
+6. Re-run the fleet shape-diff and report it in chat (the speed stays 100000).
+
+## Process
+
+- One PR; the doc lands first, then one test-first series per phase, each red commit before its fix.
+- Captures: one VM at a time, after checking the host load and the forwarded ports.
+- A Status section is added at the end with the phase 0 findings and the measurements.
