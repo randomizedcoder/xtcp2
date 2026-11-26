@@ -75,6 +75,9 @@ in
   # nix/ernic/run-many.nix: N rocm-ernic servers around one command, with a
   # fake server.
   ernic-run-many = import ./ernic-run-many.nix { inherit pkgs lib; };
+  # nix/ernic/oracle.nix: the emulator's fault counts against the guest's
+  # NIC counters, on fixture logs.
+  ernic-oracle = import ./ernic-oracle.nix { inherit pkgs lib; };
   # The self-test's stream_until (nix/microvms/self-test-stream-until.nix),
   # driven against sh stand-ins for a streaming xtcp2client.
   self-test-stream-until = import ./self-test-stream-until.nix { inherit pkgs; };
