@@ -21,6 +21,9 @@
 #   golden-loc-a/b     veth, MTU 1500, and golden-remote behind golden-loc-b:
 #   golden-remote      one connection per locality (self, subnet, remote
 #                      over IPv4 and IPv6 to documentation addresses)
+#   golden-metric-a/b  two veths, m1 and m2, and a default route over each
+#                      (metric 100 and 200): one connection, whose egress
+#                      is the lower metric's m1
 #   the host     as it is
 #
 # Every pair is a named netns, so root picks any algorithm and option
@@ -275,6 +278,30 @@ spawn loc-remote-6 golden-loc-a "$TCP_CLIENT" -count 1 -connect 2001:db8:113::10
 # The self connection shows twice in golden-loc-a, once per end.
 loc_established=5
 
+# metric: golden-metric-a reaches 192.0.2.80 (on golden-metric-b's lo) only
+# through its two default routes, m1 at metric 100 and m2 at 200. The kernel
+# sends over m1; the higher metric is added first, so the listing order is
+# the kernel's sorting and not the order they were added.
+for ns in golden-metric-a golden-metric-b; do
+  ip netns del "$ns" 2>/dev/null || true
+  ip netns add "$ns"
+  ip -n "$ns" link set lo up
+done
+for i in 1 2; do
+  ip link add "m$i" netns golden-metric-a type veth peer name "m$i" netns golden-metric-b
+  ip -n golden-metric-a addr add "10.21.$i.1/24" dev "m$i"
+  ip -n golden-metric-b addr add "10.21.$i.2/24" dev "m$i"
+  ip -n golden-metric-a link set "m$i" up
+  ip -n golden-metric-b link set "m$i" up
+done
+ip -n golden-metric-b addr add 192.0.2.80/32 dev lo
+ip -n golden-metric-a route add default via 10.21.2.2 dev m2 metric 200
+ip -n golden-metric-a route add default via 10.21.1.2 dev m1 metric 100
+spawn metric-server golden-metric-b "$TCP_SERVER" -count 1 -bind 192.0.2.80
+wait_listen golden-metric-b 4000
+ip netns exec golden-metric-a ping -q -c 1 -W 5 192.0.2.80 >/dev/null || fail "golden-metric-a: no reply from 192.0.2.80"
+spawn metric golden-metric-a "$TCP_CLIENT" -count 1 -connect 192.0.2.80 -sleep 1h -pads 0
+
 # Each container's connections show twice, once per end.
 need=$((2 * SOCKETS))
 deadline=$((SECONDS + READY_SEC))
@@ -306,6 +333,8 @@ while :; do
   if [ "$n" -lt "$opts_clients" ]; then pending="$pending golden-opts-a($n/$opts_clients)"; fi
   n=$(count_state golden-loc-a established)
   if [ "$n" -lt "$loc_established" ]; then pending="$pending golden-loc-a($n/$loc_established)"; fi
+  n=$(count_state golden-metric-a established)
+  if [ "$n" -lt 1 ]; then pending="$pending golden-metric-a($n/1)"; fi
   n=$(count_state golden-states-a fin-wait-2)
   m=$(count_state golden-states-b close-wait)
   if [ "$n" -lt 1 ] || [ "$m" -lt 1 ]; then pending="$pending golden-states(fin-wait-2 $n, close-wait $m)"; fi

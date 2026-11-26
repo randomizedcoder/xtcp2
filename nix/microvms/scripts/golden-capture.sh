@@ -261,6 +261,10 @@ got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_egress_ifname, ',') FROM 
 ok=0
 [ "$got" = "veth0" ] && ok=1
 row egress_named corner "$ok" "egress of golden-loc-a's REMOTE rows: $got"
+got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_egress_ifname, ',') FROM $P WHERE netns = 'golden-metric-a' AND inet_diag_msg_state = 1")
+ok=0
+[ "$got" = "m1" ] && ok=1
+row egress_metric positive "$ok" "egress of golden-metric-a's connection over two default routes (m1 metric 100, m2 metric 200): $got, want m1"
 got=$(q "SELECT string_agg(DISTINCT uplink1_nic_fw_version, ',') FROM $P")
 ok=0
 [ "$got" = "xtcp2-golden-1.0" ] && ok=1
@@ -280,7 +284,7 @@ jq -n \
     workload: {containers: $containers, sockets_per_container: $sockets,
       named_netns: ["golden-ns", "golden-cc-a", "golden-cc-b", "golden-bulk-a", "golden-bulk-b",
         "golden-opts-a", "golden-opts-b", "golden-states-a", "golden-states-b",
-        "golden-loc-a", "golden-loc-b", "golden-remote"]},
+        "golden-loc-a", "golden-loc-b", "golden-remote", "golden-metric-a", "golden-metric-b"]},
     cong_available: $cong,
     rows: $rows, captured: $captured}' >"$OUT/manifest.json"
 rm -f "$OUT"/ss-golden-* "$OUT"/nsid-golden-*
