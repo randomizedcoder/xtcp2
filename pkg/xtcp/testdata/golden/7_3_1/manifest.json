@@ -24,7 +24,9 @@
       "golden-states-b",
       "golden-loc-a",
       "golden-loc-b",
-      "golden-remote"
+      "golden-remote",
+      "golden-metric-a",
+      "golden-metric-b"
     ]
   },
   "cong_available": [
@@ -46,6 +48,6 @@
     "westwood",
     "yeah"
   ],
-  "rows": 180,
-  "captured": "2026-11-25"
+  "rows": 186,
+  "captured": "2026-11-26"
 }
