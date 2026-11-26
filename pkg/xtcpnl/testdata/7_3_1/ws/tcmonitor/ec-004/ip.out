@@ -1,0 +1,4 @@
+added chain dev d0 parent ffff: chain 0 
+added filter dev d0 ingress protocol all pref 2 matchall chain 0 
+deleted filter dev d0 ingress protocol all pref 2 matchall chain 0 
+deleted chain dev d0 parent ffff: chain 0 

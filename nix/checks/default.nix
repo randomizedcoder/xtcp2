@@ -94,6 +94,7 @@ in
   # xtcp2-nlcap wait-linkwatch (nix/microvms/netlink-capture.nix), the
   # settle wait goip-parity.exp runs after each Setup, on a fake sysfs.
   nlcap-wait-linkwatch = import ./nlcap-wait-linkwatch.nix { inherit pkgs; };
+  nlcap-tcmon = import ./nlcap-tcmon.nix { inherit pkgs; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf
