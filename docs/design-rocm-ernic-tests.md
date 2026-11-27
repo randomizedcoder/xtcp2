@@ -193,7 +193,7 @@ Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/gol
 
 # Round 3: close the two golden flakes, strict diff on the sequence flow
 
-Status: plan (2026-11-26). Round 2 left three TODOs (Status, above). This round closes the keepalive and netem flakes and makes the sequence flow exact. The uplink TODO stays open.
+Status: done (2026-11-27). Round 2 left three TODOs (Status, above). This round closes the keepalive and netem flakes and makes the sequence flow exact. The uplink TODO stays open.
 
 ## Phase 0: kernel findings
 
@@ -219,3 +219,12 @@ Every tcp_client and tcp_server in `golden-workload.sh` that doesn't already pas
 - golden-ernic-c/d leave `DefaultFaultNetns`, so the diff compares them. Any column that still varies over five captures goes in a narrower `DefaultSeqNetns` exemption, with its cause.
 
 Tests (table-driven, red first): tcp_server discard (discard reads all, echo default, empty, with `-holdEOF`, flag parse); tcp_client one-way (writes n, peer close, echo default, needs `-bulk`, one byte, peer reset); `pkg/goldenrec` diff (c and d compared, b still exempt, explicit `FaultNetns`, ionic0 egress exempt).
+
+## Round 3 status
+
+- **Keepalive (phase 1):** fixed. Every idle golden socket uses `-keepalive 1h`. That also explained a fixture oddity: 120 idle rows had nonzero `sk_mem_info_drops`. A keepalive probe carries `snd_una - 1` (net/ipv4/tcp_output.c:4610), the peer's `tcp_sequence` calls it an old sequence (net/ipv4/tcp_input.c:4890), and the discard path adds it to `sk_drops` (`tcp_drop_reason`, net/ipv4/tcp_input.c:5345). Without probes those rows read 0. The coverage requirement still holds: 9 or 10 rows per capture keep nonzero drops from the netem listeners' SYN-ACK path.
+- **netem (phase 2):** xtcp2 agrees with the kernel exactly. In five captures, xtcp2's sum of `total_retrans` equaled each namespace's `TcpRetransSegs` (for example 201 and 280), and each client's equaled `ss`'s. `loss_seen` passed in all five (dctcp 8 to 110 retransmits), so the round 2 failure did not recur. TODO: if it does, the new rows tell an xtcp2 bug (`netem_kernel_agrees` fails) from a flow that saw no loss (they pass, and `ss` shows 0 too). The 30 s dial timeout on the bulk clients removes one candidate cause: a dropped SYN closing a socket.
+- **One-way sequence flow (phase 3):** exact. `total_retrans` was 12 for 12 drops in all five captures, with no RTO, and the server's was 0. ionic2's eligible frames equaled the client's `segs_out` (2913 to 2915).
+- **Strict diff:** golden-ernic-c/d are compared. Only `tcp_info_rwnd_limited` differed, on the client in two of four captures: the discarding server reads as fast as it is scheduled, so whether its window ever held the sender back depends on host load. It is the one column in `goldenrec.seqColumns`. With it, `xtcp2-golden diff` was clean on all six pairs of four captures.
+- **Captures:** five, all 52 guest rows PASS on each, with the oracle exact on all four NICs, at host load 7 to 24. A sixth timed out at host load 61 (`GOLDEN_DONE not seen within 600 s`) and is not counted. The fixture is recaptured.
+- **Uplinks:** unchanged, still TODO (round 2 Status).
