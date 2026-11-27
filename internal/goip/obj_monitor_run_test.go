@@ -58,7 +58,7 @@ func TestRunMonitorFile(t *testing.T) {
 		{"negative: an unknown argument exits 255", "monitor bogus",
 			result{rc: ExitMinusOne, stderr: "goip: monitor: Argument \"bogus\" is unknown, try \"ip monitor help\"\n"}},
 		{"negative: no such file exits 255", "monitor file " + file + ".none",
-			result{rc: ExitMinusOne, stderr: "goip: monitor: Cannot fopen: no such file or directory\n"}},
+			result{rc: ExitMinusOne, stderr: "goip: monitor: Cannot fopen: No such file or directory\n"}},
 		{"corner: -j still prints text", "-j monitor file " + file, result{stdout: addr}},
 		{"negative: a truncated file exits 1, rtnl_from_file's -1 negated", "monitor file " + short16,
 			result{rc: ExitUsage, stderr: "goip: monitor file: rtnl-from_file: truncated message\n"}},

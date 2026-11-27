@@ -9,15 +9,19 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/randomizedcoder/xtcp2/tools/internal/procnet"
 	"github.com/randomizedcoder/xtcp2/tools/internal/sockopt"
 )
 
 // parsed is the part of serverConfig the new flags set.
 type parsed struct {
-	opts    sockopt.Options
-	holdEOF bool
-	err     string
+	opts      sockopt.Options
+	holdEOF   bool
+	discard   bool
+	keepalive time.Duration
+	err       string
 }
 
 // go test ./tools/tcp_server/ -run TestParseServerFlags
@@ -38,13 +42,18 @@ func TestParseServerFlags(t *testing.T) {
 		{"client_flag", "negative", "a client-only flag is rejected", []string{"-bulk", "1MiB"}, parsed{err: "flag provided but not defined: -bulk"}},
 		{"tos_max", "boundary", "the largest TOS", []string{"-tos", "255"}, parsed{opts: sockopt.Options{TOS: 255}}},
 		{"priority_zero", "boundary", "0 means not set", []string{"-priority", "0"}, parsed{}},
+		{"keepalive_off", "positive", "a negative -keepalive turns keepalive off on accepted connections", []string{"-keepalive", "-1s"}, parsed{keepalive: -time.Second}},
+		{"keepalive_bad", "negative", "a -keepalive that is not a duration", []string{"-keepalive", "1x"}, parsed{err: `invalid value "1x" for flag -keepalive`}},
+		{"keepalive_zero", "boundary", "0 keeps Go's default keepalive", []string{"-keepalive", "0s"}, parsed{}},
 		{"hold_alone", "corner", "-holdEOF without options", []string{"-holdEOF"}, parsed{holdEOF: true}},
+		{"discard", "positive", "-discard parses", []string{"-discard"}, parsed{discard: true}},
+		{"discard_hold", "corner", "-discard with -holdEOF", []string{"-discard", "-holdEOF"}, parsed{discard: true, holdEOF: true}},
 		{"bad_rcvbuf_suffix", "corner", "a suffix outside K/M/G", []string{"-rcvbuf", "1TiB"}, parsed{err: `size "1TiB"`}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c, err := parseFlags(tc.input, io.Discard)
-			got := parsed{opts: c.opts, holdEOF: c.holdEOF}
+			got := parsed{opts: c.opts, holdEOF: c.holdEOF, discard: c.discard, keepalive: c.keepalive}
 			ok := errMatches(err, tc.expected.err)
 			if err == nil {
 				want := tc.expected
@@ -113,7 +122,7 @@ func TestHoldEOF(t *testing.T) {
 				if aerr != nil {
 					return
 				}
-				handleConn(ctx, c, tc.input.holdEOF)
+				handleConn(ctx, c, tc.input.holdEOF, false)
 			}()
 			conn, err := net.Dial("tcp4", ln.Addr().String())
 			if err != nil {
@@ -172,4 +181,52 @@ func errMatches(err error, want string) bool {
 		return err == nil
 	}
 	return err != nil && strings.Contains(err.Error(), want)
+}
+
+// go test ./tools/tcp_server/ -run TestListenKeepAlive
+func TestListenKeepAlive(t *testing.T) {
+	tests := []struct {
+		name, category, description string
+		input                       time.Duration
+		expectedOn                  int
+	}{
+		{"default", "positive", "0 keeps Go's default: accepted connections have keepalive on", 0, 1},
+		{"off", "positive", "a negative value turns keepalive off on accepted connections", -time.Second, 0},
+		{"set", "boundary", "a positive value keeps it on", 30 * time.Second, 1},
+		{"off_large", "corner", "any negative value is off", -time.Hour, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lc := listenConfig(serverConfig{keepalive: tc.input})
+			ln, err := lc.Listen(context.Background(), "tcp4", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = ln.Close() }()
+			c, err := net.Dial("tcp4", ln.Addr().String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = c.Close() }()
+			a, err := ln.Accept()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = a.Close() }()
+			raw, err := a.(*net.TCPConn).SyscallConn()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var on int
+			var gerr error
+			if err := raw.Control(func(fd uintptr) {
+				on, gerr = unix.GetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_KEEPALIVE)
+			}); err != nil || gerr != nil {
+				t.Fatal(err, gerr)
+			}
+			if on != tc.expectedOn {
+				t.Errorf("%s [%s] %s: SO_KEEPALIVE %d, expected %d", tc.name, tc.category, tc.description, on, tc.expectedOn)
+			}
+		})
+	}
 }

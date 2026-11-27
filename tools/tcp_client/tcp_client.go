@@ -93,8 +93,14 @@ type clientConfig struct {
 	// timeout waits one more of it.
 	dialTimeout time.Duration
 	bulk        sockopt.Size
-	mode        closeMode
-	opts        sockopt.Options
+	// bulkOneWay sends the bulk bytes without reading an echo, then waits
+	// for the peer to close: no message exchanges follow.
+	bulkOneWay bool
+	mode       closeMode
+	opts       sockopt.Options
+	// keepalive is net.Dialer.KeepAlive: 0 is Go's default (on, 15 s), a
+	// negative value is off.
+	keepalive time.Duration
 }
 
 // parseFlags reads the command line into a clientConfig. Every error is
@@ -115,7 +121,9 @@ func parseFlags(args []string, stderr io.Writer) (clientConfig, error) {
 	fs.StringVar(&c.iface, "iface", ifaceCst, "bind each connection to this interface via SO_BINDTODEVICE; empty = kernel default")
 	fs.StringVar(&c.network, "network", networkCst, "tcp (family from -connect), tcp4 or tcp6")
 	fs.DurationVar(&c.dialTimeout, "dialTimeout", dialTimeoutCst, "first dial attempt's timeout; longer than the kernel's SYN retries (about 2m) holds a SYN_SENT socket to an unanswering peer")
+	fs.DurationVar(&c.keepalive, "keepalive", 0, "TCP keepalive idle time; 0 = Go's default (15s), negative = off")
 	fs.Var(&c.bulk, "bulk", "send this many bytes (e.g. 4MiB) and read the echo back before the first message; 0 = none")
+	fs.BoolVar(&c.bulkOneWay, "bulkOneWay", false, "with -bulk: send the bytes, read no echo, send nothing more and wait for the peer to close (for a -discard server)")
 	closeFlag := fs.Bool("close", false, "close after one exchange (the socket goes to TIME_WAIT)")
 	halfFlag := fs.Bool("halfclose", false, "shutdown(SHUT_WR) after one exchange and hold the socket until the peer closes (FIN_WAIT2)")
 	c.opts.Register(fs)
@@ -125,6 +133,9 @@ func parseFlags(args []string, stderr io.Writer) (clientConfig, error) {
 	err := c.opts.Validate()
 	if c.dialTimeout <= 0 {
 		err = errors.Join(err, fmt.Errorf("-dialTimeout %s must be positive", c.dialTimeout))
+	}
+	if c.bulkOneWay && c.bulk <= 0 {
+		err = errors.Join(err, errors.New("-bulkOneWay needs -bulk"))
 	}
 	switch {
 	case *closeFlag && *halfFlag:
@@ -153,7 +164,7 @@ func runMain(args []string, stderr io.Writer) int {
 		return 2
 	}
 
-	d, err := newDialer(c.srcaddr, c.iface, c.opts)
+	d, err := dialerFor(c)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -178,6 +189,13 @@ func runMain(args []string, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// dialerFor is newDialer for a parsed config, with its keepalive.
+func dialerFor(c clientConfig) (net.Dialer, error) {
+	d, err := newDialer(c.srcaddr, c.iface, c.opts)
+	d.KeepAlive = c.keepalive
+	return d, err
 }
 
 // newDialer builds the net.Dialer used for every connection, applying the
@@ -239,6 +257,9 @@ func session(conn net.Conn, c clientConfig, port int) error {
 		}
 	}()
 
+	if c.bulkOneWay {
+		return bulkOneWay(conn, int64(c.bulk))
+	}
 	if _, err := bulk(conn, int64(c.bulk)); err != nil {
 		return err
 	}
@@ -304,6 +325,25 @@ func bulk(conn net.Conn, n int64) (int64, error) {
 		return got, fmt.Errorf("bulk: write: %w", err)
 	}
 	return got, nil
+}
+
+// bulkOneWay writes n bytes, reads no echo, and then waits for the peer to
+// close, discarding anything it sends. Only the n bytes leave this end as
+// data, so every segment lost on the way is one TCP must retransmit.
+func bulkOneWay(conn net.Conn, n int64) error {
+	if n <= 0 {
+		return nil
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		return fmt.Errorf("bulk one-way: %w", err)
+	}
+	if _, err := io.CopyN(conn, zeroReader{}, n); err != nil {
+		return fmt.Errorf("bulk one-way: write: %w", err)
+	}
+	if _, err := io.Copy(io.Discard, conn); err != nil {
+		return fmt.Errorf("bulk one-way: wait for the peer to close: %w", err)
+	}
+	return nil
 }
 
 // zeroReader reads zeros.

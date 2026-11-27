@@ -124,8 +124,9 @@ row no_stray negative "$ok" "$n rows with an nsid but no nsid_assigned"
 ok=0
 [ "$zeros" -eq 1 ] && ok=1
 row zero_present boundary "$ok" "$zeros container namespaces with kernel id 0"
-# golden-ernic-b has an id: ionic1 was moved there from the root namespace.
-n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns NOT IN ('golden-ns', 'golden-ernic-b') AND nsid_assigned")
+# golden-ernic-b, -c and -d have ids: ionic1-3 were moved there from the
+# root namespace.
+n=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns NOT IN ('golden-ns', 'golden-ernic-b', 'golden-ernic-c', 'golden-ernic-d') AND nsid_assigned")
 ok=0
 [ "$n" -eq 0 ] && ok=1
 row host_unassigned corner "$ok" "$n host rows with nsid_assigned (the root namespace has no id for itself)"
@@ -168,11 +169,69 @@ n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_s
 ok=0
 [ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
 per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans || '/state' || inet_diag_msg_state || '/segs_out' || tcp_info_segs_out || '/bytes_acked' || tcp_info_bytes_acked, ',' ORDER BY inet_diag_cong) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000")
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}"
+# netem's own sent and dropped counts on each side's veth0, to tell "netem
+# dropped nothing" from "TCP saw no loss" when this row fails, and, beside
+# the namespace's OutSegs + RetransSegs, whether every segment went
+# through netem at all (sent + dropped also counts ARP and IPv6 ND).
+netem_drops=""
+for ns in golden-bulk-a golden-bulk-b; do
+  netem_drops="$netem_drops $ns=$(ip netns exec "$ns" tc -s qdisc show dev veth0 | awk '/dropped/ { sub(",", "", $7); print "sent" $4 "/dropped" $7; exit }')"
+done
+# The kernel's own view of the clients (ss, by local port, with the ECN
+# flags) and of each namespace (nstat; a fresh netns starts its MIBs at 0).
+# ss_bulk prints PORT=TOTAL_RETRANS per client, comma-separated as q's
+# string_agg (q strips spaces); ss shows retrans only when nonzero. The
+# detail adds the algorithm, ECN flags, segs_out and rtt (netem's 5 ms
+# each way makes it 10 ms or more). ss_bulk detail SEP server does the
+# same for the servers on golden-bulk-b, keyed by the client's port.
+ss_bulk() {
+  local ns=golden-bulk-a filter='( dport = :4000 )' key=3
+  if [ "${3:-}" = server ]; then ns=golden-bulk-b filter='( sport = :4000 )' key=4; fi
+  ip netns exec "$ns" ss -HtinO state established "$filter" |
+    awk -v detail="${1:-}" -v key="$key" '{ p = $key; sub(/.*:/, "", p); r = 0; e = ""; t = "?"
+      for (i = 5; i <= NF; i++) { if ($i ~ /^retrans:/) { r = $i; sub(/.*\//, "", r) } if ($i ~ /^rtt:/) { t = substr($i, 5); sub(/\/.*/, "", t) } if ($i == "ecn" || $i == "ecnseen") e = e "+" $i }
+      if (detail) print p "=" r "/" $5 e "/segs_out" seg($0) "/rtt" t; else print p "=" r }
+      function seg(l) { if (match(l, /segs_out:[0-9]+/)) return substr(l, RSTART + 9, RLENGTH - 9); return "?" }' |
+    sort -n | paste -sd "${2:-,}"
+}
+nstat_of() { ip netns exec "$1" nstat -asz "$2" | awk -v k="$2" '$1 == k { print $2; found = 1 } END { if (!found) print "?" }'; }
+mibs=""
+for ns in golden-bulk-a golden-bulk-b; do
+  mibs="$mibs $ns=RetransSegs$(nstat_of "$ns" TcpRetransSegs)/OutSegs$(nstat_of "$ns" TcpOutSegs)"
+done
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem sent/dropped:$netem_drops; kernel per port, retrans/cong/segs_out/rtt: $(ss_bulk detail " "); servers by client port: $(ss_bulk detail " " server);$mibs"
+# The dctcp bulk client keeps dctcp: a SYN lost to netem must not make it
+# fall back to dctcp-reno (tcp_ecn_fallback=0 in golden-bulk-a, the
+# workload). Only when BULK_CC has dctcp.
+if [[ " $BULK_CC " == *" dctcp "* ]]; then
+  got=$(q "SELECT coalesce(string_agg(inet_diag_cong, ',' ORDER BY inet_diag_cong), 'none') FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_cong LIKE 'dctcp%'")
+  ok=0
+  [ "$got" = dctcp ] && ok=1
+  row bulk_dctcp_ecn negative "$ok" "the dctcp bulk client's algorithm: $got, want dctcp (dctcp-reno is the ECN fallback)"
+fi
+# A fresh netns's TcpRetransSegs is the sum of its sockets' total_retrans:
+# both count each retransmitted segment (net/ipv4/tcp_output.c:3710,
+# :3713), SYN-ACK retransmits count in both too (tcp_output.c:4722,
+# net/ipv4/tcp_minisocks.c:591). Only a socket closed before the poll
+# would take its share away, and the bulk sockets stay open.
+for side in a b; do
+  ns=golden-bulk-$side
+  sum=$(q "SELECT coalesce(sum(tcp_info_total_retrans), 0) FROM $P WHERE netns = '$ns'")
+  mib=$(nstat_of "$ns" TcpRetransSegs)
+  ok=0
+  [ "$sum" = "$mib" ] && ok=1
+  row "netem_retrans_$side" positive "$ok" "$ns: xtcp2's sum of total_retrans $sum, the namespace's TcpRetransSegs $mib"
+done
+want=$(ss_bulk)
+got=$(q "SELECT string_agg(inet_diag_msg_socket_source_port || '=' || tcp_info_total_retrans, ',' ORDER BY inet_diag_msg_socket_source_port) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1")
+ok=0
+[ -n "$want" ] && [ "$got" = "$want" ] && ok=1
+row netem_kernel_agrees negative "$ok" "per client port=total_retrans, xtcp2: ${got:-none}; kernel (ss): ${want:-none}"
 n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-cc-b', 'golden-opts-a', 'golden-opts-b') AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq 0 ] && ok=1
 row no_loss_idle negative "$ok" "$n idle rows with retransmits"
+ernic_counters=""
 if [ -n "${ERNIC_TX_EVERY:-}" ]; then
   # The root namespace's bulk clients to golden-ernic-b, over ionic0.
   E="netns = 'default' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1"
@@ -194,14 +253,85 @@ if [ -n "${ERNIC_TX_EVERY:-}" ]; then
   ok=0
   [ "$dropped" -gt 0 ] && [ "$dropped" -eq "$want" ] && ok=1
   row fault_count boundary "$ok" "ionic0 tx_packets $tx, tx_dropped $dropped, want (tx_packets + tx_dropped) / $ERNIC_TX_EVERY = $want"
-  # ionic0's transmit site is the one fault_count checks exactly. ionic1's
-  # receive count is reported, not required: one capture in five saw one
-  # frame reach it from the fabric before the transfers.
   before=$(cat /run/xtcp2-golden-ernic-before 2>/dev/null || echo missing)
   ok=0
-  [ "${before%% *}" = 0 ] && ok=1
-  row no_noise corner "$ok" "ionic0 tx_packets, ionic1 rx_packets before the transfers: $before, want 0 and any"
+  [ "$before" = "0 0" ] && ok=1
+  row no_noise corner "$ok" "ionic0 tx_packets, ionic1 rx_packets before the transfers: $before, want 0 0"
+  # Settled: the counters do not move in a second (no keepalives, xtcp2
+  # stopped).
+  rx=$(ip netns exec golden-ernic-b cat /sys/class/net/ionic1/statistics/rx_packets)
+  sleep 1
+  tx2=$(cat /sys/class/net/ionic0/statistics/tx_packets)
+  rx2=$(ip netns exec golden-ernic-b cat /sys/class/net/ionic1/statistics/rx_packets)
+  ok=0
+  [ "$tx2" = "$tx" ] && [ "$rx2" = "$rx" ] && ok=1
+  row quiescent corner "$ok" "ionic0 tx_packets $tx then $tx2, ionic1 rx_packets $rx then $rx2, 1 s apart"
+  # The segments xtcp2 recorded: sent by the root namespace's sockets out of
+  # ionic0, received by golden-ernic-b's sockets on ionic1 (every state, so
+  # a retransmitted SYN counted on a listener is in).
+  segs_out=$(q "SELECT coalesce(sum(tcp_info_segs_out), 0) FROM $P WHERE netns = 'default' AND enrich_socket_dest_egress_ifname = 'ionic0'")
+  segs_in=$(q "SELECT coalesce(sum(tcp_info_segs_in), 0) FROM $P WHERE netns = 'golden-ernic-b'")
+  # The final counters for the host's ernic-oracle, then both links down,
+  # so nothing more reaches the emulator before its fault report.
+  # Diagnostic: the same sum from the kernel now, per socket, so a
+  # disagreement tells frames sent after xtcp2's poll from frames no socket
+  # counted.
+  echo "GOLDEN_ERNIC_SS_SEGS_OUT $(ss -Htin state all dst 10.0.4.16/31 | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^segs_out:/) { n += substr($i, 10); printf "%s ", substr($i, 10) } } END { print "sum " n + 0 }')"
+  ernic_counters="ionic0_tx=$tx ionic0_tx_dropped=$dropped ionic1_rx=$rx ionic0_segs_out=$segs_out ionic1_segs_in=$segs_in"
+  ip link set ionic0 down
+  ip -n golden-ernic-b link set ionic1 down
 fi
+if [ -n "${ERNIC_SEQ_DROPS:-}" ]; then
+  # The sequence-pattern flow, golden-ernic-c to golden-ernic-d over ionic2,
+  # whose emulator drops a fixed ERNIC_SEQ_DROPS frames of the transfer.
+  C="netns = 'golden-ernic-c' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1"
+  stx() { ip netns exec golden-ernic-c cat "/sys/class/net/ionic2/statistics/$1"; }
+  srx() { ip netns exec golden-ernic-d cat /sys/class/net/ionic3/statistics/rx_packets; }
+  tx=$(stx tx_packets)
+  dropped=$(stx tx_dropped)
+  rx=$(srx)
+  ok=0
+  [ "$dropped" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
+  row seq_fired boundary "$ok" "ionic2 tx_dropped $dropped, want the sequence's $ERNIC_SEQ_DROPS"
+  got=$(q "SELECT count(*) || ':' || coalesce(string_agg(DISTINCT enrich_socket_dest_egress_ifname, ','), '') || ':' || coalesce(max(tcp_info_total_retrans), 0) || ':' || coalesce(max(tcp_info_total_rto), 0) || ':' || coalesce(max(tcp_info_segs_out), 0) FROM $P WHERE $C")
+  IFS=: read -r n egress retrans rto segs_out <<<"$got"
+  ok=0
+  [ "$n" = 1 ] && [ "$egress" = ionic2 ] && ok=1
+  row seq_egress negative "$ok" "the sequence flow's client and egress: $n:$egress, want 1:ionic2 (not uplink ionic0)"
+  # The flow is one-way, so every dropped frame is a data segment and is
+  # retransmitted exactly once.
+  ok=0
+  [ "$retrans" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
+  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), want the sequence's $ERNIC_SEQ_DROPS"
+  # The server sends only ACKs, over NICs without faults: nothing to resend.
+  got=$(q "SELECT count(*) || ':' || coalesce(max(tcp_info_total_retrans), 0) FROM $P WHERE netns = 'golden-ernic-d' AND inet_diag_msg_socket_source_port = 4000 AND inet_diag_msg_state = 1")
+  IFS=: read -r n sretrans <<<"$got"
+  ok=0
+  [ "$n" = 1 ] && [ "$sretrans" = 0 ] && ok=1
+  row seq_server_no_retrans negative "$ok" "the sequence flow's server: $n:$sretrans connections:total_retrans, want 1:0"
+  # The bursts are short enough for fast recovery: no timeout in six of six
+  # captures when this row was added.
+  ok=0
+  [ "$rto" = 0 ] && ok=1
+  row seq_no_rto corner "$ok" "the sequence flow's total_rto $rto, want 0 (bursts of 1, 3 and 8 recover without a timeout)"
+  ok=0
+  [ "$segs_out" -eq $((tx + dropped)) ] && ok=1
+  row seq_segs_out positive "$ok" "the sequence flow's segs_out $segs_out, want ionic2 tx_packets $tx + tx_dropped $dropped"
+  before=$(cat /run/xtcp2-golden-ernic-seq-before 2>/dev/null || echo missing)
+  ok=0
+  [ "$before" = "0 0" ] && ok=1
+  row seq_no_noise corner "$ok" "ionic2 tx_packets, ionic3 rx_packets before the transfer: $before, want 0 0"
+  segs_in=$(q "SELECT coalesce(sum(tcp_info_segs_in), 0) FROM $P WHERE netns = 'golden-ernic-d'")
+  sleep 1
+  ok=0
+  [ "$(stx tx_packets)" = "$tx" ] && [ "$(srx)" = "$rx" ] && ok=1
+  row seq_quiescent corner "$ok" "ionic2 tx_packets $tx, ionic3 rx_packets $rx, unchanged 1 s later"
+  ernic_counters="$ernic_counters ionic2_tx=$tx ionic2_tx_dropped=$dropped ionic3_rx=$rx ionic2_segs_out=$segs_out ionic3_segs_in=$segs_in"
+  ip -n golden-ernic-c link set ionic2 down
+  ip -n golden-ernic-d link set ionic3 down
+fi
+# For the host's ernic-oracle, one line (it reads the last).
+if [ -n "$ernic_counters" ]; then echo "GOLDEN_ERNIC_COUNTERS ${ernic_counters# }"; fi
 got=$(q "SELECT concat_ws(',', count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 6), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 2), count(*) FILTER (netns = 'golden-states-a' AND inet_diag_msg_state = 5), count(*) FILTER (netns = 'golden-states-b' AND inet_diag_msg_state = 8)) FROM $P")
 ok=0
 [ "$got" = "$K_TW,$K_SYN,1,1" ] && ok=1
@@ -254,6 +384,10 @@ got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_egress_ifname, ',') FROM 
 ok=0
 [ "$got" = "veth0" ] && ok=1
 row egress_named corner "$ok" "egress of golden-loc-a's REMOTE rows: $got"
+got=$(q "SELECT string_agg(DISTINCT enrich_socket_dest_egress_ifname, ',') FROM $P WHERE netns = 'golden-metric-a' AND inet_diag_msg_state = 1")
+ok=0
+[ "$got" = "m1" ] && ok=1
+row egress_metric positive "$ok" "egress of golden-metric-a's connection over two default routes (m1 metric 100, m2 metric 200): $got, want m1"
 got=$(q "SELECT string_agg(DISTINCT uplink1_nic_fw_version, ',') FROM $P")
 ok=0
 [ "$got" = "xtcp2-golden-1.0" ] && ok=1
@@ -273,7 +407,7 @@ jq -n \
     workload: {containers: $containers, sockets_per_container: $sockets,
       named_netns: ["golden-ns", "golden-cc-a", "golden-cc-b", "golden-bulk-a", "golden-bulk-b",
         "golden-opts-a", "golden-opts-b", "golden-states-a", "golden-states-b",
-        "golden-loc-a", "golden-loc-b", "golden-remote"]},
+        "golden-loc-a", "golden-loc-b", "golden-remote", "golden-metric-a", "golden-metric-b"]},
     cong_available: $cong,
     rows: $rows, captured: $captured}' >"$OUT/manifest.json"
 rm -f "$OUT"/ss-golden-* "$OUT"/nsid-golden-*

@@ -1,0 +1,6 @@
+qdisc hfsc 1: root refcnt 2  default 0x10 
+class hfsc 1: root 
+class hfsc 1:1 parent 1: sc m1 0bit d 0us m2 10Mbit ul m1 0bit d 0us m2 20Mbit 
+class hfsc 1:10 parent 1:1 rt m1 2Mbit d 10ms m2 1Mbit ls m1 0bit d 0us m2 3Mbit 
+class hfsc 1:20 parent 1:1 sc m1 0bit d 0us m2 1Mbit 
+class hfsc 1:20 parent 1:1 sc m1 0bit d 0us m2 1Mbit 

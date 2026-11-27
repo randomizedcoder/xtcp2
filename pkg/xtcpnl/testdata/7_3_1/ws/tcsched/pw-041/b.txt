@@ -1,0 +1,3 @@
+qdisc show dev d1 root
+class show dev d1
+qdisc show dev d1

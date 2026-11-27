@@ -1,0 +1,3 @@
+class htb 1:10 dev d0 root prio 0 rate 1Mbit ceil 1Mbit burst 1600b cburst 1600b
+class htb 1:10 dev d0 root prio 0 rate 2Mbit ceil 2Mbit burst 1600b cburst 1600b
+deleted class htb 1:10 dev d0 root prio 0 rate 2Mbit ceil 2Mbit burst 1600b cburst 1600b

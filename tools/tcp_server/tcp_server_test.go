@@ -129,7 +129,7 @@ func TestHandleConn_eof(t *testing.T) {
 	a, b := net.Pipe()
 	done := make(chan struct{})
 	go func() {
-		handleConn(context.Background(), a, false)
+		handleConn(context.Background(), a, false, false)
 		close(done)
 	}()
 	if _, err := b.Write([]byte("ping")); err != nil {

@@ -1,0 +1,56 @@
+{
+ "axes": {
+  "fix": "schtaprio",
+  "json": "0",
+  "words": "-o qdisc show dev d1 root"
+ },
+ "cmd": "tc -o qdisc show dev d1 root",
+ "desc": "corner: opt=plain cmd=schtaprio:-o_qdisc_show_dev_d1_root",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcsched/ec-035",
+ "modules": [
+  "sch_cbs",
+  "sch_drr",
+  "sch_etf",
+  "sch_ets",
+  "sch_hfsc",
+  "sch_mqprio",
+  "sch_multiq",
+  "sch_prio",
+  "sch_qfq",
+  "sch_taprio"
+ ],
+ "pre": [
+  "ip link add d1 address 02:00:00:00:02:00 numtxqueues 8 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d1 root handle 100: taprio num_tc 2 map 0 0 1 1 queues 4@0 4@4 clockid CLOCK_TAI base-time 1000000000 sched-entry S 01 300000 sched-entry S 02 200000 flags 0x1 txtime-delay 200000"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 address 02:00:00:00:02:00 numtxqueues 8 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d1 root handle 100: taprio num_tc 2 map 0 0 1 1 queues 4@0 4@4 clockid CLOCK_TAI base-time 1000000000 sched-entry S 01 300000 sched-entry S 02 200000 flags 0x1 txtime-delay 200000",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

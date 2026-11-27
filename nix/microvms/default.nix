@@ -1101,6 +1101,10 @@ let
             inherit (g) nics fabric;
           }
         ) ernic;
+        ernicOracle = lib.mapNullable (e: {
+          bin = "${e.oracle}/bin/ernic-oracle";
+          inherit (import ./golden-ernic.nix { ernic = e; }) oracleArgs;
+        }) ernic;
         vm = vmsS3ParquetGolden.${arch};
       };
     })

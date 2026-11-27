@@ -925,3 +925,125 @@ func TestIfNameStrPolicy(t *testing.T) {
 		})
 	}
 }
+
+// withPrio returns r with RTA_PRIORITY (the route metric) set.
+func withPrio(r xtcpnl.RouteInfo, prio uint32) xtcpnl.RouteInfo {
+	r.Priority = prio
+	r.HasPriority = true
+	return r
+}
+
+// TestLookupEgressMetric pins that, among routes for the same prefix, the
+// snapshot keeps the one the kernel uses: the lowest metric, and the first one
+// listed when metrics are equal. The kernel keeps same-prefix routes sorted by
+// metric (IPv4 fib_find_alias, net/ipv4/fib_trie.c; IPv6 fib6_add_rt2node,
+// net/ipv6/ip6_fib.c), dumps them in that order, and a lookup takes the first.
+//
+// go test ./pkg/localnet/ -run TestLookupEgressMetric
+func TestLookupEgressMetric(t *testing.T) {
+	links := map[uint32]string{2: "eth0", 3: "eth1", 4: "m1", 5: "m2"}
+	gw4 := v4(t, "10.0.0.1")
+	gw6 := v6(t, "fe80::1")
+	multipath := func(r xtcpnl.RouteInfo) xtcpnl.RouteInfo {
+		r.HasMultipath = true
+		return r
+	}
+
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		addrs       []xtcpnl.AddrInfo
+		routes      []xtcpnl.RouteInfo
+		dst         string
+		wantLoc     Locality
+		wantIfName  string
+	}{
+		{
+			name: "lowest_wins_dump_order", category: "positive",
+			description: "two defaults in the kernel's order (metric 100 then 200): the lower metric is the egress",
+			routes: []xtcpnl.RouteInfo{
+				withPrio(defaultRoute(unix.AF_INET, gw4, 4), 100),
+				withPrio(defaultRoute(unix.AF_INET, gw4, 5), 200),
+			},
+			dst: "8.8.8.8", wantLoc: LocalityRemote, wantIfName: "m1",
+		},
+		{
+			name: "lowest_wins_reverse", category: "positive",
+			description: "the same two defaults listed the other way round: still the lower metric",
+			routes: []xtcpnl.RouteInfo{
+				withPrio(defaultRoute(unix.AF_INET, gw4, 5), 200),
+				withPrio(defaultRoute(unix.AF_INET, gw4, 4), 100),
+			},
+			dst: "8.8.8.8", wantLoc: LocalityRemote, wantIfName: "m1",
+		},
+		{
+			name: "specific_beats_metric", category: "negative",
+			description: "a more specific prefix wins over a lower-metric default: metric only orders routes for the same prefix",
+			routes: []xtcpnl.RouteInfo{
+				withPrio(defaultRoute(unix.AF_INET, gw4, 2), 1),
+				withPrio(oifRoute(gatewayRoute(unix.AF_INET, v4(t, "10.0.0.0"), 8, gw4), 3), 900),
+			},
+			dst: "10.1.1.1", wantLoc: LocalityRemote, wantIfName: "eth1",
+		},
+		{
+			name: "equal_prio_first", category: "boundary",
+			description: "equal metrics keep the first route listed, as the kernel's lookup does",
+			routes: []xtcpnl.RouteInfo{
+				withPrio(defaultRoute(unix.AF_INET, gw4, 4), 100),
+				withPrio(defaultRoute(unix.AF_INET, gw4, 5), 100),
+			},
+			dst: "8.8.8.8", wantLoc: LocalityRemote, wantIfName: "m1",
+		},
+		{
+			name: "prio_zero", category: "boundary",
+			description: "a route without RTA_PRIORITY has metric 0, the lowest",
+			routes: []xtcpnl.RouteInfo{
+				withPrio(defaultRoute(unix.AF_INET, gw4, 5), 1),
+				defaultRoute(unix.AF_INET, gw4, 4),
+			},
+			dst: "8.8.8.8", wantLoc: LocalityRemote, wantIfName: "m1",
+		},
+		{
+			name: "self_kept", category: "corner",
+			description: "the namespace's own address stays self even when a metric-0 route names the same /32",
+			addrs:       []xtcpnl.AddrInfo{{Family: unix.AF_INET, Index: 2, Local: v4(t, "10.0.0.5")}},
+			routes: []xtcpnl.RouteInfo{
+				withPrio(oifRoute(connectedRoute(unix.AF_INET, v4(t, "10.0.0.5"), 32), 3), 0),
+			},
+			dst: "10.0.0.5", wantLoc: LocalitySelf, wantIfName: "eth0",
+		},
+		{
+			name: "v6_default", category: "corner",
+			description: "IPv6 defaults follow the same rule: metric 256 beats 1024 whichever is listed first",
+			routes: []xtcpnl.RouteInfo{
+				withPrio(defaultRoute(unix.AF_INET6, gw6, 5), 1024),
+				withPrio(defaultRoute(unix.AF_INET6, gw6, 4), 256),
+			},
+			dst: "2606:4700::1111", wantLoc: LocalityRemote, wantIfName: "m1",
+		},
+		{
+			name: "multipath_lower", category: "corner",
+			description: "a lower-metric multipath default wins and reports no egress, not the single-path route's",
+			routes: []xtcpnl.RouteInfo{
+				withPrio(multipath(defaultRoute(unix.AF_INET, gw4, 4)), 10),
+				withPrio(defaultRoute(unix.AF_INET, gw4, 5), 20),
+			},
+			dst: "8.8.8.8", wantLoc: LocalityRemote, wantIfName: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			snap := BuildSnapshot(tc.addrs, tc.routes, links)
+			loc, oif, ok := snap.Lookup(netip.MustParseAddr(tc.dst))
+			if !ok {
+				t.Fatalf("%s %s (%s): Lookup(%s) ok = false", tc.category, tc.name, tc.description, tc.dst)
+			}
+			if got := snap.IfName(oif); loc != tc.wantLoc || got != tc.wantIfName {
+				t.Errorf("%s %s (%s): Lookup(%s) = (%v, %q), want (%v, %q)",
+					tc.category, tc.name, tc.description, tc.dst, loc, got, tc.wantLoc, tc.wantIfName)
+			}
+		})
+	}
+}
