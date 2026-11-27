@@ -172,9 +172,15 @@ for ca in "${cas[@]}"; do
 done
 
 pair bulk 4 1500
-# Offloads off, so netem drops single segments: with TSO/GSO it drops whole
-# 64 KiB super-packets, a 4 MiB transfer is a hundred or so of them, and a
-# client can lose none of its own.
+# One segment per skb, so netem's 2 % is drawn per segment. netem drops a
+# GSO skb whole (it splits one only to corrupt it, net/sched/sch_netem.c:519)
+# and counts it as one drop (:490-493), and turning the device's TSO/GSO
+# off does not stop TCP building them: a TCP socket always gets software
+# GSO (sk_setup_caps, net/core/sock.c:2680-2684) and the skb is split after
+# the qdisc. A flow sending large skbs then draws loss a few hundred times
+# for its 4 MiB, and one in about twenty captures a client lost none
+# (loss_seen). gso_max_segs 1 caps every skb at one segment
+# (sk_gso_max_segs, tcp_tso_segs in net/ipv4/tcp_output.c:2350).
 # No ECN fallback on the clients' side: a netem-dropped SYN is resent
 # without ECE/CWR (net/ipv4/tcp_output.c:3698-3705, tcp_ecn_clear_syn in
 # include/net/tcp_ecn.h), and dctcp then falls back to dctcp-reno
@@ -184,6 +190,7 @@ pair bulk 4 1500
 ip netns exec golden-bulk-a sysctl -qw net.ipv4.tcp_ecn_fallback=0
 for ns in golden-bulk-a golden-bulk-b; do
   ip netns exec "$ns" ethtool -K veth0 tso off gso off gro off
+  ip -n "$ns" link set veth0 gso_max_segs 1
   tc -n "$ns" qdisc add dev veth0 root netem delay 5ms loss 2% reorder 1%
 done
 servers bulk 4
@@ -244,6 +251,9 @@ if [ -n "${ERNIC_A_MAC:-}" ]; then
   spawn ernic-server-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.16 -keepalive -1s
   spawn ernic-server-dctcp-4 "$e" "$TCP_SERVER" -count 1 -bind 10.0.4.17 -cong dctcp -keepalive -1s
   wait_listen "$e" 4000 2
+  # The dctcp client is in this namespace: no ECN fallback here either (see
+  # golden-bulk-a above), since the emulator can drop its SYN.
+  sysctl -qw net.ipv4.tcp_ecn_fallback=0
   for ca in "${bulk_algos[@]}"; do
     dst=10.0.4.16
     if [ "$ca" = dctcp ]; then dst=10.0.4.17; fi
@@ -430,10 +440,8 @@ while :; do
 done
 # Stop the bulk tap (SIGINT flushes it) a second after the transfers, for
 # their last delayed ACKs, and leave per client port the segments tapped
-# from the client and from its server, and tcpdump's kernel drops. veth
-# offloads, so one tapped skb can carry several segments: count
-# ceil(payload / mss) each, mss 1448 at the bulk pair's MTU 1500 (IPv4 20,
-# TCP 20, timestamps 12), so the counts compare with ss's segs_out.
+# from the client and from its server (one segment each: gso_max_segs 1),
+# and tcpdump's kernel drops.
 sleep 1
 systemctl kill -s INT xtcp2-golden-bulk-tap || true
 for _ in $(seq 1 50); do
@@ -441,9 +449,8 @@ for _ in $(seq 1 50); do
   sleep 0.1
 done
 tcpdump -nn -q -r "$bulk_pcap" 2>/dev/null |
-  awk -v mss=1448 '{ s = $3; d = $5; sub(/:$/, "", d); sp = s; sub(/.*\./, "", sp); dp = d; sub(/.*\./, "", dp)
-    n = $NF > mss ? int(($NF + mss - 1) / mss) : 1
-    if (dp == 4000) c[sp] += n; else if (sp == 4000) v[dp] += n }
+  awk '{ s = $3; d = $5; sub(/:$/, "", d); sp = s; sub(/.*\./, "", sp); dp = d; sub(/.*\./, "", dp)
+    if (dp == 4000) c[sp]++; else if (sp == 4000) v[dp]++ }
     END { for (p in c) print p "=" c[p] "/" v[p] + 0 }' |
   sort -n | paste -sd , >/run/xtcp2-golden-bulk-tap
 awk '/packets dropped by kernel/ { print $1; found = 1 } END { if (!found) print "?" }' "$bulk_tap_err" >/run/xtcp2-golden-bulk-tap-dropped

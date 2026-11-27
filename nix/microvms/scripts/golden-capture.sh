@@ -219,10 +219,14 @@ netem_per_flow() {
 tapped=$(cat /run/xtcp2-golden-bulk-tap 2>/dev/null || true)
 tap_dropped=$(cat /run/xtcp2-golden-bulk-tap-dropped 2>/dev/null || echo "?")
 loss_ok=$ok
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem sent/dropped:$netem_drops; kernel per port, retrans/cong/segs_out/rtt: $(ss_bulk detail " "); servers by client port: $(ss_bulk detail " " server);$mibs; netem drops per client port in segments (netem counts skbs), client/server: $(netem_per_flow); segments tapped: ${tapped:-none}"
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem sent/dropped:$netem_drops; kernel per port, retrans/cong/segs_out/rtt: $(ss_bulk detail " "); servers by client port: $(ss_bulk detail " " server);$mibs; netem drops per client port, client/server: $(netem_per_flow); tapped: ${tapped:-none}"
 ok=0
 [ -n "$tapped" ] && [ "$tap_dropped" = 0 ] && ok=1
 row bulk_tap_complete positive "$ok" "the bulk tap on golden-bulk-a: kernel drops $tap_dropped, flows ${tapped:-none}"
+per_flow=$(netem_per_flow)
+ok=0
+[ -n "$tapped" ] && awk '{ for (i = 1; i <= NF; i++) { split($i, kv, "="); split(kv[2], d, "/"); if (d[1] <= 0 || d[2] <= 0) exit 1 } }' <<<"$per_flow" && ok=1
+row netem_per_flow positive "$ok" "netem dropped from every bulk flow both ways, per client port client/server: ${per_flow:-none}; netem sent/dropped:$netem_drops"
 # When loss_seen fails, the dump carries what the kernel and netem saw and
 # the tap's packets for the flows without retransmits (headers only).
 if [ "$loss_ok" != 1 ]; then
@@ -332,16 +336,18 @@ if [ -n "${ERNIC_SEQ_DROPS:-}" ]; then
   ok=0
   [ "$dropped" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
   row seq_fired boundary "$ok" "ionic2 tx_dropped $dropped, want the sequence's $ERNIC_SEQ_DROPS"
-  got=$(q "SELECT count(*) || ':' || coalesce(string_agg(DISTINCT enrich_socket_dest_egress_ifname, ','), '') || ':' || coalesce(max(tcp_info_total_retrans), 0) || ':' || coalesce(max(tcp_info_total_rto), 0) || ':' || coalesce(max(tcp_info_segs_out), 0) FROM $P WHERE $C")
-  IFS=: read -r n egress retrans rto segs_out <<<"$got"
+  got=$(q "SELECT count(*) || ':' || coalesce(string_agg(DISTINCT enrich_socket_dest_egress_ifname, ','), '') || ':' || coalesce(max(tcp_info_total_retrans), 0) || ':' || coalesce(max(tcp_info_total_rto), 0) || ':' || coalesce(max(tcp_info_segs_out), 0) || ':' || coalesce(max(tcp_info_dsack_dups), 0) FROM $P WHERE $C")
+  IFS=: read -r n egress retrans rto segs_out dsack <<<"$got"
   ok=0
   [ "$n" = 1 ] && [ "$egress" = ionic2 ] && ok=1
   row seq_egress negative "$ok" "the sequence flow's client and egress: $n:$egress, want 1:ionic2 (not uplink ionic0)"
   # The flow is one-way, so every dropped frame is a data segment and is
-  # retransmitted exactly once.
+  # retransmitted exactly once. A retransmit of a segment that was not lost
+  # (a tail loss probe under host load) comes back as a DSACK
+  # (tcpi_dsack_dups), so those are not counted.
   ok=0
-  [ "$retrans" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
-  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), want the sequence's $ERNIC_SEQ_DROPS"
+  [ "$((retrans - dsack))" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
+  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans less dsack_dups $dsack (total_rto $rto), want the sequence's $ERNIC_SEQ_DROPS"
   # The server sends only ACKs, over NICs without faults: nothing to resend.
   got=$(q "SELECT count(*) || ':' || coalesce(max(tcp_info_total_retrans), 0) FROM $P WHERE netns = 'golden-ernic-d' AND inet_diag_msg_socket_source_port = 4000 AND inet_diag_msg_state = 1")
   IFS=: read -r n sretrans <<<"$got"
