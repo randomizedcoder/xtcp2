@@ -132,7 +132,7 @@ func sprintLinklayer(ll uint8) string {
 	case 2:
 		return "atm"
 	}
-	return "unknown"
+	return wordUnknown
 }
 
 // xmitsize is tc_calc_xmitsize: ((double)rate * tc_core_tick2time(ticks))

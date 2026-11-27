@@ -390,7 +390,7 @@ func (r *runner) rtrealmN2A(id int32) string {
 	}
 	t := &r.realms
 	if !t.inited && t.names[0] == "" {
-		t.names[0] = "unknown"
+		t.names[0] = wordUnknown
 	}
 	if t.names[id] == "" && !t.inited {
 		t.inited = true

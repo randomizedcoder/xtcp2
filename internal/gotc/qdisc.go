@@ -338,6 +338,9 @@ func (r *runner) printQdiscBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
 	o.openObject("options")
 	if hasAttr(ti.Attrs, xtcpnl.TcaOptions) {
 		q.printQopt(r, q, ti.Options, true)
+		if err := r.takeKindErr(); err != nil {
+			return err
+		}
 	}
 	o.closeObject()
 	o.nl()
@@ -359,6 +362,9 @@ func (r *runner) printQdiscBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
 		}
 		if hasX && q.printXstats != nil {
 			q.printXstats(r, xs)
+			if err := r.takeKindErr(); err != nil {
+				return err
+			}
 			o.nl()
 		}
 	}
@@ -379,8 +385,41 @@ func (r *runner) extMsg(ti *xtcpnl.TcInfo) {
 	r.o.nl()
 }
 
-// printSizeTable is print_size_table; the slice's fixtures carry no
-// TCA_STAB, so gotc refuses one rather than guess its layout.
-func (r *runner) printSizeTable([]byte) error {
-	return fmt.Errorf("%w: TCA_STAB (stab) under -d", errNotImplemented)
+// printSizeTable is tc_stab.c print_size_table: TCA_STAB_BASE MIN-copied
+// into a zeroed struct tc_sizespec, then each nonzero field. The table
+// itself (TCA_STAB_DATA) is not printed.
+func (r *runner) printSizeTable(stab []byte) error {
+	tb := r.nested(stab, xtcpnl.TcaStabMaxKnown)
+	if !tb.Has(xtcpnl.TcaStabBase) {
+		return nil
+	}
+	var buf [xtcpnl.TcSizespecSizeCst]byte
+	copy(buf[:], tb.Bytes(xtcpnl.TcaStabBase))
+	s, err := xtcpnl.DecodeTcSizespec(buf[:])
+	if err != nil {
+		return err
+	}
+	o := r.o
+	o.openObject("stab")
+	o.fp(" ")
+	if s.Linklayer != 0 {
+		ll := wordUnknown // sprint_linklayer of an unsigned int
+		if s.Linklayer <= 2 {
+			ll = sprintLinklayer(uint8(s.Linklayer))
+		}
+		o.str(printAny, colorNone, "linklayer", "linklayer "+ll+" ", ll)
+	}
+	if s.Overhead != 0 {
+		o.int(printAny, "overhead", "overhead "+i32s(s.Overhead)+" ", s.Overhead)
+	}
+	for _, f := range []struct {
+		key string
+		v   uint32
+	}{{"mpu", s.Mpu}, {"mtu", s.Mtu}, {"tsize", s.Tsize}} {
+		if f.v != 0 {
+			o.uint(printAny, f.key, f.key+" "+u32s(f.v)+" ", f.v)
+		}
+	}
+	o.closeObject()
+	return nil
 }

@@ -48,6 +48,55 @@ var qdiscUtils = map[string]*qdiscUtil{
 	xtcpnl.TcKindNetem:         {id: xtcpnl.TcKindNetem, printQopt: printNetemOpt, printXstats: printNetemXstats},
 	xtcpnl.TcKindIngress:       {id: xtcpnl.TcKindIngress, printQopt: printIngressOpt},
 	xtcpnl.TcKindClsact:        {id: xtcpnl.TcKindClsact, printQopt: func(*runner, *qdiscUtil, []byte, bool) {}},
+	xtcpnl.TcKindDrr:           {id: xtcpnl.TcKindDrr, printQopt: printDrrOpt, printCopt: printDrrOpt, printXstats: printDrrXstats},
+	xtcpnl.TcKindQfq:           {id: xtcpnl.TcKindQfq, printQopt: printQfqOpt, printCopt: printQfqOpt},
+	xtcpnl.TcKindHfsc:          {id: xtcpnl.TcKindHfsc, printQopt: printHfscOpt, printCopt: printHfscClassOpt, printXstats: printHfscXstats},
+	xtcpnl.TcKindEts:           {id: xtcpnl.TcKindEts, printQopt: printEtsOpt, printCopt: printEtsCopt},
+	xtcpnl.TcKindMqprio:        {id: xtcpnl.TcKindMqprio, printQopt: printMqprioOpt},
+	xtcpnl.TcKindTaprio:        {id: xtcpnl.TcKindTaprio, printQopt: printTaprioOpt, printXstats: printTaprioXstats},
+	xtcpnl.TcKindMultiq:        {id: xtcpnl.TcKindMultiq, printQopt: printMultiqOpt},
+	xtcpnl.TcKindCbs:           {id: xtcpnl.TcKindCbs, printQopt: printCbsOpt},
+	xtcpnl.TcKindEtf:           {id: xtcpnl.TcKindEtf, printQopt: printEtfOpt},
+}
+
+// refuseKind records a qdisc_util printer's refusal of what tc would read
+// unchecked. The print hooks return nothing, as print_qdisc and print_class
+// ignore tc's returns, so their callers take the refusal after each hook.
+func (r *runner) refuseKind(err error) {
+	if r.kindErr == nil {
+		r.kindErr = err
+	}
+}
+
+// takeKindErr is the refusal a hook recorded, cleared.
+func (r *runner) takeKindErr() error {
+	err := r.kindErr
+	r.kindErr = nil
+	return err
+}
+
+// kindNeed refuses an attribute tc reads n bytes of without testing its
+// length; ok is false after a refusal.
+func (r *runner) kindNeed(kind, what string, b []byte, n int) bool {
+	if err := attrNeed(kind, what, b, n); err != nil {
+		r.refuseKind(err)
+		return false
+	}
+	return true
+}
+
+// rtaWalk is the RTA_OK/RTA_NEXT loop over data: fn sees each attribute's
+// raw type, flags included, and payload, and a malformed attribute ends the
+// walk silently.
+func rtaWalk(data []byte, fn func(raw uint16, val []byte)) {
+	for n := 0; len(data)-n >= xtcpnl.RTAttrSizeCst; {
+		l := int(attrLenAt(data, n))
+		if l < xtcpnl.RTAttrSizeCst || l > len(data)-n {
+			return
+		}
+		fn(uint16(data[n+2])|uint16(data[n+3])<<8, data[n+xtcpnl.RTAttrSizeCst:n+l])
+		n += (l + 3) &^ 3
+	}
 }
 
 // qdiscKind is get_qdisc_kind: a printed kind's util, print_noqopt's for a
