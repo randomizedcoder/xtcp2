@@ -31,6 +31,13 @@
 # Every pair is a named netns, so root picks any algorithm and option
 # without container capabilities, and no host TCP is opened.
 #
+# Idle sockets pass -keepalive 1h (the containers via TCP_CLIENT_ARGS and
+# TCP_SERVER_ARGS). With Go's default of 15 s a poll could catch a probe
+# before its ACK: the probe sets icsk_probes_out (net/ipv4/tcp_timer.c:844),
+# which inet_diag reports as idiag_retrans (net/ipv4/inet_diag.c:295), and
+# the diff saw a retransmit on an idle socket. With 1 h the keepalive timer
+# still shows, but no probe is sent during a capture.
+#
 # Expects IMAGE, CONTAINERS, SOCKETS, TCP_SERVER and TCP_CLIENT from the
 # wrapper. A failure prints GOLDEN_ERR, which the host runner reports.
 # Any unexpected exit reports itself, so the runner fails fast instead of
@@ -55,6 +62,7 @@ for i in $(seq 1 "$CONTAINERS"); do
   docker rm --force "golden-$i" >/dev/null 2>&1 || true
   docker run --detach --name "golden-$i" \
     --env TCP_MODE=both --env "TCP_COUNT=$SOCKETS" --env TCP_SLEEP=1h --env TCP_PADS=0 \
+    --env "TCP_CLIENT_ARGS=-keepalive 1h" --env "TCP_SERVER_ARGS=-keepalive 1h" \
     "$IMAGE" >/dev/null || fail "golden-$i did not start"
 done
 
@@ -72,10 +80,10 @@ ip netns add golden-ns
 ip -n golden-ns link set lo up
 # Transient units, so the pair outlives this oneshot.
 systemd-run --unit=xtcp2-golden-ns-server --collect \
-  "$ip_bin" netns exec golden-ns "$TCP_SERVER" -count 1 -bind 127.0.0.1
+  "$ip_bin" netns exec golden-ns "$TCP_SERVER" -count 1 -bind 127.0.0.1 -keepalive 1h
 sleep 1
 systemd-run --unit=xtcp2-golden-ns-client --collect \
-  "$ip_bin" netns exec golden-ns "$TCP_CLIENT" -count 1 -connect 127.0.0.1 -sleep 1h -pads 0
+  "$ip_bin" netns exec golden-ns "$TCP_CLIENT" -count 1 -connect 127.0.0.1 -sleep 1h -pads 0 -keepalive 1h
 
 # pair NAME N MTU: netns golden-NAME-a and -b joined by veth0 at MTU, a at
 # 10.N.0.1/24 and fd00:N::1/64, b at .2 and ::2.
@@ -138,10 +146,10 @@ servers() {
   local b="golden-$1-b" n=$2
   ip -n "$b" addr add "10.$n.0.3/24" dev veth0
   ip -n "$b" addr add "fd00:$n::3/64" dev veth0 nodad
-  spawn "$1-server-4" "$b" "$TCP_SERVER" -count 1 -bind "10.$n.0.2"
-  spawn "$1-server-6" "$b" "$TCP_SERVER" -count 1 -bind "fd00:$n::2"
-  spawn "$1-server-dctcp-4" "$b" "$TCP_SERVER" -count 1 -bind "10.$n.0.3" -cong dctcp
-  spawn "$1-server-dctcp-6" "$b" "$TCP_SERVER" -count 1 -bind "fd00:$n::3" -cong dctcp
+  spawn "$1-server-4" "$b" "$TCP_SERVER" -count 1 -bind "10.$n.0.2" -keepalive 1h
+  spawn "$1-server-6" "$b" "$TCP_SERVER" -count 1 -bind "fd00:$n::2" -keepalive 1h
+  spawn "$1-server-dctcp-4" "$b" "$TCP_SERVER" -count 1 -bind "10.$n.0.3" -cong dctcp -keepalive 1h
+  spawn "$1-server-dctcp-6" "$b" "$TCP_SERVER" -count 1 -bind "fd00:$n::3" -cong dctcp -keepalive 1h
   wait_listen "$b" 4000 4
 }
 
@@ -152,8 +160,8 @@ pair cc 1 1500
 servers cc 1
 for ca in "${cas[@]}"; do
   h=$(host "$ca")
-  spawn "cc-$ca-4" golden-cc-a "$TCP_CLIENT" -count 1 -connect "10.1.0.$h" -network tcp4 -cong "$ca" -sleep 1h -pads 0
-  spawn "cc-$ca-6" golden-cc-a "$TCP_CLIENT" -count 1 -connect "fd00:1::$h" -network tcp6 -cong "$ca" -sleep 1h -pads 0
+  spawn "cc-$ca-4" golden-cc-a "$TCP_CLIENT" -count 1 -connect "10.1.0.$h" -network tcp4 -cong "$ca" -sleep 1h -pads 0 -keepalive 1h
+  spawn "cc-$ca-6" golden-cc-a "$TCP_CLIENT" -count 1 -connect "fd00:1::$h" -network tcp6 -cong "$ca" -sleep 1h -pads 0 -keepalive 1h
 done
 
 pair bulk 4 1500
@@ -167,7 +175,7 @@ done
 servers bulk 4
 read -r -a bulk_algos <<<"$BULK_CC"
 for ca in "${bulk_algos[@]}"; do
-  spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect "10.4.0.$(host "$ca")" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0
+  spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect "10.4.0.$(host "$ca")" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 -keepalive 1h
 done
 
 # ernic (ERNIC_A_MAC set): ionic1 goes into golden-ernic-b, and one 4 MiB
@@ -246,14 +254,14 @@ if [ -n "${ERNIC_C_MAC:-}" ]; then
 fi
 
 pair opts 2 1450
-spawn opts-server golden-opts-b "$TCP_SERVER" -count 1 -bind :: -tos 0xb8 -priority 6 -freebind -transparent
+spawn opts-server golden-opts-b "$TCP_SERVER" -count 1 -bind :: -tos 0xb8 -priority 6 -freebind -transparent -keepalive 1h
 wait_listen golden-opts-b 4000
-spawn opts-tos4 golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -tos 0x08 -priority 6 -sleep 1h -pads 0
-spawn opts-tos6 golden-opts-a "$TCP_CLIENT" -count 1 -connect fd00:2::2 -network tcp6 -tos 0xb8 -sleep 1h -pads 0
-spawn opts-nopor golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -srcaddr 10.2.0.1 -bindNoPort -freebind -sleep 1h -pads 0
-spawn opts-iface golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -iface veth0 -sleep 1h -pads 0
+spawn opts-tos4 golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -tos 0x08 -priority 6 -sleep 1h -pads 0 -keepalive 1h
+spawn opts-tos6 golden-opts-a "$TCP_CLIENT" -count 1 -connect fd00:2::2 -network tcp6 -tos 0xb8 -sleep 1h -pads 0 -keepalive 1h
+spawn opts-nopor golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -srcaddr 10.2.0.1 -bindNoPort -freebind -sleep 1h -pads 0 -keepalive 1h
+spawn opts-iface golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -iface veth0 -sleep 1h -pads 0 -keepalive 1h
 for buf in 64KiB 1MiB 16MiB; do
-  spawn "opts-rcvbuf-$buf" golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -rcvbuf "$buf" -sleep 1h -pads 0
+  spawn "opts-rcvbuf-$buf" golden-opts-a "$TCP_CLIENT" -count 1 -connect 10.2.0.2 -network tcp4 -rcvbuf "$buf" -sleep 1h -pads 0 -keepalive 1h
 done
 opts_clients=7
 
@@ -266,11 +274,11 @@ ip -n golden-states-b addr add 10.3.0.3/24 dev veth0
 ip -n golden-states-a route add 192.0.2.0/24 via 10.3.0.2
 ip netns exec golden-states-b sysctl -qw net.ipv4.ip_forward=1
 ip -n golden-states-b route add blackhole 192.0.2.0/24
-spawn states-hold golden-states-b "$TCP_SERVER" -count 1 -bind 10.3.0.2 -holdEOF
-spawn states-close-server golden-states-b "$TCP_SERVER" -count 3 -bind 10.3.0.3
+spawn states-hold golden-states-b "$TCP_SERVER" -count 1 -bind 10.3.0.2 -holdEOF -keepalive 1h
+spawn states-close-server golden-states-b "$TCP_SERVER" -count 3 -bind 10.3.0.3 -keepalive 1h
 wait_listen golden-states-b 4000 2
 wait_listen golden-states-b 4002
-spawn states-half golden-states-a "$TCP_CLIENT" -count 1 -connect 10.3.0.2 -halfclose -pads 0
+spawn states-half golden-states-a "$TCP_CLIENT" -count 1 -connect 10.3.0.2 -halfclose -pads 0 -keepalive 1h
 
 # loc: one destination of each locality from golden-loc-a. Its own address
 # (self), golden-loc-b's (subnet), and golden-remote's documentation
@@ -292,10 +300,10 @@ ip -n golden-remote route add default via 203.0.113.1
 ip -n golden-remote -6 route add default via 2001:db8:113::1
 ip -n golden-loc-a route add 203.0.113.0/24 via 10.5.0.2
 ip -n golden-loc-a -6 route add 2001:db8:113::/48 via fd00:5::2
-spawn loc-self-server golden-loc-a "$TCP_SERVER" -count 1 -bind 10.5.0.1
-spawn loc-subnet-server golden-loc-b "$TCP_SERVER" -count 1 -bind 10.5.0.2
-spawn loc-remote-server-4 golden-remote "$TCP_SERVER" -count 1 -bind 203.0.113.10
-spawn loc-remote-server-6 golden-remote "$TCP_SERVER" -count 1 -bind 2001:db8:113::10
+spawn loc-self-server golden-loc-a "$TCP_SERVER" -count 1 -bind 10.5.0.1 -keepalive 1h
+spawn loc-subnet-server golden-loc-b "$TCP_SERVER" -count 1 -bind 10.5.0.2 -keepalive 1h
+spawn loc-remote-server-4 golden-remote "$TCP_SERVER" -count 1 -bind 203.0.113.10 -keepalive 1h
+spawn loc-remote-server-6 golden-remote "$TCP_SERVER" -count 1 -bind 2001:db8:113::10 -keepalive 1h
 wait_listen golden-loc-a 4000
 wait_listen golden-loc-b 4000
 wait_listen golden-remote 4000 2
@@ -308,10 +316,10 @@ done
 for dst in fd00:5::2 2001:db8:113::10; do
   ip netns exec golden-loc-a ping -6 -q -c 1 -W 5 "$dst" >/dev/null || fail "golden-loc-a: no reply from $dst"
 done
-spawn loc-self golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.1 -sleep 1h -pads 0
-spawn loc-subnet golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.2 -sleep 1h -pads 0
-spawn loc-remote-4 golden-loc-a "$TCP_CLIENT" -count 1 -connect 203.0.113.10 -sleep 1h -pads 0
-spawn loc-remote-6 golden-loc-a "$TCP_CLIENT" -count 1 -connect 2001:db8:113::10 -sleep 1h -pads 0
+spawn loc-self golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.1 -sleep 1h -pads 0 -keepalive 1h
+spawn loc-subnet golden-loc-a "$TCP_CLIENT" -count 1 -connect 10.5.0.2 -sleep 1h -pads 0 -keepalive 1h
+spawn loc-remote-4 golden-loc-a "$TCP_CLIENT" -count 1 -connect 203.0.113.10 -sleep 1h -pads 0 -keepalive 1h
+spawn loc-remote-6 golden-loc-a "$TCP_CLIENT" -count 1 -connect 2001:db8:113::10 -sleep 1h -pads 0 -keepalive 1h
 # The self connection shows twice in golden-loc-a, once per end.
 loc_established=5
 
@@ -334,10 +342,10 @@ done
 ip -n golden-metric-b addr add 192.0.2.80/32 dev lo
 ip -n golden-metric-a route add default via 10.21.2.2 dev m2 metric 200
 ip -n golden-metric-a route add default via 10.21.1.2 dev m1 metric 100
-spawn metric-server golden-metric-b "$TCP_SERVER" -count 1 -bind 192.0.2.80
+spawn metric-server golden-metric-b "$TCP_SERVER" -count 1 -bind 192.0.2.80 -keepalive 1h
 wait_listen golden-metric-b 4000
 ip netns exec golden-metric-a ping -q -c 1 -W 5 192.0.2.80 >/dev/null || fail "golden-metric-a: no reply from 192.0.2.80"
-spawn metric golden-metric-a "$TCP_CLIENT" -count 1 -connect 192.0.2.80 -sleep 1h -pads 0
+spawn metric golden-metric-a "$TCP_CLIENT" -count 1 -connect 192.0.2.80 -sleep 1h -pads 0 -keepalive 1h
 
 # Each container's connections show twice, once per end.
 need=$((2 * SOCKETS))
