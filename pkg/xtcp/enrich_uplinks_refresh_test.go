@@ -117,7 +117,7 @@ func TestRefreshUplinksOnce(t *testing.T) {
 			f := &fakeUplinks{routes: tc.routes, physical: tc.physical}
 			x := uplinkFixture(t, f)
 			x.initUplinkEnrichers(t.Context())
-			current := tc.routes[0]
+			current := uplinkState{ifnames: tc.routes[0]}
 
 			f.mu.Lock()
 			f.lldpErr = tc.lldpErr
@@ -188,7 +188,7 @@ func TestRefreshUplinksLoop(t *testing.T) {
 			tick := make(chan time.Time)
 			done := make(chan struct{})
 			go func() {
-				x.refreshUplinks(ctx, maxUplinks, []string{"eth0", "eth1"}, tick)
+				x.refreshUplinks(ctx, maxUplinks, uplinkState{ifnames: []string{"eth0", "eth1"}}, tick)
 				close(done)
 			}()
 			for range tc.ticks {
@@ -207,6 +207,59 @@ func TestRefreshUplinksLoop(t *testing.T) {
 	}
 }
 
+// go test ./pkg/xtcp/ -run TestRefreshUplinksLLDPRetry
+func TestRefreshUplinksLLDPRetry(t *testing.T) {
+	down := errors.New("lldpd gone")
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		startupErr  error      // lldpd at startup
+		errs        []error    // lldpd on each refresh tick
+		routes      [][]string // startup, then each tick (the last repeats)
+		wantChassis string     // uplink1's after the ticks
+		wantFetches int
+		wantCounts  map[string]float64
+	}{
+		{name: "recovered_after_swap", category: "positive", description: "lldpd down during a swap: a later tick with the same routes restores the LLDP columns",
+			errs: []error{down, nil, nil}, routes: [][]string{{"eth0", "eth1"}, {"eth1", "eth0"}},
+			wantChassis: "sw-b", wantFetches: 3, wantCounts: map[string]float64{"lldp_error": 1, "lldp_recovered": 1, "unchanged": 1}},
+		{name: "still_down", category: "negative", description: "lldpd stays down: every tick retries, the NIC columns stay",
+			errs: []error{down, down, down}, routes: [][]string{{"eth0", "eth1"}, {"eth1", "eth0"}},
+			wantFetches: 4, wantCounts: map[string]float64{"lldp_error": 3, "lldp_recovered": 0, "unchanged": 0}},
+		{name: "startup_failure_retried", category: "boundary", description: "lldpd down at startup: the first tick with lldpd up fills the columns",
+			startupErr: down, errs: []error{nil, nil}, routes: [][]string{{"eth0", "eth1"}},
+			wantChassis: "sw-a", wantFetches: 2, wantCounts: map[string]float64{"lldp_error": 0, "lldp_recovered": 1, "unchanged": 1}},
+		{name: "healthy_no_retry", category: "corner", description: "lldpd never failed: unchanged ticks never fetch again",
+			errs: []error{nil, nil, nil}, routes: [][]string{{"eth0", "eth1"}},
+			wantChassis: "sw-a", wantFetches: 1, wantCounts: map[string]float64{"lldp_error": 0, "lldp_recovered": 0, "unchanged": 3}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeUplinks{routes: tc.routes, lldpErr: tc.startupErr}
+			x := uplinkFixture(t, f)
+			st := x.loadUplinks(t.Context(), x.uplinkSrc.orDefault(x), maxUplinks)
+			for _, err := range tc.errs {
+				f.mu.Lock()
+				f.lldpErr = err
+				f.mu.Unlock()
+				st = x.refreshUplinksOnce(t.Context(), maxUplinks, st)
+			}
+			if _, _, got := stampedUplink1(x); got != tc.wantChassis {
+				t.Errorf("%s: uplink1 chassis = %q, expected %q", tc.description, got, tc.wantChassis)
+			}
+			if f.fetches != tc.wantFetches {
+				t.Errorf("%s: %d lldpd fetches, expected %d", tc.description, f.fetches, tc.wantFetches)
+			}
+			for outcome, want := range tc.wantCounts {
+				if got := refreshCount(x, outcome); got != want {
+					t.Errorf("%s: refreshUplinks %s = %v, expected %v", tc.description, outcome, got, want)
+				}
+			}
+		})
+	}
+}
+
 // TestUplinkStampConcurrent: stamping while a refresh swaps the stamp is
 // race-free and never mixes two stamps in one record. Run with -race.
 func TestUplinkStampConcurrent(t *testing.T) {
@@ -219,7 +272,7 @@ func TestUplinkStampConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		lists := [][]string{{"eth1", "eth0"}, {"eth0", "eth1"}}
-		current := []string{"eth0", "eth1"}
+		current := uplinkState{ifnames: []string{"eth0", "eth1"}}
 		for i := 0; ctx.Err() == nil && i < 2000; i++ {
 			f.mu.Lock()
 			f.routes = [][]string{lists[i%2]}
