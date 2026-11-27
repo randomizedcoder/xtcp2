@@ -1,0 +1,3 @@
+qdisc show dev d0
+class show dev d0
+class show dev d0 classid 1:20

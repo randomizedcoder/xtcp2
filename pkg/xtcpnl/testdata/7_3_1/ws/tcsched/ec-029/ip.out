@@ -1,0 +1,8 @@
+qdisc mqprio 100: root tc 2 map 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 
+             queues:(0:3) (4:7) 
+             mode:dcb
+             shaper:dcb
+             fp: E E E E E E E E E E E E E E E E
+
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

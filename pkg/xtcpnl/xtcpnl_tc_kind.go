@@ -83,6 +83,8 @@ type TcQopt struct {
 	HasNetemGi      bool
 	NetemGe         TcNetemGemodel
 	HasNetemGe      bool
+
+	Sched TcSched // drr, qfq, hfsc, ets, mqprio, taprio, multiq, cbs, etf
 }
 
 // ParseTcQopt decodes opt, a TCA_OPTIONS payload, for kind. A kind whose
@@ -112,8 +114,24 @@ func ParseTcQopt(kind string, opt []byte) (TcQopt, error) {
 	case TcKindNetem:
 		err = q.parseNetem(opt)
 	default:
+		if ok, serr := q.parseSched(kind, opt, false); ok {
+			return q, serr
+		}
 		return q, fmt.Errorf("%w: %q", ErrTcKindUnknown, kind)
 	}
+	return q, err
+}
+
+// ParseTcCopt decodes opt, a class's TCA_OPTIONS, for kind: print_copt's
+// reads. hfsc's and ets's class options differ from their qdisc's (service
+// curves; TCA_ETS_QUANTA_BAND); every other kind's are read as its qdisc
+// options are (htb, drr and qfq share one printer).
+func ParseTcCopt(kind string, opt []byte) (TcQopt, error) {
+	if kind != TcKindHfsc && kind != TcKindEts {
+		return ParseTcQopt(kind, opt)
+	}
+	q := TcQopt{Kind: kind}
+	_, err := q.parseSched(kind, opt, true)
 	return q, err
 }
 
@@ -339,6 +357,13 @@ type TcXstats struct {
 	Htb     TcHtbXstats
 	Sfq     TcSfqXstats
 	Netem   TcNetemXstats
+	Drr     TcDrrStats
+	Hfsc    TcHfscStats
+
+	TaprioWindowDrops    uint64
+	HasTaprioWindowDrops bool
+	TaprioTxOverruns     uint64
+	HasTaprioTxOverruns  bool
 }
 
 // ParseTcXstats decodes b for kind's print_xstats. fq_codel, fq and netem
@@ -362,6 +387,9 @@ func ParseTcXstats(kind string, b []byte) (TcXstats, error) {
 	case TcKindSfq:
 		x.Sfq, err = DecodeTcSfqXstats(b)
 	default:
+		if ok, serr := x.parseSchedXstats(kind, b); ok {
+			return x, serr
+		}
 		return x, fmt.Errorf("%w: %q", ErrTcKindUnknown, kind)
 	}
 	x.Has = err == nil

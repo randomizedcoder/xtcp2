@@ -78,6 +78,8 @@ type runner struct {
 	cf classFilter  // tc_class.c's statics, kept across batch lines (Q30)
 	ff filterFilter // tc_filter.c's statics, kept across batch lines (Q29f)
 
+	kindErr error // a qdisc_util printer's refusal; see refuseKind
+
 	timestamp int              // timestamp: -timestamp and -tshort each add one
 	tshort    int              // timestamp_short: -tshort
 	now       func() time.Time // the monitor's clock (GOTC_NOW for a replay)

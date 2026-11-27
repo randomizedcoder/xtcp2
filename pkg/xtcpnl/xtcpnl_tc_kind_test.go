@@ -706,6 +706,8 @@ var wsTcSliceKinds = []string{
 	TcKindNoqueue, TcKindMq, TcKindPfifoFast, TcKindPrio, TcKindPfifo, TcKindBfifo,
 	TcKindPfifoHeadDrop, TcKindFqCodel, TcKindFq, TcKindHtb, TcKindTbf, TcKindSfq,
 	TcKindNetem, TcKindIngress, TcKindClsact,
+	TcKindDrr, TcKindQfq, TcKindHfsc, TcKindEts, TcKindMqprio, TcKindTaprio, TcKindMultiq,
+	TcKindCbs, TcKindEtf,
 }
 
 // TestWsTcKinds decodes every qdisc and class the kernel sent in any
@@ -741,7 +743,7 @@ func TestWsTcKinds(t *testing.T) {
 					continue
 				}
 				seen[ti.Kind]++
-				if err := wsTcKindProblem(ti); err != nil {
+				if err := wsTcKindProblem(ti, m.h.Type == unix.RTM_NEWTCLASS); err != nil {
 					t.Errorf("%s message %d (kind %s): %v", p, i, ti.Kind, err)
 				}
 			}
@@ -755,9 +757,13 @@ func TestWsTcKinds(t *testing.T) {
 	t.Logf("decoded %v; %d messages of other kinds", seen, other)
 }
 
-func wsTcKindProblem(ti TcInfo) error {
+func wsTcKindProblem(ti TcInfo, class bool) error {
+	parse := ParseTcQopt
+	if class {
+		parse = ParseTcCopt
+	}
 	if ti.HasOptions || len(ti.Options) > 0 {
-		if _, err := ParseTcQopt(ti.Kind, ti.Options); err != nil {
+		if _, err := parse(ti.Kind, ti.Options); err != nil {
 			return err
 		}
 	}
@@ -819,6 +825,9 @@ func FuzzParseTcQopt(f *testing.F) {
 		}
 		if _, err := ParseTcXstats(kind, in); err != nil && !errors.Is(err, ErrTcShort) {
 			t.Fatalf("xstats for a decodable kind: %v", err)
+		}
+		if c, err := ParseTcCopt(kind, in); err == nil && c.Kind != kind {
+			t.Fatalf("class kind %q, expected %q", c.Kind, kind)
 		}
 	})
 }

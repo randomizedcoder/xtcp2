@@ -1,0 +1,20 @@
+class hfsc 1: root 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+ period 0  level 2 
+
+class hfsc 1:1 parent 1: sc m1 0bit d 0us m2 10Mbit ul m1 0bit d 0us m2 20Mbit 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+ period 0  level 1 
+
+class hfsc 1:10 parent 1:1 rt m1 2Mbit d 10ms m2 1Mbit ls m1 0bit d 0us m2 3Mbit 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+ period 0  level 0 
+
+class hfsc 1:20 parent 1:1 sc m1 0bit d 0us m2 1Mbit 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+ period 0  level 0 
+

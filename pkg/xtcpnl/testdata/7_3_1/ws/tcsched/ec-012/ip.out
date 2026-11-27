@@ -1,0 +1,1 @@
+class hfsc 1:10 parent 1:1 rt m1 2Mbit d 10ms m2 1Mbit ls m1 0bit d 0us m2 3Mbit 

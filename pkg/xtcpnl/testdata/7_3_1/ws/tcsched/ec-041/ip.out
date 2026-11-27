@@ -1,0 +1,28 @@
+qdisc taprio 100: root refcnt 9 tc 2 map 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0
+queues offset 0 count 4 offset 4 count 4
+clockid TAI	base-time 1000000000 cycle-time 500000 cycle-time-extension 0
+	index 0 cmd S gatemask 0x1 interval 300000
+	index 1 cmd S gatemask 0x2 interval 200000
+	base-time 4000000000000000000 cycle-time 100000 cycle-time-extension 0
+	index 0 cmd S gatemask 0x3 interval 100000
+max-sdu 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+fp E E E E E E E E E E E E E E E E
+
+class taprio 100:1 root 
+class taprio 100:2 root 
+class taprio 100:3 root 
+class taprio 100:4 root 
+class taprio 100:5 root 
+class taprio 100:6 root 
+class taprio 100:7 root 
+class taprio 100:8 root 
+qdisc taprio 100: root refcnt 9 tc 2 map 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0
+queues offset 0 count 4 offset 4 count 4
+clockid TAI	base-time 1000000000 cycle-time 500000 cycle-time-extension 0
+	index 0 cmd S gatemask 0x1 interval 300000
+	index 1 cmd S gatemask 0x2 interval 200000
+	base-time 4000000000000000000 cycle-time 100000 cycle-time-extension 0
+	index 0 cmd S gatemask 0x3 interval 100000
+max-sdu 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+fp E E E E E E E E E E E E E E E E
+

@@ -1,0 +1,66 @@
+{
+ "axes": {
+  "fix": "schdrr",
+  "json": "1",
+  "words": "qdisc show dev d0"
+ },
+ "cmd": "tc -j qdisc show dev d0",
+ "desc": "corner: opt=json cmd=schdrr:qdisc_show_dev_d0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcsched/pw-002",
+ "modules": [
+  "sch_cbs",
+  "sch_drr",
+  "sch_etf",
+  "sch_ets",
+  "sch_hfsc",
+  "sch_mqprio",
+  "sch_multiq",
+  "sch_prio",
+  "sch_qfq",
+  "sch_taprio"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 root handle 1: drr",
+  "tc class add dev d0 parent 1: classid 1:1 drr quantum 1514",
+  "tc class add dev d0 parent 1: classid 1:2 drr"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 root handle 1: drr",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev d0 parent 1: classid 1:1 drr quantum 1514",
+    "rc": 0
+   },
+   {
+    "cmd": "tc class add dev d0 parent 1: classid 1:2 drr",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

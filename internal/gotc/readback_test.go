@@ -23,17 +23,18 @@ const tdcGlob = "../../pkg/xtcpnl/testdata/*/ws/tdc"
 // readbackSkips pins how many readbacks each out-of-slice kind takes away,
 // so a decoder that starts (or stops) refusing one shows.
 var readbackSkips = map[string]int{
-	"cake": 19, "cake_mq": 22, "cbs": 10, "choke": 7, "codel": 13, "drr": 13, "dualpi2": 14, "etf": 4,
-	"ets": 33, "fq_pie": 2, "gred": 6, "hfsc": 10, "hhf": 14, "mqprio": 2, "multiq": 3, "pie": 1,
-	"plug": 7, "qfq": 10, "red": 10, "sfb": 13, "skbprio": 4, "taprio": 8,
+	"cake": 19, "cake_mq": 22, "choke": 7, "codel": 13, "dualpi2": 14, "fq_pie": 2, "gred": 6,
+	"hhf": 14, "pie": 1, "plug": 11, "red": 10, "sfb": 13, "skbprio": 4,
 }
 
 // readbackRendered pins how many readbacks render exactly: 216 qdisc and
 // class shows, 273 filter and chain shows and gets, and 398 `tc actions`
 // lists and gets (increment 12's 887), then increment 13's 138: 5 bpf
 // filter shows and 133 readbacks holding pedit, tunnel_key, ife, ct, gate
-// or bpf, in filters and in `tc actions`. None is eBPF.
-const readbackRendered = 1025
+// or bpf, in filters and in `tc actions`. None is eBPF. Increment 15's
+// nine kinds add 89 (two of them taprio under -d with a size table); 4
+// more readbacks of those kinds also hold plug, and are now plug's.
+const readbackRendered = 1114
 
 // kindRefused is a refusal by name: a qdisc kind is its bare name, the
 // filter path's are prefixed (filter:, action:, ematch:).

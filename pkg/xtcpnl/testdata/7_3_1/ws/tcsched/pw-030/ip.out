@@ -1,0 +1,1 @@
+[{"kind":"mqprio","handle":"100:","root":true,"options":{"tc":2,"map":[0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0],"queues":[[0,3],[4,7]],"mode":"dcb","shaper":"dcb","fp":["E","E","E","E","E","E","E","E","E","E","E","E","E","E","E","E"]}}]

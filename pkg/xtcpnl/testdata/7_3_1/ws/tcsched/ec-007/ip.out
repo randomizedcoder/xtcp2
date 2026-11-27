@@ -1,0 +1,6 @@
+class qfq 1:1 root weight 1 maxpkt 1514 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+class qfq 1:2 root weight 30 maxpkt 9000 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

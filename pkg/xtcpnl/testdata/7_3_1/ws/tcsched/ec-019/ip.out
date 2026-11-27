@@ -1,0 +1,1 @@
+qdisc ets 1: root refcnt 2 bands 3 strict 3 priomap 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 

@@ -232,6 +232,9 @@ func (r *runner) printClassBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
 	if hasAttr(ti.Attrs, xtcpnl.TcaOptions) {
 		if q.printCopt != nil {
 			q.printCopt(r, q, ti.Options, true)
+			if err := r.takeKindErr(); err != nil {
+				return err
+			}
 		} else {
 			r.errf("[cannot parse class parameters]")
 		}
@@ -253,6 +256,9 @@ func (r *runner) printClassBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
 		}
 		if hasX && q.printXstats != nil {
 			q.printXstats(r, xs)
+			if err := r.takeKindErr(); err != nil {
+				return err
+			}
 			o.fp("\n")
 		}
 		o.closeObject()
@@ -347,6 +353,9 @@ func (r *runner) graphNodeShow(buf *strings.Builder, cls *graphNode) {
 		}
 		if q != nil && q.printCopt != nil {
 			q.printCopt(r, q, tb.Bytes(xtcpnl.TcaOptions), tb.Has(xtcpnl.TcaOptions))
+			if err := r.takeKindErr(); err != nil && r.cf.err == nil {
+				r.cf.err = err
+			}
 		}
 		if q != nil && r.stats > 0 {
 			r.graphStats(buf, cls, q, id, tb)
