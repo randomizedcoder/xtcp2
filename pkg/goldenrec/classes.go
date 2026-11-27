@@ -200,7 +200,7 @@ var Columns = Table{
 		"tcp_info_segs_out", "tcp_info_segs_in", "tcp_info_notsent_bytes", "tcp_info_min_rtt",
 		"tcp_info_data_segs_in", "tcp_info_data_segs_out", "tcp_info_delivery_rate",
 		rwndLimitedColumn, "tcp_info_sndbuf_limited", "tcp_info_delivered", "tcp_info_delivered_ce",
-		"tcp_info_bytes_sent", "tcp_info_bytes_retrans", "tcp_info_dsack_dups", "tcp_info_reord_seen",
+		"tcp_info_bytes_sent", "tcp_info_bytes_retrans", dsackDupsColumn, "tcp_info_reord_seen",
 		"tcp_info_rcv_ooopack", "tcp_info_snd_wnd", "tcp_info_rcv_wnd", "tcp_info_rehash", "tcp_info_total_rto",
 		"tcp_info_total_rto_recoveries", "tcp_info_total_rto_time",
 		"tcp_info_received_ce", "tcp_info_delivered_e1_bytes", "tcp_info_delivered_e0_bytes",

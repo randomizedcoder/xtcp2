@@ -77,8 +77,8 @@ var DefaultSeqNetns = []string{"golden-ernic-c", "golden-ernic-d"}
 // total_retrans - dsack_dups == 12 exactly; total_retrans stays compared
 // here (nonzero either way).
 var seqColumns = map[string]bool{
-	rwndLimitedColumn:     true,
-	"tcp_info_dsack_dups": true,
+	rwndLimitedColumn: true,
+	dsackDupsColumn:   true,
 }
 
 // faultOnlyColumns are, beyond the lossyColumns, the columns five captures
@@ -141,7 +141,7 @@ var lossyColumns = map[string]bool{
 	"tcp_info_total_rto_recoveries":      true,
 	"tcp_info_total_rto_time":            true,
 	"tcp_info_rehash":                    true,
-	"tcp_info_dsack_dups":                true,
+	dsackDupsColumn:                      true,
 	"tcp_info_reord_seen":                true,
 	rwndLimitedColumn:                    true,
 	"tcp_info_probes":                    true,
