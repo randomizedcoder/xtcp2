@@ -177,22 +177,22 @@ for ns in golden-bulk-a golden-bulk-b; do
 done
 # The kernel's own view of the clients (ss, by local port, with the ECN
 # flags) and of each namespace (nstat; a fresh netns starts its MIBs at 0).
-# ss_bulk prints PORT=TOTAL_RETRANS per client; ss shows retrans only when
-# nonzero.
+# ss_bulk prints PORT=TOTAL_RETRANS per client, comma-separated as q's
+# string_agg (q strips spaces); ss shows retrans only when nonzero.
 ss_bulk() {
   ip netns exec golden-bulk-a ss -HtinO state established '( dport = :4000 )' |
     awk -v detail="${1:-}" '{ p = $3; sub(/.*:/, "", p); r = 0; e = ""
       for (i = 5; i <= NF; i++) { if ($i ~ /^retrans:/) { r = $i; sub(/.*\//, "", r) } if ($i == "ecn" || $i == "ecnseen") e = e "+" $i }
       if (detail) print p "=" r "/" $5 e "/segs_out" seg($0); else print p "=" r }
       function seg(l) { if (match(l, /segs_out:[0-9]+/)) return substr(l, RSTART + 9, RLENGTH - 9); return "?" }' |
-    sort -n | tr '\n' ' ' | sed 's/ $//'
+    sort -n | paste -sd "${2:-,}"
 }
 nstat_of() { ip netns exec "$1" nstat -asz "$2" | awk -v k="$2" '$1 == k { print $2; found = 1 } END { if (!found) print "?" }'; }
 mibs=""
 for ns in golden-bulk-a golden-bulk-b; do
   mibs="$mibs $ns=RetransSegs$(nstat_of "$ns" TcpRetransSegs)/OutSegs$(nstat_of "$ns" TcpOutSegs)"
 done
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem dropped:$netem_drops; kernel per port, retrans/cong/segs_out: $(ss_bulk detail);$mibs"
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem dropped:$netem_drops; kernel per port, retrans/cong/segs_out: $(ss_bulk detail " ");$mibs"
 # A fresh netns's TcpRetransSegs is the sum of its sockets' total_retrans:
 # both count each retransmitted segment (net/ipv4/tcp_output.c:3710,
 # :3713), SYN-ACK retransmits count in both too (tcp_output.c:4722,
@@ -207,7 +207,7 @@ for side in a b; do
   row "netem_retrans_$side" positive "$ok" "$ns: xtcp2's sum of total_retrans $sum, the namespace's TcpRetransSegs $mib"
 done
 want=$(ss_bulk)
-got=$(q "SELECT string_agg(inet_diag_msg_socket_source_port || '=' || tcp_info_total_retrans, ' ' ORDER BY inet_diag_msg_socket_source_port) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1")
+got=$(q "SELECT string_agg(inet_diag_msg_socket_source_port || '=' || tcp_info_total_retrans, ',' ORDER BY inet_diag_msg_socket_source_port) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1")
 ok=0
 [ -n "$want" ] && [ "$got" = "$want" ] && ok=1
 row netem_kernel_agrees negative "$ok" "per client port=total_retrans, xtcp2: ${got:-none}; kernel (ss): ${want:-none}"
