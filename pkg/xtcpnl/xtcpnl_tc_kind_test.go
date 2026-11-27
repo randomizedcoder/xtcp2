@@ -306,7 +306,7 @@ func TestParseTcQopt(t *testing.T) {
 		},
 		{
 			description: "corner: an unknown kind is ErrTcKindUnknown",
-			kind:        "cake",
+			kind:        "nosuchkind",
 			opt:         rtattr(1, le32(1)),
 			expectedErr: ErrTcKindUnknown,
 		},
@@ -606,7 +606,7 @@ func TestParseTcXstats(t *testing.T) {
 		},
 		{
 			description: "corner: an unknown kind is ErrTcKindUnknown",
-			kind:        "codel", in: le32(1),
+			kind:        "nosuchkind", in: le32(1),
 			expectedErr: ErrTcKindUnknown,
 		},
 	}
@@ -708,6 +708,8 @@ var wsTcSliceKinds = []string{
 	TcKindNetem, TcKindIngress, TcKindClsact,
 	TcKindDrr, TcKindQfq, TcKindHfsc, TcKindEts, TcKindMqprio, TcKindTaprio, TcKindMultiq,
 	TcKindCbs, TcKindEtf,
+	TcKindRed, TcKindGred, TcKindChoke, TcKindSfb, TcKindCodel, TcKindPie, TcKindFqPie, TcKindHhf,
+	TcKindCake, TcKindCakeMq, TcKindDualpi2, TcKindPlug, TcKindSkbprio,
 }
 
 // TestWsTcKinds decodes every qdisc and class the kernel sent in any

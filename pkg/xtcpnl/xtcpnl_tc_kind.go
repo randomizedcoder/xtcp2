@@ -85,6 +85,7 @@ type TcQopt struct {
 	HasNetemGe      bool
 
 	Sched TcSched // drr, qfq, hfsc, ets, mqprio, taprio, multiq, cbs, etf
+	Aqm   TcAqm   // red, gred, choke, sfb, codel, pie, fq_pie, hhf, cake, cake_mq, dualpi2, plug, skbprio
 }
 
 // ParseTcQopt decodes opt, a TCA_OPTIONS payload, for kind. A kind whose
@@ -116,6 +117,9 @@ func ParseTcQopt(kind string, opt []byte) (TcQopt, error) {
 	default:
 		if ok, serr := q.parseSched(kind, opt, false); ok {
 			return q, serr
+		}
+		if ok, aerr := q.parseAqm(kind, opt); ok {
+			return q, aerr
 		}
 		return q, fmt.Errorf("%w: %q", ErrTcKindUnknown, kind)
 	}
@@ -364,6 +368,8 @@ type TcXstats struct {
 	HasTaprioWindowDrops bool
 	TaprioTxOverruns     uint64
 	HasTaprioTxOverruns  bool
+
+	Aqm TcAqmXstats
 }
 
 // ParseTcXstats decodes b for kind's print_xstats. fq_codel, fq and netem
@@ -389,6 +395,9 @@ func ParseTcXstats(kind string, b []byte) (TcXstats, error) {
 	default:
 		if ok, serr := x.parseSchedXstats(kind, b); ok {
 			return x, serr
+		}
+		if ok, aerr := x.parseAqmXstats(kind, b); ok {
+			return x, aerr
 		}
 		return x, fmt.Errorf("%w: %q", ErrTcKindUnknown, kind)
 	}
