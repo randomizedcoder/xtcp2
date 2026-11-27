@@ -37,6 +37,10 @@ var corpusRefused = map[string]string{
 	"tcflower/ng-004": "not implemented: flower ip_proto in a get",
 }
 
+// qwriteSent are the corpusWrites rows the gotc_write build sends and
+// matches (17W).
+var qwriteSent = map[string]bool{"tcqdisc/ng-018": true, "tcclass/ng-011": true}
+
 var corpusWrites = map[string]bool{
 	"tcqdisc/ng-018": true, "tcclass/ng-011": true, "tcfilter/ng-024": true, "tcflower/ng-009": true,
 	"tcaction/ng-006": true, "tcaction2/ng-007": true,
@@ -55,6 +59,16 @@ var pschedContent string
 // share/iproute2), as an absolute path taken before any row's Chdir.
 var shareDir = func() string {
 	d, err := filepath.Abs(filepath.Join("testdata", "share-iproute2"))
+	if err != nil {
+		panic(err)
+	}
+	return d
+}()
+
+// tcLibTestDir holds the workbench tc's LIBDIR/tc *.dist files, as an
+// absolute path taken before any row's Chdir.
+var tcLibTestDir = func() string {
+	d, err := filepath.Abs(filepath.Join("testdata", "tc-lib"))
 	if err != nil {
 		panic(err)
 	}
@@ -143,6 +157,32 @@ func testSys(t *testing.T, rowDir string) sysFS {
 			t.Fatal(err)
 		}
 	}
+	// tc's LIBDIR/tc distribution tables (netem's get_distribution), the
+	// workbench iproute2 7.2.0's, at gotc's default tcLibDir.
+	dists, err := filepath.Glob(filepath.Join(tcLibTestDir, "*.dist"))
+	if err != nil || len(dists) == 0 {
+		t.Fatalf("no tc-lib dist files: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "usr", "lib", "tc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range dists {
+		b, err := os.ReadFile(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := rt.WriteFile("usr/lib/tc/"+filepath.Base(d), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The workbench's dummy d0 has no speed: its sysfs file opens and
+	// reads EINVAL, which read_prop's fgets reports as unknown (W9).
+	if err := os.MkdirAll(filepath.Join(root, "sys", "class", "net", "d0"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.WriteFile("sys/class/net/d0/speed", nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	return sysFS{root: root, usrDir: confUsrDirCst}
 }
 
@@ -190,7 +230,12 @@ func TestGotcCorpus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, sp := range []string{"tcclass", "tcfilter", "tcflower", "tcaction", "tcaction2", "tcsched", "tcaqm"} {
+	spaces := []string{"tcclass", "tcfilter", "tcflower", "tcaction", "tcaction2", "tcsched", "tcaqm"}
+	if writesBuilt {
+		spaces = append(spaces, "tcqwrite")
+		corpusRows["tcqwrite"] = 125
+	}
+	for _, sp := range spaces {
 		more, err := filepath.Glob("../../pkg/xtcpnl/testdata/*/ws/" + sp)
 		if err != nil {
 			t.Fatal(err)
@@ -222,7 +267,7 @@ func TestGotcCorpus(t *testing.T) {
 			perBase[filepath.Base(base)]++
 			t.Run(c.ID, func(t *testing.T) {
 				got, want := corpusRow(t, dir, c)
-				if corpusWrites[c.ID] {
+				if corpusWrites[c.ID] && (!writesBuilt || !qwriteSent[c.ID]) {
 					if got.rc != 255 || !strings.Contains(got.stderr, "not implemented") || got.stdout != "" {
 						t.Fatalf("write row not refused: %#v", got)
 					}

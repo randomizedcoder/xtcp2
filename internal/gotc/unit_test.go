@@ -179,6 +179,10 @@ func TestGotcOptions(t *testing.T) {
 			want{stderr: "Command \"-s\" is unknown, try \"tc qdisc help\".\n", rc: 255}},
 	}
 	for _, tc := range tests {
+		if writesBuilt && strings.Contains(tc.expected.stderr, notImpl+"tc qdisc") ||
+			writesBuilt && strings.Contains(tc.expected.stderr, notImpl+"tc class") {
+			continue // the gotc_write build sends these (qwrite_test.go)
+		}
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 			src := &fakeSource{replies: tc.replies}

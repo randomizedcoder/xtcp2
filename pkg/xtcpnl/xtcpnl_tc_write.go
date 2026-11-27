@@ -59,9 +59,9 @@ type TcWrite struct {
 	// RTM_DELTCLASS (class).
 	MsgType uint16
 	// Flags are the NLM_F_* bits besides NLM_F_REQUEST, as do_qdisc and
-	// do_class pass them: EXCL|CREATE for add, 0 for change,
-	// CREATE|REPLACE for replace, REPLACE for link, 0 for delete. tc's
-	// rtnl_talk adds NLM_F_ACK.
+	// do_class pass them: EXCL|CREATE for add, 0 for change, 0 for
+	// delete; replace is CREATE|REPLACE for a qdisc and CREATE alone for a
+	// class; link (qdisc only) is REPLACE. tc's rtnl_talk adds NLM_F_ACK.
 	Flags uint16
 
 	// The struct tcmsg; tcm_family is always AF_UNSPEC.

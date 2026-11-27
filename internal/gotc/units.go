@@ -24,7 +24,7 @@ import (
 // "infinity", "nan" with an optional "(chars)", a hex float, or a decimal
 // one; rest is what it did not consume, and n == 0 is no number (rest is
 // then s). erange is ERANGE on overflow, where the result is ±HUGE_VAL;
-// an underflow's ERANGE is not modelled, since tc tests errno only beside
+// an underflow's ERANGE is not modeled, since tc tests errno only beside
 // HUGE_VAL.
 func cStrtod(s string) (v float64, rest string, erange bool) {
 	i := 0
@@ -76,7 +76,7 @@ func cStrtod(s string) (v float64, rest string, erange bool) {
 func isNanChars(s string) bool {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if !(c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+		if c != '_' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
 			return false
 		}
 	}
@@ -367,9 +367,6 @@ func parsePercent(s string) (float64, int) {
 
 // time2tick is tc_core_time2tick.
 func (c tcCore) time2tick(t float64) float64 { return t * c.tickInUsec }
-
-// time2ktime is tc_core_time2ktime: the product truncated to 32 bits.
-func (c tcCore) time2ktime(t uint32) uint32 { return cDoubleToU32(float64(t) * c.clockFactor) }
 
 // calcXmittime is tc_calc_xmittime: ceil of the ticks size bytes take at
 // rate, capped at UINT_MAX.
