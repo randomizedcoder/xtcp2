@@ -291,6 +291,27 @@ let
         }
         PATH="$NLCAP_IP_BIN:$PATH"
       fi
+      # NLCAP_MON_BIN: a directory whose `ip` runs the MONITOR alone, the
+      # canary join, the trigger and the rest of the row keeping the PATH
+      # above (EG1-T01, docs/netlink/goip-parity-events.md). The parity
+      # harness's goip side needs the split, and it is forced by goip
+      # itself: goip's write verbs are dry runs that build the request and
+      # write it to GOIP_WRITE_OUT without sending it (internal/goip's
+      # usage), so a canary join or a trigger through goip would change
+      # nothing and the row would fail its own canary. Unset, the monitor
+      # runs NLCAP_IP_BIN's `ip` when set (the workbench's whole-row
+      # version discipline, exactly as before) and the helper's own
+      # iproute2 otherwise.
+      mon_ip=""
+      if [ -n "''${NLCAP_MON_BIN:-}" ]; then
+        [ -x "$NLCAP_MON_BIN/ip" ] || {
+          echo "xtcp2-nl-ipmon: NLCAP_MON_BIN: no ip in $NLCAP_MON_BIN" >&2
+          exit 2
+        }
+        mon_ip="$NLCAP_MON_BIN/ip"
+      elif [ -n "''${NLCAP_IP_BIN:-}" ]; then
+        mon_ip="$NLCAP_IP_BIN/ip"
+      fi
       canary_dev=$1
       read -ra ip_args <<<"$2"
       trigger=$3
@@ -298,7 +319,11 @@ let
 
       out=$(mktemp)
       trap 'rm -f "$out"' EXIT
-      ip "''${ip_args[@]}" >"$out" 2>/dev/null &
+      if [ -n "$mon_ip" ]; then
+        "$mon_ip" "''${ip_args[@]}" >"$out" 2>/dev/null &
+      else
+        ip "''${ip_args[@]}" >"$out" 2>/dev/null &
+      fi
       mpid=$!
 
       # wait_match <ERE> <tenths>: poll the monitor's output.
@@ -1507,6 +1532,46 @@ pkgs.writeShellApplication {
       capture "$1" "$2" "$3" "$4" "$5" "$3.out" write
     }
 
+    # mon <ns> <subdir> <name> <command>
+    #
+    # One monitor row's side (EG1-T01, docs/netlink/goip-parity-events.md):
+    # <command> — an `xtcp2-nl-ipmon …` — run with `sh -c` INSIDE <ns>, its
+    # stdout, stderr and exit status recorded to <name>.out, <name>.err and
+    # <name>.rc, in the row's own directory as a write row's are.
+    #
+    # NO PCAP AND NO FLOOR
+    #
+    # A notification is the point of a monitor row, not pollution, so the
+    # pcap the other modes record is not taken at all — the hygiene rule
+    # that fails a dump row on a multicast delivery would fail exactly the
+    # traffic the row exists to compare. And the until-EREs are the row's
+    # own floor: the helper exits 1 when the canary never printed or an ERE
+    # never matched, and that rc is what lands in <name>.rc for the
+    # comparator, which fails the row on the helper's own complaint rather
+    # than on a datagram count nobody can know in advance — the canary
+    # retry's count is the race itself.
+    #
+    # ONE ATTEMPT, AND ALL THREE FILES LAND TOGETHER
+    #
+    # The write discipline, for the same reasons: the trigger has already
+    # changed the namespace, so a retry would meet a different state, and the
+    # staged `.new` names move into place only together — a crash between
+    # them leaves the row MISSING, which is the failure it is, rather than a
+    # text with no status the comparator would have to guess about.
+    cmd_mon() {
+      local ns=$1 subdir=$2 name=$3 command=$4
+      local dir="$OUT/$subdir"
+      mkdir -p "$dir"
+      local outnew="$dir/.$name.new.out" errnew="$dir/.$name.new.err"
+      local rc=0
+      ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >"$outnew" 2>"$errnew" || rc=$?
+      mv -f "$outnew" "$dir/$name.out"
+      mv -f "$errnew" "$dir/$name.err"
+      echo "$rc" >"$dir/$name.rc"
+      echo "NLCAP_MON_OK $subdir/$name rc=$rc stdout=$subdir/$name.out bytes=$(wc -c <"$dir/$name.out")"
+      return 0
+    }
+
     # capture — the shared body of cap, capio and write.
     #
     # <sout> is a file name to record the generator's stdout to, or `-` to
@@ -2576,7 +2641,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-init|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm|sock_diag] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-init|ns-del|topo|cap|capio|write|mon|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm|sock_diag] ..."
     fi
 
     sub=$1
@@ -2601,6 +2666,7 @@ pkgs.writeShellApplication {
       cap)       cmd_cap "$@" ;;
       capio)     cmd_capio "$@" ;;
       write)     cmd_write "$@" ;;
+      mon)       cmd_mon "$@" ;;
       side)      cmd_side "$@" ;;
       wait-lacp) cmd_wait_lacp "$@" ;;
       wait-sysfs) cmd_wait_sysfs "$@" ;;

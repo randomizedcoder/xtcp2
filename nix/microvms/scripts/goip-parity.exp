@@ -67,7 +67,7 @@
 # the tunnel rows loads such a module, and the sysctl acts only when a
 # namespace is made, so it changes no other row.
 #
-# NO `ip monitor`, DELIBERATELY
+# NO `ip monitor`, DELIBERATELY — EXCEPT IN THE MONITOR SECTION
 #
 # The nlmon-capture flavor starts `ip -t monitor all` because its subject is
 # notifications. Here it would be actively harmful: for dumps it multiplies
@@ -76,6 +76,12 @@
 # read-only capture window is a capture-hygiene FAILURE by design
 # (GOIP_PARITY_HYGIENE_FAIL), so adding a monitor would fail the run it was
 # meant to observe.
+#
+# The monitor section inverts exactly that, and only that (EG1-T01,
+# docs/netlink/goip-parity-events.md): its rows ARE notifications, they carry
+# no pcap and no floor — the until-EREs are the row's own floor — and the
+# comparator reads only their stdout. The inversion is per row kind, so the
+# hygiene rule still holds for every other row the way it always did.
 #
 # WHY THE COMPARISON HAPPENS IN THE GUEST
 #
@@ -225,7 +231,11 @@ proc read_command_table {} {
             continue
         }
         set f [split $line "\t"]
-        if {[llength $f] != 10} {
+        # Ten fields, or thirteen and more: a monitor row — the marker, the
+        # canary, the trigger, then each until-ERE its own field. Anything
+        # between 10 and 13 is a row the driver would misread, which is
+        # precisely the failure this check exists to catch.
+        if {[llength $f] != 10 && [llength $f] < 13} {
             vmlib::log "FATAL: unparseable table row ([llength $f] fields): $line"
             puts "GOIP_PARITY_DRIVER_FAIL"
             exit 3
@@ -255,7 +265,15 @@ proc read_command_table {} {
 
 proc capture_triple {row dev} {
     global skipped
-    lassign $row slug floor impl needs_dev write proto setup stdin args name
+    # The monitor tail, when the row carries one: the marker, the canary,
+    # the trigger, then each until-ERE its own field. Read before the write
+    # branch because a monitor row is neither kind, and before the impl
+    # check below because the monitor flow does its own.
+    set tail [lassign $row slug floor impl needs_dev write proto setup stdin args name]
+    if {[llength $tail] > 0} {
+        capture_monitor_triple $slug $impl $setup $args $tail
+        return
+    }
 
     if {$write eq "yes" && $impl eq "yes"} {
         capture_write_triple $slug $floor $setup $args $proto $stdin
@@ -310,6 +328,113 @@ proc capture_triple {row dev} {
     }
     if {!$ok} {
         vmlib::log "INCOMPLETE TRIPLE $slug - the comparator will report it MISSING"
+    }
+}
+
+###############################################################################
+# capture one monitor row's triple
+#
+# A notification is the point, so these rows carry no pcap and no floor: the
+# until-EREs are the row's own floor, the helper's own rc. Per side, in the
+# order ip_a, goip, ip_b (the plan's, as for the dumps):
+#
+#   a fresh namespace (the write discipline — the trigger changes state),
+#   the row's Setup through setup_step, settle_links, then
+#       xtcp2-nlcap mon <ns> parity <slug>.<side> '<ipmon invocation>'
+#
+# which records <slug>.<side>.out, .err and .rc — no tcpdump, no floor. The
+# helper runs the monitor, the canary join, the trigger and the until-loop in
+# one code path for every side; only the MONITOR's binary differs:
+#
+#   NLCAP_IP_BIN  the parity pin's directory, on every side — the canary
+#                 join and the trigger are kernel writes, and goip's write
+#                 verbs are dry runs that build the request and write it to
+#                 GOIP_WRITE_OUT without sending it, so neither can run
+#                 through goip. The pin rather than the helper's own
+#                 iproute2, so a row's whole trigger runs the `ip` the rest
+#                 of the harness runs.
+#   NLCAP_MON_BIN the same directory on the ip sides; a directory whose `ip`
+#                 is a goip symlink on the goip side.
+#
+# The veth MACs are pinned in the rows' Setup (the corpus's own device rule,
+# the addr corpus's 02:00:00:00:d0:00): a monitor row's three sides run in
+# three namespaces, and a random veth MAC would differ on every side — the
+# solicited-node multicast line derives from it too — so the pin is what
+# makes the MAC and its derived addresses comparable at all (V391's noise
+# class 2).
+###############################################################################
+
+proc capture_monitor_triple {slug impl setup args tail} {
+    global NSW SUBDIR short_caps write_skipped
+    set until [lassign $tail marker canary trigger]
+
+    if {$impl ni {yes ip}} {
+        lappend skipped "$slug"
+        vmlib::log "SKIP $slug: goip does not implement the monitor yet"
+        return
+    }
+
+    # The pin's sbin, and the goip side's monitor directory: one `ip` symlink.
+    # Resolved once, before the sides, so a store path moving mid-row cannot
+    # hand the goip side a different binary than the one the report names.
+    lassign [vmlib::run_out "dirname \$(readlink -f \$(command -v ip))"] rc ipdir
+    set ipdir [string trim $ipdir]
+    if {$rc != 0 || $ipdir eq ""} {
+        lappend short_caps "$SUBDIR/$slug"
+        vmlib::log "MISSED FLOOR $SUBDIR/$slug: no ip on the guest PATH"
+        return
+    }
+    if {[vmlib::run "mkdir -p /run/goip-parity-mon && ln -sf \"\$(command -v goip)\" /run/goip-parity-mon/ip"] != 0} {
+        lappend short_caps "$SUBDIR/$slug"
+        vmlib::log "MISSED FLOOR $SUBDIR/$slug: no goip on the guest PATH"
+        return
+    }
+
+    set steps {}
+    if {$setup ne "-"} {
+        set steps [split $setup ";"]
+    }
+
+    # The until-EREs and the trigger hold spaces and semicolons but no tabs
+    # (the table's own rule), and no $ or " either — the rows are the ev
+    # rows' own words. Double-quoted for the shell, inside the single-quoted
+    # argument `mon` runs with `sh -c`, as the write rows' commands are.
+    set ipmon "xtcp2-nl-ipmon $canary \"$args\" \"$trigger\""
+    foreach re $until {
+        append ipmon " \"$re\""
+    }
+
+    set plan [list \
+        ip_a "$ipdir" \
+        goip "/run/goip-parity-mon" \
+        ip_b "$ipdir"]
+
+    foreach {side monbin} $plan {
+        vmlib::must "xtcp2-nlcap ns-add $NSW"
+        set refused 0
+        foreach step $steps {
+            if {[setup_step $NSW $step] != 0} {
+                set refused 1
+                break
+            }
+        }
+        if {$refused} {
+            lappend write_skipped "$slug.$side"
+            continue
+        }
+        settle_links $NSW
+        # 120 s: the canary loop alone can run to 15 s on a loaded guest,
+        # and every until-ERE polls to 5 s. A timeout here is a missed
+        # floor, and the row lands in write_skipped for the report to name.
+        lassign [vmlib::run_out \
+            "xtcp2-nlcap mon $NSW $SUBDIR $slug.$side 'NLCAP_IP_BIN=$ipdir NLCAP_MON_BIN=$monbin $ipmon'" \
+            120] mon_rc mon_out
+        if {$mon_rc != 0} {
+            lappend short_caps "$SUBDIR/$slug.$side"
+            vmlib::log "MISSED FLOOR $SUBDIR/$slug.$side: [string trim $mon_out]"
+            continue
+        }
+        vmlib::log [string trim $mon_out]
     }
 }
 
