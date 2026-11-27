@@ -247,11 +247,17 @@ if [ -n "${ERNIC_SEQ_DROPS:-}" ]; then
   ok=0
   [ "$n" = 1 ] && [ "$egress" = ionic2 ] && ok=1
   row seq_egress negative "$ok" "the sequence flow's client and egress: $n:$egress, want 1:ionic2 (not uplink ionic0)"
-  # Some drops are pure ACKs for the echoed data, which TCP never resends,
-  # so retransmits are positive but need not reach the drop count.
+  # The flow is one-way, so every dropped frame is a data segment and is
+  # retransmitted exactly once.
   ok=0
-  [ "$retrans" -gt 0 ] && ok=1
-  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), for $dropped drops"
+  [ "$retrans" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
+  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), want the sequence's $ERNIC_SEQ_DROPS"
+  # The server sends only ACKs, over NICs without faults: nothing to resend.
+  got=$(q "SELECT count(*) || ':' || coalesce(max(tcp_info_total_retrans), 0) FROM $P WHERE netns = 'golden-ernic-d' AND inet_diag_msg_socket_source_port = 4000 AND inet_diag_msg_state = 1")
+  IFS=: read -r n sretrans <<<"$got"
+  ok=0
+  [ "$n" = 1 ] && [ "$sretrans" = 0 ] && ok=1
+  row seq_server_no_retrans negative "$ok" "the sequence flow's server: $n:$sretrans connections:total_retrans, want 1:0"
   # The bursts are short enough for fast recovery: no timeout in six of six
   # captures when this row was added.
   ok=0

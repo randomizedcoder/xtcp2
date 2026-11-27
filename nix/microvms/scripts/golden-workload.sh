@@ -19,7 +19,8 @@
 #                      BULK_CC algorithm from the root namespace over ionic0,
 #                      with the emulators' deterministic drops
 #   golden-ernic-c/d   ionic2 (10.0.5.15) and ionic3 (10.0.5.16): one cubic
-#                      4 MiB echo, through ionic2's fixed drop sequence
+#                      4 MiB one-way transfer to a discarding server,
+#                      through ionic2's fixed drop sequence
 #   golden-loc-a/b     veth, MTU 1500, and golden-remote behind golden-loc-b:
 #   golden-remote      one connection per locality (self, subnet, remote
 #                      over IPv4 and IPv6 to documentation addresses)
@@ -122,6 +123,12 @@ received_4mib() {
   awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^bytes_received:/ && substr($i, 16) + 0 >= 4194304) n++ } END { print n + 0 }'
 }
 bulk_done() { ip netns exec "$1" ss -Htin state established | received_4mib; }
+# acked_4mib NS: sockets in NS whose peer has acknowledged 4 MiB (plus the
+# SYN) with nothing left unacknowledged; ss prints unacked only when nonzero.
+acked_4mib() {
+  ip netns exec "$1" ss -Htin state established |
+    awk '{ a = 0; u = 0; for (i = 1; i <= NF; i++) { if ($i ~ /^bytes_acked:/ && substr($i, 13) + 0 > 4194304) a = 1; if ($i ~ /^unacked:/) u = 1 } if (a && !u) n++ } END { print n + 0 }'
+}
 
 # Every congestion module, so tcp_available_congestion_control lists every
 # algorithm this kernel has; a new kernel's new one is picked up unasked.
@@ -225,8 +232,11 @@ if [ -n "${ERNIC_A_MAC:-}" ]; then
 fi
 
 # The sequence-pattern pair (ERNIC_C_MAC set): ionic2 into golden-ernic-c,
-# ionic3 into golden-ernic-d, and one cubic 4 MiB echo between them, the
-# only traffic on either, set up as the first pair is.
+# ionic3 into golden-ernic-d, and one cubic 4 MiB transfer between them, the
+# only traffic on either, set up as the first pair is. It is one-way: the
+# server discards (-discard) and the client reads no echo (-bulkOneWay), so
+# every frame ionic2 sends after the handshake is data, and each of the
+# sequence's drops is exactly one retransmit.
 ernic_seq=0
 if [ -n "${ERNIC_C_MAC:-}" ]; then
   for e in golden-ernic-c golden-ernic-d; do
@@ -247,9 +257,9 @@ if [ -n "${ERNIC_C_MAC:-}" ]; then
   ip -n golden-ernic-d neigh replace 10.0.5.15 lladdr "$ERNIC_C_MAC" dev ionic3 nud permanent
   printf '%s %s\n' "$(ip netns exec golden-ernic-c cat /sys/class/net/ionic2/statistics/tx_packets)" \
     "$(ip netns exec golden-ernic-d cat /sys/class/net/ionic3/statistics/rx_packets)" >/run/xtcp2-golden-ernic-seq-before
-  spawn ernic-seq-server golden-ernic-d "$TCP_SERVER" -count 1 -bind 10.0.5.16 -cong cubic -keepalive -1s
+  spawn ernic-seq-server golden-ernic-d "$TCP_SERVER" -count 1 -bind 10.0.5.16 -cong cubic -keepalive -1s -discard
   wait_listen golden-ernic-d 4000
-  spawn ernic-seq-client golden-ernic-c "$TCP_CLIENT" -count 1 -connect 10.0.5.16 -network tcp4 -cong cubic -bulk 4MiB -sleep 1h -pads 0 -keepalive -1s -dialTimeout 30s
+  spawn ernic-seq-client golden-ernic-c "$TCP_CLIENT" -count 1 -connect 10.0.5.16 -network tcp4 -cong cubic -bulk 4MiB -bulkOneWay -pads 0 -keepalive -1s -dialTimeout 30s
   ernic_seq=1
 fi
 
@@ -374,8 +384,10 @@ while :; do
     m=$(bulk_done golden-ernic-b)
     if [ $((n + m)) -lt $((2 * ernic_bulk)) ]; then pending="$pending golden-ernic($((n + m))/$((2 * ernic_bulk)))"; fi
   fi
+  # The one-way transfer is done once the server has received the 4 MiB
+  # and the client has its ACKs for all of it.
   if [ "$ernic_seq" -gt 0 ]; then
-    n=$(bulk_done golden-ernic-c)
+    n=$(acked_4mib golden-ernic-c)
     m=$(bulk_done golden-ernic-d)
     if [ $((n + m)) -lt 2 ]; then pending="$pending golden-ernic-seq($((n + m))/2)"; fi
   fi
