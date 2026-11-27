@@ -72,7 +72,7 @@ var DefaultSeqNetns = []string{"golden-ernic-c", "golden-ernic-d"}
 // server reads into io.Discard as fast as it is scheduled, so whether its
 // window ever closes depends on host load (nonzero in two of four).
 var seqColumns = map[string]bool{
-	"tcp_info_rwnd_limited": true,
+	rwndLimitedColumn: true,
 }
 
 // faultOnlyColumns are, beyond the lossyColumns, the columns five captures
@@ -137,7 +137,7 @@ var lossyColumns = map[string]bool{
 	"tcp_info_rehash":                    true,
 	"tcp_info_dsack_dups":                true,
 	"tcp_info_reord_seen":                true,
-	"tcp_info_rwnd_limited":              true,
+	rwndLimitedColumn:                    true,
 	"tcp_info_probes":                    true,
 	"tcp_info_delivery_rate_app_limited": true,
 	"inet_diag_msg_retrans":              true,
