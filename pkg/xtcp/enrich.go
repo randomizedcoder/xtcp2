@@ -201,6 +201,46 @@ func (x *XTCP) initUplinkEnrichers(ctx context.Context) {
 	src := x.uplinkSrc.orDefault(x)
 	count := uplinkCount(x.config)
 
+	st := x.loadUplinks(ctx, src, count)
+
+	if interval := uplinkRefreshInterval(x.config); interval > 0 {
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			x.refreshUplinks(ctx, count, st, ticker.C)
+		}()
+	}
+}
+
+// selectUplinks picks up to count uplinks: the default-route interfaces, or
+// when there are none (the default route lives on a separate management NIC,
+// or none is configured) the physical interfaces in sysfs, so the NIC/LLDP
+// columns still populate. The fallback is counted under function fn.
+func (x *XTCP) selectUplinks(src uplinkSources, count int, fn string) []string {
+	ifnames := src.defaultUplinks(count)
+	if len(ifnames) == 0 {
+		ifnames = src.physical(count)
+		if len(ifnames) > 0 {
+			x.pC.WithLabelValues(fn, "uplinks", "physical_fallback").Inc()
+		}
+	}
+	if len(ifnames) > count {
+		ifnames = ifnames[:count]
+	}
+	return ifnames
+}
+
+// uplinkState is what the refresh loop carries between ticks: the uplinks in
+// service, and whether their LLDP columns are stale (the last lldpd read
+// failed), so an unchanged list still retries lldpd.
+type uplinkState struct {
+	ifnames   []string
+	lldpStale bool
+}
+
+// loadUplinks is initUplinkEnrichers' startup work: select the uplinks (or
+// take the pinned ones), read their NIC + LLDP columns and store the stamp.
+func (x *XTCP) loadUplinks(ctx context.Context, src uplinkSources, count int) uplinkState {
 	ifnames := x.config.UplinkInterfaces
 	if len(ifnames) == 0 {
 		ifnames = x.selectUplinks(src, count, "initEnrichers")
@@ -224,33 +264,9 @@ func (x *XTCP) initUplinkEnrichers(ctx context.Context) {
 		}
 		x.uplinkStamp.Store(&s)
 		log.Printf("initUplinkEnrichers: uplinks=%v nics=%d lldpNeighbors=%d", ifnames, nics, neigh)
+		return uplinkState{ifnames: ifnames, lldpStale: err != nil}
 	}
-
-	if interval := uplinkRefreshInterval(x.config); interval > 0 {
-		go func() {
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			x.refreshUplinks(ctx, count, ifnames, ticker.C)
-		}()
-	}
-}
-
-// selectUplinks picks up to count uplinks: the default-route interfaces, or
-// when there are none (the default route lives on a separate management NIC,
-// or none is configured) the physical interfaces in sysfs, so the NIC/LLDP
-// columns still populate. The fallback is counted under function fn.
-func (x *XTCP) selectUplinks(src uplinkSources, count int, fn string) []string {
-	ifnames := src.defaultUplinks(count)
-	if len(ifnames) == 0 {
-		ifnames = src.physical(count)
-		if len(ifnames) > 0 {
-			x.pC.WithLabelValues(fn, "uplinks", "physical_fallback").Inc()
-		}
-	}
-	if len(ifnames) > count {
-		ifnames = ifnames[:count]
-	}
-	return ifnames
+	return uplinkState{ifnames: ifnames}
 }
 
 // buildStamp reads the NIC and LLDP columns of ifnames from sysfs and lldpd
@@ -278,51 +294,59 @@ func (x *XTCP) buildStamp(ctx context.Context, src uplinkSources, ifnames []stri
 }
 
 // refreshUplinks is initUplinkEnrichers' background loop: on every tick it
-// re-reads the auto-detected uplinks (refreshUplinksOnce), starting from
-// current. Runs until ctx is canceled.
-func (x *XTCP) refreshUplinks(ctx context.Context, count int, current []string, tick <-chan time.Time) {
+// re-reads the auto-detected uplinks (refreshUplinksOnce), starting from st.
+// Runs until ctx is canceled.
+func (x *XTCP) refreshUplinks(ctx context.Context, count int, st uplinkState, tick <-chan time.Time) {
 	src := x.uplinkSrc.orDefault(x)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick:
-			current = x.refreshUplinksSrc(ctx, src, count, current)
+			st = x.refreshUplinksSrc(ctx, src, count, st)
 		}
 	}
 }
 
-// refreshUplinksOnce re-selects the uplinks and returns the list now in
-// service. The same list as current costs one /proc read: no sysfs, no
-// lldpd, no new stamp. A different list is read in full and its stamp
-// replaces the old one (an empty stamp when no uplink is left). Outcomes are
-// counted under function="refreshUplinks": unchanged, changed, or
-// lldp_error (a changed list whose lldpd read failed: it keeps its NIC
-// columns).
-func (x *XTCP) refreshUplinksOnce(ctx context.Context, count int, current []string) []string {
-	return x.refreshUplinksSrc(ctx, x.uplinkSrc.orDefault(x), count, current)
+// refreshUplinksOnce re-selects the uplinks and returns the state now in
+// service. The same list as before, with good LLDP columns, costs only the
+// route and lower-device reads of DefaultUplinks: no NIC identity read, no
+// lldpd, no new stamp. A different list, or the same one whose last lldpd
+// read failed, is read in full and its stamp replaces the old one (an empty
+// stamp when no uplink is left). Outcomes are counted under
+// function="refreshUplinks": unchanged, changed, lldp_recovered (an
+// unchanged list whose retried lldpd read succeeded), or lldp_error (lldpd
+// failed: the NIC columns are kept and the next tick retries).
+func (x *XTCP) refreshUplinksOnce(ctx context.Context, count int, st uplinkState) uplinkState {
+	return x.refreshUplinksSrc(ctx, x.uplinkSrc.orDefault(x), count, st)
 }
 
-func (x *XTCP) refreshUplinksSrc(ctx context.Context, src uplinkSources, count int, current []string) []string {
+func (x *XTCP) refreshUplinksSrc(ctx context.Context, src uplinkSources, count int, st uplinkState) uplinkState {
 	ifnames := x.selectUplinks(src, count, "refreshUplinks")
-	if slices.Equal(ifnames, current) {
+	same := slices.Equal(ifnames, st.ifnames)
+	if same && !st.lldpStale {
 		x.pC.WithLabelValues("refreshUplinks", "uplinks", "unchanged").Inc()
-		return current
+		return st
 	}
 	s := uplinkStamp{}
 	outcome := "changed"
+	if same {
+		outcome = "lldp_recovered"
+	}
+	var err error
 	if len(ifnames) > 0 {
-		var err error
 		s, _, _, err = x.buildStamp(ctx, src, ifnames)
 		if err != nil {
 			outcome = "lldp_error"
-			log.Printf("refreshUplinks: LLDP columns left empty (best-effort): %v", err)
+			log.Printf("refreshUplinks: LLDP columns left empty, retrying next tick (best-effort): %v", err)
 		}
 	}
 	x.uplinkStamp.Store(&s)
 	x.pC.WithLabelValues("refreshUplinks", "uplinks", outcome).Inc()
-	log.Printf("refreshUplinks: uplinks %v -> %v", current, ifnames)
-	return ifnames
+	if !same {
+		log.Printf("refreshUplinks: uplinks %v -> %v", st.ifnames, ifnames)
+	}
+	return uplinkState{ifnames: ifnames, lldpStale: err != nil}
 }
 
 // buildUplinkStamp folds the per-interface NIC + LLDP lookups into the flat
