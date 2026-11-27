@@ -25,12 +25,13 @@ const (
 	// maxValues is the most values a column's set lists.
 	maxValues = 32
 
-	netnsColumn      = "netns"
-	containerColumn  = "container_name"
-	hostNetns        = "default"
-	caStateColumn    = "tcp_info_ca_state"
-	reorderingColumn = "tcp_info_reordering"
-	egressColumn     = "enrich_socket_dest_egress_ifname"
+	netnsColumn       = "netns"
+	containerColumn   = "container_name"
+	hostNetns         = "default"
+	caStateColumn     = "tcp_info_ca_state"
+	reorderingColumn  = "tcp_info_reordering"
+	rwndLimitedColumn = "tcp_info_rwnd_limited"
+	egressColumn      = "enrich_socket_dest_egress_ifname"
 )
 
 // profileListed decides, for each column of a valued class, whether a

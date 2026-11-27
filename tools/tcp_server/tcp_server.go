@@ -38,6 +38,9 @@ type serverConfig struct {
 	bind    string
 	network string
 	holdEOF bool
+	// discard reads and drops each connection's bytes instead of echoing
+	// them, so the client's sends are the only data on the connection.
+	discard bool
 	opts    sockopt.Options
 	// keepalive is net.ListenConfig.KeepAlive for accepted connections: 0
 	// is Go's default (on, 15 s), a negative value is off.
@@ -55,6 +58,7 @@ func parseFlags(args []string, stderr io.Writer) (serverConfig, error) {
 	fs.StringVar(&c.network, "network", networkCst, "tcp (family from -bind; 0.0.0.0 is dual-stack), tcp4 or tcp6")
 	fs.DurationVar(&c.keepalive, "keepalive", 0, "TCP keepalive idle time of accepted connections; 0 = Go's default (15s), negative = off")
 	fs.BoolVar(&c.holdEOF, "holdEOF", false, "keep a connection open after the client's EOF (CLOSE_WAIT) until the server stops")
+	fs.BoolVar(&c.discard, "discard", false, "read and drop what the client sends instead of echoing it")
 	c.opts.Register(fs)
 	if err := fs.Parse(args); err != nil {
 		return serverConfig{}, err
@@ -159,7 +163,7 @@ func runServer(ctx context.Context, c serverConfig, port int) error {
 				}
 			}
 		}
-		go handleConn(ctx, conn, c.holdEOF)
+		go handleConn(ctx, conn, c.holdEOF, c.discard)
 	}
 }
 
@@ -197,18 +201,25 @@ func checkFamily(network, flag, host string) error {
 	return nil
 }
 
-// handleConn echoes bytes back to the connection until EOF or error. With
-// holdEOF it then keeps the socket (CLOSE_WAIT) until ctx is done.
-func handleConn(ctx context.Context, conn net.Conn, holdEOF bool) {
+// handleConn echoes bytes back to the connection until EOF or error, or
+// with discard reads and drops them. With holdEOF it then keeps the socket
+// (CLOSE_WAIT) until ctx is done. It returns the bytes read.
+func handleConn(ctx context.Context, conn net.Conn, holdEOF, discard bool) int64 {
 	defer func() {
 		if cerr := conn.Close(); cerr != nil {
 			log.Printf("handleConn: conn close: %v", cerr)
 		}
 	}()
-	if _, cerr := io.Copy(conn, conn); cerr != nil {
-		log.Printf("echo copy: %v", cerr)
+	var dst io.Writer = conn
+	if discard {
+		dst = io.Discard
+	}
+	n, cerr := io.Copy(dst, conn)
+	if cerr != nil {
+		log.Printf("handleConn: copy: %v", cerr)
 	}
 	if holdEOF {
 		<-ctx.Done()
 	}
+	return n
 }

@@ -20,6 +20,7 @@ type parsed struct {
 	mode        closeMode
 	dialTimeout time.Duration
 	keepalive   time.Duration
+	bulkOneWay  bool
 	err         string
 }
 
@@ -49,12 +50,15 @@ func TestParseClientFlags(t *testing.T) {
 		{"keepalive_off", "positive", "a negative -keepalive turns TCP keepalive off", []string{"-keepalive", "-1s"}, parsed{dialTimeout: dialTimeoutCst, keepalive: -time.Second}},
 		{"keepalive_bad", "negative", "a -keepalive that is not a duration", []string{"-keepalive", "soon"}, parsed{err: `invalid value "soon" for flag -keepalive`}},
 		{"keepalive_zero", "boundary", "0 keeps Go's default keepalive", []string{"-keepalive", "0s"}, parsed{dialTimeout: dialTimeoutCst}},
+		{"oneway", "positive", "-bulkOneWay with -bulk parses", []string{"-bulk", "4MiB", "-bulkOneWay"}, parsed{bulk: 4 << 20, bulkOneWay: true, dialTimeout: dialTimeoutCst}},
+		{"oneway_needs_bulk", "negative", "-bulkOneWay alone has nothing to send", []string{"-bulkOneWay"}, parsed{err: "-bulkOneWay needs -bulk"}},
+		{"oneway_bulk_zero", "boundary", "-bulk 0 is no transfer, so -bulkOneWay is rejected", []string{"-bulk", "0", "-bulkOneWay"}, parsed{err: "-bulkOneWay needs -bulk"}},
 		{"last_wins", "corner", "a repeated flag takes the last value, so appended args override", []string{"-tos", "8", "-tos", "0xb8"}, parsed{opts: sockopt.Options{TOS: 0xb8}, dialTimeout: dialTimeoutCst}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c, err := parseFlags(tc.input, io.Discard)
-			got := parsed{opts: c.opts, bulk: c.bulk, mode: c.mode, dialTimeout: c.dialTimeout, keepalive: c.keepalive}
+			got := parsed{opts: c.opts, bulk: c.bulk, mode: c.mode, dialTimeout: c.dialTimeout, keepalive: c.keepalive, bulkOneWay: c.bulkOneWay}
 			ok := errMatches(err, tc.expected.err)
 			if err == nil {
 				want := tc.expected

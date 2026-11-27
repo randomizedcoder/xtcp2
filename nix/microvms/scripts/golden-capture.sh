@@ -169,13 +169,64 @@ n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_s
 ok=0
 [ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
 per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans || '/state' || inet_diag_msg_state || '/segs_out' || tcp_info_segs_out || '/bytes_acked' || tcp_info_bytes_acked, ',' ORDER BY inet_diag_cong) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000")
-# netem's own drop count on each side's veth0, to tell "netem dropped
-# nothing" from "TCP saw no loss" when this row fails.
+# netem's own sent and dropped counts on each side's veth0, to tell "netem
+# dropped nothing" from "TCP saw no loss" when this row fails, and, beside
+# the namespace's OutSegs + RetransSegs, whether every segment went
+# through netem at all (sent + dropped also counts ARP and IPv6 ND).
 netem_drops=""
 for ns in golden-bulk-a golden-bulk-b; do
-  netem_drops="$netem_drops $ns=$(ip netns exec "$ns" tc -s qdisc show dev veth0 | awk '/dropped/ { sub(",", "", $7); print $7; exit }')"
+  netem_drops="$netem_drops $ns=$(ip netns exec "$ns" tc -s qdisc show dev veth0 | awk '/dropped/ { sub(",", "", $7); print "sent" $4 "/dropped" $7; exit }')"
 done
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem dropped:$netem_drops"
+# The kernel's own view of the clients (ss, by local port, with the ECN
+# flags) and of each namespace (nstat; a fresh netns starts its MIBs at 0).
+# ss_bulk prints PORT=TOTAL_RETRANS per client, comma-separated as q's
+# string_agg (q strips spaces); ss shows retrans only when nonzero. The
+# detail adds the algorithm, ECN flags, segs_out and rtt (netem's 5 ms
+# each way makes it 10 ms or more). ss_bulk detail SEP server does the
+# same for the servers on golden-bulk-b, keyed by the client's port.
+ss_bulk() {
+  local ns=golden-bulk-a filter='( dport = :4000 )' key=3
+  if [ "${3:-}" = server ]; then ns=golden-bulk-b filter='( sport = :4000 )' key=4; fi
+  ip netns exec "$ns" ss -HtinO state established "$filter" |
+    awk -v detail="${1:-}" -v key="$key" '{ p = $key; sub(/.*:/, "", p); r = 0; e = ""; t = "?"
+      for (i = 5; i <= NF; i++) { if ($i ~ /^retrans:/) { r = $i; sub(/.*\//, "", r) } if ($i ~ /^rtt:/) { t = substr($i, 5); sub(/\/.*/, "", t) } if ($i == "ecn" || $i == "ecnseen") e = e "+" $i }
+      if (detail) print p "=" r "/" $5 e "/segs_out" seg($0) "/rtt" t; else print p "=" r }
+      function seg(l) { if (match(l, /segs_out:[0-9]+/)) return substr(l, RSTART + 9, RLENGTH - 9); return "?" }' |
+    sort -n | paste -sd "${2:-,}"
+}
+nstat_of() { ip netns exec "$1" nstat -asz "$2" | awk -v k="$2" '$1 == k { print $2; found = 1 } END { if (!found) print "?" }'; }
+mibs=""
+for ns in golden-bulk-a golden-bulk-b; do
+  mibs="$mibs $ns=RetransSegs$(nstat_of "$ns" TcpRetransSegs)/OutSegs$(nstat_of "$ns" TcpOutSegs)"
+done
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem sent/dropped:$netem_drops; kernel per port, retrans/cong/segs_out/rtt: $(ss_bulk detail " "); servers by client port: $(ss_bulk detail " " server);$mibs"
+# The dctcp bulk client keeps dctcp: a SYN lost to netem must not make it
+# fall back to dctcp-reno (tcp_ecn_fallback=0 in golden-bulk-a, the
+# workload). Only when BULK_CC has dctcp.
+if [[ " $BULK_CC " == *" dctcp "* ]]; then
+  got=$(q "SELECT coalesce(string_agg(inet_diag_cong, ',' ORDER BY inet_diag_cong), 'none') FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_cong LIKE 'dctcp%'")
+  ok=0
+  [ "$got" = dctcp ] && ok=1
+  row bulk_dctcp_ecn negative "$ok" "the dctcp bulk client's algorithm: $got, want dctcp (dctcp-reno is the ECN fallback)"
+fi
+# A fresh netns's TcpRetransSegs is the sum of its sockets' total_retrans:
+# both count each retransmitted segment (net/ipv4/tcp_output.c:3710,
+# :3713), SYN-ACK retransmits count in both too (tcp_output.c:4722,
+# net/ipv4/tcp_minisocks.c:591). Only a socket closed before the poll
+# would take its share away, and the bulk sockets stay open.
+for side in a b; do
+  ns=golden-bulk-$side
+  sum=$(q "SELECT coalesce(sum(tcp_info_total_retrans), 0) FROM $P WHERE netns = '$ns'")
+  mib=$(nstat_of "$ns" TcpRetransSegs)
+  ok=0
+  [ "$sum" = "$mib" ] && ok=1
+  row "netem_retrans_$side" positive "$ok" "$ns: xtcp2's sum of total_retrans $sum, the namespace's TcpRetransSegs $mib"
+done
+want=$(ss_bulk)
+got=$(q "SELECT string_agg(inet_diag_msg_socket_source_port || '=' || tcp_info_total_retrans, ',' ORDER BY inet_diag_msg_socket_source_port) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_msg_state = 1")
+ok=0
+[ -n "$want" ] && [ "$got" = "$want" ] && ok=1
+row netem_kernel_agrees negative "$ok" "per client port=total_retrans, xtcp2: ${got:-none}; kernel (ss): ${want:-none}"
 n=$(q "SELECT count(*) FROM $P WHERE netns IN ('golden-cc-a', 'golden-cc-b', 'golden-opts-a', 'golden-opts-b') AND tcp_info_total_retrans > 0")
 ok=0
 [ "$n" -eq 0 ] && ok=1
@@ -247,11 +298,17 @@ if [ -n "${ERNIC_SEQ_DROPS:-}" ]; then
   ok=0
   [ "$n" = 1 ] && [ "$egress" = ionic2 ] && ok=1
   row seq_egress negative "$ok" "the sequence flow's client and egress: $n:$egress, want 1:ionic2 (not uplink ionic0)"
-  # Some drops are pure ACKs for the echoed data, which TCP never resends,
-  # so retransmits are positive but need not reach the drop count.
+  # The flow is one-way, so every dropped frame is a data segment and is
+  # retransmitted exactly once.
   ok=0
-  [ "$retrans" -gt 0 ] && ok=1
-  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), for $dropped drops"
+  [ "$retrans" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
+  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), want the sequence's $ERNIC_SEQ_DROPS"
+  # The server sends only ACKs, over NICs without faults: nothing to resend.
+  got=$(q "SELECT count(*) || ':' || coalesce(max(tcp_info_total_retrans), 0) FROM $P WHERE netns = 'golden-ernic-d' AND inet_diag_msg_socket_source_port = 4000 AND inet_diag_msg_state = 1")
+  IFS=: read -r n sretrans <<<"$got"
+  ok=0
+  [ "$n" = 1 ] && [ "$sretrans" = 0 ] && ok=1
+  row seq_server_no_retrans negative "$ok" "the sequence flow's server: $n:$sretrans connections:total_retrans, want 1:0"
   # The bursts are short enough for fast recovery: no timeout in six of six
   # captures when this row was added.
   ok=0

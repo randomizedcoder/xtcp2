@@ -36,6 +36,10 @@ type Options struct {
 	// DefaultFaultEgress when nil; empty for none.
 	FaultNetns  []string
 	FaultEgress []string
+	// SeqNetns name the namespaces of the one-way sequence flow; in their
+	// rows only the seqColumns are not compared. DefaultSeqNetns when nil;
+	// empty for none.
+	SeqNetns []string
 }
 
 // DefaultLossyNetns are the golden workload's netem pair
@@ -46,16 +50,30 @@ type Options struct {
 var DefaultLossyNetns = []string{"golden-bulk-a", "golden-bulk-b"}
 
 // DefaultFaultNetns and DefaultFaultEgress are the golden workload's
-// rocm-ernic transfers (nix/microvms/golden-ernic.nix): the servers in
-// golden-ernic-b and the root namespace's clients out of ionic0, and the
-// sequence-pattern flow from golden-ernic-c (ionic2) to golden-ernic-d
-// (ionic3). The emulator drops fixed frame numbers, but which segments
-// those frames carry depends on how data and ACKs interleave, so the
-// counters vary as netem's do.
+// rocm-ernic echo transfers (nix/microvms/golden-ernic.nix): the servers
+// in golden-ernic-b and the root namespace's clients out of ionic0. The
+// emulator drops fixed frame numbers, but which segments those frames
+// carry depends on how data and ACKs interleave, so the counters vary as
+// netem's do. The sequence flow from golden-ernic-c (ionic2) to
+// golden-ernic-d (ionic3) is one-way: every frame ionic2 sends is data, so
+// each drop is one retransmit and its rows are compared.
 var (
-	DefaultFaultNetns  = []string{"golden-ernic-b", "golden-ernic-c", "golden-ernic-d"}
+	DefaultFaultNetns  = []string{"golden-ernic-b"}
 	DefaultFaultEgress = []string{"ionic0"}
 )
+
+// DefaultSeqNetns are the one-way sequence flow's namespaces
+// (golden-workload.sh). Its drops and retransmits are exact, so its rows are
+// compared but for the seqColumns.
+var DefaultSeqNetns = []string{"golden-ernic-c", "golden-ernic-d"}
+
+// seqColumns are the sequence rows' columns four captures showed differ.
+// rwnd_limited counts time the receiver's window held the sender back: the
+// server reads into io.Discard as fast as it is scheduled, so whether its
+// window ever closes depends on host load (nonzero in two of four).
+var seqColumns = map[string]bool{
+	rwndLimitedColumn: true,
+}
 
 // faultOnlyColumns are, beyond the lossyColumns, the columns five captures
 // showed differ on fault rows. Only ACKs are dropped on the servers' path,
@@ -71,7 +89,8 @@ var faultOnlyColumns = map[string]bool{
 func faultColumn(c string) bool { return lossyColumns[c] || faultOnlyColumns[c] }
 
 // exemptions returns, for a row, which of its columns Diff leaves out: the
-// lossyColumns in a LossyNetns row, the faultColumns in a fault row.
+// lossyColumns in a LossyNetns row, the faultColumns in a fault row, the
+// seqColumns in a sequence row.
 func exemptions(opts Options) func(Row) func(string) bool {
 	orDefault := func(v, d []string) []string {
 		if v == nil {
@@ -82,14 +101,18 @@ func exemptions(opts Options) func(Row) func(string) bool {
 	lossyNetns := orDefault(opts.LossyNetns, DefaultLossyNetns)
 	faultNetns := orDefault(opts.FaultNetns, DefaultFaultNetns)
 	faultEgress := orDefault(opts.FaultEgress, DefaultFaultEgress)
+	seqNetns := orDefault(opts.SeqNetns, DefaultSeqNetns)
 	none := func(string) bool { return false }
 	lossy := func(c string) bool { return lossyColumns[c] }
+	seq := func(c string) bool { return seqColumns[c] }
 	return func(r Row) func(string) bool {
 		switch {
 		case slices.Contains(faultNetns, r[netnsColumn]) || slices.Contains(faultEgress, r[egressColumn]):
 			return faultColumn
 		case slices.Contains(lossyNetns, r[netnsColumn]):
 			return lossy
+		case slices.Contains(seqNetns, r[netnsColumn]):
+			return seq
 		}
 		return none
 	}
@@ -114,7 +137,7 @@ var lossyColumns = map[string]bool{
 	"tcp_info_rehash":                    true,
 	"tcp_info_dsack_dups":                true,
 	"tcp_info_reord_seen":                true,
-	"tcp_info_rwnd_limited":              true,
+	rwndLimitedColumn:                    true,
 	"tcp_info_probes":                    true,
 	"tcp_info_delivery_rate_app_limited": true,
 	"inet_diag_msg_retrans":              true,
