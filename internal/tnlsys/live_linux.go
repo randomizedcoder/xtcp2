@@ -12,9 +12,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// spillFill is what Live fills the bytes past an argument with, so a
+// SpillFill is what Live fills the bytes past an argument with, so a
 // kernel write there shows.
-const spillFill = 0xA5
+const SpillFill = 0xA5
 
 // tunDev is TUNDEV, the path a tun descriptor's /proc link reads.
 const tunDev = "/dev/net/tun"
@@ -30,7 +30,7 @@ type Live struct {
 // pkg/linkmonitor's ethtoolIfreq: the pointer stays visible to the GC, and
 // the union is 24 bytes on 64-bit Linux, 16 on 32-bit.
 type ifreqData struct {
-	name    [ifNameSize]byte
+	name    [IfNameSize]byte
 	data    unsafe.Pointer
 	padding [8 + unsafe.Sizeof(uintptr(0))]byte
 }
@@ -40,7 +40,7 @@ type ifreqData struct {
 // reply larger than arg lands in Go memory Live owns and comes back as
 // spill instead of corrupting the heap.
 func (l Live) Ioctl(family int, req uint32, name string, arg []byte) (spill []byte, err error) {
-	if !knownReq(req) || len(arg) == 0 || len(arg) > maxArg {
+	if !KnownReq(req) || len(arg) == 0 || len(arg) > MaxArg {
 		return nil, ErrRequest
 	}
 	fd, err := unix.Socket(family, unix.SOCK_DGRAM|unix.SOCK_CLOEXEC, 0)
@@ -55,7 +55,7 @@ func (l Live) Ioctl(family int, req uint32, name string, arg []byte) (spill []by
 	buf := make([]byte, len(arg)+SpillWindow)
 	copy(buf, arg)
 	for i := len(arg); i < len(buf); i++ {
-		buf[i] = spillFill
+		buf[i] = SpillFill
 	}
 	var ifr ifreqData
 	copy(ifr.name[:], IfName(name))
@@ -66,17 +66,17 @@ func (l Live) Ioctl(family int, req uint32, name string, arg []byte) (spill []by
 		return nil, errno
 	}
 	copy(arg, buf)
-	return spillOf(buf[len(arg):]), nil
+	return SpillOf(buf[len(arg):]), nil
 }
 
-// spillOf is what the kernel wrote into a window past an argument that was
-// filled with spillFill: the window up to its last byte that is not
-// spillFill, nil when there is none. The kernel copies its reply from the
+// SpillOf is what the kernel wrote into a window past an argument that was
+// filled with SpillFill: the window up to its last byte that is not
+// SpillFill, nil when there is none. The kernel copies its reply from the
 // argument's start, so its write is a prefix of the window; a reply ending
-// in spillFill bytes is cut short by them.
-func spillOf(w []byte) []byte {
+// in SpillFill bytes is cut short by them.
+func SpillOf(w []byte) []byte {
 	for i := len(w) - 1; i >= 0; i-- {
-		if w[i] != spillFill {
+		if w[i] != SpillFill {
 			return append([]byte(nil), w[:i+1]...)
 		}
 	}

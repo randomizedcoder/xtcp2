@@ -1,4 +1,4 @@
-package tnlsys
+package trace
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 // stop: ESRCH, however wrapped, skips the thread; any other error stops
 // the trace.
 //
-// go test ./internal/tnlsys/ -run TestThreadGone
+// go test ./internal/tnlsys/trace/ -run TestThreadGone
 func TestThreadGone(t *testing.T) {
 	tests := []struct {
 		description string

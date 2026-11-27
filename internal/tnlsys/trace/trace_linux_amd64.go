@@ -1,4 +1,4 @@
-package tnlsys
+package trace
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/randomizedcoder/xtcp2/internal/tnlsys"
 	"github.com/randomizedcoder/xtcp2/pkg/cint"
 	"golang.org/x/sys/unix"
 )
@@ -31,10 +32,10 @@ const syscallStop = syscall.SIGTRAP | 0x80
 // name and the argument before and after, with what the kernel wrote past
 // it. The run's stdout, stderr and status come back in Run; cmd's own
 // Stdout, Stderr and SysProcAttr are replaced. Threads are followed.
-func Trace(cmd *exec.Cmd) (*Run, []IoctlRec, error) {
+func Trace(cmd *exec.Cmd) (*tnlsys.Run, []tnlsys.IoctlRec, error) {
 	type result struct {
-		run  *Run
-		recs []IoctlRec
+		run  *tnlsys.Run
+		recs []tnlsys.IoctlRec
 		err  error
 	}
 	ch := make(chan result, 1)
@@ -51,7 +52,7 @@ func Trace(cmd *exec.Cmd) (*Run, []IoctlRec, error) {
 	return res.run, res.recs, res.err
 }
 
-func trace(cmd *exec.Cmd) (*Run, []IoctlRec, error) {
+func trace(cmd *exec.Cmd) (*tnlsys.Run, []tnlsys.IoctlRec, error) {
 	outR, outW, err := os.Pipe()
 	if err != nil {
 		return nil, nil, fmt.Errorf("tnlsys: trace: %w", err)
@@ -72,7 +73,7 @@ func trace(cmd *exec.Cmd) (*Run, []IoctlRec, error) {
 
 	t := tracer{pid: cmd.Process.Pid, fam: map[int]int{}}
 	rc, terr := t.run()
-	run := &Run{Argv: append([]string(nil), cmd.Args...), RC: rc, Stdout: string(<-stdout), Stderr: string(<-stderr)}
+	run := &tnlsys.Run{Argv: append([]string(nil), cmd.Args...), RC: rc, Stdout: string(<-stdout), Stderr: string(<-stderr)}
 	if cerr := joinClose(nil, outR, errR); terr == nil {
 		terr = cerr
 	}
@@ -104,7 +105,7 @@ func joinClose(err error, fs ...*os.File) error {
 type tracer struct {
 	pid  int
 	fam  map[int]int // descriptor -> socket(2) domain, process-wide
-	recs []IoctlRec
+	recs []tnlsys.IoctlRec
 	thr  map[int]*thread
 }
 
@@ -124,7 +125,7 @@ type pendingIoctl struct {
 	name   string
 	arg    uintptr
 	size   int
-	in     []byte // size + SpillWindow bytes
+	in     []byte // size + tnlsys.SpillWindow bytes
 }
 
 // run steps the tracee's threads from syscall stop to syscall stop until
@@ -224,7 +225,7 @@ func (t *tracer) entry(th *thread, tid int, regs *unix.PtraceRegs) error {
 		th.sockDom = int(cint.Low32(regs.Rdi))
 	case unix.SYS_IOCTL:
 		req := cint.Low32(regs.Rsi)
-		if !knownReq(req) {
+		if !tnlsys.KnownReq(req) {
 			return nil
 		}
 		return t.ioctlEntry(th, tid, int(cint.Low32(regs.Rdi)), req, uintptr(regs.Rdx))
@@ -239,28 +240,28 @@ func (t *tracer) ioctlEntry(th *thread, tid int, fd int, req uint32, ifrAddr uin
 	}
 	p := &pendingIoctl{
 		family: t.fam[fd], req: req,
-		name: IfName(string(ifr[:ifNameSize])),
+		name: tnlsys.IfName(string(ifr[:tnlsys.IfNameSize])),
 		arg:  uintptr(binary.LittleEndian.Uint64(ifr[ifrDataOff:])),
 	}
 	switch req {
-	case SIOCGETPRL:
-		hdr := make([]byte, TunnelPRLSize)
+	case tnlsys.SIOCGETPRL:
+		hdr := make([]byte, tnlsys.TunnelPRLSize)
 		if err := t.peek(tid, p.arg, hdr); err != nil {
 			return err
 		}
 		datalen := int(binary.LittleEndian.Uint32(hdr[8:12]))
-		p.size = min(TunnelPRLSize+datalen, maxArg)
+		p.size = min(tnlsys.TunnelPRLSize+datalen, tnlsys.MaxArg)
 	default:
-		p.size = ArgSize(p.family, req)
+		p.size = tnlsys.ArgSize(p.family, req)
 	}
-	p.in = make([]byte, p.size+SpillWindow)
+	p.in = make([]byte, p.size+tnlsys.SpillWindow)
 	if err := t.peek(tid, p.arg, p.in); err != nil {
 		return err
 	}
 	// Fill the window past the argument, as Live does, so that the exit
 	// can tell the kernel's bytes from the tracee's own (its stack, whose
 	// pointers vary run to run). ioctlExit restores what the kernel left.
-	if err := t.poke(tid, p.arg+uintptr(p.size), bytes.Repeat([]byte{spillFill}, SpillWindow)); err != nil {
+	if err := t.poke(tid, p.arg+uintptr(p.size), bytes.Repeat([]byte{tnlsys.SpillFill}, tnlsys.SpillWindow)); err != nil {
 		return err
 	}
 	th.pend = p
@@ -301,13 +302,13 @@ func (t *tracer) ioctlExit(tid int, p *pendingIoctl, errno unix.Errno) error {
 	}
 	// The kernel's write past the argument is a prefix of the window; the
 	// tracee gets its own bytes back after it.
-	spill := spillOf(out[p.size:])
+	spill := tnlsys.SpillOf(out[p.size:])
 	if keep := p.size + len(spill); keep < len(p.in) {
 		if err := t.poke(tid, p.arg+uintptr(keep), p.in[keep:]); err != nil {
 			return err
 		}
 	}
-	var s Snapshot
+	var s tnlsys.Snapshot
 	if errno != 0 {
 		s.AddIoctl(p.family, p.req, p.name, p.in[:p.size], nil, nil, errno)
 	} else {

@@ -56,12 +56,12 @@ const (
 // write 24 bytes past a 52-byte ip_tunnel_parm.
 const SpillWindow = 64
 
-// maxArg bounds an ioctl argument: a SIOCGETPRL buffer is 16 bytes per
+// MaxArg bounds an ioctl argument: a SIOCGETPRL buffer is 16 bytes per
 // router, and `ip` asks for 16.
-const maxArg = 64 << 10
+const MaxArg = 64 << 10
 
-// ifNameSize is IFNAMSIZ.
-const ifNameSize = 16
+// IfNameSize is IFNAMSIZ.
+const IfNameSize = 16
 
 // ErrNotRecorded is a snapshot asked a question its recording never saw.
 // It is a replay error, not a kernel answer: a recorded failure comes back
@@ -129,8 +129,8 @@ func reqByName(s string) (uint32, bool) {
 	return 0, false
 }
 
-// knownReq is whether req is one of the three gets.
-func knownReq(req uint32) bool {
+// KnownReq is whether req is one of the three gets.
+func KnownReq(req uint32) bool {
 	_, ok := reqByName(ReqName(req))
 	return ok
 }
@@ -141,8 +141,8 @@ func IfName(name string) string {
 	if i := strings.IndexByte(name, 0); i >= 0 {
 		name = name[:i]
 	}
-	if len(name) > ifNameSize-1 {
-		name = name[:ifNameSize-1]
+	if len(name) > IfNameSize-1 {
+		name = name[:IfNameSize-1]
 	}
 	return name
 }

@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/tnlsys"
+	"github.com/randomizedcoder/xtcp2/internal/tnlsys/trace"
 )
 
 func main() {
@@ -162,7 +163,7 @@ func matches(prefix, word string) bool {
 
 // snapshot traces cmd and records the props, and the /proc walk if walk.
 func snapshot(cmd *exec.Cmd, live tnlsys.Live, walk bool) ([]byte, error) {
-	r, recs, err := tnlsys.Trace(cmd)
+	r, recs, err := trace.Trace(cmd)
 	if err != nil {
 		return nil, err
 	}
