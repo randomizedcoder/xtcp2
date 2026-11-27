@@ -823,6 +823,10 @@ func TestRender(t *testing.T) {
 						writeCleanWriteRow(t, dir, c)
 						continue
 					}
+					if c.Monitor {
+						writeCleanMonitorRow(t, dir, c)
+						continue
+					}
 					if c.Proto != "" {
 						writeGenlReadRow(t, dir, c)
 						continue
@@ -884,6 +888,8 @@ func TestRender(t *testing.T) {
 					switch {
 					case c.Write:
 						writeCleanWriteRow(t, dir, c)
+					case c.Monitor:
+						writeCleanMonitorRow(t, dir, c)
 					case c.IPStandIn:
 						writeTriple(t, dir, c, sameAll(tdGenlFouShow), sameAll(""))
 					case c.Implemented && c.Proto != "":

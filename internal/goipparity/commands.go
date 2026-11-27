@@ -219,15 +219,33 @@ var commands = withArgs([]Command{
 		// EG1's monitor section: the EP1 twelve, the refusals, the corners (V391's
 		// rows, the ev table's own). Args is the monitor's objects, the row's
 		// section the monitor's. Floor 1 — a monitor row's own floor is its
-		// until-EREs matching — is the Fixtures Layer. Setup is the ipmon row's
-		// pre, one step (the driver joins the steps on ';', and a step cannot
-		// contain one). The until-EREs are the ev rows' own words. canary c0.
+		// until-EREs matching, and no pcap is taken at all — is the table's
+		// shape, not the driver's: the driver runs the row through
+		// xtcp2-nlcap's `mon`, which records .out, .err and .rc alone. The
+		// until-EREs are the ev rows' own words. Canary c0.
+		//
+		// Setup is the ev row's pre in the parity harness's form — ip argv
+		// steps, not the corpus driver's shell snippet (the plan carried the
+		// snippet, and a step through nltopo::topo would have been `ip -n <ns>
+		// n=$(…)` — the V391 correction) — with the veth module the row names
+		// and the veth MACs pinned, the corpus's own device rule (the addr
+		// corpus's 02:00:00:00:d0:00 dummy): the row's three sides run in three
+		// namespaces, and a random veth MAC would differ on every side, its
+		// solicited-node multicast line with it, so the pin is what makes the
+		// MAC and its derived addresses comparable at all.
 		Name: "monitor link maddress carrier", Slug: "monitor_link_carrier",
 		Floor: 1, Implemented: true, Monitor: true,
 		Args:   []string{"monitor", "link", "maddress"},
 		Canary: "c0",
 		Setup: []string{
-			"n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up && ip link add r0 type veth peer name r0p && ip link set r0 up && ip link set r0p up",
+			"modules veth",
+			"link add c0 type dummy",
+			"link set c0 up",
+			"link add r0 type veth peer name r0p",
+			"link set r0 address 02:00:00:00:10:00",
+			"link set r0p address 02:00:00:00:10:01",
+			"link set r0 up",
+			"link set r0p up",
 		},
 		Trigger: "ip link set r0p down; ip link set r0p up",
 		Until:   []string{"r0@r0p: .*NO-CARRIER", "r0@r0p: .*state UP"},
@@ -241,7 +259,14 @@ var commands = withArgs([]Command{
 		Args:   []string{"monitor", "link", "maddress"},
 		Canary: "c0",
 		Setup: []string{
-			"n=$(ip netns identify $$) && ip netns set \"$n\" 0 && ip link add c0 type dummy && ip link set c0 up && ip link add r0 type veth peer name r0p && ip link set r0 up && ip link set r0p up",
+			"modules veth",
+			"link add c0 type dummy",
+			"link set c0 up",
+			"link add r0 type veth peer name r0p",
+			"link set r0 address 02:00:00:00:10:00",
+			"link set r0p address 02:00:00:00:10:01",
+			"link set r0 up",
+			"link set r0p up",
 		},
 		Trigger: "ip link set r0 down; ip link set r0 up",
 		Until:   []string{"r0@r0p: <BROADCAST,MULTICAST> .*state DOWN", "r0@r0p: .*state UP"},
@@ -8732,6 +8757,16 @@ func (c Command) WriteName() string {
 // RCName is the basename of one side's exit status on a write row.
 func (c Command) RCName(side string) string {
 	return c.Slug + "." + side + ".rc"
+}
+
+// ErrName is the basename of one side's recorded stderr, on a write row and
+// on a monitor row (EG1-T01). The write rows' .err is evidence a failing run
+// ships; a monitor row's is the floor the plan gives the row — the helper's
+// own complaint names a canary that never printed or an until-ERE that never
+// matched — so the monitor comparison requires it where the write comparison
+// reads it for the report alone.
+func (c Command) ErrName(side string) string {
+	return c.Slug + "." + side + ".err"
 }
 
 // ipStandInCst is String's impl field for an IPStandIn row.

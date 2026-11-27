@@ -90,6 +90,12 @@ type Result struct {
 	Netlink nlparity.Report
 	// Stdout is the structural render comparison. Zero on SKIP and MISSING.
 	Stdout StdoutReport
+	// MonitorRC is a monitor row's agreed helper rc, the floor the plan
+	// gives the row (the until-EREs matched, or the refusal the row is).
+	// Empty on every other row kind, and on a monitor row whose sides
+	// disagreed — which is a FAIL, and the report names the rcs in the
+	// error instead.
+	MonitorRC string
 	// Absent lists the files that were expected and not found, on MISSING.
 	Absent []string
 	// Err is a load or parse failure.
@@ -132,12 +138,17 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 		// something the table says is unimplemented, so one of the two is
 		// stale. Reported as a failure rather than ignored: the table is what
 		// decides whether a command is compared, and a stale table is how a
-		// command stops being compared without anyone noticing.
-		if p := filepath.Join(dir, c.CaptureName(SideGoip)); fileExists(p) {
+		// command stops being compared without anyone noticing. A monitor
+		// row's artifact is its stdout, not a pcap — it records none — so that
+		// is the file whose presence this checks for it.
+		art := c.CaptureName(SideGoip)
+		if c.Monitor {
+			art = c.StdoutName(SideGoip)
+		}
+		if p := filepath.Join(dir, art); fileExists(p) {
 			r.Status = StatusFail
 			r.Err = fmt.Errorf("%q is marked unimplemented but %s exists; the "+
-				"command table and the capture driver disagree", c.Name,
-				c.CaptureName(SideGoip))
+				"command table and the capture driver disagree", c.Name, art)
 		}
 		return r
 	}
@@ -154,6 +165,14 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 		r.Status = StatusMissing
 		r.Absent = absent
 		return r
+	}
+
+	// A monitor row is the inverse of a dump: no pcap to parse and no
+	// datagram floor — the until-EREs are the row's own floor, the helper's
+	// own rc — so the whole comparison is monitor.go's, and it never reads
+	// the netlink half at all.
+	if c.Monitor {
+		return compareMonitorRow(dir, c, al)
 	}
 
 	proto, ok := nlparity.ProtocolByName(c.Protocol())
@@ -238,6 +257,14 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 func (c Command) expectedFiles() []string {
 	var out []string
 	for _, side := range Sides() {
+		// A monitor row's files: the stdout, the helper's rc (the floor)
+		// and the helper's stderr (where the floor's complaint lands). No
+		// pcap — a notification is the point, and the hygiene rule that
+		// fails a dump on one would fail exactly what the row compares.
+		if c.Monitor {
+			out = append(out, c.StdoutName(side), c.RCName(side), c.ErrName(side))
+			continue
+		}
 		out = append(out, c.CaptureName(side), c.StdoutName(side))
 		if c.Write {
 			out = append(out, c.RCName(side))
@@ -360,11 +387,17 @@ func Render(w io.Writer, results []Result) bool {
 
 		// The L1 sentinel is printed whether or not it differs, because "both
 		// sides ran 2 transactions" is the statement that makes a clean
-		// report believable.
-		fmt.Fprintf(w, "  txns: ip=%d goip=%d  pids: ip=%v goip=%v  control: nl=%d stdout=%d\n",
-			r.Netlink.RefTxns, r.Netlink.SubTxns,
-			r.Netlink.RefPids, r.Netlink.SubPids,
-			r.Netlink.ControlSize, r.Stdout.ControlSize)
+		// report believable. A monitor row has no netlink half, so it names
+		// the floor it does have — the helper's rc, and the stdout control.
+		if c.Monitor {
+			fmt.Fprintf(w, "  monitor: rc=%s control: stdout=%d\n",
+				r.MonitorRC, r.Stdout.ControlSize)
+		} else {
+			fmt.Fprintf(w, "  txns: ip=%d goip=%d  pids: ip=%v goip=%v  control: nl=%d stdout=%d\n",
+				r.Netlink.RefTxns, r.Netlink.SubTxns,
+				r.Netlink.RefPids, r.Netlink.SubPids,
+				r.Netlink.ControlSize, r.Stdout.ControlSize)
+		}
 
 		// No "hygiene: " prefix here, unlike the lines below: a hygiene
 		// divergence renders its own level as the word `hygiene`, so a prefix

@@ -127,6 +127,32 @@ func TestCommandTable(t *testing.T) {
 			},
 		},
 		{
+			description: "positive: a monitor row carries a canary, a trigger and at least one until-ERE, or the row has no floor",
+			check: func(t *testing.T) {
+				// The until-EREs are a monitor row's own floor: the helper
+				// exits 1 when the canary never printed or an ERE never
+				// matched, so a row with no ERE is a row the helper would
+				// stop on its own usage line. A row with no canary device
+				// cannot join the group either. The driver accepts the row
+				// on the field count alone, so this is the table's own check
+				// on the fields past the ten fixed ones (EG1-T01).
+				for _, c := range Commands() {
+					if !c.Monitor {
+						continue
+					}
+					if c.Canary == "" {
+						t.Errorf("%q has no canary device", c.Name)
+					}
+					if c.Trigger == "" {
+						t.Errorf("%q has no trigger", c.Name)
+					}
+					if len(c.Until) == 0 {
+						t.Errorf("%q has no until-ERE, so its floor is nothing", c.Name)
+					}
+				}
+			},
+		},
+		{
 			description: "positive: Lookup finds an implemented command and returns its row",
 			check: func(t *testing.T) {
 				c, err := Lookup("link show")
