@@ -683,8 +683,7 @@ func (m *TcMqprio) parse(opt []byte) error {
 		}
 		m.HasMaxRate = true
 	}
-	tcEntries(tail, TcaMqprioTcEntry, TcaMqprioTcEntryMaxKnown, TcaMqprioTcEntryIndex, 0, TcaMqprioTcEntryFp, &m.TcEntries)
-	return nil
+	return tcEntries(tail, TcaMqprioTcEntry, TcaMqprioTcEntryMaxKnown, TcaMqprioTcEntryIndex, 0, TcaMqprioTcEntryFp, &m.TcEntries)
 }
 
 // mqprioRates is the MIN_RATE64/MAX_RATE64 RTA_OK loop: every member must
@@ -711,29 +710,49 @@ func mqprioRates(b []byte, t uint16, out *[TcQoptMaxQueueCst]uint64) (int, error
 
 // tcEntries is dump_tc_entries: an RTA_OK walk of b for raw type entry
 // with NLA_F_NESTED set, each parsed nested; sdu 0 is a list without
-// MAX_SDU (mqprio's).
-func tcEntries(b []byte, entry, maxType, index, sdu, fp uint16, out *TcTcEntries) {
+// MAX_SDU (mqprio's). A missing index or one of 16 or more is tc's message
+// and the entry skipped. A present index, MAX_SDU or FP shorter than a u32
+// is where tc reads past the attribute: ErrTcShort, as gotc refuses it.
+// Each value is checked before its array slot or highest-index marker is
+// touched.
+func tcEntries(b []byte, entry, maxType, index, sdu, fp uint16, out *TcTcEntries) error {
+	var bad error
 	walkRawAttrsLoose(b, func(raw uint16, v []byte) {
-		if raw != entry|tcNestedFlags {
+		if bad != nil || raw != entry|tcNestedFlags {
 			return
 		}
 		var buf smallAttrBuf
 		tb := parseSmallLoose(v, maxType, &buf)
-		// "Missing tc entry index", "Unexpected tc entry index": skipped. A
-		// short index is where tc reads past the attribute; skipped too.
-		tc, ok := tb.U32(index)
-		if !ok || tc >= TcQoptMaxQueueCst {
+		tc, has, err := tcOptU32(tb, index, "TC_ENTRY_INDEX")
+		if err != nil {
+			bad = err
 			return
 		}
-		if sdu != 0 && tb.Has(sdu) {
-			out.MaxSdu[tc], _ = tb.U32(sdu)
-			out.MaxTcMaxSdu = max(out.MaxTcMaxSdu, int(tc))
+		if !has || tc >= TcQoptMaxQueueCst {
+			return
 		}
-		if tb.Has(fp) {
-			out.Fp[tc], _ = tb.U32(fp)
+		if sdu != 0 {
+			s, hasSdu, err := tcOptU32(tb, sdu, "TC_ENTRY_MAX_SDU")
+			if err != nil {
+				bad = err
+				return
+			}
+			if hasSdu {
+				out.MaxSdu[tc] = s
+				out.MaxTcMaxSdu = max(out.MaxTcMaxSdu, int(tc))
+			}
+		}
+		f, hasFp, err := tcOptU32(tb, fp, "TC_ENTRY_FP")
+		if err != nil {
+			bad = err
+			return
+		}
+		if hasFp {
+			out.Fp[tc] = f
 			out.MaxTcFp = max(out.MaxTcFp, int(tc))
 		}
 	})
+	return bad
 }
 
 // smallAttrBuf backs the table of a small nest (a tc or schedule entry)
@@ -796,9 +815,8 @@ func (q *TcQopt) parseTaprio(opt []byte) error {
 		t.HasAdmin = true
 	}
 	t.TcEntries = TcTcEntries{MaxTcMaxSdu: -1, MaxTcFp: -1}
-	tcEntries(opt, TcaTaprioAttrTcEntry, TcaTaprioTcEntryMaxKnown, TcaTaprioTcEntryIndex,
+	return tcEntries(opt, TcaTaprioAttrTcEntry, TcaTaprioTcEntryMaxKnown, TcaTaprioTcEntryIndex,
 		TcaTaprioTcEntryMaxSdu, TcaTaprioTcEntryFp, &t.TcEntries)
-	return nil
 }
 
 // taprioSched is print_schedule: the s64 times and the entry list, each

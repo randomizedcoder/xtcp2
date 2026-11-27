@@ -73,6 +73,26 @@ func schedTcEntry(entry uint16, index, fp uint32) []byte {
 	return nest(entry, rtattr(1, le32(index)), rtattr(TcaMqprioTcEntryFp, le32(fp)))
 }
 
+// shortTcEntry parses a tc entry at index 0 whose scalar t has a payload
+// of 0 to 4 bytes, one "len err" per length.
+func shortTcEntry(kind string, entry, t uint16) string {
+	out := make([]string, 0, 5)
+	for n := range 5 {
+		e := nest(entry, rtattr(1, le32(0)), rtattr(t, make([]byte, n)))
+		in := cat(schedMqprioQopt(2), e)
+		if kind == TcKindTaprio {
+			in = schedTaprioOpts(e)
+		}
+		_, err := ParseTcQopt(kind, in)
+		s := "<nil>"
+		if err != nil {
+			s = schedErr(err)
+		}
+		out = append(out, fmt.Sprintf("%d %s", n, s))
+	}
+	return strings.Join(out, "; ")
+}
+
 func schedTaprioOpts(extra ...[]byte) []byte {
 	return cat(append([][]byte{rtattr(TcaTaprioAttrPriomap, schedMqprioQopt(0))}, extra...)...)
 }
@@ -275,6 +295,30 @@ func TestParseTcSched(t *testing.T) {
 			q, err := ParseTcQopt(TcKindMqprio, entries(15, 16))
 			return fmt.Sprint(q.Sched.Mqprio.TcEntries.MaxTcFp, q.Sched.Mqprio.TcEntries.Fp[15], err)
 		}, "15 2 <nil>"},
+		{"boundary: mqprio tc entry FP of 0..3 bytes is ErrTcShort", func() string {
+			return shortTcEntry(TcKindMqprio, TcaMqprioTcEntry, TcaMqprioTcEntryFp)
+		}, "0 " + ErrTcShort.Error() + "; 1 " + ErrTcShort.Error() + "; 2 " + ErrTcShort.Error() + "; 3 " + ErrTcShort.Error() + "; 4 <nil>"},
+		{"boundary: taprio tc entry FP of 0..3 bytes is ErrTcShort", func() string {
+			return shortTcEntry(TcKindTaprio, TcaTaprioAttrTcEntry, TcaTaprioTcEntryFp)
+		}, "0 " + ErrTcShort.Error() + "; 1 " + ErrTcShort.Error() + "; 2 " + ErrTcShort.Error() + "; 3 " + ErrTcShort.Error() + "; 4 <nil>"},
+		{"boundary: taprio tc entry MAX_SDU of 0..3 bytes is ErrTcShort", func() string {
+			return shortTcEntry(TcKindTaprio, TcaTaprioAttrTcEntry, TcaTaprioTcEntryMaxSdu)
+		}, "0 " + ErrTcShort.Error() + "; 1 " + ErrTcShort.Error() + "; 2 " + ErrTcShort.Error() + "; 3 " + ErrTcShort.Error() + "; 4 <nil>"},
+		{"negative: tc entry with a 2-byte index is ErrTcShort, as gotc refuses it", func() string {
+			_, err := ParseTcQopt(TcKindMqprio, cat(schedMqprioQopt(2), nest(TcaMqprioTcEntry, rtattr(TcaMqprioTcEntryIndex, le16(0)))))
+			return schedErr(err)
+		}, ErrTcShort.Error()},
+		{"negative: a truncated duplicate after a valid entry is an error, not a zero", func() string {
+			in := cat(schedMqprioQopt(2), schedTcEntry(TcaMqprioTcEntry, 0, TcFpExpress),
+				nest(TcaMqprioTcEntry, rtattr(TcaMqprioTcEntryIndex, le32(0)), rtattr(TcaMqprioTcEntryFp, []byte{1})))
+			_, err := ParseTcQopt(TcKindMqprio, in)
+			return schedErr(err)
+		}, ErrTcShort.Error()},
+		{"corner: a tc entry without an index is still skipped", func() string {
+			in := cat(schedMqprioQopt(2), nest(TcaMqprioTcEntry, rtattr(TcaMqprioTcEntryFp, le32(TcFpExpress))))
+			q, err := ParseTcQopt(TcKindMqprio, in)
+			return fmt.Sprint(q.Sched.Mqprio.TcEntries.MaxTcFp, err)
+		}, "-1 <nil>"},
 		{"boundary: multiq of 3 bytes prints nothing, no error", func() string { return schedSum(ParseTcQopt(TcKindMultiq, []byte{8, 0, 8})) },
 			"bands 0/0 false"},
 		// Corner.
