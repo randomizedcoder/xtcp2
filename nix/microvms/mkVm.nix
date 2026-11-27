@@ -2422,8 +2422,12 @@ let
   ]
   # The golden flavor adds locality and ASN over goldenAsnDb; the families
   # check keeps the base args.
+  # The 5s refresh lets the capture's uplink_follows_metric row see a route
+  # swap re-read within a poll (refreshUplinks).
   ++ lib.optionals isS3ParquetGolden [
     "-enrichLocality"
+    "-localityRefreshInterval"
+    "5s"
     "-enrichAsn"
     "-asnDbPath"
     "${goldenAsnDb}"

@@ -1,0 +1,1 @@
+[{"kind":"hhf","handle":"1:","root":true,"refcnt":2,"options":{"limit":500,"quantum":1514,"hh_limit":1024,"reset_timeout":50000,"admit_bytes":65536,"evict_timeout":500000,"non_hh_weight":4}}]

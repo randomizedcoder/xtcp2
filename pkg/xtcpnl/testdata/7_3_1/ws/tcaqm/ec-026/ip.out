@@ -1,0 +1,5 @@
+qdisc pie 1: root refcnt 2 limit 1000p target 15ms tupdate 15ms alpha 2 beta 20 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  prob 0 delay 0us
+  pkts_in 0 overlimit 0 dropped 0 maxq 0 ecn_mark 0

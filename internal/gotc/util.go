@@ -1,7 +1,6 @@
 package gotc
 
 import (
-	"fmt"
 	"math"
 	"strconv"
 )
@@ -169,9 +168,4 @@ func cDoubleToU32(v float64) uint32 {
 		return 0
 	}
 	return uint32(uint64(int64(v)) & math.MaxUint32)
-}
-
-// errKind names an out-of-slice kind gotc refuses to print.
-func errKind(kind string) error {
-	return fmt.Errorf("%w: qdisc kind %q", errNotImplemented, kind)
 }

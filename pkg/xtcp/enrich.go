@@ -4,11 +4,13 @@ import (
 	"context"
 	"log"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
 	"github.com/randomizedcoder/xtcp2/pkg/lldp"
@@ -135,34 +137,113 @@ func (x *XTCP) initDockerEnricher(ctx context.Context) {
 	}
 }
 
-// initUplinkEnrichers selects the uplink interfaces and captures the static NIC
-// + LLDP columns once. Both sources are independently best-effort.
+// uplinkSources are where the uplink enricher reads from. A nil field means
+// the real source (see orDefault); tests script them.
+type uplinkSources struct {
+	defaultUplinks func(maxN int) []string
+	physical       func(maxN int) []string
+	collect        func(ifnames []string) []nicinfo.NIC
+	fetchLLDP      func(ctx context.Context) (map[string]lldp.Neighbor, error)
+}
+
+// orDefault fills each nil source with the real one.
+func (s uplinkSources) orDefault(x *XTCP) uplinkSources {
+	if s.defaultUplinks == nil {
+		s.defaultUplinks = nicinfo.DefaultUplinks
+	}
+	if s.physical == nil {
+		s.physical = func(maxN int) []string { return nicinfo.PhysicalInterfaces("/sys", maxN) }
+	}
+	if s.collect == nil {
+		s.collect = func(ifnames []string) []nicinfo.NIC { return nicinfo.Collect("/sys", ifnames) }
+	}
+	if s.fetchLLDP == nil {
+		s.fetchLLDP = func(ctx context.Context) (map[string]lldp.Neighbor, error) {
+			return lldp.Fetch(ctx, x.config.LldpdSocketPath, x.config.LldpdVersionHint)
+		}
+	}
+	return s
+}
+
+// uplinkCount is the number of uplink slots to fill: uplink_count, clamped
+// to 1..maxUplinks.
+func uplinkCount(c *xtcp_config.XtcpConfig) int {
+	count := int(c.GetUplinkCount())
+	if count <= 0 || count > maxUplinks {
+		count = maxUplinks
+	}
+	return count
+}
+
+// uplinkRefreshInterval is how often the auto-detected uplinks are re-read:
+// locality_refresh_interval, or 0 (never) when NIC and LLDP enrichment are
+// both off, the uplinks are pinned by uplink_interfaces, or the interval is
+// not positive.
+func uplinkRefreshInterval(c *xtcp_config.XtcpConfig) time.Duration {
+	if !c.GetEnrichNicEnable() && !c.GetEnrichLldpEnable() {
+		return 0
+	}
+	if len(c.GetUplinkInterfaces()) > 0 {
+		return 0
+	}
+	return max(c.GetLocalityRefreshInterval().AsDuration(), 0)
+}
+
+// initUplinkEnrichers selects the uplink interfaces and captures their NIC +
+// LLDP columns. Both sources are independently best-effort. Auto-detected
+// uplinks (no uplink_interfaces) are then re-read every
+// locality_refresh_interval, so a route change moves the uplink columns
+// with it (see refreshUplinks).
 func (x *XTCP) initUplinkEnrichers(ctx context.Context) {
 	if !x.config.EnrichNicEnable && !x.config.EnrichLldpEnable {
 		return
 	}
+	src := x.uplinkSrc.orDefault(x)
+	count := uplinkCount(x.config)
 
-	count := int(x.config.UplinkCount)
-	if count <= 0 {
-		count = maxUplinks
-	}
-	if count > maxUplinks {
-		count = maxUplinks
-	}
+	st := x.loadUplinks(ctx, src, count)
 
+	if interval := uplinkRefreshInterval(x.config); interval > 0 {
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			x.refreshUplinks(ctx, count, st, ticker.C)
+		}()
+	}
+}
+
+// selectUplinks picks up to count uplinks: the default-route interfaces, or
+// when there are none (the default route lives on a separate management NIC,
+// or none is configured) the physical interfaces in sysfs, so the NIC/LLDP
+// columns still populate. The fallback is counted under function fn.
+func (x *XTCP) selectUplinks(src uplinkSources, count int, fn string) []string {
+	ifnames := src.defaultUplinks(count)
+	if len(ifnames) == 0 {
+		ifnames = src.physical(count)
+		if len(ifnames) > 0 {
+			x.pC.WithLabelValues(fn, "uplinks", "physical_fallback").Inc()
+		}
+	}
+	if len(ifnames) > count {
+		ifnames = ifnames[:count]
+	}
+	return ifnames
+}
+
+// uplinkState is what the refresh loop carries between ticks: the uplinks in
+// service, and whether their LLDP columns are stale (the last lldpd read
+// failed), so an unchanged list still retries lldpd.
+type uplinkState struct {
+	ifnames   []string
+	lldpStale bool
+}
+
+// loadUplinks is initUplinkEnrichers' startup work: select the uplinks (or
+// take the pinned ones), read their NIC + LLDP columns and store the stamp.
+func (x *XTCP) loadUplinks(ctx context.Context, src uplinkSources, count int) uplinkState {
 	ifnames := x.config.UplinkInterfaces
 	if len(ifnames) == 0 {
-		ifnames = nicinfo.DefaultUplinks(count)
-	}
-	if len(ifnames) == 0 {
-		// No explicit override and no default-route uplink (e.g. the default
-		// route lives on a separate management NIC, or none is configured).
-		// Fall back to the physical interfaces present in sysfs so NIC/LLDP
-		// columns still populate.
-		ifnames = nicinfo.PhysicalInterfaces("/sys", count)
-		if len(ifnames) > 0 {
-			x.pC.WithLabelValues("initEnrichers", "uplinks", "physical_fallback").Inc()
-		}
+		ifnames = x.selectUplinks(src, count, "initEnrichers")
 	}
 	if len(ifnames) > count {
 		ifnames = ifnames[:count]
@@ -170,31 +251,102 @@ func (x *XTCP) initUplinkEnrichers(ctx context.Context) {
 	if len(ifnames) == 0 {
 		x.pC.WithLabelValues("initEnrichers", "uplinks", "none").Inc()
 		log.Printf("initUplinkEnrichers: no uplink interfaces detected (no override, no default route, no physical NIC in sysfs); NIC/LLDP columns left empty")
-		return
-	}
-
-	var nics []nicinfo.NIC
-	if x.config.EnrichNicEnable {
-		nics = nicinfo.Collect("/sys", ifnames)
-		x.pC.WithLabelValues("initEnrichers", "nic", "collected").Add(float64(len(nics)))
-	}
-
-	var neigh map[string]lldp.Neighbor
-	if x.config.EnrichLldpEnable {
-		fetchCtx, cancel := context.WithTimeout(ctx, enrichDialTimeout)
-		n, err := lldp.Fetch(fetchCtx, x.config.LldpdSocketPath, x.config.LldpdVersionHint)
-		cancel()
+	} else {
+		s, nics, neigh, err := x.buildStamp(ctx, src, ifnames)
+		if x.config.EnrichNicEnable {
+			x.pC.WithLabelValues("initEnrichers", "nic", "collected").Add(float64(nics))
+		}
 		if err != nil {
 			x.pC.WithLabelValues("initEnrichers", "lldp", "error").Inc()
 			log.Printf("initUplinkEnrichers: LLDP enrichment disabled (best-effort): %v", err)
-		} else {
-			neigh = n
-			x.pC.WithLabelValues("initEnrichers", "lldp", "neighbors").Add(float64(len(neigh)))
+		} else if x.config.EnrichLldpEnable {
+			x.pC.WithLabelValues("initEnrichers", "lldp", "neighbors").Add(float64(neigh))
+		}
+		x.uplinkStamp.Store(&s)
+		log.Printf("initUplinkEnrichers: uplinks=%v nics=%d lldpNeighbors=%d", ifnames, nics, neigh)
+		return uplinkState{ifnames: ifnames, lldpStale: err != nil}
+	}
+	return uplinkState{ifnames: ifnames}
+}
+
+// buildStamp reads the NIC and LLDP columns of ifnames from sysfs and lldpd
+// (each only when enabled) and returns the stamp, the NIC and neighbor
+// counts, and the lldpd error, if any. The stamp keeps the NIC columns when
+// lldpd fails.
+func (x *XTCP) buildStamp(ctx context.Context, src uplinkSources, ifnames []string) (uplinkStamp, int, int, error) {
+	var nics []nicinfo.NIC
+	if x.config.EnrichNicEnable {
+		nics = src.collect(ifnames)
+	}
+	var (
+		neigh map[string]lldp.Neighbor
+		err   error
+	)
+	if x.config.EnrichLldpEnable {
+		fetchCtx, cancel := context.WithTimeout(ctx, enrichDialTimeout)
+		neigh, err = src.fetchLLDP(fetchCtx)
+		cancel()
+		if err != nil {
+			neigh = nil
 		}
 	}
+	return buildUplinkStamp(ifnames, nics, neigh), len(nics), len(neigh), err
+}
 
-	x.uplinkStamp = buildUplinkStamp(ifnames, nics, neigh)
-	log.Printf("initUplinkEnrichers: uplinks=%v nics=%d lldpNeighbors=%d", ifnames, len(nics), len(neigh))
+// refreshUplinks is initUplinkEnrichers' background loop: on every tick it
+// re-reads the auto-detected uplinks (refreshUplinksOnce), starting from st.
+// Runs until ctx is canceled.
+func (x *XTCP) refreshUplinks(ctx context.Context, count int, st uplinkState, tick <-chan time.Time) {
+	src := x.uplinkSrc.orDefault(x)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick:
+			st = x.refreshUplinksSrc(ctx, src, count, st)
+		}
+	}
+}
+
+// refreshUplinksOnce re-selects the uplinks and returns the state now in
+// service. The same list as before, with good LLDP columns, costs only the
+// route and lower-device reads of DefaultUplinks: no NIC identity read, no
+// lldpd, no new stamp. A different list, or the same one whose last lldpd
+// read failed, is read in full and its stamp replaces the old one (an empty
+// stamp when no uplink is left). Outcomes are counted under
+// function="refreshUplinks": unchanged, changed, lldp_recovered (an
+// unchanged list whose retried lldpd read succeeded), or lldp_error (lldpd
+// failed: the NIC columns are kept and the next tick retries).
+func (x *XTCP) refreshUplinksOnce(ctx context.Context, count int, st uplinkState) uplinkState {
+	return x.refreshUplinksSrc(ctx, x.uplinkSrc.orDefault(x), count, st)
+}
+
+func (x *XTCP) refreshUplinksSrc(ctx context.Context, src uplinkSources, count int, st uplinkState) uplinkState {
+	ifnames := x.selectUplinks(src, count, "refreshUplinks")
+	same := slices.Equal(ifnames, st.ifnames)
+	if same && !st.lldpStale {
+		x.pC.WithLabelValues("refreshUplinks", "uplinks", "unchanged").Inc()
+		return st
+	}
+	s := uplinkStamp{}
+	outcome := "changed"
+	if same {
+		outcome = "lldp_recovered"
+	}
+	var err error
+	if len(ifnames) > 0 {
+		s, _, _, err = x.buildStamp(ctx, src, ifnames)
+		if err != nil {
+			outcome = "lldp_error"
+			log.Printf("refreshUplinks: LLDP columns left empty, retrying next tick (best-effort): %v", err)
+		}
+	}
+	x.uplinkStamp.Store(&s)
+	x.pC.WithLabelValues("refreshUplinks", "uplinks", outcome).Inc()
+	if !same {
+		log.Printf("refreshUplinks: uplinks %v -> %v", st.ifnames, ifnames)
+	}
+	return uplinkState{ifnames: ifnames, lldpStale: err != nil}
 }
 
 // buildUplinkStamp folds the per-interface NIC + LLDP lookups into the flat
@@ -239,7 +391,9 @@ func buildUplinkStamp(ifnames []string, nics []nicinfo.NIC, neigh map[string]lld
 // the owning container and (opt-in) nsid, and copies the static uplink columns.
 // All lookups are O(1) and no-op when their enricher is disabled.
 func (x *XTCP) applyEnrichment(r *xtcp_flat_record.XtcpFlatRecord) {
-	x.uplinkStamp.apply(r)
+	if s := x.uplinkStamp.Load(); s != nil {
+		s.apply(r)
+	}
 
 	if x.dockerIndex != nil {
 		if c, ok := x.dockerIndex.Lookup(r.NetnsInode); ok {

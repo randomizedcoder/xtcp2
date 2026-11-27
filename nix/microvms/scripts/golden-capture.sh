@@ -68,7 +68,21 @@ done
 golden_ns_id=$(ip netns list | sed -n 's/^golden-ns (id: \([0-9]*\))$/\1/p')
 caps=$(systemctl show xtcp2 -p CapabilityBoundingSet --value)
 
-stop_and_fetch_second_poll "$OUT/raw.parquet"
+# Uplinks follow a route change (refreshUplinks): move uplink 2's default
+# route (the e1000e's, metric 2048) in front of ionic0's (512), wait for
+# xtcp2 to re-read the uplinks (-localityRefreshInterval 5s), then for a
+# poll that starts after that. Poll 2, the fixture, was taken before the
+# swap; the later poll goes to $OUT/swap.parquet for uplink_follows_metric
+# and is deleted after it.
+swap_dev=$(ip -j route show default via 10.0.3.2 | jq -r '.[0].dev // empty')
+[ -n "$swap_dev" ] || fail "uplink swap: no default route via 10.0.3.2"
+ip route add default via 10.0.3.2 dev "$swap_dev" metric 256
+ip route del default via 10.0.3.2 dev "$swap_dev" metric 2048
+wait_for uplinks changed 1 30
+wait_for envelopeFlush poll_end "$(($(metric envelopeFlush poll_end) + 1))" 60
+stop_and_fetch_second_poll "$OUT/raw.parquet" "$OUT/swap.parquet"
+ip route add default via 10.0.3.2 dev "$swap_dev" metric 2048
+ip route del default via 10.0.3.2 dev "$swap_dev" metric 256
 
 P="read_parquet('$OUT/raw.parquet')"
 rows=$(q "SELECT count(*) FROM $P")
@@ -397,6 +411,12 @@ got=$(q "SELECT concat_ws(',', max(uplink2_nic_driver), max(uplink2_nic_pci_vend
 ok=0
 [ "$got" = "e1000e,32902,true,true" ] && ok=1
 row uplink2 positive "$ok" "uplink2 driver, PCI vendor, firmware set, bus set: $got"
+S="read_parquet('$OUT/swap.parquet')"
+got=$(q "SELECT concat_ws(',', string_agg(DISTINCT uplink1_nic_driver, '/'), string_agg(DISTINCT uplink2_nic_driver, '/')) FROM $S")
+ok=0
+[ "$got" = "e1000e,ionic" ] && ok=1
+row uplink_follows_metric positive "$ok" "uplink1, uplink2 drivers in a poll after $swap_dev's default route moved to metric 256: $got"
+rm -f "$OUT/swap.parquet"
 n=$(q "SELECT count(*) FROM $P WHERE uplink1_nic_driver = 'virtio_net' OR uplink2_nic_driver = 'virtio_net'")
 ok=0
 [ "$n" -eq 0 ] && ok=1

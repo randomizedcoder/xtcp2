@@ -125,12 +125,14 @@ type XTCP struct {
 	// each degrades to leaving its columns empty). See enrich.go.
 	//
 	// dockerIndex maps a socket's netns inode -> owning container (per-namespace,
-	// kept fresh by a background goroutine). uplinkStamp holds the static
-	// per-boot NIC + LLDP topology columns, precomputed once at startup and
-	// copied into every record. nsidByInode is the opt-in nsid snapshot, rebuilt
+	// kept fresh by a background goroutine). uplinkStamp holds the uplinks'
+	// NIC + LLDP columns, built at startup, replaced whole when a refresh
+	// finds the uplinks changed, and copied into every record; uplinkSrc is
+	// where they are read from (zero = the real sources). nsidByInode is the opt-in nsid snapshot, rebuilt
 	// each discovery cycle and read lock-free on the stamping path.
 	dockerIndex *dockermeta.Index
-	uplinkStamp uplinkStamp
+	uplinkStamp atomic.Pointer[uplinkStamp]
+	uplinkSrc   uplinkSources
 	nsidByInode atomic.Pointer[map[uint64]int32]
 
 	// The two compile-time-gated enrichers. Both are interfaces, and both are

@@ -20,19 +20,6 @@ type qdiscUtil struct {
 	printXstats func(r *runner, xs []byte)
 }
 
-// tcBuiltinKinds is every qdisc_util id the tc binary links (tc/q_*.c at
-// v7.2.0): one gotc does not print is refused rather than misprinted. A
-// kind outside this list is dlsym's miss, which tc prints with
-// print_noqopt.
-var tcBuiltinKinds = map[string]bool{
-	"cake": true, "cake_mq": true, "cbs": true, "choke": true, "clsact": true, "codel": true,
-	"drr": true, "dualpi2": true, "etf": true, "ets": true, "bfifo": true, "pfifo": true,
-	"pfifo_head_drop": true, "pfifo_fast": true, "fq": true, "fq_codel": true, "fq_pie": true,
-	"gred": true, "hfsc": true, "hhf": true, "htb": true, wordIngress: true, "mqprio": true,
-	"multiq": true, "netem": true, "pie": true, "plug": true, "prio": true, "qfq": true,
-	"red": true, "sfb": true, "sfq": true, "skbprio": true, "taprio": true, "tbf": true,
-}
-
 // qdiscUtils are the kinds gotc prints.
 var qdiscUtils = map[string]*qdiscUtil{
 	xtcpnl.TcKindPrio:          {id: xtcpnl.TcKindPrio, printQopt: printPrioOpt},
@@ -57,6 +44,19 @@ var qdiscUtils = map[string]*qdiscUtil{
 	xtcpnl.TcKindMultiq:        {id: xtcpnl.TcKindMultiq, printQopt: printMultiqOpt},
 	xtcpnl.TcKindCbs:           {id: xtcpnl.TcKindCbs, printQopt: printCbsOpt},
 	xtcpnl.TcKindEtf:           {id: xtcpnl.TcKindEtf, printQopt: printEtfOpt},
+	xtcpnl.TcKindRed:           {id: xtcpnl.TcKindRed, printQopt: printRedOpt, printXstats: printRedXstats},
+	xtcpnl.TcKindSfb:           {id: xtcpnl.TcKindSfb, printQopt: printSfbOpt, printXstats: printSfbXstats},
+	xtcpnl.TcKindCodel:         {id: xtcpnl.TcKindCodel, printQopt: printCodelOpt, printXstats: printCodelXstats},
+	xtcpnl.TcKindPie:           {id: xtcpnl.TcKindPie, printQopt: printPieOpt, printXstats: printPieXstats},
+	xtcpnl.TcKindFqPie:         {id: xtcpnl.TcKindFqPie, printQopt: printFqPieOpt, printXstats: printFqPieXstats},
+	xtcpnl.TcKindHhf:           {id: xtcpnl.TcKindHhf, printQopt: printHhfOpt, printXstats: printHhfXstats},
+	xtcpnl.TcKindPlug:          {id: xtcpnl.TcKindPlug, printQopt: printPlugOpt},
+	xtcpnl.TcKindSkbprio:       {id: xtcpnl.TcKindSkbprio, printQopt: printSkbprioOpt},
+	xtcpnl.TcKindDualpi2:       {id: xtcpnl.TcKindDualpi2, printQopt: printDualpi2Opt, printXstats: printDualpi2Xstats},
+	xtcpnl.TcKindCake:          {id: xtcpnl.TcKindCake, printQopt: printCakeOpt, printXstats: printCakeXstats},
+	xtcpnl.TcKindCakeMq:        {id: xtcpnl.TcKindCakeMq, printQopt: printCakeOpt, printXstats: printCakeXstats},
+	xtcpnl.TcKindGred:          {id: xtcpnl.TcKindGred, printQopt: printGredOpt},
+	xtcpnl.TcKindChoke:         {id: xtcpnl.TcKindChoke, printQopt: printChokeOpt, printXstats: printChokeXstats},
 }
 
 // refuseKind records a qdisc_util printer's refusal of what tc would read
@@ -99,17 +99,14 @@ func rtaWalk(data []byte, fn func(raw uint16, val []byte)) {
 	}
 }
 
-// qdiscKind is get_qdisc_kind: a printed kind's util, print_noqopt's for a
-// kind tc does not link (noqueue, mq), and errNotImplemented for one it
-// links that gotc does not print.
-func qdiscKind(kind string) (*qdiscUtil, error) {
+// qdiscKind is get_qdisc_kind: a printed kind's util, which is every
+// kind the tc binary links (tc/q_*.c at v7.2.0), and print_noqopt's for
+// one it does not (noqueue, mq), dlsym's miss.
+func qdiscKind(kind string) *qdiscUtil {
 	if q, ok := qdiscUtils[kind]; ok {
-		return q, nil
+		return q
 	}
-	if tcBuiltinKinds[kind] {
-		return nil, errKind(kind)
-	}
-	return &qdiscUtil{id: kind, printQopt: printNoqopt}, nil
+	return &qdiscUtil{id: kind, printQopt: printNoqopt}
 }
 
 // printNoqopt is tc.c print_noqopt: "[Unknown qdisc, optlen=N] " for a

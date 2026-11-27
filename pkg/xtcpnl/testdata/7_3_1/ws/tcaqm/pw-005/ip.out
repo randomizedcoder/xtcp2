@@ -1,0 +1,1 @@
+[{"kind":"red","handle":"1:","root":true,"refcnt":2,"options":{"limit":400000,"min":30000,"max":90000,"ecn":true,"harddrop":true,"adaptive":true,"nodrop":false,"qevents":[{"kind":"early_drop","block":10}]}}]

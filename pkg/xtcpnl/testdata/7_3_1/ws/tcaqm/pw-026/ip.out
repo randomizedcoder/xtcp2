@@ -1,0 +1,1 @@
+[{"kind":"pie","handle":"1:","root":true,"refcnt":2,"options":{"limit":1000,"target":15000,"tupdate":15000,"alpha":2,"beta":20},"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0,"prob":0,"delay":0,"pkts_in":0,"overlimit":0,"dropped":0,"maxq":0,"ecn_mark":0}]

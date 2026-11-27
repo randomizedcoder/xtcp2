@@ -1,0 +1,5 @@
+qdisc fq_pie 1: root refcnt 2 limit 10240p flows 1024 target 15ms tupdate 15ms alpha 2 beta 20 quantum 1514b memory_limit 32Mb ecn_prob 10 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  pkts_in 0 overlimit 0 overmemory 0 dropped 0 ecn_mark 0
+  new_flow_count 0 new_flows_len 0 old_flows_len 0 memory_used 0

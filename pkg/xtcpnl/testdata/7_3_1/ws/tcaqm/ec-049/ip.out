@@ -1,0 +1,1 @@
+qdisc cake_mq 1: root bandwidth 100Mbit diffserv3 triple-isolate nonat nowash no-ack-filter split-gso rtt 100ms raw overhead 0 

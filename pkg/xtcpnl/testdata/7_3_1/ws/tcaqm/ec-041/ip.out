@@ -1,0 +1,32 @@
+qdisc cake 1: root refcnt 2 bandwidth 100Mbit diffserv4 dual-srchost nat wash ingress ack-filter no-split-gso rtt 20ms atm overhead 44 mpu 64 memlimit 4Mb fwmark 0xff 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+ memory used: 0b of 4Mb
+ capacity estimate: 100Mbit
+ min/max network layer size:        65535 /       0
+ min/max overhead-adjusted size:    65535 /       0
+ active queues:                         0
+ average network hdr offset:            0
+
+                   Bulk  Best Effort        Video        Voice
+  thresh       6250Kbit      100Mbit       50Mbit       25Mbit
+  target         2.91ms          1ms          1ms          1ms
+  interval       21.9ms         20ms         20ms         20ms
+  pk_delay          0us          0us          0us          0us
+  av_delay          0us          0us          0us          0us
+  sp_delay          0us          0us          0us          0us
+  backlog            0b           0b           0b           0b
+  pkts                0            0            0            0
+  bytes               0            0            0            0
+  way_inds            0            0            0            0
+  way_miss            0            0            0            0
+  way_cols            0            0            0            0
+  drops               0            0            0            0
+  marks               0            0            0            0
+  ack_drop            0            0            0            0
+  sp_flows            0            0            0            0
+  bk_flows            0            0            0            0
+  un_flows            0            0            0            0
+  max_len             0            0            0            0
+  quantum           300         1514         1514          762
+

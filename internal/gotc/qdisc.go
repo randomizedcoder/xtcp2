@@ -261,11 +261,7 @@ func (r *runner) printQdisc(m Msg) (int, error) {
 		r.errf("print_qdisc: NULL kind\n")
 		return -1, nil
 	}
-	q, err := qdiscKind(qdiscKindName(ti.Kind))
-	if err != nil {
-		return 0, err
-	}
-	return 0, r.printQdiscBody(m, &ti, q)
+	return 0, r.printQdiscBody(m, &ti, qdiscKind(qdiscKindName(ti.Kind)))
 }
 
 // qdiscKindName is print_qdisc's lookup name: pfifo_fast is printed by

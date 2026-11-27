@@ -1,0 +1,58 @@
+{
+ "axes": {
+  "fix": "aqmcake2",
+  "json": "0",
+  "words": "qdisc show dev d0"
+ },
+ "cmd": "tc qdisc show dev d0",
+ "desc": "positive: opt=plain cmd=aqmcake2:qdisc_show_dev_d0",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcaqm/ec-040",
+ "modules": [
+  "sch_cake",
+  "sch_choke",
+  "sch_codel",
+  "sch_dualpi2",
+  "sch_fq_pie",
+  "sch_gred",
+  "sch_hhf",
+  "sch_pie",
+  "sch_plug",
+  "sch_red",
+  "sch_sfb",
+  "sch_skbprio"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 root handle 1: cake bandwidth 100Mbit diffserv4 dual-srchost nat wash ingress ack-filter rtt 20ms atm overhead 44 mpu 64 memlimit 4Mb fwmark 0xff no-split-gso"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 root handle 1: cake bandwidth 100Mbit diffserv4 dual-srchost nat wash ingress ack-filter rtt 20ms atm overhead 44 mpu 64 memlimit 4Mb fwmark 0xff no-split-gso",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}
