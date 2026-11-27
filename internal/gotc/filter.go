@@ -375,9 +375,17 @@ func (r *runner) blockExists(block uint32) (bool, error) {
 				found = true
 			}
 		}
-		if kind, _ := tb.Str(xtcpnl.TcaKind); kind == "red" {
-			kerr = errKind("red") // red's has_block reads its options
-			return -1
+		// red is the one kind with a has_block.
+		if kind, _ := tb.Str(xtcpnl.TcaKind); kind == xtcpnl.TcKindRed {
+			f, rc, err := r.redHasBlock(tb.Bytes(xtcpnl.TcaOptions), tb.Has(xtcpnl.TcaOptions), block)
+			if err != nil {
+				kerr = err
+				return -1
+			}
+			if f {
+				found = true
+			}
+			return rc
 		}
 		return 0
 	})

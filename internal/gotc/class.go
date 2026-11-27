@@ -196,11 +196,7 @@ func (r *runner) printClass(m Msg) (int, error) {
 		r.errf("print_class: NULL kind\n")
 		return -1, nil
 	}
-	q, err := qdiscKind(ti.Kind)
-	if err != nil {
-		return 0, err
-	}
-	return 0, r.printClassBody(m, &ti, q)
+	return 0, r.printClassBody(m, &ti, qdiscKind(ti.Kind))
 }
 
 func (r *runner) printClassBody(m Msg, ti *xtcpnl.TcInfo, q *qdiscUtil) error {
@@ -347,17 +343,14 @@ func (r *runner) graphNodeShow(buf *strings.Builder, cls *graphNode) {
 		buf.WriteString(" " + kind + " ")
 		o.raw(buf.String())
 		buf.Reset()
-		q, err := qdiscKind(kind)
-		if err != nil {
-			r.cf.err, q = err, nil
-		}
-		if q != nil && q.printCopt != nil {
+		q := qdiscKind(kind)
+		if q.printCopt != nil {
 			q.printCopt(r, q, tb.Bytes(xtcpnl.TcaOptions), tb.Has(xtcpnl.TcaOptions))
 			if err := r.takeKindErr(); err != nil && r.cf.err == nil {
 				r.cf.err = err
 			}
 		}
-		if q != nil && r.stats > 0 {
+		if r.stats > 0 {
 			r.graphStats(buf, cls, q, id, tb)
 		}
 	}

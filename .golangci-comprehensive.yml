@@ -376,7 +376,7 @@ linters:
       - path: "(tools/nlcapgen/matrix_tcaqm|internal/gotc/(q_dualpi2|aqm)|pkg/xtcpnl/xtcpnl_tc_aqm)(_test)?\\.go"
         linters:
           - misspell
-        text: "`ect` is a misspelling of `etc`"
+        text: "`(ect|ECT)` is a misspelling of `(etc|ETC)`"
       # `neighbour` is a command name a user types, not prose. iproute2's object
       # table carries both `neighbor` and `neighbour` (ip/ip.c:93-94), and
       # `matches()` is prefix matching, not fuzzy matching — "neighbour" is not

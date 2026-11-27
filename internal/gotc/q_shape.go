@@ -248,17 +248,7 @@ func (r *runner) sfqRed(ext *xtcpnl.TcSfqQoptV1) {
 	o.size(printAny, "max", "max ", " ", uint64(ext.QthMax))
 	p := float64(ext.MaxP) / math.Pow(2, 32)
 	o.float(printAny, "probability", "probability "+cG(p)+" ", p)
-	for _, f := range []struct {
-		bit  uint8
-		name string
-	}{{1, "ecn"}, {2, "harddrop"}, {4, "adaptive"}, {8, "nodrop"}} {
-		on := ext.Flags&f.bit != 0
-		text := ""
-		if on {
-			text = f.name + " "
-		}
-		o.boolean(printAny, f.name, text, on)
-	}
+	printRedFlags(o, uint32(ext.Flags))
 	if r.stats == 0 {
 		return
 	}
