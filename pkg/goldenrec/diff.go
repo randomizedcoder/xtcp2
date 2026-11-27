@@ -71,8 +71,14 @@ var DefaultSeqNetns = []string{"golden-ernic-c", "golden-ernic-d"}
 // rwnd_limited counts time the receiver's window held the sender back: the
 // server reads into io.Discard as fast as it is scheduled, so whether its
 // window ever closes depends on host load (nonzero in two of four).
+// dsack_dups: under load the sender may retransmit spuriously (a TLP), and
+// the receiver reports the duplicate with a DSACK, so total_retrans reads 13
+// for 12 drops with dsack_dups 1. The guest row seq_retrans checks
+// total_retrans - dsack_dups == 12 exactly; total_retrans stays compared
+// here (nonzero either way).
 var seqColumns = map[string]bool{
-	rwndLimitedColumn: true,
+	rwndLimitedColumn:     true,
+	"tcp_info_dsack_dups": true,
 }
 
 // faultOnlyColumns are, beyond the lossyColumns, the columns five captures
