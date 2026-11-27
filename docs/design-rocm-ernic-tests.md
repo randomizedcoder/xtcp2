@@ -190,3 +190,32 @@ Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/gol
 - **Keepalive probe in flight (diff flake, TODO):** in one of five captures, `xtcp2-golden diff` reported an idle `golden-cc-a` connection with `inet_diag_msg_retrans` 1 and `tcp_info_probes` 1, but `total_retrans` 0 and nothing unacked. The poll caught Go's default 15 s keepalive probe before its ACK: the probe sets `icsk_probes_out` (net/ipv4/tcp_timer.c:844), `tcp_ack` clears it (net/ipv4/tcp_input.c:4430), and inet_diag reports it as `idiag_retrans` while the keepalive timer is pending (net/ipv4/inet_diag.c:295). This predates this work. A fix is `-keepalive 1h` on the idle workloads: the keepalive timer still shows (`inet_diag_msg_timer` 2), but no probe is sent during a capture.
 - **Captures:** five, all 47 rows PASS on each (one at host load 18.6), with the oracle exact on all four NICs every time. `xtcp2-golden diff` is clean between captures 1, 3, 4 and 5; capture 2 differs only by the keepalive probe above. The sequence flow sent about 3100 frames with 12 drops, retransmitted 11 or 12 times (an 11 means one drop was a pure ACK), and never had an RTO, so `seq_no_rto` is asserted.
 - **After the SYN fix:** eight more captures with a pcap on tap-ionic0. In seven, every row passed and the oracle was exact on all four NICs. The eighth failed only `loss_seen`, the netem TODO above, and aborted before the oracle ran.
+
+# Round 3: close the two golden flakes, strict diff on the sequence flow
+
+Status: plan (2026-11-26). Round 2 left three TODOs (Status, above). This round closes the keepalive and netem flakes and makes the sequence flow exact. The uplink TODO stays open.
+
+## Phase 0: kernel findings
+
+- **Retransmit counters agree per socket and per namespace.** `__tcp_retransmit_skb`'s caller adds the same `segs` to `TCP_MIB_RETRANSSEGS` and `tp->total_retrans` (net/ipv4/tcp_output.c:3710, :3713), and a TLP probe goes through the same path (net/ipv4/tcp_output.c:3279). A SYN-ACK retransmit counts `TCP_MIB_RETRANSSEGS` and `req->num_retrans` (net/ipv4/tcp_output.c:4722), and the child socket starts with `total_retrans = req->num_retrans` (net/ipv4/tcp_minisocks.c:591). So in a fresh netns, `TcpRetransSegs` equals the sum of `tcp_info_total_retrans`, as long as no socket was closed before the poll.
+- **`TCP_MIB_OUTSEGS` leaves out retransmits:** it counts a segment only if it ends past `snd_nxt` or carries no data (net/ipv4/tcp_output.c:1754).
+- **netem drops ECT packets too.** Without the `ecn` option a loss event drops the packet whatever its ECN bits (net/sched/sch_netem.c:481-487). So ECN doesn't explain the dctcp flow with 0 retransmits.
+
+## Phase 1: keepalive 1h on every idle golden workload
+
+Every tcp_client and tcp_server in `golden-workload.sh` that doesn't already pass `-keepalive -1s` gets `-keepalive 1h`, the containers through `TCP_CLIENT_ARGS`/`TCP_SERVER_ARGS`. The keepalive timer still shows (`inet_diag_msg_timer` 2), but no probe goes out during a capture, so the fixture should not change.
+
+## Phase 2: netem `loss_seen`
+
+- The bulk clients get `-dialTimeout 30s`. A netem-dropped SYN plus the 1 s dial timeout closes a socket, and its counters go with it.
+- `loss_seen`'s detail adds the kernel's per-socket `retrans`/`segs_out` and ECN flags (`ss -tin`), and `nstat -az TcpRetransSegs TcpOutSegs` per namespace.
+- New rows: `netem_retrans_a` and `netem_retrans_b` (xtcp2's sum of `total_retrans` == the namespace's `TcpRetransSegs`), and `netem_kernel_agrees` (xtcp2 == `ss` per client).
+- Hunt with up to 20 captures. If the kernel shows retransmits and xtcp2 doesn't, it's an xtcp2 bug (red unit test, then fix). If both show 0, the flow saw no loss: fix the workload. If nothing fails, the TODO stays with the new evidence.
+
+## Phase 3: one-way sequence flow
+
+- tcp_server `-discard` reads and drops; tcp_client `-bulkOneWay` writes the `-bulk` bytes, then waits for the peer to close. With nothing coming back, every dropped frame is a data segment.
+- `seq_retrans` becomes exact (`total_retrans` == 12), and a new row `seq_server_no_retrans` checks the server's is 0.
+- golden-ernic-c/d leave `DefaultFaultNetns`, so the diff compares them. Any column that still varies over five captures goes in a narrower `DefaultSeqNetns` exemption, with its cause.
+
+Tests (table-driven, red first): tcp_server discard (discard reads all, echo default, empty, with `-holdEOF`, flag parse); tcp_client one-way (writes n, peer close, echo default, needs `-bulk`, one byte, peer reset); `pkg/goldenrec` diff (c and d compared, b still exempt, explicit `FaultNetns`, ionic0 egress exempt).
