@@ -249,6 +249,14 @@ func TestGotcSched(t *testing.T) {
 			showD0(schedQ("taprio", taprioOpts(2, attr(xtcpnl.TcaTaprioAttrSchedBaseTime, le64(0xffffffffffffffff))))),
 			result{stdout: `[{"kind":"taprio","handle":"1:","root":true,"refcnt":2,"options":{"tc":2,"map":[0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0],` +
 				`"queues":[{"offset":0,"count":4},{"offset":4,"count":4}],"base_time":18446744073709551615,"max-sdu":[0,1500],"fp":["E","P"]}}]` + "\n"}},
+		{"corner: an explicit mqprio mode dcb prints nothing, an absent one mode:dcb (Q65)", []string{"qdisc", "show", "dev", "d0"},
+			showD0(schedQ("mqprio", rawOpts(mqprioTail(mqprioQopt(2, 4, 0, 4, 4), attr(xtcpnl.TcaMqprioMode, le16(xtcpnl.TcMqprioModeDcb)))))),
+			result{stdout: "qdisc mqprio 1: root refcnt 2 tc 2 map 0 0 1 1 0 0 0 0 0 0 0 0 0 0 0 0 \n             queues:(0:3) (4:7) " +
+				"\n             shaper:dcb\n"}},
+		{"corner: a negative etf delta, signed in text, unsigned in JSON (Q62)", []string{"-j", "qdisc", "show", "dev", "d0"},
+			showD0(schedQ("etf", nestOpts(attr(xtcpnl.TcaEtfParms, cat(le32(0xffffffff), le32(11), le32(0)))))),
+			result{stdout: `[{"kind":"etf","handle":"1:","root":true,"refcnt":2,"options":{"clockid":"TAI","delta":4294967295,` +
+				`"offload":"off","deadline_mode":"off","skip_sock_check":"off"}}]` + "\n"}},
 		{"corner: hfsc -s: work only when nonzero, then a blank line (Q41, Q42)", []string{"-s", "class", "show", "dev", "d0"},
 			showD0(schedC("hfsc", 1, tcHRoot, hfscStats(0, 0, 0, 2)), schedC("hfsc", 2, tcHRoot, hfscStats(1500, 0, 3, 0))),
 			result{stdout: "class hfsc 1:1 root \n Sent 0 bytes 0 pkt\n period 0  level 2 \n\n" +
