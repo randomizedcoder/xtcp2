@@ -19,6 +19,7 @@ import (
 type parsed struct {
 	opts      sockopt.Options
 	holdEOF   bool
+	discard   bool
 	keepalive time.Duration
 	err       string
 }
@@ -45,12 +46,14 @@ func TestParseServerFlags(t *testing.T) {
 		{"keepalive_bad", "negative", "a -keepalive that is not a duration", []string{"-keepalive", "1x"}, parsed{err: `invalid value "1x" for flag -keepalive`}},
 		{"keepalive_zero", "boundary", "0 keeps Go's default keepalive", []string{"-keepalive", "0s"}, parsed{}},
 		{"hold_alone", "corner", "-holdEOF without options", []string{"-holdEOF"}, parsed{holdEOF: true}},
+		{"discard", "positive", "-discard parses", []string{"-discard"}, parsed{discard: true}},
+		{"discard_hold", "corner", "-discard with -holdEOF", []string{"-discard", "-holdEOF"}, parsed{discard: true, holdEOF: true}},
 		{"bad_rcvbuf_suffix", "corner", "a suffix outside K/M/G", []string{"-rcvbuf", "1TiB"}, parsed{err: `size "1TiB"`}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			c, err := parseFlags(tc.input, io.Discard)
-			got := parsed{opts: c.opts, holdEOF: c.holdEOF, keepalive: c.keepalive}
+			got := parsed{opts: c.opts, holdEOF: c.holdEOF, discard: c.discard, keepalive: c.keepalive}
 			ok := errMatches(err, tc.expected.err)
 			if err == nil {
 				want := tc.expected
@@ -119,7 +122,7 @@ func TestHoldEOF(t *testing.T) {
 				if aerr != nil {
 					return
 				}
-				handleConn(ctx, c, tc.input.holdEOF)
+				handleConn(ctx, c, tc.input.holdEOF, false)
 			}()
 			conn, err := net.Dial("tcp4", ln.Addr().String())
 			if err != nil {
