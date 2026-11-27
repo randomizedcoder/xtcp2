@@ -147,16 +147,24 @@
   # to disk; it is reachable only through the dedicated `xtcp2-capture` attr.
   # `goip_write` compiles in goip's write verbs (the netlink request
   # encoders); only goip and goip-parity carry it (goipWriteTags below).
+  # `gotc_write` compiles in gotc's qdisc and class writes (gotcWriteTags).
   # nix/checks/flavor-tags.nix fails if one of these reaches a flavor.
   optInOnlyTags = [
     "capture"
     "goip_write"
+    "gotc_write"
   ];
 
   # goip's write path: internal/goip's write verbs and pkg/xtcpnl's write
   # request builders. cmd/goip and cmd/goip-parity build with it; xtcp2 and
   # go-link-monitor, which serve goip's listings on /ip, never do.
   goipWriteTags = [ "goip_write" ];
+
+  # gotc's write path: internal/gotc's qdisc and class writes and pkg/xtcpnl's
+  # tc write builder. Dry-run like goip's: a write goes to a replay or to
+  # GOTC_WRITE_OUT, never to a live socket. The default gotc is built
+  # without it and refuses writes.
+  gotcWriteTags = [ "gotc_write" ];
 
   # Enrichment flavors — the third build axis, alongside buildVariants and
   # destinationFlavors. Each maps to a list of `enrich_<feature>` build tags.

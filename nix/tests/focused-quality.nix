@@ -73,6 +73,17 @@ in
     ];
   };
 
+  # With gotc_write: gotc's qdisc and class writes and pkg/xtcpnl's tc write
+  # builder build only so. The untagged half runs in the default `go test`.
+  focused-gotc-write = mkFocusedTest "gotc-write" {
+    tags = lib.concatStringsSep " " versions.gotcWriteTags;
+    paths = [
+      "./internal/gotc/..."
+      "./pkg/xtcpnl/..."
+      "./pkg/cint/..."
+    ];
+  };
+
   # gordma's corpus replay reads pkg/xtcpnl/testdata/*/rdma, which the
   # vendored source carries.
   focused-gordma = mkFocusedTest "gordma" {

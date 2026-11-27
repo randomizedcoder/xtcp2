@@ -1,8 +1,9 @@
-//go:build goip_write || treatment
+//go:build goip_write || treatment || gotc_write
 
 // goip_write builds this for goip's write verbs. treatment builds it, and only
 // the route and rule builders, for internal/goip/actuate; link, address, nsid,
-// genl and xfrm writes stay goip_write-only (FP-8b).
+// genl and xfrm writes stay goip_write-only (FP-8b). gotc_write builds it for
+// gotc's qdisc and class writes (xtcpnl_tc_write.go).
 
 package xtcpnl
 

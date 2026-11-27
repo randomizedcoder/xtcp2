@@ -2,7 +2,8 @@
 #
 # The daemons, xtcp2 and go-link-monitor, must not be able to build a netlink
 # mutation: goip's write verbs and pkg/xtcpnl's write builders compile only
-# with the goip_write tag, which cmd/goip and cmd/goip-parity alone carry.
+# with the goip_write tag, which cmd/goip and cmd/goip-parity alone carry, and
+# gotc's tc write builder only with gotc_write, which no daemon carries.
 #
 # One exemption: a build with the `treatment` tag embeds the route treatment
 # actuator (internal/goip/actuate), which encodes routes and rules. It may
@@ -69,8 +70,8 @@ let
   ];
   treatmentSyms = "pkg/xtcpnl[.](BuildWriteRequest|BuildRouteWriteRequest|BuildRuleWriteRequest)$";
 
-  # The files goip_write gates, in the packages that hold them.
-  writePkgs = "^github.com/randomizedcoder/xtcp2/(internal/goip|pkg/xtcpnl|pkg/nlparity)$";
+  # The files goip_write and gotc_write gate, in the packages that hold them.
+  writePkgs = "^github.com/randomizedcoder/xtcp2/(internal/goip|internal/gotc|pkg/xtcpnl|pkg/nlparity)$";
   writeFiles = "(_write[a-z0-9_]*|_flush|_restore|link_property|stats_set)[.]go$";
 
   # minio-go's process credential provider (the s3parquet destination) runs
@@ -132,6 +133,9 @@ pkgs.runCommand "xtcp2-no-write-encoders"
       fi
       if [ "$(write_files ${d.pkg} "''${t:+$t,}goip_write" | wc -l)" -le "$(printf '%s' "$all" | grep -c . || true)" ]; then
         echo "FAIL: ${d.name} with goip_write names no further write file; the pattern is stale"; fail=1
+      fi
+      if [ "$(write_files ${d.pkg} "''${t:+$t,}gotc_write" | wc -l)" -le "$(printf '%s' "$all" | grep -c . || true)" ]; then
+        echo "FAIL: ${d.name} with gotc_write names no further write file; the pattern is stale"; fail=1
       fi
 
       ${lib.optionalString d.nm ''

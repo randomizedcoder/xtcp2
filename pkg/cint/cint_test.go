@@ -261,3 +261,54 @@ func TestNarrowU64(t *testing.T) {
 		})
 	}
 }
+
+// TestShortSChar is the short and signed char round trips: ShortBits and
+// Short, SCharBits and SChar.
+//
+// go test ./pkg/cint/ -run TestShortSChar
+func TestShortSChar(t *testing.T) {
+	shorts := []struct {
+		description string
+		n           int16
+		expected    uint16
+	}{
+		{"positive: a cell_align of 7", 7, 7},
+		{"negative: -1 is all ones", -1, math.MaxUint16},
+		{"boundary: zero", 0, 0},
+		{"boundary: MaxInt16", math.MaxInt16, math.MaxInt16},
+		{"boundary: MinInt16 is the sign bit", math.MinInt16, 1 << 15},
+		{"corner: -2", -2, math.MaxUint16 - 1},
+	}
+	for _, tt := range shorts {
+		t.Run(tt.description, func(t *testing.T) {
+			if got := ShortBits(tt.n); got != tt.expected {
+				t.Fatalf("ShortBits(%d) = %#x, expected %#x", tt.n, got, tt.expected)
+			}
+			if got := Short(tt.expected); got != tt.n {
+				t.Fatalf("Short(%#x) = %d, expected %d", tt.expected, got, tt.n)
+			}
+		})
+	}
+	chars := []struct {
+		description string
+		n           int8
+		expected    uint8
+	}{
+		{"positive: an interval of 3", 3, 3},
+		{"negative: an interval of -2", -2, 0xfe},
+		{"boundary: zero", 0, 0},
+		{"boundary: MaxInt8", math.MaxInt8, math.MaxInt8},
+		{"boundary: MinInt8 is the sign bit", math.MinInt8, 0x80},
+		{"corner: -1 is all ones", -1, math.MaxUint8},
+	}
+	for _, tt := range chars {
+		t.Run(tt.description, func(t *testing.T) {
+			if got := SCharBits(tt.n); got != tt.expected {
+				t.Fatalf("SCharBits(%d) = %#x, expected %#x", tt.n, got, tt.expected)
+			}
+			if got := SChar(tt.expected); got != tt.n {
+				t.Fatalf("SChar(%#x) = %d, expected %d", tt.expected, got, tt.n)
+			}
+		})
+	}
+}

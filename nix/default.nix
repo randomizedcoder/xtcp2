@@ -406,6 +406,7 @@ let
       nix build --accept-flake-config \
         "$FLAKE_REF#test-focused-asn-locality" \
         "$FLAKE_REF#test-focused-goip" \
+        "$FLAKE_REF#test-focused-gotc-write" \
         "$FLAKE_REF#test-focused-gordma" \
         "$FLAKE_REF#test-focused-xtcp-enrich" \
         "$FLAKE_REF#test-focused-xtcp-treatment"
@@ -1181,6 +1182,7 @@ in
       test-oci-link-monitor-env = tests.oci-link-monitor-env;
       test-focused-asn-locality = tests.focused.focused-asn-locality;
       test-focused-goip = tests.focused.focused-goip;
+      test-focused-gotc-write = tests.focused.focused-gotc-write;
       test-focused-gordma = tests.focused.focused-gordma;
       test-focused-xtcp-enrich = tests.focused.focused-xtcp-enrich;
       test-focused-xtcp-treatment = tests.focused.focused-xtcp-treatment;

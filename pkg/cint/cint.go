@@ -32,6 +32,26 @@ func Short(v uint16) int16 {
 	return -int16(math.MaxUint16-v) - 1
 }
 
+// ShortBits is (__u16)n: a short's two's-complement bits, so -1 is 0xffff.
+// It is Short's inverse.
+func ShortBits(n int16) uint16 {
+	return uint16(int32(n) & math.MaxUint16)
+}
+
+// SChar is (signed char)v: a byte read as a C signed char, so 0xff is -1.
+func SChar(v uint8) int8 {
+	if v <= math.MaxInt8 {
+		return int8(v)
+	}
+	return -int8(math.MaxUint8-v) - 1
+}
+
+// SCharBits is (__u8)n: a signed char's bits, so -1 is 0xff. It is SChar's
+// inverse.
+func SCharBits(n int8) uint8 {
+	return uint8(int16(n) & math.MaxUint8)
+}
+
 // Low32 is (__u32)v: the low 32 bits of a wider unsigned value.
 func Low32(v uint64) uint32 {
 	return uint32(v & math.MaxUint32)
