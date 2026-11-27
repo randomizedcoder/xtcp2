@@ -1,0 +1,1 @@
+[{"kind":"cake","handle":"1:","root":true,"refcnt":2,"options":{"bandwidth":12500000,"diffserv":"diffserv4","flowmode":"dual-srchost","nat":true,"wash":true,"ingress":true,"ack-filter":"enabled","split_gso":false,"rtt":20000,"raw":false,"atm":"atm","overhead":44,"mpu":64,"memlimit":4194304,"fwmark":"0xff"}}]

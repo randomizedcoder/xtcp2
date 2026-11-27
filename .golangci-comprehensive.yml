@@ -350,7 +350,7 @@ linters:
           # since those ARE the canonical identifiers. Lifting to consts
           # would obscure rather than clarify.
           - goconst
-      # The next five are verbatim-upstream-spelling rules. The first two were
+      # The next six are verbatim-upstream-spelling rules. The first two were
       # once copies of rules already carried by .golangci.yml that had never
       # been ported here, which is why this tier reported three misspellings the
       # gating tier did not. Keep the three configs' misspell rules in step;
@@ -368,6 +368,15 @@ linters:
         linters:
           - misspell
         text: "`prefered` is a misspelling of `preferred`"
+      # `any_ect` and `l4s_ect` are dualpi2 keywords a user types
+      # (tc/q_dualpi2.c:216-218) and its printed values, from ECT, the ECN
+      # codepoint (RFC 3168), not a misspelling of "etc". Scoped to the
+      # dualpi2 capture, decoder and printer files, so a genuine "ect"
+      # anywhere else still fails.
+      - path: "(tools/nlcapgen/matrix_tcaqm|internal/gotc/(q_dualpi2|aqm)|pkg/xtcpnl/xtcpnl_tc_aqm)(_test)?\\.go"
+        linters:
+          - misspell
+        text: "`ect` is a misspelling of `etc`"
       # `neighbour` is a command name a user types, not prose. iproute2's object
       # table carries both `neighbor` and `neighbour` (ip/ip.c:93-94), and
       # `matches()` is prefix matching, not fuzzy matching — "neighbour" is not

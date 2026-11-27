@@ -1,0 +1,1 @@
+[{"kind":"fq_pie","handle":"1:","root":true,"refcnt":2,"options":{"limit":10240,"flows":1024,"target":15000,"tupdate":15000,"alpha":2,"beta":20,"quantum":1514,"memory_limit":33554432,"ecn_prob":10}}]

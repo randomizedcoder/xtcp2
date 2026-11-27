@@ -1,0 +1,1 @@
+[{"kind":"sfb","handle":"1:","root":true,"refcnt":2,"options":{"rehash":600000000,"db":60000000,"limit":1000,"max":25,"target":20,"increment":0.000503548,"decrement":4.57771e-05,"penalty_rate":10,"penalty_burst":20}}]

@@ -1,0 +1,5 @@
+qdisc sfb 1: root refcnt 2 rehash 600s db 60s limit 1000p max 25p target 20p increment 0.000503548 decrement 4.57771e-05 penalty_rate 10pps penalty_burst 20p 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  earlydrop 0 penaltydrop 0 bucketdrop 0 queuedrop 0 childdrop 0 marked 0
+  maxqlen 0 maxprob 0 avgprob 0

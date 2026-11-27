@@ -1,0 +1,1 @@
+[{"kind":"cake_mq","handle":"1:","root":true,"options":{"bandwidth":12500000,"diffserv":"diffserv3","flowmode":"triple-isolate","nat":false,"wash":false,"ingress":false,"ack-filter":"disabled","split_gso":true,"rtt":100000,"raw":true,"overhead":0,"fwmark":"0"}}]

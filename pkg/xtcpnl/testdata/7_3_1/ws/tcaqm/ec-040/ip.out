@@ -1,0 +1,1 @@
+qdisc cake 1: root refcnt 2 bandwidth 100Mbit diffserv4 dual-srchost nat wash ingress ack-filter no-split-gso rtt 20ms atm overhead 44 mpu 64 memlimit 4Mb fwmark 0xff 

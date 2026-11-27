@@ -1,0 +1,13 @@
+qdisc gred 1: root refcnt 2 vqs 4 default 0 grio limit 1514000b 
+ vq 0 prio 1 limit 60Kb min 15Kb max 45Kb 
+  Queue size: average 0b current 0b 
+  Dropped packets: forced 0 early 0 pdrop 0 other 0 
+  Marked packets: forced 0 early 0 
+  Total packets: 0 (0b) 
+ vq 1 prio 2 limit 60Kb min 15Kb max 45Kb ecn 
+  Queue size: average 0b current 0b 
+  Dropped packets: forced 0 early 0 pdrop 0 other 0 
+  Marked packets: forced 0 early 0 
+  Total packets: 0 (0b) 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
