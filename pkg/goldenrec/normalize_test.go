@@ -18,6 +18,7 @@ type rec struct {
 	Retrans   uint32 `parquet:"tcp_info_total_retrans"`
 	Bbr       uint32 `parquet:"bbr_info_bw_lo"`
 	Dsack     uint32 `parquet:"tcp_info_dsack_dups"`
+	RwndLim   uint64 `parquet:"tcp_info_rwnd_limited"`
 	RcvBytes  uint64 `parquet:"tcp_info_bytes_received"`
 	Cookie    uint64 `parquet:"inet_diag_msg_socket_cookie"`
 	SPort     uint32 `parquet:"inet_diag_msg_socket_source_port"`

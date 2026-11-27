@@ -151,6 +151,18 @@ func TestDiff(t *testing.T) {
 		{"seq_d_strict", "positive", "the sequence flow's server (golden-ernic-d) is compared too",
 			inNetns(g, "golden-ernic-d", func(r *rec) { r.Dsack = 3 }), inNetns(g, "golden-ernic-d", nil),
 			Options{}, expected{n: 1, contains: "tcp_info_dsack_dups"}},
+		{"seq_rwnd_exempt", "positive", "the sequence flow's rwnd_limited follows how fast the discarding server reads, so it is not compared",
+			inNetns(g, "golden-ernic-c", func(r *rec) { r.RwndLim = 5 }), inNetns(g, "golden-ernic-c", nil),
+			Options{}, expected{}},
+		{"seq_columns_only", "corner", "only the seqColumns are exempt in a sequence row; the rest are compared",
+			inNetns(g, "golden-ernic-c", func(r *rec) { r.RwndLim = 5; r.Dsack = 3 }), inNetns(g, "golden-ernic-c", nil),
+			Options{}, expected{n: 1, contains: "tcp_info_dsack_dups"}},
+		{"seq_rwnd_elsewhere", "negative", "rwnd_limited flipping in an idle namespace is a difference",
+			inNetns(g, "golden-cc-a", func(r *rec) { r.RwndLim = 5 }), inNetns(g, "golden-cc-a", nil),
+			Options{}, expected{n: 1, contains: "tcp_info_rwnd_limited"}},
+		{"seq_disabled", "boundary", "an empty SeqNetns compares the sequence rows strictly",
+			inNetns(g, "golden-ernic-c", func(r *rec) { r.RwndLim = 5 }), inNetns(g, "golden-ernic-c", nil),
+			Options{SeqNetns: []string{}}, expected{n: 1, contains: "tcp_info_rwnd_limited"}},
 		{"explicit_fault_netns", "boundary", "an explicit FaultNetns naming golden-ernic-c still exempts it",
 			inNetns(g, "golden-ernic-c", func(r *rec) { r.Retrans = 3 }), inNetns(g, "golden-ernic-c", nil),
 			Options{FaultNetns: []string{"golden-ernic-c"}}, expected{}},
@@ -293,6 +305,34 @@ func TestLossyColumns(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := lossyColumns[tc.input]; got != tc.expected {
 				t.Errorf("[%s] %s: lossyColumns[%q] = %v, expected %v", tc.category, tc.description, tc.input, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestSeqColumns(t *testing.T) {
+	idx, err := Columns.index()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for c := range seqColumns {
+		if _, ok := idx[c]; !ok {
+			t.Errorf("seqColumns names %q, which is not a column", c)
+		}
+	}
+	cases := []struct {
+		name, category, description, input string
+		expected                           bool
+	}{
+		{"rwnd_varies", "positive", "the receiver's pace sets rwnd_limited", "tcp_info_rwnd_limited", true},
+		{"retrans_kept", "negative", "the one-way flow retransmits exactly the drops, so it is compared", "tcp_info_total_retrans", false},
+		{"dsack_kept", "boundary", "a lossy column outside seqColumns is compared in a sequence row", "tcp_info_dsack_dups", false},
+		{"unknown_kept", "corner", "a name that is no column is not exempt", "nope", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := seqColumns[tc.input]; got != tc.expected {
+				t.Errorf("[%s] %s: seqColumns[%q] = %v, expected %v", tc.category, tc.description, tc.input, got, tc.expected)
 			}
 		})
 	}
