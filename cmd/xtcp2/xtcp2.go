@@ -126,6 +126,12 @@ const (
 	s3MaxBufferedBytesCst        uint64 = 64 * 1024 * 1024
 	s3SpillMaxBytesCst           uint64 = 1024 * 1024 * 1024
 
+	// tcp destination delivery bounds (#345/#339): the write deadline,
+	// queue depth and byte bound handed to the tcp worker.
+	tcpWriteTimeoutCst            = 30 * time.Second
+	tcpQueueDepthCst       uint   = 16
+	tcpMaxBufferedBytesCst uint64 = 0 // 0 = no byte bound (depth alone)
+
 	// Namespace-reconcile cadence defaults (Method B /proc-scan discovery).
 	// reconcileBeforePoll ties discovery to poll cadence (reconcile before each
 	// poll) and is the real discovery mechanism. The background reconcile is now
@@ -316,6 +322,10 @@ type mainFlags struct {
 	s3MaxBufferedBytes        *uint64
 	s3SpillDir                *string
 	s3SpillMaxBytes           *uint64
+
+	tcpWriteTimeout     *time.Duration
+	tcpQueueDepth       *uint
+	tcpMaxBufferedBytes *uint64
 
 	reconcileFrequency  *time.Duration
 	reconcileBeforePoll *bool
@@ -514,6 +524,9 @@ func defineFlags() *mainFlags {
 	f.xtcpProtoFile = flag.String("xtcpProtoFile", xtcpProtoFileCst, "xtcpProtoFile for registering with the schema registry")
 	f.kafkaSchemaUrl = flag.String("kafkaSchemaUrl", kafkaSchemaUrlCst, "kafka schema registry URL")
 	f.produceTimeout = flag.Duration("produceTimeout", kafkaProduceTimeoutCst, "Kafka produce timeout (context.WithTimeout)")
+	f.tcpWriteTimeout = flag.Duration("tcpWriteTimeout", tcpWriteTimeoutCst, "tcp dest: deadline on a single write (and the dial), bounding a wedged route to the timeout instead of the TCP retransmit window (~15.4 min at prod tcp_retries2). Past it the conn is closed, the next attempt re-dials under full-jitter backoff, and after 3 failed attempts the envelope is dropped (xtcp_tcp_dropped_total{reason=\"attempts\"}). 0 = 30s. Falls back to TCP_WRITE_TIMEOUT env.")
+	f.tcpQueueDepth = flag.Uint("tcpQueueDepth", tcpQueueDepthCst, "tcp dest: envelopes queued between the poller and the write worker (max 4096). Past it the oldest is dropped and counted in xtcp_tcp_dropped_total{reason=\"queue_depth\"}, so a wedged sink never blocks polling. 0 = 16. Falls back to TCP_QUEUE_DEPTH env.")
+	f.tcpMaxBufferedBytes = flag.Uint64("tcpMaxBufferedBytes", tcpMaxBufferedBytesCst, "tcp dest: marshaled envelope bytes the queue may hold. Past it the oldest envelope is dropped (reason=\"buffered_bytes\"); the newest is always kept. 0 = no byte bound. Falls back to TCP_MAX_BUFFERED_BYTES env.")
 	f.label = flag.String("label", labelCst, "label applied to the protobuf")
 	f.tag = flag.String("tag", tagCst, "label applied to the protobuf")
 	f.location = flag.String("location", locationCst, "deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.")
@@ -890,6 +903,9 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		S3MaxBufferedBytes:           *f.s3MaxBufferedBytes,
 		S3SpillDir:                   *f.s3SpillDir,
 		S3SpillMaxBytes:              *f.s3SpillMaxBytes,
+		TcpWriteTimeout:              durationpb.New(*f.tcpWriteTimeout),
+		TcpQueueDepth:                uint32(*f.tcpQueueDepth),
+		TcpMaxBufferedBytes:          *f.tcpMaxBufferedBytes,
 		ReconcileFrequency:           durationpb.New(*f.reconcileFrequency),
 		ReconcileBeforePoll:          *f.reconcileBeforePoll,
 		MaxDumpBytes:                 *f.maxDumpBytes,
@@ -1671,6 +1687,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	envOverrideMarshalAndDest(c, debugLevel)
 	envOverrideCaps(c, debugLevel)
 	envOverrideS3Queue(c, debugLevel)
+	envOverrideTCPQueue(c, debugLevel)
 	envOverrideKafka(c, debugLevel)
 	envOverrideLabeling(c, debugLevel)
 	envOverrideEnrichment(c, debugLevel)
@@ -2398,6 +2415,23 @@ func checkNoPositional(args []string) error {
 	return fmt.Errorf("unexpected argument %q: flags take -name value, and an empty value must be quoted (-name \"\" or -name=)", args[0])
 }
 
+// envOverrideTCPQueue applies TCP_WRITE_TIMEOUT, TCP_QUEUE_DEPTH and
+// TCP_MAX_BUFFERED_BYTES, the tcp destination's delivery bounds.
+func envOverrideTCPQueue(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if v, ok := envDuration("TCP_WRITE_TIMEOUT"); ok {
+		c.TcpWriteTimeout = durationpb.New(v)
+		logEnv("TCP_WRITE_TIMEOUT", fmt.Sprintf("c.TcpWriteTimeout:%s", v), debugLevel)
+	}
+	if v, ok := envUint32("TCP_QUEUE_DEPTH"); ok {
+		c.TcpQueueDepth = v
+		logEnv("TCP_QUEUE_DEPTH", fmt.Sprintf("c.TcpQueueDepth:%d", v), debugLevel)
+	}
+	if v, ok := envUint64("TCP_MAX_BUFFERED_BYTES"); ok {
+		c.TcpMaxBufferedBytes = v
+		logEnv("TCP_MAX_BUFFERED_BYTES", fmt.Sprintf("c.TcpMaxBufferedBytes:%d", v), debugLevel)
+	}
+}
+
 // envOverrideS3Queue applies S3_QUEUE_DEPTH, S3_MAX_BUFFERED_BYTES,
 // S3_SPILL_DIR and S3_SPILL_MAX_BYTES, the s3parquet upload queue's bounds
 // and its spill directory.
@@ -2479,6 +2513,9 @@ func printConfigCaps(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.MaxNetnsPerOwner:", c.MaxNetnsPerOwner)
 	fmt.Println("c.MaxNetnsAddsPerReconcile:", c.MaxNetnsAddsPerReconcile)
 	fmt.Println("c.S3QueueDepth:", c.S3QueueDepth)
+	fmt.Println("c.TcpWriteTimeout:", c.TcpWriteTimeout)
+	fmt.Println("c.TcpQueueDepth:", c.TcpQueueDepth)
+	fmt.Println("c.TcpMaxBufferedBytes:", c.TcpMaxBufferedBytes)
 	fmt.Println("c.S3MaxBufferedBytes:", c.S3MaxBufferedBytes)
 	fmt.Println("c.S3SpillDir:", c.S3SpillDir)
 	fmt.Println("c.S3SpillMaxBytes:", c.S3SpillMaxBytes)

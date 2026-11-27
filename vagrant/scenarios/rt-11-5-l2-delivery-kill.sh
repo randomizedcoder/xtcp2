@@ -6,29 +6,24 @@
 # same bridge as the daemon sends gratuitous ARP replies claiming the SINK
 # endpoint's IP resolves to a poison MAC nobody owns. The daemon's
 # established TCP to the sink blackholes: no RST, no FIN — the kernel just
-# retransmits. The premise: "the daemon looks healthy while delivering
-# nothing"; the guard: "delivery-failure counters make the blind visible".
+# retransmits.
 #
-# THE MEASURED SHAPE (probe, 2026-11-25) is stronger, and the scenario runs
-# it in two phases:
+# PRE-FIX (evidence 20261126T014816, findings.md row rt-11-5, #345/#339):
+# the delivery Write ran ON the poll goroutine with no deadline, so once
+# SO_SNDBUF filled the whole POLLER froze for the TCP retransmit window
+# (~15.4 min at the prod default retries2=15) with zero error counters and
+# scrape 200 — collection, not just delivery, silently dead — and the
+# window's close left delivery permanently blind (no reconnect).
 #
-#   phase 1 — THE FREEZE (retries2=8, ~100s window): delivery dies at the
-#   poison moment (segments never land), but the Write keeps SUCCEEDING
-#   locally while SO_SNDBUF absorbs envelopes; once the buffer fills, the
-#   Write blocks — and flushEnvelope runs on the POLL goroutine
-#   (pkg/xtcp/poller.go:150 → dest.Send → conn.Write, no write deadline),
-#   so the whole poller freezes for the retransmit window: no polls, no
-#   error counters, nothing at the catcher, metrics 200. FULLY silent. At
-#   the prod default (tcp_retries2=15) the freeze is ~15.4 min. De-poison
-#   mid-window unblocks the Write and the buffered envelopes drain — the
-#   catcher catches up with ZERO error counters (measured: 3354 lines/6s)
-#   — no records lost, the blind is only visible as LATENCY.
-#
-#   phase 2 — THE PERMANENT BLIND (retries2=3, ~1.4s window): the
-#   retransmit window closes fast; the conn errors, envelopeFlush/error +
-#   destTCP/Write/error light up (the row's visibility premise holds — but
-#   only AFTER the silent window), polls RESUME, and delivery stays dead
-#   forever: tcpDest never reconnects (the pinned finding, #339).
+# POST-FIX (this run, EXPECT=MITIGATED, XTCP2_TCP_WRITE_TIMEOUT=5s): the
+# tcp destination queues to a bounded worker (Send never blocks the
+# poller), every write and dial carries the deadline, and a failed write
+# reconnects under full-jitter backoff. The same poison now costs:
+#   - polls CONTINUE through the stall (the freeze is gone — the core fix),
+#   - delivery stalls but the blind is VISIBLE and COUNTED (destTCP
+#     Write/Dial errors, xtcp_tcp_dropped_total) instead of silent,
+#   - de-poison heals delivery with NO daemon restart (the reconnect,
+#     #339's fix) — measured twice, two poison cycles.
 #
 # Deploy shape: the sink gets its own docker0 alias (XTCP2_SINK_IP
 # 172.17.99.2 — far from docker's sequential IPAM) so poisoning it leaves
@@ -41,7 +36,8 @@ set -euo pipefail
 : "${XTCP2_ATTACKER:=plain}"
 : "${XTCP2_PPROF:=0}"
 : "${XTCP2_SINK_IP:=172.17.99.2}"
-XTCP2_EXPECT="${XTCP2_EXPECT:-CONFIRMED}"
+: "${XTCP2_TCP_WRITE_TIMEOUT:=5s}"
+XTCP2_EXPECT="${XTCP2_EXPECT:-MITIGATED}"
 
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/matrix.sh"
@@ -92,6 +88,10 @@ catcher_delta_6s() {
 }
 
 polls_issued() { mval 'pollRequestCh'; }
+tcp_write_err() { mval 'function="destTCP",type="error",variable="Write"'; }
+tcp_dial_err() { mval 'function="destTCP",type="error",variable="Dial"'; }
+tcp_dropped() { mval 'xtcp_tcp_dropped_total{'; }
+tcp_reconnects() { mval 'function="destTCP",type="count",variable="Reconnect"'; }
 
 error_counters() {
   vm_exec victim "curl -s -m 6 -H 'Authorization: Bearer $RT_READ_TOKEN' http://127.0.0.1:9088/metrics | grep -E 'error.*envelopeFlush|destTCP.*error' | grep -v '^#'" || true
@@ -105,7 +105,6 @@ ok "baseline: catcher=$B_DELTA lines/6s polls=$B_POLLS scrape=$(scrape_code)"
 
 # --- the killer -------------------------------------------------------------------
 
-vm_exec_root victim "sysctl -w net.ipv4.tcp_retries2=8 >/dev/null; nsenter -t $DPID -n sysctl -w net.ipv4.tcp_retries2=8"
 vm_exec victim "sudo docker rm -f rt-l2killer >/dev/null 2>&1; sudo docker run -d --name rt-l2killer --cap-add NET_RAW --network bridge ubuntu:24.04 sleep infinity" >/dev/null
 vm_exec victim "sudo docker cp /opt/xtcp2-redteam/bin/arppoison rt-l2killer:/tmp/arppoison" >/dev/null
 vm_exec victim "sudo docker exec rt-l2killer sh -c 'nohup /tmp/arppoison -iface eth0 -ip $SINK -interval 200ms > /tmp/ap.log 2>&1 &'" >/dev/null
@@ -124,98 +123,141 @@ else
   not_ok "the gateway entry was poisoned too — see evidence"
 fi
 
-# --- phase 1: the freeze -----------------------------------------------------------
+# --- cycle 1: the poison hold --------------------------------------------------------
+# With the 5s write deadline the stall unwinds in bounded steps: the in-flight
+# write errors at the deadline, the reconnect dials time out at the same bound,
+# and each envelope burns its attempt budget and is dropped. What must NOT
+# happen (the pre-fix freeze): the poller stopping.
+#
+# The dark window has TWO legitimate shapes (a neighbor-state race, not a
+# product fork — evidence 20261127T065504 caught shape B while
+# 20261126T111738 caught shape A):
+#   shape A (stall sustained): the poisoned entry's unicast probes fail, the
+#     broadcast re-resolution loses to the dials' own 5s deadline, the
+#     catcher goes dark and the envelope budgets burn (drops counted).
+#   shape B (healed-through): the write deadline closes the conn, a re-dial
+#     falls back to broadcast ARP, the REAL sink answers, and delivery
+#     resumes while the attack continues — a REACHABLE entry then ignores
+#     the poison's gratuitous replies for ~30s. The stall self-heals with no
+#     restart; drops may be 0 (loss bounded to the reconnect window).
+# Either way Write/Dial errors MUST rise (the blind is visible) and the
+# poller MUST keep issuing. "Flowing with zero errors" = the poison failed.
+
+P0="$(polls_issued)"
+sleep 20 # the deadline fires (~5s), the first dial windows close (~5s each)
 
 DELTA="$(catcher_delta_6s)"
-if [ "$DELTA" -le 10 ]; then
-  ok "phase 1: the catcher is dark within a cycle of the poison ($DELTA lines/6s) — the daemon is delivering nothing"
+W1_ERR="$(tcp_write_err)"
+D1_ERR="$(tcp_dial_err)"
+STALLED=0
+if [ "${W1_ERR:-0}" -lt 1 ] && [ "${D1_ERR:-0}" -lt 1 ]; then
+  not_ok "cycle 1: zero Write/Dial errors ($DELTA lines/6s) — the poison failed or the stall went silent; see evidence"
+elif [ "$DELTA" -le 10 ]; then
+  STALLED=1
+  ok "cycle 1: the catcher is dark within a cycle of the poison ($DELTA lines/6s) — delivery stalls (the premise's blind)"
 else
-  not_ok "phase 1: the catcher kept flowing ($DELTA lines/6s) — the poison failed; see evidence"
+  ok "cycle 1: the stall self-healed mid-poison ($DELTA lines/6s; Write/error=$W1_ERR, Dial/error=$D1_ERR — the deadline closed the conn and a re-dial's broadcast ARP beat the poison; no restart)"
 fi
-
 code="$(scrape_code)"
 if [ "${code:-000}" = 200 ]; then
-  ok "phase 1: the daemon LOOKS healthy while delivering nothing (scrape 200 — the premise)"
+  ok "cycle 1: the daemon keeps answering (scrape 200)"
 else
-  not_ok "phase 1: the scrape degraded (code=${code:-000}) — see evidence"
+  not_ok "cycle 1: the scrape degraded (code=${code:-000}) — see evidence"
 fi
 
-# The freeze: after SO_SNDBUF fills (~10-30s of envelopes), the Write blocks
-# and the poller stops issuing polls. Two samples 8s apart, equal = frozen.
-frozen() {
-  local a b
-  a="$(polls_issued)"
-  sleep 8
-  b="$(polls_issued)"
-  [ "$a" = "$b" ]
-}
-wait_for 150 "the poller freezes in the blocked Write (polls stop issuing; prod default would freeze ~15.4 min)" frozen
-F1_POLLS="$(polls_issued)"
-sleep 6
-F2_POLLS="$(polls_issued)"
-if [ "$F1_POLLS" = "$F2_POLLS" ]; then
-  ok "phase 1: THE FREEZE — the poller is stuck in the destination Write (polls=$F1_POLLS frozen over 14s: no polls, no counters, metrics 200 — fully silent; the delivery Write has no deadline and runs on the poll goroutine)"
+sleep 12 # more envelope budgets burn; polls sampled across the whole window
+P1="$(polls_issued)"
+if [ "$P1" -gt "$P0" ]; then
+  ok "cycle 1: THE FREEZE IS GONE — polls kept issuing through the stall (polls $P0->$P1 over 32s; the flush no longer runs on the poll goroutine — the #345 fix)"
 else
-  not_ok "phase 1: polls kept issuing during the hold ($F1_POLLS -> $F2_POLLS) — no freeze; see evidence"
-fi
-if [ -z "$(error_counters)" ]; then
-  ok "phase 1: zero error counters while dark and frozen — the blind is NOT detectable from the daemon's own metrics during the silent window"
-else
-  not_ok "phase 1: error counters fired without the window closing — see evidence"
+  not_ok "cycle 1: the poller froze during the stall ($P0->$P1) — the fix regressed; see evidence"
 fi
 
-# --- de-poison mid-window: the graceful recovery ------------------------------------
+if [ "${W1_ERR:-0}" -ge 1 ] || [ "${D1_ERR:-0}" -ge 1 ]; then
+  ok "cycle 1: the blind is VISIBLE while dark (Write/error=$W1_ERR, Dial/error=$D1_ERR — the deadline turns the silent window into counted errors)"
+else
+  not_ok "cycle 1: no Write/Dial errors during the stall — the blind is still silent; see evidence"
+fi
+DROP1="$(tcp_dropped)"
+if [ "$STALLED" = 1 ] && [ "${DROP1:-0}" -ge 1 ]; then
+  ok "cycle 1: the stall is COUNTED (xtcp_tcp_dropped_total=$DROP1 — bounded, visible loss, not silent latency)"
+elif [ "$STALLED" = 1 ] && [ "$(catcher_delta_6s)" -gt 10 ]; then
+  ok "cycle 1: the stall healed late in the window (no drops — the re-dial won the race; loss bounded to the reconnect window, not a queue)"
+elif [ "$STALLED" = 1 ]; then
+  not_ok "cycle 1: dark through the whole window with no drops counted — see evidence"
+else
+  ok "cycle 1: no envelope burned its full budget ($DROP1 drops — the re-dial won the race; loss bounded to the reconnect window, not a queue)"
+fi
+
+# --- cycle 1 release: the reconnect heals delivery -------------------------------------
 
 vm_exec victim "sudo docker exec rt-l2killer pkill -f arppoison" >/dev/null 2>&1 || true
 vm_exec_root victim "nsenter -t $DPID -n ip neigh del $SINK dev eth0" >/dev/null 2>&1 || true
-sleep 8
+
+resume() {
+  [ "$(catcher_delta_6s)" -gt 10 ]
+}
+wait_for 90 "delivery resumes after de-poison (the next dial lands; NO daemon restart — the #339 fix)" resume
 CATCHUP="$(catcher_delta_6s)"
-if [ "$CATCHUP" -gt 0 ]; then
-  ok "de-poison mid-window: the blocked Write completes, the buffered envelopes drain, the catcher catches up ($CATCHUP lines/6s) — no error counters, no records lost (the blind was LATENCY, not loss)"
+R1="$(tcp_reconnects)"
+if [ "$CATCHUP" -gt 10 ]; then
+  ok "cycle 1: de-poison heals delivery with NO restart (catcher $CATCHUP lines/6s; reconnects=$R1 — the daemon re-dials on its own)"
 else
-  not_ok "de-poison mid-window: the catcher did not catch up — see evidence"
-fi
-if [ -z "$(error_counters)" ]; then
-  ok "de-poison mid-window: zero error counters (the recovery is silent too)"
-else
-  not_ok "de-poison mid-window: unexpected error counters — see evidence"
+  not_ok "cycle 1: the catcher did not resume after de-poison — see evidence"
 fi
 
-# --- phase 2: the window closes — the permanent blind --------------------------------
+# --- cycle 2: the same poison again — the reconnect is not one-shot --------------------
 
-vm_exec_root victim "nsenter -t $DPID -n sysctl -w net.ipv4.tcp_retries2=3" >/dev/null
 vm_exec victim "sudo docker exec rt-l2killer sh -c 'nohup /tmp/arppoison -iface eth0 -ip $SINK -interval 200ms > /tmp/ap2.log 2>&1 &'" >/dev/null
-sleep 12 # the retransmit window (retries2=3) closes, the conn errors, flushes error fast
-E_BEFORE="$(mval 'error.*envelopeFlush')"
-sleep 6
-E_AFTER="$(mval 'error.*envelopeFlush')"
-W_ERR="$(mval 'destTCP.*error')"
-P2_POLLS="$(polls_issued)"
-echo "rt-11-5: phase 2: envelopeFlush/error $E_BEFORE->$E_AFTER destTCP/Write/error=$W_ERR polls=$P2_POLLS"
-if [ "${E_AFTER:-0}" -gt "${E_BEFORE:-0}" ] && [ "${W_ERR:-0}" -gt 0 ]; then
-  ok "phase 2: after the window closes, the delivery-error counters light up (envelopeFlush/error $E_BEFORE->$E_AFTER) — the blind becomes VISIBLE (the row's premise)"
+
+# The cycle-1 de-poison re-dialed, so the sink's neighbor entry is REACHABLE
+# again — and a REACHABLE entry ignores gratuitous replies until it ages to
+# STALE (~30s at base_reachable_time; cycle 1's entry was already stale).
+# Wait for the flip rather than guessing the age.
+neigh_flipped() {
+  vm_exec_root victim "nsenter -t $DPID -n ip neigh show $SINK" | grep -q "02:00:00:00:00:ff"
+}
+wait_for 90 "the second poison flips the freshly re-dialed neighbor entry" neigh_flipped
+W2A="$(tcp_write_err)"
+sleep 18
+DARK2="$(catcher_delta_6s)"
+W2B="$(tcp_write_err)"
+P2A="$(polls_issued)"
+sleep 8
+P2B="$(polls_issued)"
+echo "rt-11-5: cycle 2: catcher=$DARK2 lines/6s Write/error=$W2A->$W2B polls=$P2A->$P2B"
+# The same two shapes as cycle 1 (see the cycle-1 comment): dark, or
+# healed-through mid-poison. Either way Write errors MUST rise — a flipped
+# entry makes the in-flight write error at the deadline within ~5s, so
+# "no new errors" means the stall went silent (the regression shape).
+if [ "${W2B:-0}" -gt "${W2A:-0}" ] && [ "$DARK2" -le 10 ]; then
+  ok "cycle 2: the same poison stalls delivery again and errors again (Write/error $W2A->$W2B, catcher $DARK2 lines/6s)"
+elif [ "${W2B:-0}" -gt "${W2A:-0}" ]; then
+  ok "cycle 2: the second stall errors and self-heals again (Write/error $W2A->$W2B, catcher $DARK2 lines/6s — the broadcast-ARP race, cycle-1 shape B)"
 else
-  not_ok "phase 2: no delivery-error counters after the window closed — see evidence"
+  not_ok "cycle 2: no new Write errors during the second stall — see evidence"
 fi
-sleep 6
-P3_POLLS="$(polls_issued)"
-if [ "$P3_POLLS" -gt "$P2_POLLS" ]; then
-  ok "phase 2: polls resumed after the error (the freeze is once-per-blackhole; the daemon keeps polling with delivery dead)"
+if [ "$P2B" -gt "$P2A" ]; then
+  ok "cycle 2: polls continue through the second stall too ($P2A->$P2B)"
 else
-  not_ok "phase 2: polls stayed frozen after the error — see evidence"
+  not_ok "cycle 2: the poller froze on the second stall — see evidence"
 fi
-DELTA="$(catcher_delta_6s)"
-if [ "$DELTA" -le 10 ]; then
-  ok "phase 2: THE PERMANENT BLIND — delivery stays dead (catcher $DELTA lines/6s; tcpDest never reconnects, #339) until a daemon restart"
+
+vm_exec victim "sudo docker exec rt-l2killer pkill -f arppoison" >/dev/null 2>&1 || true
+vm_exec_root victim "nsenter -t $DPID -n ip neigh del $SINK dev eth0" >/dev/null 2>&1 || true
+wait_for 90 "delivery resumes after the second de-poison" resume
+CATCHUP2="$(catcher_delta_6s)"
+if [ "$CATCHUP2" -gt 10 ]; then
+  ok "cycle 2: de-poison heals delivery again ($CATCHUP2 lines/6s — the reconnect is repeatable, not a one-shot)"
 else
-  not_ok "phase 2: the catcher recovered on its own (no reconnect exists — reconcile this) — see evidence"
+  not_ok "cycle 2: the catcher did not resume after the second de-poison — see evidence"
 fi
 
 victim_alive_check() {
   vm_exec victim "sudo docker inspect rt-xtcp2 --format '{{.State.Running}}' | grep -q true"
 }
 if victim_alive_check; then
-  ok "the daemon process survives the whole attack (both phases)"
+  ok "the daemon survives the whole attack (both cycles)"
 else
   not_ok "the daemon died — see evidence"
 fi
@@ -223,14 +265,13 @@ fi
 # --- teardown ------------------------------------------------------------------------
 
 vm_exec victim "sudo docker rm -f rt-l2killer" >/dev/null
-vm_exec_root victim "sysctl -w net.ipv4.tcp_retries2=15 >/dev/null; nsenter -t $DPID -n sysctl -w net.ipv4.tcp_retries2=15" >/dev/null 2>&1 || true
 
 # --- verdict -------------------------------------------------------------------------
 
-# CONFIRMED, stronger than the premise: the L2 kill does not just blind
-# delivery while the daemon looks healthy — it freezes COLLECTION for the
-# whole retransmit window with zero error signal (the Write has no deadline
-# and runs on the poll goroutine), and the window's close leaves delivery
-# permanently dead (no reconnect). Product findings pinned: a write deadline
-# + an async flush queue.
-finish rt-11-5 CONFIRMED
+# MITIGATED (#345 + #339 landed with this expectation): the L2 kill still
+# stalls delivery (that much is physics — the route is blackholed), but the
+# poller keeps polling through the stall, the blind is visible and counted
+# (Write/Dial errors, tcp_dropped_total), and de-poison heals delivery with
+# no daemon restart. The pre-fix freeze and permanent blind are recorded in
+# findings.md row rt-11-5 (evidence 20261126T014816).
+finish rt-11-5 MITIGATED

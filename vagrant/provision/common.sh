@@ -10,6 +10,21 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+# The cloud image's unattended-upgrades can grab the dpkg frontend lock for
+# minutes at a time, and the matrix re-provisions the same VMs for hours —
+# rt-11-3..rt-11-5 all failed on it in one run (evidence 20261127T061142).
+# Kill the timers, then wait out any in-flight run BEFORE the first apt
+# (the docker block below needs the lock too on a fresh VM).
+systemctl stop apt-daily.timer apt-daily-upgrade.timer unattended-upgrades 2>/dev/null || true
+systemctl mask apt-daily.timer apt-daily-upgrade.timer unattended-upgrades 2>/dev/null || true
+for _ in $(seq 1 120); do # bounded: 10 min — an upgrade can run long
+  if ! fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock \
+    /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
+    break
+  fi
+  sleep 5
+done
+
 if ! command -v docker >/dev/null 2>&1; then
   apt-get update -qq
   apt-get install -y -qq ca-certificates curl gnupg

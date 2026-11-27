@@ -209,8 +209,12 @@ All are in `xtcp_counts`.
 | `destNATS` | `FlushOnClose` | error | the final flush at shutdown failed |
 | `destHTTP` | `posts`, `postBytes` | count | POSTs and their bytes |
 | `destHTTP` | `newRequest`, `do`, `status` | error | building or sending the POST failed, or a non-2xx status |
-| `destTCP`, `destUnix`, `destUnixGram` | `Writes`, `WriteBytes` | count | writes and their bytes |
-| `destTCP`, `destUnix`, `destUnixGram` | `Write` | error | a write failed |
+| `destTCP` | `Writes`, `WriteBytes` | count | the worker's writes and their bytes |
+| `destTCP` | `Write` | error | a write failed (the conn is closed; the next attempt re-dials) |
+| `destTCP` | `Dial` | error | a (re)connect dial failed |
+| `destTCP` | `Reconnect` | count | a dial succeeded after a failed write/dial — delivery healed without a restart |
+| `destTCP` | `queueFull` | error | an envelope was dropped from the queue, past `-tcpQueueDepth` or `-tcpMaxBufferedBytes` |
+| `destTCP` | `dropped` | error | the worker dropped an envelope (attempt budget exhausted, or shutdown) |
 | `Inetdiager` | `udpWrites`, `udpWriteBytes` / `udpConn.Write` | count / error | the UDP destination's writes |
 | `destUDPIoUring`, `destUnixIoUring`, `destUnixGramIoUring` | `Writes`, `WriteBytes` / `Write` | count / error | io_uring destination writes, from their completions |
 | `destUDPIoUring`, `destUnixGramIoUring` / `destUnixIoUring` | `EnqueueSend` / `EnqueueWritev` | error | a write couldn't be queued on the ring |
@@ -226,6 +230,18 @@ The s3parquet upload queue has its own series. Past either bound it drops the ol
 | `xtcp_s3_buffered_bytes` | `stage="queue"\|"builder"` | bytes held: envelopes awaiting the worker, and approximate row bytes in the Parquet object being built |
 | `xtcp_s3_spill_total` | `result="written"\|"uploaded"\|"evicted"\|"too_large"\|"error"` | Parquet objects through `-s3SpillDir`: spilled after a failed upload, uploaded from the spill, deleted past `-s3SpillMaxBytes`, refused as larger than the bound, or a write failure or corrupt file |
 | `xtcp_s3_spill_objects`, `xtcp_s3_spill_bytes` | | objects and bytes waiting in the spill directory |
+
+The tcp destination has the same queue shape (a bounded FIFO between the
+poller and one write worker): `Send` never blocks, every write and dial
+carries `-tcpWriteTimeout`, a failed write reconnects under full-jitter
+backoff, and past 3 attempts per envelope the envelope is dropped and
+counted — a wedged or unreachable sink stalls delivery, never polling.
+
+| metric | labels | meaning |
+|---|---|---|
+| `xtcp_tcp_dropped_total` | `reason="queue_depth"\|"buffered_bytes"\|"attempts"\|"shutdown"` | envelopes dropped: past `-tcpQueueDepth`/`-tcpMaxBufferedBytes` (oldest first), after the write-attempt budget exhausted (the sink was unreachable for `-tcpWriteTimeout` × attempts), or still queued at close |
+| `xtcp_tcp_dropped_bytes_total` | `reason` | their marshaled bytes |
+| `xtcp_tcp_buffered_bytes` | `stage="queue"` | bytes held: envelopes awaiting the worker |
 
 ### Enrichment
 

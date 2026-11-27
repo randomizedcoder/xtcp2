@@ -10,6 +10,9 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // TestStderrDestFactory: the stderr scheme is registered and writes to stderr.
@@ -68,11 +71,40 @@ func TestTCPDest(t *testing.T) {
 	}
 }
 
-func TestTCPDest_dialError(t *testing.T) {
-	// Port 1 on localhost should refuse; dial must fail.
+func TestTCPDest_sinkDownAtStart(t *testing.T) {
+	// Port 1 on localhost refuses. Pre-#339 the factory dialed here and
+	// aborted startup; now the dial is the worker's job, so the daemon
+	// starts with the sink down, Send never blocks, and the queued envelope
+	// is dropped (counted) once the attempt budget runs out.
 	x := newTestXTCP(t, "tcp:127.0.0.1:1")
-	if _, err := newTCPDest(context.Background(), x); err == nil {
-		t.Fatal("expected dial error")
+	dest, err := newTCPDest(context.Background(), x)
+	if err != nil {
+		t.Fatalf("newTCPDest with the sink down: %v", err)
+	}
+	td, ok := dest.(*tcpDest)
+	if !ok {
+		t.Fatalf("dest is %T, want *tcpDest", dest)
+	}
+	td.attempts = 1 // one refused dial per envelope, no backoff
+	td.jitterDur = func(time.Duration) time.Duration { return 0 }
+
+	b := []byte("queued-while-down\n")
+	n, err := dest.Send(context.Background(), &b)
+	if err != nil {
+		t.Fatalf("Send with the sink down: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("Send n = %d, want 1", n)
+	}
+	if err := dest.Close(); err != nil {
+		t.Errorf("Close: %v", err)
+	}
+	// The attempt budget dropped the envelope: one dial error, one drop.
+	if got := testutil.ToFloat64(x.pC.WithLabelValues("destTCP", "Dial", "error")); got < 1 {
+		t.Errorf("destTCP dial-error counter = %v, want >= 1", got)
+	}
+	if got := testutil.ToFloat64(x.pC.WithLabelValues("destTCP", "dropped", "error")); got < 1 {
+		t.Errorf("destTCP dropped counter = %v, want >= 1", got)
 	}
 }
 

@@ -1063,6 +1063,9 @@ func TestPrintFlags(t *testing.T) {
 	f.s3MaxBufferedBytes = &n64
 	f.s3SpillDir = &s
 	f.s3SpillMaxBytes = &n64
+	f.tcpWriteTimeout = &d
+	f.tcpQueueDepth = &n
+	f.tcpMaxBufferedBytes = &n64
 	f.reconcileFrequency = &d
 	f.reconcileBeforePoll = &b
 	f.maxDumpBytes = &n64
@@ -1299,6 +1302,9 @@ func TestBuildConfig(t *testing.T) {
 		s3MaxBufferedBytes:        &nl,
 		s3SpillDir:                &ssd,
 		s3SpillMaxBytes:           &ssmb,
+		tcpWriteTimeout:           &rf,
+		tcpQueueDepth:             &wf,
+		tcpMaxBufferedBytes:       &nl,
 		reconcileFrequency:        &rf,
 		reconcileBeforePoll:       &rbp,
 		maxDumpBytes:              &nl,

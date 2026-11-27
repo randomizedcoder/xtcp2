@@ -41,6 +41,11 @@
 #                                  so the sink is a separate sibling
 #                                  endpoint — rt-11-5's L2-kill shape that
 #                                  leaves the gateway path clean)
+#   XTCP2_TCP_WRITE_TIMEOUT <dur>|"" the daemon's -tcpWriteTimeout: the
+#                                  per-write deadline that bounds a wedged
+#                                  delivery route (#345). "" = the daemon's
+#                                  own 30s default; a short duration lets a
+#                                  scenario watch the deadline fire
 #
 # Run everything through `nix run .#redteam-*` from the repo root; that pins
 # VAGRANT_CWD/VAGRANT_HOME to vagrant/.gen so no state leaks into ~/.vagrant.d.
@@ -62,6 +67,7 @@ CPUS = ENV.fetch("XTCP2_CPUS", "0")
 PPROF = ENV.fetch("XTCP2_PPROF", "0")
 MAX_RECORDS = ENV.fetch("XTCP2_MAX_RECORDS", "0")
 SINK_IP = ENV.fetch("XTCP2_SINK_IP", "")
+TCP_WRITE_TIMEOUT = ENV.fetch("XTCP2_TCP_WRITE_TIMEOUT", "")
 
 Vagrant.configure("2") do |config|
   config.vm.box = BOX
@@ -102,7 +108,7 @@ Vagrant.configure("2") do |config|
 
     victim.vm.provision "shell", path: "provision/common.sh"
     victim.vm.provision "shell", path: "provision/victim.sh",
-      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH, NOFILE, CPUS, PPROF, MAX_RECORDS, SINK_IP]
+      args: [MODE, AUTH, CAPS, ATTACKER, DEST, ENRICH, NOFILE, CPUS, PPROF, MAX_RECORDS, SINK_IP, TCP_WRITE_TIMEOUT]
   end
 
   config.vm.define "attacker" do |attacker|

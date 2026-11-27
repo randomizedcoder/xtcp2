@@ -62,6 +62,7 @@ func newTestXTCP(t *testing.T, dest string) *XTCP {
 	}
 
 	reg := prometheus.NewRegistry()
+	x.registry = reg
 	x.pC = promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{Subsystem: "xtcp_test", Name: promNameCounts, Help: "test counts"},
 		promLabels,

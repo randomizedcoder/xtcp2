@@ -132,6 +132,9 @@ s3SpillMaxBytes	1073741824	s3parquet: bytes -s3SpillDir may hold; past it the ol
 s3UploadBackoffCap	0s	s3parquet: cap on a single upload retry's backoff window (full jitter draws in [0,window]). 0 = derive as clamp(-frequency/10, 1s, 1h).
 s3UploadMaxAttempts	10	s3parquet: max upload attempts (original + retries) before dropping the object. Retries use full-jitter exponential backoff.
 tag		label applied to the protobuf
+tcpMaxBufferedBytes	0	tcp dest: marshaled envelope bytes the queue may hold. Past it the oldest envelope is dropped (reason="buffered_bytes"); the newest is always kept. 0 = no byte bound. Falls back to TCP_MAX_BUFFERED_BYTES env.
+tcpQueueDepth	16	tcp dest: envelopes queued between the poller and the write worker (max 4096). Past it the oldest is dropped and counted in xtcp_tcp_dropped_total{reason="queue_depth"}, so a wedged sink never blocks polling. 0 = 16. Falls back to TCP_QUEUE_DEPTH env.
+tcpWriteTimeout	30s	tcp dest: deadline on a single write (and the dial), bounding a wedged route to the timeout instead of the TCP retransmit window (~15.4 min at prod tcp_retries2). Past it the conn is closed, the next attempt re-dials under full-jitter backoff, and after 3 failed attempts the envelope is dropped (xtcp_tcp_dropped_total{reason="attempts"}). 0 = 30s. Falls back to TCP_WRITE_TIMEOUT env.
 timeout	5s	Poll timeout per name space
 topic	xtcp	Kafka or NSQ topic
 treatmentAttribution		optional journal directory of a standalone xtcp2-treatment-agent (its config's directory, default /var/lib/xtcp2/routes); this daemon only reads the snapshot and stamps treatment provenance onto records. Mutually exclusive with -treatmentConfig

@@ -30,6 +30,7 @@ CPUS="${8:-0}"
 PPROF="${9:-0}"
 MAX_RECORDS="${10:-0}"
 SINK_IP="${11:-}"
+TCP_WRITE_TIMEOUT="${12:-}"
 
 die() {
   echo "victim.sh: $*" >&2
@@ -81,6 +82,10 @@ case "$SINK_IP" in
   "") ;;
   *.*.*.*) ;;
   *) die "invalid XTCP2_SINK_IP '$SINK_IP' (want an IPv4)" ;;
+esac
+case "$TCP_WRITE_TIMEOUT" in
+  "" | 0 | 0s) ;;
+  *[!0-9a-z.]*) die "invalid XTCP2_TCP_WRITE_TIMEOUT '$TCP_WRITE_TIMEOUT' (want a Go duration like 5s or 1m, or empty)" ;;
 esac
 
 HARNESS_DIR=/home/vagrant/xtcp2-redteam
@@ -378,8 +383,16 @@ fi
 # (over the budget, namespaces above their fair share stop asking for
 # TIME_WAIT/SYN_RECV, then are port-sampled: xtcp_poll_degraded_total).
 MAX_RECORDS_ARGS=()
-if [ "$MAX_RECORDS" != 0 ]; then
+if [ "$MAX_RECORDS" != 0 ] && [ -n "$MAX_RECORDS" ]; then
   MAX_RECORDS_ARGS=(-maxRecordsPerPoll "$MAX_RECORDS")
+fi
+
+# TCP_WRITE_TIMEOUT: empty = the daemon's own 30s default; a duration pins
+# the per-write deadline so rt-11-5's fixed variant can watch the deadline
+# bound a wedged route (#345).
+TCP_WRITE_TIMEOUT_ARGS=()
+if [ -n "$TCP_WRITE_TIMEOUT" ] && [ "$TCP_WRITE_TIMEOUT" != 0 ] && [ "$TCP_WRITE_TIMEOUT" != 0s ]; then
+  TCP_WRITE_TIMEOUT_ARGS=(-tcpWriteTimeout "$TCP_WRITE_TIMEOUT")
 fi
 
 docker run -d --name rt-xtcp2 \
@@ -402,6 +415,7 @@ docker run -d --name rt-xtcp2 \
   -frequency 2s \
   -timeout 1s \
   "${MAX_RECORDS_ARGS[@]}" \
+  "${TCP_WRITE_TIMEOUT_ARGS[@]}" \
   -hostname rt-victim
 
 # --- RT-11 work population -------------------------------------------------
