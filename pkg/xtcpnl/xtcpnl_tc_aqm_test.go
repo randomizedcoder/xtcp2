@@ -271,7 +271,9 @@ func TestParseTcAqmXstats(t *testing.T) {
 			return "err " + aqmErr(err)
 		}
 		c := *x.Aqm.Cake
-		return fmt.Sprintf("tins %d gap %t", c.NTins, c.TinGap)
+		ti, tm := c.ShortTin(true)
+		ji, jm := c.ShortTin(false)
+		return fmt.Sprintf("tins %d gap %t text %d %#x json %d %#x", c.NTins, c.TinGap, ti, tm, ji, jm)
 	}
 	tin := cakeTin
 	tgt := rtattr(TcaCakeTinStatsTargetUs, le32(5000))
@@ -314,15 +316,24 @@ func TestParseTcAqmXstats(t *testing.T) {
 		{"negative: cake MEMORY_USED of 2 bytes beside MEMORY_LIMIT (Q77)", func() string {
 			return cake(cat(rtattr(TcaCakeStatsMemoryUsed, le16(1)), rtattr(TcaCakeStatsMemoryLimit, le32(4))))
 		}, "err " + ErrTcShort.Error()},
-		{"negative: cake tin attribute short", func() string {
+		{"negative: cake tin 0 attribute short is read in both modes", func() string {
 			return cake(nest(TcaCakeStatsTinStats, tin(1, rtattr(TcaCakeTinStatsTargetUs, le16(1)))))
-		}, "err " + ErrTcShort.Error()},
+		}, "tins 1 gap false text 0 0x2000 json 0 0x2000"},
+		{"negative: cake tin 1 short where tin 0 has it is read in both modes", func() string {
+			return cake(nest(TcaCakeStatsTinStats, tin(1, tgt), tin(2, rtattr(TcaCakeTinStatsTargetUs, le16(1)))))
+		}, "tins 2 gap false text 1 0x2000 json 1 0x2000"},
+		{"corner: cake tin 1 short where tin 0 lacks it is read by JSON only (PR 353 review)", func() string {
+			return cake(nest(TcaCakeStatsTinStats, tin(1), tin(2, rtattr(TcaCakeTinStatsTargetUs, []byte{1}))))
+		}, "tins 2 gap false text -1 0x0 json 1 0x2000"},
+		{"corner: a short tin 0 attribute counts as present for the gap (Q78)", func() string {
+			return cake(nest(TcaCakeStatsTinStats, tin(1, rtattr(TcaCakeTinStatsTargetUs, le16(1))), tin(2, pk)))
+		}, "tins 2 gap true text 0 0x2000 json 0 0x2000"},
 		{"boundary: cake tin 1 missing an attribute tin 0 has (Q78)", func() string {
 			return cake(nest(TcaCakeStatsTinStats, tin(1, tgt, pk), tin(2, pk)))
-		}, "tins 2 gap true"},
+		}, "tins 2 gap true text -1 0x0 json -1 0x0"},
 		{"boundary: cake tins stop at the first gap in the numbering", func() string {
 			return cake(nest(TcaCakeStatsTinStats, tin(1, tgt), tin(3, tgt)))
-		}, "tins 1 gap false"},
+		}, "tins 1 gap false text -1 0x0 json -1 0x0"},
 		{"boundary: pie xstats of exactly sizeof", func() string {
 			x, err := ParseTcXstats(TcKindPie, make([]byte, TcPieXstatsSizeCst))
 			return fmt.Sprint(x.Has, err)
@@ -333,10 +344,10 @@ func TestParseTcAqmXstats(t *testing.T) {
 		}, "-2147483648 <nil>"},
 		{"corner: cake MEMORY_USED short alone is not read", func() string {
 			return cake(rtattr(TcaCakeStatsMemoryUsed, le16(1)))
-		}, "tins 0 gap false"},
+		}, "tins 0 gap false text -1 0x0 json -1 0x0"},
 		{"corner: cake DROP_NEXT short under DROPPING 0 is not read", func() string {
 			return cake(cat(rtattr(TcaCakeStatsDropping, le32(0)), rtattr(TcaCakeStatsDropNextUs, le16(1))))
-		}, "tins 0 gap false"},
+		}, "tins 0 gap false text -1 0x0 json -1 0x0"},
 		{"corner: gred, plug and skbprio have no xstats", func() string {
 			s := ""
 			for _, k := range []string{TcKindGred, TcKindPlug, TcKindSkbprio} {

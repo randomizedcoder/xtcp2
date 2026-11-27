@@ -102,6 +102,18 @@ func cakeXstats(n, gap int, stats ...[]byte) []byte {
 	return cat(cat(stats...), attr(xtcpnl.TcaCakeStatsTinStats|unix.NLA_F_NESTED, tins))
 }
 
+// cakeShortTins is two cake tins, tin 1's TARGET_US one byte long; tin 0
+// has a full TARGET_US when has0.
+func cakeShortTins(has0 bool) []byte {
+	var t0 []byte
+	if has0 {
+		t0 = attr(xtcpnl.TcaCakeTinStatsTargetUs, le32(5000))
+	}
+	tins := cat(attr(1|unix.NLA_F_NESTED, t0),
+		attr(2|unix.NLA_F_NESTED, attr(xtcpnl.TcaCakeTinStatsTargetUs, []byte{1})))
+	return attr(xtcpnl.TcaCakeStatsTinStats|unix.NLA_F_NESTED, tins)
+}
+
 const aqmHead = "qdisc %s 1: root refcnt 2 "
 
 func aqmLine(k, rest string) string { return strings.Replace(aqmHead, "%s", k, 1) + rest }
@@ -245,6 +257,15 @@ func TestGotcAqm(t *testing.T) {
 			showD0(aqmQs("cake", cakeXstats(3, 1))),
 			result{stdout: aqmLine("cake", "nonat nowash no-ack-filter no-split-gso noatm overhead 0 ") + aqmSent,
 				stderr: "gotc: not implemented: cake tin attribute that only tin 0 has (Q78) (tc reads it unchecked)\n", rc: 255}},
+		{"corner: cake text skips a short tin 1 field tin 0 lacks (PR 353 review)", showS,
+			showD0(aqmQs("cake", cakeShortTins(false))),
+			result{stdout: aqmLine("cake", "nonat nowash no-ack-filter no-split-gso noatm overhead 0 ") + aqmSent + "                  Tin 0        Tin 1\n\n"}},
+		{"negative: cake JSON reads a short tin 1 field tin 0 lacks", []string{"-s", "-j", "qdisc", "show", "dev", "d0"},
+			showD0(aqmQs("cake", cakeShortTins(false))),
+			result{stdout: "[{\"kind\":\"cake\",\"handle\":\"1:\",\"root\":true,\"refcnt\":2,\"options\":{\"nat\":false,\"wash\":false,\"ingress\":false,\"ack-filter\":\"disabled\",\"split_gso\":false,\"rtt\":0,\"raw\":false,\"atm\":\"noatm\",\"overhead\":0,\"fwmark\":\"0\"},\"bytes\":0,\"packets\":0", stderr: "gotc: not implemented: cake xtcpnl: tc structure payload is short: cake tin 1 attribute mask 0x2000\n", rc: 255}},
+		{"negative: cake text reads a short tin 1 field tin 0 has", showS,
+			showD0(aqmQs("cake", cakeShortTins(true))),
+			result{stdout: aqmLine("cake", "nonat nowash no-ack-filter no-split-gso noatm overhead 0 ") + aqmSent, stderr: "gotc: not implemented: cake xtcpnl: tc structure payload is short: cake tin 1 attribute mask 0x2000\n", rc: 255}},
 		{"negative: a short cake stat is refused (Q77)", showS,
 			showD0(aqmQs("cake", attr(xtcpnl.TcaCakeStatsActiveQueues, []byte{1}))),
 			result{stdout: aqmLine("cake", "nonat nowash no-ack-filter no-split-gso noatm overhead 0 ") + aqmSent,

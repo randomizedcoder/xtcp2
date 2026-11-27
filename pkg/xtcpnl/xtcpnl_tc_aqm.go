@@ -925,14 +925,34 @@ type TcDualpi2Xstats struct {
 }
 
 // TcCakeXstats is cake_print_xstats' reads: Stats the top-level values,
-// Tins the tin stats tables, in order from tin 1 while present. TinGap is
-// a tin missing one of the printed attributes tin 0 has: tc's text table
-// reads the NULL attribute (Q78); its JSON tests each tin.
+// Tins the tin stats tables, in order from tin 1 while present. TinShort
+// is each tin's mask of printed attributes shorter than tc's getter; which
+// of them tc reads depends on the mode (ShortTin). TinGap is a tin missing
+// one of the printed attributes tin 0 has: tc's text table reads the NULL
+// attribute (Q78); its JSON tests each tin.
 type TcCakeXstats struct {
-	Stats  TcVals
-	Tins   [CakeMaxTinsCst]TcVals
-	NTins  int
-	TinGap bool
+	Stats    TcVals
+	Tins     [CakeMaxTinsCst]TcVals
+	TinShort [CakeMaxTinsCst]uint32
+	NTins    int
+	TinGap   bool
+}
+
+// ShortTin is the first tin with a short attribute tc reads, and its mask,
+// or -1. JSON's cake_print_json_tin reads each tin's own attributes; the
+// text table reads a row only when tin 0 has that attribute (PRINT_TSTAT,
+// q_cake.c:770), so a short field absent from tin 0 is never read.
+func (c *TcCakeXstats) ShortTin(text bool) (tin int, mask uint32) {
+	rows := ^uint32(0)
+	if text {
+		rows = c.Tins[0].Has | c.TinShort[0]
+	}
+	for i := range c.NTins {
+		if m := c.TinShort[i] & rows; m != 0 {
+			return i, m
+		}
+	}
+	return -1, 0
 }
 
 // TcAqmXstats is the increment-16 kinds' xstats decoded; TcXstats.Aqm.
@@ -1026,7 +1046,8 @@ func bit(t uint16) uint32 { return 1 << t }
 // reads it: MEMORY_USED and _LIMIT together, the NETLEN and ADJLEN pairs
 // together, DROP_NEXT_US under a nonzero DROPPING, BLUE_TIMER_US under
 // P_DROP. A read attribute shorter than its getter is ErrTcShort (Q77),
-// and so is a short printed tin attribute.
+// A short printed tin attribute is recorded in TinShort, for the printer
+// to check against the reads of its mode.
 func (c *TcCakeXstats) parse(b []byte) error {
 	var sbuf cakeStatsBuf
 	st := parseIntoLoose(b, sbuf[:])
@@ -1070,13 +1091,12 @@ func (c *TcCakeXstats) parse(b []byte) error {
 		if err != nil {
 			return err
 		}
-		if short != 0 {
-			return fmt.Errorf("%w: cake tin %d attribute mask %#x", ErrTcShort, i-1, short)
-		}
+		c.TinShort[i-1] = short
 		c.NTins++
 	}
+	// tc tests presence, so a short attribute is there for the gap test.
 	for i := 1; i < c.NTins; i++ {
-		if c.Tins[0].Has&^c.Tins[i].Has != 0 {
+		if (c.Tins[0].Has|c.TinShort[0])&^(c.Tins[i].Has|c.TinShort[i]) != 0 {
 			c.TinGap = true
 		}
 	}

@@ -125,8 +125,9 @@ func printCakeOpt(r *runner, _ *qdiscUtil, opt []byte, has bool) {
 // printCakeXstats is cake_print_xstats. Its text lines end in hard "\n"s
 // that ignore -o, the average offset's in two (Q79); a negative drop_next
 // or blue_timer is text only (Q76), and blue_timer goes to sprint_time
-// unnegated (Q75). Where tc reads a short stat (Q77) or, in text, a later
-// tin's attribute that only tin 0 has (Q78), gotc refuses.
+// unnegated (Q75). Where tc reads a short stat (Q77), a short tin
+// attribute its mode reads, or, in text, a later tin's attribute that only
+// tin 0 has (Q78), gotc refuses.
 func printCakeXstats(r *runner, xs []byte) {
 	x, err := xtcpnl.ParseTcXstats(xtcpnl.TcKindCake, xs)
 	if err != nil {
@@ -186,6 +187,11 @@ func printCakeXstats(r *runner, xs []byte) {
 		}
 	}
 	if c.NTins == 0 {
+		return
+	}
+	if i, m := c.ShortTin(!o.isJSON()); i >= 0 {
+		r.refuseKind(fmt.Errorf("%w: cake %w: cake tin %d attribute mask %#x",
+			errNotImplemented, xtcpnl.ErrTcShort, i, m))
 		return
 	}
 	if o.isJSON() {
