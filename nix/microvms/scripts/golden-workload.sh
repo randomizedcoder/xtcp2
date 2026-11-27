@@ -182,7 +182,7 @@ done
 servers bulk 4
 read -r -a bulk_algos <<<"$BULK_CC"
 for ca in "${bulk_algos[@]}"; do
-  spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect "10.4.0.$(host "$ca")" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 -keepalive 1h
+  spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect "10.4.0.$(host "$ca")" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 -keepalive 1h -dialTimeout 30s
 done
 
 # ernic (ERNIC_A_MAC set): ionic1 goes into golden-ernic-b, and one 4 MiB
