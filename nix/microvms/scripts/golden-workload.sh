@@ -175,6 +175,13 @@ pair bulk 4 1500
 # Offloads off, so netem drops single segments: with TSO/GSO it drops whole
 # 64 KiB super-packets, a 4 MiB transfer is a hundred or so of them, and a
 # client can lose none of its own.
+# No ECN fallback on the clients' side: a netem-dropped SYN is resent
+# without ECE/CWR (net/ipv4/tcp_output.c:3698-3705, tcp_ecn_clear_syn in
+# include/net/tcp_ecn.h), and dctcp then falls back to dctcp-reno
+# (net/ipv4/tcp_dctcp.c:112-115), one run in twenty or so. A lost SYN-ACK
+# is covered too: the listener's first resend still sets ECE
+# (tcp_rtx_synack before num_timeout++, net/ipv4/inet_connection_sock.c).
+ip netns exec golden-bulk-a sysctl -qw net.ipv4.tcp_ecn_fallback=0
 for ns in golden-bulk-a golden-bulk-b; do
   ip netns exec "$ns" ethtool -K veth0 tso off gso off gro off
   tc -n "$ns" qdisc add dev veth0 root netem delay 5ms loss 2% reorder 1%

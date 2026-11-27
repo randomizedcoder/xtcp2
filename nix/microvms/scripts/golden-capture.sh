@@ -169,21 +169,28 @@ n=$(q "SELECT count(*) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_s
 ok=0
 [ "$n" -eq "$(wc -w <<<"$BULK_CC")" ] && ok=1
 per_cc=$(q "SELECT string_agg(inet_diag_cong || '=' || tcp_info_total_retrans || '/state' || inet_diag_msg_state || '/segs_out' || tcp_info_segs_out || '/bytes_acked' || tcp_info_bytes_acked, ',' ORDER BY inet_diag_cong) FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000")
-# netem's own drop count on each side's veth0, to tell "netem dropped
-# nothing" from "TCP saw no loss" when this row fails.
+# netem's own sent and dropped counts on each side's veth0, to tell "netem
+# dropped nothing" from "TCP saw no loss" when this row fails, and, beside
+# the namespace's OutSegs + RetransSegs, whether every segment went
+# through netem at all (sent + dropped also counts ARP and IPv6 ND).
 netem_drops=""
 for ns in golden-bulk-a golden-bulk-b; do
-  netem_drops="$netem_drops $ns=$(ip netns exec "$ns" tc -s qdisc show dev veth0 | awk '/dropped/ { sub(",", "", $7); print $7; exit }')"
+  netem_drops="$netem_drops $ns=$(ip netns exec "$ns" tc -s qdisc show dev veth0 | awk '/dropped/ { sub(",", "", $7); print "sent" $4 "/dropped" $7; exit }')"
 done
 # The kernel's own view of the clients (ss, by local port, with the ECN
 # flags) and of each namespace (nstat; a fresh netns starts its MIBs at 0).
 # ss_bulk prints PORT=TOTAL_RETRANS per client, comma-separated as q's
-# string_agg (q strips spaces); ss shows retrans only when nonzero.
+# string_agg (q strips spaces); ss shows retrans only when nonzero. The
+# detail adds the algorithm, ECN flags, segs_out and rtt (netem's 5 ms
+# each way makes it 10 ms or more). ss_bulk detail SEP server does the
+# same for the servers on golden-bulk-b, keyed by the client's port.
 ss_bulk() {
-  ip netns exec golden-bulk-a ss -HtinO state established '( dport = :4000 )' |
-    awk -v detail="${1:-}" '{ p = $3; sub(/.*:/, "", p); r = 0; e = ""
-      for (i = 5; i <= NF; i++) { if ($i ~ /^retrans:/) { r = $i; sub(/.*\//, "", r) } if ($i == "ecn" || $i == "ecnseen") e = e "+" $i }
-      if (detail) print p "=" r "/" $5 e "/segs_out" seg($0); else print p "=" r }
+  local ns=golden-bulk-a filter='( dport = :4000 )' key=3
+  if [ "${3:-}" = server ]; then ns=golden-bulk-b filter='( sport = :4000 )' key=4; fi
+  ip netns exec "$ns" ss -HtinO state established "$filter" |
+    awk -v detail="${1:-}" -v key="$key" '{ p = $key; sub(/.*:/, "", p); r = 0; e = ""; t = "?"
+      for (i = 5; i <= NF; i++) { if ($i ~ /^retrans:/) { r = $i; sub(/.*\//, "", r) } if ($i ~ /^rtt:/) { t = substr($i, 5); sub(/\/.*/, "", t) } if ($i == "ecn" || $i == "ecnseen") e = e "+" $i }
+      if (detail) print p "=" r "/" $5 e "/segs_out" seg($0) "/rtt" t; else print p "=" r }
       function seg(l) { if (match(l, /segs_out:[0-9]+/)) return substr(l, RSTART + 9, RLENGTH - 9); return "?" }' |
     sort -n | paste -sd "${2:-,}"
 }
@@ -192,7 +199,16 @@ mibs=""
 for ns in golden-bulk-a golden-bulk-b; do
   mibs="$mibs $ns=RetransSegs$(nstat_of "$ns" TcpRetransSegs)/OutSegs$(nstat_of "$ns" TcpOutSegs)"
 done
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem dropped:$netem_drops; kernel per port, retrans/cong/segs_out: $(ss_bulk detail " ");$mibs"
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem sent/dropped:$netem_drops; kernel per port, retrans/cong/segs_out/rtt: $(ss_bulk detail " "); servers by client port: $(ss_bulk detail " " server);$mibs"
+# The dctcp bulk client keeps dctcp: a SYN lost to netem must not make it
+# fall back to dctcp-reno (tcp_ecn_fallback=0 in golden-bulk-a, the
+# workload). Only when BULK_CC has dctcp.
+if [[ " $BULK_CC " == *" dctcp "* ]]; then
+  got=$(q "SELECT coalesce(string_agg(inet_diag_cong, ',' ORDER BY inet_diag_cong), 'none') FROM $P WHERE netns = 'golden-bulk-a' AND inet_diag_msg_socket_destination_port = 4000 AND inet_diag_cong LIKE 'dctcp%'")
+  ok=0
+  [ "$got" = dctcp ] && ok=1
+  row bulk_dctcp_ecn negative "$ok" "the dctcp bulk client's algorithm: $got, want dctcp (dctcp-reno is the ECN fallback)"
+fi
 # A fresh netns's TcpRetransSegs is the sum of its sockets' total_retrans:
 # both count each retransmitted segment (net/ipv4/tcp_output.c:3710,
 # :3713), SYN-ACK retransmits count in both too (tcp_output.c:4722,
