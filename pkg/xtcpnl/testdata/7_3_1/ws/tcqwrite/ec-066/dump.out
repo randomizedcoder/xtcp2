@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 rate 1Mbit packetoverhead 20 cellsize 100 celloverhead 5 slot 800us 1ms packets 10 bytes 3000 seed 1083021114996361990

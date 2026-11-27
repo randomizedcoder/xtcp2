@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 3000 loss state p13 1% p31 10% p32 5% p23 1% p14 2% seed 1798519198338223345

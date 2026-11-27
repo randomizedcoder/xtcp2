@@ -1,0 +1,2 @@
+qdisc add dev d0 root handle 1: pfifo limit zz
+qdisc add dev d0 root handle 1: pfifo

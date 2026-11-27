@@ -1,0 +1,1 @@
+class htb 1:10 root prio 2 quantum 1500 rate 1Mbit overhead 4 ceil 2Mbit linklayer ethernet burst 15Kb/1mpu 64b cburst 20Kb/1mpu 64b level 0 
