@@ -105,12 +105,14 @@ host=$(q "SELECT count(*) FROM $P WHERE container_name = '' AND netns <> 'golden
 # The nsid rows: nsid_assigned says whether nsid is set, so the kernel's
 # first id (0) reads apart from no id at all.
 row_failed=0
+failed_rows=()
 row() {
   if [ "$3" = 1 ]; then
     echo "ROW $1 $2 PASS $4"
   else
     echo "ROW $1 $2 FAIL $4"
     row_failed=1
+    failed_rows+=("$1")
   fi
 }
 zeros=0
@@ -213,7 +215,48 @@ mibs=""
 for ns in golden-bulk-a golden-bulk-b; do
   mibs="$mibs $ns=RetransSegs$(nstat_of "$ns" TcpRetransSegs)/OutSegs$(nstat_of "$ns" TcpOutSegs)"
 done
-row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem sent/dropped:$netem_drops; kernel per port, retrans/cong/segs_out/rtt: $(ss_bulk detail " "); servers by client port: $(ss_bulk detail " " server);$mibs"
+# netem's drops per flow, from the workload's tap on golden-bulk-a's veth0
+# (/run/xtcp2-golden-bulk-tap: PORT=CLIENT_TAPPED/SERVER_TAPPED): a
+# client's segs_out minus the packets tapped from it, and the same for its
+# server. A flow that never went through netem shows 0/0.
+segs_by_port() {
+  ip netns exec "$1" ss -HtinO state established "$2" |
+    awk -v key="$3" '{ p = $key; sub(/.*:/, "", p); if (match($0, /segs_out:[0-9]+/)) print p, substr($0, RSTART + 9, RLENGTH - 9) }'
+}
+netem_per_flow() {
+  awk 'ARGIND == 1 { c[$1] = $2; next } ARGIND == 2 { s[$1] = $2; next }
+    { n = split($0, a, ","); for (i = 1; i <= n; i++) { split(a[i], kv, "="); split(kv[2], t, "/")
+      printf "%s%s=%d/%d", sep, kv[1], c[kv[1]] - t[1], s[kv[1]] - t[2]; sep = " " } }
+    END { print "" }' \
+    <(segs_by_port golden-bulk-a '( dport = :4000 )' 3) <(segs_by_port golden-bulk-b '( sport = :4000 )' 4) /run/xtcp2-golden-bulk-tap
+}
+tapped=$(cat /run/xtcp2-golden-bulk-tap 2>/dev/null || true)
+tap_dropped=$(cat /run/xtcp2-golden-bulk-tap-dropped 2>/dev/null || echo "?")
+loss_ok=$ok
+row loss_seen negative "$ok" "$n bulk clients with retransmits, of $(wc -w <<<"$BULK_CC"); per client, retransmits/state/segs_out/bytes_acked: ${per_cc:-none}; netem sent/dropped:$netem_drops; kernel per port, retrans/cong/segs_out/rtt: $(ss_bulk detail " "); servers by client port: $(ss_bulk detail " " server);$mibs; netem drops per client port, client/server: $(netem_per_flow); tapped: ${tapped:-none}"
+ok=0
+[ -n "$tapped" ] && [ "$tap_dropped" = 0 ] && ok=1
+row bulk_tap_complete positive "$ok" "the bulk tap on golden-bulk-a: kernel drops $tap_dropped, flows ${tapped:-none}"
+per_flow=$(netem_per_flow)
+ok=0
+[ -n "$tapped" ] && awk '{ for (i = 1; i <= NF; i++) { split($i, kv, "="); split(kv[2], d, "/"); if (d[1] <= 0 || d[2] <= 0) exit 1 } }' <<<"$per_flow" && ok=1
+row netem_per_flow positive "$ok" "netem dropped from every bulk flow both ways, per client port client/server: ${per_flow:-none}; netem sent/dropped:$netem_drops"
+# When loss_seen fails, the dump carries what the kernel and netem saw and
+# the tap's packets for the flows without retransmits (headers only).
+if [ "$loss_ok" != 1 ]; then
+  for bns in golden-bulk-a golden-bulk-b; do
+    echo "== $bns"
+    ip netns exec "$bns" tc -s qdisc show dev veth0 || true
+    ip -n "$bns" -s link show veth0 || true
+    ip netns exec "$bns" ethtool -k veth0 || true
+    ip netns exec "$bns" ss -tienmO || true
+    ip netns exec "$bns" nstat -asz || true
+  done >"$OUT/netem-diag.txt" 2>&1
+  noloss=$(ss_bulk | tr , '\n' | awk -F= '$2 == 0 { printf "%sport %s", sep, $1; sep = " or " }')
+  if [ -n "$noloss" ] && tcpdump -r /run/xtcp2-golden-bulk-a.pcap -w "$OUT/bulk-a-noloss.pcap" "$noloss" 2>/dev/null; then
+    gzip -n "$OUT/bulk-a-noloss.pcap" || true
+  fi
+fi
 # The dctcp bulk client keeps dctcp: a SYN lost to netem must not make it
 # fall back to dctcp-reno (tcp_ecn_fallback=0 in golden-bulk-a, the
 # workload). Only when BULK_CC has dctcp.
@@ -307,16 +350,18 @@ if [ -n "${ERNIC_SEQ_DROPS:-}" ]; then
   ok=0
   [ "$dropped" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
   row seq_fired boundary "$ok" "ionic2 tx_dropped $dropped, want the sequence's $ERNIC_SEQ_DROPS"
-  got=$(q "SELECT count(*) || ':' || coalesce(string_agg(DISTINCT enrich_socket_dest_egress_ifname, ','), '') || ':' || coalesce(max(tcp_info_total_retrans), 0) || ':' || coalesce(max(tcp_info_total_rto), 0) || ':' || coalesce(max(tcp_info_segs_out), 0) FROM $P WHERE $C")
-  IFS=: read -r n egress retrans rto segs_out <<<"$got"
+  got=$(q "SELECT count(*) || ':' || coalesce(string_agg(DISTINCT enrich_socket_dest_egress_ifname, ','), '') || ':' || coalesce(max(tcp_info_total_retrans), 0) || ':' || coalesce(max(tcp_info_total_rto), 0) || ':' || coalesce(max(tcp_info_segs_out), 0) || ':' || coalesce(max(tcp_info_dsack_dups), 0) FROM $P WHERE $C")
+  IFS=: read -r n egress retrans rto segs_out dsack <<<"$got"
   ok=0
   [ "$n" = 1 ] && [ "$egress" = ionic2 ] && ok=1
   row seq_egress negative "$ok" "the sequence flow's client and egress: $n:$egress, want 1:ionic2 (not uplink ionic0)"
   # The flow is one-way, so every dropped frame is a data segment and is
-  # retransmitted exactly once.
+  # retransmitted exactly once. A retransmit of a segment that was not lost
+  # (a tail loss probe under host load) comes back as a DSACK
+  # (tcpi_dsack_dups), so those are not counted.
   ok=0
-  [ "$retrans" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
-  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans (total_rto $rto), want the sequence's $ERNIC_SEQ_DROPS"
+  [ "$((retrans - dsack))" -eq "$ERNIC_SEQ_DROPS" ] && ok=1
+  row seq_retrans positive "$ok" "the sequence flow's total_retrans $retrans less dsack_dups $dsack (total_rto $rto), want the sequence's $ERNIC_SEQ_DROPS"
   # The server sends only ACKs, over NICs without faults: nothing to resend.
   got=$(q "SELECT count(*) || ':' || coalesce(max(tcp_info_total_retrans), 0) FROM $P WHERE netns = 'golden-ernic-d' AND inet_diag_msg_socket_source_port = 4000 AND inet_diag_msg_state = 1")
   IFS=: read -r n sretrans <<<"$got"
@@ -412,7 +457,12 @@ got=$(q "SELECT string_agg(DISTINCT uplink1_nic_fw_version, ',') FROM $P")
 ok=0
 [ "$got" = "xtcp2-golden-1.0" ] && ok=1
 row fw_from_profile corner "$ok" "uplink1 firmware, from the NIC profile's [identity]: $got"
-[ "$row_failed" = 0 ] || fail "rows failed"
+# A failed row still dumps the records, with FAILED listing the rows, so
+# the host runner keeps them next to the transcript (never in the fixture
+# directory); GOLDEN_ERR follows the dump.
+if [ "$row_failed" != 0 ]; then
+  printf '%s\n' "${failed_rows[@]}" >"$OUT/FAILED"
+fi
 
 version=$(q "SELECT any_value(daemon_version) FROM $P")
 
@@ -433,8 +483,10 @@ jq -n \
 rm -f "$OUT"/ss-golden-* "$OUT"/nsid-golden-*
 
 echo "GOLDEN_ROWS $rows"
+echo "GOLDEN_DUMPING"
 echo "XTCP2_GOLDEN_DUMP_START"
 tar c -C "$OUT" . | gzip -n | base64 -w0
 echo
 echo "XTCP2_GOLDEN_DUMP_END"
+[ "$row_failed" = 0 ] || fail "rows failed: ${failed_rows[*]}"
 echo "GOLDEN_DONE"

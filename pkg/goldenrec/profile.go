@@ -31,6 +31,7 @@ const (
 	caStateColumn     = "tcp_info_ca_state"
 	reorderingColumn  = "tcp_info_reordering"
 	rwndLimitedColumn = "tcp_info_rwnd_limited"
+	dsackDupsColumn   = "tcp_info_dsack_dups"
 	egressColumn      = "enrich_socket_dest_egress_ifname"
 )
 
