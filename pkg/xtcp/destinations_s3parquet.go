@@ -137,13 +137,6 @@ type s3ParquetDest struct {
 // itself doesn't treat this as fatal (shutdown is in progress).
 var errSendOnClosed = errors.New("s3parquet destination closed")
 
-// envelopeBytes is the queue payload — pointer to the pooled marshaled
-// envelope. The worker is responsible for returning *buf to destBytesPool
-// after consuming it.
-type envelopeBytes struct {
-	buf *[]byte
-}
-
 // s3InsecureGauge is 1 while the s3parquet destination talks plaintext http
 // to its endpoint (-s3AllowInsecure).
 var s3InsecureGauge = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -769,23 +762,6 @@ func classifyUploadErr(err error) string {
 	default:
 		return s3ErrClassOther
 	}
-}
-
-// backoffWindow returns min(cap, base<<(attempt-1)) for attempt>=1, computed
-// overflow-safe (the shift is bounded before it can exceed int64).
-func backoffWindow(base, capDur time.Duration, attempt int) time.Duration {
-	shift := attempt - 1
-	if shift < 0 {
-		shift = 0
-	}
-	if shift >= 33 {
-		return capDur
-	}
-	w := base << shift
-	if w <= 0 || w > capDur {
-		return capDur
-	}
-	return w
 }
 
 // objectKey builds the partitioned key for the next Parquet object.

@@ -1870,6 +1870,9 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $fixnum.Int64? s3MaxBufferedBytes,
     $core.String? s3SpillDir,
     $fixnum.Int64? s3SpillMaxBytes,
+    $1.Duration? tcpWriteTimeout,
+    $core.int? tcpQueueDepth,
+    $fixnum.Int64? tcpMaxBufferedBytes,
     $core.String? hostname,
     $core.String? location,
     $core.String? label,
@@ -1987,6 +1990,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
       result.s3MaxBufferedBytes = s3MaxBufferedBytes;
     if (s3SpillDir != null) result.s3SpillDir = s3SpillDir;
     if (s3SpillMaxBytes != null) result.s3SpillMaxBytes = s3SpillMaxBytes;
+    if (tcpWriteTimeout != null) result.tcpWriteTimeout = tcpWriteTimeout;
+    if (tcpQueueDepth != null) result.tcpQueueDepth = tcpQueueDepth;
+    if (tcpMaxBufferedBytes != null)
+      result.tcpMaxBufferedBytes = tcpMaxBufferedBytes;
     if (hostname != null) result.hostname = hostname;
     if (location != null) result.location = location;
     if (label != null) result.label = label;
@@ -2155,6 +2162,13 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(118, _omitFieldNames ? '' : 's3SpillDir')
     ..a<$fixnum.Int64>(
         119, _omitFieldNames ? '' : 's3SpillMaxBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..aOM<$1.Duration>(120, _omitFieldNames ? '' : 'tcpWriteTimeout',
+        subBuilder: $1.Duration.$_createMessage)
+    ..aI(121, _omitFieldNames ? '' : 'tcpQueueDepth',
+        fieldType: $pb.PbFieldType.OU3)
+    ..a<$fixnum.Int64>(
+        122, _omitFieldNames ? '' : 'tcpMaxBufferedBytes', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOS(130, _omitFieldNames ? '' : 'hostname')
     ..aOS(131, _omitFieldNames ? '' : 'location')
@@ -3021,17 +3035,55 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(119)
   void clearS3SpillMaxBytes() => $_clearField(119);
 
+  /// Deadline on a single tcp-destination write (and dial), bounding a wedged
+  /// route to the timeout instead of the TCP retransmit window (~15.4 min at
+  /// the prod-default tcp_retries2=15). 0 = 30s.
+  @$pb.TagNumber(120)
+  $1.Duration get tcpWriteTimeout => $_getN(60);
+  @$pb.TagNumber(120)
+  set tcpWriteTimeout($1.Duration value) => $_setField(120, value);
+  @$pb.TagNumber(120)
+  $core.bool hasTcpWriteTimeout() => $_has(60);
+  @$pb.TagNumber(120)
+  void clearTcpWriteTimeout() => $_clearField(120);
+  @$pb.TagNumber(120)
+  $1.Duration ensureTcpWriteTimeout() => $_ensure(60);
+
+  /// Envelopes queued between the poller and the tcp worker. Past this depth
+  /// the oldest is dropped (xtcp_tcp_dropped_total{reason="queue_depth"}), so
+  /// a wedged sink never blocks polling. 0 = 16.
+  @$pb.TagNumber(121)
+  $core.int get tcpQueueDepth => $_getIZ(61);
+  @$pb.TagNumber(121)
+  set tcpQueueDepth($core.int value) => $_setUnsignedInt32(61, value);
+  @$pb.TagNumber(121)
+  $core.bool hasTcpQueueDepth() => $_has(61);
+  @$pb.TagNumber(121)
+  void clearTcpQueueDepth() => $_clearField(121);
+
+  /// Marshaled envelope bytes the tcp queue may hold. Past this the oldest
+  /// envelope is dropped (reason="buffered_bytes"); the newest is always
+  /// kept. 0 = no byte bound (the depth bound alone).
+  @$pb.TagNumber(122)
+  $fixnum.Int64 get tcpMaxBufferedBytes => $_getI64(62);
+  @$pb.TagNumber(122)
+  set tcpMaxBufferedBytes($fixnum.Int64 value) => $_setInt64(62, value);
+  @$pb.TagNumber(122)
+  $core.bool hasTcpMaxBufferedBytes() => $_has(62);
+  @$pb.TagNumber(122)
+  void clearTcpMaxBufferedBytes() => $_clearField(122);
+
   /// Hostname override. When empty the daemon uses os.Hostname(); set this to
   /// stamp an explicit hostname on records — required in containers, where
   /// os.Hostname() returns the container id, not the host. Set via -hostname
   /// flag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the
   /// container id).
   @$pb.TagNumber(130)
-  $core.String get hostname => $_getSZ(60);
+  $core.String get hostname => $_getSZ(63);
   @$pb.TagNumber(130)
-  set hostname($core.String value) => $_setString(60, value);
+  set hostname($core.String value) => $_setString(63, value);
   @$pb.TagNumber(130)
-  $core.bool hasHostname() => $_has(60);
+  $core.bool hasHostname() => $_has(63);
   @$pb.TagNumber(130)
   void clearHostname() => $_clearField(130);
 
@@ -3039,31 +3091,31 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// region, site, …). Generic; stamped on every record's `location` field.
   /// Set via -location flag or LOCATION env.
   @$pb.TagNumber(131)
-  $core.String get location => $_getSZ(61);
+  $core.String get location => $_getSZ(64);
   @$pb.TagNumber(131)
-  set location($core.String value) => $_setString(61, value);
+  set location($core.String value) => $_setString(64, value);
   @$pb.TagNumber(131)
-  $core.bool hasLocation() => $_has(61);
+  $core.bool hasLocation() => $_has(64);
   @$pb.TagNumber(131)
   void clearLocation() => $_clearField(131);
 
   /// Label applied to the protobuf
   @$pb.TagNumber(132)
-  $core.String get label => $_getSZ(62);
+  $core.String get label => $_getSZ(65);
   @$pb.TagNumber(132)
-  set label($core.String value) => $_setString(62, value);
+  set label($core.String value) => $_setString(65, value);
   @$pb.TagNumber(132)
-  $core.bool hasLabel() => $_has(62);
+  $core.bool hasLabel() => $_has(65);
   @$pb.TagNumber(132)
   void clearLabel() => $_clearField(132);
 
   /// Tag applied to the protobuf
   @$pb.TagNumber(133)
-  $core.String get tag => $_getSZ(63);
+  $core.String get tag => $_getSZ(66);
   @$pb.TagNumber(133)
-  set tag($core.String value) => $_setString(63, value);
+  set tag($core.String value) => $_setString(66, value);
   @$pb.TagNumber(133)
-  $core.bool hasTag() => $_has(63);
+  $core.bool hasTag() => $_has(66);
   @$pb.TagNumber(133)
   void clearTag() => $_clearField(133);
 
@@ -3072,11 +3124,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// vars, not a user flag; informational only (debugging which binary produced a
   /// row). See XtcpFlatRecord.daemon_version.
   @$pb.TagNumber(134)
-  $core.String get daemonVersion => $_getSZ(64);
+  $core.String get daemonVersion => $_getSZ(67);
   @$pb.TagNumber(134)
-  set daemonVersion($core.String value) => $_setString(64, value);
+  set daemonVersion($core.String value) => $_setString(67, value);
   @$pb.TagNumber(134)
-  $core.bool hasDaemonVersion() => $_has(64);
+  $core.bool hasDaemonVersion() => $_has(67);
   @$pb.TagNumber(134)
   void clearDaemonVersion() => $_clearField(134);
 
@@ -3086,22 +3138,22 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// analogue of the host nftables TTL clamp. Set via -ipv4Ttl / IPV4_TTL.
   /// (cf. prometheus/exporter-toolkit#396.)
   @$pb.TagNumber(150)
-  $core.int get ipv4Ttl => $_getIZ(65);
+  $core.int get ipv4Ttl => $_getIZ(68);
   @$pb.TagNumber(150)
-  set ipv4Ttl($core.int value) => $_setUnsignedInt32(65, value);
+  set ipv4Ttl($core.int value) => $_setUnsignedInt32(68, value);
   @$pb.TagNumber(150)
-  $core.bool hasIpv4Ttl() => $_has(65);
+  $core.bool hasIpv4Ttl() => $_has(68);
   @$pb.TagNumber(150)
   void clearIpv4Ttl() => $_clearField(150);
 
   /// Outgoing IPv6 unicast hop limit for xtcp2's own TCP listeners. 0 = kernel
   /// default. Same intent as ipv4_ttl. Set via -ipv6HopLimit / IPV6_HOP_LIMIT.
   @$pb.TagNumber(151)
-  $core.int get ipv6HopLimit => $_getIZ(66);
+  $core.int get ipv6HopLimit => $_getIZ(69);
   @$pb.TagNumber(151)
-  set ipv6HopLimit($core.int value) => $_setUnsignedInt32(66, value);
+  set ipv6HopLimit($core.int value) => $_setUnsignedInt32(69, value);
   @$pb.TagNumber(151)
-  $core.bool hasIpv6HopLimit() => $_has(66);
+  $core.bool hasIpv6HopLimit() => $_has(69);
   @$pb.TagNumber(151)
   void clearIpv6HopLimit() => $_clearField(151);
 
@@ -3111,28 +3163,28 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// the read credential: it reaches only methods marked ACCESS_READ.
   /// Secrets are redacted from every ConfigService response.
   @$pb.TagNumber(152)
-  ListenerAuth get listenerAuth => $_getN(67);
+  ListenerAuth get listenerAuth => $_getN(70);
   @$pb.TagNumber(152)
   set listenerAuth(ListenerAuth value) => $_setField(152, value);
   @$pb.TagNumber(152)
-  $core.bool hasListenerAuth() => $_has(67);
+  $core.bool hasListenerAuth() => $_has(70);
   @$pb.TagNumber(152)
   void clearListenerAuth() => $_clearField(152);
   @$pb.TagNumber(152)
-  ListenerAuth ensureListenerAuth() => $_ensure(67);
+  ListenerAuth ensureListenerAuth() => $_ensure(70);
 
   /// Prometheus / pprof / health listener endpoint. When unset, the daemon
   /// keeps the legacy TCP behavior from -promListen / PROM_LISTEN.
   @$pb.TagNumber(153)
-  ListenerEndpoint get prometheusListener => $_getN(68);
+  ListenerEndpoint get prometheusListener => $_getN(71);
   @$pb.TagNumber(153)
   set prometheusListener(ListenerEndpoint value) => $_setField(153, value);
   @$pb.TagNumber(153)
-  $core.bool hasPrometheusListener() => $_has(68);
+  $core.bool hasPrometheusListener() => $_has(71);
   @$pb.TagNumber(153)
   void clearPrometheusListener() => $_clearField(153);
   @$pb.TagNumber(153)
-  ListenerEndpoint ensurePrometheusListener() => $_ensure(68);
+  ListenerEndpoint ensurePrometheusListener() => $_ensure(71);
 
   /// Admin credential. When set, ACCESS_ADMIN methods (ConfigService.Set, the
   /// runtime triggers, link-monitor rebaseline, /debug/pprof) require it, and
@@ -3140,47 +3192,47 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// listener_auth behaviour. Secrets are redacted from ConfigService
   /// responses.
   @$pb.TagNumber(154)
-  ListenerAuth get adminListenerAuth => $_getN(69);
+  ListenerAuth get adminListenerAuth => $_getN(72);
   @$pb.TagNumber(154)
   set adminListenerAuth(ListenerAuth value) => $_setField(154, value);
   @$pb.TagNumber(154)
-  $core.bool hasAdminListenerAuth() => $_has(69);
+  $core.bool hasAdminListenerAuth() => $_has(72);
   @$pb.TagNumber(154)
   void clearAdminListenerAuth() => $_clearField(154);
   @$pb.TagNumber(154)
-  ListenerAuth ensureAdminListenerAuth() => $_ensure(69);
+  ListenerAuth ensureAdminListenerAuth() => $_ensure(72);
 
   /// GRPC listening port
   /// Legacy: the gRPC port when -grpcPort (or GRPC_PORT) expands into a
   /// listener. 0 when the listener model configures gRPC.
   @$pb.TagNumber(160)
-  $core.int get grpcPort => $_getIZ(70);
+  $core.int get grpcPort => $_getIZ(73);
   @$pb.TagNumber(160)
-  set grpcPort($core.int value) => $_setUnsignedInt32(70, value);
+  set grpcPort($core.int value) => $_setUnsignedInt32(73, value);
   @$pb.TagNumber(160)
-  $core.bool hasGrpcPort() => $_has(70);
+  $core.bool hasGrpcPort() => $_has(73);
   @$pb.TagNumber(160)
   void clearGrpcPort() => $_clearField(160);
 
   /// gRPC listener endpoint. When unset, the daemon keeps the legacy TCP
   /// behavior derived from grpc_port.
   @$pb.TagNumber(161)
-  ListenerEndpoint get grpcListener => $_getN(71);
+  ListenerEndpoint get grpcListener => $_getN(74);
   @$pb.TagNumber(161)
   set grpcListener(ListenerEndpoint value) => $_setField(161, value);
   @$pb.TagNumber(161)
-  $core.bool hasGrpcListener() => $_has(71);
+  $core.bool hasGrpcListener() => $_has(74);
   @$pb.TagNumber(161)
   void clearGrpcListener() => $_clearField(161);
   @$pb.TagNumber(161)
-  ListenerEndpoint ensureGrpcListener() => $_ensure(71);
+  ListenerEndpoint ensureGrpcListener() => $_ensure(74);
 
   /// Every listener the daemon opens (-listener, LISTENERS). Empty means the
   /// default: one UDS, /run/xtcp2/metrics.sock mode 0600, raw bearer auth,
   /// serving health, metrics and metrics-detail. The legacy -promListen*,
   /// -grpc* and -linkMonitorIPListen flags expand into entries here.
   @$pb.TagNumber(162)
-  $pb.PbList<Listener> get listeners => $_getList(72);
+  $pb.PbList<Listener> get listeners => $_getList(75);
 
   /// Pyroscope continuous-profiling server URL (e.g.
   /// http://127.0.0.1:4040). When set, the daemon streams CPU,
@@ -3190,11 +3242,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Grafana Cloud Pyroscope) and point xtcp2 at it for live profile
   /// data without restarts.
   @$pb.TagNumber(170)
-  $core.String get pyroscopeUrl => $_getSZ(73);
+  $core.String get pyroscopeUrl => $_getSZ(76);
   @$pb.TagNumber(170)
-  set pyroscopeUrl($core.String value) => $_setString(73, value);
+  set pyroscopeUrl($core.String value) => $_setString(76, value);
   @$pb.TagNumber(170)
-  $core.bool hasPyroscopeUrl() => $_has(73);
+  $core.bool hasPyroscopeUrl() => $_has(76);
   @$pb.TagNumber(170)
   void clearPyroscopeUrl() => $_clearField(170);
 
@@ -3203,34 +3255,34 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Set per fleet/role for multi-host environments
   /// (e.g. "xtcp2.prod.iad", "xtcp2.staging.fra").
   @$pb.TagNumber(171)
-  $core.String get pyroscopeAppName => $_getSZ(74);
+  $core.String get pyroscopeAppName => $_getSZ(77);
   @$pb.TagNumber(171)
-  set pyroscopeAppName($core.String value) => $_setString(74, value);
+  set pyroscopeAppName($core.String value) => $_setString(77, value);
   @$pb.TagNumber(171)
-  $core.bool hasPyroscopeAppName() => $_has(74);
+  $core.bool hasPyroscopeAppName() => $_has(77);
   @$pb.TagNumber(171)
   void clearPyroscopeAppName() => $_clearField(171);
 
   /// CPU profile sampling rate in Hz. Default 100. The Pyroscope
   /// agent uses this to call runtime.SetCPUProfileRate at startup.
   @$pb.TagNumber(172)
-  $core.int get pyroscopeSampleHz => $_getIZ(75);
+  $core.int get pyroscopeSampleHz => $_getIZ(78);
   @$pb.TagNumber(172)
-  set pyroscopeSampleHz($core.int value) => $_setUnsignedInt32(75, value);
+  set pyroscopeSampleHz($core.int value) => $_setUnsignedInt32(78, value);
   @$pb.TagNumber(172)
-  $core.bool hasPyroscopeSampleHz() => $_has(75);
+  $core.bool hasPyroscopeSampleHz() => $_has(78);
   @$pb.TagNumber(172)
   void clearPyroscopeSampleHz() => $_clearField(172);
 
   /// Profile upload interval (seconds between batched profile
   /// pushes). Default 15 s.
   @$pb.TagNumber(173)
-  $core.int get pyroscopeUploadIntervalSec => $_getIZ(76);
+  $core.int get pyroscopeUploadIntervalSec => $_getIZ(79);
   @$pb.TagNumber(173)
   set pyroscopeUploadIntervalSec($core.int value) =>
-      $_setUnsignedInt32(76, value);
+      $_setUnsignedInt32(79, value);
   @$pb.TagNumber(173)
-  $core.bool hasPyroscopeUploadIntervalSec() => $_has(76);
+  $core.bool hasPyroscopeUploadIntervalSec() => $_has(79);
   @$pb.TagNumber(173)
   void clearPyroscopeUploadIntervalSec() => $_clearField(173);
 
@@ -3241,11 +3293,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// CONTAINER_ID_RESOLVE env. Needs /sys/fs/cgroup readable (mount it and run
   /// --cgroupns=host in a container).
   @$pb.TagNumber(200)
-  $core.bool get resolveContainerId => $_getBF(77);
+  $core.bool get resolveContainerId => $_getBF(80);
   @$pb.TagNumber(200)
-  set resolveContainerId($core.bool value) => $_setBool(77, value);
+  set resolveContainerId($core.bool value) => $_setBool(80, value);
   @$pb.TagNumber(200)
-  $core.bool hasResolveContainerId() => $_has(77);
+  $core.bool hasResolveContainerId() => $_has(80);
   @$pb.TagNumber(200)
   void clearResolveContainerId() => $_clearField(200);
 
@@ -3253,21 +3305,21 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// by joining the socket's owning netns inode against the Docker Engine API
   /// index over docker_socket_path. Default false.
   @$pb.TagNumber(201)
-  $core.bool get enrichContainerEnable => $_getBF(78);
+  $core.bool get enrichContainerEnable => $_getBF(81);
   @$pb.TagNumber(201)
-  set enrichContainerEnable($core.bool value) => $_setBool(78, value);
+  set enrichContainerEnable($core.bool value) => $_setBool(81, value);
   @$pb.TagNumber(201)
-  $core.bool hasEnrichContainerEnable() => $_has(78);
+  $core.bool hasEnrichContainerEnable() => $_has(81);
   @$pb.TagNumber(201)
   void clearEnrichContainerEnable() => $_clearField(201);
 
   /// Docker Engine API unix socket. Default "/run/docker.sock".
   @$pb.TagNumber(202)
-  $core.String get dockerSocketPath => $_getSZ(79);
+  $core.String get dockerSocketPath => $_getSZ(82);
   @$pb.TagNumber(202)
-  set dockerSocketPath($core.String value) => $_setString(79, value);
+  set dockerSocketPath($core.String value) => $_setString(82, value);
   @$pb.TagNumber(202)
-  $core.bool hasDockerSocketPath() => $_has(79);
+  $core.bool hasDockerSocketPath() => $_has(82);
   @$pb.TagNumber(202)
   void clearDockerSocketPath() => $_clearField(202);
 
@@ -3275,32 +3327,32 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Enrich per-uplink LLDP neighbor labels by reading the lldpd control socket
   /// (lldpd_socket_path) once at startup. Default false.
   @$pb.TagNumber(210)
-  $core.bool get enrichLldpEnable => $_getBF(80);
+  $core.bool get enrichLldpEnable => $_getBF(83);
   @$pb.TagNumber(210)
-  set enrichLldpEnable($core.bool value) => $_setBool(80, value);
+  set enrichLldpEnable($core.bool value) => $_setBool(83, value);
   @$pb.TagNumber(210)
-  $core.bool hasEnrichLldpEnable() => $_has(80);
+  $core.bool hasEnrichLldpEnable() => $_has(83);
   @$pb.TagNumber(210)
   void clearEnrichLldpEnable() => $_clearField(210);
 
   /// lldpd control socket. Default "/run/lldpd.socket".
   @$pb.TagNumber(211)
-  $core.String get lldpdSocketPath => $_getSZ(81);
+  $core.String get lldpdSocketPath => $_getSZ(84);
   @$pb.TagNumber(211)
-  set lldpdSocketPath($core.String value) => $_setString(81, value);
+  set lldpdSocketPath($core.String value) => $_setString(84, value);
   @$pb.TagNumber(211)
-  $core.bool hasLldpdSocketPath() => $_has(81);
+  $core.bool hasLldpdSocketPath() => $_has(84);
   @$pb.TagNumber(211)
   void clearLldpdSocketPath() => $_clearField(211);
 
   /// Optional lldpd version hint ("1.0.13"/"1.0.18") selecting the struct-layout
   /// descriptor for the wire parser. Empty = auto-detect. Default "".
   @$pb.TagNumber(212)
-  $core.String get lldpdVersionHint => $_getSZ(82);
+  $core.String get lldpdVersionHint => $_getSZ(85);
   @$pb.TagNumber(212)
-  set lldpdVersionHint($core.String value) => $_setString(82, value);
+  set lldpdVersionHint($core.String value) => $_setString(85, value);
   @$pb.TagNumber(212)
-  $core.bool hasLldpdVersionHint() => $_has(82);
+  $core.bool hasLldpdVersionHint() => $_has(85);
   @$pb.TagNumber(212)
   void clearLldpdVersionHint() => $_clearField(212);
 
@@ -3308,38 +3360,38 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Enrich per-uplink NIC labels (driver/model/pci/speed/firmware) from sysfs +
   /// the ethtool ioctl once at startup. Default false.
   @$pb.TagNumber(220)
-  $core.bool get enrichNicEnable => $_getBF(83);
+  $core.bool get enrichNicEnable => $_getBF(86);
   @$pb.TagNumber(220)
-  set enrichNicEnable($core.bool value) => $_setBool(83, value);
+  set enrichNicEnable($core.bool value) => $_setBool(86, value);
   @$pb.TagNumber(220)
-  $core.bool hasEnrichNicEnable() => $_has(83);
+  $core.bool hasEnrichNicEnable() => $_has(86);
   @$pb.TagNumber(220)
   void clearEnrichNicEnable() => $_clearField(220);
 
   /// Number of host uplink slots to populate (dual-homed hosts = 2). Default 2.
   @$pb.TagNumber(221)
-  $core.int get uplinkCount => $_getIZ(84);
+  $core.int get uplinkCount => $_getIZ(87);
   @$pb.TagNumber(221)
-  set uplinkCount($core.int value) => $_setUnsignedInt32(84, value);
+  set uplinkCount($core.int value) => $_setUnsignedInt32(87, value);
   @$pb.TagNumber(221)
-  $core.bool hasUplinkCount() => $_has(84);
+  $core.bool hasUplinkCount() => $_has(87);
   @$pb.TagNumber(221)
   void clearUplinkCount() => $_clearField(221);
 
   /// Explicit uplink interface names, slot order. Empty = auto-detect from the
   /// default IPv4/IPv6 routes.
   @$pb.TagNumber(222)
-  $pb.PbList<$core.String> get uplinkInterfaces => $_getList(85);
+  $pb.PbList<$core.String> get uplinkInterfaces => $_getList(88);
 
   /// -- nsid (230-239)
   /// Populate nsid (record field 32) best-effort via RTM_GETNSID. Usually 0 for
   /// Docker/containerd namespaces. Default false.
   @$pb.TagNumber(230)
-  $core.bool get populateNsid => $_getBF(86);
+  $core.bool get populateNsid => $_getBF(89);
   @$pb.TagNumber(230)
-  set populateNsid($core.bool value) => $_setBool(86, value);
+  set populateNsid($core.bool value) => $_setBool(89, value);
   @$pb.TagNumber(230)
-  $core.bool hasPopulateNsid() => $_has(86);
+  $core.bool hasPopulateNsid() => $_has(89);
   @$pb.TagNumber(230)
   void clearPopulateNsid() => $_clearField(230);
 
@@ -3350,47 +3402,47 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// enabled but asn_db_path is missing/unreadable, xtcp2 logs, bumps a counter,
   /// and leaves both columns empty. Default false.
   @$pb.TagNumber(240)
-  $core.bool get enrichAsnEnable => $_getBF(87);
+  $core.bool get enrichAsnEnable => $_getBF(90);
   @$pb.TagNumber(240)
-  set enrichAsnEnable($core.bool value) => $_setBool(87, value);
+  set enrichAsnEnable($core.bool value) => $_setBool(90, value);
   @$pb.TagNumber(240)
-  $core.bool hasEnrichAsnEnable() => $_has(87);
+  $core.bool hasEnrichAsnEnable() => $_has(90);
   @$pb.TagNumber(240)
   void clearEnrichAsnEnable() => $_clearField(240);
 
   /// Path to the ipfeed-collector Parquet artifact (prefix -> {asn,
   /// network_owner}). Default "".
   @$pb.TagNumber(241)
-  $core.String get asnDbPath => $_getSZ(88);
+  $core.String get asnDbPath => $_getSZ(91);
   @$pb.TagNumber(241)
-  set asnDbPath($core.String value) => $_setString(88, value);
+  set asnDbPath($core.String value) => $_setString(91, value);
   @$pb.TagNumber(241)
-  $core.bool hasAsnDbPath() => $_has(88);
+  $core.bool hasAsnDbPath() => $_has(91);
   @$pb.TagNumber(241)
   void clearAsnDbPath() => $_clearField(241);
 
   /// How often to reload asn_db_path in the background so a refreshed artifact
   /// is picked up without a restart. 0 = load once at startup, never reload.
   @$pb.TagNumber(242)
-  $1.Duration get asnRefreshInterval => $_getN(89);
+  $1.Duration get asnRefreshInterval => $_getN(92);
   @$pb.TagNumber(242)
   set asnRefreshInterval($1.Duration value) => $_setField(242, value);
   @$pb.TagNumber(242)
-  $core.bool hasAsnRefreshInterval() => $_has(89);
+  $core.bool hasAsnRefreshInterval() => $_has(92);
   @$pb.TagNumber(242)
   void clearAsnRefreshInterval() => $_clearField(242);
   @$pb.TagNumber(242)
-  $1.Duration ensureAsnRefreshInterval() => $_ensure(89);
+  $1.Duration ensureAsnRefreshInterval() => $_ensure(92);
 
   /// Optional zstd-compressed lookup artifact baked into the image and used at
   /// startup when no fresher writable cache is available. Default is supplied
   /// by the daemon CLI as /share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst.
   @$pb.TagNumber(243)
-  $core.String get ipmetaBootstrapPath => $_getSZ(90);
+  $core.String get ipmetaBootstrapPath => $_getSZ(93);
   @$pb.TagNumber(243)
-  set ipmetaBootstrapPath($core.String value) => $_setString(90, value);
+  set ipmetaBootstrapPath($core.String value) => $_setString(93, value);
   @$pb.TagNumber(243)
-  $core.bool hasIpmetaBootstrapPath() => $_has(90);
+  $core.bool hasIpmetaBootstrapPath() => $_has(93);
   @$pb.TagNumber(243)
   void clearIpmetaBootstrapPath() => $_clearField(243);
 
@@ -3399,11 +3451,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// The companion previous.lookup.parquet.zst in the same directory is kept
   /// as a recovery fallback.
   @$pb.TagNumber(244)
-  $core.String get ipmetaCachePath => $_getSZ(91);
+  $core.String get ipmetaCachePath => $_getSZ(94);
   @$pb.TagNumber(244)
-  set ipmetaCachePath($core.String value) => $_setString(91, value);
+  set ipmetaCachePath($core.String value) => $_setString(94, value);
   @$pb.TagNumber(244)
-  $core.bool hasIpmetaCachePath() => $_has(91);
+  $core.bool hasIpmetaCachePath() => $_has(94);
   @$pb.TagNumber(244)
   void clearIpmetaCachePath() => $_clearField(244);
 
@@ -3416,11 +3468,11 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// Non-fatal: a per-namespace discovery failure just leaves that namespace's
   /// sockets unclassified (and is retried with backoff). Default false.
   @$pb.TagNumber(245)
-  $core.bool get enrichLocalityEnable => $_getBF(92);
+  $core.bool get enrichLocalityEnable => $_getBF(95);
   @$pb.TagNumber(245)
-  set enrichLocalityEnable($core.bool value) => $_setBool(92, value);
+  set enrichLocalityEnable($core.bool value) => $_setBool(95, value);
   @$pb.TagNumber(245)
-  $core.bool hasEnrichLocalityEnable() => $_has(92);
+  $core.bool hasEnrichLocalityEnable() => $_has(95);
   @$pb.TagNumber(245)
   void clearEnrichLocalityEnable() => $_clearField(245);
 
@@ -3429,15 +3481,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// namespaces are always snapshotted on the next reconcile regardless. 0 =
   /// discover once per namespace, never refresh. Daemon default 60s.
   @$pb.TagNumber(246)
-  $1.Duration get localityRefreshInterval => $_getN(93);
+  $1.Duration get localityRefreshInterval => $_getN(96);
   @$pb.TagNumber(246)
   set localityRefreshInterval($1.Duration value) => $_setField(246, value);
   @$pb.TagNumber(246)
-  $core.bool hasLocalityRefreshInterval() => $_has(93);
+  $core.bool hasLocalityRefreshInterval() => $_has(96);
   @$pb.TagNumber(246)
   void clearLocalityRefreshInterval() => $_clearField(246);
   @$pb.TagNumber(246)
-  $1.Duration ensureLocalityRefreshInterval() => $_ensure(93);
+  $1.Duration ensureLocalityRefreshInterval() => $_ensure(96);
 
   /// Keep each namespace's locality snapshot current from rtnetlink
   /// notifications (link, address and route changes) instead of waiting for
@@ -3445,25 +3497,25 @@ class XtcpConfig extends $pb.GeneratedMessage {
   /// locality_refresh_interval then becomes the backstop, a resync taken
   /// after that long. Needs enrich_locality_enable. Default false.
   @$pb.TagNumber(247)
-  $core.bool get localityEventsEnable => $_getBF(94);
+  $core.bool get localityEventsEnable => $_getBF(97);
   @$pb.TagNumber(247)
-  set localityEventsEnable($core.bool value) => $_setBool(94, value);
+  set localityEventsEnable($core.bool value) => $_setBool(97, value);
   @$pb.TagNumber(247)
-  $core.bool hasLocalityEventsEnable() => $_has(94);
+  $core.bool hasLocalityEventsEnable() => $_has(97);
   @$pb.TagNumber(247)
   void clearLocalityEventsEnable() => $_clearField(247);
 
   /// Physical link monitor; see LinkMonitorConfig.
   @$pb.TagNumber(250)
-  LinkMonitorConfig get linkMonitor => $_getN(95);
+  LinkMonitorConfig get linkMonitor => $_getN(98);
   @$pb.TagNumber(250)
   set linkMonitor(LinkMonitorConfig value) => $_setField(250, value);
   @$pb.TagNumber(250)
-  $core.bool hasLinkMonitor() => $_has(95);
+  $core.bool hasLinkMonitor() => $_has(98);
   @$pb.TagNumber(250)
   void clearLinkMonitor() => $_clearField(250);
   @$pb.TagNumber(250)
-  LinkMonitorConfig ensureLinkMonitor() => $_ensure(95);
+  LinkMonitorConfig ensureLinkMonitor() => $_ensure(98);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

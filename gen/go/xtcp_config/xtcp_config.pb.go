@@ -1786,6 +1786,18 @@ type XtcpConfig struct {
 	// Bytes the spill directory may hold. Past this the oldest spilled
 	// object is deleted (xtcp_s3_spill_total{result="evicted"}). 0 = 1 GiB.
 	S3SpillMaxBytes uint64 `protobuf:"varint,119,opt,name=s3_spill_max_bytes,json=s3SpillMaxBytes,proto3" json:"s3_spill_max_bytes,omitempty"`
+	// Deadline on a single tcp-destination write (and dial), bounding a wedged
+	// route to the timeout instead of the TCP retransmit window (~15.4 min at
+	// the prod-default tcp_retries2=15). 0 = 30s.
+	TcpWriteTimeout *durationpb.Duration `protobuf:"bytes,120,opt,name=tcp_write_timeout,json=tcpWriteTimeout,proto3" json:"tcp_write_timeout,omitempty"`
+	// Envelopes queued between the poller and the tcp worker. Past this depth
+	// the oldest is dropped (xtcp_tcp_dropped_total{reason="queue_depth"}), so
+	// a wedged sink never blocks polling. 0 = 16.
+	TcpQueueDepth uint32 `protobuf:"varint,121,opt,name=tcp_queue_depth,json=tcpQueueDepth,proto3" json:"tcp_queue_depth,omitempty"`
+	// Marshaled envelope bytes the tcp queue may hold. Past this the oldest
+	// envelope is dropped (reason="buffered_bytes"); the newest is always
+	// kept. 0 = no byte bound (the depth bound alone).
+	TcpMaxBufferedBytes uint64 `protobuf:"varint,122,opt,name=tcp_max_buffered_bytes,json=tcpMaxBufferedBytes,proto3" json:"tcp_max_buffered_bytes,omitempty"`
 	// Hostname override. When empty the daemon uses os.Hostname(); set this to
 	// stamp an explicit hostname on records — required in containers, where
 	// os.Hostname() returns the container id, not the host. Set via -hostname
@@ -2393,6 +2405,27 @@ func (x *XtcpConfig) GetS3SpillMaxBytes() uint64 {
 	return 0
 }
 
+func (x *XtcpConfig) GetTcpWriteTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.TcpWriteTimeout
+	}
+	return nil
+}
+
+func (x *XtcpConfig) GetTcpQueueDepth() uint32 {
+	if x != nil {
+		return x.TcpQueueDepth
+	}
+	return 0
+}
+
+func (x *XtcpConfig) GetTcpMaxBufferedBytes() uint64 {
+	if x != nil {
+		return x.TcpMaxBufferedBytes
+	}
+	return 0
+}
+
 func (x *XtcpConfig) GetHostname() string {
 	if x != nil {
 		return x.Hostname
@@ -2798,7 +2831,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0e_error_classesB\x15\n" +
 	"\x13_metrics_categoriesB\x1a\n" +
 	"\x18_metrics_interface_pathsB\x13\n" +
-	"\x11_metrics_all_path\"\xad-\n" +
+	"\x11_metrics_all_path\"\xfa.\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2884,7 +2917,10 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x15s3_max_buffered_bytes\x18u \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x12s3MaxBufferedBytes\x12G\n" +
 	"\fs3_spill_dir\x18v \x01(\tB%\xbaH\"\xc8\x01\x00r\x1d\x18\x80 2\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\n" +
 	"s3SpillDir\x123\n" +
-	"\x12s3_spill_max_bytes\x18w \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x0fs3SpillMaxBytes\x12B\n" +
+	"\x12s3_spill_max_bytes\x18w \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x0fs3SpillMaxBytes\x12Y\n" +
+	"\x11tcp_write_timeout\x18x \x01(\v2\x19.google.protobuf.DurationB\x12\xbaH\x0f\xc8\x01\x00\xaa\x01\t\"\x03\b\x90\x1c2\x02\b\x01R\x0ftcpWriteTimeout\x123\n" +
+	"\x0ftcp_queue_depth\x18y \x01(\rB\v\xbaH\b\xc8\x01\x00*\x03\x18\x80 R\rtcpQueueDepth\x12;\n" +
+	"\x16tcp_max_buffered_bytes\x18z \x01(\x04B\x06\xbaH\x03\xc8\x01\x00R\x13tcpMaxBufferedBytes\x12B\n" +
 	"\bhostname\x18\x82\x01 \x01(\tB%\xbaH\"\xc8\x01\x00r\x1d\x18\xfd\x012\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\bhostname\x12B\n" +
 	"\blocation\x18\x83\x01 \x01(\tB%\xbaH\"\xc8\x01\x00r\x1d\x18\xfd\x012\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\blocation\x12;\n" +
 	"\x05label\x18\x84\x01 \x01(\tB$\xbaH!\xc8\x01\x00r\x1c\x18(2\x18^[^\\x00-\\x1f\\x7f-\\x9f]*$R\x05label\x127\n" +
@@ -3034,34 +3070,35 @@ var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
 	24, // 34: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
 	24, // 35: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
 	24, // 36: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
-	18, // 37: xtcp_config.v1.XtcpConfig.listener_auth:type_name -> xtcp_config.v1.ListenerAuth
-	17, // 38: xtcp_config.v1.XtcpConfig.prometheus_listener:type_name -> xtcp_config.v1.ListenerEndpoint
-	18, // 39: xtcp_config.v1.XtcpConfig.admin_listener_auth:type_name -> xtcp_config.v1.ListenerAuth
-	17, // 40: xtcp_config.v1.XtcpConfig.grpc_listener:type_name -> xtcp_config.v1.ListenerEndpoint
-	19, // 41: xtcp_config.v1.XtcpConfig.listeners:type_name -> xtcp_config.v1.Listener
-	24, // 42: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
-	24, // 43: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
-	20, // 44: xtcp_config.v1.XtcpConfig.link_monitor:type_name -> xtcp_config.v1.LinkMonitorConfig
-	23, // 45: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	3,  // 46: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	5,  // 47: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	7,  // 48: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	9,  // 49: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
-	11, // 50: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
-	13, // 51: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
-	15, // 52: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
-	4,  // 53: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	6,  // 54: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	8,  // 55: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	10, // 56: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
-	12, // 57: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
-	14, // 58: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
-	16, // 59: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
-	53, // [53:60] is the sub-list for method output_type
-	46, // [46:53] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	24, // 37: xtcp_config.v1.XtcpConfig.tcp_write_timeout:type_name -> google.protobuf.Duration
+	18, // 38: xtcp_config.v1.XtcpConfig.listener_auth:type_name -> xtcp_config.v1.ListenerAuth
+	17, // 39: xtcp_config.v1.XtcpConfig.prometheus_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	18, // 40: xtcp_config.v1.XtcpConfig.admin_listener_auth:type_name -> xtcp_config.v1.ListenerAuth
+	17, // 41: xtcp_config.v1.XtcpConfig.grpc_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	19, // 42: xtcp_config.v1.XtcpConfig.listeners:type_name -> xtcp_config.v1.Listener
+	24, // 43: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
+	24, // 44: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
+	20, // 45: xtcp_config.v1.XtcpConfig.link_monitor:type_name -> xtcp_config.v1.LinkMonitorConfig
+	23, // 46: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	3,  // 47: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	5,  // 48: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	7,  // 49: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	9,  // 50: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
+	11, // 51: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
+	13, // 52: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
+	15, // 53: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
+	4,  // 54: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	6,  // 55: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	8,  // 56: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	10, // 57: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
+	12, // 58: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
+	14, // 59: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
+	16, // 60: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
+	54, // [54:61] is the sub-list for method output_type
+	47, // [47:54] is the sub-list for method input_type
+	47, // [47:47] is the sub-list for extension type_name
+	47, // [47:47] is the sub-list for extension extendee
+	0,  // [0:47] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }

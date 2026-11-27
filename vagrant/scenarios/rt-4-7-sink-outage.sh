@@ -8,11 +8,12 @@
 # bounded while dest is down; recovers on broker return; no unbounded
 # queue". The premortem audit split the verdict by destination:
 #
-#   half 1 — tcp (the catcher): the daemon's Write errors immediately on
-#   the dead conn (FIN/RST — no retransmit stall), the counters light up,
-#   polling continues, and the blind is PERMANENT: tcpDest never reconnects
-#   (#339), so a catcher restart changes nothing — delivery stays dead
-#   until the daemon itself restarts. CONFIRMED (the pinned finding).
+#   half 1 — tcp (the catcher): the Write errors on the dead conn
+#   (FIN/RST — fast, no retransmit stall), the destTCP Write/Dial counters
+#   and xtcp_tcp_dropped_total light up, polling continues, and — post-#339
+#   — the worker RECONNECTS: a catcher restart heals delivery with no
+#   daemon restart. The pre-fix permanent blind is recorded in findings.md
+#   (row rt-4-7, evidence 20261126T020602).
 #
 #   half 2 — s3 (Garage): the queue bounds the outage (depth 16 /
 #   64 MiB, oldest-first eviction, s3_dropped_total), uploads retry with
@@ -54,6 +55,11 @@ mval() { # mval <series substring> — one xtcp_counts series' value
   vm_exec victim "curl -s -m 6 -H 'Authorization: Bearer $RT_READ_TOKEN' http://127.0.0.1:9088/metrics | grep '$1' | grep -v '^#' | grep -oE '[0-9.e+]+\$' | head -1" || echo 0
 }
 
+tcp_write_err() { mval 'function="destTCP",type="error",variable="Write"'; }
+tcp_dial_err() { mval 'function="destTCP",type="error",variable="Dial"'; }
+tcp_dropped() { mval 'xtcp_tcp_dropped_total{'; }
+tcp_reconnects() { mval 'function="destTCP",type="count",variable="Reconnect"'; }
+
 daemon_rss_kb() {
   vm_exec victim "sudo docker stats --no-stream --format '{{.MemUsage}}' rt-xtcp2" \
     | grep -oE '^[0-9.]+' | awk '{printf "%d", $1 * 1024}'
@@ -70,7 +76,6 @@ victim_still_reporting_tap
 xtcp2_victim_read_token
 
 B_POLLS="$(mval 'pollRequestCh')"
-B_ERR="$(mval 'error.*envelopeFlush')"
 
 echo "rt-4-7: half 1 — killing the catcher"
 vm_exec_root victim "systemctl stop xtcp2-catcher"
@@ -83,20 +88,21 @@ DARK_DELTA=0
   b="$(catcher_lines)"
   DARK_DELTA=$((b - a))
 }
-H1_ERR="$(mval 'error.*envelopeFlush')"
-H1_WERR="$(mval 'destTCP.*error')"
+H1_WERR="$(tcp_write_err)"
+H1_DERR="$(tcp_dial_err)"
+H1_DROP="$(tcp_dropped)"
 H1_POLLS="$(mval 'pollRequestCh')"
-echo "rt-4-7: catcher down: delta=$DARK_DELTA envelopeFlush/error=$B_ERR->$H1_ERR destTCP/Write/error=$H1_WERR polls=$B_POLLS->$H1_POLLS"
+echo "rt-4-7: catcher down: delta=$DARK_DELTA Write/error=$H1_WERR Dial/error=$H1_DERR dropped=$H1_DROP polls=$B_POLLS->$H1_POLLS"
 
 if [ "$DARK_DELTA" -le 10 ]; then
   ok "half 1: the catcher is dark while the sink is down"
 else
   not_ok "half 1: the catcher kept flowing with the sink down — see evidence"
 fi
-if [ "${H1_ERR:-0}" -gt "${B_ERR:-0}" ] && [ "${H1_WERR:-0}" -gt 0 ]; then
-  ok "half 1: the delivery errors light up immediately (envelopeFlush/error $B_ERR->$H1_ERR, destTCP/Write/error=$H1_WERR — the blind IS visible, unlike rt-11-5's silent window)"
+if [ "${H1_WERR:-0}" -ge 1 ] && [ "${H1_DERR:-0}" -ge 1 ] && [ "${H1_DROP:-0}" -ge 1 ]; then
+  ok "half 1: the outage is VISIBLE and COUNTED (Write/error=$H1_WERR, Dial/error=$H1_DERR, xtcp_tcp_dropped_total=$H1_DROP — the worker's errors, not the poller's)"
 else
-  not_ok "half 1: no delivery-error counters with the sink down — see evidence"
+  not_ok "half 1: the outage counters did not light up (Write=$H1_WERR Dial=$H1_DERR drops=$H1_DROP) — see evidence"
 fi
 if [ "${H1_POLLS:-0}" -gt "${B_POLLS:-0}" ]; then
   ok "half 1: polling continues through the outage (polls $B_POLLS->$H1_POLLS — the fast error frees the poller; no rt-11-5-style freeze)"
@@ -104,35 +110,23 @@ else
   not_ok "half 1: polls stopped with the sink down — see evidence"
 fi
 
-echo "rt-4-7: half 1 — the catcher is BACK; does the daemon reconnect?"
+echo "rt-4-7: half 1 — the catcher is BACK; the worker reconnects (#339 fixed)"
 vm_exec_root victim "systemctl start xtcp2-catcher"
-sleep 12 # a few cycles with the catcher listening again
 
-BACK_DELTA=0
-{
+resume() {
   a="$(catcher_lines)"
   sleep 6
   b="$(catcher_lines)"
-  BACK_DELTA=$((b - a))
+  [ $((b - a)) -gt 10 ]
 }
-H2_ERR="$(mval 'error.*envelopeFlush')"
-echo "rt-4-7: catcher restored: delta=$BACK_DELTA envelopeFlush/error=$H2_ERR"
-if [ "$BACK_DELTA" -le 10 ]; then
-  ok "half 1: THE PERMANENT BLIND — delivery stays dead after the sink returns ($BACK_DELTA lines/6s; tcpDest dials once and never reconnects, #339)"
+wait_for 90 "delivery resumes after the catcher returns (the worker re-dials; NO daemon restart)" resume
+BACK_DELTA="$(a="$(catcher_lines)"; sleep 6; b="$(catcher_lines)"; echo $((b - a)))"
+H1_RECONN="$(tcp_reconnects)"
+echo "rt-4-7: catcher restored: delta=$BACK_DELTA reconnects=$H1_RECONN"
+if [ "$BACK_DELTA" -gt 10 ]; then
+  ok "half 1: RECONNECT — delivery resumed after the sink returned with NO daemon restart ($BACK_DELTA lines/6s, reconnects=$H1_RECONN — the #339 fix measured)"
 else
-  not_ok "half 1: the catcher recovered on its own (no reconnect exists — reconcile this) — see evidence"
-fi
-
-# The blind is the conn, not the catcher: a daemon restart re-dials and
-# delivery resumes — the recovery the daemon itself needs.
-vm_exec victim "sudo docker restart rt-xtcp2" >/dev/null
-wait_for 90 "the restarted daemon answers" vm_exec victim \
-  "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9088/metrics | grep -qE '^(200|401|403)\$'"
-sleep 3
-if victim_still_reporting; then
-  ok "half 1: a daemon restart re-dials and delivery resumes (the fix for #339 measured)"
-else
-  not_ok "half 1: delivery did not resume after the daemon restart — see evidence"
+  not_ok "half 1: delivery stayed dead after the sink returned — see evidence"
 fi
 
 # =============================================================================
@@ -161,9 +155,13 @@ vm_exec victim "sudo docker stop rt-garage" >/dev/null
 sleep 45 # uploads retry with backoff, the queue evicts oldest-first
 
 RSS2_KB="$(daemon_rss_kb)"
+DROPPED="$(mval 's3_dropped_total')"
+echo "rt-4-7: garage down: s3_dropped_total=$DROPPED RSS=$((RSS1_KB / 1024))->$((RSS2_KB / 1024))MiB"
+
+upload_error_ge_1() { [ "$(mval 'destS3Parquet.*type="error",variable="upload"}')" -ge 1 ]; }
+wait_for 150 "the upload retries exhaust and the error counter lights" upload_error_ge_1
 UPLOAD_ERR="$(mval 'destS3Parquet.*type="error",variable="upload"}')"
 DROPPED="$(mval 's3_dropped_total')"
-echo "rt-4-7: garage down: upload/error=$UPLOAD_ERR s3_dropped_total=$DROPPED RSS=$((RSS1_KB / 1024))->$((RSS2_KB / 1024))MiB"
 
 SLOPE_KB=$(( (RSS2_KB - RSS1_KB) / 45 ))
 if [ "$SLOPE_KB" -le 2048 ]; then
@@ -198,9 +196,10 @@ fi
 
 # --- verdict -------------------------------------------------------------------------
 
-# The queue-sink guard holds (bounded, counted, recovering) — the plan's
-# expectation. The raw-TCP half is the permanent-blind finding (#339),
-# asserted above: a receiver restart does not restore delivery; only a
-# daemon restart does. File under the pinned issue; rt-11-5 measured the
-# L2 variant.
+# Both halves now hold the plan's expectation ("memory bounded while dest
+# is down; recovers on broker return; no unbounded queue"): the s3 queue
+# bounds and recovers, and — post-#339 — the tcp worker reconnects when the
+# catcher returns, with the outage counted in destTCP errors +
+# xtcp_tcp_dropped_total the whole time. The pre-fix permanent blind is the
+# findings.md record (evidence 20261126T020602).
 finish rt-4-7 BLOCKED

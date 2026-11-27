@@ -1229,6 +1229,37 @@ message XtcpConfig {
 		(buf.validate.field).required = false
 	];
 
+	// ---- tcp destination delivery bounds (120-122) ---------------------------
+	// The queue+worker contract of the tcp destination (docs/redteam-plan.md
+	// rt-11-5, issues #345/#339): Send never blocks, every write carries a
+	// deadline, and a failed write reconnects.
+
+	// Deadline on a single tcp-destination write (and dial), bounding a wedged
+	// route to the timeout instead of the TCP retransmit window (~15.4 min at
+	// the prod-default tcp_retries2=15). 0 = 30s.
+	google.protobuf.Duration tcp_write_timeout         = 120 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).duration = {
+			gte: { seconds: 1 }
+			lte: { seconds: 3600 }
+	}];
+
+	// Envelopes queued between the poller and the tcp worker. Past this depth
+	// the oldest is dropped (xtcp_tcp_dropped_total{reason="queue_depth"}), so
+	// a wedged sink never blocks polling. 0 = 16.
+	uint32 tcp_queue_depth                              = 121 [
+		(buf.validate.field).required = false,
+		(buf.validate.field).uint32 = {
+			lte: 4096
+	}];
+
+	// Marshaled envelope bytes the tcp queue may hold. Past this the oldest
+	// envelope is dropped (reason="buffered_bytes"); the newest is always
+	// kept. 0 = no byte bound (the depth bound alone).
+	uint64 tcp_max_buffered_bytes                       = 122 [
+		(buf.validate.field).required = false
+	];
+
 	// ---- identity & labels stamped on every record (130-149) -----------------
 	// The operator strings below reject control characters (C0, DEL, C1).
 

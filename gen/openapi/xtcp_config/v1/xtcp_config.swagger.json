@@ -930,6 +930,20 @@
           "format": "uint64",
           "description": "Bytes the spill directory may hold. Past this the oldest spilled\nobject is deleted (xtcp_s3_spill_total{result=\"evicted\"}). 0 = 1 GiB."
         },
+        "tcpWriteTimeout": {
+          "type": "string",
+          "description": "Deadline on a single tcp-destination write (and dial), bounding a wedged\nroute to the timeout instead of the TCP retransmit window (~15.4 min at\nthe prod-default tcp_retries2=15). 0 = 30s."
+        },
+        "tcpQueueDepth": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Envelopes queued between the poller and the tcp worker. Past this depth\nthe oldest is dropped (xtcp_tcp_dropped_total{reason=\"queue_depth\"}), so\na wedged sink never blocks polling. 0 = 16."
+        },
+        "tcpMaxBufferedBytes": {
+          "type": "string",
+          "format": "uint64",
+          "description": "Marshaled envelope bytes the tcp queue may hold. Past this the oldest\nenvelope is dropped (reason=\"buffered_bytes\"); the newest is always\nkept. 0 = no byte bound (the depth bound alone)."
+        },
         "hostname": {
           "type": "string",
           "description": "Hostname override. When empty the daemon uses os.Hostname(); set this to\nstamp an explicit hostname on records — required in containers, where\nos.Hostname() returns the container id, not the host. Set via -hostname\nflag or XTCP_HOSTNAME env (NOT HOSTNAME, which Docker sets to the\ncontainer id)."

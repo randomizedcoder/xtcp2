@@ -229,7 +229,7 @@ definition behind `REDTEAM_ROUTER=1`):
   attacker↔victim vantage — distinct from libvirt's default net so the DoD
   "no networks beyond the defined ones" assertion is `virsh net-list`-checkable;
 - `victim` provisioning: `common.sh` → upload `.gen/*.tar.gz` → `victim.sh
-  <MODE> <AUTH> <CAPS> <ATTACKER> <DEST> <ENRICH> <NOFILE> <CPUS> <PPROF> <MAX_RECORDS> <SINK_IP>` (matrix as
+  <MODE> <AUTH> <CAPS> <ATTACKER> <DEST> <ENRICH> <NOFILE> <CPUS> <PPROF> <MAX_RECORDS> <SINK_IP> <TCP_WRITE_TIMEOUT>` (matrix as
   argv, validated by `lib/matrix.sh` — env → argv translation happens in the
   Vagrantfile so `vagrant provision` alone re-applies a matrix change). The
   Phase 4 axes: `XTCP2_NOFILE` (`default` = docker's own 524287 on
