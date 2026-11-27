@@ -1,0 +1,57 @@
+{
+ "axes": {
+  "fix": "schmultiq",
+  "json": "0",
+  "words": "qdisc replace dev d1 root handle 100: taprio num_tc 2 map 0 0 1 1 queues 4@0 4@4 base-time 0 sched-entry S 01 300000"
+ },
+ "cmd": "tc qdisc replace dev d1 root handle 100: taprio num_tc 2 map 0 0 1 1 queues 4@0 4@4 base-time 0 sched-entry S 01 300000",
+ "desc": "negative: opt=plain cmd=ng:schmultiq:qdisc_replace_dev_d1_root_handle_100:_taprio_num_tc_2_map_0_0_1_1_queues_4@0_4@4_base-time_0_sched-entry_S_01_300000: taprio without a clockid",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "errno": "EINVAL",
+  "rc": 2,
+  "refused_by": "kernel"
+ },
+ "id": "tcsched/ng-002",
+ "modules": [
+  "sch_cbs",
+  "sch_drr",
+  "sch_etf",
+  "sch_ets",
+  "sch_hfsc",
+  "sch_mqprio",
+  "sch_multiq",
+  "sch_prio",
+  "sch_qfq",
+  "sch_taprio"
+ ],
+ "pre": [
+  "ip link add d1 address 02:00:00:00:02:00 numtxqueues 8 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+  "tc qdisc add dev d1 root handle 1: multiq"
+ ],
+ "proto": "route",
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d1 address 02:00:00:00:02:00 numtxqueues 8 type dummy && ip link set d1 addrgenmode none && ip link set d1 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d1 root handle 1: multiq",
+    "rc": 0
+   }
+  ],
+  "rc": 2,
+  "status": "OK"
+ }
+}

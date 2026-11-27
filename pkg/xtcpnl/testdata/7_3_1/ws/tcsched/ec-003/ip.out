@@ -1,0 +1,8 @@
+class drr 1:1 root quantum 1514b 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+ deficit 0b 
+class drr 1:2 root quantum 1514b 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+ deficit 0b 

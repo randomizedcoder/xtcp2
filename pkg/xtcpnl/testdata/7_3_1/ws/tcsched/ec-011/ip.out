@@ -1,0 +1,7 @@
++---(1:) hfsc 
+     +---(1:1) hfsc sc m1 0bit d 0us m2 10Mbit ul m1 0bit d 0us m2 20Mbit 
+          +---(1:10) hfsc rt m1 2Mbit d 10ms m2 1Mbit ls m1 0bit d 0us m2 3Mbit 
+          +---(1:20) hfsc sc m1 0bit d 0us m2 1Mbit 
+          
+          
+     |    

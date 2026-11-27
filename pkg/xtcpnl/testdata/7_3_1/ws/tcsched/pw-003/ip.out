@@ -1,0 +1,1 @@
+[{"class":"drr","handle":"1:1","root":true,"stats":{"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0}},{"class":"drr","handle":"1:2","root":true,"stats":{"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0}}]

@@ -1,0 +1,4 @@
+qdisc prio 1: root refcnt 2 bands 2 priomap 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+qdisc pfifo 0: parent 10: limit 1000p
+qdisc cbs 10: parent 1:1 hicredit 30 locredit -1470 sendslope -980000 idleslope 20000 offload 0 
+qdisc etf 20: parent 1:2 clockid TAI delta 300000 offload off deadline_mode off skip_sock_check on
