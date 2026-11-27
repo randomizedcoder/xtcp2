@@ -85,6 +85,14 @@ usable routes count (up, not reject, not on `lo`: every host has the kernel's
 bridge) is replaced by the physical NICs under its `lower_*` sysfs links, since
 those carry the NIC attributes and the LLDP neighbours.
 
+Auto-detected uplinks are re-read every `-localityRefreshInterval` (default 60s,
+0 = never), so a route-metric swap moves the uplink columns within one interval,
+the same as egress and locality. A tick whose list is unchanged reads only
+`/proc`; a changed list is read again from sysfs and lldpd off the hot path and
+its stamp replaces the old one atomically, so a record never mixes two. Pinned
+`-uplinkInterfaces` are never re-read. Outcomes are counted under
+`function="refreshUplinks"`: `unchanged`, `changed`, `lldp_error`.
+
 ### Docker API limits
 
 Docker's list and inspect bodies carry tenant-chosen data (image labels, the

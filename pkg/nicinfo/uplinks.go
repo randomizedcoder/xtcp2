@@ -35,8 +35,9 @@ const maxLowerDepth = 8
 // The metric is not read: the kernel lists same-prefix routes in ascending
 // metric order (IPv4 fib_find_alias, net/ipv4/fib_trie.c; IPv6
 // fib6_add_rt2node, net/ipv6/ip6_fib.c), so the listing order is already the
-// lowest metric first. xtcp2 calls this once at startup; a later route change
-// does not move the uplink columns until a restart.
+// lowest metric first. xtcp2 calls this at startup and again every
+// locality_refresh_interval, so a route change moves the uplink columns
+// within one interval (pkg/xtcp refreshUplinks).
 func DefaultUplinks(maxN int) []string {
 	return defaultUplinks("/proc", "/sys", maxN)
 }

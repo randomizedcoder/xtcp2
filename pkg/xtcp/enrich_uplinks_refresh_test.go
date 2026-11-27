@@ -116,7 +116,7 @@ func TestRefreshUplinksOnce(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := &fakeUplinks{routes: tc.routes, physical: tc.physical}
 			x := uplinkFixture(t, f)
-			x.initUplinkEnrichers(context.Background())
+			x.initUplinkEnrichers(t.Context())
 			current := tc.routes[0]
 
 			f.mu.Lock()
@@ -182,7 +182,7 @@ func TestRefreshUplinksLoop(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := &fakeUplinks{routes: [][]string{{"eth0", "eth1"}, {"eth1", "eth0"}, {"eth0", "eth1"}}}
 			x := uplinkFixture(t, f)
-			x.initUplinkEnrichers(context.Background())
+			x.initUplinkEnrichers(t.Context())
 
 			ctx, cancel := context.WithCancel(context.Background())
 			tick := make(chan time.Time)
@@ -212,7 +212,7 @@ func TestRefreshUplinksLoop(t *testing.T) {
 func TestUplinkStampConcurrent(t *testing.T) {
 	f := &fakeUplinks{routes: [][]string{{"eth0", "eth1"}}}
 	x := uplinkFixture(t, f)
-	x.initUplinkEnrichers(context.Background())
+	x.initUplinkEnrichers(t.Context())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
