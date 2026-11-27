@@ -59,19 +59,27 @@ wait_second_poll() {
     fail "expected two poll_end and no poll_timeout, got $ends and $timeouts"
 }
 
-# stop_and_fetch_second_poll stops xtcp2 (Close uploads poll 2's object)
-# and downloads that object, the newer of the two, to $1.
+# stop_and_fetch_second_poll stops xtcp2 (Close uploads the last poll's
+# object) and downloads poll 2's object, the second oldest, to $1. With no
+# $2 there must be exactly two objects; with $2, xtcp2 was left running for
+# more polls: there must be at least three, and the newest goes to $2.
 stop_and_fetch_second_poll() {
   systemctl stop xtcp2
-  local listing="" count second
+  local listing="" count second want=2
+  if [ -n "${2:-}" ]; then want=3; fi
   for _ in $(seq 1 30); do
     listing=$(rclone lsf -R --files-only --include '*.parquet' --format tp --separator ' ' "s3:$BUCKET" 2>/dev/null || true)
-    if [ "$(printf '%s' "$listing" | grep -c . || true)" -ge 2 ]; then break; fi
+    if [ "$(printf '%s' "$listing" | grep -c . || true)" -ge "$want" ]; then break; fi
     sleep 1
   done
   count=$(printf '%s' "$listing" | grep -c . || true)
-  [ "$count" -eq 2 ] || fail "expected 2 objects (polls 1 and 2), got $count"
-  second=$(printf '%s\n' "$listing" | sort | tail -n1 | awk '{print $NF}')
+  if [ -z "${2:-}" ]; then
+    [ "$count" -eq 2 ] || fail "expected 2 objects (polls 1 and 2), got $count"
+  else
+    [ "$count" -ge 3 ] || fail "expected at least 3 objects (polls 1, 2 and later), got $count"
+    rclone copyto "s3:$BUCKET/$(printf '%s\n' "$listing" | sort | tail -n1 | awk '{print $NF}')" "$2" || fail "download failed"
+  fi
+  second=$(printf '%s\n' "$listing" | sort | sed -n 2p | awk '{print $NF}')
   rclone copyto "s3:$BUCKET/$second" "$1" || fail "download failed"
 }
 
