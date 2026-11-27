@@ -2496,6 +2496,7 @@ let
       kmod
       procps
       systemd
+      tcpdump
       util-linux
     ];
     text = ''
@@ -2517,6 +2518,7 @@ let
       curl
       docker
       duckdb
+      ethtool
       gawk
       gnugrep
       gnutar
@@ -2525,6 +2527,7 @@ let
       jq
       rclone
       systemd
+      tcpdump
       util-linux
     ];
     text = ''

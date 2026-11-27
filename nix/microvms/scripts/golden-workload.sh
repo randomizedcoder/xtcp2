@@ -187,6 +187,21 @@ for ns in golden-bulk-a golden-bulk-b; do
   tc -n "$ns" qdisc add dev veth0 root netem delay 5ms loss 2% reorder 1%
 done
 servers bulk 4
+# A headers-only tap on golden-bulk-a's veth0 for the bulk transfers. It
+# sees what left netem (dev_queue_xmit_nit runs when the qdisc hands a
+# packet to the device) and what arrived through the servers' netem, so
+# per flow, segs_out minus the tapped count is netem's drops. Stopped once
+# the transfers are done; the capture reads the counts it leaves in /run.
+bulk_pcap=/run/xtcp2-golden-bulk-a.pcap
+bulk_tap_err=/run/xtcp2-golden-bulk-tap.err
+rm -f "$bulk_pcap" "$bulk_tap_err" /run/xtcp2-golden-bulk-tap /run/xtcp2-golden-bulk-tap-dropped
+systemd-run --unit=xtcp2-golden-bulk-tap --collect -p "StandardError=file:$bulk_tap_err" \
+  "$ip_bin" netns exec golden-bulk-a "$(command -v tcpdump)" -i veth0 -nn -s 96 -B 8192 -w "$bulk_pcap" 'tcp port 4000' >/dev/null
+for _ in $(seq 1 50); do
+  if grep -qs 'listening on' "$bulk_tap_err"; then break; fi
+  sleep 0.1
+done
+grep -qs 'listening on' "$bulk_tap_err" || fail "bulk tap: tcpdump did not start: $(cat "$bulk_tap_err" 2>/dev/null)"
 read -r -a bulk_algos <<<"$BULK_CC"
 for ca in "${bulk_algos[@]}"; do
   spawn "bulk-$ca" golden-bulk-a "$TCP_CLIENT" -count 1 -connect "10.4.0.$(host "$ca")" -network tcp4 -cong "$ca" -bulk 4MiB -sleep 1h -pads 0 -keepalive 1h -dialTimeout 30s
@@ -413,6 +428,25 @@ while :; do
   fi
   sleep 1
 done
+# Stop the bulk tap (SIGINT flushes it) a second after the transfers, for
+# their last delayed ACKs, and leave per client port the segments tapped
+# from the client and from its server, and tcpdump's kernel drops. veth
+# offloads, so one tapped skb can carry several segments: count
+# ceil(payload / mss) each, mss 1448 at the bulk pair's MTU 1500 (IPv4 20,
+# TCP 20, timestamps 12), so the counts compare with ss's segs_out.
+sleep 1
+systemctl kill -s INT xtcp2-golden-bulk-tap || true
+for _ in $(seq 1 50); do
+  if ! systemctl is-active --quiet xtcp2-golden-bulk-tap; then break; fi
+  sleep 0.1
+done
+tcpdump -nn -q -r "$bulk_pcap" 2>/dev/null |
+  awk -v mss=1448 '{ s = $3; d = $5; sub(/:$/, "", d); sp = s; sub(/.*\./, "", sp); dp = d; sub(/.*\./, "", dp)
+    n = $NF > mss ? int(($NF + mss - 1) / mss) : 1
+    if (dp == 4000) c[sp] += n; else if (sp == 4000) v[dp] += n }
+    END { for (p in c) print p "=" c[p] "/" v[p] + 0 }' |
+  sort -n | paste -sd , >/run/xtcp2-golden-bulk-tap
+awk '/packets dropped by kernel/ { print $1; found = 1 } END { if (!found) print "?" }' "$bulk_tap_err" >/run/xtcp2-golden-bulk-tap-dropped
 # The capture's manifest lists the algorithms, for coverage.json's
 # "@manifest.cong_available".
 printf '%s\n' "${cas[@]}" >/run/xtcp2-golden-cong-available

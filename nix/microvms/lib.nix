@@ -1312,6 +1312,38 @@ rec {
           fi
           wait "$vm_pid" 2>/dev/null || true
         }
+        # extract_dump DIR: unpack the guest's XTCP2_GOLDEN_DUMP block into
+        # DIR. Strip journal+console's `[TIME] ident[PID]: ` prefix before
+        # decoding, as mkNlmonCaptureRunner does.
+        extract_dump() {
+          mkdir -p "$1"
+          awk '/XTCP2_GOLDEN_DUMP_START/{flag=1;next} /XTCP2_GOLDEN_DUMP_END/{flag=0} flag' "$LOG" \
+            | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' \
+            | tr -d '\r\n ' \
+            | base64 -d 2>/dev/null \
+            | gzip -dc 2>/dev/null \
+            | tar x -C "$1" 2>/dev/null || true
+        }
+        # keep_failed: a guest whose rows failed still dumps its records
+        # (GOLDEN_DUMPING, then the block, then GOLDEN_ERR). Keep them, with
+        # FAILED and any netem evidence, next to the transcript, never in
+        # OUT_DIR, so a failed run can't replace the fixture. Only the
+        # scrubbed copy is kept, as for a passing run.
+        keep_failed() {
+          grep -q 'GOLDEN_DUMPING' "$LOG" 2>/dev/null || return 0
+          for _ in $(seq 1 60); do
+            if grep -q 'XTCP2_GOLDEN_DUMP_END' "$LOG" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          local failed="''${LOG%.log}.failed"
+          extract_dump "$failed"
+          if [ -s "$failed/raw.parquet" ]; then
+            xtcp2-golden scrub "$failed/raw.parquet" "$failed/records.parquet" || true
+            xtcp2-golden normalize "$failed/records.parquet" > "$failed/records.jsonl" 2>/dev/null || true
+            rm -f "$failed/raw.parquet"
+          fi
+          echo "the failed capture's records: $failed"
+        }
         # The guest's ROW lines, without the journal prefix.
         print_rows() {
           grep -a 'ROW ' "$LOG" | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' | tr -d '\r' || true
@@ -1348,6 +1380,7 @@ rec {
             print_rows
             echo "FATAL: the guest reported:"
             grep -E 'GOLDEN_ERR' "$LOG" || true
+            keep_failed
             exit 2
           fi
           sleep 5
@@ -1361,14 +1394,7 @@ rec {
         print_rows
         grep -E 'GOLDEN_WORKLOAD_READY|GOLDEN_ROWS' "$LOG" | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' || true
 
-        # Strip journal+console's `[TIME] ident[PID]: ` prefix before
-        # decoding, as mkNlmonCaptureRunner does.
-        awk '/XTCP2_GOLDEN_DUMP_START/{flag=1;next} /XTCP2_GOLDEN_DUMP_END/{flag=0} flag' "$LOG" \
-          | sed -E 's/^\[[^]]*\] [A-Za-z0-9_.@-]+\[[0-9]+\]: //' \
-          | tr -d '\r\n ' \
-          | base64 -d 2>/dev/null \
-          | gzip -dc 2>/dev/null \
-          | tar x -C "$STAGE" 2>/dev/null || true
+        extract_dump "$STAGE"
         for f in raw.parquet manifest.json uname; do
           if [ ! -s "$STAGE/$f" ]; then
             echo "FATAL: the guest's block has no $f"
