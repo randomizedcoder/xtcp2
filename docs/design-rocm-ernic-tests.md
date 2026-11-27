@@ -193,7 +193,7 @@ Any column that comes out exactly equal also gets a goldenrec unit row (`pkg/gol
 
 # Round 3: close the two golden flakes, strict diff on the sequence flow
 
-Status: done (2026-11-27). Round 2 left three TODOs (Status, above). This round closes the keepalive flake, adds exact netem rows that tell an xtcp2 bug from a flow that saw no loss, fixes a dctcp ECN fallback the hunt found, and makes the sequence flow exact. The netem `loss_seen` flake is not closed: it recurred once in 20 captures with the kernel agreeing, cause unknown (Round 3 status, TODO). The uplink TODO stays open.
+Status: done (2026-11-27). Round 2 left three TODOs (Status, above). This round closes the keepalive flake, adds exact netem rows that tell an xtcp2 bug from a flow that saw no loss, fixes a dctcp ECN fallback the hunt found, and makes the sequence flow exact. The netem `loss_seen` flake is not closed: it recurred once in 20 captures with the kernel agreeing, cause unknown (Round 3 status, TODO; found and fixed in round 4). The uplink TODO stays open (fixed in round 4).
 
 ## Phase 0: kernel findings
 
@@ -231,3 +231,21 @@ Tests (table-driven, red first): tcp_server discard (discard reads all, echo def
 - **Captures:** five. In four, all 52 guest rows passed and the oracle was exact on all four NICs, at host load 7 to 24. The first failed only `netem_kernel_agrees`, on formatting (the query helper strips spaces, so the lists now use commas); its values agreed. A sixth timed out at host load 61 (`GOLDEN_DONE not seen within 600 s`) and is not counted. The fixture is recaptured. Then 15 more for the netem hunt, at host load 5 to 19: 14 passed all 52 rows, capture 14 failed `loss_seen` only (above), and `xtcp2-golden diff` against the fixture was clean for 13 of the 14 that kept records, capture 19 being the dctcp fallback. One more with the ECN fix and the new detail passed all 53 rows.
 - **Uplinks:** unchanged, still TODO (round 2 Status).
 - **Checks:** the list passes but for three failures this branch does not cause. `deadnix` (unused bindings in nix/ernic/oracle.nix and run-many.nix) and `go-sec` (tools/ipfeed-fixture) fail on main 7e1e4c3f9 too (TODO). `test-go-race` failed once in `TestOnDemandRace/ttl-edge` (pkg/linkmonitor) at host load near 120; it passed three of three with `-race` afterwards.
+
+# Round 4: `loss_seen` found, a failed capture keeps its records
+
+Status: done (2026-11-27). The uplink TODO is fixed separately (uplinks follow a route change on `locality_refresh_interval`).
+
+## Round 4 status
+
+- **A failed capture keeps its records.** When a row fails, the guest still writes the manifest, adds a `FAILED` file naming the rows, prints `GOLDEN_DUMPING` and emits the dump, then fails. The runner decodes it into `<transcript>.failed/`, never into the output dir, so a failed run can't overwrite the fixture. Forced row failure: exit 2, with `FAILED`, the manifest, `records.jsonl`/`parquet` and `uname` in `.failed/`, and no output dir. Forced shell-trap error: exit 2, no `.failed/`, as before.
+- **Per-flow netem evidence.** tcpdump on golden-bulk-a's veth0 sees what left netem, so per client port, netem drops = `segs_out` - packets tapped. New rows `bulk_tap_complete` (tcpdump dropped none) and `netem_per_flow` (netem dropped from every bulk flow both ways). On a `loss_seen` failure, `bulk-a.pcap.gz` and `netem-diag.txt` (`tc -s qdisc`, `ip -s link`, `ethtool -k`, `ss -tienmO`, `nstat`) go out with the records.
+- **`loss_seen` root cause: netem drew loss per skb, not per segment.** Turning tso/gso off on the veth with ethtool doesn't stop TCP from building GSO skbs: `sk_setup_caps` always adds `NETIF_F_GSO`, and with it the software GSO features (net/core/sock.c:2680-2684). netem segments a GSO skb only to corrupt it (net/sched/sch_netem.c:519). A loss draw drops the whole skb and counts one drop (net/sched/sch_netem.c:490-493), while the byte/packet stats count segments (`qdisc_pkt_segs`, include/net/sch_generic.h:977). A flow sending large skbs got few loss draws, so the chance it saw none was 0.98 to the power of its skb count, not of its segment count. The old-code hunt showed it directly: one flow with 223 drops one way and 8 the other. The fix is `ip link set veth0 gso_max_segs 1` on the bulk veths (`IFLA_GSO_MAX_SEGS`, net/core/rtnetlink.c:3332-3336); `tcp_tso_segs` clamps to `sk_gso_max_segs` (net/ipv4/tcp_output.c:2350), so every skb is one segment.
+- **The round 3 baseline gap was the same cause.** netem's sent + dropped against the namespace's OutSegs + RetransSegs was about 120 apart; with one segment per skb it is about 12 (16733 vs 16722, 16432 vs 16419).
+- **ECN fallback in the root netns (fixed).** The ernic dctcp client runs in the root netns, not golden-bulk-a, and in one old-code capture a dropped SYN turned it into dctcp-reno. `tcp_ecn_fallback` is per netns, so the workload now sets it to 0 there too.
+- **`seq_retrans` and DSACK (fixed).** One capture under load had `total_retrans` 13 for 12 drops, with `tcpi_dsack_dups` 1: a spurious retransmit (a TLP) the receiver reported as a duplicate. The row now checks `total_retrans - dsack_dups` == 12.
+- **Hunt, old code (17 captures, stopped once the cause was found):** no `loss_seen` failure. One `seq_retrans` (DSACK, above), one ernic dctcp-reno (above), one listener-drop diff (below), and three that timed out at host load 57 to 81 (environmental, not counted).
+- **Hunt, with the fix (20 captures, host load 9 to 27):** all 55 rows passed in all 20. Every flow saw netem drops both ways, 60 to 128 per flow, about 2 % of its segments (before: as few as 8). `xtcp2-golden diff` against the fixture was clean in 19; the 20th is the listener flake below.
+- **golden-opts-b IPv6 listener drops (TODO):** `sk_mem_info_drops` on the IPv6 port-4000 listener is 1 in the fixture but 0 in some captures, and once the client showed a `total_rto` instead. Seen twice: once in each hunt.
+- **Checks:** `deadnix` (nix/ernic/oracle.nix, run-many.nix) and `go-sec` (tools/ipfeed-fixture) still fail on main 14d7e1c38 too (TODO, not this branch).
+
