@@ -36,6 +36,10 @@ type Options struct {
 	// DefaultFaultEgress when nil; empty for none.
 	FaultNetns  []string
 	FaultEgress []string
+	// SeqNetns name the namespaces of the one-way sequence flow; in their
+	// rows only the seqColumns are not compared. DefaultSeqNetns when nil;
+	// empty for none.
+	SeqNetns []string
 }
 
 // DefaultLossyNetns are the golden workload's netem pair
@@ -58,6 +62,19 @@ var (
 	DefaultFaultEgress = []string{"ionic0"}
 )
 
+// DefaultSeqNetns are the one-way sequence flow's namespaces
+// (golden-workload.sh). Its drops and retransmits are exact, so its rows are
+// compared but for the seqColumns.
+var DefaultSeqNetns = []string{"golden-ernic-c", "golden-ernic-d"}
+
+// seqColumns are the sequence rows' columns four captures showed differ.
+// rwnd_limited counts time the receiver's window held the sender back: the
+// server reads into io.Discard as fast as it is scheduled, so whether its
+// window ever closes depends on host load (nonzero in two of four).
+var seqColumns = map[string]bool{
+	"tcp_info_rwnd_limited": true,
+}
+
 // faultOnlyColumns are, beyond the lossyColumns, the columns five captures
 // showed differ on fault rows. Only ACKs are dropped on the servers' path,
 // so a server retransmits only after an RTO, in some runs and not others;
@@ -72,7 +89,8 @@ var faultOnlyColumns = map[string]bool{
 func faultColumn(c string) bool { return lossyColumns[c] || faultOnlyColumns[c] }
 
 // exemptions returns, for a row, which of its columns Diff leaves out: the
-// lossyColumns in a LossyNetns row, the faultColumns in a fault row.
+// lossyColumns in a LossyNetns row, the faultColumns in a fault row, the
+// seqColumns in a sequence row.
 func exemptions(opts Options) func(Row) func(string) bool {
 	orDefault := func(v, d []string) []string {
 		if v == nil {
@@ -83,14 +101,18 @@ func exemptions(opts Options) func(Row) func(string) bool {
 	lossyNetns := orDefault(opts.LossyNetns, DefaultLossyNetns)
 	faultNetns := orDefault(opts.FaultNetns, DefaultFaultNetns)
 	faultEgress := orDefault(opts.FaultEgress, DefaultFaultEgress)
+	seqNetns := orDefault(opts.SeqNetns, DefaultSeqNetns)
 	none := func(string) bool { return false }
 	lossy := func(c string) bool { return lossyColumns[c] }
+	seq := func(c string) bool { return seqColumns[c] }
 	return func(r Row) func(string) bool {
 		switch {
 		case slices.Contains(faultNetns, r[netnsColumn]) || slices.Contains(faultEgress, r[egressColumn]):
 			return faultColumn
 		case slices.Contains(lossyNetns, r[netnsColumn]):
 			return lossy
+		case slices.Contains(seqNetns, r[netnsColumn]):
+			return seq
 		}
 		return none
 	}
