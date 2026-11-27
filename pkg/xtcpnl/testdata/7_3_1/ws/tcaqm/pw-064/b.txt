@@ -1,0 +1,2 @@
+qdisc show dev d0
+qdisc show dev d0

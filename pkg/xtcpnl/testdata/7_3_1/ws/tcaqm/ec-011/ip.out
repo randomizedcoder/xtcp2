@@ -1,0 +1,1 @@
+qdisc choke 1: root refcnt 2 limit 1000p min 100p max 300p ecn ewma 7 probability 0.02 Scell_log 17

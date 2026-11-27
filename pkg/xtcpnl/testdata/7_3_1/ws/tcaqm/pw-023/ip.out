@@ -1,0 +1,1 @@
+[{"kind":"codel","handle":"1:","root":true,"refcnt":2,"options":{"limit":1000,"target":4999,"interval":99999},"bytes":0,"packets":0,"drops":0,"overlimits":0,"requeues":0,"backlog":0,"qlen":0,"count":0,"lastcount":0,"ldelay":0,"drop_next":0,"maxpacket":0,"ecn_mark":0,"drop_overlimit":0}]

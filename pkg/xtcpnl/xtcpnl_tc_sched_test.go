@@ -283,7 +283,7 @@ func TestParseTcSched(t *testing.T) {
 		{"negative: mqprio rate list with a foreign member", func() string {
 			return schedSum(ParseTcQopt(TcKindMqprio, cat(schedMqprioQopt(2), rtattr(TcaMqprioMaxRate64, rtattr(TcaMqprioMinRate64, le64(1))))))
 		}, "err " + ErrTcSchedList.Error()},
-		{"negative: an increment-16 kind", func() string { return schedSum(ParseTcQopt("red", nil)) }, "err " + ErrTcKindUnknown.Error()},
+		{"negative: a kind no increment decodes", func() string { return schedSum(ParseTcQopt("nosuchkind", nil)) }, "err " + ErrTcKindUnknown.Error()},
 		// Boundary.
 		{"boundary: ets nbands == nstrict, no QUANTA (ec-019, K25)", func() string { return qopt("ec-019", TcKindEts, 0) },
 			"bands 3 strict 3 true quanta false [] priomap [2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2] quantum 0 false"},

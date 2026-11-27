@@ -1,0 +1,9 @@
+qdisc cake 1: root refcnt 2 bandwidth unlimited diffserv3 triple-isolate nonat nowash no-ack-filter split-gso rtt 100ms raw overhead 0 \ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) \ backlog 0b 0p requeues 0\ memory used: 0b of 15140Kb
+ capacity estimate: 0bit
+ min/max network layer size:        65535 /       0
+ min/max overhead-adjusted size:    65535 /       0
+ active queues:                         0
+ average network hdr offset:            0
+
+                   Bulk  Best Effort        Voice
+  thresh           0bit         0bit         0bit\  target            5ms          5ms          5ms\  interval        100ms        100ms        100ms\  pk_delay          0us          0us          0us\  av_delay          0us          0us          0us\  sp_delay          0us          0us          0us\  backlog            0b           0b           0b\  pkts                0            0            0\  bytes               0            0            0\  way_inds            0            0            0\  way_miss            0            0            0\  way_cols            0            0            0\  drops               0            0            0\  marks               0            0            0\  ack_drop            0            0            0\  sp_flows            0            0            0\  bk_flows            0            0            0\  un_flows            0            0            0\  max_len             0            0            0\  quantum          1514         1514         1514\\

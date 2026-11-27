@@ -1,0 +1,1 @@
+[{"kind":"red","handle":"1:","root":true,"refcnt":2,"options":{"limit":400000,"min":30000,"max":90000,"ecn":false,"harddrop":false,"adaptive":false,"nodrop":false,"ewma":5,"probability":0.02,"Scell_log":15}}]

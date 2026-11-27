@@ -1,0 +1,1 @@
+qdisc hhf 1: root refcnt 2 limit 500p quantum 1514b hh_limit 1024 reset_timeout 50ms admit_bytes 64Kb evict_timeout 500ms non_hh_weight 4 

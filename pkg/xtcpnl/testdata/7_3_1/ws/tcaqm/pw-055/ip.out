@@ -1,0 +1,1 @@
+[{"kind":"dualpi2","handle":"1:","root":true,"refcnt":2,"options":{"limit":5000,"memory-limit":4000000,"target":15000,"tupdate":16000,"alpha":0.15625,"beta":3.19531,"step-thresh-us":10,"min-qlen-step":0,"coupling":2,"drop-overload":"drop","drop-early":"drop-enqueue","c-protection":20,"ecn-mask":"any-ect"}}]

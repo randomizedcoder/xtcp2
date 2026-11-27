@@ -1,0 +1,4 @@
+qdisc choke 1: root refcnt 2 limit 1000p min 100p max 300p ecn 
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0
+  marked 0 early 0 pdrop 0 other 0 matched 0

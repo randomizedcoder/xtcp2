@@ -1,0 +1,1 @@
+[{"kind":"codel","handle":"1:","root":true,"refcnt":2,"options":{"limit":500,"target":3999,"ce_threshold":1999,"interval":49999,"ecn":true}}]

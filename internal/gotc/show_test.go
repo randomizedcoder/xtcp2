@@ -166,10 +166,10 @@ func TestGotcShow(t *testing.T) {
 			expected:    result{stderr: "Error: argument \"root\" is wrong: parent is already specified\n", rc: 255},
 		},
 		{
-			description: "negative: an out-of-slice kind in the dump is refused by name",
+			description: "corner: cake with no options prints none",
 			args:        []string{"qdisc", "show", "dev", "d0"},
 			replies:     []Reply{rep(linkMsg(2, "d0")), rep(qmsg(tcBody(2, 0, tcHRoot, 1, kind("cake"))), done())},
-			expected:    result{stderr: "gotc: not implemented: qdisc kind \"cake\"\n", rc: 255},
+			expected:    result{stdout: "qdisc cake 0: root \n"},
 		},
 		{
 			description: "negative: an NLMSG_ERROR mid-dump is Dump terminated, rc 1 (Q26)",
