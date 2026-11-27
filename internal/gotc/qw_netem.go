@@ -176,16 +176,16 @@ func parseNetemQopt(r *runner, args []string, dev string) (func(*xtcpnl.AttrBuil
 		var err error
 		w := a[0]
 		switch {
-		case matches(w, "limit"):
+		case matches(w, wordLimit):
 			if a, err = r.nextArg(a); err != nil {
 				return nil, err
 			}
 			v, ok := getSize(a[0])
 			if !ok {
-				return nil, r.illegal("limit")
+				return nil, r.illegal(wordLimit)
 			}
 			n.opt.Limit = v
-		case matches(w, "latency"), matches(w, "delay"):
+		case matches(w, wordLatency), matches(w, "delay"):
 			a, err = r.netemDelay(n, a)
 		case matches(w, "loss"), matches(w, "drop"):
 			a, err = r.netemLossArg(n, a)
@@ -199,7 +199,7 @@ func parseNetemQopt(r *runner, args []string, dev string) (func(*xtcpnl.AttrBuil
 				return nil, r.illegal("seed")
 			}
 			n.seed = v
-		case matches(w, "ecn"):
+		case matches(w, wordEcn):
 			n.present[xtcpnl.TcaNetemEcn] = 1
 		case matches(w, "reorder"):
 			n.present[xtcpnl.TcaNetemReorder] = 1
@@ -216,7 +216,7 @@ func parseNetemQopt(r *runner, args []string, dev string) (func(*xtcpnl.AttrBuil
 				return nil, r.illegal("gap")
 			}
 			n.opt.Gap = v
-		case matches(w, "duplicate"):
+		case matches(w, wordDuplicate):
 			a, err = r.netemDuplicate(n, a)
 		case matches(w, "distribution"):
 			if a, err = r.nextArg(a); err != nil {
@@ -227,7 +227,7 @@ func parseNetemQopt(r *runner, args []string, dev string) (func(*xtcpnl.AttrBuil
 				return nil, errKindParse
 			}
 			n.dist = d
-		case matches(w, "rate"):
+		case matches(w, wordRate):
 			a, err = r.netemRate(n, a, dev)
 		case matches(w, "slot"):
 			a, err = r.netemSlot(n, a)
@@ -265,7 +265,7 @@ func (r *runner) netemDelay(n *netemArgs, a []string) ([]string, error) {
 	n.present[xtcpnl.TcaNetemLatency64] = 1
 	v, ok := getTime64(a[0])
 	if !ok {
-		return nil, r.illegal("latency")
+		return nil, r.illegal(wordLatency)
 	}
 	n.latency64 = v
 	if !nextIsNumber(a) {
@@ -274,7 +274,7 @@ func (r *runner) netemDelay(n *netemArgs, a []string) ([]string, error) {
 	a = a[1:]
 	n.present[xtcpnl.TcaNetemJitter64] = 1
 	if n.jitter64, ok = getTime64(a[0]); !ok {
-		return nil, r.illegal("latency")
+		return nil, r.illegal(wordLatency)
 	}
 	if !nextIsNumber(a) {
 		return a, nil
@@ -282,7 +282,7 @@ func (r *runner) netemDelay(n *netemArgs, a []string) ([]string, error) {
 	a = a[1:]
 	n.present[xtcpnl.TcaNetemCorr]++
 	if n.cor.DelayCorr, ok = getPercent(a[0]); !ok {
-		return nil, r.illegal("latency")
+		return nil, r.illegal(wordLatency)
 	}
 	return a, nil
 }
@@ -415,12 +415,12 @@ func (r *runner) netemDuplicate(n *netemArgs, a []string) ([]string, error) {
 	}
 	var ok bool
 	if n.opt.Duplicate, ok = getPercent(a[0]); !ok {
-		return nil, r.illegal("duplicate")
+		return nil, r.illegal(wordDuplicate)
 	}
 	if nextIsNumber(a) {
 		a = a[1:]
 		if n.cor.DupCorr, ok = getPercent(a[0]); !ok {
-			return nil, r.illegal("duplicate")
+			return nil, r.illegal(wordDuplicate)
 		}
 	}
 	return a, nil
@@ -439,24 +439,24 @@ func (r *runner) netemRate(n *netemArgs, a []string, dev string) ([]string, erro
 		n.rate64, ok = getRate64(a[0])
 	}
 	if !ok {
-		return nil, r.illegal("rate")
+		return nil, r.illegal(wordRate)
 	}
 	if nextIsSigned(a) {
 		a = a[1:]
 		if n.rate.PacketOverhead, ok = getS32(a[0], 0); !ok {
-			return nil, r.illegal("rate")
+			return nil, r.illegal(wordRate)
 		}
 	}
 	if nextIsNumber(a) {
 		a = a[1:]
 		if n.rate.CellSize, ok = getU32(a[0], 0); !ok {
-			return nil, r.illegal("rate")
+			return nil, r.illegal(wordRate)
 		}
 	}
 	if nextIsSigned(a) {
 		a = a[1:]
 		if n.rate.CellOverhead, ok = getS32(a[0], 0); !ok {
-			return nil, r.illegal("rate")
+			return nil, r.illegal(wordRate)
 		}
 	}
 	return a, nil

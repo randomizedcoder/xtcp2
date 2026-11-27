@@ -265,15 +265,15 @@ func (r *runner) htbClassArg(c *htbCopt, args *[]string, dev string) error {
 	}
 	var ok bool
 	switch {
-	case matches(a, "prio"), matches(a, "mtu"), matches(a, "quantum"):
-		key := "prio"
+	case matches(a, wordPrio), matches(a, wordMtu), matches(a, wordQuantum):
+		key := wordPrio
 		dst := &c.opt.Prio
 		switch {
-		case matches(a, "prio"):
-		case matches(a, "mtu"):
-			key, dst = "mtu", &c.mtu
+		case matches(a, wordPrio):
+		case matches(a, wordMtu):
+			key, dst = wordMtu, &c.mtu
 		default:
-			key, dst = "quantum", &c.opt.Quantum
+			key, dst = wordQuantum, &c.opt.Quantum
 		}
 		w, err := next()
 		if err != nil {
@@ -282,10 +282,10 @@ func (r *runner) htbClassArg(c *htbCopt, args *[]string, dev string) error {
 		if *dst, ok = getU32(w, 10); !ok {
 			return r.htbExplain1(key)
 		}
-	case matches(a, "mpu"), matches(a, "overhead"):
-		key, dst := "mpu", &c.mpu
-		if !matches(a, "mpu") {
-			key, dst = "overhead", &c.overhead
+	case matches(a, wordMpu), matches(a, wordOverhead):
+		key, dst := wordMpu, &c.mpu
+		if !matches(a, wordMpu) {
+			key, dst = wordOverhead, &c.overhead
 		}
 		w, err := next()
 		if err != nil {
@@ -294,15 +294,15 @@ func (r *runner) htbClassArg(c *htbCopt, args *[]string, dev string) error {
 		if *dst, ok = getU16(w, 10); !ok {
 			return r.htbExplain1(key)
 		}
-	case matches(a, "linklayer"):
+	case matches(a, wordLinklayer):
 		w, err := next()
 		if err != nil {
 			return err
 		}
 		if c.linklayer, ok = getLinklayer(w); !ok {
-			return r.htbExplain1("linklayer")
+			return r.htbExplain1(wordLinklayer)
 		}
-	case matches(a, "burst"), a == "buffer", a == "maxburst":
+	case matches(a, wordBurst), a == wordBuffer, a == wordMaxburst:
 		w, err := next()
 		if err != nil {
 			return err
@@ -318,7 +318,7 @@ func (r *runner) htbClassArg(c *htbCopt, args *[]string, dev string) error {
 		if c.cbuffer, ok = getSizeAndCell(w, &c.ccellLog); !ok {
 			return r.htbExplain1(a)
 		}
-	case a == "ceil", a == "rate":
+	case a == "ceil", a == wordRate:
 		w, err := next()
 		if err != nil {
 			return err

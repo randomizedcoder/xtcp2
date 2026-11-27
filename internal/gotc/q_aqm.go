@@ -14,11 +14,12 @@ import (
 
 // The option names more than one AQM printer uses, text and JSON alike.
 const (
-	wordLimit  = "limit"
-	wordTarget = "target"
-	wordEcn    = "ecn"
-	wordAlpha  = "alpha"
-	wordBeta   = "beta"
+	wordLimit       = "limit"
+	wordTarget      = "target"
+	wordEcn         = "ecn"
+	wordAlpha       = "alpha"
+	wordBeta        = "beta"
+	wordCeThreshold = "ce_threshold"
 )
 
 // sfbMaxProb is q_sfb.c's SFB_MAX_PROB.
@@ -125,7 +126,7 @@ func printSfbXstats(r *runner, xs []byte) {
 var codelFields = []aqmField{
 	{xtcpnl.TcaCodelLimit, wordLimit, aqmPkts},
 	{xtcpnl.TcaCodelTarget, wordTarget, aqmTime},
-	{xtcpnl.TcaCodelCeThreshold, "ce_threshold", aqmTime},
+	{xtcpnl.TcaCodelCeThreshold, wordCeThreshold, aqmTime},
 	{xtcpnl.TcaCodelInterval, "interval", aqmTime},
 	{xtcpnl.TcaCodelEcn, wordEcn, aqmFlag},
 }

@@ -71,6 +71,32 @@ var coptParsers = map[string]kindParser{
 	xtcpnl.TcKindHtb: parseHtbCopt,
 }
 
+// Words the kind parsers take more than twice.
+const (
+	wordBuckets   = "buckets"
+	wordDivisor   = "divisor"
+	wordDuplicate = "duplicate"
+	wordEstimator = "estimator"
+	wordLatency   = "latency"
+	wordLinklayer = "linklayer"
+	wordMpu       = "mpu"
+	wordMtu       = "mtu"
+	wordOverhead  = "overhead"
+	wordPeakrate  = "peakrate"
+	wordPrio      = "prio"
+	wordRate      = "rate"
+)
+
+// More words the kind parsers share.
+const (
+	wordBands    = "bands"
+	wordBuffer   = "buffer"
+	wordMaxburst = "maxburst"
+)
+
+// wordHandle is the qdisc and class handle keyword.
+const wordHandle = "handle"
+
 // truncKind is `k`, FILTER_NAMESZ: the kind's first 15 bytes.
 func truncKind(s string) string { return cutName(s, filterNameSize-1) }
 
@@ -159,9 +185,9 @@ func (r *runner) qdiscModifyArgs(m *qmod, args []string) error {
 				return r.duparg(wordDev, args[0])
 			}
 			m.dev = truncName(args[0])
-		case a == "handle":
+		case a == wordHandle:
 			if m.w.Handle != 0 {
-				return r.duparg("handle", a) // W3: duparg names "handle", the word itself
+				return r.duparg(wordHandle, a) // W3: duparg names the word "handle" itself
 			}
 			if len(args) < 2 {
 				return r.incomplete()
@@ -179,16 +205,7 @@ func (r *runner) qdiscModifyArgs(m *qmod, args []string) error {
 			}
 			m.w.Parent = tcHRoot
 		case a == "clsact", a == wordIngress:
-			if m.w.Parent != 0 {
-				r.errf("Error: \"%s\" is a duplicate parent ID\n", a)
-				return retCode(-1)
-			}
-			m.w.Parent = tcHIngress // TC_H_CLSACT is TC_H_INGRESS
-			m.kind = a
-			m.q = qdiscKindAny(a)
-			m.w.Handle = tcHIngress & 0xffff0000 // TC_H_MAKE(TC_H_INGRESS, 0)
-			m.rest = args[1:]                    // NEXT_ARG_FWD; break (W2)
-			return nil
+			return r.qdiscIngress(m, args)
 		case a == wordParent:
 			if len(args) < 2 {
 				return r.incomplete()
@@ -202,7 +219,7 @@ func (r *runner) qdiscModifyArgs(m *qmod, args []string) error {
 				return r.invarg("invalid parent ID", args[0])
 			}
 			m.w.Parent = h
-		case matches(a, "estimator"):
+		case matches(a, wordEstimator):
 			var err error
 			if args, err = r.parseEstimator(args, &m.w.Est); err != nil {
 				return err
@@ -214,22 +231,9 @@ func (r *runner) qdiscModifyArgs(m *qmod, args []string) error {
 			}
 			continue
 		case matches(a, "ingress_block"), matches(a, "egress_block"):
-			if len(args) < 2 {
-				return r.incomplete()
-			}
-			args = args[1:]
-			v, ok := getU32(args[0], 0)
-			ingress := matches(a, "ingress_block")
-			if !ok || v == 0 {
-				if ingress {
-					return r.invarg("invalid ingress block index value", args[0])
-				}
-				return r.invarg("invalid egress block index value", args[0])
-			}
-			if ingress {
-				m.w.IngressBlock = v
-			} else {
-				m.w.EgressBlock = v
+			var err error
+			if args, err = r.qdiscBlock(m, args); err != nil {
+				return err
 			}
 		case matches(a, helpWord):
 			r.qdiscUsage() // W1: and the loop goes on
@@ -242,6 +246,46 @@ func (r *runner) qdiscModifyArgs(m *qmod, args []string) error {
 		args = args[1:]
 	}
 	return nil
+}
+
+// qdiscIngress is the ingress and clsact arms: TC_H_CLSACT is
+// TC_H_INGRESS; the handle an earlier `handle` set is overwritten, and
+// NEXT_ARG_FWD; break hands the rest to the kind's parser (W2).
+func (r *runner) qdiscIngress(m *qmod, args []string) error {
+	a := args[0]
+	if m.w.Parent != 0 {
+		r.errf("Error: \"%s\" is a duplicate parent ID\n", a)
+		return retCode(-1)
+	}
+	m.w.Parent = tcHIngress
+	m.kind = a
+	m.q = qdiscKindAny(a)
+	m.w.Handle = tcHIngress & 0xffff0000 // TC_H_MAKE(TC_H_INGRESS, 0)
+	m.rest = args[1:]
+	return nil
+}
+
+// qdiscBlock is the ingress_block and egress_block arms: get_u32 base 0,
+// and 0 is invalid. args is returned at the value.
+func (r *runner) qdiscBlock(m *qmod, args []string) ([]string, error) {
+	ingress := matches(args[0], "ingress_block")
+	if len(args) < 2 {
+		return nil, r.incomplete()
+	}
+	args = args[1:]
+	v, ok := getU32(args[0], 0)
+	if !ok || v == 0 {
+		if ingress {
+			return nil, r.invarg("invalid ingress block index value", args[0])
+		}
+		return nil, r.invarg("invalid egress block index value", args[0])
+	}
+	if ingress {
+		m.w.IngressBlock = v
+	} else {
+		m.w.EgressBlock = v
+	}
+	return args, nil
 }
 
 // classModify is tc_class_modify.
@@ -282,20 +326,20 @@ func (r *runner) classModifyArgs(m *qmod, args []string) error {
 				return r.duparg(wordDev, args[0])
 			}
 			m.dev = truncName(args[0])
-		case a == "classid":
+		case a == wordClassid:
 			if len(args) < 2 {
 				return r.incomplete()
 			}
 			args = args[1:]
 			if m.w.Handle != 0 {
-				return r.duparg("classid", args[0])
+				return r.duparg(wordClassid, args[0])
 			}
 			h, ok := tcClassid(args[0])
 			if !ok {
 				return r.invarg("invalid class ID", args[0])
 			}
 			m.w.Handle = h
-		case a == "handle":
+		case a == wordHandle:
 			r.errf("Error: try \"classid\" instead of \"handle\"\n")
 			return retCode(-1)
 		case a == wordRoot:
@@ -317,7 +361,7 @@ func (r *runner) classModifyArgs(m *qmod, args []string) error {
 				return r.invarg("invalid parent ID", args[0])
 			}
 			m.w.Parent = h
-		case matches(a, "estimator"):
+		case matches(a, wordEstimator):
 			var err error
 			if args, err = r.parseEstimator(args, &m.w.Est); err != nil {
 				return err
@@ -429,14 +473,14 @@ func (r *runner) parseEstimator(args []string, est *xtcpnl.TcEstimator) ([]strin
 	}
 	args = args[1:]
 	if est.EwmaLog != 0 {
-		return nil, r.duparg("estimator", args[0])
+		return nil, r.duparg(wordEstimator, args[0])
 	}
 	if matches(args[0], helpWord) {
 		r.estHelp()
 	}
 	a, ok := getTime(args[0])
 	if !ok {
-		return nil, r.invarg("estimator", "invalid estimator interval")
+		return nil, r.invarg(wordEstimator, "invalid estimator interval")
 	}
 	if len(args) < 2 {
 		return nil, r.incomplete()
@@ -447,7 +491,7 @@ func (r *runner) parseEstimator(args []string, est *xtcpnl.TcEstimator) ([]strin
 	}
 	tconst, ok := getTime(args[0])
 	if !ok {
-		return nil, r.invarg("estimator", "invalid estimator time constant")
+		return nil, r.invarg(wordEstimator, "invalid estimator time constant")
 	}
 	var e estimator
 	if !setupEstimator(a, tconst, &e) {
@@ -487,36 +531,36 @@ func (r *runner) parseSizeTable(args []string, sp *sizeSpec) ([]string, error) {
 		var dup bool
 		var err error
 		switch {
-		case matches(a, "mtu"):
-			dup, err = r.stabU32(&args, &s.mtu, "mtu", "invalid mtu")
-		case matches(a, "mpu"):
-			dup, err = r.stabU32(&args, &s.mpu, "mpu", "invalid mpu")
-		case matches(a, "overhead"):
+		case matches(a, wordMtu):
+			dup, err = r.stabU32(&args, &s.mtu, wordMtu, "invalid mtu")
+		case matches(a, wordMpu):
+			dup, err = r.stabU32(&args, &s.mpu, wordMpu, "invalid mpu")
+		case matches(a, wordOverhead):
 			if len(args) < 2 {
 				return nil, r.incomplete()
 			}
 			args = args[1:]
 			if s.overhead != 0 {
-				return nil, r.duparg("overhead", args[0])
+				return nil, r.duparg(wordOverhead, args[0])
 			}
 			v, ok := getInteger(args[0], 10)
 			if !ok {
-				return nil, r.invarg("overhead", "invalid overhead")
+				return nil, r.invarg(wordOverhead, "invalid overhead")
 			}
 			s.overhead = v
 		case matches(a, "tsize"):
 			dup, err = r.stabU32(&args, &s.tsize, "tsize", "invalid table size")
-		case matches(a, "linklayer"):
+		case matches(a, wordLinklayer):
 			if len(args) < 2 {
 				return nil, r.incomplete()
 			}
 			args = args[1:]
 			if s.linklayer != 0 {
-				return nil, r.duparg("linklayer", args[0])
+				return nil, r.duparg(wordLinklayer, args[0])
 			}
 			v, ok := getLinklayer(args[0])
 			if !ok {
-				return nil, r.invarg("linklayer", "invalid linklayer")
+				return nil, r.invarg(wordLinklayer, "invalid linklayer")
 			}
 			s.linklayer = v
 		default:

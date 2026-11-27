@@ -17,7 +17,7 @@ func fifoParser(id string) kindParser {
 		var opt xtcpnl.TcFifoQopt
 		for ; len(args) > 0; args = args[1:] {
 			switch args[0] {
-			case "limit":
+			case wordLimit:
 				if len(args) < 2 {
 					return nil, r.incomplete()
 				}
@@ -62,7 +62,7 @@ func parsePrioQopt(r *runner, args []string, _ string) (func(*xtcpnl.AttrBuilder
 	opt := xtcpnl.TcPrioQopt{Bands: 3, Priomap: [16]uint8{1, 2, 2, 2, 1, 2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}}
 	for ; len(args) > 0; args = args[1:] {
 		switch a := args[0]; a {
-		case "bands":
+		case wordBands:
 			if pmap {
 				r.prioExplain()
 			}

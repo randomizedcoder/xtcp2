@@ -11,7 +11,7 @@ import "github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 // unchecked (NEXT_ARG, then the pair's second word).
 func parseIngressQopt(r *runner, args []string, _ string) (func(*xtcpnl.AttrBuilder) error, error) {
 	for len(args) > 0 {
-		if args[0] != "handle" {
+		if args[0] != wordHandle {
 			r.errf("What is \"%s\"?\n", args[0])
 			r.errf("Usage: ... ingress\n")
 			return nil, errKindParse

@@ -71,42 +71,29 @@ func parseFqCodelQopt(r *runner, args []string, _ string) (func(*xtcpnl.AttrBuil
 		var dst *uint32
 		get := getTime
 		switch a {
-		case "limit":
+		case wordLimit:
 			dst, get = &limit, func(s string) (uint32, bool) { return getUnsigned(s, 0) }
-		case "flows":
+		case wordFlows:
 			dst, get = &flows, func(s string) (uint32, bool) { return getUnsigned(s, 0) }
-		case "quantum":
+		case wordQuantum:
 			dst, get = &quantum, func(s string) (uint32, bool) { return getUnsigned(s, 0) }
 		case "drop_batch":
 			dst, get = &dropBatch, func(s string) (uint32, bool) { return getUnsigned(s, 0) }
-		case "target":
+		case wordTarget:
 			dst = &target
-		case "ce_threshold":
+		case wordCeThreshold:
 			dst = &ceThreshold
 		case "memory_limit":
 			dst, get = &memory, getSize
 		case "interval":
 			dst = &interval
 		case "ce_threshold_selector":
-			if len(args) < 2 {
-				return nil, r.incomplete()
-			}
-			args = args[1:]
-			val, mask, ok := strings.Cut(args[0], "/")
-			if !ok {
-				r.errf("Missing mask for \"ce_threshold_selector\"\n")
-				return nil, errKindParse
-			}
-			if ceMask, ok = getU8(mask, 0); !ok {
-				r.errf("Illegal mask for \"ce_threshold_selector\"\n")
-				return nil, errKindParse
-			}
-			// get_u8 leaves ce_threshold_selector as it was on failure.
-			if ceSel, ok = getU8(val, 0); !ok {
-				return nil, illegal(r, "ce_threshold_selector")
+			var err error
+			if args, ceSel, ceMask, err = fqCodelSelector(r, args); err != nil {
+				return nil, err
 			}
 			continue
-		case "ecn":
+		case wordEcn:
 			ecn = 1
 			continue
 		case "noecn":
@@ -130,6 +117,44 @@ func parseFqCodelQopt(r *runner, args []string, _ string) (func(*xtcpnl.AttrBuil
 		}
 		*dst = v
 	}
+	return fqCodelAttrs(fqCodelVals{limit, flows, quantum, interval, target, ceThreshold, memory, dropBatch, ecn, ceMask, ceSel}), nil
+}
+
+// fqCodelSelector is the ce_threshold_selector arm: VALUE/MASK, both
+// get_u8; args starts at the word and is returned at its value.
+func fqCodelSelector(r *runner, args []string) ([]string, uint8, uint8, error) {
+	if len(args) < 2 {
+		return nil, 0, 0, r.incomplete()
+	}
+	args = args[1:]
+	val, mask, ok := strings.Cut(args[0], "/")
+	if !ok {
+		r.errf("Missing mask for \"ce_threshold_selector\"\n")
+		return nil, 0, 0, errKindParse
+	}
+	m, ok := getU8(mask, 0)
+	if !ok {
+		r.errf("Illegal mask for \"ce_threshold_selector\"\n")
+		return nil, 0, 0, errKindParse
+	}
+	v, ok := getU8(val, 0)
+	if !ok {
+		return nil, 0, 0, illegal(r, "ce_threshold_selector")
+	}
+	return args, v, m, nil
+}
+
+// fqCodelVals is what fq_codel_parse_opt gathered.
+type fqCodelVals struct {
+	limit, flows, quantum, interval, target, ceThreshold, memory, dropBatch uint32
+	ecn                                                                     int32
+	ceMask, ceSel                                                           uint8
+}
+
+// fqCodelAttrs is fq_codel_parse_opt's addattrs, in its order.
+func fqCodelAttrs(v fqCodelVals) func(*xtcpnl.AttrBuilder) error {
+	limit, flows, quantum, interval, target, ceThreshold, memory, dropBatch, ecn, ceMask, ceSel :=
+		v.limit, v.flows, v.quantum, v.interval, v.target, v.ceThreshold, v.memory, v.dropBatch, v.ecn, v.ceMask, v.ceSel
 	var attrs []u32Attr
 	add := func(cond bool, t uint16, v uint32) {
 		if cond {
@@ -171,7 +196,7 @@ func parseFqCodelQopt(r *runner, args []string, _ string) (func(*xtcpnl.AttrBuil
 			return err
 		}
 		return ab.EndNest(m)
-	}, nil
+	}
 }
 
 func fqExplain(r *runner) {
@@ -261,7 +286,7 @@ func (st *fqState) valueOpt(r *runner, a, dev string) (*fqOpt, func(string) (uin
 		return getRate(s)
 	}
 	switch a {
-	case "limit":
+	case wordLimit:
 		return &st.plimit, unsigned0
 	case "flow_limit":
 		return &st.flowPlimit, unsigned0
@@ -269,7 +294,7 @@ func (st *fqState) valueOpt(r *runner, a, dev string) (*fqOpt, func(string) (uin
 		return &st.maxrate, rate
 	case "low_rate_threshold":
 		return &st.lowRate, getRate
-	case "ce_threshold":
+	case wordCeThreshold:
 		return &st.ce, getTime
 	case "horizon":
 		return &st.horizon, getTime
@@ -277,7 +302,7 @@ func (st *fqState) valueOpt(r *runner, a, dev string) (*fqOpt, func(string) (uin
 		return &st.offload, getTime
 	case "defrate":
 		return &st.defrate, rate
-	case "quantum":
+	case wordQuantum:
 		return &st.quantum, unsigned0
 	case "initial_quantum":
 		return &st.initQuantum, unsigned0
@@ -292,18 +317,18 @@ func (st *fqState) valueOpt(r *runner, a, dev string) (*fqOpt, func(string) (uin
 func (st *fqState) special(r *runner, args []string) ([]string, error) {
 	a := args[0]
 	switch a {
-	case "buckets", "orphan_mask":
+	case wordBuckets, "orphan_mask":
 		if len(args) < 2 {
 			return nil, r.incomplete()
 		}
 		args = args[1:]
 		v, ok := getUnsigned(args[0], 0)
 		switch {
-		case !ok && a == "buckets":
+		case !ok && a == wordBuckets:
 			return nil, illegal(r, a)
 		case !ok:
 			return nil, illegal(r, "initial_quantum") // tc's message names the wrong option
-		case a == "buckets":
+		case a == wordBuckets:
 			st.buckets = v
 		default:
 			st.orphan = fqOpt{v, true}
@@ -318,7 +343,7 @@ func (st *fqState) special(r *runner, args []string) ([]string, error) {
 		st.pacing = 1
 	case "nopacing":
 		st.pacing = 0
-	case "bands":
+	case wordBands:
 		var err error
 		if args, err = fqPriomap(r, args, &st.prio, st.setPriomap); err != nil {
 			return nil, err
@@ -463,7 +488,7 @@ func fqPriomap(r *runner, args []string, prio *xtcpnl.TcPrioQopt, dup bool) ([]s
 	args = args[1:]
 	bands, ok := getInteger(args[0], 10)
 	if !ok {
-		return nil, illegal(r, "bands")
+		return nil, illegal(r, wordBands)
 	}
 	prio.Bands = bands
 	if bands != fqBands {

@@ -12,6 +12,16 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
+// The words sfq_parse_opt and tbf_parse_opt take more than twice.
+const (
+	wordFlows        = "flows"
+	wordRedflowlimit = "redflowlimit"
+	wordMin          = "min"
+	wordMax          = "max"
+	wordBurst        = "burst"
+	wordQuantum      = "quantum"
+)
+
 // tc/q_tbf.c tbf_parse_opt and tc/q_sfq.c sfq_parse_opt at iproute2
 // v7.2.0, with tc/tc_red.c tc_red_eval_ewma and tc_red_eval_P.
 
@@ -54,72 +64,72 @@ func (r *runner) tbfWord(t *tbfArgs, a, v, dev string) bool {
 	dup := func(what string) bool { r.errf("tbf: duplicate \"%s\" specification\n", what); return false }
 	ok := true
 	switch {
-	case matches(a, "limit"):
+	case matches(a, wordLimit):
 		if t.limit != 0 {
-			return dup("limit")
+			return dup(wordLimit)
 		}
 		if t.latency != 0 {
 			r.errf("tbf: specifying both \"latency\" and \"limit\" is not allowed\n")
 			return false
 		}
 		if t.limit, ok = getSize(v); !ok {
-			r.tbfExplain1("limit", v)
+			r.tbfExplain1(wordLimit, v)
 		}
-	case matches(a, "latency"):
+	case matches(a, wordLatency):
 		if t.latency != 0 {
-			return dup("latency")
+			return dup(wordLatency)
 		}
 		if t.limit != 0 {
 			r.errf("tbf: specifying both \"limit\" and \"/latency\" is not allowed\n")
 			return false
 		}
 		if t.latency, ok = getTime(v); !ok {
-			r.tbfExplain1("latency", v)
+			r.tbfExplain1(wordLatency, v)
 		}
-	case matches(a, "burst"), a == "buffer", a == "maxburst":
+	case matches(a, wordBurst), a == wordBuffer, a == wordMaxburst:
 		if t.buf64 != 0 {
 			return dup("buffer/burst/maxburst")
 		}
 		if t.buf64, ok = getSize64AndCell(v, &t.rcell); !ok {
 			r.tbfExplain1(a, v)
 		}
-	case a == "mtu", a == "minburst":
+	case a == wordMtu, a == "minburst":
 		if t.mtu != 0 {
 			return dup("mtu/minburst")
 		}
 		if t.mtu, ok = getSizeAndCell(v, &t.pcell); !ok {
 			r.tbfExplain1(a, v)
 		}
-	case a == "mpu":
+	case a == wordMpu:
 		if t.mpu != 0 {
-			return dup("mpu")
+			return dup(wordMpu)
 		}
 		if t.mpu, ok = getSize(v); !ok {
-			r.tbfExplain1("mpu", v)
+			r.tbfExplain1(wordMpu, v)
 		}
-	case a == "rate":
+	case a == wordRate:
 		if t.rate64 != 0 {
-			return dup("rate")
+			return dup(wordRate)
 		}
-		ok = r.tbfRate("rate", v, dev, &t.rate64)
-	case matches(a, "peakrate"):
+		ok = r.tbfRate(wordRate, v, dev, &t.rate64)
+	case matches(a, wordPeakrate):
 		if t.prate64 != 0 {
-			return dup("peakrate")
+			return dup(wordPeakrate)
 		}
-		ok = r.tbfRate("peakrate", v, dev, &t.prate64)
-	case matches(a, "overhead"):
+		ok = r.tbfRate(wordPeakrate, v, dev, &t.prate64)
+	case matches(a, wordOverhead):
 		if t.overhead != 0 {
-			return dup("overhead")
+			return dup(wordOverhead)
 		}
 		u, good := getU32(v, 10)
 		if !good || u > math.MaxUint16 {
-			r.tbfExplain1("overhead", v)
+			r.tbfExplain1(wordOverhead, v)
 			return false
 		}
 		t.overhead = uint16(u)
 	default: // linklayer
 		if t.linklayer, ok = getLinklayer(v); !ok {
-			r.tbfExplain1("linklayer", v)
+			r.tbfExplain1(wordLinklayer, v)
 		}
 	}
 	return ok
@@ -128,9 +138,9 @@ func (r *runner) tbfWord(t *tbfArgs, a, v, dev string) bool {
 // tbfTakesValue is whether the word is one of tbf's options (all take a
 // value) or "help"/unknown.
 func tbfTakesValue(a string) bool {
-	return matches(a, "limit") || matches(a, "latency") || matches(a, "burst") || a == "buffer" ||
-		a == "maxburst" || a == "mtu" || a == "minburst" || a == "mpu" || a == "rate" ||
-		matches(a, "peakrate") || matches(a, "overhead") || matches(a, "linklayer")
+	return matches(a, wordLimit) || matches(a, wordLatency) || matches(a, wordBurst) || a == wordBuffer ||
+		a == wordMaxburst || a == wordMtu || a == "minburst" || a == wordMpu || a == wordRate ||
+		matches(a, wordPeakrate) || matches(a, wordOverhead) || matches(a, wordLinklayer)
 }
 
 // parseTbfQopt is tbf_parse_opt.
@@ -298,22 +308,22 @@ type sfqArgs struct {
 // word its message names ("depth" says "flows", tc's own slip).
 func (s *sfqArgs) sfqU32(a string) (*uint32, string, *int) {
 	switch a {
-	case "limit":
-		return &s.opt.V0.Limit, "limit", &s.ok
-	case "divisor":
-		return &s.opt.V0.Divisor, "divisor", &s.ok
-	case "flows":
-		return &s.opt.V0.Flows, "flows", &s.ok
+	case wordLimit:
+		return &s.opt.V0.Limit, wordLimit, &s.ok
+	case wordDivisor:
+		return &s.opt.V0.Divisor, wordDivisor, &s.ok
+	case wordFlows:
+		return &s.opt.V0.Flows, wordFlows, &s.ok
 	case "depth":
-		return &s.opt.Depth, "flows", &s.ok
-	case "redflowlimit":
-		return &s.opt.Limit, "redflowlimit", &s.red
-	case "min":
-		return &s.opt.QthMin, "min", &s.red
-	case "max":
-		return &s.opt.QthMax, "max", &s.red
-	case "burst":
-		return &s.burst, "burst", &s.red
+		return &s.opt.Depth, wordFlows, &s.ok
+	case wordRedflowlimit:
+		return &s.opt.Limit, wordRedflowlimit, &s.red
+	case wordMin:
+		return &s.opt.QthMin, wordMin, &s.red
+	case wordMax:
+		return &s.opt.QthMax, wordMax, &s.red
+	case wordBurst:
+		return &s.burst, wordBurst, &s.red
 	}
 	return nil, "", nil
 }
@@ -327,7 +337,7 @@ func (r *runner) sfqWord(s *sfqArgs, a, v string) bool {
 			return false
 		}
 		*p = u
-		if a == "limit" && u < 2 {
+		if a == wordLimit && u < 2 {
 			r.errf("Illegal \"limit\", must be > 1\n")
 			return false
 		}
@@ -335,7 +345,7 @@ func (r *runner) sfqWord(s *sfqArgs, a, v string) bool {
 		return true
 	}
 	switch a {
-	case "quantum":
+	case wordQuantum:
 		u, ok := getSize(v)
 		if !ok {
 			r.errf("Illegal \"limit\"\n") // tc's message for quantum
@@ -381,7 +391,7 @@ func parseSfqQopt(r *runner, args []string, _ string) (func(*xtcpnl.AttrBuilder)
 			s.opt.Headdrop = 1
 			s.ok++
 			continue
-		case "ecn":
+		case wordEcn:
 			s.opt.Flags |= xtcpnl.TcRedEcn
 			s.red++
 			continue
@@ -389,8 +399,8 @@ func parseSfqQopt(r *runner, args []string, _ string) (func(*xtcpnl.AttrBuilder)
 			s.opt.Flags |= xtcpnl.TcRedHarddrop
 			s.red++
 			continue
-		case "quantum", "perturb", "limit", "divisor", "flows", "depth", "redflowlimit", "min", "max",
-			"burst", "avpkt", "probability":
+		case wordQuantum, "perturb", wordLimit, wordDivisor, wordFlows, "depth", wordRedflowlimit, wordMin, wordMax,
+			wordBurst, "avpkt", "probability":
 		default:
 			if a != helpWord {
 				r.errf("What is \"%s\"?\n", a)
