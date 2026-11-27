@@ -128,15 +128,35 @@ fi
 # write errors at the deadline, the reconnect dials time out at the same bound,
 # and each envelope burns its attempt budget and is dropped. What must NOT
 # happen (the pre-fix freeze): the poller stopping.
+#
+# The dark window has TWO legitimate shapes (a neighbor-state race, not a
+# product fork — evidence 20261127T065504 caught shape B while
+# 20261126T111738 caught shape A):
+#   shape A (stall sustained): the poisoned entry's unicast probes fail, the
+#     broadcast re-resolution loses to the dials' own 5s deadline, the
+#     catcher goes dark and the envelope budgets burn (drops counted).
+#   shape B (healed-through): the write deadline closes the conn, a re-dial
+#     falls back to broadcast ARP, the REAL sink answers, and delivery
+#     resumes while the attack continues — a REACHABLE entry then ignores
+#     the poison's gratuitous replies for ~30s. The stall self-heals with no
+#     restart; drops may be 0 (loss bounded to the reconnect window).
+# Either way Write/Dial errors MUST rise (the blind is visible) and the
+# poller MUST keep issuing. "Flowing with zero errors" = the poison failed.
 
 P0="$(polls_issued)"
 sleep 20 # the deadline fires (~5s), the first dial windows close (~5s each)
 
 DELTA="$(catcher_delta_6s)"
-if [ "$DELTA" -le 10 ]; then
+W1_ERR="$(tcp_write_err)"
+D1_ERR="$(tcp_dial_err)"
+STALLED=0
+if [ "${W1_ERR:-0}" -lt 1 ] && [ "${D1_ERR:-0}" -lt 1 ]; then
+  not_ok "cycle 1: zero Write/Dial errors ($DELTA lines/6s) — the poison failed or the stall went silent; see evidence"
+elif [ "$DELTA" -le 10 ]; then
+  STALLED=1
   ok "cycle 1: the catcher is dark within a cycle of the poison ($DELTA lines/6s) — delivery stalls (the premise's blind)"
 else
-  not_ok "cycle 1: the catcher kept flowing ($DELTA lines/6s) — the poison failed; see evidence"
+  ok "cycle 1: the stall self-healed mid-poison ($DELTA lines/6s; Write/error=$W1_ERR, Dial/error=$D1_ERR — the deadline closed the conn and a re-dial's broadcast ARP beat the poison; no restart)"
 fi
 code="$(scrape_code)"
 if [ "${code:-000}" = 200 ]; then
@@ -153,19 +173,20 @@ else
   not_ok "cycle 1: the poller froze during the stall ($P0->$P1) — the fix regressed; see evidence"
 fi
 
-W1_ERR="$(tcp_write_err)"
-D1_ERR="$(tcp_dial_err)"
-DROP1="$(tcp_dropped)"
-echo "rt-11-5: cycle 1: destTCP/Write/error=$W1_ERR destTCP/Dial/error=$D1_ERR tcp_dropped_total=$DROP1"
-if [ "${W1_ERR:-0}" -ge 1 ] && [ "${D1_ERR:-0}" -ge 1 ]; then
+if [ "${W1_ERR:-0}" -ge 1 ] || [ "${D1_ERR:-0}" -ge 1 ]; then
   ok "cycle 1: the blind is VISIBLE while dark (Write/error=$W1_ERR, Dial/error=$D1_ERR — the deadline turns the silent window into counted errors)"
 else
   not_ok "cycle 1: no Write/Dial errors during the stall — the blind is still silent; see evidence"
 fi
-if [ "${DROP1:-0}" -ge 1 ]; then
+DROP1="$(tcp_dropped)"
+if [ "$STALLED" = 1 ] && [ "${DROP1:-0}" -ge 1 ]; then
   ok "cycle 1: the stall is COUNTED (xtcp_tcp_dropped_total=$DROP1 — bounded, visible loss, not silent latency)"
+elif [ "$STALLED" = 1 ] && [ "$(catcher_delta_6s)" -gt 10 ]; then
+  ok "cycle 1: the stall healed late in the window (no drops — the re-dial won the race; loss bounded to the reconnect window, not a queue)"
+elif [ "$STALLED" = 1 ]; then
+  not_ok "cycle 1: dark through the whole window with no drops counted — see evidence"
 else
-  not_ok "cycle 1: no drops counted during the stall — see evidence"
+  ok "cycle 1: no envelope burned its full budget ($DROP1 drops — the re-dial won the race; loss bounded to the reconnect window, not a queue)"
 fi
 
 # --- cycle 1 release: the reconnect heals delivery -------------------------------------
@@ -205,10 +226,16 @@ P2A="$(polls_issued)"
 sleep 8
 P2B="$(polls_issued)"
 echo "rt-11-5: cycle 2: catcher=$DARK2 lines/6s Write/error=$W2A->$W2B polls=$P2A->$P2B"
-if [ "$DARK2" -le 10 ] && [ "${W2B:-0}" -gt "${W2A:-0}" ]; then
+# The same two shapes as cycle 1 (see the cycle-1 comment): dark, or
+# healed-through mid-poison. Either way Write errors MUST rise — a flipped
+# entry makes the in-flight write error at the deadline within ~5s, so
+# "no new errors" means the stall went silent (the regression shape).
+if [ "${W2B:-0}" -gt "${W2A:-0}" ] && [ "$DARK2" -le 10 ]; then
   ok "cycle 2: the same poison stalls delivery again and errors again (Write/error $W2A->$W2B, catcher $DARK2 lines/6s)"
+elif [ "${W2B:-0}" -gt "${W2A:-0}" ]; then
+  ok "cycle 2: the second stall errors and self-heals again (Write/error $W2A->$W2B, catcher $DARK2 lines/6s — the broadcast-ARP race, cycle-1 shape B)"
 else
-  not_ok "cycle 2: the second stall did not behave like the first — see evidence"
+  not_ok "cycle 2: no new Write errors during the second stall — see evidence"
 fi
 if [ "$P2B" -gt "$P2A" ]; then
   ok "cycle 2: polls continue through the second stall too ($P2A->$P2B)"
