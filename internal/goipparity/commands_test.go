@@ -1195,7 +1195,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the nine `xfrm state` rows G7-T01 added, the first NETLINK_XFRM
 	//     ones, likewise — see TestXfrmStateRows;
 	//   - the seventeen `xfrm state` write rows G7-T02 added, likewise —
-	//     see TestXfrmStateRows.
+	//     see TestXfrmStateRows;
+	//   - the two monitor rows EG1-T01 added, the harness's first, on their
+	//     first two clean live runs — see TestMonitorRowsGated.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -1220,13 +1222,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// held out by design.
 	expected := []string{
 		"addr show dynamic",
-		// EG1's first monitor rows (V393, commands.go): ungated until their
-		// first two clean live runs (EG1-T01 the row kind, EG1-T02 the rows),
-		// which gate them like the write rows — the monitor rows after EG1-T03
-		// below. They hold no pcap, so the gate holds the stdout comparison
-		// (the driver's own monitor triple's .out), not the capture.
-		"monitor link maddress admin",
-		"monitor link maddress carrier",
+		// The two monitor rows EG1-T01 added (V393, commands.go) gated on
+		// their first two clean live runs — see TestMonitorRowsGated. They
+		// hold no pcap, so the gate holds the stdout comparison (the driver's
+		// own monitor triple's .out), not the capture.
 	}
 
 	tests := []struct {
@@ -1236,10 +1235,8 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		{
 			description: "boundary: the list is the named rows, held out by design",
 			check: func(t *testing.T) {
-				// The forever-ungated row is the one whose lifetime ticks; a row
-				// about to gate holds the list, and the tally is the monitor
-				// rows' own. The guard is exact: the forever-ungated row is
-				// always in the list.
+				// The forever-ungated row is the one whose lifetime ticks. The
+				// guard is exact: the forever-ungated row is always in the list.
 				found := false
 				for _, name := range expected {
 					if name == "addr show dynamic" {
@@ -1298,6 +1295,53 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, tt.check)
+	}
+}
+
+// TestMonitorRowsGated pins the two monitor rows' gating, the harness's first
+// (EG1-T01's own): GOIP_PARITY_PASS on a monitor row is the three sides'
+// stdout agreement after the canary collapse, a shape no pcap holds, so this
+// is the readable statement that the rows the clean runs earned are the rows
+// the gate holds. They gated on their first two clean live runs, and the
+// ungated surface they left is `addr show dynamic` alone.
+//
+// go test ./internal/goipparity/ -run TestMonitorRowsGated
+func TestMonitorRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		description string
+		command     string
+		gated       bool
+	}{
+		{"positive: the carrier row, the veth peer's down and up, is gated",
+			"monitor link maddress carrier", true},
+		{"positive: the admin corner, the link's own down and up, is gated",
+			"monitor link maddress admin", true},
+		{"corner: `addr show dynamic`, held out for its counting lifetime, is not",
+			"addr show dynamic", false},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.gated {
+				t.Errorf("%q: IsGated() = %v, want %v", r.command, got, r.gated)
+			}
+		})
+	}
+	// The gated rows are the monitor shape, so a row renamed or re-shaped
+	// without this test being told fails here, not on a live run.
+	for _, name := range []string{
+		"monitor link maddress carrier", "monitor link maddress admin",
+	} {
+		c, lookupErr := Lookup(name)
+		if lookupErr != nil {
+			t.Fatalf("Lookup(%q): %v", name, lookupErr)
+		}
+		if !c.Monitor {
+			t.Errorf("%q: Monitor = false, want the monitor shape", name)
+		}
 	}
 }
 

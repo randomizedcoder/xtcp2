@@ -1142,7 +1142,20 @@
     "a request, each on its precondition: the kernel refuses, dry-run writes;",
     "deleteall, two DELPOLICYs in one datagram between its dumps, a dry-run",
     "write, and with none to delete a read. Two consecutive clean runs of 504",
-    "GOIP_PARITY_PASS of 504 ended GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_PASS of 504 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "EG1-T01 (goip-parity-events.md) adds the harness's first monitor rows and",
+    "gates them: `monitor link maddress carrier`, the veth peer's down and up,",
+    "and `monitor link maddress admin`, the link's own, each the three sides'",
+    "monitor stdout — the canary joined, the trigger run, the until-ERE waited",
+    "on — with no pcap, the floor the three rcs' agreement whatever the value",
+    "(V393 the row kind, V394 the driver's flow, V395 the comparator's",
+    "branch). Two consecutive clean `--section monitor` runs ended",
+    "GOIP_PARITY_OVERALL_PASS, both rows GOIP_PARITY_PASS both times, the",
+    "first with CONTROL_NOISY 4, the carrier transient D_control subtracts. The",
+    "run before them WARNed both rows on the comparator's own keep-first bug,",
+    "the readiness join dropped for its Deleted twin, which the keep-last",
+    "collapse fixed. The ungated surface is `addr show dynamic` alone again."
   ],
   "_note_version_skew": [
     "Empty since 2026-10-21, when the pin moved from iproute2 7.1.0 to 7.2.0",
@@ -2667,6 +2680,8 @@
     "-M route show",
     "-j -M route show",
     "-M route get 100",
-    "-M route get 100 as 200"
+    "-M route get 100 as 200",
+    "monitor link maddress carrier",
+    "monitor link maddress admin"
   ]
 }

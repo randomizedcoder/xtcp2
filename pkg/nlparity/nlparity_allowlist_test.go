@@ -2001,6 +2001,12 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-j -M route show",
 		"-M route get 100",
 		"-M route get 100 as 200",
+		// EG1-T01's two monitor rows (goip-parity-events.md, V393-V395):
+		// the harness's first, gated on two consecutive clean `--section
+		// monitor` runs, both rows GOIP_PARITY_PASS both times
+		// (goip-parity-events-status.md, V395).
+		"monitor link maddress carrier",
+		"monitor link maddress admin",
 	}
 
 	tests := []struct {
