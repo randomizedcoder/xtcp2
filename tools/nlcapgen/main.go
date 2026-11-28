@@ -159,6 +159,7 @@ var families = map[string]func() []*space{
 	"tcmonitor": func() []*space { return []*space{tcmonitorSpace()} },
 	"tcsched":   func() []*space { return []*space{tcschedSpace()} },
 	"tcaqm":     func() []*space { return []*space{tcaqmSpace()} },
+	"tcqwrite":  func() []*space { return []*space{tcqwriteSpace()} },
 }
 
 // namedFamilies are families of named rows, written out as they are

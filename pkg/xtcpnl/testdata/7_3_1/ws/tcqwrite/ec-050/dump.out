@@ -1,0 +1,1 @@
+qdisc tbf 1: root refcnt 2 rate 10Mbit burst 20Kb/1 mpu 64b peakrate 12Mbit mtu 1999b/1 mpu 64b lat 18.7ms linklayer ethernet 

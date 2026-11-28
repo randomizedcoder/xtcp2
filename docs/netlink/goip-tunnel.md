@@ -76,7 +76,7 @@ TunFDs() ([]TunFD, error)
 ## Recording: tnlsnap
 
 `tnlsnap -- ip ARGS...` (`cmd/tnlsnap`, nix package `tnlsnap`) does three things:
-1. It runs the real `ip` under ptrace (`tnlsys.Trace`, linux/amd64). At each `ioctl` entry for the three requests, it
+1. It runs the real `ip` under ptrace (`trace.Trace` in `internal/tnlsys/trace`, linux/amd64). At each `ioctl` entry for the three requests, it
    reads the ifreq, then the argument plus `SpillWindow` bytes, and fills the bytes past the argument with `0xA5`, as
    `Live` does. At the exit, it reads the window again:
    - the spill is the window up to its last byte that is not `0xA5`, which is what the kernel wrote;

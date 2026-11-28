@@ -1,0 +1,1 @@
+qdisc fq_codel 1: root refcnt 2 limit 10240p flows 1024 quantum 1514 target 5ms ce_threshold 2ms ce_threshold_selector 0x1/0x3 interval 100ms memory_limit 16Mb drop_batch 32 

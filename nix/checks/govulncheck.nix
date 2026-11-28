@@ -8,7 +8,7 @@
 # does not call is reported but does not fail.
 #
 # Two passes: no build tags (the min flavor), and every destination,
-# enrichment and goip_write tag, so code behind a tag is scanned too.
+# enrichment, goip_write and gotc_write tag, so code behind a tag is scanned too.
 #
 # The snapshot ages; `nix run .#govulncheck-fresh` checks the working tree
 # against the live database, and moving the pin in nix/lib/govulndb.nix brings
@@ -25,6 +25,7 @@ let
     map (d: "dest_${d}") versions.allLibraryDestinations
     ++ map (e: "enrich_${e}") versions.allEnrichmentFeatures
     ++ versions.goipWriteTags
+    ++ versions.gotcWriteTags
   );
 
   # Reachable findings accepted for now, each with why and what removes it.

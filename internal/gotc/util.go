@@ -145,20 +145,20 @@ func (r *runner) xmitsize(rate uint64, ticks uint32) uint64 {
 func (c tcCore) tick2time(tick float64) float64 { return tick / c.tickInUsec }
 
 // cDoubleToU64 is C's (__u64) of a double on x86-64: truncation toward
-// zero; out of range (NaN, negative, too big) gives what cvttsd2si does,
-// 0x8000000000000000 for the big ones above 2^63.
+// zero, as gcc emits it. Below 2^63 it goes through cvttsd2si 64-bit
+// signed (so -1 gives 0xffff...ffff, and NaN or <= -2^63 gives
+// 0x8000000000000000). [2^63, 2^64) subtracts 2^63 first, and 2^64 or more
+// (+Inf too) gives 0. Checked against a gcc -O2 probe.
 func cDoubleToU64(v float64) uint64 {
 	switch {
-	case math.IsNaN(v) || v <= -1:
+	case math.IsNaN(v) || v <= -(1<<63):
 		return 0x8000000000000000
-	case v < 0:
-		return 0
 	case v < 1<<63:
-		return uint64(v)
+		return uint64(int64(v))
 	case v < 1<<64:
-		return uint64(v-(1<<63)) + 1<<63
+		return uint64(v)
 	}
-	return 0x8000000000000000
+	return 0
 }
 
 // cDoubleToU32 is C's (unsigned int) of a double on x86-64: through the

@@ -1,0 +1,60 @@
+{
+ "axes": {
+  "fix": "prio-change",
+  "json": "0",
+  "words": "qdisc change dev d0 root handle 1: prio bands 3 priomap 0 1 2 2 1 2 0 0 1 1 1 1 1 1 1 1"
+ },
+ "cmd": "tc qdisc change dev d0 root handle 1: prio bands 3 priomap 0 1 2 2 1 2 0 0 1 1 1 1 1 1 1 1",
+ "desc": "positive: opt=plain cmd=prio-change:qdisc_change_dev_d0_root_handle_1:_prio_bands_3_priomap_0_1_2_2_1_2_0_0_1_1_1_1_1_1_1_1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcqwrite/ec-021",
+ "modules": [
+  "sch_prio",
+  "sch_fq_codel",
+  "sch_fq",
+  "sch_htb",
+  "sch_tbf",
+  "sch_sfq",
+  "sch_netem",
+  "sch_ingress"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 root handle 1: prio"
+ ],
+ "proto": "route",
+ "readback": [
+  {
+   "cmd": "tc -d qdisc show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 root handle 1: prio",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

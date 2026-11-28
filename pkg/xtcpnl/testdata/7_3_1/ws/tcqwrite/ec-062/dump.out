@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 delay 100ms  10ms 25% loss 1% 30% duplicate 1% reorder 25% 50% corrupt 0.1% seed 11255792698487226846 gap 5

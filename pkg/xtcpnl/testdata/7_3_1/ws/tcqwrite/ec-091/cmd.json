@@ -1,0 +1,64 @@
+{
+ "axes": {
+  "fix": "class-full",
+  "json": "0",
+  "words": "class add dev d0 parent 1: classid 1:10 htb rate 1mbit ceil 2mbit burst 15k cburst 20k prio 2 quantum 1500 mtu 1600 mpu 64 overhead 4"
+ },
+ "cmd": "tc class add dev d0 parent 1: classid 1:10 htb rate 1mbit ceil 2mbit burst 15k cburst 20k prio 2 quantum 1500 mtu 1600 mpu 64 overhead 4",
+ "desc": "positive: opt=plain cmd=class-full:class_add_dev_d0_parent_1:_classid_1:10_htb_rate_1mbit_ceil_2mbit_burst_15k_cburst_20k_prio_2_quantum_1500_mtu_1600_mpu_64_overhead_4",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcqwrite/ec-091",
+ "modules": [
+  "sch_prio",
+  "sch_fq_codel",
+  "sch_fq",
+  "sch_htb",
+  "sch_tbf",
+  "sch_sfq",
+  "sch_netem",
+  "sch_ingress"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+  "tc qdisc add dev d0 root handle 1: htb default 10"
+ ],
+ "proto": "route",
+ "readback": [
+  {
+   "cmd": "tc -d qdisc show dev d0",
+   "name": "dump"
+  },
+  {
+   "cmd": "tc -d class show dev d0",
+   "name": "class"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   },
+   {
+    "cmd": "tc qdisc add dev d0 root handle 1: htb default 10",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

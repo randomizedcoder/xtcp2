@@ -1,0 +1,55 @@
+{
+ "axes": {
+  "fix": "fq2",
+  "json": "0",
+  "words": "qdisc add dev d0 root handle 1: fq pacing refill_delay 50ms low_rate_threshold 1Mbit orphan_mask 511 timer_slack 20us ce_threshold 4ms horizon 2s horizon_drop"
+ },
+ "cmd": "tc qdisc add dev d0 root handle 1: fq pacing refill_delay 50ms low_rate_threshold 1Mbit orphan_mask 511 timer_slack 20us ce_threshold 4ms horizon 2s horizon_drop",
+ "desc": "positive: opt=plain cmd=fq2:qdisc_add_dev_d0_root_handle_1:_fq_pacing_refill_delay_50ms_low_rate_threshold_1Mbit_orphan_mask_511_timer_slack_20us_ce_threshold_4ms_horizon_2s_horizon_drop",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "rc": 0,
+  "refused_by": "none"
+ },
+ "id": "tcqwrite/ec-039",
+ "modules": [
+  "sch_prio",
+  "sch_fq_codel",
+  "sch_fq",
+  "sch_htb",
+  "sch_tbf",
+  "sch_sfq",
+  "sch_netem",
+  "sch_ingress"
+ ],
+ "pre": [
+  "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up"
+ ],
+ "proto": "route",
+ "readback": [
+  {
+   "cmd": "tc -d qdisc show dev d0",
+   "name": "dump"
+  }
+ ],
+ "result": {
+  "pre": [
+   {
+    "cmd": "ip link add d0 address 02:00:00:00:02:00 type dummy && ip link set d0 addrgenmode none && ip link set d0 up",
+    "rc": 0
+   }
+  ],
+  "rc": 0,
+  "status": "OK"
+ }
+}

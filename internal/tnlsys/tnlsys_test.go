@@ -2,11 +2,9 @@ package tnlsys
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,31 +12,6 @@ import (
 
 	"golang.org/x/sys/unix"
 )
-
-// helperEnv makes the test binary, run as a child, the command TestTrace
-// traces.
-const helperEnv = "TNLSYS_TRACE_HELPER"
-
-func TestMain(m *testing.M) {
-	if os.Getenv(helperEnv) == "1" {
-		os.Exit(traceHelper())
-	}
-	os.Exit(m.Run())
-}
-
-// traceHelper makes two tunnel ioctls and one other, writes to both
-// streams and exits 3.
-func traceHelper() int {
-	var l Live
-	a := make([]byte, IPTunnelParmSize)
-	copy(a, "lo")
-	_, err1 := l.Ioctl(unix.AF_INET, SIOCGETTUNNEL, "lo", a)
-	b := make([]byte, Tunnel6RDSize)
-	_, err2 := l.Ioctl(unix.AF_INET, SIOCGET6RD, "nosuch0", b)
-	fmt.Printf("%v|%v\n", err1, err2)
-	fmt.Fprint(os.Stderr, "helper stderr")
-	return 3
-}
 
 func parm(name string, fill byte) []byte {
 	b := bytes.Repeat([]byte{fill}, IPTunnelParmSize)
@@ -318,7 +291,7 @@ func TestLiveIoctl(t *testing.T) {
 		{"negative: no such device", unix.AF_INET, SIOCGETTUNNEL, "nosuch0", parm("", 0), unix.ENODEV, false},
 		{"negative: a write request is refused before any socket", unix.AF_INET, 0x89F1, "lo", parm("", 0), ErrRequest, false},
 		{"boundary: an empty argument is refused", unix.AF_INET, SIOCGETTUNNEL, "lo", nil, ErrRequest, false},
-		{"boundary: an argument over 64 KiB is refused", unix.AF_INET, SIOCGETPRL, "lo", make([]byte, maxArg+1), ErrRequest, false},
+		{"boundary: an argument over 64 KiB is refused", unix.AF_INET, SIOCGETPRL, "lo", make([]byte, MaxArg+1), ErrRequest, false},
 		{"corner: a family with no sockets fails at socket(2)", 9999, SIOCGETTUNNEL, "lo", parm("", 0), unix.EAFNOSUPPORT, true},
 	}
 	for _, tc := range tests {
@@ -340,24 +313,24 @@ func TestLiveIoctl(t *testing.T) {
 }
 
 func TestSpillOf(t *testing.T) {
-	fill := bytes.Repeat([]byte{spillFill}, 4)
+	fill := bytes.Repeat([]byte{SpillFill}, 4)
 	tests := []struct {
 		description string
 		window      []byte
 		want        []byte
 	}{
 		{"positive: an untouched window is no spill", fill, nil},
-		{"positive: a written prefix is the spill", []byte{0, 6, spillFill, spillFill}, []byte{0, 6}},
+		{"positive: a written prefix is the spill", []byte{0, 6, SpillFill, SpillFill}, []byte{0, 6}},
 		{"positive: the whole window written", []byte{1, 2, 3, 4}, []byte{1, 2, 3, 4}},
 		{"boundary: an empty window", nil, nil},
-		{"boundary: one byte written", []byte{0, spillFill, spillFill, spillFill}, []byte{0}},
-		{"corner: a written spillFill inside the reply is kept", []byte{spillFill, 0, spillFill, spillFill}, []byte{spillFill, 0}},
-		{"corner: the last byte written", []byte{spillFill, spillFill, spillFill, 1}, []byte{spillFill, spillFill, spillFill, 1}},
+		{"boundary: one byte written", []byte{0, SpillFill, SpillFill, SpillFill}, []byte{0}},
+		{"corner: a written SpillFill inside the reply is kept", []byte{SpillFill, 0, SpillFill, SpillFill}, []byte{SpillFill, 0}},
+		{"corner: the last byte written", []byte{SpillFill, SpillFill, SpillFill, 1}, []byte{SpillFill, SpillFill, SpillFill, 1}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			if got := spillOf(tc.window); !bytes.Equal(got, tc.want) {
-				t.Errorf("spillOf = %x, want %x", got, tc.want)
+			if got := SpillOf(tc.window); !bytes.Equal(got, tc.want) {
+				t.Errorf("SpillOf = %x, want %x", got, tc.want)
 			}
 		})
 	}
@@ -478,58 +451,6 @@ func TestLiveTunFDs(t *testing.T) {
 			t.Error("no error")
 		}
 	})
-}
-
-func TestTrace(t *testing.T) {
-	t.Setenv(helperEnv, "1")
-	run, recs, err := Trace(&exec.Cmd{Path: os.Args[0], Args: []string{os.Args[0], "-test.run=^$"}})
-	if errors.Is(err, unix.EPERM) {
-		t.Skipf("ptrace not permitted here: %v", err)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	in := parm("lo", 0)
-	tests := []struct {
-		description string
-		got, want   any
-	}{
-		{"positive: the exit status", run.RC, 3},
-		{"positive: stdout is the helper's", run.Stdout, fmt.Sprintf("%v|%v\n", unix.EOPNOTSUPP, unix.ENODEV)},
-		{"positive: stderr is the helper's", run.Stderr, "helper stderr"},
-		{"positive: two tunnel ioctls, nothing else", len(recs), 2},
-		{"positive: the first's family from its socket", recField(recs, 0, "family"), unix.AF_INET},
-		{"positive: the first's input as passed", recField(recs, 0, "in"), hex.EncodeToString(in)},
-		{"negative: the first failed EOPNOTSUPP, no output", recField(recs, 0, "errno+out"), fmt.Sprint(unix.EOPNOTSUPP) + "|"},
-		{"negative: the second is ENODEV for its device", recField(recs, 1, "name+errno"), "nosuch0|" + fmt.Sprint(unix.ENODEV)},
-		{"boundary: the 6rd input is 24 bytes", recField(recs, 1, "in"), strings.Repeat("00", Tunnel6RDSize)},
-		{"corner: the argv is kept", len(run.Argv), 2},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			if tc.got != tc.want {
-				t.Errorf("got %v, want %v (recs %+v)", tc.got, tc.want, recs)
-			}
-		})
-	}
-}
-
-func recField(recs []IoctlRec, i int, f string) any {
-	if i >= len(recs) {
-		return nil
-	}
-	r := recs[i]
-	switch f {
-	case "family":
-		return r.Family
-	case "in":
-		return r.In
-	case "errno+out":
-		return fmt.Sprint(r.Errno) + "|" + r.Out
-	case "name+errno":
-		return r.Name + "|" + fmt.Sprint(r.Errno)
-	}
-	return nil
 }
 
 func TestLoad(t *testing.T) {

@@ -1,0 +1,1 @@
+qdisc netem 1: root refcnt 2 limit 1000 loss gemodel p 1% r 10% 1-h 70% 1-k 0.1% seed 9666643528969649298 ecn 

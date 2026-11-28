@@ -26,7 +26,9 @@ import (
 // RTM_SETNEIGHTBL and RTM_SETSTATS with ntable change and stats set (G3-T05),
 // the link property pair with link property add and del (G3-T06), and
 // RTM_SETLINK with token set and del (G4-T03), and RTM_NEWNSID with netns
-// set (G4-T04); `link set` still sends RTM_NEWLINK.
+// set (G4-T04); `link set` still sends RTM_NEWLINK. The qdisc and class
+// pairs joined with gotc's tc write builder (gotc 17P), whose parity target
+// is the captured ws/tcqwrite corpus.
 var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_NEWROUTE):     true,
 	uint16(unix.RTM_DELROUTE):     true,
@@ -48,6 +50,10 @@ var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_DELLINKPROP):  true,
 	uint16(unix.RTM_SETLINK):      true,
 	uint16(unix.RTM_NEWNSID):      true,
+	uint16(unix.RTM_NEWQDISC):     true,
+	uint16(unix.RTM_DELQDISC):     true,
+	uint16(unix.RTM_NEWTCLASS):    true,
+	uint16(unix.RTM_DELTCLASS):    true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type

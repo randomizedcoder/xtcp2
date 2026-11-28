@@ -1,0 +1,26 @@
+property "speed" in file /sys/class/net/d0/speed is currently unknown
+Failed to parse /sys/class/net/d0/speed
+Illegal "rate"
+Usage: ... qdisc add ... htb [default N] [r2q N]
+                      [direct_qlen P] [offload]
+ default  minor id of class to which unclassified packets are sent {0}
+ r2q      DRR quantums are computed as rate in Bps/r2q {10}
+ debug    string of 16 numbers each 0-3 {0}
+
+ direct_qlen  Limit of the direct queue {in packets}
+ offload  enable hardware offload
+... class add ... htb rate R1 [burst B1] [mpu B] [overhead O]
+                      [prio P] [slot S] [pslot PS]
+                      [ceil R2] [cburst B2] [mtu MTU] [quantum Q]
+ rate     rate allocated to this class (class can still borrow)
+ burst    max bytes burst which can be accumulated during idle period {computed}
+ mpu      minimum packet size used in rate computations
+ overhead per-packet size overhead used in rate computations
+ linklay  adapting to a linklayer e.g. atm
+ ceil     definite upper class rate (no borrows) {rate}
+ cburst   burst but for ceil {computed}
+ mtu      max packet size we create rate map for {1600}
+ prio     priority of leaf; lower are served first {0}
+ quantum  how much bytes to serve from leaf at once {use r2q}
+
+TC HTB version 3.3

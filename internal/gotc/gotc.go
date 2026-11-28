@@ -87,6 +87,8 @@ type runner struct {
 
 	fProto uint16     // f_proto: the last filter's htons'd protocol, u32 -p's key
 	realms rtRealmTab // rt_names.c's realm table
+
+	wroteOut bool // a write has gone to GOTC_WRITE_OUT, so the next appends
 }
 
 func (r *runner) errf(format string, a ...any) {
@@ -425,7 +427,7 @@ func (r *runner) doQdisc(args []string) error {
 	}
 	switch w := args[0]; {
 	case writeVerb(w, "add", "change", "replace", "link", "delete"):
-		return fmt.Errorf("%w: tc qdisc %s", errNotImplemented, w)
+		return r.qdiscWrite(w, args[1:])
 	case listWords(w):
 		return r.qdiscList(args[1:])
 	case matches(w, helpWord):
@@ -443,7 +445,7 @@ func (r *runner) doClass(args []string) error {
 	}
 	switch w := args[0]; {
 	case writeVerb(w, "add", "change", "replace", "delete"):
-		return fmt.Errorf("%w: tc class %s", errNotImplemented, w)
+		return r.classWrite(w, args[1:])
 	case listWords(w):
 		return r.classList(args[1:])
 	case matches(w, helpWord):

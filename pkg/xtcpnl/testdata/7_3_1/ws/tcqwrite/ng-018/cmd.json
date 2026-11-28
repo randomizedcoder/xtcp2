@@ -1,0 +1,41 @@
+{
+ "axes": {
+  "fix": "nodev",
+  "json": "0",
+  "words": "qdisc add dev nosuch root handle 1: pfifo"
+ },
+ "cmd": "tc qdisc add dev nosuch root handle 1: pfifo",
+ "desc": "negative: opt=plain cmd=ng:nodev:qdisc_add_dev_nosuch_root_handle_1:_pfifo: a missing device: Cannot find device, rc 1",
+ "env": {
+  "iproute2": "ip utility, iproute2-7.2.0, libbpf 1.8.0",
+  "kconfig": [
+   "CONFIG_IPV6_IOAM6_LWTUNNEL=y",
+   "CONFIG_IPV6_RPL_LWTUNNEL=y",
+   "CONFIG_IPV6_SEG6_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL=y",
+   "CONFIG_LWTUNNEL_BPF=y"
+  ],
+  "kernel": "7.3.1"
+ },
+ "expect": {
+  "errno": "ENODEV",
+  "rc": 1,
+  "refused_by": "kernel"
+ },
+ "id": "tcqwrite/ng-018",
+ "modules": [
+  "sch_prio",
+  "sch_fq_codel",
+  "sch_fq",
+  "sch_htb",
+  "sch_tbf",
+  "sch_sfq",
+  "sch_netem",
+  "sch_ingress"
+ ],
+ "proto": "route",
+ "result": {
+  "rc": 1,
+  "status": "OK"
+ }
+}

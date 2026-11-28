@@ -1,0 +1,1 @@
+qdisc tbf 1: root refcnt 2 rate 8Mbit burst 11341b/1 mpu 0b lat 68.9ms overhead 10 linklayer atm 

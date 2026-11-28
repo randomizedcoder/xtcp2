@@ -1,0 +1,2 @@
+qdisc tbf 1: root refcnt 2 rate 1Mbit burst 10Kb/1 mpu 0b lat 50ms linklayer ethernet 
+ linklayer ethernet overhead 14 

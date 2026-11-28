@@ -1,0 +1,2 @@
+qdisc add dev d0 root handle 1: htb default 10
+class add dev d0 parent 1: classid 1:10 htb rate 1mbit

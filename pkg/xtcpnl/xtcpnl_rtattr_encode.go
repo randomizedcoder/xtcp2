@@ -354,6 +354,9 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // set` and `del` (ip/iptoken.c:173), the only `ip` command that sends it.
 // RTM_NEWNSID is `ip netns set` (set_netns_id_from_name, lib/namespace.c),
 // with no DEL beside it: a namespace's nsid goes when the namespace does.
+// The qdisc and class pairs are tc's: do_qdisc and do_class send
+// RTM_NEWQDISC/RTM_NEWTCLASS for add, change, replace and link, and
+// RTM_DELQDISC/RTM_DELTCLASS for delete (tc/tc_qdisc.c, tc/tc_class.c).
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
@@ -365,7 +368,9 @@ func IsAdmittedWriteType(msgType uint16) bool {
 		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL),
 		uint16(unix.RTM_SETNEIGHTBL), uint16(unix.RTM_SETSTATS),
 		uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP),
-		uint16(unix.RTM_SETLINK), uint16(unix.RTM_NEWNSID):
+		uint16(unix.RTM_SETLINK), uint16(unix.RTM_NEWNSID),
+		uint16(unix.RTM_NEWQDISC), uint16(unix.RTM_DELQDISC),
+		uint16(unix.RTM_NEWTCLASS), uint16(unix.RTM_DELTCLASS):
 		return true
 	}
 	return false
