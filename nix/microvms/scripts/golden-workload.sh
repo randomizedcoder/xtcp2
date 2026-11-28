@@ -87,7 +87,16 @@ systemd-run --unit=xtcp2-golden-ns-client --collect \
   "$ip_bin" netns exec golden-ns "$TCP_CLIENT" -count 1 -connect 127.0.0.1 -sleep 1h -pads 0 -keepalive 1h
 
 # pair NAME N MTU: netns golden-NAME-a and -b joined by veth0 at MTU, a at
-# 10.N.0.1/24 and fd00:N::1/64, b at .2 and ::2.
+# 10.N.0.1/24 and fd00:N::1/64, b at .2 and ::2. Each end has a permanent
+# neighbor entry for the other, so no first connection waits on neighbor
+# discovery. Right after link-up the first IPv6 solicitation went
+# unanswered in about one pair in eight, and its 1 s retransmit
+# (ND_RETRANS_TIMER, include/net/ndisc.h:49) outlasted tcp_client's 1 s
+# dial timeout. The client's RST for the abandoned attempt then reached
+# its half-open request: tcp_check_req resets it (embryonic_reset,
+# net/ipv4/tcp_minisocks.c:964) and tcp_v6_rcv counts the segment on the
+# listener (discard_and_relse, net/ipv6/tcp_ipv6.c:1944), so
+# golden-opts-b's listener read 1 drop or 0.
 pair() {
   local a="golden-$1-a" b="golden-$1-b" n=$2 mtu=$3 ns
   for ns in "$a" "$b"; do
@@ -102,6 +111,13 @@ pair() {
   ip -n "$b" addr add "fd00:$n::2/64" dev veth0 nodad
   ip -n "$a" link set veth0 up
   ip -n "$b" link set veth0 up
+  local mac_a mac_b
+  mac_a=$(ip netns exec "$a" cat /sys/class/net/veth0/address)
+  mac_b=$(ip netns exec "$b" cat /sys/class/net/veth0/address)
+  ip -n "$a" neigh replace "10.$n.0.2" lladdr "$mac_b" dev veth0 nud permanent
+  ip -n "$a" neigh replace "fd00:$n::2" lladdr "$mac_b" dev veth0 nud permanent
+  ip -n "$b" neigh replace "10.$n.0.1" lladdr "$mac_a" dev veth0 nud permanent
+  ip -n "$b" neigh replace "fd00:$n::1" lladdr "$mac_a" dev veth0 nud permanent
 }
 
 # wait_listen NETNS PORT [N]: N listeners (default 1) on PORT, since the
