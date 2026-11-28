@@ -24,7 +24,7 @@
 #   G404 in tools/ipfeed-fixture/main.go — math/rand: the fixture generator's
 #          random24 shape must be reproducible from its -seed; the numbers
 #          are test data, not secrets or nonces. The golangci configs carry
-#          the same scoped rule.
+#          the same scoped rule, as does nix/quality-report/default.nix.
 #
 # NOT excluded — these would block the build if found:
 #   G104 (unhandled errors), G112 (HTTP timeouts), G401 (weak crypto), etc.

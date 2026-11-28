@@ -158,7 +158,7 @@ pkgs.runCommand "xtcp2-quality-report"
     # `nix flake check` was green), and nothing mechanically enforces it.
     runtool gosec "$RAW/gosec.json" -- \
       gosec -exclude=G103,G115,G204,G304,G702 \
-        -exclude-rules='internal/goip/goiphttp/handler\.go:G705' \
+        -exclude-rules='internal/goip/goiphttp/handler\.go:G705;tools/ipfeed-fixture/main\.go:G404' \
         -fmt=json ./...
 
     # ── nix-fmt ────────────────────────────────────────────────────────
