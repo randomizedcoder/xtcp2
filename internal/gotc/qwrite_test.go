@@ -353,3 +353,30 @@ func TestGotcStabDefaultTable(t *testing.T) {
 		})
 	}
 }
+
+// TestGotcHexOverflow is strtod's ERANGE on a hex float: tc's get_time and
+// get_rate64 reject it as they reject a decimal overflow, before sending.
+//
+// go test -tags gotc_write ./internal/gotc/ -run TestGotcHexOverflow
+func TestGotcHexOverflow(t *testing.T) {
+	tests := []struct {
+		description string
+		args        string
+		expected    string // stderr; rc is 1 and nothing is sent
+	}{
+		{"negative: fq_codel target", "qdisc add root fq_codel target 0x1p1024", "Illegal \"target\"\n"},
+		{"negative: netem delay", "qdisc add root netem delay 0x1p1024", "Illegal \"latency\"\n"},
+		{"negative: netem rate", "qdisc add root netem rate 0x1p1024", "Illegal \"rate\"\n"},
+		{"negative: fq timer_slack", "qdisc add root fq timer_slack 0x1p1024", "Illegal \"timer_slack\"\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := &fakeSource{replies: []Reply{rep(ack())}}
+			var out, errb bytes.Buffer
+			rc := run(config{src: src, stdin: strings.NewReader(""), sys: emptySys(t)}, strings.Fields(tc.args), &out, &errb)
+			if rc != 1 || len(src.reqs) != 0 || errb.String() != tc.expected {
+				t.Errorf("rc=%d requests=%d stderr=%q, want rc=1, no request, %q", rc, len(src.reqs), errb.String(), tc.expected)
+			}
+		})
+	}
+}

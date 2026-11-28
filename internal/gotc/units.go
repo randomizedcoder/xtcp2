@@ -55,8 +55,8 @@ func cStrtod(s string) (v float64, rest string, erange bool) {
 		}
 		return math.NaN(), body[n:], false
 	case strings.HasPrefix(lower, "0x"):
-		if f, n, ok := hexFloat(body[2:]); ok {
-			return sign * f, body[2+n:], false
+		if f, n, ok, over := hexFloat(body[2:]); ok {
+			return sign * f, body[2+n:], over
 		}
 		// "0x" with no hex digit is the decimal 0, x left over.
 		return sign * 0, body[1:], false
@@ -126,8 +126,9 @@ func exponent(s string, mark byte) int {
 }
 
 // hexFloat reads the hex digits, optional '.', and optional p exponent
-// after "0x"; n is the bytes read.
-func hexFloat(s string) (v float64, n int, ok bool) {
+// after "0x"; n is the bytes read, and over is an overflow to ±Inf
+// (strtod's ERANGE, as the decimal path reports it).
+func hexFloat(s string) (v float64, n int, ok, over bool) {
 	i, digits := 0, 0
 	isHex := func(c byte) bool { return c >= '0' && c <= '9' || c|0x20 >= 'a' && c|0x20 <= 'f' }
 	for i < len(s) && isHex(s[i]) {
@@ -142,7 +143,7 @@ func hexFloat(s string) (v float64, n int, ok bool) {
 		}
 	}
 	if digits == 0 {
-		return 0, 0, false
+		return 0, 0, false, false
 	}
 	mant := s[:i]
 	e := exponent(s[i:], 'p')
@@ -152,9 +153,9 @@ func hexFloat(s string) (v float64, n int, ok bool) {
 	}
 	f, err := strconv.ParseFloat("0x"+mant+exp, 64)
 	if err != nil && !math.IsInf(f, 0) {
-		return 0, 0, false
+		return 0, 0, false, false
 	}
-	return f, i + e, true
+	return f, i + e, true, err != nil
 }
 
 // rateSuffix is utils_math.c's suffixes, in its order (strcasecmp, so
