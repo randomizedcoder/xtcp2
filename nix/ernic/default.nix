@@ -30,7 +30,7 @@ in
   profiles = "${rocmErnic}/profiles";
   ownProfiles = ./profiles;
   nics = import ./nics.nix { inherit lib; };
-  oracle = import ./oracle.nix { inherit pkgs lib; };
+  oracle = import ./oracle.nix { inherit pkgs; };
   runMany = import ./run-many.nix {
     inherit pkgs lib;
     server = packages.rocm-ernic;

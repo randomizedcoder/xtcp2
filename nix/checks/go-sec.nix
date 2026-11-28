@@ -21,6 +21,10 @@
 #          X-Content-Type-Options: nosniff (TestHandler checks every row).
 #          .golangci.yml and .golangci-comprehensive.yml carry the same
 #          scoped rule.
+#   G404 in tools/ipfeed-fixture/main.go — math/rand: the fixture generator's
+#          random24 shape must be reproducible from its -seed; the numbers
+#          are test data, not secrets or nonces. The golangci configs carry
+#          the same scoped rule, as does nix/quality-report/default.nix.
 #
 # NOT excluded — these would block the build if found:
 #   G104 (unhandled errors), G112 (HTTP timeouts), G401 (weak crypto), etc.
@@ -48,7 +52,7 @@ pkgs.runCommand "xtcp2-gosec"
     export CGO_ENABLED=0
     export GOFLAGS=-mod=vendor
     gosec -exclude=G103,G115,G204,G304 \
-      -exclude-rules='internal/goip/goiphttp/handler\.go:G705' \
+      -exclude-rules='internal/goip/goiphttp/handler\.go:G705;tools/ipfeed-fixture/main\.go:G404' \
       -fmt=text ./... > $out 2>&1 || {
       rc=$?
       cat $out

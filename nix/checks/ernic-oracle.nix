@@ -6,10 +6,10 @@
 # row builds a console log and server logs, runs the oracle, and prints
 #   ROW <name> <category> PASS|FAIL <description>: <detail>
 # and any FAIL fails the check.
-{ pkgs, lib }:
+{ pkgs }:
 
 let
-  oracle = import ../ernic/oracle.nix { inherit pkgs lib; };
+  oracle = import ../ernic/oracle.nix { inherit pkgs; };
 in
 pkgs.runCommand "xtcp2-ernic-oracle"
   {

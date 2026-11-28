@@ -24,7 +24,7 @@
 # A site that saw no frames fails: a vacuous match proves nothing.
 # Prints ROW lines like the guest's checks; exits 1 if any fails.
 # Counts are compared with bc, so any u64 is exact.
-{ pkgs, lib }:
+{ pkgs }:
 
 pkgs.writeShellApplication {
   name = "ernic-oracle";
