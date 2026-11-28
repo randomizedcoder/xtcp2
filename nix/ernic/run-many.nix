@@ -74,7 +74,7 @@ let
       ''}
       ${lib.concatStrings (
         lib.mapAttrsToList (
-          br: brTaps:
+          br: _brTaps:
           let
             f = fabric.${br} or { };
           in

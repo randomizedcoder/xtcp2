@@ -300,6 +300,13 @@ linters:
         linters:
           - gosec
         text: "G404"
+      # gosec G404 (math/rand) in the ipfeed fixture generator: the random24
+      # shape must be reproducible from -seed; test data, not secrets.
+      # nix/checks/go-sec.nix carries the same scoped rule.
+      - path: "tools/ipfeed-fixture/main\\.go"
+        linters:
+          - gosec
+        text: "G404"
       # G705 (XSS taint) in goiphttp's response writer: the `ip` command-line
       # paths answer with `ip`'s own bytes, which can quote a path token back
       # (`Device "x" does not exist`), and escaping them would break

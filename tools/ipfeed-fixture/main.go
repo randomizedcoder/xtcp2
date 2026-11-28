@@ -113,8 +113,9 @@ func writeRows(out string, n int, shape string, asn uint32, owner string, invali
 		return fmt.Errorf("-prefix %q: %w", prefix, perr)
 	}
 	rows := make([]rowSchema, 0, n)
-	//nolint:gosec // G404: deterministic-by-design — a fixture artifact must
-	// be reproducible from its seed; this is not a secret or a nonce.
+	// math/rand by design: a fixture artifact must be reproducible from its
+	// seed; this is not a secret or a nonce (gosec G404 is path-scoped off
+	// for this file in nix/checks/go-sec.nix and the golangci configs).
 	rng := rand.New(rand.NewSource(seed))
 	for i := 0; i < n; i++ {
 		if invalidEvery > 0 && i%invalidEvery == invalidEvery-1 {
